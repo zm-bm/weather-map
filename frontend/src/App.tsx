@@ -1,44 +1,85 @@
 import { useEffect } from 'react'
-import L from "leaflet";
-import "./leafletIconFix";
+import maplibregl from 'maplibre-gl'
 import './App.css'
 
 function App() {
-  
   useEffect(() => {
-    const map = L.map("map", {
-      center: [39.5, -98.35],
-      zoom: 4,
+    const cartoBaseTiles = [
+      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    ]
+
+    const cartoLabelTiles = [
+      'https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+      'https://b.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+      'https://c.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+      'https://d.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    ]
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      center: [0, 0], // [lng, lat]
+      zoom: 2,
       maxZoom: 7,
-      zoomControl: true,
-    });
+      style: {
+        version: 8,
+        sources: {
+          carto_base: {
+            type: 'raster',
+            tiles: cartoBaseTiles,
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+          },
+          weather_overlay: {
+            type: 'raster',
+            tiles: ['/temp/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            scheme: 'tms',
+          },
+          carto_labels: {
+            type: 'raster',
+            tiles: cartoLabelTiles,
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+          },
+        },
+        layers: [
+          {
+            id: 'weather_overlay_layer',
+            type: 'raster',
+            source: 'weather_overlay',
+          },
+          {
+            id: 'carto_base_layer',
+            type: 'raster',
+            source: 'carto_base',
+            paint: {
+              'raster-opacity': 0.4,
+            },
+          },
+          {
+            id: 'carto_labels_layer',
+            type: 'raster',
+            source: 'carto_labels',
+          },
+        ],
+      },
+    })
 
-    L.tileLayer("/temp/{z}/{x}/{y}.png", {
-      tms: true,
-    }).addTo(map);
-
-    // Base map layer
-    L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      opacity: 0.3,
-    }).addTo(map);
-
-    // Label layer
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 19,
-    }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
 
     return () => {
-      map.remove();
-    };
-  }, []);
+      map.remove()
+    }
+  }, [])
 
   return (
-    <div style={{ height: "100vh", width: "100vw" }}>
-      <div id="map" style={{ height: "100%", width: "100%" }} />
+    <div style={{ height: '100vh', width: '100vw' }}>
+      <div id="map" style={{ height: '100%', width: '100%' }} />
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
