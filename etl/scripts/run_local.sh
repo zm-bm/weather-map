@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GRIB="./data/sample.grib2"
-OUT="./out/tiles"
+# Get paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ETL_DIR="$(dirname "$SCRIPT_DIR")"
+GRIB="$ETL_DIR/data/sample.grib2"
 
-docker build -t gfs-worker:dev ./worker
+# Build Docker image
+docker build -t gfs-worker:dev "$ETL_DIR/worker"
 
+# Run ETL inside Docker
 docker run --rm \
-  -v "$(pwd)/out:/out" \
-  -v "$(pwd)/data:/data" \
+  -v "$ETL_DIR/out:/out" \
+  -v "$ETL_DIR/data:/data" \
   gfs-worker:dev \
   --input "/data/$(basename "$GRIB")" \
   --out "/out/tiles" \
