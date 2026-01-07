@@ -20,9 +20,9 @@ function App() {
 
     const map = new maplibregl.Map({
       container: 'map',
-      center: [0, 0], // [lng, lat]
-      zoom: 2,
-      maxZoom: 7,
+      center: [-98.5795, 39.8283], // [lng, lat] of usa
+      zoom: 5,
+      maxZoom: 9,
       style: {
         version: 8,
         sources: {
@@ -34,9 +34,10 @@ function App() {
           },
           weather_overlay: {
             type: 'raster',
-            tiles: ['/temp/{z}/{x}/{y}.png'],
+            tiles: ['http://localhost:8080/tiles/2026010300/temp2m/003/{z}/{x}/{y}.png'],
             tileSize: 256,
-            scheme: 'tms',
+            minzoom: 0,
+            maxzoom: 5,
           },
           carto_labels: {
             type: 'raster',
