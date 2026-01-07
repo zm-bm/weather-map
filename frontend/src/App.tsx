@@ -34,7 +34,7 @@ function App() {
           },
           weather_overlay: {
             type: 'raster',
-            tiles: ['http://localhost:8080/tiles/2026010300/temp2m/003/{z}/{x}/{y}.png'],
+            tiles: ['http://localhost:8080/tiles/2026010300/temp2m/000/{z}/{x}/{y}.png'],
             tileSize: 256,
             minzoom: 0,
             maxzoom: 5,
