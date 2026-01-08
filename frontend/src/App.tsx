@@ -12,7 +12,7 @@ function App() {
 
     const map = new maplibregl.Map({
       container: 'map',
-      center: [-98.5795, 39.8283],
+      center: [-112.5795, 38.8283],
       zoom: 5,
       maxZoom: 9,
       style: basemapStyleUrl,
