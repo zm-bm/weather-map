@@ -489,35 +489,6 @@
       }
     },
     {
-      "id": "water-offset",
-      "type": "fill",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "water",
-      "maxzoom": 8,
-      "filter": [
-        "==",
-        "$type",
-        "Polygon"
-      ],
-      "layout": {
-        "visibility": "visible"
-      },
-      "paint": {
-        "fill-color": "#a0c8f0",
-        "fill-opacity": 1,
-        "fill-translate": {
-          "base": 1,
-          "stops": [
-            [6, [2, 0]],
-            [8, [0, 0]]
-          ]
-        }
-      }
-    },
-    {
       "id": "water",
       "type": "fill",
       "metadata": {
@@ -534,7 +505,8 @@
         "visibility": "visible"
       },
       "paint": {
-        "fill-color": "hsl(210, 67%, 85%)"
+        "fill-color": "#ffffff",
+        "fill-opacity": 1
       }
     },
     {
@@ -553,8 +525,8 @@
         "visibility": "visible"
       },
       "paint": {
-        "fill-color": "hsl(210, 67%, 85%)",
-        "fill-opacity": 0.7
+        "fill-color": "#ffffff",
+        "fill-opacity": 1
       }
     },
     {
@@ -2957,6 +2929,32 @@
         "text-color": "#74aee9",
         "text-halo-color": "rgba(255,255,255,0.7)",
         "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "water-outline",
+      "type": "line",
+      "metadata": {
+        "mapbox:group": "1444849382550.77"
+      },
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": ["==", "$type", "Polygon"],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "#2b2b2b",
+        "line-opacity": 1,
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3, 0.2,
+          8, 0.6,
+          12, 1.2,
+          20, 3
+        ]
       }
     },
     {
