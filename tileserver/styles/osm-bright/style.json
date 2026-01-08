@@ -558,47 +558,6 @@
       }
     },
     {
-      "id": "landcover-ice-shelf",
-      "type": "fill",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "landcover",
-      "filter": [
-        "==",
-        "subclass",
-        "ice_shelf"
-      ],
-      "layout": {
-        "visibility": "visible"
-      },
-      "paint": {
-        "fill-color": "#fff",
-        "fill-opacity": {
-          "base": 1,
-          "stops": [[0, 0.9], [10, 0.3]]
-        }
-      }
-    },
-    {
-      "id": "landcover-sand",
-      "type": "fill",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "landcover",
-      "filter": ["==", "class", "sand"],
-      "layout": {
-        "visibility": "visible"
-      },
-      "paint": {
-        "fill-color": "rgba(245, 238, 188, 1)",
-        "fill-opacity": 1
-      }
-    },
-    {
       "id": "building",
       "type": "fill",
       "metadata": {
