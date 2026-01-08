@@ -7,7 +7,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_TILES_URL=http://localhost:8080
+      - VITE_SERVER_URL=http://localhost:8080
+      - VITE_TILES_URL=http://localhost:8081
 
   backend:
     build: backend
@@ -22,3 +23,10 @@ services:
       - PORT=8080
       - MBTILES_ROOT=/app/mbtiles
     command: npm run dev
+
+  tileserver:
+    image: maptiler/tileserver-gl
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./tileserver:/data
