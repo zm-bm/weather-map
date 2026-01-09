@@ -35,7 +35,7 @@ function App() {
           id: 'weather_overlay_layer',
           type: 'raster',
           source: 'weather_overlay',
-          paint: { 'raster-opacity': 0.9 },
+          paint: { 'raster-opacity': 0.95 },
         },
         firstSymbolId,
       )

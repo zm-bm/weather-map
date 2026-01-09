@@ -2945,14 +2945,20 @@
       },
       "paint": {
         "line-color": "#2b2b2b",
-        "line-opacity": 1,
+        "line-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            0, 0.5,
+            10, 0.8
+        ],
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          3, 0.2,
-          8, 0.6,
-          12, 1.2,
+          3, 0.4,
+          8, 1,
+          12, 1.6,
           20, 3
         ]
       }
