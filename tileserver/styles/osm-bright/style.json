@@ -53,59 +53,6 @@
   "glyphs": "{fontstack}/{range}.pbf",
   "layers": [
     {
-      "id": "waterway-river",
-      "type": "line",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "waterway",
-      "filter": [
-        "all",
-        ["==", "class", "river"],
-        ["!=", "brunnel", "tunnel"],
-        ["==", "intermittent", 0]
-      ],
-      "layout": {
-        "line-cap": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "#a0c8f0",
-        "line-width": {
-          "base": 1.2,
-          "stops": [[10, 0.8], [20, 6]]
-        }
-      }
-    },
-    {
-      "id": "waterway-river-intermittent",
-      "type": "line",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "waterway",
-      "filter": [
-        "all",
-        ["==", "class", "river"],
-        ["!=", "brunnel", "tunnel"],
-        ["==", "intermittent", 1]
-      ],
-      "layout": {
-        "line-cap": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "#a0c8f0",
-        "line-dasharray": [3, 2.5],
-        "line-width": {
-          "base": 1.2,
-          "stops": [[10, 0.8], [20, 6]]
-        }
-      }
-    },
-    {
       "id": "water",
       "type": "fill",
       "metadata": {
@@ -167,6 +114,59 @@
         "fill-color": "hsla(0, 0%, 89%, 0.56)",
         "fill-opacity": 0.9,
         "fill-outline-color": "#cfcdca"
+      }
+    },
+    {
+      "id": "waterway-river",
+      "type": "line",
+      "metadata": {
+        "mapbox:group": "1444849382550.77"
+      },
+      "source": "openmaptiles",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        ["==", "class", "river"],
+        ["!=", "brunnel", "tunnel"],
+        ["==", "intermittent", 0]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "#a0c8f0",
+        "line-width": {
+          "base": 1.2,
+          "stops": [[10, 0.8], [20, 6]]
+        }
+      }
+    },
+    {
+      "id": "waterway-river-intermittent",
+      "type": "line",
+      "metadata": {
+        "mapbox:group": "1444849382550.77"
+      },
+      "source": "openmaptiles",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        ["==", "class", "river"],
+        ["!=", "brunnel", "tunnel"],
+        ["==", "intermittent", 1]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "#a0c8f0",
+        "line-dasharray": [3, 2.5],
+        "line-width": {
+          "base": 1.2,
+          "stops": [[10, 0.8], [20, 6]]
+        }
       }
     },
     {

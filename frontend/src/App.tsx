@@ -55,8 +55,8 @@ function App() {
     map.on('load', () => {
       applyLabelLanguage(map)
 
-      // Insert the weather overlay ABOVE basemap fills/lines but BELOW labels.
-      const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id
+      // Insert the weather overlay ABOVE basemap fills but BELOW lines.
+      const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'line')?.id
 
       map.addSource('weather_overlay', {
         type: 'raster',
