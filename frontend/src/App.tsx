@@ -31,12 +31,7 @@ function App() {
         'place-city',
         'place-city-capital',
         'place-town',
-        'place-village',
-        'place-other',
         'place-continent',
-        'water-name-ocean',
-        'water-name-other',
-        'water-name-lakeline',
       ]
 
       for (const id of labelLayerIds) {
@@ -71,7 +66,7 @@ function App() {
           id: 'weather_overlay_layer',
           type: 'raster',
           source: 'weather_overlay',
-          paint: { 'raster-opacity': 0.95 },
+          paint: { 'raster-opacity': 0.90 },
         },
         firstSymbolId,
       )
