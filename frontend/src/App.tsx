@@ -21,23 +21,14 @@ function App() {
     function applyLabelLanguage(map: MapLibreMap, locale?: string) {
       const lang = (locale ?? navigator.language ?? 'en').split('-')[0]
 
-      // Any symbol layers you want localized (extend as needed).
       const labelLayerIds = [
-        'place-country-1',
-        'place-country-2',
-        'place-country-3',
-        'place-country-other',
-        'place-state',
         'place-city',
-        'place-city-capital',
-        'place-town',
-        'place-continent',
+        'place-country',
       ]
 
       for (const id of labelLayerIds) {
         if (!map.getLayer(id)) continue
 
-        // Prefer name:<lang>, then latin, then plain name.
         map.setLayoutProperty(id, 'text-field', [
           'coalesce',
           ['get', `name:${lang}`],
@@ -47,11 +38,33 @@ function App() {
       }
     }
 
+    let hoveredId = null;
+
+    map.on('mousemove', 'place-city', (e) => {
+      map.getCanvas().style.cursor = e.features.length ? 'pointer' : '';
+      const f = e.features?.[0];
+      if (!f) return;
+
+      const id = f.id ?? f.properties?.id; // ideally f.id exists
+      if (id == null) return;
+
+      if (hoveredId !== null && hoveredId !== id) {
+        map.setFeatureState({ source: 'openmaptiles', sourceLayer: 'place', id: hoveredId }, { hover: false });
+      }
+      hoveredId = id;
+      map.setFeatureState({ source: 'openmaptiles', sourceLayer: 'place', id }, { hover: true });
+    });
+
+    map.on('mouseleave', 'place-city', () => {
+      map.getCanvas().style.cursor = '';
+      if (hoveredId !== null) {
+        map.setFeatureState({ source: 'openmaptiles', sourceLayer: 'place', id: hoveredId }, { hover: false });
+      }
+      hoveredId = null;
+    });
+
     map.on('load', () => {
       applyLabelLanguage(map)
-
-      // Insert the weather overlay ABOVE basemap fills but BELOW lines.
-      const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'line')?.id
 
       map.addSource('weather_overlay', {
         type: 'raster',
@@ -61,14 +74,17 @@ function App() {
         maxzoom: 5,
       })
 
+      console.log(map.queryRenderedFeatures({ layers: ["place-city"] }))
+
+      const firstLineId = map.getStyle().layers?.find((l) => l.type === 'line')?.id
       map.addLayer(
         {
           id: 'weather_overlay_layer',
           type: 'raster',
           source: 'weather_overlay',
-          paint: { 'raster-opacity': 0.90 },
+          paint: { 'raster-opacity': 1 },
         },
-        firstSymbolId,
+        firstLineId,
       )
     })
 

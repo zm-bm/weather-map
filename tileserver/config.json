@@ -16,6 +16,9 @@
   "data": {
     "openmaptiles": {
       "mbtiles": "osm-planet.mbtiles"
+    },
+    "coastline":  {
+      "mbtiles": "coastline.mbtiles"
     }
   }
 }
