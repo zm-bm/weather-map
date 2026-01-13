@@ -154,13 +154,17 @@
         ["==", "$type", "Polygon"],
         ["==", "class", "lake"]
       ],
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "miter",
+        "visibility": "visible"
+      },
       "paint": {
-        "line-color": "rgba(32,32,32,0.38)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.08, 8, 0.18, 10, 0.28],
-        "line-width": 4.8,
-        "line-blur": 7.8,
-        "line-translate": [1.2, 1.8],
-        "line-translate-anchor": "viewport"
+        "line-color": "rgba(0,0,0,0.3)",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.05, 5, 0.14, 7, 0.26, 9, 0.40],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 9, 5.0],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 0, -0.25, 9, -2.5],
+        "line-blur": 4.0
       }
     },
     {
@@ -175,12 +179,12 @@
         ["==", "class", "lake"]
       ],
       "layout": {
-        "line-cap": "round",
-        "line-join": "round",
+        "line-cap": "butt",
+        "line-join": "miter",
         "visibility": "visible"
       },
       "paint": {
-        "line-color": "rgba(32,32,32,1)",
+        "line-color": "rgba(0,0,0,1)",
         "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.55, 9, 0.82],
         "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.40, 5, 0.80, 9, 1.2]
       }
