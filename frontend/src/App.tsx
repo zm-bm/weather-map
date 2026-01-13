@@ -64,6 +64,7 @@ function usePlaceHover(mapRef: RefObject<MapLibreMap | null>) {
     if (!map) return
 
     let hoveredId: number | string | null = null
+    let isAttached = false
 
     const onMove = (e: maplibregl.MapMouseEvent & maplibregl.MapLayerMouseEvent) => {
       map.getCanvas().style.cursor = e.features?.length ? 'pointer' : ''
@@ -98,12 +99,14 @@ function usePlaceHover(mapRef: RefObject<MapLibreMap | null>) {
       if (!map.getLayer('place-city')) return
       map.on('mousemove', 'place-city', onMove)
       map.on('mouseleave', 'place-city', onLeave)
+      isAttached = true
     }
 
     const detach = () => {
-      if (!map.getLayer('place-city')) return
+      if (!isAttached) return
       map.off('mousemove', 'place-city', onMove)
       map.off('mouseleave', 'place-city', onLeave)
+      isAttached = false
     }
 
     map.on('load', attach)
