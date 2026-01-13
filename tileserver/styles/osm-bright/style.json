@@ -64,6 +64,80 @@
       }
     },
     {
+      "id": "boundary-land-level-2",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "filter": [
+        "all",
+        ["==", "admin_level", 2],
+        ["!=", "maritime", 1]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 0, "#0a0a0a", 5, "#1a1a1a", 10, "#2a2a2a"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 5, 1.0, 10, 1.5]
+      }
+    },
+    {
+      "id": "boundary-land-level-4",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "minzoom": 2,
+      "filter": [
+        "all",
+        [">=", "admin_level", 3],
+        ["<=", "admin_level", 4],
+        ["!=", "maritime", 1]
+      ],
+      "layout": {
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 2, "#0a0a0a", 7, "#1a1a1a", 10, "#2a2a2a"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.35, 7, 0.75, 10, 1.0],
+        "line-dasharray": [3, 1, 1, 1]
+      }
+    },
+    {
+      "id": "coastline-shadow",
+      "type": "line",
+      "metadata": { "mapbox:group": "1444849382550.77" },
+      "source": "coastline",
+      "source-layer": "coastline",
+      "paint": {
+        "line-color": "rgba(0,0,0,0.34)",
+        "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 5.5, 7, 7.2, 9, 9.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.10, 7, 0.28, 9, 0.48],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 3.8, 7, 5.4, 9, 7.4],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 5, -1.4, 7, -2.4, 9, -3.6]
+      }
+    },
+    {
+      "id": "coastline",
+      "type": "line",
+      "metadata": { "mapbox:group": "1444849382550.77" },
+      "source": "coastline",
+      "source-layer": "coastline",
+      "filter": ["==", "$type", "LineString"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "rgba(0,0,0,1)",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.55, 9, 0.82],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.40, 5, 0.80, 9, 1.2]
+      }
+    },
+    {
       "id": "highway-casing",
       "type": "line",
       "metadata": { "mapbox:group": "1444849345966.4436" },
@@ -148,84 +222,6 @@
       }
     },
     {
-      "id": "water",
-      "type": "fill",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "water",
-      "filter": [
-        "all",
-        ["!=", "brunnel", "tunnel"]
-      ],
-      "layout": {
-        "visibility": "none"
-      },
-      "paint": {
-        "fill-color": "#0d141c",
-        "fill-opacity": 1
-      }
-    },
-    {
-      "id": "coastline-shadow",
-      "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
-      "source": "coastline",
-      "source-layer": "coastline",
-      "filter": ["==", "$type", "LineString"],
-      "layout": {
-        "line-cap": "round",
-        "line-join": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "rgba(0,0,0,0.35)",
-        "line-translate": [0, 1],
-        "line-translate-anchor": "map",
-        "line-blur": 2.0,
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.10, 5, 0.25, 9, 0.40],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.6, 5, 2.4, 9, 3.2]
-      }
-    },
-    {
-      "id": "coastline-halo",
-      "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
-      "source": "coastline",
-      "source-layer": "coastline",
-      "filter": ["==", "$type", "LineString"],
-      "layout": {
-        "line-cap": "round",
-        "line-join": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "rgba(255,255,255,0.55)",
-        "line-blur": 0.8,
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.20, 5, 0.40, 9, 0.55],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 5, 1.8, 9, 2.4]
-      }
-    },
-    {
-      "id": "coastline",
-      "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
-      "source": "coastline",
-      "source-layer": "coastline",
-      "filter": ["==", "$type", "LineString"],
-      "layout": {
-        "line-cap": "round",
-        "line-join": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "rgba(0,0,0,0.70)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.35, 5, 0.65, 9, 0.85],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.55, 5, 0.85, 9, 1.25]
-      }
-    },
-    {
       "id": "lake-outline",
       "type": "line",
       "metadata": {
@@ -288,64 +284,6 @@
           7, 0.35,
           9, 0.6
         ]
-      }
-    },
-    
-    {
-      "id": "boundary-land-level-4",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "boundary",
-      "minzoom": 2,
-      "filter": [
-        "all",
-        [">=", "admin_level", 3],
-        ["<=", "admin_level", 4],
-        ["!=", "maritime", 1]
-      ],
-      "layout": {
-        "line-join": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "#3b3b3b",
-        "line-dasharray": [3, 1, 1, 1],
-        "line-width": {
-          "base": 1.4,
-          "stops": [
-            [4, 0.4],
-            [5, 1],
-            [12, 3]
-          ]
-        }
-      }
-    },
-    {
-      "id": "boundary-land-level-2",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "boundary",
-      "filter": [
-        "all",
-        ["==", "admin_level", 2],
-        ["!=", "maritime", 1]
-      ],
-      "layout": {
-        "line-cap": "round",
-        "line-join": "round",
-        "visibility": "visible"
-      },
-      "paint": {
-        "line-color": "#3b3b3b",
-        "line-width": {
-          "base": 1,
-          "stops": [
-            [0, 0.6],
-            [4, 1.4],
-            [5, 2],
-            [12, 8]
-          ]
-        }
       }
     },
     {
