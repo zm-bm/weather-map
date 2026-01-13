@@ -111,6 +111,11 @@
       "metadata": { "mapbox:group": "1444849382550.77" },
       "source": "coastline",
       "source-layer": "coastline",
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
       "paint": {
         "line-color": "rgba(0,0,0,0.34)",
         "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 5.5, 7, 7.2, 9, 9.5],
@@ -126,6 +131,52 @@
       "source": "coastline",
       "source-layer": "coastline",
       "filter": ["==", "$type", "LineString"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "rgba(0,0,0,1)",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.55, 9, 0.82],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.40, 5, 0.80, 9, 1.2]
+      }
+    },
+    {
+      "id": "lake-shadow",
+      "type": "line",
+      "metadata": { "mapbox:group": "1444849382550.77" },
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["==", "$type", "Polygon"],
+        ["==", "class", "lake"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "rgba(0,0,0,0.34)",
+        "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 5.5, 7, 7.2, 9, 9.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.10, 7, 0.28, 9, 0.48],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 3.8, 7, 5.4, 9, 7.4],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 5, -1.4, 7, -2.4, 9, -3.6]
+      }
+    },
+    {
+      "id": "lake",
+      "type": "line",
+      "metadata": { "mapbox:group": "1444849382550.77" },
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["==", "$type", "Polygon"],
+        ["==", "class", "lake"]
+      ],
       "layout": {
         "line-cap": "round",
         "line-join": "round",
@@ -219,41 +270,6 @@
           7, ["match", ["get", "class"], "motorway", 0.95, "trunk", 0.82, "primary", 0.7, 0],
           9, ["match", ["get", "class"], "motorway", 1.4, "trunk", 1.2, "primary", 1.0, 0]
         ]
-      }
-    },
-    {
-      "id": "lake-outline",
-      "type": "line",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "water",
-      "filter": [
-        "all",
-        ["==", "$type", "Polygon"],
-        ["==", "class", "lake"]
-      ],
-      "layout": {
-        "visibility": "none"
-      },
-      "paint": {
-        "line-color": "#2b2b2b",
-        "line-opacity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            0, 0.5,
-            10, 0.8
-        ],
-        "line-width": {
-          "base": 1.4,
-          "stops": [
-            [4, 0.4],
-            [5, 1],
-            [12, 3]
-          ]
-        }
       }
     },
     {
