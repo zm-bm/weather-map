@@ -188,7 +188,7 @@ function useWeatherOverlay(
             id: 'weather_overlay_layer',
             type: 'raster',
             source: 'weather_overlay',
-            paint: { 'raster-opacity': 1 },
+            paint: { 'raster-opacity': 0.90 },
           },
           firstLineId,
         )

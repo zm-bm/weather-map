@@ -1,40 +1,14 @@
 {
   "version": 8,
-  "name": "OSM Bright",
+  "name": "ZMBM - Weather Map",
   "metadata": {
     "mapbox:type": "template",
-    "mapbox:groups": {
-      "1444849364238.8171": {
-        "collapsed": false,
-        "name": "Buildings"
-      },
-      "1444849354174.1904": {
-        "collapsed": true,
-        "name": "Tunnels"
-      },
-      "1444849388993.3071": {
-        "collapsed": false,
-        "name": "Land"
-      },
-      "1444849242106.713": {
-        "collapsed": false,
-        "name": "Places"
-      },
-      "1444849382550.77": {
-        "collapsed": false,
-        "name": "Water"
-      },
-      "1444849345966.4436": {
-        "collapsed": false,
-        "name": "Roads"
-      },
-      "1444849334699.1902": {
-        "collapsed": true,
-        "name": "Bridges"
-      }
-    },
+    "mapbox:groups": {},
     "mapbox:autocomposite": true,
     "openmaptiles:version": "3.x"
+  },
+  "projection": {
+    "type": "globe"
   },
   "center": [
     -120.97945979949654,
@@ -51,6 +25,14 @@
     "coastline": {
       "type": "vector",
       "url": "mbtiles://{coastline}"
+    },
+    "esri-hillshade": {
+      "type": "raster",
+      "tiles": [
+        "https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+      ],
+      "tileSize": 256,
+      "attribution": "esri"
     }
   },
   "sprite": "{styleJsonFolder}/sprite",
@@ -61,6 +43,30 @@
       "type": "background",
       "paint": {
         "background-color": "#ffffff"
+      }
+    },
+    {
+      "id": "esri-hillshade",
+      "type": "raster",
+      "source": "esri-hillshade",
+      "minzoom": 0,
+      "maxzoom": 10,
+      "paint": {
+        "raster-opacity": 1.0,
+        "raster-saturation": -1,
+        "raster-contrast": 0.05,
+        "raster-brightness-min": 0.0,
+        "raster-brightness-max": 1.0
+      }
+    },   
+    {
+      "id": "water-fill",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": ["==", "$type", "Polygon"],
+      "paint": {
+        "fill-color": "#d8d8d8"
       }
     },
     {
@@ -79,10 +85,12 @@
         "visibility": "visible"
       },
       "paint": {
-        "line-color": ["interpolate", ["linear"], ["zoom"], 0, "#0a0a0a", 5, "#1a1a1a", 10, "#2a2a2a"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 5, 1.0, 10, 1.5]
+        "line-color": "#000000",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.6, 9, 0.8],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 5, 1.2, 10, 1.8]
       }
     },
+
     {
       "id": "boundary-land-level-4",
       "type": "line",
@@ -100,35 +108,34 @@
         "visibility": "visible"
       },
       "paint": {
-        "line-color": ["interpolate", ["linear"], ["zoom"], 2, "#0a0a0a", 7, "#1a1a1a", 10, "#2a2a2a"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.35, 7, 0.75, 10, 1.0],
+        "line-color": "#000000",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.6, 9, 0.8],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 5, 1.0, 10, 1.5],
         "line-dasharray": [3, 1, 1, 1]
       }
     },
     {
-      "id": "coastline-shadow",
+      "id": "coast-shadow",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
       "source": "coastline",
       "source-layer": "coastline",
       "filter": ["==", "$type", "LineString"],
       "layout": {
         "line-cap": "butt",
         "line-join": "miter",
-        "visibility": "visible"
+        "visibility": "none"
       },
       "paint": {
         "line-color": "rgba(0,0,0,0.3)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.05, 5, 0.14, 7, 0.26, 9, 0.40],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 9, 5.0],
-        "line-offset": ["interpolate", ["linear"], ["zoom"], 0, -0.25, 9, -2.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.10, 9, 0.05],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.0, 9, 4.0],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 0, -0.5, 9, -2.0],
         "line-blur": 4.0
       }
     },
     {
-      "id": "coastline",
+      "id": "coast-outline",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
       "source": "coastline",
       "source-layer": "coastline",
       "filter": ["==", "$type", "LineString"],
@@ -139,14 +146,13 @@
       },
       "paint": {
         "line-color": "rgba(0,0,0,1)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.55, 9, 0.82],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.50],
         "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.40, 5, 0.80, 9, 1.2]
       }
     },
     {
       "id": "lake-shadow",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
       "source": "openmaptiles",
       "source-layer": "water",
       "filter": [
@@ -157,26 +163,25 @@
       "layout": {
         "line-cap": "butt",
         "line-join": "miter",
-        "visibility": "visible"
+        "visibility": "none"
       },
       "paint": {
         "line-color": "rgba(0,0,0,0.3)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.05, 5, 0.14, 7, 0.26, 9, 0.40],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 9, 5.0],
-        "line-offset": ["interpolate", ["linear"], ["zoom"], 0, -0.25, 9, -2.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.10, 9, 0.05],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.0, 9, 5.0],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 0, -0.5, 9, -2.5],
         "line-blur": 4.0
       }
     },
     {
-      "id": "lake",
+      "id": "lake-outline",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849382550.77" },
       "source": "openmaptiles",
       "source-layer": "water",
       "filter": [
         "all",
         ["==", "$type", "Polygon"],
-        ["==", "class", "lake"]
+        ["in", "class", "lake"]
       ],
       "layout": {
         "line-cap": "butt",
@@ -185,17 +190,62 @@
       },
       "paint": {
         "line-color": "rgba(0,0,0,1)",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.25, 5, 0.55, 9, 0.82],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.40, 5, 0.80, 9, 1.2]
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 0.08,
+          5, 0.12,
+          7, 0.10,
+          9, 0.06
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 0.20,
+          5, 0.35,
+          7, 0.45,
+          9, 0.50
+        ]
+      }
+    },
+    {
+      "id": "river-outline",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "waterway",
+      "minzoom": 6,
+      "filter": [
+        "all",
+        ["==", "class", "river"],
+        ["!=", "brunnel", "tunnel"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "rgba(0,0,0,1)",
+         "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          4, 0.00,
+          6, 0.08,
+          8, 0.12,
+          9, 0.10
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          4, 0.00,
+          6, 0.25,
+          8, 0.45,
+          9, 0.55
+        ]
       }
     },
     {
       "id": "highway-casing",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849345966.4436" },
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 4,
+      "minzoom": 5,
       "filter": [
         "all",
         ["==", "$type", "LineString"],
@@ -209,15 +259,14 @@
         "visibility": "none"
       },
       "paint": {
-        "line-blur": 0.8,
         "line-color": "rgba(64,64,64,0.22)",
         "line-opacity": [
           "interpolate",
           ["linear"],
           ["zoom"],
           4, 0,
-          5, 0.15,
-          9, 0.30
+          5, 0.1,
+          9, 0.2
         ],
         "line-width": [
           "interpolate",
@@ -234,10 +283,9 @@
     {
       "id": "highway",
       "type": "line",
-      "metadata": { "mapbox:group": "1444849345966.4436" },
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 4,
+      "minzoom": 5,
       "filter": [
         "all",
         ["==", "$type", "LineString"],
@@ -251,15 +299,14 @@
         "visibility": "visible"
       },
       "paint": {
-        "line-blur": 0.8,
         "line-color": "rgba(32,32,32,0.75)",
         "line-opacity": [
           "interpolate",
           ["linear"],
           ["zoom"],
           4, 0,
-          5, 0.25,
-          9, 0.50
+          5, 0.2,
+          9, 0.30
         ],
         "line-width": [
           "interpolate",
@@ -274,41 +321,8 @@
       }
     },
     {
-      "id": "waterway-river",
-      "type": "line",
-      "metadata": {
-        "mapbox:group": "1444849382550.77"
-      },
-      "source": "openmaptiles",
-      "source-layer": "waterway", "filter": [
-        "all",
-        ["==", "class", "river"],
-        ["!=", "brunnel", "tunnel"]
-      ],
-      "layout": {
-        "line-cap": "round",
-        "visibility": "none"
-      },
-      "paint": {
-        "line-color": "#0d141c",
-        "line-opacity": 0.9,
-        "line-width": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          0, 0,
-          5, 0.15,
-          7, 0.35,
-          9, 0.6
-        ]
-      }
-    },
-    {
       "id": "place-country",
       "type": "symbol",
-      "metadata": {
-        "mapbox:group": "1444849242106.713"
-      },
       "source": "openmaptiles",
       "source-layer": "place",
       "filter": ["==", "class", "country"],
@@ -320,29 +334,33 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          1, 10,
-          7, 15
+          0, 12,
+          7, 16
         ],
         "text-transform": "uppercase",
+        "text-allow-overlap": false,
+        "symbol-sort-key": ["coalesce", ["get","rank"], 1000],
         "visibility": "visible"
       },
       "paint": {
         "text-color": "#ffffff",
         "text-opacity": 0.75,
-        "text-halo-color": "rgba(0,0,0,1.0)",
-        "text-halo-width": 1,
+        "text-halo-width": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 1.2,
+          6, 1.4,
+          9, 1.8
+        ],
+        "text-halo-color": "rgba(0,0,0,0.85)",
         "text-halo-blur": 0
       }
     },
     {
       "id": "place-city",
       "type": "symbol",
-      "metadata": {
-        "mapbox:group": "1444849242106.713"
-      },
       "source": "openmaptiles",
       "source-layer": "place",
-      "filter": ["in", "class", "city", "town", "village"],
+      "filter": ["in", "class", "city", "town"],
       "layout": {
         "text-anchor": "center",
         "text-field": "{name}",
@@ -352,9 +370,11 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          7, 16,
-          12, 20
+          0, 12,
+          9, 18
         ],
+        "text-allow-overlap": false,
+        "symbol-sort-key": ["coalesce", ["get","rank"], 1000],
         "visibility": "visible"
       },
       "paint": {
@@ -371,7 +391,6 @@
           "rgba(0,0,0,1.0)",
           "rgba(0,0,0,0.75)"
         ],
-        "text-opacity": 1,
         "text-halo-blur": 0
       }
     }
