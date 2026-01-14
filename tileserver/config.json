@@ -6,8 +6,8 @@
     }
   },
   "styles": {
-    "osm-bright": {
-      "style": "osm-bright/style.json",
+    "weather-map": {
+      "style": "weather-map/style.json",
       "tilejson": {
         "type": "overlay"
       }
@@ -16,6 +16,9 @@
   "data": {
     "openmaptiles": {
       "mbtiles": "osm-planet.mbtiles"
+    },
+    "coastline":  {
+      "mbtiles": "coastline.mbtiles"
     }
   }
 }
