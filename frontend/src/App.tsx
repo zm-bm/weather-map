@@ -205,7 +205,7 @@ function useWeatherOverlay(
 
 function App() {
   const tilesUrl = import.meta.env.VITE_TILES_URL ?? 'http://localhost:8081'
-  const basemapStyleUrl = `${tilesUrl}/styles/osm-bright/style.json`
+  const basemapStyleUrl = `${tilesUrl}/styles/weather-map/style.json`
 
   const layer = '2026010300/temp2m/000'
   const weatherTilesUrl = `${import.meta.env.VITE_SERVER_URL}/tiles/${layer}/{z}/{x}/{y}.png`
