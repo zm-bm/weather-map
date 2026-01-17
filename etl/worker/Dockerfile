@@ -10,11 +10,14 @@ RUN apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src ./src
-COPY run.sh ./run.sh
+COPY worker/src ./src
+COPY worker/run.sh ./run.sh
 RUN chmod +x /app/run.sh
+
+# Bake layer config into the image for production-friendly deploys
+COPY layer_config.json /app/layer_config.json
 
 ENTRYPOINT ["/app/run.sh"]

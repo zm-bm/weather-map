@@ -4,56 +4,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import boto3
+import boto3 # type: ignore
 
-LAYER_CFG = {
-  "temp2m": {
-        "grib_match": {
-            "GRIB_ELEMENT": "TMP",
-            "GRIB_SHORT_NAME": "2-HTGL",
-        },
-        "scale_min": -45,
-        "scale_max": 50,
-        "units": "C",
-        "colortable": [
-            [ 50,    61,   2,  22],
-            [ 47.5,  86,  12,  37],
-            [ 44.7, 110,  21,  49],
-            [ 41.9, 135,  32,  62],
-            [ 39.2, 159,  41,  76],
-            [ 36.4, 175,  77,  76],
-            [ 33.6, 190, 112,  76],
-            [ 30.8, 195, 138,  83],
-            [ 28.1, 193, 157,  97],
-            [ 25.3, 194, 171, 117],
-            [ 22.5, 171, 168, 125],
-            [ 19.7, 135, 154, 132],
-            [ 16.9, 100, 141, 137],
-            [ 14.2,  67, 129, 144],
-            [ 11.4,  40, 117, 147],
-            [  8.6,  39, 103, 138],
-            [  5.8,  38,  92, 130],
-            [  3.1,  37,  79, 119],
-            [  0.3,  38,  67, 111],
-            [ -2.5,  47,  71, 117],
-            [ -5.3,  57,  81, 127],
-            [ -8.1,  65,  92, 135],
-            [-10.8,  77, 101, 145],
-            [-13.6,  86, 113, 156],
-            [-16.4,  96, 123, 166],
-            [-19.2, 117, 145, 185],
-            [-21.9, 127, 155, 195],
-            [-24.7, 138, 164, 205],
-            [-27.5, 147, 177, 215],
-            [-30.3, 156, 184, 223],
-            [-33.1, 167, 191, 227],
-            [-35.8, 175, 198, 230],
-            [-38.6, 184, 205, 234],
-            [-41.4, 192, 212, 237],
-            [-45.0, 203, 219, 244],
-        ],
-    },
-}
 
 def run(cmd: list[str]) -> None:
     print("+", " ".join(cmd), flush=True)
@@ -114,6 +66,16 @@ def download_s3(s3_url: str, out_path: Path) -> None:
     s3.download_file(bucket, key, str(out_path))
 
 
+def load_layer_config(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        raise SystemExit(f"Layer config not found: {p}")
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise SystemExit(f"Failed to parse layer config JSON {p}: {e}") from e
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
 
@@ -130,13 +92,22 @@ def main() -> None:
     ap.add_argument("--min-zoom", type=int, default=0)
     ap.add_argument("--max-zoom", type=int, default=6)
 
+    # layer config
+    ap.add_argument(
+        "--layer-config",
+        default="/app/layer_config.json",
+        help="Path to layer_config.json inside the container (default: /app/layer_config.json)",
+    )
+
     args = ap.parse_args()
 
-    layer = LAYER_CFG.get(args.layer)
+    # Get layer definition from config
+    layer_config = load_layer_config(args.layer_config)
+    layer = layer_config.get(args.layer)
     if not layer:
         raise SystemExit(f"Unknown layer: {args.layer}")
 
-    # Select GRIB band by metadata so this works with filtered GRIB downloads.
+    # Select GRIB band by metadata
     band = None
     band_md: dict[str, str] = {}
     lo, hi = layer["scale_min"], layer["scale_max"]
@@ -165,19 +136,12 @@ def main() -> None:
     else:
         raise SystemExit(f"Layer {args.layer} must define grib_match or band")
 
-    # If the GRIB is in Kelvin but our scale is in Celsius, shift the source scale.
-    src_lo, src_hi = lo, hi
-    unit = band_md.get("GRIB_UNIT")
-    if unit in ("K", "[K]") and layer.get("units") == "C":
-        src_lo = lo + 273.15
-        src_hi = hi + 273.15
-
     # 2) Translate GRIB -> GeoTIFF
     tif_raw = workdir / "raw.tif"
     run([
         "gdal_translate", # https://gdal.org/programs/gdal_translate.html
         "-b", str(band),
-        "-scale", str(src_lo), str(src_hi),
+        "-scale", str(lo), str(hi),
         "-ot", "Byte",
         "-of", "GTiff",
         "-a_nodata", "none",

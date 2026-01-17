@@ -8,6 +8,10 @@ import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
+import json
+import hashlib
+from datetime import datetime, timezone
+import re
 
 BASE_URL = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
@@ -15,9 +19,9 @@ BASE_URL = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 HOURS = [
     "000",
     "003",
-    "006",
-    "009",
-    "012",
+    # "006",
+    # "009",
+    # "012",
 ]
 
 LAYERS = [
@@ -61,7 +65,6 @@ def download_if_needed(url: str, out_path: Path, *, force: bool = False) -> None
 
     try:
         with urllib.request.urlopen(req) as resp:
-            # Some Python versions don't expose .status on all handlers; be defensive.
             status = getattr(resp, "status", 200)
             if status != 200:
                 raise RuntimeError(f"HTTP {status} for {url}")
@@ -78,6 +81,31 @@ def docker_available() -> None:
         run(["docker", "version"], cwd=Path.cwd())
     except Exception as e:
         raise SystemExit("Docker is required to run the ETL worker.") from e
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+def sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def load_layer_config(path: Path) -> object:
+    if not path.exists():
+        raise SystemExit(f"Layer config not found: {path}.")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise SystemExit(f"Failed to parse layer config JSON {path}: {e}") from e
+
+def compute_revision(*, cycle: str, layers: list[str], hours: list[str], layer_config_obj: object) -> str:
+    # Spec: sha256(cycle + variable list + fhr + layer config)
+    payload = "|".join([
+        cycle,
+        ",".join(sorted(layers)),
+        ",".join(sorted(hours)),
+        json.dumps(layer_config_obj, sort_keys=True, separators=(",", ":"))
+    ])
+    return sha256_hex(payload)[:12]
 
 
 def main() -> None:
@@ -102,13 +130,28 @@ def main() -> None:
     data_dir = etl_dir / "data"
     out_dir = etl_dir / "out"
 
+    layer_config_path = etl_dir / "layer_config.json"
+    layer_config_obj = load_layer_config(layer_config_path)
+    revision = compute_revision(
+        cycle=cycle,
+        layers=LAYERS,
+        hours=HOURS,
+        layer_config_obj=layer_config_obj,
+    )
+
     cache_dir = data_dir / "grib_cache" / cycle
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     docker_available()
 
     if not args.skip_build:
-        run(["docker", "build", "-t", "gfs-worker:dev", str(etl_dir / "worker")])
+        run([
+            "docker",
+            "build",
+            "-t", "gfs-worker:dev",
+            "-f", str(etl_dir / "worker" / "Dockerfile"),
+            str(etl_dir),
+        ])
 
     # 1) Download per-hour filtered GRIB
     for fhr in HOURS:
@@ -119,41 +162,67 @@ def main() -> None:
 
         # 2) Run worker for each layer using cached GRIB
         for layer in LAYERS:
-            run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "-v",
-                    f"{out_dir}:/out",
-                    "-v",
-                    f"{data_dir}:/data",
-                    "gfs-worker:dev",
-                    "--input",
-                    f"/data/grib_cache/{cycle}/{grib_name}",
-                    "--out",
-                    "/out/tiles",
-                    "--cycle",
-                    cycle,
-                    "--layer",
-                    layer,
-                    "--hour",
-                    fhr,
-                    "--min-zoom",
-                    str(MIN_ZOOM),
-                    "--max-zoom",
-                    str(MAX_ZOOM),
-                    "--workdir",
-                    "/data/workdir",
-                ]
-            )
+            run([
+                "docker",
+                "run",
+                "--rm",
+                "-v", f"{out_dir}:/out",
+                "-v", f"{data_dir}:/data",
+                "gfs-worker:dev",
+                "--input", f"/data/grib_cache/{cycle}/{grib_name}",
+                "--out", "/out/tiles",
+                "--cycle", cycle,
+                "--layer", layer,
+                "--hour", fhr,
+                "--min-zoom", str(MIN_ZOOM),
+                "--max-zoom", str(MAX_ZOOM),
+                "--workdir", "/data/workdir",
+                "--layer-config", "/app/layer_config.json",
+            ])
 
     # 3) Sync output into backend
-    backend_mbtiles = repo_root / "backend" / "mbtiles"
+    backend_mbtiles = repo_root / "backend" / "data" / "mbtiles"
     backend_mbtiles.mkdir(parents=True, exist_ok=True)
     run(["rsync", "-a", "--delete", f"{etl_dir / 'out' / 'tiles'}/", f"{backend_mbtiles}/"])
 
+    # 4) Write manifests + sync into frontend/public
+    manifests_out = etl_dir / "out" / "manifests"
+    manifests_out.mkdir(parents=True, exist_ok=True)
+
+    generated_at = utc_now_iso()
+    cycle_manifest = {
+        "version": 1,
+        "cycle": cycle,
+        "cycle_date": cycle_date,
+        "cycle_hour": cycle_hour,
+        "generated_at": generated_at,
+        "revision": revision,
+        "forecast_hours": HOURS,
+        "layers": LAYERS,
+        "variables_levels": NOMADS_VARS_LEVELS,
+        "min_zoom": MIN_ZOOM,
+        "max_zoom": MAX_ZOOM,
+    }
+
+    cycle_manifest_path = manifests_out / f"{cycle}.json"
+    cycle_manifest_path.write_text(json.dumps(cycle_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    latest_manifest = {
+        "cycle": cycle,
+        "generated_at": generated_at,
+        "revision": revision,
+    }
+    (manifests_out / "latest.json").write_text(
+        json.dumps(latest_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    frontend_public_manifests = repo_root / "frontend" / "public" / "manifests"
+    frontend_public_manifests.mkdir(parents=True, exist_ok=True)
+    run(["rsync", "-a", "--delete", f"{manifests_out}/", f"{frontend_public_manifests}/"])
+
     print("Synced ETL output -> backend/mbtiles", flush=True)
+    print("Synced ETL manifests -> frontend/public/manifests", flush=True)
 
 
 if __name__ == "__main__":
