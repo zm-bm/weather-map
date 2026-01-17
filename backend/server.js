@@ -30,7 +30,7 @@ app.use(cors(corsOptions));
  * Example request:
  *   /tiles/2026010300/temp2m/000/6/18/24.png
  */
-const MBTILES_ROOT = process.env.MBTILES_ROOT || path.resolve("./mbtiles");
+const MBTILES_ROOT = process.env.MBTILES_ROOT || path.resolve("./data/mbtiles");
 
 // Cache open DB handles so we don't reopen SQLite on every request.
 const dbCache = new LRUCache({

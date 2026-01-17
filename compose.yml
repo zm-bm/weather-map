@@ -16,12 +16,12 @@ services:
       - "8080:8080"
     volumes:
       - ./backend:/app
-      - ./backend/mbtiles:/app/mbtiles
+      - ./backend/data:/app/data
       - /app/node_modules
     environment:
       - NODE_ENV=development
       - PORT=8080
-      - MBTILES_ROOT=/app/mbtiles
+      - MBTILES_ROOT=/app/data/mbtiles
     command: npm run dev
 
   tileserver:

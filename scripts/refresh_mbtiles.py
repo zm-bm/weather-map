@@ -8,6 +8,9 @@ import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
+import json
+import hashlib
+from datetime import datetime, timezone
 
 BASE_URL = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
@@ -61,7 +64,6 @@ def download_if_needed(url: str, out_path: Path, *, force: bool = False) -> None
 
     try:
         with urllib.request.urlopen(req) as resp:
-            # Some Python versions don't expose .status on all handlers; be defensive.
             status = getattr(resp, "status", 200)
             if status != 200:
                 raise RuntimeError(f"HTTP {status} for {url}")
@@ -78,6 +80,14 @@ def docker_available() -> None:
         run(["docker", "version"], cwd=Path.cwd())
     except Exception as e:
         raise SystemExit("Docker is required to run the ETL worker.") from e
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+def content_revision(obj: object) -> str:
+    payload = json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:12]
 
 
 def main() -> None:
@@ -124,36 +134,63 @@ def main() -> None:
                     "docker",
                     "run",
                     "--rm",
-                    "-v",
-                    f"{out_dir}:/out",
-                    "-v",
-                    f"{data_dir}:/data",
+                    "-v", f"{out_dir}:/out",
+                    "-v", f"{data_dir}:/data",
                     "gfs-worker:dev",
-                    "--input",
-                    f"/data/grib_cache/{cycle}/{grib_name}",
-                    "--out",
-                    "/out/tiles",
-                    "--cycle",
-                    cycle,
-                    "--layer",
-                    layer,
-                    "--hour",
-                    fhr,
-                    "--min-zoom",
-                    str(MIN_ZOOM),
-                    "--max-zoom",
-                    str(MAX_ZOOM),
-                    "--workdir",
-                    "/data/workdir",
+                    "--input", f"/data/grib_cache/{cycle}/{grib_name}",
+                    "--out", "/out/tiles",
+                    "--cycle", cycle,
+                    "--layer", layer,
+                    "--hour", fhr,
+                    "--min-zoom", str(MIN_ZOOM),
+                    "--max-zoom", str(MAX_ZOOM),
+                    "--workdir", "/data/workdir",
                 ]
             )
 
     # 3) Sync output into backend
-    backend_mbtiles = repo_root / "backend" / "mbtiles"
+    backend_mbtiles = repo_root / "backend" / "data" / "mbtiles"
     backend_mbtiles.mkdir(parents=True, exist_ok=True)
     run(["rsync", "-a", "--delete", f"{etl_dir / 'out' / 'tiles'}/", f"{backend_mbtiles}/"])
 
+    # 4) Write manifests + sync into backend
+    manifests_out = etl_dir / "out" / "manifests"
+    manifests_out.mkdir(parents=True, exist_ok=True)
+
+    generated_at = utc_now_iso()
+    cycle_manifest = {
+        "version": 1,
+        "cycle": cycle,
+        "cycle_date": cycle_date,
+        "cycle_hour": cycle_hour,
+        "generated_at": generated_at,
+        "forecast_hours": HOURS,
+        "layers": LAYERS,
+        "variables_levels": NOMADS_VARS_LEVELS,
+        "min_zoom": MIN_ZOOM,
+        "max_zoom": MAX_ZOOM,
+    }
+
+    cycle_manifest_path = manifests_out / f"{cycle}.json"
+    cycle_manifest_path.write_text(json.dumps(cycle_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    rev = content_revision(cycle_manifest)
+    latest_manifest = {
+        "cycle": cycle,
+        "generated_at": generated_at,
+        "revision": rev,
+    }
+    (manifests_out / "latest.json").write_text(
+        json.dumps(latest_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    backend_manifests = repo_root / "backend" / "data" / "manifests"
+    backend_manifests.mkdir(parents=True, exist_ok=True)
+    run(["rsync", "-a", "--delete", f"{manifests_out}/", f"{backend_manifests}/"])
+
     print("Synced ETL output -> backend/mbtiles", flush=True)
+    print("Synced ETL manifests -> backend/manifests", flush=True)
 
 
 if __name__ == "__main__":
