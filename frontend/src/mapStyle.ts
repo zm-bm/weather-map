@@ -1,13 +1,68 @@
 import { type StyleSpecification } from 'maplibre-gl';
 
 import { tilesUrl, serverUrl, language } from './config';
+import type { cycleManifest } from './types';
 
-// Hardcoded for now, get from manifest later
-const cycle = '2026011618'
-const layer = 'temp2m'
+function buildRasterSource(opts: {
+  cycle: string;
+  layer: string;
+  hour: string;
+  minzoom: number;
+  maxzoom: number;
+}) {
+  return {
+    type: "raster",
+    tiles: [`${serverUrl}/tiles/${opts.cycle}/${opts.layer}/${opts.hour}/{z}/{x}/{y}.png`],
+    tileSize: 256,
+    minzoom: opts.minzoom,
+    maxzoom: opts.maxzoom,
+  } as const;
+}
 
-export const WEATHER_LAYER_T000_ID = 'weather-t000-layer'
-export const WEATHER_LAYER_T003_ID = 'weather-t003-layer'
+export const getWeatherSourceId = (layerName: string, hour: string) => `weather_${layerName}_t${hour}`;
+export const getWeatherLayerId = (layerName: string, hour: string) => `weather-${layerName}-t${hour}-layer`;
+
+export const getMapStyle = (manifest: cycleManifest): StyleSpecification => {
+  const {
+    cycle: cycleId,
+    layers: [activeLayer],
+    forecast_hours: hours,
+    min_zoom: minZoom,
+    max_zoom: maxZoom,
+  } = manifest
+
+  const weatherSources = Object.fromEntries(
+    hours.map((hour) => [
+      getWeatherSourceId(activeLayer, hour),
+      buildRasterSource({ cycle: cycleId, layer: activeLayer, hour, minzoom: minZoom, maxzoom: maxZoom }),
+    ])
+  )
+
+  const weatherLayers = hours.map((hour, idx) => ({
+    id: getWeatherLayerId(activeLayer, hour),
+    type: "raster",
+    source: getWeatherSourceId(activeLayer, hour),
+    layout: { visibility: idx === 0 ? "visible" : "none" },
+    paint: { "raster-opacity": 0.90 },
+  }))
+
+  const baseLayers = style.layers ?? []
+  const waterFillIdx = baseLayers.findIndex((l) => l.id === "water-fill")
+  const mergedLayers =
+    waterFillIdx >= 0
+      ? [...baseLayers.slice(0, waterFillIdx + 1), ...weatherLayers, ...baseLayers.slice(waterFillIdx + 1)]
+      : [...baseLayers, ...weatherLayers]
+
+
+  return {
+    ...style,
+    sources: {
+      ...style.sources,
+      ...weatherSources,
+    } as StyleSpecification["sources"],
+    layers: mergedLayers as StyleSpecification["layers"],
+  };
+}
 
 const style: StyleSpecification = {
   "version": 8,
@@ -29,20 +84,6 @@ const style: StyleSpecification = {
     "coastline": {
       "type": "vector",
       "tiles": [`${tilesUrl}/data/coastline/{z}/{x}/{y}.pbf`],
-    },
-    "weather_t000": {
-      "type": "raster",
-      "tiles": [`${serverUrl}/tiles/${cycle}/${layer}/000/{z}/{x}/{y}.png`],
-      "tileSize": 256,
-      "minzoom": 0,
-      "maxzoom": 5,
-    },
-    "weather_t003": {
-      "type": "raster",
-      "tiles": [`${serverUrl}/tiles/${cycle}/${layer}/003/{z}/{x}/{y}.png`],
-      "tileSize": 256,
-      "minzoom": 0,
-      "maxzoom": 5,
     },
     "esri-hillshade": {
       "type": "raster",
@@ -86,20 +127,6 @@ const style: StyleSpecification = {
       "paint": {
         "fill-color": "#d8d8d8"
       }
-    },
-    {
-      "id": "weather-t000-layer",
-      "type": "raster",
-      "source": "weather_t000",
-      "layout": { "visibility": "visible" },
-      "paint": { 'raster-opacity': 0.90 }
-    },
-    {
-      "id": "weather-t003-layer",
-      "type": "raster",
-      "source": "weather_t003",
-      "layout": { "visibility": "none" },
-      "paint": { 'raster-opacity': 0.90 }
     },
     {
       "id": "boundary-land-level-2",

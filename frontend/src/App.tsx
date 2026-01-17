@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl'
 
 import './App.css'
-import style, { WEATHER_LAYER_T000_ID, WEATHER_LAYER_T003_ID } from './style';
+import style, { getMapStyle, getWeatherLayerId } from './mapStyle';
 import { usePlaceHover } from './usePlaceHover';
+import { manifestBaseUrl } from './config';
+import type { cycleManifest } from './types';
 
 const VIEWPORT_STORAGE_KEY = 'weather-map:viewport'
 
@@ -77,46 +79,80 @@ function App() {
   const mapRef = useMap()
   usePlaceHover(mapRef)
 
-  const [showT000, setShowT000] = useState(true)
+  const [forecastHours, setForecastHours] = useState<string[]>([])
+  const [activeLayer, setActiveLayer] = useState<string>('temp2m')
+  const [activeHour, setActiveHour] = useState<string | null>(null)
 
-  const applyWeatherVisibility = useCallback((map: MapLibreMap, show0: boolean) => {
-    // Guard in case style/layers aren't ready yet
-    if (!map.getLayer(WEATHER_LAYER_T000_ID) || !map.getLayer(WEATHER_LAYER_T003_ID)) return
-
-    map.setLayoutProperty(WEATHER_LAYER_T000_ID, 'visibility', show0 ? 'visible' : 'none')
-    map.setLayoutProperty(WEATHER_LAYER_T003_ID, 'visibility', show0 ? 'none' : 'visible')
+  const applyWeatherVisibility = useCallback((map: MapLibreMap, layerName: string, hours: string[], active: string) => {
+    for (const hour of hours) {
+      const id = getWeatherLayerId(layerName, hour)
+      if (!map.getLayer(id)) continue
+      map.setLayoutProperty(id, 'visibility', hour === active ? 'visible' : 'none')
+    }
   }, [])
 
   useEffect(() => {
+    const latestUrl = `${manifestBaseUrl}/latest.json`
+
+    const run = async () => {
+      const latestRes = await fetch(latestUrl)
+      if (!latestRes.ok) throw new Error(`Failed to fetch latest manifest: ${latestRes.status} ${latestRes.statusText}`)
+      const latest = (await latestRes.json()) as { cycle?: unknown }
+
+      const cycle = typeof latest.cycle === 'string' ? latest.cycle : null
+      if (!cycle) throw new Error('latest.json missing valid "cycle"')
+
+      const cycleRes = await fetch(`${manifestBaseUrl}/${cycle}.json`)
+      if (!cycleRes.ok) throw new Error(`Failed to fetch cycle manifest: ${cycleRes.status} ${cycleRes.statusText}`)
+      const manifest = (await cycleRes.json()) as cycleManifest
+
+      setForecastHours(manifest.forecast_hours)
+      setActiveLayer(manifest.layers[0])
+      setActiveHour((prev) => prev ?? manifest.forecast_hours[0] ?? null)
+
+      const map = mapRef.current
+      if (map) {
+        map.setStyle(getMapStyle(manifest))
+      }
+    }
+
+    run().catch((err) => {
+      console.error('[manifest]', err)
+    })
+  }, [mapRef])
+
+  useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    if (!map || !activeHour || forecastHours.length === 0) return
 
-    const onLoad = () => applyWeatherVisibility(map, showT000)
+    const onLoad = () => applyWeatherVisibility(map, activeLayer, forecastHours, activeHour)
     map.on('load', onLoad)
-
-    // If already loaded (fast refresh), apply immediately too
-    if (map.isStyleLoaded()) applyWeatherVisibility(map, showT000)
+    if (map.isStyleLoaded()) applyWeatherVisibility(map, activeLayer, forecastHours, activeHour)
 
     return () => {
       map.off('load', onLoad)
     }
-  }, [mapRef, showT000, applyWeatherVisibility])
+  }, [mapRef, forecastHours, activeLayer, activeHour, applyWeatherVisibility])
 
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1 }}>
-        <button
-          type="button"
-          onClick={() => {
-            const next = !showT000
-            setShowT000(next)
-            const map = mapRef.current
-            if (map) applyWeatherVisibility(map, next)
-          }}
-        >
-          {showT000 ? 'Show t+003' : 'Show t+000'}
-        </button>
-      </div>
+      {forecastHours.length > 1 && activeHour && (
+        <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1 }}>
+          <button
+            type="button"
+            onClick={() => {
+              const map = mapRef.current
+              if (!map) return
+              const idx = forecastHours.indexOf(activeHour)
+              const next = forecastHours[(idx + 1) % forecastHours.length]
+              setActiveHour(next)
+              applyWeatherVisibility(map, activeLayer, forecastHours, next)
+            }}
+          >
+            Next hour
+          </button>
+        </div>
+      )}
 
       <div id="map" style={{ height: '100%', width: '100%' }} />
     </div>
