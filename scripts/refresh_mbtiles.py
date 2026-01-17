@@ -19,7 +19,7 @@ BASE_URL = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 HOURS = [
     "000",
     "003",
-    "006",
+    # "006",
     # "009",
     # "012",
 ]
@@ -185,7 +185,7 @@ def main() -> None:
     backend_mbtiles.mkdir(parents=True, exist_ok=True)
     run(["rsync", "-a", "--delete", f"{etl_dir / 'out' / 'tiles'}/", f"{backend_mbtiles}/"])
 
-    # 4) Write manifests + sync into backend
+    # 4) Write manifests + sync into frontend/public
     manifests_out = etl_dir / "out" / "manifests"
     manifests_out.mkdir(parents=True, exist_ok=True)
 
@@ -217,12 +217,12 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    backend_manifests = repo_root / "backend" / "data" / "manifests"
-    backend_manifests.mkdir(parents=True, exist_ok=True)
-    run(["rsync", "-a", "--delete", f"{manifests_out}/", f"{backend_manifests}/"])
+    frontend_public_manifests = repo_root / "frontend" / "public" / "manifests"
+    frontend_public_manifests.mkdir(parents=True, exist_ok=True)
+    run(["rsync", "-a", "--delete", f"{manifests_out}/", f"{frontend_public_manifests}/"])
 
     print("Synced ETL output -> backend/mbtiles", flush=True)
-    print("Synced ETL manifests -> backend/manifests", flush=True)
+    print("Synced ETL manifests -> frontend/public/manifests", flush=True)
 
 
 if __name__ == "__main__":
