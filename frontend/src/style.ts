@@ -3,7 +3,7 @@ import { type StyleSpecification } from 'maplibre-gl';
 import { tilesUrl, serverUrl, language } from './config';
 
 // Hardcoded for now, get from manifest later
-const cycle = '2026011412'
+const cycle = '2026011618'
 const layer = 'temp2m'
 
 export const WEATHER_LAYER_T000_ID = 'weather-t000-layer'
