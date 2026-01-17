@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl'
 
 import './App.css'
-import style from './style';
+import style, { WEATHER_LAYER_T000_ID, WEATHER_LAYER_T003_ID } from './style';
 import { usePlaceHover } from './usePlaceHover';
 
 const VIEWPORT_STORAGE_KEY = 'weather-map:viewport'
@@ -75,11 +75,49 @@ function useMap() {
 
 function App() {
   const mapRef = useMap()
-
   usePlaceHover(mapRef)
 
+  const [showT000, setShowT000] = useState(true)
+
+  const applyWeatherVisibility = useCallback((map: MapLibreMap, show0: boolean) => {
+    // Guard in case style/layers aren't ready yet
+    if (!map.getLayer(WEATHER_LAYER_T000_ID) || !map.getLayer(WEATHER_LAYER_T003_ID)) return
+
+    map.setLayoutProperty(WEATHER_LAYER_T000_ID, 'visibility', show0 ? 'visible' : 'none')
+    map.setLayoutProperty(WEATHER_LAYER_T003_ID, 'visibility', show0 ? 'none' : 'visible')
+  }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const onLoad = () => applyWeatherVisibility(map, showT000)
+    map.on('load', onLoad)
+
+    // If already loaded (fast refresh), apply immediately too
+    if (map.isStyleLoaded()) applyWeatherVisibility(map, showT000)
+
+    return () => {
+      map.off('load', onLoad)
+    }
+  }, [mapRef, showT000, applyWeatherVisibility])
+
   return (
-    <div style={{ height: '100vh', width: '100vw' }}>
+    <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1 }}>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !showT000
+            setShowT000(next)
+            const map = mapRef.current
+            if (map) applyWeatherVisibility(map, next)
+          }}
+        >
+          {showT000 ? 'Show t+003' : 'Show t+000'}
+        </button>
+      </div>
+
       <div id="map" style={{ height: '100%', width: '100%' }} />
     </div>
   )

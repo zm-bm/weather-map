@@ -6,6 +6,9 @@ import { tilesUrl, serverUrl, language } from './config';
 const cycle = '2026011412'
 const layer = 'temp2m'
 
+export const WEATHER_LAYER_T000_ID = 'weather-t000-layer'
+export const WEATHER_LAYER_T003_ID = 'weather-t003-layer'
+
 const style: StyleSpecification = {
   "version": 8,
   "name": "ZMBM - Weather Map",
