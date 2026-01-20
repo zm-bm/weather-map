@@ -1,70 +1,6 @@
-import { type StyleSpecification } from 'maplibre-gl';
+import { type StyleSpecification } from 'maplibre-gl'
 
-import { tilesUrl, serverUrl, language } from './config';
-import type { cycleManifest } from './types';
-
-function buildRasterSource(opts: {
-  cycle: string;
-  layer: string;
-  hour: string;
-  minzoom: number;
-  maxzoom: number;
-}) {
-  return {
-    type: "raster",
-    tiles: [`${serverUrl}/tiles/${opts.cycle}/${opts.layer}/${opts.hour}/{z}/{x}/{y}.png`],
-    tileSize: 256,
-    minzoom: opts.minzoom,
-    maxzoom: opts.maxzoom,
-  } as const;
-}
-
-export const getWeatherSourceId = (layerName: string, hour: string) => `weather_${layerName}_t${hour}`;
-export const getWeatherLayerId = (layerName: string, hour: string) => `weather-${layerName}-t${hour}-layer`;
-
-export const getMapStyle = (manifest: cycleManifest): StyleSpecification => {
-  const {
-    cycle: cycleId,
-    layers: [activeLayer],
-    forecast_hours: hours,
-    min_zoom: minZoom,
-    max_zoom: maxZoom,
-  } = manifest
-
-  const weatherSources = Object.fromEntries(
-    hours.map((hour) => [
-      getWeatherSourceId(activeLayer, hour),
-      buildRasterSource({ cycle: cycleId, layer: activeLayer, hour, minzoom: minZoom, maxzoom: maxZoom }),
-    ])
-  )
-
-  const weatherLayers = hours.map((hour, idx) => ({
-    id: getWeatherLayerId(activeLayer, hour),
-    type: "raster",
-    source: getWeatherSourceId(activeLayer, hour),
-    layout: { visibility: idx === 0 ? "visible" : "none" },
-    paint: { "raster-opacity": 0.90 },
-  }))
-
-  const baseLayers = style.layers ?? []
-  const waterFillIdx = baseLayers.findIndex((l) => l.id === "water-fill")
-  const mergedLayers =
-    waterFillIdx >= 0
-      ? [...baseLayers.slice(0, waterFillIdx + 1), ...weatherLayers, ...baseLayers.slice(waterFillIdx + 1)]
-      : [...baseLayers, ...weatherLayers]
-
-
-  return {
-    ...style,
-    sources: {
-      ...style.sources,
-      ...weatherSources,
-    } as StyleSpecification["sources"],
-    layers: mergedLayers as StyleSpecification["layers"],
-  };
-}
-
-const style: StyleSpecification = {
+export const baseStyleTemplate: StyleSpecification = {
   "version": 8,
   "name": "ZMBM - Weather Map",
   "metadata": {
@@ -73,17 +9,17 @@ const style: StyleSpecification = {
     "mapbox:autocomposite": true,
     "openmaptiles:version": "3.x"
   },
-  "projection": {
-    "type": "globe"
-  },
+  "projection": { "type": "globe" },
   "sources": {
     "openmaptiles": {
       "type": "vector",
-      "tiles": [`${tilesUrl}/data/openmaptiles/{z}/{x}/{y}.pbf`],
+      // hydrated by builder
+      "tiles": [],
     },
     "coastline": {
       "type": "vector",
-      "tiles": [`${tilesUrl}/data/coastline/{z}/{x}/{y}.pbf`],
+      // hydrated by builder
+      "tiles": [],
     },
     "esri-hillshade": {
       "type": "raster",
@@ -94,15 +30,14 @@ const style: StyleSpecification = {
       "attribution": "esri"
     },
   },
-  "sprite": `${tilesUrl}/styles/weather-map/sprite`,
-  "glyphs": `${tilesUrl}/fonts/{fontstack}/{range}.pbf`,
+  // hydrated by builder
+  "sprite": "",
+  "glyphs": "",
   "layers": [
     {
       "id": "background",
       "type": "background",
-      "paint": {
-        "background-color": "#ffffff"
-      }
+      "paint": { "background-color": "#ffffff" }
     },
     {
       "id": "esri-hillshade",
@@ -124,9 +59,7 @@ const style: StyleSpecification = {
       "source": "openmaptiles",
       "source-layer": "water",
       "filter": ["==", "$type", "Polygon"],
-      "paint": {
-        "fill-color": "#d8d8d8"
-      }
+      "paint": { "fill-color": "#d8d8d8" }
     },
     {
       "id": "boundary-land-level-2",
@@ -385,16 +318,11 @@ const style: StyleSpecification = {
       "source-layer": "place",
       "filter": ["==", "class", "country"],
       "layout": {
-        "text-field": ["coalesce", ["get", `name:${language}`], ["get", "name:latin"], ["get", "name"]],
+        // hydrated by builder (language)
+        "text-field": ["coalesce", ["get", "name:latin"], ["get", "name"]],
         "text-font": ["Open Sans Bold"],
         "text-max-width": 6.25,
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          0, 12,
-          7, 16
-        ],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 0, 12, 7, 16],
         "text-transform": "uppercase",
         "text-allow-overlap": false,
         "symbol-sort-key": ["coalesce", ["get","rank"], 1000],
@@ -403,12 +331,7 @@ const style: StyleSpecification = {
       "paint": {
         "text-color": "#ffffff",
         "text-opacity": 0.75,
-        "text-halo-width": [
-          "interpolate", ["linear"], ["zoom"],
-          0, 1.2,
-          6, 1.4,
-          9, 1.8
-        ],
+        "text-halo-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 6, 1.4, 9, 1.8],
         "text-halo-color": "rgba(0,0,0,0.85)",
         "text-halo-blur": 0
       }
@@ -421,16 +344,11 @@ const style: StyleSpecification = {
       "filter": ["in", "class", "city", "town"],
       "layout": {
         "text-anchor": "center",
-        "text-field": ["coalesce", ["get", `name:${language}`], ["get", "name:latin"], ["get", "name"]],
+        // hydrated by builder (language)
+        "text-field": ["coalesce", ["get", "name:latin"], ["get", "name"]],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 8,
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          0, 12,
-          9, 18
-        ],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 0, 12, 9, 18],
         "text-allow-overlap": false,
         "symbol-sort-key": ["coalesce", ["get","rank"], 1000],
         "visibility": "visible"
@@ -453,6 +371,4 @@ const style: StyleSpecification = {
       }
     }
   ]
-};
-
-export default style;
+}

@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from 'react'
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl'
 
-export function usePlaceHover(mapRef: RefObject<MapLibreMap | null>) {
+export function useMapHover(mapRef: RefObject<MapLibreMap | null>) {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
