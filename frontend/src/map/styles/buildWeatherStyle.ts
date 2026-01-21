@@ -2,8 +2,12 @@ import type { StyleSpecification, SymbolLayerSpecification, VectorSourceSpecific
 
 import type { CycleManifest } from '../../api/manifests'
 import { baseStyleTemplate } from './baseStyle'
-import { getWeatherLayerId, getWeatherSourceId } from './weatherIds'
 import { structuredClone } from '../../utils/structuredClone'
+import {
+	getWeatherLayerId,
+	getWeatherSourceId,
+	resolveWeatherWindow,
+} from '../weatherWindow'
 
 type StyleConfig = {
   tilesUrl: string
@@ -48,37 +52,66 @@ export function buildBaseStyle(cfg: StyleConfig): StyleSpecification {
 export function buildWeatherStyle(
   manifest: CycleManifest,
   cfg: StyleConfig,
-  opts?: { activeLayer?: string; insertAfterLayerId?: string }
+  opts?: { activeLayer?: string; activeHour?: string; insertAfterLayerId?: string }
 ): StyleSpecification {
   const base = buildBaseStyle(cfg)
 
   const { layers } = manifest
+  const hours = manifest.forecast_hours ?? []
 
   const activeLayer =
     (opts?.activeLayer && layers.includes(opts.activeLayer)) ? opts.activeLayer : layers[0]
 
+  const window = resolveWeatherWindow(hours, opts?.activeHour) || { current: '000', prev: '000', next: '000' }
   const baseWeatherUrl = `${cfg.serverUrl}/tiles/${manifest.cycle}/${activeLayer}`
 
-  const weatherSources = Object.fromEntries(
-    manifest.forecast_hours.map((hour) => [
-      getWeatherSourceId(activeLayer, hour),
-      {
-        type: "raster",
-        tiles: [`${baseWeatherUrl}/${hour}/{z}/{x}/{y}.png`],
-        tileSize: 256,
-        minzoom: manifest.min_zoom,
-        maxzoom: manifest.max_zoom,
-      },
-    ])
-  )
+  const weatherSources = {
+    [getWeatherSourceId(activeLayer, 'current')]: {
+      type: 'raster',
+      tiles: [`${baseWeatherUrl}/${window.current}/{z}/{x}/{y}.png`],
+      tileSize: 256,
+      minzoom: manifest.min_zoom,
+      maxzoom: manifest.max_zoom,
+    },
+    [getWeatherSourceId(activeLayer, 'prev')]: {
+      type: 'raster',
+      tiles: [`${baseWeatherUrl}/${window.prev}/{z}/{x}/{y}.png`],
+      tileSize: 256,
+      minzoom: manifest.min_zoom,
+      maxzoom: manifest.max_zoom,
+    },
+    [getWeatherSourceId(activeLayer, 'next')]: {
+      type: 'raster',
+      tiles: [`${baseWeatherUrl}/${window.next}/{z}/{x}/{y}.png`],
+      tileSize: 256,
+      minzoom: manifest.min_zoom,
+      maxzoom: manifest.max_zoom,
+    },
+  }
 
-  const weatherLayers = manifest.forecast_hours.map((hour, idx) => ({
-    id: getWeatherLayerId(activeLayer, hour),
-    type: "raster",
-    source: getWeatherSourceId(activeLayer, hour),
-    layout: { visibility: idx === 0 ? "visible" : "none" },
-    paint: { "raster-opacity": 0.90 },
-  }))
+  const weatherLayers = [
+    {
+      id: getWeatherLayerId(activeLayer, 'prev'),
+      type: 'raster',
+      source: getWeatherSourceId(activeLayer, 'prev'),
+      layout: { visibility: 'visible' },
+      paint: { 'raster-opacity': 0 },
+    },
+    {
+      id: getWeatherLayerId(activeLayer, 'next'),
+      type: 'raster',
+      source: getWeatherSourceId(activeLayer, 'next'),
+      layout: { visibility: 'visible' },
+      paint: { 'raster-opacity': 0 },
+    },
+    {
+      id: getWeatherLayerId(activeLayer, 'current'),
+      type: 'raster',
+      source: getWeatherSourceId(activeLayer, 'current'),
+      layout: { visibility: 'visible' },
+      paint: { 'raster-opacity': 0.90 },
+    },
+  ]
 
   const baseLayers = base.layers ?? []
   const insertAfterId = opts?.insertAfterLayerId ?? 'water-fill'
