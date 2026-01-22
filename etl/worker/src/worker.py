@@ -66,14 +66,21 @@ def download_s3(s3_url: str, out_path: Path) -> None:
     s3.download_file(bucket, key, str(out_path))
 
 
-def load_layer_config(path: str) -> dict:
+def load_json_file(path: str, *, what: str) -> object:
     p = Path(path)
     if not p.exists():
-        raise SystemExit(f"Layer config not found: {p}")
+        raise SystemExit(f"{what} not found: {p}")
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception as e:
-        raise SystemExit(f"Failed to parse layer config JSON {p}: {e}") from e
+        raise SystemExit(f"Failed to parse {what} JSON {p}: {e}") from e
+
+
+def load_layer_config(path: str) -> dict:
+    obj = load_json_file(path, what="Layer config")
+    if not isinstance(obj, dict):
+        raise SystemExit(f"Layer config must be a JSON object: {path}")
+    return obj
 
 
 def main() -> None:
@@ -82,7 +89,7 @@ def main() -> None:
     # input/output paths
     ap.add_argument("--input", help="Local GRIB2 file path")
     ap.add_argument("--s3-url", help="s3://bucket/key to GRIB2 (signed access via IAM)")
-    ap.add_argument("--workdir", default="/tmp/work", help="Scratch dir inside container")
+    ap.add_argument("--workdir", default="/data/workdir", help="Scratch dir inside container")
     ap.add_argument("--out", required=True, help="Output root (tiles root)")
 
     # output knobs
