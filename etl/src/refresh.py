@@ -212,6 +212,7 @@ class ExecutionBackend(Protocol):
     def run_layer(self, *, ctx: JobContext) -> None: ...
     def sync_tiles(self) -> None: ...
     def sync_manifests(self, *, manifests_out: Path) -> None: ...
+    def finalize(self, *, sync: bool, manifest: bool, manifests_out: Path | None = None) -> None: ...
 
 
 class LocalDockerBackend:
@@ -252,6 +253,14 @@ class LocalDockerBackend:
         self.paths.frontend_manifests.mkdir(parents=True, exist_ok=True)
         run(["rsync", "-a", "--delete", f"{manifests_out}/", f"{self.paths.frontend_manifests}/"])
 
+    def finalize(self, *, sync: bool, manifest: bool, manifests_out: Path | None = None) -> None:
+        if sync:
+            self.sync_tiles()
+        if manifest:
+            if manifests_out is None:
+                raise ValueError("manifests_out is required when manifest=True")
+            self.sync_manifests(manifests_out=manifests_out)
+
 
 class CloudBackend:
     name = "cloud"
@@ -269,6 +278,9 @@ class CloudBackend:
         raise SystemExit("Cloud backend not implemented yet.")
 
     def sync_manifests(self, *, manifests_out: Path) -> None:
+        raise SystemExit("Cloud backend not implemented yet.")
+
+    def finalize(self, *, sync: bool, manifest: bool, manifests_out: Path | None = None) -> None:
         raise SystemExit("Cloud backend not implemented yet.")
 
 
