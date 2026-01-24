@@ -1,10 +1,10 @@
-from typing import Protocol
 from pathlib import Path
+from typing import Protocol
 
-from paths import RepoPaths
-from io_utils import run
-from docker import docker_available, build_worker_image
-from job import JobContext
+from .paths import RepoPaths
+from .io_utils import run
+from .docker import docker_available, build_worker_image
+from .models import JobContext
 
 
 class ExecutionBackend(Protocol):
@@ -37,16 +37,25 @@ class LocalDockerBackend:
                 "docker",
                 "run",
                 "--rm",
-                "-v", f"{ctx.out_dir}:/out",
-                "-v", f"{ctx.data_dir}:/data",
+                "-v",
+                f"{ctx.out_dir}:/out",
+                "-v",
+                f"{ctx.data_dir}:/data",
                 "gfs-worker:dev",
-                "--input", f"/data/{ctx.grib_relpath.as_posix()}",
-                "--out", "/out/tiles",
-                "--cycle", ctx.cycle,
-                "--layer", ctx.layer,
-                "--hour", ctx.fhr,
-                "--min-zoom", str(ctx.min_zoom),
-                "--max-zoom", str(ctx.max_zoom),
+                "--input",
+                f"/data/{ctx.grib_relpath.as_posix()}",
+                "--out",
+                "/out/tiles",
+                "--cycle",
+                ctx.cycle,
+                "--layer",
+                ctx.layer,
+                "--hour",
+                ctx.fhr,
+                "--min-zoom",
+                str(ctx.min_zoom),
+                "--max-zoom",
+                str(ctx.max_zoom),
             ]
         )
 
@@ -103,3 +112,4 @@ def make_backend(name: str, *, paths: RepoPaths) -> ExecutionBackend:
     if name == "cloud":
         return CloudBackend(paths=paths)
     raise SystemExit(f"Unknown backend: {name}")
+

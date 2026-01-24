@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 def run(cmd: list[str], *, cwd: Path | None = None) -> None:
     print("+", " ".join(cmd), flush=True)
     subprocess.check_call(cmd, cwd=str(cwd) if cwd else None)
+
 
 def parse_cycle(cycle: str) -> tuple[str, str]:
     if len(cycle) != 10 or not cycle.isdigit():
@@ -46,7 +48,9 @@ def validate_run_config(obj: Any) -> dict[str, Any]:
         raise SystemExit("run_config.json: 'min_zoom' and 'max_zoom' must be integers.")
     if not isinstance(base_url, str) or not base_url:
         raise SystemExit("run_config.json: 'nomads.base_url' must be a non-empty string.")
-    if not isinstance(vars_levels, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in vars_levels.items()):
+    if not isinstance(vars_levels, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in vars_levels.items()
+    ):
         raise SystemExit("run_config.json: 'nomads.vars_levels' must be an object of string->string.")
 
     return {

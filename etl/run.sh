@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python -u /app/src/worker.py "$@"
+python -u /app/etl/worker.py "$@"

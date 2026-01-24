@@ -2,11 +2,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+
 @dataclass(frozen=True)
 class Plan:
     cycle: str
     revision: str
     cfg: dict[str, Any]
+
 
 @dataclass(frozen=True)
 class JobContext:
@@ -24,3 +26,4 @@ class JobContext:
 class JobRef:
     cycle: str
     fhr: str
+

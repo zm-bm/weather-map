@@ -3,10 +3,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from io_utils import parse_cycle
+from .io_utils import parse_cycle
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
 
 def write_manifests(*, etl_dir: Path, cycle: str, cfg: dict[str, Any], revision: str) -> Path:
     cycle_date, cycle_hour = parse_cycle(cycle)
@@ -41,3 +43,4 @@ def write_manifests(*, etl_dir: Path, cycle: str, cfg: dict[str, Any], revision:
     )
 
     return manifests_out
+

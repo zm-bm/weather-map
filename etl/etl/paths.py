@@ -1,5 +1,6 @@
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
 
 @dataclass(frozen=True)
 class RepoPaths:
@@ -29,3 +30,4 @@ def repo_paths() -> RepoPaths:
         backend_mbtiles=repo_root / "backend" / "data" / "mbtiles",
         frontend_manifests=repo_root / "frontend" / "public" / "manifests",
     )
+
