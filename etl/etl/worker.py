@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import boto3 # type: ignore
+import boto3  # type: ignore
 
 
 def run(cmd: list[str]) -> None:
@@ -46,13 +46,13 @@ def find_grib_band(grib_path: Path, match: dict[str, str]) -> tuple[int, dict[st
 
 
 def write_colortable(path: Path, colortable: list[list[float]], scale: list[float]) -> None:
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         scale_range = scale[1] - scale[0]
         bit_value = scale_range / 255
         for row in colortable:
             scaled_value = round((row[0] - scale[0]) / bit_value)
-            scaled_row = ' '.join([str(scaled_value), *map(str, row[1:])])
-            f.write(scaled_row + '\n')
+            scaled_row = " ".join([str(scaled_value), *map(str, row[1:])])
+            f.write(scaled_row + "\n")
 
 
 def download_s3(s3_url: str, out_path: Path) -> None:
@@ -145,45 +145,66 @@ def main() -> None:
 
     # 2) Translate GRIB -> GeoTIFF
     tif_raw = workdir / "raw.tif"
-    run([
-        "gdal_translate", # https://gdal.org/programs/gdal_translate.html
-        "-b", str(band),
-        "-scale", str(lo), str(hi),
-        "-ot", "Byte",
-        "-of", "GTiff",
-        "-a_nodata", "none",
-        str(grib_path),
-        str(tif_raw),
-    ])
+    run(
+        [
+            "gdal_translate",  # https://gdal.org/programs/gdal_translate.html
+            "-b",
+            str(band),
+            "-scale",
+            str(lo),
+            str(hi),
+            "-ot",
+            "Byte",
+            "-of",
+            "GTiff",
+            "-a_nodata",
+            "none",
+            str(grib_path),
+            str(tif_raw),
+        ]
+    )
 
     # 3) Reproject to Web Mercator (EPSG:3857) for XYZ tiles
     tif_3857 = workdir / "mercator.tif"
     target_px = 256 * (1 << args.max_zoom)
 
-    run([
-        "gdalwarp", # https://gdal.org/programs/gdalwarp.html
-        "-t_srs", "EPSG:3857",
-        "-te_srs", "EPSG:4326",
-        "-te", "-180", "-85.05112878", "180", "85.05112878",
-        "-r", "cubicspline",
-        "-ts", str(target_px), str(target_px),
-        str(tif_raw),
-        str(tif_3857),
-    ])
+    run(
+        [
+            "gdalwarp",  # https://gdal.org/programs/gdalwarp.html
+            "-t_srs",
+            "EPSG:3857",
+            "-te_srs",
+            "EPSG:4326",
+            "-te",
+            "-180",
+            "-85.05112878",
+            "180",
+            "85.05112878",
+            "-r",
+            "cubicspline",
+            "-ts",
+            str(target_px),
+            str(target_px),
+            str(tif_raw),
+            str(tif_3857),
+        ]
+    )
 
     # 4) Generate shaded relief
     colortable_path = workdir / "color.txt"
     write_colortable(colortable_path, colortable, [lo, hi])
 
     tif_shaded = workdir / "shaded.tif"
-    run([
-        "gdaldem", # https://gdal.org/programs/gdaldem.html
-        "color-relief",
-        str(tif_3857),
-        str(colortable_path),
-        str(tif_shaded),
-        "-nearest_color_entry"
-    ])
+    run(
+        [
+            "gdaldem",  # https://gdal.org/programs/gdaldem.html
+            "color-relief",
+            str(tif_3857),
+            str(colortable_path),
+            str(tif_shaded),
+            "-nearest_color_entry",
+        ]
+    )
 
     # 5) Generate MBTiles file from shaded GeoTIFF
     out_dir = Path(args.out) / args.cycle / args.layer
@@ -192,30 +213,40 @@ def main() -> None:
     if mbtiles_path.exists():
         mbtiles_path.unlink()
 
-    run([
-        "gdal_translate", # https://gdal.org/programs/gdal_translate.html
-        "-of", "MBTILES",
-        "-co", "TILE_FORMAT=PNG",
-        "-co", "ZOOM_LEVEL_STRATEGY=LOWER",
-        "-co", f"NAME={args.layer} {args.cycle} {args.hour}",
-        str(tif_shaded),
-        str(mbtiles_path),
-    ])
+    run(
+        [
+            "gdal_translate",  # https://gdal.org/programs/gdal_translate.html
+            "-of",
+            "MBTILES",
+            "-co",
+            "TILE_FORMAT=PNG",
+            "-co",
+            "ZOOM_LEVEL_STRATEGY=LOWER",
+            "-co",
+            f"NAME={args.layer} {args.cycle} {args.hour}",
+            str(tif_shaded),
+            str(mbtiles_path),
+        ]
+    )
 
     # 6) Add overviews to MBTiles if needed
     if args.min_zoom < args.max_zoom:
         factors: list[str] = []
         for z in range(args.max_zoom - 1, args.min_zoom - 1, -1):
             factors.append(str(1 << (args.max_zoom - z)))  # 2,4,8,... to min_zoom
-        run([
-            "gdaladdo", # https://gdal.org/programs/gdaladdo.html
-            "-r", "bilinear",
-            str(mbtiles_path),
-            *factors,
-        ])
+        run(
+            [
+                "gdaladdo",  # https://gdal.org/programs/gdaladdo.html
+                "-r",
+                "bilinear",
+                str(mbtiles_path),
+                *factors,
+            ]
+        )
 
     print(f"Done. MBTiles at: {mbtiles_path}", flush=True)
 
 
 if __name__ == "__main__":
     main()
+

@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
 
-from paths import repo_paths
-from io_utils import load_json_file, parse_cycle, validate_run_config
-from backend import make_backend
-from job import JobRef
-from revision import compute_revision
-import core
+from .paths import repo_paths
+from .models import JobRef
+from .io_utils import load_json_file, parse_cycle, validate_run_config
+from .backend import make_backend
+from .revision import compute_revision
+from . import core
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
@@ -89,7 +87,6 @@ def resolve_job_ref(args: argparse.Namespace) -> JobRef:
 
 
 def cmd_run_job(args: argparse.Namespace) -> int:
-
     job = resolve_job_ref(args)
     parse_cycle(job.cycle)
 
@@ -198,3 +195,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
