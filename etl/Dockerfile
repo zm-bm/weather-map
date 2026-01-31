@@ -1,7 +1,10 @@
 FROM python:3.11-slim-bookworm
 
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends \
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/etl
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
         gdal-bin \
         curl \
         ca-certificates \
@@ -12,11 +15,11 @@ WORKDIR /app
 COPY ./requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./etl ./etl
+COPY ./gfs_pipeline ./etl
 COPY ./run.sh ./run.sh
 RUN chmod +x /app/run.sh
 
-COPY layer_config.json /app/layer_config.json
+COPY pipeline_config.json /app/pipeline_config.json
 
 ENTRYPOINT ["/app/run.sh"]
 
