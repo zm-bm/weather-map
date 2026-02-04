@@ -5,10 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 ETL_OUT="$ROOT/etl/out"
-BACKEND_MB="$ROOT/backend/data/mbtiles"
+BACKEND_MB="$ROOT/tile-data/tiles"
 FRONTEND_MANIFESTS="$ROOT/frontend/public/manifests"
 
-echo "Sync tiles -> backend"
+echo "Sync tiles -> tile server"
 mkdir -p "$BACKEND_MB"
 rsync -a --delete "$ETL_OUT/tiles/" "$BACKEND_MB/"
 

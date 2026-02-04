@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap, RasterTileSource } from 'maplibre-gl'
+import { getTilesUrl } from './tileServer';
 
 export type WeatherWindow = { current: string; prev: string; next: string }
 export type WeatherWindowKey = 'current' | 'prev' | 'next'
@@ -48,16 +49,15 @@ export function retargetWeatherWindowSources(
 	map: MapLibreMap,
 	opts: { layer: string; serverUrl: string; cycle: string; hours: string[]; activeHour: string }
 ) {
-	const { layer, serverUrl, cycle, hours, activeHour } = opts
+	const { layer, serverUrl, hours, activeHour } = opts
 	const window = resolveWeatherWindow(hours, activeHour)
 	if (!window) return null
 
-	const baseWeatherUrl = `${serverUrl}/tiles/${cycle}/${layer}`
 	const ids = getWeatherWindowIds(layer)
 
 	const setTiles = (sourceId: string, hour: string) => {
 		const src = map.getSource(sourceId) as RasterTileSource | undefined
-		src?.setTiles?.([`${baseWeatherUrl}/${hour}/{z}/{x}/{y}.png`])
+		src?.setTiles?.([getTilesUrl(serverUrl, `${opts.cycle}.${layer}.${hour}`)])
 	}
 
 	setTiles(ids.current.sourceId, window.current)

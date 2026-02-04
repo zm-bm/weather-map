@@ -31,7 +31,6 @@ export const baseStyleTemplate: StyleSpecification = {
     },
   },
   // hydrated by builder
-  "sprite": "",
   "glyphs": "",
   "layers": [
     {

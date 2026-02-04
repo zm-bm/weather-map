@@ -61,44 +61,36 @@ class ArtifactPaths:
 
     artifact_root_uri: str
 
-    def _cycle_fhour_layer_parts(self, item: WorkItem) -> tuple[str, str, str | None]:
+    def _cycle_fhour_layer_parts(self, item: WorkItem) -> tuple[str, str, str]:
         cycle = _safe_segment(item.cycle)
         fhour = _safe_segment(item.fhour)
-        layer = _safe_segment(item.layer) if item.layer else None
+        layer = _safe_segment(item.layer)
         return cycle, fhour, layer
 
     def success_marker_uri(self, item: WorkItem) -> str:
         """Success marker URI for given WorkItem: {root}/status/{cycle}/{layer}/{fhour}._SUCCESS.json"""
         cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
-        path = ["status", cycle] + ([layer] if layer is not None else []) + [f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
+        path = ["status", cycle, layer, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
         return join_uri(self.artifact_root_uri, path)
 
     def output_mbtiles_uri(self, item: WorkItem) -> str:
-        """MBTiles URI for given WorkItem: {root}/tiles/{cycle}/{layer}/{fhour}.mbtiles"""
+        """MBTiles URI for given WorkItem: {root}/tiles/{cycle}.{layer}.{fhour}.mbtiles"""
         cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
-        path = ["tiles", cycle] + ([layer] if layer is not None else []) + [f"{fhour}.mbtiles"]
+        path = ["tiles", f"{cycle}.{layer}.{fhour}.mbtiles"]
         return join_uri(self.artifact_root_uri, path)
 
     def logs_uri(self, item: WorkItem) -> str:
         """Log file URI for given WorkItem: {root}/logs/{cycle}/{layer}/{fhour}.log"""
         cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
-        path = ["logs", cycle] + ([layer] if layer is not None else []) + [f"{fhour}.log"]
+        path = ["logs", cycle, layer, f"{fhour}.log"]
         return join_uri(self.artifact_root_uri, path)
 
-    def success_marker_uri_parts(self, *, cycle: str, fhour: str, layer: str | None) -> str:
+    def success_marker_uri_parts(self, *, cycle: str, fhour: str, layer: str) -> str:
         """Success marker URI for given parts: {root}/status/{cycle}/{layer}/{fhour}._SUCCESS.json"""
         cycle = _safe_segment(cycle)
         fhour = _safe_segment(fhour)
-        layer = _safe_segment(layer) if layer else None
-        path = ["status", cycle] + ([layer] if layer else []) + [f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
-        return join_uri(self.artifact_root_uri, path)
-
-    def output_mbtiles_uri_parts(self, *, cycle: str, fhour: str, layer: str | None) -> str:
-        """MBTiles URI for given cycle/fhour/layer: {root}/tiles/{cycle}/{layer}/{fhour}.mbtiles"""
-        cycle = _safe_segment(cycle)
-        fhour = _safe_segment(fhour)
-        layer = _safe_segment(layer) if layer else None
-        path = ["tiles", cycle] + ([layer] if layer else []) + [f"{fhour}.mbtiles"]
+        layer = _safe_segment(layer)
+        path = ["status", cycle, layer, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
         return join_uri(self.artifact_root_uri, path)
 
     def status_prefix_uri(self, *, cycle: str) -> str:

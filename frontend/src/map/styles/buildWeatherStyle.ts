@@ -8,38 +8,21 @@ import {
 	getWeatherSourceId,
 	resolveWeatherWindow,
 } from '../weatherWindow'
+import type { WeatherMapConfig } from '../../config'
+import { getTilesUrl } from '../tileServer'
 
-type StyleConfig = {
-  tilesUrl: string
-  serverUrl: string
-  language: string
-}
-
-function setLanguageTextField(style: StyleSpecification, layerId: string, language: string) {
-  const layers = style.layers ?? []
-  const idx = layers.findIndex((l) => l.id === layerId)
-  if (idx < 0) return
-  const layer  = layers[idx]
-  layer.layout = layer.layout ?? {}
-  const symbolLayer = layer as SymbolLayerSpecification
-  if (symbolLayer.layout) {
-    symbolLayer.layout['text-field'] = ["coalesce", ["get", `name:${language}`], ["get", "name:latin"], ["get", "name"]]
-  }
-}
-
-export function buildBaseStyle(cfg: StyleConfig): StyleSpecification {
+export function buildBaseStyle(cfg: WeatherMapConfig): StyleSpecification {
   const style = structuredClone(baseStyleTemplate)
 
-  // hydrate sprite and glyph URLs
-  style.sprite = `${cfg.tilesUrl}/styles/weather-map/sprite`
-  style.glyphs = `${cfg.tilesUrl}/fonts/{fontstack}/{range}.pbf`
+  // hydrate glyph URLs
+  style.glyphs = `${cfg.serverUrl}/font/{fontstack}/{range}`
 
   // hydrate vector tile endpoints
   const sources = style.sources ?? {}
   if (sources.openmaptiles)
-    (sources.openmaptiles as VectorSourceSpecification).tiles = [`${cfg.tilesUrl}/data/openmaptiles/{z}/{x}/{y}.pbf`]
+    (sources.openmaptiles as VectorSourceSpecification).tiles = [getTilesUrl(cfg.serverUrl, 'osm-planet')]
   if (sources.coastline)
-    (sources?.coastline as VectorSourceSpecification).tiles = [`${cfg.tilesUrl}/data/coastline/{z}/{x}/{y}.pbf`]
+    (sources?.coastline as VectorSourceSpecification).tiles = [getTilesUrl(cfg.serverUrl, 'coastline')]
   style.sources = sources
 
   // hydrate labels
@@ -51,7 +34,7 @@ export function buildBaseStyle(cfg: StyleConfig): StyleSpecification {
 
 export function buildWeatherStyle(
   manifest: CycleManifest,
-  cfg: StyleConfig,
+  cfg: WeatherMapConfig,
   opts?: { activeLayer?: string; activeHour?: string; insertAfterLayerId?: string }
 ): StyleSpecification {
   const base = buildBaseStyle(cfg)
@@ -63,26 +46,25 @@ export function buildWeatherStyle(
     (opts?.activeLayer && layers.includes(opts.activeLayer)) ? opts.activeLayer : layers[0]
 
   const window = resolveWeatherWindow(hours, opts?.activeHour) || { current: '000', prev: '000', next: '000' }
-  const baseWeatherUrl = `${cfg.serverUrl}/tiles/${manifest.cycle}/${activeLayer}`
 
   const weatherSources = {
     [getWeatherSourceId(activeLayer, 'current')]: {
       type: 'raster',
-      tiles: [`${baseWeatherUrl}/${window.current}/{z}/{x}/{y}.png`],
+      tiles: [getTilesUrl(cfg.serverUrl, `${manifest.cycle}.${activeLayer}.${window.current}`)],
       tileSize: 256,
       minzoom: manifest.min_zoom,
       maxzoom: manifest.max_zoom,
     },
     [getWeatherSourceId(activeLayer, 'prev')]: {
       type: 'raster',
-      tiles: [`${baseWeatherUrl}/${window.prev}/{z}/{x}/{y}.png`],
+      tiles: [getTilesUrl(cfg.serverUrl, `${manifest.cycle}.${activeLayer}.${window.prev}`)],
       tileSize: 256,
       minzoom: manifest.min_zoom,
       maxzoom: manifest.max_zoom,
     },
     [getWeatherSourceId(activeLayer, 'next')]: {
       type: 'raster',
-      tiles: [`${baseWeatherUrl}/${window.next}/{z}/{x}/{y}.png`],
+      tiles: [getTilesUrl(cfg.serverUrl, `${manifest.cycle}.${activeLayer}.${window.next}`)],
       tileSize: 256,
       minzoom: manifest.min_zoom,
       maxzoom: manifest.max_zoom,
@@ -128,5 +110,17 @@ export function buildWeatherStyle(
       ...weatherSources,
     } as StyleSpecification['sources'],
     layers: mergedLayers as StyleSpecification['layers'],
+  }
+}
+
+function setLanguageTextField(style: StyleSpecification, layerId: string, language: string) {
+  const layers = style.layers ?? []
+  const idx = layers.findIndex((l) => l.id === layerId)
+  if (idx < 0) return
+  const layer  = layers[idx]
+  layer.layout = layer.layout ?? {}
+  const symbolLayer = layer as SymbolLayerSpecification
+  if (symbolLayer.layout) {
+    symbolLayer.layout['text-field'] = ["coalesce", ["get", `name:${language}`], ["get", "name:latin"], ["get", "name"]]
   }
 }

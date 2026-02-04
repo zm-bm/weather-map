@@ -4,7 +4,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { CycleManifest } from '../api/manifests'
 import { buildWeatherStyle } from '../map/styles/buildWeatherStyle'
 import { retargetWeatherWindowSources, setWeatherWindowOpacity } from '../map/weatherWindow'
-import config from '../config'
+import { type WeatherMapConfig }  from '../config'
 
 function runWhenStyleReady(map: MapLibreMap, fn: () => void) {
 	if (map.isStyleLoaded()) {
@@ -21,8 +21,9 @@ function runWhenStyleReady(map: MapLibreMap, fn: () => void) {
 export function useSyncWeatherOverlay(
 	getMap: () => MapLibreMap | null,
 	manifest: CycleManifest | null,
+	cfg: WeatherMapConfig,
 	activeLayer?: string | null,
-	activeHour?: string | null
+	activeHour?: string | null,
 ) {
 	const appliedStyleKeyRef = useRef<string | null>(null)
 	const appliedHourKeyRef = useRef<string | null>(null)
@@ -31,11 +32,11 @@ export function useSyncWeatherOverlay(
 		const map = getMap()
 		if (!map || !manifest) return
 
-		const preferredLayer = activeLayer ?? config.defaultLayer
+		const preferredLayer = activeLayer ?? cfg.defaultLayer
 		const layer = manifest.layers.includes(preferredLayer) ? preferredLayer : (manifest.layers[0] ?? preferredLayer)
 
 		const hours = manifest.forecast_hours ?? []
-		const preferredHour = activeHour ?? config.defaultHour
+		const preferredHour = activeHour ?? cfg.defaultHour
 		const hour = hours.includes(preferredHour) ? preferredHour : (hours[0] ?? preferredHour)
 
 		const styleKey = `${manifest.cycle}:${layer}`
@@ -43,7 +44,7 @@ export function useSyncWeatherOverlay(
 		const applyWindow = () => {
 			const window = retargetWeatherWindowSources(map, {
 				layer,
-				serverUrl: config.serverUrl,
+				serverUrl: cfg.serverUrl,
 				cycle: manifest.cycle,
 				hours,
 				activeHour: hour,
@@ -59,7 +60,7 @@ export function useSyncWeatherOverlay(
 			appliedStyleKeyRef.current = styleKey
 			appliedHourKeyRef.current = null
 
-			const style = buildWeatherStyle(manifest, config, {
+			const style = buildWeatherStyle(manifest, cfg, {
 				activeLayer: layer,
 				activeHour: hour,
 				insertAfterLayerId: 'water-fill',
@@ -74,5 +75,5 @@ export function useSyncWeatherOverlay(
 		if (appliedHourKeyRef.current === hourKey) return
 
 		return runWhenStyleReady(map, applyWindow)
-	}, [getMap, manifest, activeLayer, activeHour])
+	}, [getMap, manifest, activeLayer, activeHour, cfg])
 }
