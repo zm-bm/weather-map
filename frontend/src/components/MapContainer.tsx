@@ -19,7 +19,7 @@ export default function MapContainer({ manifest, activeLayer, activeHour, contai
 	const { mapRef, getMap } = useMapLibre({ style: baseStyle, containerId })
 
 	useMapHover(mapRef)
-	useSyncWeatherOverlay(getMap, manifest, activeLayer, activeHour)
+	useSyncWeatherOverlay(getMap, manifest, config, activeLayer, activeHour)
 
 	return <div id={containerId} style={{ height: '100%', width: '100%' }} />
 }

@@ -1,0 +1,13 @@
+listen_addresses: "0.0.0.0:3000"
+
+mbtiles:
+  paths:
+    - "/data/tiles/"
+    - "/data/static/"
+
+sprites:
+  paths:
+    - "/data/sprites/"
+
+fonts:
+  - "/data/fonts/"
