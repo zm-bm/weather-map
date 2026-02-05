@@ -8,7 +8,6 @@ services:
       - /app/node_modules
     environment:
       - VITE_SERVER_URL=http://localhost:3000
-      - VITE_TILES_URL=http://localhost:8081
       - VITE_MANIFEST_BASE_URL=http://localhost:5173/manifests
 
   martin:
