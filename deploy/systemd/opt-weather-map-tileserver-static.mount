@@ -1,0 +1,14 @@
+[Unit]
+Description=Weather Map static tiles mount
+After=local-fs-pre.target
+Before=local-fs.target
+
+[Mount]
+# NOTE: What= is overridden at boot by deploy/scripts/enable-static-mount.sh.
+What=/dev/disk/by-uuid/REPLACE_WITH_UUID
+Where=/opt/weather-map/tileserver/static
+Type=ext4
+Options=defaults,nofail
+
+[Install]
+WantedBy=multi-user.target

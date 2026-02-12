@@ -11,3 +11,5 @@ sprites:
 
 fonts:
   - "/data/fonts/"
+
+cors: false
