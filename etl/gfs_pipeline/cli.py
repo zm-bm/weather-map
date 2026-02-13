@@ -53,7 +53,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_worker = sub.add_parser("worker", help="Run one work item", parents=[common])
     ap_worker.add_argument("--fhour", required=True, help="Forecast hour FFF")
-    ap_worker.add_argument("--layer", required=True, help="Layer key (e.g. temp2m)")
+    ap_worker.add_argument("--layer", required=True, help="Layer key (e.g. tmp_surface)")
     ap_worker.add_argument("--source-uri", required=True, help="Input GRIB2 URI (file://...)")
     ap_worker.set_defaults(_handler=_cmd_worker)
 
