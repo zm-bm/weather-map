@@ -2,7 +2,7 @@
   "version": 1,
   "workload": {
     "forecast_hours": ["000", "003", "006", "009", "012", "015", "018"],
-    "layers": ["temp2m", "aptmp"]
+    "layers": ["tmp_surface", "aptmp_surface"]
   },
   "gdal": {
     "min_zoom": 0,
@@ -21,7 +21,10 @@
     "rate_limit_seconds": 2.0
   },
   "layers": {
-    "temp2m": {
+    "tmp_surface": {
+      "parameter": "tmp",
+      "level": "surface",
+      "label": "Temperature (2 m above ground)",
       "grib_match": {
         "GRIB_ELEMENT": "TMP",
         "GRIB_SHORT_NAME": "2-HTGL"
@@ -67,7 +70,10 @@
         [-45.0, 203, 219, 244]
       ]
     },
-    "aptmp": {
+    "aptmp_surface": {
+      "parameter": "aptmp",
+      "level": "surface",
+      "label": "Apparent Temperature (2 m above ground)",
       "grib_match": {
         "GRIB_ELEMENT": "APTMP",
         "GRIB_SHORT_NAME": "2-HTGL"

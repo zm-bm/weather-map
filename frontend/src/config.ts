@@ -1,5 +1,5 @@
 export default {
-  defaultLayer: 'temp2m',
+  defaultLayer: 'tmp_surface',
   defaultHour: '000',
 
   serverUrl: import.meta.env.VITE_SERVER_URL ?? 'https://weather-tiles.zmbm.dev',
