@@ -1,0 +1,1 @@
+export const SCALAR_ACTIVE_OPACITY = 1.0

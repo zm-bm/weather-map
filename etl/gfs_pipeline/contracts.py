@@ -79,6 +79,18 @@ class ArtifactPaths:
         path = ["tiles", f"{cycle}.{layer}.{fhour}.mbtiles"]
         return join_uri(self.artifact_root_uri, path)
 
+    def output_vector_payload_uri(self, item: WorkItem) -> str:
+        """Vector payload URI: {root}/fields/{cycle}/{fhour}/{layer}.vector.i8.bin"""
+        cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
+        path = ["fields", cycle, fhour, f"{layer}.vector.i8.bin"]
+        return join_uri(self.artifact_root_uri, path)
+
+    def output_scalar_payload_uri(self, item: WorkItem) -> str:
+        """Scalar payload URI: {root}/fields/{cycle}/{fhour}/{layer}.scalar.i16.bin"""
+        cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
+        path = ["fields", cycle, fhour, f"{layer}.scalar.i16.bin"]
+        return join_uri(self.artifact_root_uri, path)
+
     def logs_uri(self, item: WorkItem) -> str:
         """Log file URI for given WorkItem: {root}/logs/{cycle}/{layer}/{fhour}.log"""
         cycle, fhour, layer = self._cycle_fhour_layer_parts(item)

@@ -1,0 +1,59 @@
+@media (max-width: 760px) {
+  .map-stage__viewport .maplibregl-ctrl-top-right .maplibregl-ctrl {
+    margin: 12px 12px 0 0;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl {
+    margin-top: 6px;
+  }
+
+  .control-dock {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: min(44vh, 360px);
+    overflow: auto;
+  }
+
+  .lower-third {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-dock__title {
+    font-size: 22px;
+  }
+
+  .legend-card__body,
+  .transport-bar__body {
+    grid-template-columns: 1fr;
+  }
+
+  .legend-card__body--vertical {
+    grid-template-columns: 1fr;
+  }
+
+  .legend-card__scale-wrap--vertical {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .legend-card.lower-third__module,
+  .transport-bar.lower-third__module {
+    flex: 1 1 auto;
+  }
+
+  .transport-bar__meta {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .transport-bar__controls {
+    border-left: 0;
+    border-right: 0;
+    padding-inline: 0;
+  }
+}

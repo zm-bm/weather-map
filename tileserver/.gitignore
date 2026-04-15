@@ -1,3 +1,2 @@
 *.mbtiles
-manifests/*.json
 public/*

@@ -1,0 +1,84 @@
+.app-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+.status-screen {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.forecast-screen__status-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 184, 61, 0.1), transparent 35%),
+    linear-gradient(180deg, rgba(9, 16, 44, 0.78), rgba(7, 13, 36, 0.9));
+  backdrop-filter: blur(1.5px);
+}
+
+.app-status-toast {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.app-status-toast .status-card {
+  width: min(420px, calc(100vw - 40px));
+  pointer-events: auto;
+}
+
+.status-card {
+  width: min(460px, calc(100vw - 40px));
+  padding: 18px 20px;
+  border: 2px solid rgba(212, 217, 234, 0.8);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(16, 32, 83, 0.9);
+  box-shadow: var(--wm-shadow);
+}
+
+.status-card__title {
+  margin: 0;
+  color: var(--wm-highlight);
+  font-family: var(--wm-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 26px;
+}
+
+.status-card__detail {
+  margin: 12px 0 0;
+  color: var(--wm-text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.status-card__action {
+  margin-top: 16px;
+  min-width: 110px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 226, 171, 0.66);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(245, 196, 111, 0.15), rgba(245, 196, 111, 0)),
+    linear-gradient(180deg, #2d4ba9, #1a306f);
+  color: #f8f2e3;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.status-card__action:hover {
+  filter: brightness(1.1);
+}

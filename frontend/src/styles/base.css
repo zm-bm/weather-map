@@ -1,0 +1,50 @@
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+}
+
+:root {
+  --wm-bg: #0e1442;
+  --wm-panel: #1d2c73;
+  --wm-panel-dark: #15245f;
+  --wm-panel-deep: #102053;
+  --wm-panel-line: #d4d9ea;
+  --wm-panel-shadow: #0a1033;
+  --wm-text: #f2f2f0;
+  --wm-text-muted: #d2d4df;
+  --wm-accent: #d38b1e;
+  --wm-accent-strong: #efb44d;
+  --wm-accent-deep: #8f4f0e;
+  --wm-highlight: #eff3ff;
+  --wm-shadow: 0 10px 0 rgba(0, 0, 0, 0.22);
+  --wm-font-display: "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif;
+  --wm-font-body: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  --wm-font-mono: "Courier New", "Liberation Mono", monospace;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 184, 61, 0.08), transparent 18%),
+    radial-gradient(circle at 82% 12%, rgba(104, 126, 255, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+    var(--wm-bg);
+  color: var(--wm-text);
+  font-family: var(--wm-font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input {
+  font: inherit;
+}
+
