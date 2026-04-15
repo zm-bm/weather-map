@@ -7,7 +7,7 @@ Usage:
 	scripts/dev-refresh.sh <cycle>
 
 Description:
-	Runs ETL dev processing for the provided forecast cycle, publishes tiles/manifests,
+	Runs ETL dev processing for the provided forecast cycle, publishes artifacts/manifests,
 	and refreshes local tileserver assets via scripts/poll-tiles.sh.
 
 Arguments:
@@ -45,4 +45,7 @@ TILESERVER_DIR="$ROOT/tileserver" \
 RESTART_ENABLED="false" \
 "$ROOT/scripts/poll-tiles.sh"
 
-echo "Done. Restart the compose stack to pick up new tiles if needed."
+echo "Restarting local docker compose services"
+docker compose -f "$ROOT/compose.dev.yml" restart
+
+echo "Done."

@@ -1,154 +1,151 @@
-"""Per-item worker pipeline.
-
-The worker is responsible for running GDAL steps for a single work item
-(cycle + forecast hour + layer):
-- fetch source GRIB (via UriStore)
-- select band by metadata
-- translate/warp/shade
-- build MBTiles
-- publish MBTiles to the artifact root (file:// or s3://)
-- write a success marker JSON
-"""
+"""Worker orchestration for scalar/vector artifact generation."""
 
 from __future__ import annotations
 
 import json
 import tempfile
 from pathlib import Path
+from typing import Any, Iterable, Mapping
 
-from . import gdal_ops
 from .config import ExecutionContext
 from .contracts import ArtifactPaths, WorkItem
-from .stores import make_store
 from .proc import make_runner
+from .scalar_product import run_scalar_item_in_workdir
+from .stores import make_store
+from .vector_product import run_vector_item_in_workdir
 
 
-def _write_colortable(path: Path, layer: dict) -> None:
-    """Write a gdaldem color-relief table file for the configured layer."""
-    text = gdal_ops.format_color_relief_table(
-        colortable=layer["colortable"],
-        scale_min=float(layer["scale_min"]),
-        scale_max=float(layer["scale_max"]),
+def _write_success_marker(*, ctx: ExecutionContext, item: WorkItem, store, payload: Mapping[str, Any]) -> None:
+    ap = ArtifactPaths(ctx.artifact_root_uri)
+    success_uri = ap.success_marker_uri(item)
+    store.write_bytes(
+        uri=success_uri,
+        data=(json.dumps(dict(payload), sort_keys=True) + "\n").encode("utf-8"),
     )
-    path.write_text(text, encoding="utf-8")
 
 
-def _run_item_in_workdir(
+def _run_scalar_item(
     *,
-    workdir: Path,
     ctx: ExecutionContext,
     item: WorkItem,
-    layer: dict,
+    layer: Mapping[str, Any],
     store,
-    run: gdal_ops.RunFn,
-) -> str:
-    """Run pipeline steps inside `workdir`.
-
-    Returns the published MBTiles URI.
-    """
-
-    # Get source GRIB file
-    grib_path = workdir / "input.grib2"
-    store.get_to_file(uri=item.source_uri, dst=grib_path)
-
-    # Find GRIB band index
-    grib_match = layer.get("grib_match")
-    if isinstance(grib_match, dict):
-        grib_band_idx, _ = gdal_ops.find_grib_band_by_metadata(grib_path, grib_match, run=run)
-    else:
-        raise SystemExit(f"Layer {item.layer} must define grib_match")
-
-    # Translate GRIB band to raw GeoTIFF
-    tif_raw = workdir / "raw.tif"
-    gdal_ops.gdal_translate(
-        grib_path,
-        tif_raw,
-        opts=gdal_ops.TranslateOpts(
-            band=grib_band_idx,
-            scale_min=float(layer.get("scale_min")),
-            scale_max=float(layer.get("scale_max")),
-            output_type="Byte",
-            output_format="GTiff",
-            a_nodata="none",
-        ),
+    grib_path: Path,
+    workdir: Path,
+    run,
+) -> dict[str, Any]:
+    scalar = run_scalar_item_in_workdir(
+        workdir=workdir,
+        ctx=ctx,
+        item=item,
+        layer=layer,
+        store=store,
+        grib_path=grib_path,
         run=run,
     )
+    return {
+        "cycle": item.cycle,
+        "fhour": item.fhour,
+        "layer": item.layer,
+        "kind": "scalar",
+        "scalar": scalar,
+    }
 
-    # Warp to Web Mercator XYZ
-    tif_3857 = workdir / "mercator.tif"
-    gdal_ops.warp_web_mercator_xyz(
-        tif_raw,
-        tif_3857,
-        max_zoom=int(ctx.gdal.max_zoom),
-        resampling=str(ctx.gdal.warp_resampling),
+
+def _run_vector_item(
+    *,
+    ctx: ExecutionContext,
+    item: WorkItem,
+    vector_variable: Mapping[str, Any],
+    store,
+    grib_path: Path,
+    workdir: Path,
+    run,
+) -> dict[str, Any]:
+    vector = run_vector_item_in_workdir(
+        workdir=workdir,
+        ctx=ctx,
+        item=item,
+        vector_variable=vector_variable,
+        store=store,
+        grib_path=grib_path,
         run=run,
     )
-
-    # Apply color relief
-    colortable_path = workdir / "color.txt"
-    _write_colortable(colortable_path, layer)
-    tif_shaded = workdir / "shaded.tif"
-    gdal_ops.gdaldem_color_relief(tif_3857, colortable_path, tif_shaded, nearest_color_entry=True, run=run)
-
-    # Translate to MBTiles
-    mbtiles_path = workdir / "out.mbtiles"
-    if mbtiles_path.exists():
-        mbtiles_path.unlink()
-    gdal_ops.translate_to_mbtiles_png(
-        tif_shaded,
-        mbtiles_path,
-        name=f"{item.layer} {item.cycle} {item.fhour}",
-        tile_format=str(ctx.gdal.tile_format),
-        zoom_level_strategy=str(ctx.gdal.zoom_level_strategy),
-        run=run,
-    )
-
-    # Add overviews to MBTiles
-    gdal_ops.add_mbtiles_overviews(
-        mbtiles_path,
-        min_zoom=int(ctx.gdal.min_zoom),
-        max_zoom=int(ctx.gdal.max_zoom),
-        resampling=str(ctx.gdal.overview_resampling),
-        run=run,
-    )
-
-    # Publish MBTiles
-    ap = ArtifactPaths(ctx.artifact_root_uri)
-    mbtiles_uri = ap.output_mbtiles_uri(item)
-    store.put_file(uri=mbtiles_uri, src=mbtiles_path)
-    return mbtiles_uri
+    return {
+        "cycle": item.cycle,
+        "fhour": item.fhour,
+        "layer": item.layer,
+        "kind": "vector",
+        "vector": vector,
+    }
 
 
-def run_worker(ctx: ExecutionContext, item: WorkItem, *, layers_cfg: dict) -> None:
-    """Run the full pipeline for one WorkItem and publish its artifacts."""
-    if item.layer is None:
-        raise SystemExit("WorkItem.layer is required to build MBTiles")
+def run_process_hour(
+    *,
+    ctx: ExecutionContext,
+    cycle: str,
+    fhour: str,
+    source_uri: str,
+    scalar_variables: Iterable[str],
+    scalar_variables_cfg: Mapping[str, Mapping[str, Any]],
+    vector_variables_cfg: Mapping[str, Mapping[str, Any]] | None = None,
+) -> None:
+    """Run all configured scalar/vector work items for one (cycle, fhour)."""
+    scalar_variables = tuple(scalar_variables or ())
+    vector_variables_cfg = vector_variables_cfg or {}
+    vector_variables = tuple(vector_variables_cfg.keys())
 
-    layer = layers_cfg.get(item.layer) if isinstance(layers_cfg, dict) else None
-    if not layer:
-        raise SystemExit(f"Unknown layer: {item.layer}")
+    if not scalar_variables and not vector_variables:
+        raise SystemExit("No scalar_variables or vector_variables configured for process-hour")
 
     store = make_store()
     run = make_runner()
 
-    with tempfile.TemporaryDirectory(prefix="gfs-work-") as td:
-        mbtiles_uri = _run_item_in_workdir(
-            workdir=Path(td),
-            ctx=ctx,
-            item=item,
-            layer=layer,
-            store=store,
-            run=run,
-        )
+    with tempfile.TemporaryDirectory(prefix="gfs-work-hour-") as td:
+        workdir = Path(td)
+        grib_path = workdir / "input.grib2"
+        store.get_to_file(uri=source_uri, dst=grib_path)
 
-        ap = ArtifactPaths(ctx.artifact_root_uri)
-        success_uri = ap.success_marker_uri(item)
-        store.write_bytes(
-            uri=success_uri,
-            data=(json.dumps(
-                {"cycle": item.cycle, "fhour": item.fhour, "layer": item.layer, "mbtiles_uri": mbtiles_uri},
-                sort_keys=True,
-            ) + "\n").encode("utf-8"),
-        )
+        scalar_done = 0
+        for layer_key in scalar_variables:
+            layer = scalar_variables_cfg.get(layer_key) if isinstance(scalar_variables_cfg, Mapping) else None
+            if not isinstance(layer, Mapping):
+                raise SystemExit(f"Unknown scalar variable in workload.variables: {layer_key}")
 
-    print(f"Done. Published MBTiles to: {mbtiles_uri}", flush=True)
+            item = WorkItem(cycle=cycle, fhour=fhour, source_uri=source_uri, layer=str(layer_key))
+            success_payload = _run_scalar_item(
+                ctx=ctx,
+                item=item,
+                layer=layer,
+                store=store,
+                grib_path=grib_path,
+                workdir=workdir,
+                run=run,
+            )
+            _write_success_marker(ctx=ctx, item=item, store=store, payload=success_payload)
+            scalar_done += 1
+
+        vector_done = 0
+        for vector_key in vector_variables:
+            vector_variable = vector_variables_cfg.get(vector_key)
+            if not isinstance(vector_variable, Mapping):
+                raise SystemExit(f"Invalid vector_variables entry for key: {vector_key}")
+
+            item = WorkItem(cycle=cycle, fhour=fhour, source_uri=source_uri, layer=str(vector_key))
+            success_payload = _run_vector_item(
+                ctx=ctx,
+                item=item,
+                vector_variable=vector_variable,
+                store=store,
+                grib_path=grib_path,
+                workdir=workdir,
+                run=run,
+            )
+            _write_success_marker(ctx=ctx, item=item, store=store, payload=success_payload)
+            vector_done += 1
+
+    print(
+        f"Done. Published fhour bundle cycle={cycle} fhour={fhour}: "
+        f"scalar_variables={scalar_done} vector_variables={vector_done}",
+        flush=True,
+    )

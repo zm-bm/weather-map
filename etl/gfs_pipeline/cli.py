@@ -1,7 +1,7 @@
 """gfs_pipeline CLI.
 
 Subcommands:
-- worker: run a single (cycle, fhour, layer) item
+- process-hour: run all scalar + vector outputs for one (cycle, fhour)
 - publish: publish cycle artifacts
 - dev-run: local fanout runner (multiprocessing)
 """
@@ -15,8 +15,7 @@ from multiprocessing import Pool
 
 from . import nomads
 from .config import PipelineConfig, ExecutionContext
-from .contracts import WorkItem
-from .worker import run_worker
+from .worker import run_process_hour
 from .publish import run_publish
 from .layout import (
     parse_cycle,
@@ -51,11 +50,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     sub = ap.add_subparsers(dest="cmd", required=True)
     common = _common_subcommand_parser()
 
-    ap_worker = sub.add_parser("worker", help="Run one work item", parents=[common])
-    ap_worker.add_argument("--fhour", required=True, help="Forecast hour FFF")
-    ap_worker.add_argument("--layer", required=True, help="Layer key (e.g. tmp_surface)")
-    ap_worker.add_argument("--source-uri", required=True, help="Input GRIB2 URI (file://...)")
-    ap_worker.set_defaults(_handler=_cmd_worker)
+    ap_process_hour = sub.add_parser(
+        "process-hour",
+        help="Run one (cycle, fhour) across all configured scalar + vector outputs",
+        parents=[common],
+    )
+    ap_process_hour.add_argument("--fhour", required=True, help="Forecast hour FFF")
+    ap_process_hour.add_argument("--source-uri", required=True, help="Input GRIB2 URI (file://...)")
+    ap_process_hour.set_defaults(_handler=_cmd_process_hour)
 
     ap_publish = sub.add_parser("publish", help="Publish cycle manifests/markers", parents=[common])
     ap_publish.set_defaults(_handler=_cmd_publish)
@@ -67,18 +69,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _cmd_worker(args: argparse.Namespace) -> int:
-    """Run a single work item."""
+def _cmd_process_hour(args: argparse.Namespace) -> int:
+    """Run all configured outputs for one (cycle, fhour)."""
     cfg = PipelineConfig.from_uri(args.pipeline_config_uri)
     ctx = cfg.to_execution_context(args.artifact_root_uri)
-    item = WorkItem(
+
+    run_process_hour(
+        ctx=ctx,
         cycle=str(args.cycle),
         fhour=str(args.fhour),
-        layer=args.layer,
-        source_uri=str(args.source_uri)
+        source_uri=str(args.source_uri),
+        scalar_variables=cfg.workload.variables,
+        scalar_variables_cfg=cfg.scalar_variables,
+        vector_variables_cfg=cfg.vector_variables,
     )
-
-    run_worker(ctx, item, layers_cfg=cfg.layers)
     return 0
 
 
@@ -87,14 +91,27 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     cfg = PipelineConfig.from_uri(args.pipeline_config_uri)
     ctx = cfg.to_execution_context(args.artifact_root_uri)
 
-    run_publish(ctx=ctx, cycle=str(args.cycle), layers=cfg.workload.layers)
+    run_publish(
+        ctx=ctx,
+        cycle=str(args.cycle),
+        scalar_variables=cfg.workload.variables,
+        vector_variables=cfg.vector_variables.keys(),
+        scalar_variables_cfg=cfg.scalar_variables,
+    )
     return 0
 
 
-def _dev_run_one(payload: tuple[ExecutionContext, dict, str, str, str, str]) -> None:
-    ctx, layers_cfg, cycle, fhour, layer, source_uri = payload
-    item = WorkItem(cycle=cycle, fhour=fhour, layer=layer, source_uri=source_uri)
-    run_worker(ctx, item, layers_cfg=layers_cfg)
+def _dev_run_one(payload: tuple[ExecutionContext, dict, tuple[str, ...], str, str, str, dict]) -> None:
+    ctx, scalar_variables_cfg, scalar_variables, cycle, fhour, source_uri, vector_variables_cfg = payload
+    run_process_hour(
+        ctx=ctx,
+        cycle=cycle,
+        fhour=fhour,
+        source_uri=source_uri,
+        scalar_variables=scalar_variables,
+        scalar_variables_cfg=scalar_variables_cfg,
+        vector_variables_cfg=vector_variables_cfg,
+    )
 
 
 def _cmd_dev_run(args: argparse.Namespace) -> int:
@@ -108,9 +125,8 @@ def _cmd_dev_run(args: argparse.Namespace) -> int:
 
     etl_dir = default_etl_dir()
     fhours = cfg.workload.forecast_hours
-    layers = cfg.workload.layers
-
-    tasks: list[tuple[ExecutionContext, dict, str, str, str, str]] = []
+    scalar_variables = tuple(cfg.workload.variables or ())
+    tasks: list[tuple[ExecutionContext, dict, tuple[str, ...], str, str, str, dict]] = []
 
     for fhour in fhours:
         local_path = grib_cache_path(etl_dir=etl_dir, cycle=cycle, cycle_hour=cycle_hour, fhour=fhour)
@@ -125,8 +141,7 @@ def _cmd_dev_run(args: argparse.Namespace) -> int:
             raise SystemExit(f"Missing GRIB after download attempt: {local_path}")
 
         source_uri = file_uri(local_path)
-        for layer in layers:
-            tasks.append((ctx, cfg.layers, cycle, fhour, layer, source_uri))
+        tasks.append((ctx, cfg.scalar_variables, scalar_variables, cycle, fhour, source_uri, cfg.vector_variables))
 
     procs = int(args.procs)
     with Pool(processes=None if procs <= 0 else procs) as pool:
@@ -144,4 +159,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

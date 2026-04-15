@@ -1,0 +1,5 @@
+export { scalarLayerAdapter, SCALAR_LAYER_ID } from './adapter'
+export { SCALAR_ACTIVE_OPACITY } from './engine/constants'
+export { getScalarCatalogEntry } from './ui/catalog'
+export { getScalarLayerMeta } from './ui/meta'
+export type { ScalarLayerMeta } from './ui/meta'

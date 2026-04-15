@@ -1,62 +1,70 @@
-import { useCallback, useEffect, useRef } from 'react'
-import maplibregl, { Map as MapLibreMap, type StyleSpecification } from 'maplibre-gl'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import maplibregl, {
+  Map as MapLibreMap,
+  type LayerSpecification,
+  type StyleSpecification,
+} from 'maplibre-gl'
 
-const VIEWPORT_STORAGE_KEY = 'weather-map:viewport'
+import { normalizeError } from '../abort'
+import type { WeatherMapConfig } from '../config'
+import { CLASSIC_MUSIC_TRACK_URL, MusicControl } from '../map/controls/MusicControl'
+import {
+  buildNoiseLayer,
+  buildNoiseSource,
+  ensureNoisePattern,
+  NOISE_LAYER_ID,
+  NOISE_SOURCE_ID,
+} from '../map/noise'
+import { joinUrl } from '../url/joinUrl'
+import { loadStoredViewport, saveStoredViewport } from '../map/viewportStore'
+import { vectorLayerAdapter } from '../map/vector'
+import { scalarLayerAdapter } from '../map/scalar'
+import { mapStyleTemplate } from '../map/styles/mapStyleTemplate'
+import {
+  cloneStyle,
+  insertLayersAfter,
+  mergeSources,
+  setGlyphUrl,
+  setLocalizedTextField,
+  setVectorTiles,
+} from '../map/styles/maplibreStyleHelpers'
 
-type StoredViewport = { center: [number, number]; zoom: number }
-
-function loadStoredViewport(): StoredViewport | null {
-	try {
-		const raw = localStorage.getItem(VIEWPORT_STORAGE_KEY)
-		if (!raw) return null
-		const v = JSON.parse(raw) as Partial<StoredViewport>
-		if (!Array.isArray(v.center) || v.center.length !== 2) return null
-		if (typeof v.zoom !== 'number') return null
-		const [lng, lat] = v.center
-		if (typeof lng !== 'number' || typeof lat !== 'number') return null
-		return { center: [lng, lat], zoom: v.zoom }
-	} catch {
-		return null
-	}
-}
-
-function saveStoredViewport(map: MapLibreMap) {
-	try {
-		const c = map.getCenter()
-		const v: StoredViewport = {
-			center: [Number(c.lng.toFixed(5)), Number(c.lat.toFixed(5))],
-			zoom: Number(map.getZoom().toFixed(2)),
-		}
-		localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(v))
-	} catch {
-		// ignore (private mode / quota / etc.)
-	}
-}
+const VIEWPORT_SAVE_DEBOUNCE_MS = 250
+const BASE_VECTOR_TILE_SOURCES = {
+  openmaptiles: 'osm-planet',
+  coastline: 'coastline',
+} as const
+const LOCALIZED_LABEL_LAYER_IDS = ['place-country', 'place-city'] as const
+const NOISE_INSERT_AFTER_LAYER_ID = 'water-fill'
 
 export type UseMapLibreResult = {
 	mapRef: React.RefObject<MapLibreMap | null>
 	getMap: () => MapLibreMap | null
+  mapReadyVersion: number
 }
 
 export type UseMapLibreOptions = {
 	containerId?: string
-	style: StyleSpecification
-	center?: [number, number]
-	zoom?: number
-	maxZoom?: number
+  config: WeatherMapConfig
+	center: [number, number]
+	zoom: number
+	minZoom: number
+	maxZoom: number
 }
 
-export function useMapLibre(options: UseMapLibreOptions): UseMapLibreResult {
-	const {
-		containerId = 'map',
-		style,
-		center = [-112.5795, 38.8283],
-		zoom = 5,
-		maxZoom = 9,
-	} = options
-
+export function useMapLibre({
+  containerId = 'map',
+  config,
+  center,
+  zoom,
+  minZoom,
+  maxZoom,
+}: UseMapLibreOptions): UseMapLibreResult {
 	const mapRef = useRef<MapLibreMap | null>(null)
-	const getMap = useCallback(() => mapRef.current, [])
+  const [mapReadyVersion, setMapReadyVersion] = useState(0)
+	const getMap = useCallback(() => {
+		return mapRef.current
+	}, [])
 
 	useEffect(() => {
 		const stored = loadStoredViewport()
@@ -65,24 +73,47 @@ export function useMapLibre(options: UseMapLibreOptions): UseMapLibreResult {
 			container: containerId,
 			center: stored?.center ?? center,
 			zoom: stored?.zoom ?? zoom,
+			minZoom,
 			maxZoom,
-			style,
+			style: buildInitialMapStyle(config),
 		})
 
 		m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
-
+		m.addControl(new MusicControl(CLASSIC_MUSIC_TRACK_URL), 'top-right')
 		mapRef.current = m
+
+		const handleStyleLoad = () => {
+      try {
+        ensureStartupRuntimeOverlays(m)
+      } catch (error) {
+        const normalizedError = normalizeError(error)
+        console.error('[map] startup overlay initialization failed', normalizedError)
+      } finally {
+        setMapReadyVersion((value) => value + 1)
+      }
+		}
+
+		const handleMapError = (event: { error?: unknown }) => {
+			console.warn('[map] MapLibre error', event.error ?? event)
+		}
 
 		let saveTimer: number | undefined
 		const scheduleSave = () => {
 			if (saveTimer) window.clearTimeout(saveTimer)
-			saveTimer = window.setTimeout(() => saveStoredViewport(m), 250)
+			saveTimer = window.setTimeout(() => saveStoredViewport(m), VIEWPORT_SAVE_DEBOUNCE_MS)
 		}
 
 		m.on('moveend', scheduleSave)
+		m.on('style.load', handleStyleLoad)
+		m.on('error', handleMapError)
+		if (m.isStyleLoaded()) {
+			handleStyleLoad()
+		}
 
 		return () => {
 			m.off('moveend', scheduleSave)
+			m.off('style.load', handleStyleLoad)
+			m.off('error', handleMapError)
 			if (saveTimer) window.clearTimeout(saveTimer)
 			m.remove()
 			mapRef.current = null
@@ -90,5 +121,56 @@ export function useMapLibre(options: UseMapLibreOptions): UseMapLibreResult {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []) // intentionally mount/unmount only
 
-	return { mapRef, getMap }
+	return { mapRef, getMap, mapReadyVersion }
+}
+
+export function buildInitialMapStyle(config: WeatherMapConfig): StyleSpecification {
+  const style = cloneStyle(mapStyleTemplate)
+  hydrateBaseMapStyle(style, config)
+  addNoiseOverlayToStyle(style)
+  return style
+}
+
+function hydrateBaseMapStyle(style: StyleSpecification, config: WeatherMapConfig) {
+  setGlyphUrl(style, config.serverUrl)
+
+  for (const [sourceId, tileSource] of Object.entries(BASE_VECTOR_TILE_SOURCES)) {
+    setVectorTiles(style, sourceId, [joinUrl(config.serverUrl, `${tileSource}/{z}/{x}/{y}`)])
+  }
+
+  for (const layerId of LOCALIZED_LABEL_LAYER_IDS) {
+    setLocalizedTextField(style, layerId, config.language)
+  }
+}
+
+function addNoiseOverlayToStyle(style: StyleSpecification) {
+  mergeSources(style, {
+    [NOISE_SOURCE_ID]: buildNoiseSource() as NonNullable<StyleSpecification['sources']>[string],
+  })
+
+  const hasNoiseLayer = (style.layers ?? []).some((layer) => layer.id === NOISE_LAYER_ID)
+  if (hasNoiseLayer) return
+
+  insertLayersAfter(style, NOISE_INSERT_AFTER_LAYER_ID, [buildNoiseLayer() as LayerSpecification])
+}
+
+function ensureStartupRuntimeOverlays(map: MapLibreMap) {
+  ensureNoisePattern(map)
+  ensureScalarLayer(map)
+  ensureVectorLayer(map)
+}
+
+function ensureScalarLayer(map: MapLibreMap) {
+  if (map.getLayer(scalarLayerAdapter.layerId)) return
+
+  try {
+    map.addLayer(scalarLayerAdapter.createLayer(), NOISE_LAYER_ID)
+  } catch {
+    map.addLayer(scalarLayerAdapter.createLayer())
+  }
+}
+
+function ensureVectorLayer(map: MapLibreMap) {
+  if (map.getLayer(vectorLayerAdapter.layerId)) return
+  map.addLayer(vectorLayerAdapter.createLayer())
 }

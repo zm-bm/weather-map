@@ -1,0 +1,121 @@
+import { render, screen } from '@testing-library/react'
+import { fireEvent } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CycleManifest } from './map/manifest'
+import { createFrameManifestFixture } from './test/fixtures'
+import App from './App'
+
+const mocks = vi.hoisted(() => ({
+  useManifest: vi.fn(),
+  workspaceProps: null as Record<string, unknown> | null,
+}))
+
+vi.mock('./hooks/useManifest', () => ({
+  useManifest: mocks.useManifest,
+}))
+
+vi.mock('./components/ForecastShell/ForecastShell', () => ({
+  default: ({
+    manifest,
+  }: {
+    manifest: CycleManifest | null
+  }) => {
+    mocks.workspaceProps = { manifest }
+    return (
+      <div data-testid="forecast-screen">
+        {manifest?.cycle ?? 'no-manifest'}
+      </div>
+    )
+  },
+}))
+
+describe('App composition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.workspaceProps = null
+  })
+
+  it('always mounts forecast shell while manifest request is in flight', () => {
+    mocks.useManifest.mockReturnValue({
+      manifest: null,
+      loading: true,
+      error: null,
+      retry: vi.fn(),
+    })
+
+    render(<App />)
+
+    expect(screen.getByTestId('forecast-screen')).toHaveTextContent('no-manifest')
+    expect(screen.getByText('Loading Forecast')).toBeInTheDocument()
+    expect(mocks.workspaceProps).toEqual({
+      manifest: null,
+    })
+  })
+
+  it('shows global manifest load error and invokes retry', () => {
+    const retry = vi.fn()
+    mocks.useManifest.mockReturnValue({
+      manifest: null,
+      loading: false,
+      error: new Error('manifest fetch failed'),
+      retry,
+    })
+
+    render(<App />)
+
+    expect(screen.getByText('Forecast Load Failed')).toBeInTheDocument()
+    expect(screen.getByText('manifest fetch failed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(retry).toHaveBeenCalledTimes(1)
+    expect(mocks.workspaceProps).toEqual({
+      manifest: null,
+    })
+  })
+
+  it('passes manifest and load state through once available', () => {
+    const manifest = createFrameManifestFixture({
+      cycle: '2026040900',
+      generatedAt: '2026-04-09T00:00:00Z',
+      scalarVariables: ['rh_2m'],
+      forecastHours: ['003'],
+      frames: {
+        '003': {
+          rh_2m: {
+            path: 'fields/2026040900/003/rh_2m.scalar.i16.bin',
+            byte_length: 8,
+            sha256: 'b',
+          },
+        },
+      },
+      variableMeta: {
+        rh_2m: {
+          kind: 'scalar',
+          units: '%',
+          parameter: 'rh',
+          level: '2m_above_ground',
+          valid_min: 0,
+          valid_max: 100,
+          grid_id: 'g0',
+          encoding_id: 'e0',
+        },
+      },
+    })
+
+    mocks.useManifest.mockReturnValue({
+      manifest,
+      loading: false,
+      error: null,
+      retry: vi.fn(),
+    })
+
+    render(<App />)
+
+    expect(screen.getByTestId('forecast-screen')).toHaveTextContent('2026040900')
+    expect(screen.queryByText('Loading Forecast')).not.toBeInTheDocument()
+    expect(screen.queryByText('Forecast Load Failed')).not.toBeInTheDocument()
+    expect(mocks.workspaceProps).toEqual({
+      manifest,
+    })
+  })
+})

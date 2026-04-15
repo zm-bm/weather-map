@@ -79,6 +79,8 @@ def gdalwarp(src: Path, dst: Path, *, opts: WarpOpts, run: RunFn) -> RunResult:
     return run(argv)
 
 
+# Legacy raster-only helpers below are retained for reference and are not used
+# by the active scalar/wind runtime pipeline.
 def warp_web_mercator_xyz(
     src: Path,
     dst: Path,
