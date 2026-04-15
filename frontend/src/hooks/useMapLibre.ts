@@ -8,6 +8,7 @@ import maplibregl, {
 import { normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { TRACK_URL, MusicControl } from '../map/controls/MusicControl'
+import { OptionsControl } from '../map/controls/OptionsControl'
 import {
   buildNoiseLayer,
   buildNoiseSource,
@@ -17,8 +18,8 @@ import {
 } from '../map/noise'
 import { joinUrl } from '../url/joinUrl'
 import { loadStoredViewport, saveStoredViewport } from '../map/viewportStore'
-import { vectorLayerAdapter } from '../map/vector'
-import { scalarLayerAdapter } from '../map/scalar'
+import { vectorLayerAdapter, vectorRuntimeOptions } from '../map/vector'
+import { scalarLayerAdapter, scalarRuntimeOptions } from '../map/scalar'
 import { mapStyleTemplate } from '../map/styles/mapStyleTemplate'
 import {
   cloneStyle,
@@ -79,8 +80,12 @@ export function useMapLibre({
       style: buildInitialMapStyle(config),
     })
 
-    m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+    m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
     m.addControl(new MusicControl(TRACK_URL), 'top-right')
+    m.addControl(new OptionsControl({
+      scalarOptions: scalarRuntimeOptions,
+      vectorOptions: vectorRuntimeOptions,
+    }), 'top-right')
     mapRef.current = m
 
     const handleStyleLoad = () => {
