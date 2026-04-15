@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -99,7 +100,7 @@ export default function TimelineProvider({
     onRequestError,
   }), [onRequestApplied, onRequestError, onRequestStart])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (lastManifestSignatureRef.current === manifestTimelineSignature) return
     lastManifestSignatureRef.current = manifestTimelineSignature
     dispatch({
