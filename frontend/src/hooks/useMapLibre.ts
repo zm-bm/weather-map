@@ -7,7 +7,7 @@ import maplibregl, {
 
 import { normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
-import { CLASSIC_MUSIC_TRACK_URL, MusicControl } from '../map/controls/MusicControl'
+import { TRACK_URL, MusicControl } from '../map/controls/MusicControl'
 import {
   buildNoiseLayer,
   buildNoiseSource,
@@ -38,18 +38,18 @@ const LOCALIZED_LABEL_LAYER_IDS = ['place-country', 'place-city'] as const
 const NOISE_INSERT_AFTER_LAYER_ID = 'water-fill'
 
 export type UseMapLibreResult = {
-	mapRef: React.RefObject<MapLibreMap | null>
-	getMap: () => MapLibreMap | null
+  mapRef: React.RefObject<MapLibreMap | null>
+  getMap: () => MapLibreMap | null
   mapReadyVersion: number
 }
 
 export type UseMapLibreOptions = {
-	containerId?: string
+  containerId?: string
   config: WeatherMapConfig
-	center: [number, number]
-	zoom: number
-	minZoom: number
-	maxZoom: number
+  center: [number, number]
+  zoom: number
+  minZoom: number
+  maxZoom: number
 }
 
 export function useMapLibre({
@@ -60,29 +60,30 @@ export function useMapLibre({
   minZoom,
   maxZoom,
 }: UseMapLibreOptions): UseMapLibreResult {
-	const mapRef = useRef<MapLibreMap | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
   const [mapReadyVersion, setMapReadyVersion] = useState(0)
-	const getMap = useCallback(() => {
-		return mapRef.current
-	}, [])
+  const getMap = useCallback(() => {
+    return mapRef.current
+  }, [])
 
-	useEffect(() => {
-		const stored = loadStoredViewport()
+  useEffect(() => {
+    const stored = loadStoredViewport()
 
-		const m = new maplibregl.Map({
-			container: containerId,
-			center: stored?.center ?? center,
-			zoom: stored?.zoom ?? zoom,
-			minZoom,
-			maxZoom,
-			style: buildInitialMapStyle(config),
-		})
+    const m = new maplibregl.Map({
+      container: containerId,
+      center: stored?.center ?? center,
+      zoom: stored?.zoom ?? zoom,
+      minZoom,
+      maxZoom,
+      dragRotate: false,
+      style: buildInitialMapStyle(config),
+    })
 
-		m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
-		m.addControl(new MusicControl(CLASSIC_MUSIC_TRACK_URL), 'top-right')
-		mapRef.current = m
+    m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+    m.addControl(new MusicControl(TRACK_URL), 'top-right')
+    mapRef.current = m
 
-		const handleStyleLoad = () => {
+    const handleStyleLoad = () => {
       try {
         ensureStartupRuntimeOverlays(m)
       } catch (error) {
@@ -91,37 +92,37 @@ export function useMapLibre({
       } finally {
         setMapReadyVersion((value) => value + 1)
       }
-		}
+    }
 
-		const handleMapError = (event: { error?: unknown }) => {
-			console.warn('[map] MapLibre error', event.error ?? event)
-		}
+    const handleMapError = (event: { error?: unknown }) => {
+      console.warn('[map] MapLibre error', event.error ?? event)
+    }
 
-		let saveTimer: number | undefined
-		const scheduleSave = () => {
-			if (saveTimer) window.clearTimeout(saveTimer)
-			saveTimer = window.setTimeout(() => saveStoredViewport(m), VIEWPORT_SAVE_DEBOUNCE_MS)
-		}
+    let saveTimer: number | undefined
+    const scheduleSave = () => {
+      if (saveTimer) window.clearTimeout(saveTimer)
+      saveTimer = window.setTimeout(() => saveStoredViewport(m), VIEWPORT_SAVE_DEBOUNCE_MS)
+    }
 
-		m.on('moveend', scheduleSave)
-		m.on('style.load', handleStyleLoad)
-		m.on('error', handleMapError)
-		if (m.isStyleLoaded()) {
-			handleStyleLoad()
-		}
+    m.on('moveend', scheduleSave)
+    m.on('style.load', handleStyleLoad)
+    m.on('error', handleMapError)
+    if (m.isStyleLoaded()) {
+      handleStyleLoad()
+    }
 
-		return () => {
-			m.off('moveend', scheduleSave)
-			m.off('style.load', handleStyleLoad)
-			m.off('error', handleMapError)
-			if (saveTimer) window.clearTimeout(saveTimer)
-			m.remove()
-			mapRef.current = null
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []) // intentionally mount/unmount only
+    return () => {
+      m.off('moveend', scheduleSave)
+      m.off('style.load', handleStyleLoad)
+      m.off('error', handleMapError)
+      if (saveTimer) window.clearTimeout(saveTimer)
+      m.remove()
+      mapRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally mount/unmount only
 
-	return { mapRef, getMap, mapReadyVersion }
+  return { mapRef, getMap, mapReadyVersion }
 }
 
 export function buildInitialMapStyle(config: WeatherMapConfig): StyleSpecification {
