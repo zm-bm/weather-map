@@ -5,13 +5,14 @@ import {
   createVectorRuntime,
   getVectorRuntimeController,
 } from './engine/runtime'
+import { vectorRuntimeOptions } from './options'
 
 export const VECTOR_LAYER_ID = 'vector-layer-id'
 
 export const vectorLayerAdapter: LayerAdapter = {
   layerId: VECTOR_LAYER_ID,
   createLayer() {
-    const runtime = createVectorRuntime()
+    const runtime = createVectorRuntime(vectorRuntimeOptions)
     return {
       id: VECTOR_LAYER_ID,
       type: 'custom',

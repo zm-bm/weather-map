@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { asVectorVariableId } from '../manifest'
 import { vectorLayerAdapter } from './adapter'
+import { vectorRuntimeOptions } from './options'
 import {
   createConfigFixture,
   createManifestFixture,
@@ -58,6 +59,7 @@ describe('vectorLayerAdapter', () => {
 
     const layer = vectorLayerAdapter.createLayer()
 
+    expect(mocks.createVectorRuntime).toHaveBeenCalledWith(vectorRuntimeOptions)
     expect(layer.id).toBe('vector-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')

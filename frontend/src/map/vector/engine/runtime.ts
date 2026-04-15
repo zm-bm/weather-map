@@ -28,6 +28,7 @@ import {
   DASH_LEN_PER_MPS,
   DASH_WIDTH_PX
 } from './constants'
+import { DEFAULT_VECTOR_RUNTIME_OPTIONS, type VectorRuntimeOptions } from '../options'
 
 export type VectorRuntimeController = FrameRuntimeController<VectorFrameData>
 
@@ -89,7 +90,9 @@ export type VectorLayerRuntime = {
   onRemove: (_map: MapLibreMap, _gl: WebGLRenderingContext | WebGL2RenderingContext) => void
 }
 
-export function createVectorRuntime(): VectorLayerRuntime {
+export function createVectorRuntime(
+  options: VectorRuntimeOptions = DEFAULT_VECTOR_RUNTIME_OPTIONS
+): VectorLayerRuntime {
   const state: VectorLayerState = {
     lastFrameMs: 0,
     particleCount: PARTICLE_COUNT,
@@ -115,7 +118,7 @@ export function createVectorRuntime(): VectorLayerRuntime {
     isAvailable: () => state.available,
     applyFrame: (frame) => {
       if (!state.available || !state.gl) throw new Error('Vector runtime unavailable (WebGL2 required)')
-      applyVectorFieldToState(state, frame)
+      applyVectorFieldToState(state, frame, options)
       state.map?.triggerRepaint()
     },
   }
@@ -136,12 +139,24 @@ export function createVectorRuntime(): VectorLayerRuntime {
       state.lastFrameMs = performance.now()
       state.viewport = computeViewportState(map)
 
-      state.updateProgramInfo = createUpdateProgramInfo(gl2)
+      state.updateProgramInfo = createProgramInfo(
+        gl2,
+        VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
+        VECTOR_UPDATE_FRAGMENT_SHADER_SOURCE,
+        'update',
+        {
+          transformFeedbackVaryings: ['v_state'],
+          transformFeedbackMode: gl2.SEPARATE_ATTRIBS,
+        },
+      )
+
       state.particleProgramInfo = createProgramInfo(
         gl2,
         VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
         VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE,
+        'particle',
       )
+
       if (!state.updateProgramInfo || !state.particleProgramInfo) {
         state.available = false
         return
@@ -220,7 +235,11 @@ export function createVectorRuntime(): VectorLayerRuntime {
   }
 }
 
-function applyVectorFieldToState(state: VectorLayerState, vectorField: VectorFrameData) {
+function applyVectorFieldToState(
+  state: VectorLayerState,
+  vectorField: VectorFrameData,
+  options: VectorRuntimeOptions,
+) {
   const gl = state.gl
   if (!gl) return
 
@@ -249,8 +268,10 @@ function applyVectorFieldToState(state: VectorLayerState, vectorField: VectorFra
   if (state.vectorTexture) gl.deleteTexture(state.vectorTexture)
   state.vectorTexture = nextTexture
   state.hasFrame = true
-  reseedParticles(state)
-  state.activeSourceIndex = 0
+  if (options.reseedOnFrameChange) {
+    reseedParticles(state)
+    state.activeSourceIndex = 0
+  }
   state.lastFrameMs = performance.now()
 }
 
@@ -474,36 +495,21 @@ function createVectorTexture(gl: WebGL2RenderingContext, state: VectorLayerState
   }
 }
 
-function createUpdateProgramInfo(gl: WebGL2RenderingContext) {
-  try {
-    return twgl.createProgramInfo(
-      gl,
-      [VECTOR_UPDATE_VERTEX_SHADER_SOURCE, VECTOR_UPDATE_FRAGMENT_SHADER_SOURCE],
-      {
-        attribLocations: { a_state: 0 },
-        transformFeedbackVaryings: ['v_state'],
-        transformFeedbackMode: gl.SEPARATE_ATTRIBS,
-        errorCallback: (msg: string) => console.warn('[vector] update program error:', msg),
-      },
-    )
-  } catch (error) {
-    console.warn('[vector] failed to create update program:', error)
-    return null
-  }
-}
-
 function createProgramInfo(
   gl: WebGL2RenderingContext,
   vertexSource: string,
   fragmentSource: string,
+  errorLabel: string,
+  options?: Parameters<typeof twgl.createProgramInfo>[2],
 ) {
   try {
     return twgl.createProgramInfo(gl, [vertexSource, fragmentSource], {
+      ...(options ?? {}),
       attribLocations: { a_state: 0 },
-      errorCallback: (msg: string) => console.warn('[vector] program error:', msg),
+      errorCallback: (msg: string) => console.warn(`[vector] ${errorLabel} program error:`, msg),
     })
   } catch (error) {
-    console.warn('[vector] failed to create program:', error)
+    console.warn(`[vector] failed to create ${errorLabel} program:`, error)
     return null
   }
 }
