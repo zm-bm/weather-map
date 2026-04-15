@@ -1,10 +1,8 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useReducer,
-  useRef,
   type ReactNode,
 } from 'react'
 
@@ -36,14 +34,12 @@ export default function TimelineProvider({
   const forecastHours = manifest?.forecastHours ?? EMPTY_FORECAST_HOURS
   const forecastHourCount = forecastHours.length
   const initialHourIndex = closestHourIndex(cycle ?? '', forecastHours)
-  const manifestTimelineSignature = `${cycle ?? ''}:${forecastHours.join(',')}`
 
   const [state, dispatch] = useReducer(
     reduceTimelineState,
     initialHourIndex,
     createTimelineState
   )
-  const lastManifestSignatureRef = useRef(manifestTimelineSignature)
 
   const requestHour = useCallback((targetHourIndex: number) => {
     dispatch({
@@ -99,16 +95,6 @@ export default function TimelineProvider({
     onRequestApplied,
     onRequestError,
   }), [onRequestApplied, onRequestError, onRequestStart])
-
-  useLayoutEffect(() => {
-    if (lastManifestSignatureRef.current === manifestTimelineSignature) return
-    lastManifestSignatureRef.current = manifestTimelineSignature
-    dispatch({
-      type: 'reset',
-      hourIndex: closestHourIndex(cycle ?? '', forecastHours),
-      nowMs: Date.now(),
-    })
-  }, [cycle, forecastHours, manifestTimelineSignature])
 
   useEffect(() => {
     if (state.pendingHourIndex == null || state.pendingRetryAtMs == null) return
