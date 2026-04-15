@@ -83,24 +83,24 @@ export default function TimelineTransport() {
   }
 
   return (
-    <section className="transport-bar lower-third__module" aria-label="Forecast timeline">
-      <div className="transport-bar__titlebar">
-        <span className="transport-bar__eyebrow">Forecast Timeline</span>
+    <section className="transport-bar wm-panel-shell wm-module-shell lower-third__module" aria-label="Forecast timeline">
+      <div className="transport-bar__titlebar wm-titlebar wm-module-titlebar">
+        <span className="transport-bar__eyebrow wm-eyebrow">Forecast Timeline</span>
       </div>
 
       <div className="transport-bar__body">
         <div className="transport-bar__meta">
-          <span className="transport-bar__label">Valid Time</span>
-          <strong>{validTimeLabel ?? `Hour ${appliedHourToken}`}</strong>
-          <span className="transport-bar__detail">
+          <span className="transport-bar__label wm-mono-caps">Valid Time</span>
+          <strong className="wm-display-caps wm-text-truncate">{validTimeLabel ?? `Hour ${appliedHourToken}`}</strong>
+          <span className="transport-bar__detail wm-mono-meta wm-text-truncate">
             {cycleText ?? 'Forecast run unavailable'}
           </span>
-          <span className="transport-bar__status">{transportStatus}</span>
+          <span className="transport-bar__status wm-mono-caps wm-text-truncate">{transportStatus}</span>
         </div>
 
         <div className="transport-bar__controls">
           <button
-            className="control-button control-button--transport"
+            className="control-button wm-bevel-button control-button--transport"
             type="button"
             onClick={requestPrev}
             disabled={hourControlsDisabled}
@@ -110,7 +110,7 @@ export default function TimelineTransport() {
           </button>
 
           <button
-            className="control-button control-button--primary control-button--play"
+            className="control-button wm-bevel-button control-button--primary control-button--play"
             type="button"
             onClick={togglePlay}
             disabled={hourControlsDisabled}
@@ -120,7 +120,7 @@ export default function TimelineTransport() {
           </button>
 
           <button
-            className="control-button control-button--transport"
+            className="control-button wm-bevel-button control-button--transport"
             type="button"
             onClick={requestNext}
             disabled={hourControlsDisabled}
@@ -131,7 +131,7 @@ export default function TimelineTransport() {
         </div>
 
         <div className="transport-bar__scrubber">
-          <div className="transport-bar__scrubber-header">
+          <div className="transport-bar__scrubber-header wm-mono-caps">
             <span>Local Timeline</span>
             <span>
               Frame {appliedHourIdx + 1} of {forecastHourCount}
@@ -172,7 +172,7 @@ export default function TimelineTransport() {
             aria-label="Forecast step"
           />
 
-          <div className="transport-bar__ticks" aria-hidden="true">
+          <div className="transport-bar__ticks wm-mono-caps" aria-hidden="true">
             <span className="transport-bar__tick transport-bar__tick--edge">{startTickLabel}</span>
             <strong className="transport-bar__tick transport-bar__tick--current">{appliedTickLabel}</strong>
             <span className="transport-bar__tick transport-bar__tick--edge">{endTickLabel}</span>

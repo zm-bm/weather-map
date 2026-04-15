@@ -40,10 +40,10 @@
 .status-card {
   width: min(460px, calc(100vw - 40px));
   padding: 18px 20px;
-  border: 2px solid rgba(212, 217, 234, 0.8);
+  border: 2px solid var(--wm-ui-border-cool-strong);
   border-radius: 4px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(180deg, var(--wm-gloss-soft), var(--wm-gloss-faint)),
     rgba(16, 32, 83, 0.9);
   box-shadow: var(--wm-shadow);
 }
@@ -65,18 +65,18 @@
 }
 
 .status-card__action {
+  --wm-bevel-border: 1px solid rgba(255, 226, 171, 0.66);
+  --wm-bevel-radius: 2px;
+  --wm-bevel-background:
+    linear-gradient(180deg, rgba(245, 196, 111, 0.15), rgba(245, 196, 111, 0)),
+    linear-gradient(180deg, #2d4ba9, #1a306f);
+  --wm-bevel-text: var(--wm-text-warm);
+  --wm-bevel-hover-border: rgba(255, 232, 184, 0.82);
   margin-top: 16px;
   min-width: 110px;
   padding: 10px 16px;
-  border: 1px solid rgba(255, 226, 171, 0.66);
-  border-radius: 2px;
-  background:
-    linear-gradient(180deg, rgba(245, 196, 111, 0.15), rgba(245, 196, 111, 0)),
-    linear-gradient(180deg, #2d4ba9, #1a306f);
-  color: #f8f2e3;
   font-weight: 700;
   letter-spacing: 0.03em;
-  cursor: pointer;
 }
 
 .status-card__action:hover {

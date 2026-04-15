@@ -54,10 +54,10 @@ export function OptionsControlView({
       </button>
       <div className="maplibregl-ctrl-options-panel" hidden={!isOpen}>
         <div className="maplibregl-ctrl-options-section">
-          <div className="maplibregl-ctrl-options-heading">Scalar</div>
+          <div className="maplibregl-ctrl-options-heading wm-mono-caps">Scalar</div>
           <div className="maplibregl-ctrl-options-radio-group" role="radiogroup" aria-label="Scalar color sampling mode">
             {SCALAR_COLOR_SAMPLING_MODES.map((mode) => (
-              <label className="maplibregl-ctrl-options-row" key={mode}>
+              <label className="maplibregl-ctrl-options-row wm-mono-caps" key={mode}>
                 <input
                   type="radio"
                   name="scalar-color-sampling-mode"
@@ -72,8 +72,8 @@ export function OptionsControlView({
         </div>
         <div className="maplibregl-ctrl-options-divider" />
         <div className="maplibregl-ctrl-options-section">
-          <div className="maplibregl-ctrl-options-heading">Vector</div>
-          <label className="maplibregl-ctrl-options-row">
+          <div className="maplibregl-ctrl-options-heading wm-mono-caps">Vector</div>
+          <label className="maplibregl-ctrl-options-row wm-mono-caps">
             <input
               type="checkbox"
               checked={reseedOnFrameChange}
