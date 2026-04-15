@@ -26,14 +26,12 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
   })
 
   const componentBytes = frame.grid.nx * frame.grid.ny
-  const payload = new Uint8Array(frame.payload)
   const u = new Int8Array(frame.payload, 0, componentBytes)
   const v = new Int8Array(frame.payload, componentBytes, componentBytes)
 
   return {
     u: new Int8Array(u),
     v: new Int8Array(v),
-    payload: new Uint8Array(payload),
     metadata: {
       kind: 'vector',
       variableId: variable,

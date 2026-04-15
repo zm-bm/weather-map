@@ -33,6 +33,5 @@ export type VectorFrameMetadata = {
 export type VectorFrameData = {
   u: Int8Array
   v: Int8Array
-  payload: Uint8Array
   metadata: VectorFrameMetadata
 }
