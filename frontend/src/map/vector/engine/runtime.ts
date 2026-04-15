@@ -2,11 +2,14 @@ import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 import * as twgl from 'twgl.js'
 
 import {
-  createControllerRegistry,
-  type FrameRuntimeController,
   asWebGL2,
   clamp,
 } from '../../shared'
+import {
+  registerVectorController,
+  unregisterVectorController,
+  type VectorController,
+} from '../controller'
 import type { VectorFrameData } from './types'
 import {
   VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE,
@@ -26,31 +29,16 @@ import {
   DASH_MIN_LENGTH_PX,
   DASH_MAX_LENGTH_PX,
   DASH_LEN_PER_MPS,
-  DASH_WIDTH_PX
+  DASH_WIDTH_PX,
 } from './constants'
 import { DEFAULT_VECTOR_RUNTIME_OPTIONS, type VectorRuntimeOptions } from '../options'
-
-export type VectorRuntimeController = FrameRuntimeController<VectorFrameData>
-
-const vectorRuntimeControllers = createControllerRegistry<VectorRuntimeController>()
-
-export function getVectorRuntimeController(map: MapLibreMap): VectorRuntimeController | null {
-  return vectorRuntimeControllers.get(map)
-}
-
-function registerVectorRuntimeController(map: MapLibreMap, controller: VectorRuntimeController) {
-  vectorRuntimeControllers.register(map, controller)
-}
-
-function unregisterVectorRuntimeController(map: MapLibreMap) {
-  vectorRuntimeControllers.unregister(map)
-}
 
 type ViewportState = {
   west: number
   east: number
   south: number
   north: number
+  // Cached mercator bounds for lon/lat -> clip-space conversion.
   mercatorWestX: number
   mercatorEastX: number
   mercatorNorthY: number
@@ -62,22 +50,31 @@ type VectorLayerState = {
   gl?: WebGL2RenderingContext
   lastFrameMs: number
   particleCount: number
+  // Camera bounds for culling and screen-space conversion.
   viewport: ViewportState | null
+  // Signed int8 vector components from frame payload.
   vectorU: Int8Array
   vectorV: Int8Array
+  // Grid shape for U/V arrays.
   vectorNx: number
   vectorNy: number
+  // Grid georeferencing for shader sampling.
   vectorLon0: number
   vectorLat0: number
   vectorDx: number
   vectorDy: number
+  // Packed RGBA texture built from vectorU/vectorV.
   vectorTexture: WebGLTexture | null
   available: boolean
   hasFrame: boolean
+  // Compiled programs for update/draw passes.
   updateProgramInfo: twgl.ProgramInfo | null
   particleProgramInfo: twgl.ProgramInfo | null
+  // Ping-pong particle-state buffers.
   stateBufferInfos: [twgl.BufferInfo | null, twgl.BufferInfo | null]
+  // Active ping-pong source buffer index.
   activeSourceIndex: 0 | 1
+  // Transform feedback object for next-state writes.
   transformFeedback: WebGLTransformFeedback | null
 }
 
@@ -114,10 +111,11 @@ export function createVectorRuntime(
     activeSourceIndex: 0,
     transformFeedback: null,
   }
-  const runtimeController: VectorRuntimeController = {
+  const controller: VectorController = {
     isAvailable: () => state.available,
     applyFrame: (frame) => {
       if (!state.available || !state.gl) throw new Error('Vector runtime unavailable (WebGL2 required)')
+      // Upload the latest vector field and optionally reseed particles.
       applyVectorFieldToState(state, frame, options)
       state.map?.triggerRepaint()
     },
@@ -126,8 +124,9 @@ export function createVectorRuntime(
   return {
     onAdd(map, gl) {
       state.map = map
-      registerVectorRuntimeController(map, runtimeController)
+      registerVectorController(map, controller)
 
+      // Transform feedback is required for GPU-side particle updates.
       const gl2 = asWebGL2(gl, 'createTransformFeedback')
       if (!gl2) {
         state.available = false
@@ -139,6 +138,7 @@ export function createVectorRuntime(
       state.lastFrameMs = performance.now()
       state.viewport = computeViewportState(map)
 
+      // Update program writes next state into the transform feedback buffer.
       state.updateProgramInfo = createProgramInfo(
         gl2,
         VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
@@ -150,6 +150,7 @@ export function createVectorRuntime(
         },
       )
 
+      // Particle program renders current state as oriented dashes.
       state.particleProgramInfo = createProgramInfo(
         gl2,
         VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
@@ -162,6 +163,7 @@ export function createVectorRuntime(
         return
       }
 
+      // Allocate ping-pong state buffers with seeded particles.
       const initial = buildInitialParticleState(state.particleCount, state.viewport)
       state.stateBufferInfos = [
         createStateBufferInfo(gl2, initial),
@@ -179,6 +181,7 @@ export function createVectorRuntime(
       }
       state.available = true
 
+      // Keep the custom layer animating.
       map.triggerRepaint()
     },
 
@@ -189,12 +192,15 @@ export function createVectorRuntime(
       if (!isReady(state)) return
       if (!state.map) return
 
+      // Refresh camera bounds every frame as pan/zoom changes.
       state.viewport = computeViewportState(state.map)
 
       const now = performance.now()
+      // Clamp delta time to keep integration stable on slow frames.
       const dtSec = clamp((now - state.lastFrameMs) / 1000, 0.001, 0.05)
       state.lastFrameMs = now
 
+      // Run simulation first, then draw.
       runUpdatePass(state, dtSec, now)
       runParticlePass(state)
 
@@ -202,11 +208,12 @@ export function createVectorRuntime(
     },
 
     onRemove(map, gl) {
-      unregisterVectorRuntimeController(map)
+      unregisterVectorController(map)
       void gl
       const gl2 = state.gl
 
       if (gl2) {
+        // Release GPU resources owned by this runtime.
         if (state.vectorTexture) gl2.deleteTexture(state.vectorTexture)
         if (state.updateProgramInfo) gl2.deleteProgram(state.updateProgramInfo.program)
         if (state.particleProgramInfo) gl2.deleteProgram(state.particleProgramInfo.program)
@@ -243,6 +250,7 @@ function applyVectorFieldToState(
   const gl = state.gl
   if (!gl) return
 
+  // Normalize metadata origin so sampling lines up with cell centers.
   const samplingOrigin = toCellCenterOrigin(
     vectorField.metadata.lon0,
     vectorField.metadata.lat0,
@@ -250,6 +258,7 @@ function applyVectorFieldToState(
     vectorField.metadata.dy,
   )
 
+  // Store raw components and grid metadata for texture upload/uniforms.
   state.vectorU = vectorField.u
   state.vectorV = vectorField.v
   state.vectorNx = vectorField.metadata.nx
@@ -259,6 +268,7 @@ function applyVectorFieldToState(
   state.vectorDx = vectorField.metadata.dx
   state.vectorDy = vectorField.metadata.dy
 
+  // Rebuild packed vector texture for the latest frame.
   const nextTexture = createVectorTexture(gl, state)
   if (!nextTexture) {
     console.warn('[vector] failed to upload live vector texture; keeping previous texture')
@@ -269,6 +279,7 @@ function applyVectorFieldToState(
   state.vectorTexture = nextTexture
   state.hasFrame = true
   if (options.reseedOnFrameChange) {
+    // Optional continuity break on frame change.
     reseedParticles(state)
     state.activeSourceIndex = 0
   }
@@ -303,12 +314,14 @@ function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
   const dstBufferInfo = stateBufferInfos[activeSourceIndex === 0 ? 1 : 0]
   if (!srcBufferInfo || !dstBufferInfo) return
 
+  // Write transform feedback into the opposite ping-pong buffer.
   const dstBuffer = getStateBufferFromInfo(dstBufferInfo)
   if (!dstBuffer) return
 
   const zoom = map?.getZoom() ?? SPEED_REFERENCE_ZOOM
   gl.useProgram(updateProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, updateProgramInfo, srcBufferInfo)
+  // Simulation uniforms: field sampling, advection, age, and viewport bounds.
   twgl.setUniforms(updateProgramInfo, {
     u_dt_sec: dtSec,
     u_seed: nowMs * 0.001,
@@ -331,6 +344,7 @@ function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
   gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback)
   gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, dstBuffer)
 
+  // GPU-only update pass with rasterization disabled.
   gl.enable(gl.RASTERIZER_DISCARD)
   gl.beginTransformFeedback(gl.POINTS)
   twgl.drawBufferInfo(gl, srcBufferInfo, gl.POINTS, particleCount)
@@ -369,6 +383,7 @@ function runParticlePass(state: VectorLayerState) {
   const particleBufferInfo = stateBufferInfos[activeSourceIndex]
   if (!particleBufferInfo) return
 
+  // Draw directly to the map framebuffer.
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
   gl.disable(gl.DEPTH_TEST)
@@ -377,6 +392,7 @@ function runParticlePass(state: VectorLayerState) {
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
 
   const zoom = map.getZoom()
+  // Render uniforms: viewport mapping, dash styling, and local flow direction.
   twgl.setUniforms(particleProgramInfo, {
     u_bounds_west: viewport.west,
     u_bounds_east: viewport.east,
@@ -408,6 +424,7 @@ function runParticlePass(state: VectorLayerState) {
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
   twgl.drawBufferInfo(gl, particleBufferInfo, gl.POINTS, particleCount)
 
+  // Restore blend state for downstream layers.
   gl.disable(gl.BLEND)
   gl.useProgram(null)
 }
@@ -420,6 +437,7 @@ function reseedParticles(state: VectorLayerState) {
   const stateBuffer1 = getStateBufferFromInfo(stateBufferInfos[1])
   if (!stateBuffer0 || !stateBuffer1) return
 
+  // Reset both ping-pong buffers to the same seed state.
   const seeded = buildInitialParticleState(particleCount, viewport)
   gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer0)
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, seeded)
@@ -432,6 +450,7 @@ function buildInitialParticleState(count: number, viewport: ViewportState | null
   const out = new Float32Array(count * 3)
   if (!viewport) return out
 
+  // a_state layout: [lon, lat, ageSec].
   for (let i = 0; i < count; i += 1) {
     const base = i * 3
     const lon = viewport.west + Math.random() * (viewport.east - viewport.west)
@@ -444,6 +463,7 @@ function buildInitialParticleState(count: number, viewport: ViewportState | null
 }
 
 function createStateBufferInfo(gl: WebGL2RenderingContext, data: Float32Array) {
+  // Shared vec3 attribute used by update and render programs.
   return twgl.createBufferInfoFromArrays(gl, {
     a_state: {
       numComponents: 3,
@@ -454,6 +474,7 @@ function createStateBufferInfo(gl: WebGL2RenderingContext, data: Float32Array) {
 }
 
 function getStateBufferFromInfo(bufferInfo: twgl.BufferInfo) {
+  // TWGL wraps attrib buffers; this unwraps the raw buffer for TF binding.
   const attrib = bufferInfo.attribs?.a_state
   return attrib?.buffer ?? null
 }
@@ -465,6 +486,7 @@ function createVectorTexture(gl: WebGL2RenderingContext, state: VectorLayerState
     return null
   }
 
+  // Pack signed U/V into RG channels of an RGBA8 texture.
   const rgba = new Uint8Array(componentBytes * 4)
   for (let i = 0; i < componentBytes; i += 1) {
     const base = i * 4
@@ -503,6 +525,7 @@ function createProgramInfo(
   options?: Parameters<typeof twgl.createProgramInfo>[2],
 ) {
   try {
+    // Keep attribute location stable so both programs read the same layout.
     return twgl.createProgramInfo(gl, [vertexSource, fragmentSource], {
       ...(options ?? {}),
       attribLocations: { a_state: 0 },
@@ -516,10 +539,12 @@ function createProgramInfo(
 
 function computeViewportState(map: MapLibreMap): ViewportState {
   const bounds = map.getBounds()
+  // Clamp latitude to the WebMercator domain.
   const south = clamp(bounds.getSouth(), -85.0, 85.0)
   const north = clamp(bounds.getNorth(), -85.0, 85.0)
   const west = bounds.getWest()
   let east = bounds.getEast()
+  // Unwrap antimeridian crossings into a continuous east-west span.
   if (east < west) east += 360
 
   const mercatorWestX = lonToMercatorX(west)
@@ -540,20 +565,24 @@ function computeViewportState(map: MapLibreMap): ViewportState {
 }
 
 function lonToMercatorX(lon: number) {
+  // Accept unwrapped longitudes (can exceed 180 when crossing the dateline).
   return (lon + 180) / 360
 }
 
 function latToMercatorY(lat: number) {
+  // Standard WebMercator Y in [0, 1].
   const clamped = clamp(lat, -85.05112878, 85.05112878)
   const s = Math.sin((clamped * Math.PI) / 180)
   return 0.5 - (0.25 * Math.log((1 + s) / (1 - s))) / Math.PI
 }
 
 function i8ToU8(value: number) {
+  // Reinterpret i8 payload from normalized unsigned texture bytes.
   return value < 0 ? value + 256 : value
 }
 
 function toCellCenterOrigin(lon0: number, lat0: number, dx: number, dy: number) {
+  // Detect cell-edge origins and shift to cell centers when needed.
   return {
     lon0: needsHalfCellShift(lon0, dx) ? lon0 + 0.5 * dx : lon0,
     lat0: needsHalfCellShift(lat0, dy) ? lat0 + 0.5 * dy : lat0,
@@ -568,12 +597,13 @@ function needsHalfCellShift(origin: number, step: number) {
 }
 
 function isReady(state: VectorLayerState) {
+  // Render/update requires all GPU resources plus a loaded frame.
   return Boolean(
     state.map &&
-        state.gl &&
-        state.viewport &&
-        state.hasFrame &&
-        state.vectorTexture &&
+      state.gl &&
+      state.viewport &&
+      state.hasFrame &&
+      state.vectorTexture &&
       state.updateProgramInfo &&
       state.particleProgramInfo &&
       state.transformFeedback &&

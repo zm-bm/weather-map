@@ -7,38 +7,25 @@ import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,
 } from './shaders'
-import { SCALAR_ACTIVE_OPACITY } from './constants'
 import {
-  createControllerRegistry,
-  type FrameRuntimeController,
+  SCALAR_ACTIVE_OPACITY,
+  COLORMAP_LUT_SIZE,
+  WORLD_WRAP_COPY_OFFSETS,
+} from './constants'
+import {
   asWebGL2,
 } from '../../shared'
-import type { ScalarFrameData } from './types'
+import {
+  registerScalarController,
+  unregisterScalarController,
+  type ScalarController,
+} from '../controller'
 import {
   DEFAULT_SCALAR_RUNTIME_OPTIONS,
   type ScalarColorSamplingMode,
   type ScalarRuntimeOptions,
 } from '../options'
 
-export type ScalarRuntimeController = FrameRuntimeController<ScalarFrameData>
-
-const scalarRuntimeControllers = createControllerRegistry<ScalarRuntimeController>()
-
-export function getScalarRuntimeController(map: MapLibreMap): ScalarRuntimeController | null {
-  return scalarRuntimeControllers.get(map)
-}
-
-function registerScalarRuntimeController(map: MapLibreMap, controller: ScalarRuntimeController) {
-  scalarRuntimeControllers.register(map, controller)
-}
-
-function unregisterScalarRuntimeController(map: MapLibreMap) {
-  scalarRuntimeControllers.unregister(map)
-}
-
-const DEFAULT_SCALAR_OPACITY = SCALAR_ACTIVE_OPACITY
-const COLORMAP_LUT_SIZE = 256
-const WORLD_WRAP_COPY_OFFSETS = [-2, -1, 0, 1, 2] as const
 type NormalizedColortableStop = [number, number, number, number]
 
 type ScalarLayerState = {
@@ -47,25 +34,32 @@ type ScalarLayerState = {
   available: boolean
   hasFrame: boolean
   opacity: number
+  // Active LUT sampling mode.
   colorSamplingMode: ScalarColorSamplingMode
+  // Scalar program + fullscreen-quad geometry.
   program: WebGLProgram | null
   vao: WebGLVertexArrayObject | null
   vertexBuffer: WebGLBuffer | null
+  // Scalar grid texture + cached colormap LUT textures.
   scalarTexture: WebGLTexture | null
   colormapTextureInterpolated: WebGLTexture | null
   colormapTextureBanded: WebGLTexture | null
+  // Colormap rebuild cache key.
   colormapKey: string | null
+  // Grid shape and georeferencing for shader sampling.
   gridNx: number
   gridNy: number
   lon0: number
   lat0: number
   dx: number
   dy: number
+  // Packed-value decode parameters + LUT display range.
   scale: number
   offset: number
   nodata: number
   displayMin: number
   displayMax: number
+  // Uniform handles resolved during onAdd.
   uniforms: {
     scalarTex: WebGLUniformLocation | null
     colormapTex: WebGLUniformLocation | null
@@ -100,7 +94,7 @@ export function createScalarRuntime(
   const state: ScalarLayerState = {
     available: false,
     hasFrame: false,
-    opacity: DEFAULT_SCALAR_OPACITY,
+    opacity: SCALAR_ACTIVE_OPACITY,
     colorSamplingMode: options.colorSamplingMode,
     program: null,
     vao: null,
@@ -139,7 +133,7 @@ export function createScalarRuntime(
     },
   }
 
-  const controller: ScalarRuntimeController = {
+  const controller: ScalarController = {
     isAvailable: () => state.available,
     applyFrame: (frame) => {
       if (!state.available || !state.gl) throw new Error('Scalar runtime unavailable')
@@ -152,6 +146,7 @@ export function createScalarRuntime(
       const nextScalarTexture = createScalarTexture(gl, frame.grid.nx, frame.grid.ny, frame.values)
       if (!nextScalarTexture) throw new Error('Failed to create scalar texture')
 
+      // Rebuild colormap textures only when display range or stop table changes.
       const nextColormapKey = createColormapKey(frame.colortable, frame.displayRange)
       const shouldRebuildColormap =
         state.colormapKey !== nextColormapKey ||
@@ -218,7 +213,7 @@ export function createScalarRuntime(
   return {
     onAdd(map, gl) {
       state.map = map
-      registerScalarRuntimeController(map, controller)
+      registerScalarController(map, controller)
 
       const gl2 = asWebGL2(gl, 'createVertexArray')
       if (!gl2) {
@@ -263,12 +258,14 @@ export function createScalarRuntime(
       if (!gl2 || !state.available || !state.map || !state.program || !state.vao) return
       if (!state.scalarTexture || !state.hasFrame || state.opacity <= 0) return
 
+      // Pick the active LUT texture from runtime options.
       state.colorSamplingMode = options.colorSamplingMode
       const colormapTexture = state.colorSamplingMode === 'banded'
         ? state.colormapTextureBanded
         : state.colormapTextureInterpolated
       if (!colormapTexture) return
 
+      // Bind scalar/colormap textures and upload render uniforms.
       gl2.useProgram(state.program)
       gl2.bindVertexArray(state.vao)
 
@@ -296,6 +293,7 @@ export function createScalarRuntime(
       gl2.enable(gl2.BLEND)
       gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA)
 
+      // Draw wrapped-world copies to avoid dateline seams.
       const centerWrap = computeCenterWorldWrap(state.map.getCenter().lng)
       for (const relativeOffset of WORLD_WRAP_COPY_OFFSETS) {
         gl2.uniform1f(state.uniforms.worldOffsetX, centerWrap + relativeOffset)
@@ -309,7 +307,7 @@ export function createScalarRuntime(
     },
 
     onRemove(map) {
-      unregisterScalarRuntimeController(map)
+      unregisterScalarController(map)
       const { gl } = state
 
       if (gl) {
@@ -342,6 +340,7 @@ function createScalarTexture(
   ny: number,
   values: Int16Array
 ): WebGLTexture | null {
+  // Upload signed 16-bit scalar texture; decode in shader.
   const texture = gl.createTexture()
   if (!texture) return null
 
@@ -363,6 +362,7 @@ function createColormapTexture(
   displayRange: [number, number],
   colorSamplingMode: ScalarColorSamplingMode
 ): WebGLTexture | null {
+  // Build a 1D RGBA LUT texture for fragment color lookup.
   const texture = gl.createTexture()
   if (!texture) return null
 
@@ -370,6 +370,7 @@ function createColormapTexture(
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+  // Interpolated mode blends texels; banded mode snaps to nearest texel.
   if (colorSamplingMode === 'banded') {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -389,6 +390,7 @@ function createColormapKey(
   colortable: LayerColortableStop[],
   displayRange: [number, number]
 ): string {
+  // Deterministic key for LUT texture reuse.
   return JSON.stringify({
     displayRange,
     colortable,
@@ -401,6 +403,7 @@ function buildColormapLut(
   size: number,
   colorSamplingMode: ScalarColorSamplingMode
 ): Uint8Array {
+  // Normalize/sanitize stops before sampling into a fixed-size LUT.
   const [rangeMin, rangeMax] = displayRange
   const normalizedStops = normalizeColortableStops(colortable, displayRange)
   const safeStops = [...normalizedStops]
@@ -414,6 +417,7 @@ function buildColormapLut(
 
   for (let idx = 0; idx < size; idx += 1) {
     const value = rangeMin + (span * idx) / Math.max(1, size - 1)
+    // Interpolated mode blends stops; banded mode snaps to the nearest stop.
     const color = colorSamplingMode === 'banded'
       ? sampleColortableNearest(stops, value)
       : sampleColortable(stops, value)
@@ -438,6 +442,8 @@ function normalizeColortableStops(
   const denominator = Math.max(1, colortable.length - 1)
 
   return colortable.map((stop, index) => {
+    // Stop format: [value, r, g, b] or [r, g, b].
+    // When value is omitted, distribute stops evenly across the display range.
     if (stop.length === 4) {
       return [stop[0], stop[1], stop[2], stop[3]]
     }
@@ -448,6 +454,7 @@ function normalizeColortableStops(
 }
 
 function sampleColortable(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+  // Piecewise-linear interpolation between adjacent stop pairs.
   if (stops.length === 1) {
     return [stops[0][1], stops[0][2], stops[0][3]]
   }
@@ -477,6 +484,7 @@ function sampleColortable(stops: NormalizedColortableStop[], value: number): [nu
 }
 
 function sampleColortableNearest(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+  // Nearest-stop lookup for banded mode.
   if (stops.length === 1) {
     return [stops[0][1], stops[0][2], stops[0][3]]
   }
@@ -538,6 +546,7 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
 }
 
 function createWrappedWorldVertexBuffer(gl: WebGL2RenderingContext): WebGLBuffer | null {
+  // Fullscreen unit quad; shader maps it into wrapped-world copies.
   const buffer = gl.createBuffer()
   if (!buffer) return null
 
@@ -571,6 +580,7 @@ function createVao(gl: WebGL2RenderingContext, vertexBuffer: WebGLBuffer | null)
 }
 
 function computeCenterWorldWrap(lng: number): number {
+  // Use the wrapped copy nearest map center as the multi-copy base.
   if (!Number.isFinite(lng)) return 0
   return Math.floor((lng + 180) / 360)
 }

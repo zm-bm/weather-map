@@ -1,10 +1,8 @@
 import { createAbortError } from '../../abort'
 import type { LayerAdapter } from '../shared'
 import { loadVectorFrame } from './engine/frame'
-import {
-  createVectorRuntime,
-  getVectorRuntimeController,
-} from './engine/runtime'
+import { createVectorRuntime } from './engine/runtime'
+import { getVectorController } from './controller'
 import { vectorRuntimeOptions } from './options'
 
 export const VECTOR_LAYER_ID = 'vector-layer-id'
@@ -36,11 +34,11 @@ export const vectorLayerAdapter: LayerAdapter = {
 
     if (args.signal.aborted) throw createAbortError()
 
-    const runtimeController = getVectorRuntimeController(args.map)
-    if (!runtimeController?.isAvailable()) {
+    const controller = getVectorController(args.map)
+    if (!controller?.isAvailable()) {
       throw new Error('Vector runtime unavailable (WebGL2 required)')
     }
 
-    runtimeController.applyFrame(frame)
+    controller.applyFrame(frame)
   },
 }

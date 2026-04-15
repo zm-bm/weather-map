@@ -1,10 +1,8 @@
 import { createAbortError } from '../../abort'
 import type { LayerAdapter } from '../shared'
 import { loadScalarFrame } from './engine/frame'
-import {
-  createScalarRuntime,
-  getScalarRuntimeController,
-} from './engine/runtime'
+import { createScalarRuntime } from './engine/runtime'
+import { getScalarController } from './controller'
 import { scalarRuntimeOptions } from './options'
 
 export const SCALAR_LAYER_ID = 'scalar-layer-id'
@@ -35,11 +33,11 @@ export const scalarLayerAdapter: LayerAdapter = {
 
     if (args.signal.aborted) throw createAbortError()
 
-    const runtimeController = getScalarRuntimeController(args.map)
-    if (!runtimeController?.isAvailable()) {
+    const controller = getScalarController(args.map)
+    if (!controller?.isAvailable()) {
       throw new Error('Scalar runtime unavailable (WebGL2 required)')
     }
 
-    runtimeController.applyFrame(frame)
+    controller.applyFrame(frame)
   },
 }

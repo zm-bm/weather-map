@@ -11,7 +11,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   loadScalarFrame: vi.fn(),
-  getScalarRuntimeController: vi.fn(),
+  getScalarController: vi.fn(),
   createScalarRuntime: vi.fn(),
 }))
 
@@ -19,8 +19,11 @@ vi.mock('./engine/frame', () => ({
   loadScalarFrame: mocks.loadScalarFrame,
 }))
 
+vi.mock('./controller', () => ({
+  getScalarController: mocks.getScalarController,
+}))
+
 vi.mock('./engine/runtime', () => ({
-  getScalarRuntimeController: mocks.getScalarRuntimeController,
   createScalarRuntime: mocks.createScalarRuntime,
 }))
 
@@ -41,7 +44,7 @@ describe('scalarLayerAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadScalarFrame.mockResolvedValue({ variableId: 'tmp_surface' })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
     })
@@ -67,7 +70,7 @@ describe('scalarLayerAdapter', () => {
     const applyFrame = vi.fn()
 
     mocks.loadScalarFrame.mockResolvedValue(frame)
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
     })
@@ -82,7 +85,7 @@ describe('scalarLayerAdapter', () => {
 
   it('throws when runtime is unavailable', async () => {
     mocks.loadScalarFrame.mockResolvedValue({ variableId: 'tmp_surface' })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
     })
@@ -99,7 +102,7 @@ describe('scalarLayerAdapter', () => {
       ac.abort()
       return { variableId: 'tmp_surface' }
     })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
     })
