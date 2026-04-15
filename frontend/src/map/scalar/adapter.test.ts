@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { scalarLayerAdapter } from './adapter'
+import { scalarRuntimeOptions } from './options'
 import {
   createConfigFixture,
   createManifestFixture,
@@ -55,6 +56,7 @@ describe('scalarLayerAdapter', () => {
 
     const layer = scalarLayerAdapter.createLayer()
 
+    expect(mocks.createScalarRuntime).toHaveBeenCalledWith(scalarRuntimeOptions)
     expect(layer.id).toBe('scalar-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')

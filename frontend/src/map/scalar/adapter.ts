@@ -5,13 +5,14 @@ import {
   createScalarRuntime,
   getScalarRuntimeController,
 } from './engine/runtime'
+import { scalarRuntimeOptions } from './options'
 
 export const SCALAR_LAYER_ID = 'scalar-layer-id'
 
 export const scalarLayerAdapter: LayerAdapter = {
   layerId: SCALAR_LAYER_ID,
   createLayer() {
-    const runtime = createScalarRuntime()
+    const runtime = createScalarRuntime(scalarRuntimeOptions)
     return {
       id: SCALAR_LAYER_ID,
       type: 'custom',

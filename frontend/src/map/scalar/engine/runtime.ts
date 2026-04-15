@@ -14,6 +14,11 @@ import {
   asWebGL2,
 } from '../../shared'
 import type { ScalarFrameData } from './types'
+import {
+  DEFAULT_SCALAR_RUNTIME_OPTIONS,
+  type ScalarColorSamplingMode,
+  type ScalarRuntimeOptions,
+} from '../options'
 
 export type ScalarRuntimeController = FrameRuntimeController<ScalarFrameData>
 
@@ -42,6 +47,7 @@ type ScalarLayerState = {
   available: boolean
   hasFrame: boolean
   opacity: number
+  colorSamplingMode: ScalarColorSamplingMode
   program: WebGLProgram | null
   vao: WebGLVertexArrayObject | null
   vertexBuffer: WebGLBuffer | null
@@ -86,11 +92,14 @@ export type ScalarLayerRuntime = {
   onRemove: (_map: MapLibreMap, _gl: WebGLRenderingContext | WebGL2RenderingContext) => void
 }
 
-export function createScalarRuntime(): ScalarLayerRuntime {
+export function createScalarRuntime(
+  options: ScalarRuntimeOptions = DEFAULT_SCALAR_RUNTIME_OPTIONS
+): ScalarLayerRuntime {
   const state: ScalarLayerState = {
     available: false,
     hasFrame: false,
     opacity: DEFAULT_SCALAR_OPACITY,
+    colorSamplingMode: options.colorSamplingMode,
     program: null,
     vao: null,
     vertexBuffer: null,
@@ -161,6 +170,7 @@ export function createScalarRuntime(): ScalarLayerRuntime {
       state.nodata = frame.encoding.nodata
       state.displayMin = frame.displayRange[0]
       state.displayMax = frame.displayRange[1]
+      state.colorSamplingMode = options.colorSamplingMode
       state.hasFrame = true
       state.map?.triggerRepaint()
     },
