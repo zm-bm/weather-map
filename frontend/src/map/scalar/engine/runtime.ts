@@ -52,7 +52,9 @@ type ScalarLayerState = {
   vao: WebGLVertexArrayObject | null
   vertexBuffer: WebGLBuffer | null
   scalarTexture: WebGLTexture | null
-  colormapTexture: WebGLTexture | null
+  colormapTextureInterpolated: WebGLTexture | null
+  colormapTextureBanded: WebGLTexture | null
+  colormapKey: string | null
   gridNx: number
   gridNy: number
   lon0: number
@@ -104,7 +106,9 @@ export function createScalarRuntime(
     vao: null,
     vertexBuffer: null,
     scalarTexture: null,
-    colormapTexture: null,
+    colormapTextureInterpolated: null,
+    colormapTextureBanded: null,
+    colormapKey: null,
     gridNx: 0,
     gridNy: 0,
     lon0: 0,
@@ -148,17 +152,52 @@ export function createScalarRuntime(
       const nextScalarTexture = createScalarTexture(gl, frame.grid.nx, frame.grid.ny, frame.values)
       if (!nextScalarTexture) throw new Error('Failed to create scalar texture')
 
-      const nextColormapTexture = createColormapTexture(gl, frame.colortable, frame.displayRange)
-      if (!nextColormapTexture) {
-        gl.deleteTexture(nextScalarTexture)
-        throw new Error('Failed to create scalar colormap texture')
+      const nextColormapKey = createColormapKey(frame.colortable, frame.displayRange)
+      const shouldRebuildColormap =
+        state.colormapKey !== nextColormapKey ||
+        !state.colormapTextureInterpolated ||
+        !state.colormapTextureBanded
+
+      let nextColormapTextureInterpolated = state.colormapTextureInterpolated
+      let nextColormapTextureBanded = state.colormapTextureBanded
+
+      if (shouldRebuildColormap) {
+        nextColormapTextureInterpolated = createColormapTexture(
+          gl,
+          frame.colortable,
+          frame.displayRange,
+          'interpolated'
+        )
+        if (!nextColormapTextureInterpolated) {
+          gl.deleteTexture(nextScalarTexture)
+          throw new Error('Failed to create scalar colormap texture')
+        }
+
+        nextColormapTextureBanded = createColormapTexture(
+          gl,
+          frame.colortable,
+          frame.displayRange,
+          'banded'
+        )
+        if (!nextColormapTextureBanded) {
+          gl.deleteTexture(nextScalarTexture)
+          gl.deleteTexture(nextColormapTextureInterpolated)
+          throw new Error('Failed to create scalar colormap texture')
+        }
       }
 
       if (state.scalarTexture) gl.deleteTexture(state.scalarTexture)
-      if (state.colormapTexture) gl.deleteTexture(state.colormapTexture)
+      if (shouldRebuildColormap) {
+        if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
+        if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
+      }
 
       state.scalarTexture = nextScalarTexture
-      state.colormapTexture = nextColormapTexture
+      if (shouldRebuildColormap) {
+        state.colormapTextureInterpolated = nextColormapTextureInterpolated
+        state.colormapTextureBanded = nextColormapTextureBanded
+        state.colormapKey = nextColormapKey
+      }
       state.gridNx = frame.grid.nx
       state.gridNy = frame.grid.ny
       state.lon0 = frame.grid.lon0
@@ -222,7 +261,13 @@ export function createScalarRuntime(
     render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
       if (!gl2 || !state.available || !state.map || !state.program || !state.vao) return
-      if (!state.scalarTexture || !state.colormapTexture || !state.hasFrame || state.opacity <= 0) return
+      if (!state.scalarTexture || !state.hasFrame || state.opacity <= 0) return
+
+      state.colorSamplingMode = options.colorSamplingMode
+      const colormapTexture = state.colorSamplingMode === 'banded'
+        ? state.colormapTextureBanded
+        : state.colormapTextureInterpolated
+      if (!colormapTexture) return
 
       gl2.useProgram(state.program)
       gl2.bindVertexArray(state.vao)
@@ -230,7 +275,7 @@ export function createScalarRuntime(
       gl2.activeTexture(gl2.TEXTURE0)
       gl2.bindTexture(gl2.TEXTURE_2D, state.scalarTexture)
       gl2.activeTexture(gl2.TEXTURE1)
-      gl2.bindTexture(gl2.TEXTURE_2D, state.colormapTexture)
+      gl2.bindTexture(gl2.TEXTURE_2D, colormapTexture)
 
       gl2.uniform1i(state.uniforms.scalarTex, 0)
       gl2.uniform1i(state.uniforms.colormapTex, 1)
@@ -269,7 +314,8 @@ export function createScalarRuntime(
 
       if (gl) {
         if (state.scalarTexture) gl.deleteTexture(state.scalarTexture)
-        if (state.colormapTexture) gl.deleteTexture(state.colormapTexture)
+        if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
+        if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
         if (state.vertexBuffer) gl.deleteBuffer(state.vertexBuffer)
         if (state.vao) gl.deleteVertexArray(state.vao)
         if (state.program) gl.deleteProgram(state.program)
@@ -280,7 +326,9 @@ export function createScalarRuntime(
       state.available = false
       state.hasFrame = false
       state.scalarTexture = null
-      state.colormapTexture = null
+      state.colormapTextureInterpolated = null
+      state.colormapTextureBanded = null
+      state.colormapKey = null
       state.program = null
       state.vao = null
       state.vertexBuffer = null
@@ -312,17 +360,23 @@ function createScalarTexture(
 function createColormapTexture(
   gl: WebGL2RenderingContext,
   colortable: LayerColortableStop[],
-  displayRange: [number, number]
+  displayRange: [number, number],
+  colorSamplingMode: ScalarColorSamplingMode
 ): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) return null
 
-  const lut = buildColormapLut(colortable, displayRange, COLORMAP_LUT_SIZE)
+  const lut = buildColormapLut(colortable, displayRange, COLORMAP_LUT_SIZE, colorSamplingMode)
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  if (colorSamplingMode === 'banded') {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+  } else {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  }
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, COLORMAP_LUT_SIZE, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut)
@@ -331,10 +385,21 @@ function createColormapTexture(
   return texture
 }
 
+function createColormapKey(
+  colortable: LayerColortableStop[],
+  displayRange: [number, number]
+): string {
+  return JSON.stringify({
+    displayRange,
+    colortable,
+  })
+}
+
 function buildColormapLut(
   colortable: LayerColortableStop[],
   displayRange: [number, number],
-  size: number
+  size: number,
+  colorSamplingMode: ScalarColorSamplingMode
 ): Uint8Array {
   const [rangeMin, rangeMax] = displayRange
   const normalizedStops = normalizeColortableStops(colortable, displayRange)
@@ -349,7 +414,9 @@ function buildColormapLut(
 
   for (let idx = 0; idx < size; idx += 1) {
     const value = rangeMin + (span * idx) / Math.max(1, size - 1)
-    const color = sampleColortable(stops, value)
+    const color = colorSamplingMode === 'banded'
+      ? sampleColortableNearest(stops, value)
+      : sampleColortable(stops, value)
     const offset = idx * 4
     lut[offset] = color[0]
     lut[offset + 1] = color[1]
@@ -407,6 +474,26 @@ function sampleColortable(stops: NormalizedColortableStop[], value: number): [nu
   }
 
   return [last[1], last[2], last[3]]
+}
+
+function sampleColortableNearest(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+  if (stops.length === 1) {
+    return [stops[0][1], stops[0][2], stops[0][3]]
+  }
+
+  let nearest = stops[0]
+  let bestDistance = Math.abs(value - nearest[0])
+
+  for (let i = 1; i < stops.length; i += 1) {
+    const candidate = stops[i]
+    const distance = Math.abs(value - candidate[0])
+    if (distance < bestDistance) {
+      nearest = candidate
+      bestDistance = distance
+    }
+  }
+
+  return [nearest[1], nearest[2], nearest[3]]
 }
 
 function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram | null {

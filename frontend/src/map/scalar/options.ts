@@ -7,7 +7,7 @@ export type ScalarRuntimeOptions = {
 }
 
 export const DEFAULT_SCALAR_RUNTIME_OPTIONS: Readonly<ScalarRuntimeOptions> = {
-  colorSamplingMode: 'interpolated',
+  colorSamplingMode: 'banded',
 }
 
 export const scalarRuntimeOptions: ScalarRuntimeOptions = {
