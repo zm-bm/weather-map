@@ -12,24 +12,15 @@ import {
 } from '../controller'
 import type { VectorFrameData } from './types'
 import {
+  VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
+  VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
   VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE,
   VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
   VECTOR_UPDATE_FRAGMENT_SHADER_SOURCE,
   VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
 } from './shaders'
 import {
-  PARTICLE_COUNT,
-  SPEED_REFERENCE_ZOOM,
-  VISUAL_SPEED_MULTIPLIER,
   EARTH_DEG_PER_METER,
-  MAX_PARTICLE_AGE_SEC,
-  DASH_POINT_SIZE,
-  DASH_COLOR,
-  DASH_DIRECTION_STEP_SEC,
-  DASH_MIN_LENGTH_PX,
-  DASH_MAX_LENGTH_PX,
-  DASH_LEN_PER_MPS,
-  DASH_WIDTH_PX,
 } from './constants'
 import { DEFAULT_VECTOR_RUNTIME_OPTIONS, type VectorRuntimeOptions } from '../options'
 
@@ -43,6 +34,16 @@ type ViewportState = {
   mercatorEastX: number
   mercatorNorthY: number
   mercatorSouthY: number
+}
+
+type CameraState = {
+  centerLng: number
+  centerLat: number
+  zoom: number
+  bearing: number
+  pitch: number
+  width: number
+  height: number
 }
 
 type VectorLayerState = {
@@ -70,12 +71,27 @@ type VectorLayerState = {
   // Compiled programs for update/draw passes.
   updateProgramInfo: twgl.ProgramInfo | null
   particleProgramInfo: twgl.ProgramInfo | null
+  trailProgramInfo: twgl.ProgramInfo | null
   // Ping-pong particle-state buffers.
   stateBufferInfos: [twgl.BufferInfo | null, twgl.BufferInfo | null]
   // Active ping-pong source buffer index.
   activeSourceIndex: 0 | 1
   // Transform feedback object for next-state writes.
   transformFeedback: WebGLTransformFeedback | null
+  // Fullscreen quad for trail fade/composite passes.
+  trailQuadBufferInfo: twgl.BufferInfo | null
+  // Ping-pong textures storing accumulated trail history.
+  trailTextures: [WebGLTexture | null, WebGLTexture | null]
+  // Source trail texture index from previous frame.
+  activeTrailSourceIndex: 0 | 1
+  trailFramebuffer: WebGLFramebuffer | null
+  trailWidth: number
+  trailHeight: number
+  previousCameraState: CameraState | null
+  pendingForcedRespawnFrac: number
+  zoomGestureActive: boolean
+  zoomGestureStart: number
+  zoomGestureMin: number
 }
 
 export type VectorLayerRuntime = {
@@ -92,7 +108,7 @@ export function createVectorRuntime(
 ): VectorLayerRuntime {
   const state: VectorLayerState = {
     lastFrameMs: 0,
-    particleCount: PARTICLE_COUNT,
+    particleCount: options.particleCount,
     viewport: null,
     vectorU: new Int8Array(0),
     vectorV: new Int8Array(0),
@@ -107,9 +123,21 @@ export function createVectorRuntime(
     hasFrame: false,
     updateProgramInfo: null,
     particleProgramInfo: null,
+    trailProgramInfo: null,
     stateBufferInfos: [null, null],
     activeSourceIndex: 0,
     transformFeedback: null,
+    trailQuadBufferInfo: null,
+    trailTextures: [null, null],
+    activeTrailSourceIndex: 0,
+    trailFramebuffer: null,
+    trailWidth: 0,
+    trailHeight: 0,
+    previousCameraState: null,
+    pendingForcedRespawnFrac: 0,
+    zoomGestureActive: false,
+    zoomGestureStart: 0,
+    zoomGestureMin: 0,
   }
   const controller: VectorController = {
     isAvailable: () => state.available,
@@ -158,13 +186,28 @@ export function createVectorRuntime(
         'particle',
       )
 
-      if (!state.updateProgramInfo || !state.particleProgramInfo) {
+      // Trail program fades/composites full-screen trail textures.
+      state.trailProgramInfo = createProgramInfo(
+        gl2,
+        VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
+        VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
+        'trail',
+        {
+          attribLocations: { a_pos: 0 },
+        },
+      )
+
+      if (!state.updateProgramInfo || !state.particleProgramInfo || !state.trailProgramInfo) {
         state.available = false
         return
       }
 
       // Allocate ping-pong state buffers with seeded particles.
-      const initial = buildInitialParticleState(state.particleCount, state.viewport)
+      const initial = buildInitialParticleState(
+        state.particleCount,
+        state.viewport,
+        options.maxAgeSec,
+      )
       state.stateBufferInfos = [
         createStateBufferInfo(gl2, initial),
         createStateBufferInfo(gl2, initial),
@@ -179,6 +222,24 @@ export function createVectorRuntime(
         state.available = false
         return
       }
+
+      state.trailQuadBufferInfo = createTrailQuadBufferInfo(gl2)
+      if (!state.trailQuadBufferInfo) {
+        state.available = false
+        return
+      }
+
+      state.trailFramebuffer = gl2.createFramebuffer()
+      if (!state.trailFramebuffer) {
+        state.available = false
+        return
+      }
+
+      if (!ensureTrailTargets(state, options)) {
+        state.available = false
+        return
+      }
+      state.previousCameraState = captureCameraState(state)
       state.available = true
 
       // Keep the custom layer animating.
@@ -194,15 +255,28 @@ export function createVectorRuntime(
 
       // Refresh camera bounds every frame as pan/zoom changes.
       state.viewport = computeViewportState(state.map)
+      updateZoomOutRespawnState(state, options)
 
       const now = performance.now()
       // Clamp delta time to keep integration stable on slow frames.
       const dtSec = clamp((now - state.lastFrameMs) / 1000, 0.001, 0.05)
       state.lastFrameMs = now
 
+      if (!ensureTrailTargets(state, options)) return
+
+      const cameraChanged = didCameraChange(state)
+      if (options.clearTrailsOnViewChange && cameraChanged) {
+        clearTrailTextures(state)
+      }
+
       // Run simulation first, then draw.
-      runUpdatePass(state, dtSec, now)
-      runParticlePass(state)
+      runUpdatePass(state, dtSec, now, options)
+      const trailTexture = runTrailPass(state, options)
+      if (trailTexture) {
+        compositeTrailToMap(state, trailTexture, options)
+      } else {
+        runParticlePass(state, options)
+      }
 
       state.map.triggerRepaint()
     },
@@ -217,6 +291,7 @@ export function createVectorRuntime(
         if (state.vectorTexture) gl2.deleteTexture(state.vectorTexture)
         if (state.updateProgramInfo) gl2.deleteProgram(state.updateProgramInfo.program)
         if (state.particleProgramInfo) gl2.deleteProgram(state.particleProgramInfo.program)
+        if (state.trailProgramInfo) gl2.deleteProgram(state.trailProgramInfo.program)
         if (state.stateBufferInfos[0]) {
           const buffer = getStateBufferFromInfo(state.stateBufferInfos[0])
           if (buffer) gl2.deleteBuffer(buffer)
@@ -225,6 +300,13 @@ export function createVectorRuntime(
           const buffer = getStateBufferFromInfo(state.stateBufferInfos[1])
           if (buffer) gl2.deleteBuffer(buffer)
         }
+        if (state.trailQuadBufferInfo) {
+          const buffer = getTrailQuadBufferFromInfo(state.trailQuadBufferInfo)
+          if (buffer) gl2.deleteBuffer(buffer)
+        }
+        if (state.trailTextures[0]) gl2.deleteTexture(state.trailTextures[0])
+        if (state.trailTextures[1]) gl2.deleteTexture(state.trailTextures[1])
+        if (state.trailFramebuffer) gl2.deleteFramebuffer(state.trailFramebuffer)
         if (state.transformFeedback) gl2.deleteTransformFeedback(state.transformFeedback)
       }
 
@@ -236,8 +318,20 @@ export function createVectorRuntime(
       state.hasFrame = false
       state.updateProgramInfo = null
       state.particleProgramInfo = null
+      state.trailProgramInfo = null
       state.stateBufferInfos = [null, null]
       state.transformFeedback = null
+      state.trailQuadBufferInfo = null
+      state.trailTextures = [null, null]
+      state.activeTrailSourceIndex = 0
+      state.trailFramebuffer = null
+      state.trailWidth = 0
+      state.trailHeight = 0
+      state.previousCameraState = null
+      state.pendingForcedRespawnFrac = 0
+      state.zoomGestureActive = false
+      state.zoomGestureStart = 0
+      state.zoomGestureMin = 0
     },
   }
 }
@@ -280,13 +374,20 @@ function applyVectorFieldToState(
   state.hasFrame = true
   if (options.reseedOnFrameChange) {
     // Optional continuity break on frame change.
-    reseedParticles(state)
+    reseedParticles(state, options.maxAgeSec)
     state.activeSourceIndex = 0
+    state.activeTrailSourceIndex = 0
+    clearTrailTextures(state)
   }
   state.lastFrameMs = performance.now()
 }
 
-function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
+function runUpdatePass(
+  state: VectorLayerState,
+  dtSec: number,
+  nowMs: number,
+  options: VectorRuntimeOptions,
+) {
   const {
     gl,
     updateProgramInfo,
@@ -318,7 +419,8 @@ function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
   const dstBuffer = getStateBufferFromInfo(dstBufferInfo)
   if (!dstBuffer) return
 
-  const zoom = map?.getZoom() ?? SPEED_REFERENCE_ZOOM
+  const zoom = map?.getZoom() ?? options.flowRefZoom
+  const forcedRespawnFrac = clamp(state.pendingForcedRespawnFrac, 0, 1)
   gl.useProgram(updateProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, updateProgramInfo, srcBufferInfo)
   // Simulation uniforms: field sampling, advection, age, and viewport bounds.
@@ -330,10 +432,14 @@ function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
     u_dx: state.vectorDx,
     u_dy: state.vectorDy,
     u_vector_size: [state.vectorNx, state.vectorNy],
-    u_speed_multiplier: VISUAL_SPEED_MULTIPLIER,
-    u_zoom_scale: Math.pow(2, SPEED_REFERENCE_ZOOM - zoom),
+    u_speed_multiplier: options.flowSpeedScale,
+    u_zoom_scale: Math.pow(2, options.flowRefZoom - zoom),
     u_deg_per_meter: EARTH_DEG_PER_METER,
-    u_max_age_sec: MAX_PARTICLE_AGE_SEC,
+    u_max_age_sec: options.maxAgeSec,
+    u_base_respawn_per_sec: options.respawnBasePerSec,
+    u_speed_respawn_per_mps: options.respawnSpeedPerMps,
+    u_forced_respawn_frac: forcedRespawnFrac,
+    u_motion_jitter_ratio: options.jitterRatio,
     u_bounds_west: viewport.west,
     u_bounds_east: viewport.east,
     u_bounds_south: viewport.south,
@@ -354,11 +460,97 @@ function runUpdatePass(state: VectorLayerState, dtSec: number, nowMs: number) {
   gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null)
   gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
   gl.useProgram(null)
+  state.pendingForcedRespawnFrac = 0
 
   state.activeSourceIndex = activeSourceIndex === 0 ? 1 : 0
 }
 
-function runParticlePass(state: VectorLayerState) {
+function runParticlePass(state: VectorLayerState, options: VectorRuntimeOptions) {
+  const { gl } = state
+  if (!gl) return
+
+  // Fallback direct draw path (used if trail targets are unavailable).
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+  drawParticleGeometryPass(state, options)
+}
+
+function runTrailPass(state: VectorLayerState, options: VectorRuntimeOptions) {
+  const {
+    gl,
+    trailFramebuffer,
+    trailTextures,
+    activeTrailSourceIndex,
+  } = state
+  if (!gl || !trailFramebuffer || !trailTextures[0] || !trailTextures[1]) return null
+
+  const srcTexture = trailTextures[activeTrailSourceIndex]
+  const dstIndex: 0 | 1 = activeTrailSourceIndex === 0 ? 1 : 0
+  const dstTexture = trailTextures[dstIndex]
+  if (!srcTexture || !dstTexture) return null
+
+  // Fade previous trail history into the destination texture.
+  bindTrailFramebuffer(gl, trailFramebuffer, dstTexture)
+  gl.viewport(0, 0, state.trailWidth, state.trailHeight)
+  gl.disable(gl.DEPTH_TEST)
+  gl.disable(gl.BLEND)
+  compositeTrailPass(state, srcTexture, options.trailFade, options.trailQuantize)
+
+  // Draw the current particle frame on top of faded history.
+  drawParticleGeometryPass(state, options)
+
+  state.activeTrailSourceIndex = dstIndex
+  return dstTexture
+}
+
+function compositeTrailPass(
+  state: VectorLayerState,
+  texture: WebGLTexture,
+  opacity: number,
+  quantize: boolean,
+) {
+  const { gl, trailProgramInfo, trailQuadBufferInfo } = state
+  if (!gl || !trailProgramInfo || !trailQuadBufferInfo) return
+
+  gl.useProgram(trailProgramInfo.program)
+  twgl.setBuffersAndAttributes(gl, trailProgramInfo, trailQuadBufferInfo)
+  twgl.setUniforms(trailProgramInfo, {
+    u_screen: texture,
+    u_opacity: opacity,
+    u_quantize: quantize ? 1 : 0,
+  })
+  twgl.drawBufferInfo(gl, trailQuadBufferInfo, gl.TRIANGLES)
+  gl.useProgram(null)
+}
+
+function compositeTrailToMap(
+  state: VectorLayerState,
+  texture: WebGLTexture,
+  options: VectorRuntimeOptions,
+) {
+  const { gl, trailProgramInfo, trailQuadBufferInfo } = state
+  if (!gl || !trailProgramInfo || !trailQuadBufferInfo) return
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+  gl.disable(gl.DEPTH_TEST)
+  gl.enable(gl.BLEND)
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+  gl.useProgram(trailProgramInfo.program)
+  twgl.setBuffersAndAttributes(gl, trailProgramInfo, trailQuadBufferInfo)
+  twgl.setUniforms(trailProgramInfo, {
+    u_screen: texture,
+    u_opacity: clamp(options.trailCompositeOpacity, 0, 1),
+    u_quantize: 0,
+  })
+  twgl.drawBufferInfo(gl, trailQuadBufferInfo, gl.TRIANGLES)
+  gl.useProgram(null)
+
+  gl.disable(gl.BLEND)
+}
+
+function drawParticleGeometryPass(state: VectorLayerState, options: VectorRuntimeOptions) {
   const {
     gl,
     viewport,
@@ -383,17 +575,12 @@ function runParticlePass(state: VectorLayerState) {
   const particleBufferInfo = stateBufferInfos[activeSourceIndex]
   if (!particleBufferInfo) return
 
-  // Draw directly to the map framebuffer.
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
-  gl.disable(gl.DEPTH_TEST)
-
   gl.useProgram(particleProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
 
   const zoom = map.getZoom()
   // Render uniforms: viewport mapping, dash styling, and local flow direction.
-  twgl.setUniforms(particleProgramInfo, {
+  const commonUniforms = {
     u_bounds_west: viewport.west,
     u_bounds_east: viewport.east,
     u_mercator_bounds: [
@@ -402,34 +589,220 @@ function runParticlePass(state: VectorLayerState) {
       viewport.mercatorNorthY,
       viewport.mercatorSouthY,
     ],
-    u_point_size: DASH_POINT_SIZE,
-    u_color: DASH_COLOR,
+    u_point_size: options.pointSizePx,
     u_lon0: state.vectorLon0,
     u_lat0: state.vectorLat0,
     u_dx: state.vectorDx,
     u_dy: state.vectorDy,
     u_vector_size: [state.vectorNx, state.vectorNy],
     u_deg_per_meter: EARTH_DEG_PER_METER,
-    u_dir_step_sec: DASH_DIRECTION_STEP_SEC,
-    u_speed_multiplier: VISUAL_SPEED_MULTIPLIER,
-    u_zoom_scale: Math.pow(2, SPEED_REFERENCE_ZOOM - zoom),
-    u_dash_min_len_px: DASH_MIN_LENGTH_PX,
-    u_dash_max_len_px: DASH_MAX_LENGTH_PX,
-    u_dash_len_per_mps: DASH_LEN_PER_MPS,
-    u_dash_width_px: DASH_WIDTH_PX,
+    u_dir_step_sec: options.dirSampleStepSec,
+    u_speed_multiplier: options.flowSpeedScale,
+    u_zoom_scale: Math.pow(2, options.flowRefZoom - zoom),
+    u_dash_min_len_px: options.dashMinPx,
+    u_dash_max_len_px: options.dashMaxPx,
+    u_dash_len_per_mps: options.dashPerMps,
+    u_speed_ramp_gamma: options.speedRampGamma,
     u_vector_tex: vectorTexture,
-  })
+  }
+  twgl.setUniforms(particleProgramInfo, commonUniforms)
 
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+  // Pass 1: darker/wider understroke.
+  twgl.setUniforms(particleProgramInfo, {
+    u_color_slow: options.shadowSlow,
+    u_color_fast: options.shadowFast,
+    u_dash_width_px: options.shadowWidthPx,
+  })
   twgl.drawBufferInfo(gl, particleBufferInfo, gl.POINTS, particleCount)
 
-  // Restore blend state for downstream layers.
+  // Pass 2: lighter/narrower core.
+  twgl.setUniforms(particleProgramInfo, {
+    u_color_slow: options.coreSlow,
+    u_color_fast: options.coreFast,
+    u_dash_width_px: options.coreWidthPx,
+  })
+  twgl.drawBufferInfo(gl, particleBufferInfo, gl.POINTS, particleCount)
+
   gl.disable(gl.BLEND)
   gl.useProgram(null)
 }
 
-function reseedParticles(state: VectorLayerState) {
+function createTrailQuadBufferInfo(gl: WebGL2RenderingContext) {
+  return twgl.createBufferInfoFromArrays(gl, {
+    a_pos: {
+      numComponents: 2,
+      data: new Float32Array([
+        0, 0,
+        1, 0,
+        0, 1,
+        0, 1,
+        1, 0,
+        1, 1,
+      ]),
+    },
+  })
+}
+
+function getTrailQuadBufferFromInfo(bufferInfo: twgl.BufferInfo) {
+  const attrib = bufferInfo.attribs?.a_pos
+  return attrib?.buffer ?? null
+}
+
+function ensureTrailTargets(state: VectorLayerState, options: VectorRuntimeOptions) {
+  const { gl, trailFramebuffer, trailTextures } = state
+  if (!gl || !trailFramebuffer) return false
+
+  const scale = clamp(
+    Number.isFinite(options.trailScale) ? options.trailScale : 1,
+    0.1,
+    1,
+  )
+  const width = Math.max(1, Math.floor(gl.drawingBufferWidth * scale))
+  const height = Math.max(1, Math.floor(gl.drawingBufferHeight * scale))
+
+  const sizeUnchanged = width === state.trailWidth && height === state.trailHeight
+  if (sizeUnchanged && trailTextures[0] && trailTextures[1]) {
+    return true
+  }
+
+  if (trailTextures[0]) gl.deleteTexture(trailTextures[0])
+  if (trailTextures[1]) gl.deleteTexture(trailTextures[1])
+
+  const next0 = createTrailTexture(gl, width, height)
+  const next1 = createTrailTexture(gl, width, height)
+  if (!next0 || !next1) {
+    state.trailTextures = [null, null]
+    state.trailWidth = 0
+    state.trailHeight = 0
+    return false
+  }
+
+  state.trailTextures = [next0, next1]
+  state.trailWidth = width
+  state.trailHeight = height
+  state.activeTrailSourceIndex = 0
+  clearTrailTextures(state)
+  return true
+}
+
+function createTrailTexture(gl: WebGL2RenderingContext, width: number, height: number) {
+  try {
+    return twgl.createTexture(gl, {
+      src: new Uint8Array(width * height * 4),
+      width,
+      height,
+      internalFormat: gl.RGBA,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE,
+      min: gl.NEAREST,
+      mag: gl.NEAREST,
+      wrapS: gl.CLAMP_TO_EDGE,
+      wrapT: gl.CLAMP_TO_EDGE,
+      unpackAlignment: 1,
+      auto: false,
+    })
+  } catch (error) {
+    console.warn('[vector] failed to create trail texture:', error)
+    return null
+  }
+}
+
+function bindTrailFramebuffer(
+  gl: WebGL2RenderingContext,
+  framebuffer: WebGLFramebuffer,
+  texture: WebGLTexture,
+) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
+}
+
+function clearTrailTextures(state: VectorLayerState) {
+  const { gl, trailFramebuffer, trailTextures, trailWidth, trailHeight } = state
+  if (!gl || !trailFramebuffer || !trailTextures[0] || !trailTextures[1]) return
+
+  const clearColor = new Float32Array([0, 0, 0, 0])
+  gl.disable(gl.BLEND)
+  gl.disable(gl.DEPTH_TEST)
+  gl.viewport(0, 0, trailWidth, trailHeight)
+  bindTrailFramebuffer(gl, trailFramebuffer, trailTextures[0])
+  gl.clearBufferfv(gl.COLOR, 0, clearColor)
+  bindTrailFramebuffer(gl, trailFramebuffer, trailTextures[1])
+  gl.clearBufferfv(gl.COLOR, 0, clearColor)
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+}
+
+function didCameraChange(state: VectorLayerState) {
+  const next = captureCameraState(state)
+  if (!next) return false
+  const prev = state.previousCameraState
+  state.previousCameraState = next
+  if (!prev) return false
+  return hasCameraChanged(prev, next)
+}
+
+function updateZoomOutRespawnState(state: VectorLayerState, options: VectorRuntimeOptions) {
+  const map = state.map
+  if (!map) return
+
+  const zoom = map.getZoom()
+  if (map.isZooming()) {
+    if (!state.zoomGestureActive) {
+      state.zoomGestureActive = true
+      state.zoomGestureStart = zoom
+      state.zoomGestureMin = zoom
+      return
+    }
+    state.zoomGestureMin = Math.min(state.zoomGestureMin, zoom)
+    return
+  }
+
+  if (!state.zoomGestureActive) return
+  state.zoomGestureActive = false
+
+  const zoomOutDelta = state.zoomGestureStart - state.zoomGestureMin
+  if (zoomOutDelta >= options.zoomOutRespawnMinDelta) {
+    state.pendingForcedRespawnFrac = Math.max(
+      state.pendingForcedRespawnFrac,
+      clamp(options.zoomOutRespawnFraction, 0, 1),
+    )
+  }
+}
+
+function captureCameraState(state: VectorLayerState): CameraState | null {
+  const { map, gl } = state
+  if (!map || !gl) return null
+  const center = map.getCenter()
+  return {
+    centerLng: center.lng,
+    centerLat: center.lat,
+    zoom: map.getZoom(),
+    bearing: map.getBearing(),
+    pitch: map.getPitch(),
+    width: gl.drawingBufferWidth,
+    height: gl.drawingBufferHeight,
+  }
+}
+
+function hasCameraChanged(previous: CameraState, next: CameraState) {
+  return (
+    !roughlyEqual(previous.centerLng, next.centerLng, 1e-7) ||
+    !roughlyEqual(previous.centerLat, next.centerLat, 1e-7) ||
+    !roughlyEqual(previous.zoom, next.zoom, 1e-7) ||
+    !roughlyEqual(previous.bearing, next.bearing, 1e-7) ||
+    !roughlyEqual(previous.pitch, next.pitch, 1e-7) ||
+    previous.width !== next.width ||
+    previous.height !== next.height
+  )
+}
+
+function roughlyEqual(a: number, b: number, epsilon: number) {
+  return Math.abs(a - b) <= epsilon
+}
+
+function reseedParticles(state: VectorLayerState, maxAgeSec: number) {
   const { gl, viewport, stateBufferInfos, particleCount } = state
   if (!gl || !viewport || !stateBufferInfos[0] || !stateBufferInfos[1]) return
 
@@ -438,7 +811,7 @@ function reseedParticles(state: VectorLayerState) {
   if (!stateBuffer0 || !stateBuffer1) return
 
   // Reset both ping-pong buffers to the same seed state.
-  const seeded = buildInitialParticleState(particleCount, viewport)
+  const seeded = buildInitialParticleState(particleCount, viewport, maxAgeSec)
   gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer0)
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, seeded)
   gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer1)
@@ -446,7 +819,11 @@ function reseedParticles(state: VectorLayerState) {
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
 }
 
-function buildInitialParticleState(count: number, viewport: ViewportState | null): Float32Array {
+function buildInitialParticleState(
+  count: number,
+  viewport: ViewportState | null,
+  maxAgeSec: number,
+): Float32Array {
   const out = new Float32Array(count * 3)
   if (!viewport) return out
 
@@ -457,7 +834,7 @@ function buildInitialParticleState(count: number, viewport: ViewportState | null
     const lat = viewport.south + Math.random() * (viewport.north - viewport.south)
     out[base] = lon > 180 ? lon - 360 : lon
     out[base + 1] = lat
-    out[base + 2] = Math.random() * MAX_PARTICLE_AGE_SEC
+    out[base + 2] = Math.random() * maxAgeSec
   }
   return out
 }
@@ -522,13 +899,14 @@ function createProgramInfo(
   vertexSource: string,
   fragmentSource: string,
   errorLabel: string,
-  options?: Parameters<typeof twgl.createProgramInfo>[2],
+  options?: twgl.ProgramOptions,
 ) {
   try {
-    // Keep attribute location stable so both programs read the same layout.
+    // Keep attribute locations stable for each program family.
+    const attribLocations = options?.attribLocations ?? { a_state: 0 }
     return twgl.createProgramInfo(gl, [vertexSource, fragmentSource], {
       ...(options ?? {}),
-      attribLocations: { a_state: 0 },
+      attribLocations,
       errorCallback: (msg: string) => console.warn(`[vector] ${errorLabel} program error:`, msg),
     })
   } catch (error) {
@@ -606,7 +984,10 @@ function isReady(state: VectorLayerState) {
       state.vectorTexture &&
       state.updateProgramInfo &&
       state.particleProgramInfo &&
+      state.trailProgramInfo &&
       state.transformFeedback &&
+      state.trailQuadBufferInfo &&
+      state.trailFramebuffer &&
       state.stateBufferInfos[0] &&
       state.stateBufferInfos[1],
   )

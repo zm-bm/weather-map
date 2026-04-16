@@ -15,6 +15,10 @@ uniform float u_speed_multiplier;
 uniform float u_zoom_scale;
 uniform float u_deg_per_meter;
 uniform float u_max_age_sec;
+uniform float u_base_respawn_per_sec;
+uniform float u_speed_respawn_per_mps;
+uniform float u_forced_respawn_frac;
+uniform float u_motion_jitter_ratio;
 uniform float u_bounds_west;
 uniform float u_bounds_east;
 uniform float u_bounds_south;
@@ -112,8 +116,8 @@ vec2 sample_vector_bilinear(float lon, float lat) {
 void main() {
   float id = float(gl_VertexID);
   vec3 state = a_state;
-
-  // Age particle and respawn when lifetime expires.
+  vec2 vector_mps = sample_vector_bilinear(state.x, state.y);
+  float speed_mps = length(vector_mps);
   float age = state.z + u_dt_sec;
 
   if (age >= u_max_age_sec) {
@@ -122,13 +126,34 @@ void main() {
     return;
   }
 
+  // One-shot zoom-out recovery: quickly repopulate newly visible area.
+  float forced_respawn_roll = rand(id * 5.381 + u_seed * 2.771);
+  if (forced_respawn_roll < clamp(u_forced_respawn_frac, 0.0, 1.0)) {
+    v_state = respawn(id);
+    gl_Position = vec4(0.0);
+    return;
+  }
+
+  // Stochastic turnover: faster flow increases respawn probability.
+  float respawn_per_sec = u_base_respawn_per_sec + speed_mps * u_speed_respawn_per_mps;
+  float respawn_prob = clamp(respawn_per_sec * u_dt_sec, 0.0, 1.0);
+  float respawn_roll = rand(id * 19.31 + age * 0.47 + u_seed * 1.91);
+  if (respawn_roll < respawn_prob) {
+    v_state = respawn(id);
+    gl_Position = vec4(0.0);
+    return;
+  }
+
   // Integrate velocity from m/s into lon/lat delta for this timestep.
-  vec2 vector_mps = sample_vector_bilinear(state.x, state.y);
   float cos_lat = max(0.15, abs(cos(radians(state.y))));
+  vec2 flow_dir = speed_mps > 1e-5 ? (vector_mps / speed_mps) : vec2(1.0, 0.0);
+  vec2 flow_normal = vec2(-flow_dir.y, flow_dir.x);
+  float jitter_sign = rand(id * 11.73 + age * 0.19 + u_seed * 0.73) * 2.0 - 1.0;
+  vec2 vector_step = vector_mps + flow_normal * (speed_mps * u_motion_jitter_ratio * jitter_sign);
 
   float speed = u_speed_multiplier * u_zoom_scale;
-  float delta_lat = vector_mps.y * u_dt_sec * u_deg_per_meter * speed;
-  float delta_lon = vector_mps.x * u_dt_sec * (u_deg_per_meter / cos_lat) * speed;
+  float delta_lat = vector_step.y * u_dt_sec * u_deg_per_meter * speed;
+  float delta_lon = vector_step.x * u_dt_sec * (u_deg_per_meter / cos_lat) * speed;
 
   float next_lon = wrap_lon(state.x + delta_lon);
   float next_lat = state.y + delta_lat;
@@ -157,6 +182,35 @@ void main() {
 }
 `
 
+export const VECTOR_TRAIL_VERTEX_SHADER_SOURCE = `#version 300 es
+precision mediump float;
+
+layout(location = 0) in vec2 a_pos;
+out vec2 v_tex_pos;
+
+void main() {
+  v_tex_pos = a_pos;
+  gl_Position = vec4(1.0 - 2.0 * a_pos, 0.0, 1.0);
+}
+`
+
+export const VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE = `#version 300 es
+precision mediump float;
+
+uniform sampler2D u_screen;
+uniform float u_opacity;
+uniform float u_quantize;
+in vec2 v_tex_pos;
+out vec4 out_color;
+
+void main() {
+  vec4 color = texture(u_screen, 1.0 - v_tex_pos);
+  vec4 faded = color * u_opacity;
+  vec4 quantized = floor(255.0 * faded) / 255.0;
+  out_color = mix(faded, quantized, clamp(u_quantize, 0.0, 1.0));
+}
+`
+
 export const VECTOR_PARTICLE_VERTEX_SHADER_SOURCE = `#version 300 es
 precision highp float;
 
@@ -179,10 +233,12 @@ uniform float u_zoom_scale;
 uniform float u_dash_min_len_px;
 uniform float u_dash_max_len_px;
 uniform float u_dash_len_per_mps;
+uniform float u_speed_ramp_gamma;
 
 out vec2 v_dir;
 out float v_dash_len;
 out float v_visible;
+out float v_speed_t;
 
 // Decode a normalized texture channel back to signed int8 range.
 float decode_i8(float encoded) {
@@ -268,19 +324,30 @@ void main() {
   float lat = a_state.y;
 
   // Dash length scales with speed but is clamped by style bounds.
-  vec2 vector_mps = sample_vector_bilinear(a_state.x, lat);
-  float speed_mps = length(vector_mps);
+  vec2 vector_now = sample_vector_bilinear(a_state.x, lat);
+  float speed_mps = length(vector_now);
   v_dash_len = clamp(
     u_dash_min_len_px + speed_mps * u_dash_len_per_mps,
     u_dash_min_len_px,
     u_dash_max_len_px
   );
+  float speed_t = smoothstep(1.5, 12.0, speed_mps);
+  v_speed_t = pow(speed_t, max(0.01, u_speed_ramp_gamma));
 
   vec2 screen = to_screen(lon, lat);
   float cos_lat = max(0.15, abs(cos(radians(lat))));
   float speed = u_speed_multiplier * u_zoom_scale;
-  float delta_lat = vector_mps.y * u_dir_step_sec * u_deg_per_meter * speed;
-  float delta_lon = vector_mps.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
+
+  // Smooth orientation by blending the local vector with one short step ahead.
+  float preview_delta_lat = vector_now.y * u_dir_step_sec * u_deg_per_meter * speed;
+  float preview_delta_lon = vector_now.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
+  float preview_lon = wrap_lon(a_state.x + preview_delta_lon);
+  float preview_lat = clamp(lat + preview_delta_lat, -89.5, 89.5);
+  vec2 vector_ahead = sample_vector_bilinear(preview_lon, preview_lat);
+  vec2 vector_dir = mix(vector_now, vector_ahead, 0.5);
+
+  float delta_lat = vector_dir.y * u_dir_step_sec * u_deg_per_meter * speed;
+  float delta_lon = vector_dir.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
   float next_lon = lon_to_view_interval(wrap_lon(a_state.x + delta_lon));
   float next_lat = clamp(lat + delta_lat, -89.5, 89.5);
 
@@ -301,12 +368,14 @@ void main() {
 export const VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE = `#version 300 es
 precision highp float;
 
-uniform vec4 u_color;
+uniform vec4 u_color_slow;
+uniform vec4 u_color_fast;
 uniform float u_point_size;
 uniform float u_dash_width_px;
 in vec2 v_dir;
 in float v_dash_len;
 in float v_visible;
+in float v_speed_t;
 out vec4 out_color;
 
 void main() {
@@ -330,15 +399,18 @@ void main() {
   float half_width = u_dash_width_px * 0.5;
   float aa = 0.35;
 
-  float along_mask = 1.0 - smoothstep(half_len - aa, half_len + aa, abs(along));
-  float across_mask = 1.0 - smoothstep(half_width - aa, half_width + aa, abs(across));
-  float shape = along_mask * across_mask;
+  // Capsule SDF for rounded dash ends: center segment + circular end caps.
+  float half_segment = max(0.0, half_len - half_width);
+  float clamped_along = clamp(along, -half_segment, half_segment);
+  float cap_dist = length(vec2(along - clamped_along, across));
+  float shape = 1.0 - smoothstep(half_width - aa, half_width + aa, cap_dist);
 
   if (shape <= 0.001) {
     discard;
   }
 
   // Apply style color and use shape as alpha coverage.
-  out_color = vec4(u_color.rgb, u_color.a * shape);
+  vec4 color = mix(u_color_slow, u_color_fast, v_speed_t);
+  out_color = vec4(color.rgb, color.a * shape);
 }
 `

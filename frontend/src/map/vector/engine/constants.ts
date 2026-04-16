@@ -1,12 +1,1 @@
-export const PARTICLE_COUNT = 3200;
-export const MAX_PARTICLE_AGE_SEC = 5;
 export const EARTH_DEG_PER_METER = 360 / (2 * Math.PI * 6378137);
-export const VISUAL_SPEED_MULTIPLIER = 10000;
-export const SPEED_REFERENCE_ZOOM = 5;
-export const DASH_POINT_SIZE = 24;
-export const DASH_MIN_LENGTH_PX = 8;
-export const DASH_MAX_LENGTH_PX = 16;
-export const DASH_LEN_PER_MPS = 0.06;
-export const DASH_WIDTH_PX = 2.40;
-export const DASH_DIRECTION_STEP_SEC = 0.25;
-export const DASH_COLOR: [number, number, number, number] = [0.05, 0.05, 0.05, 0.88];

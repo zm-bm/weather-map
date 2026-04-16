@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { OptionsControl } from './OptionsControl'
+import { DEFAULT_VECTOR_RUNTIME_OPTIONS } from '../../vector/options'
 
 describe('OptionsControl', () => {
   it('toggles panel visibility and updates scalar/vector runtime options', async () => {
     const scalarOptions = { colorSamplingMode: 'interpolated' as const }
-    const vectorOptions = { reseedOnFrameChange: false }
+    const vectorOptions = { ...DEFAULT_VECTOR_RUNTIME_OPTIONS }
     const control = new OptionsControl({ scalarOptions, vectorOptions })
     const root = control.onAdd()
     await new Promise((resolve) => setTimeout(resolve, 0))
