@@ -60,10 +60,10 @@ export type VectorRuntimeOptions = {
 
 export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   reseedOnFrameChange: false,
-  particleCount: 8000,
+  particleCount: 9000,
   maxAgeSec: 8.5,
-  respawnBasePerSec: 0.05,
-  respawnSpeedPerMps: 0.01,
+  respawnBasePerSec: 0.035,
+  respawnSpeedPerMps: 0.007,
   jitterRatio: 0.1,
   flowSpeedScale: 7200,
   flowRefZoom: 5,
@@ -71,23 +71,23 @@ export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   zoomOutRespawnMinDelta: 0.05,
 
   pointSizePx: 20,
-  dashMinPx: 7,
+  dashMinPx: 10,
   dashMaxPx: 14,
   dashPerMps: 0.035,
   coreWidthPx: 1.5,
   shadowWidthPx: 2.6,
   dirSampleStepSec: 0.24,
 
-  speedRampGamma: 1.2,
-  coreSlow: [0.86, 0.9, 0.94, 0.2],
+  speedRampGamma: 1.1,
+  coreSlow: [0.86, 0.9, 0.94, 0.24],
   coreFast: [0.98, 0.99, 1, 0.5],
-  shadowSlow: [0.12, 0.16, 0.3, 0.1],
+  shadowSlow: [0.12, 0.16, 0.3, 0.13],
   shadowFast: [0.08, 0.1, 0.2, 0.2],
 
   trailScale: 0.95,
   trailFade: 0.975,
   trailQuantize: true,
-  trailCompositeOpacity: 0.9,
+  trailCompositeOpacity: 0.92,
   clearTrailsOnViewChange: true,
 }
 
