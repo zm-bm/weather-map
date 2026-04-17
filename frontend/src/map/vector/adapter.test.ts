@@ -50,6 +50,7 @@ describe('vectorLayerAdapter', () => {
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
   })
 
@@ -76,6 +77,7 @@ describe('vectorLayerAdapter', () => {
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
     await vectorLayerAdapter.applySync(createArgs(createSignalFixture()))
@@ -93,6 +95,7 @@ describe('vectorLayerAdapter', () => {
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
     await vectorLayerAdapter.applySync({
@@ -111,6 +114,7 @@ describe('vectorLayerAdapter', () => {
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
 
     await expect(vectorLayerAdapter.applySync(createArgs(createSignalFixture())))

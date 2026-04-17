@@ -208,6 +208,10 @@ export function createScalarRuntime(
       state.hasFrame = true
       state.map?.triggerRepaint()
     },
+    setEnabled: (enabled) => {
+      state.opacity = enabled ? SCALAR_ACTIVE_OPACITY : 0
+      state.map?.triggerRepaint()
+    },
   }
 
   return {

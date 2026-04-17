@@ -1,4 +1,7 @@
-import type { SymbolLayerSpecification, VectorSourceSpecification } from 'maplibre-gl'
+import type {
+  SymbolLayerSpecification,
+  VectorSourceSpecification,
+} from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
 import { NOISE_LAYER_ID, NOISE_SOURCE_ID } from '../map/noise'
@@ -10,12 +13,18 @@ describe('buildInitialMapStyle', () => {
     const style = buildInitialMapStyle(createConfigFixture({ serverUrl: 'http://localhost:8081/', language: 'es' }))
 
     expect(style.glyphs).toBe('http://localhost:8081/font/{fontstack}/{range}')
-    expect((style.sources?.openmaptiles as VectorSourceSpecification).tiles).toEqual([
-      'http://localhost:8081/osm-planet/{z}/{x}/{y}',
+    expect((style.sources?.basemap as VectorSourceSpecification).tiles).toEqual([
+      'http://localhost:8081/basemap-vector/{z}/{x}/{y}',
     ])
     expect((style.sources?.coastline as VectorSourceSpecification).tiles).toEqual([
-      'http://localhost:8081/coastline/{z}/{x}/{y}',
+      'http://localhost:8081/coastline-simplified/{z}/{x}/{y}',
     ])
+    expect((style.sources?.['lake-shoreline'] as VectorSourceSpecification).tiles).toEqual([
+      'http://localhost:8081/lake-shoreline/{z}/{x}/{y}',
+    ])
+    expect((style.sources?.basemap as VectorSourceSpecification).maxzoom).toBe(6)
+    expect((style.sources?.coastline as VectorSourceSpecification).maxzoom).toBe(9)
+    expect((style.sources?.['lake-shoreline'] as VectorSourceSpecification).maxzoom).toBe(9)
   })
 
   it('includes noise source and layer in constructor style', () => {
@@ -24,6 +33,16 @@ describe('buildInitialMapStyle', () => {
     expect(style.sources?.[NOISE_SOURCE_ID]).toBeDefined()
     const layerIds = (style.layers ?? []).map((layer) => layer.id)
     expect(layerIds).toContain(NOISE_LAYER_ID)
+  })
+
+  it('includes the reset vector basemap layers in constructor style', () => {
+    const style = buildInitialMapStyle(createConfigFixture({ serverUrl: 'http://localhost:8081/', language: 'es' }))
+    const layerIds = (style.layers ?? []).map((layer) => layer.id)
+
+    expect(layerIds).toContain('coast-outline')
+    expect(layerIds).toContain('boundary-land-level-2')
+    expect(layerIds).toContain('highway')
+    expect(layerIds).toContain('place-country')
   })
 
   it('hydrates localized symbol label text-field expressions', () => {
@@ -35,13 +54,13 @@ describe('buildInitialMapStyle', () => {
     expect(placeCountry?.layout?.['text-field']).toEqual([
       'coalesce',
       ['get', 'name:fr'],
-      ['get', 'name:latin'],
+      ['get', 'name:en'],
       ['get', 'name'],
     ])
     expect(placeCity?.layout?.['text-field']).toEqual([
       'coalesce',
       ['get', 'name:fr'],
-      ['get', 'name:latin'],
+      ['get', 'name:en'],
       ['get', 'name'],
     ])
   })

@@ -4,12 +4,20 @@ export const coreBoundaryLayers: NonNullable<StyleSpecification['layers']> = [
   {
     id: 'boundary-land-level-2',
     type: 'line',
-    source: 'openmaptiles',
+    source: 'basemap',
     'source-layer': 'boundary',
     filter: [
       'all',
       ['==', 'admin_level', 2],
-      ['!=', 'maritime', 1],
+      [
+        'none',
+        ['==', 'maritime', 1],
+        ['==', 'maritime', true],
+        ['==', 'maritime', '1'],
+        ['==', 'maritime', 'true'],
+        ['==', 'maritime', 'yes'],
+        ['==', 'border_type', 'territorial'],
+      ],
     ],
     layout: {
       'line-cap': 'round',
@@ -17,17 +25,17 @@ export const coreBoundaryLayers: NonNullable<StyleSpecification['layers']> = [
       visibility: 'visible',
     },
     paint: {
-      'line-color': '#000000',
-      'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.6, 9, 0.8],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.6, 5, 1.2, 10, 1.8],
+      'line-color': 'rgba(82,82,82,1)',
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.28, 2, 0.34, 5, 0.48, 9, 0.62],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.22, 2, 0.28, 5, 0.55, 10, 1.1],
     },
   },
   {
     id: 'boundary-land-level-4',
     type: 'line',
-    source: 'openmaptiles',
+    source: 'basemap',
     'source-layer': 'boundary',
-    minzoom: 2,
+    minzoom: 5,
     filter: [
       'all',
       ['>=', 'admin_level', 3],
@@ -39,9 +47,9 @@ export const coreBoundaryLayers: NonNullable<StyleSpecification['layers']> = [
       visibility: 'visible',
     },
     paint: {
-      'line-color': '#000000',
-      'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.6, 9, 0.8],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 5, 1.0, 10, 1.5],
+      'line-color': 'rgba(90,90,90,1)',
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.14, 6, 0.22, 9, 0.36],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.18, 6, 0.3, 10, 0.65],
       'line-dasharray': [3, 1, 1, 1],
     },
   },

@@ -14,20 +14,20 @@ import {
 describe('maplibreStyleHelpers', () => {
   it('clones style deeply without mutating template', () => {
     const cloned = cloneStyle(mapStyleTemplate)
-    ;(cloned.sources?.openmaptiles as VectorSourceSpecification).tiles = ['http://localhost:8081/osm-planet/{z}/{x}/{y}']
+    ;(cloned.sources?.basemap as VectorSourceSpecification).tiles = ['http://localhost:8081/basemap/{z}/{x}/{y}']
 
     expect(cloned).not.toBe(mapStyleTemplate)
-    expect((mapStyleTemplate.sources?.openmaptiles as VectorSourceSpecification).tiles).toEqual([])
+    expect((mapStyleTemplate.sources?.basemap as VectorSourceSpecification).tiles).toEqual([])
   })
 
   it('sets glyph URL and vector source tiles', () => {
     const style = cloneStyle(mapStyleTemplate)
     setGlyphUrl(style, 'http://localhost:8081/')
-    setVectorTiles(style, 'openmaptiles', ['http://localhost:8081/osm-planet/{z}/{x}/{y}'])
+    setVectorTiles(style, 'basemap', ['http://localhost:8081/basemap/{z}/{x}/{y}'])
 
     expect(style.glyphs).toBe('http://localhost:8081/font/{fontstack}/{range}')
-    expect((style.sources?.openmaptiles as VectorSourceSpecification).tiles).toEqual([
-      'http://localhost:8081/osm-planet/{z}/{x}/{y}',
+    expect((style.sources?.basemap as VectorSourceSpecification).tiles).toEqual([
+      'http://localhost:8081/basemap/{z}/{x}/{y}',
     ])
   })
 

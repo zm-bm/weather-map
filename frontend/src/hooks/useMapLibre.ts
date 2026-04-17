@@ -16,27 +16,28 @@ import {
   NOISE_LAYER_ID,
   NOISE_SOURCE_ID,
 } from '../map/noise'
-import { joinUrl } from '../url/joinUrl'
 import { loadStoredViewport, saveStoredViewport } from '../map/viewportStore'
 import { vectorLayerAdapter, vectorRuntimeOptions } from '../map/vector'
 import { scalarLayerAdapter, scalarRuntimeOptions } from '../map/scalar'
+import { getScalarController } from '../map/scalar/controller'
+import { getVectorController } from '../map/vector/controller'
 import { mapStyleTemplate } from '../map/styles/mapStyleTemplate'
+import { hydrateCoreSources } from '../map/styles/core/sources'
 import {
   cloneStyle,
   insertLayersAfter,
   mergeSources,
   setGlyphUrl,
   setLocalizedTextField,
-  setVectorTiles,
 } from '../map/styles/maplibreStyleHelpers'
 
+const DEBUG_BASEMAP_ONLY = true 
+const DEBUG_LOG_ZOOM_LEVEL = true
+
 const VIEWPORT_SAVE_DEBOUNCE_MS = 250
-const BASE_VECTOR_TILE_SOURCES = {
-  openmaptiles: 'osm-planet',
-  coastline: 'coastline',
-} as const
 const LOCALIZED_LABEL_LAYER_IDS = ['place-country', 'place-city'] as const
-const NOISE_INSERT_AFTER_LAYER_ID = 'water-fill'
+const NOISE_INSERT_AFTER_LAYER_ID = 'highway'
+const BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS = ['esri-hillshade', NOISE_LAYER_ID] as const
 
 export type UseMapLibreResult = {
   mapRef: React.RefObject<MapLibreMap | null>
@@ -91,6 +92,7 @@ export function useMapLibre({
     const handleStyleLoad = () => {
       try {
         ensureStartupRuntimeOverlays(m)
+        applyBasemapOnlyVisibility(m, DEBUG_BASEMAP_ONLY)
       } catch (error) {
         const normalizedError = normalizeError(error)
         console.error('[map] startup overlay initialization failed', normalizedError)
@@ -109,7 +111,13 @@ export function useMapLibre({
       saveTimer = window.setTimeout(() => saveStoredViewport(m), VIEWPORT_SAVE_DEBOUNCE_MS)
     }
 
+    const handleZoomEnd = () => {
+      if (!DEBUG_LOG_ZOOM_LEVEL) return
+      console.log(`[map] zoom ${m.getZoom().toFixed(2)}`)
+    }
+
     m.on('moveend', scheduleSave)
+    m.on('zoomend', handleZoomEnd)
     m.on('style.load', handleStyleLoad)
     m.on('error', handleMapError)
     if (m.isStyleLoaded()) {
@@ -118,6 +126,7 @@ export function useMapLibre({
 
     return () => {
       m.off('moveend', scheduleSave)
+      m.off('zoomend', handleZoomEnd)
       m.off('style.load', handleStyleLoad)
       m.off('error', handleMapError)
       if (saveTimer) window.clearTimeout(saveTimer)
@@ -139,10 +148,7 @@ export function buildInitialMapStyle(config: WeatherMapConfig): StyleSpecificati
 
 function hydrateBaseMapStyle(style: StyleSpecification, config: WeatherMapConfig) {
   setGlyphUrl(style, config.serverUrl)
-
-  for (const [sourceId, tileSource] of Object.entries(BASE_VECTOR_TILE_SOURCES)) {
-    setVectorTiles(style, sourceId, [joinUrl(config.serverUrl, `${tileSource}/{z}/{x}/{y}`)])
-  }
+  hydrateCoreSources(style, config.serverUrl)
 
   for (const layerId of LOCALIZED_LABEL_LAYER_IDS) {
     setLocalizedTextField(style, layerId, config.language)
@@ -179,4 +185,20 @@ function ensureScalarLayer(map: MapLibreMap) {
 function ensureVectorLayer(map: MapLibreMap) {
   if (map.getLayer(vectorLayerAdapter.layerId)) return
   map.addLayer(vectorLayerAdapter.createLayer())
+}
+
+function applyBasemapOnlyVisibility(map: MapLibreMap, basemapOnly: boolean) {
+  const showAuxiliaryLayers = !basemapOnly
+
+  for (const layerId of BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS) {
+    setLayerVisibility(map, layerId, showAuxiliaryLayers)
+  }
+
+  getScalarController(map)?.setEnabled(showAuxiliaryLayers)
+  getVectorController(map)?.setEnabled(showAuxiliaryLayers)
+}
+
+function setLayerVisibility(map: MapLibreMap, layerId: string, visible: boolean) {
+  if (!map.getLayer(layerId)) return
+  map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
 }

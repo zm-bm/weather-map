@@ -47,6 +47,7 @@ describe('scalarLayerAdapter', () => {
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
   })
 
@@ -73,6 +74,7 @@ describe('scalarLayerAdapter', () => {
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
     await scalarLayerAdapter.applySync(createArgs(createSignalFixture()))
@@ -88,6 +90,7 @@ describe('scalarLayerAdapter', () => {
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
 
     await expect(scalarLayerAdapter.applySync(createArgs(createSignalFixture())))
@@ -105,6 +108,7 @@ describe('scalarLayerAdapter', () => {
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
     await expect(scalarLayerAdapter.applySync(createArgs(ac.signal)))

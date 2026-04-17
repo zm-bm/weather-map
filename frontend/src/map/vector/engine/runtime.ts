@@ -49,6 +49,7 @@ type CameraState = {
 type VectorLayerState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
+  enabled: boolean
   lastFrameMs: number
   particleCount: number
   // Camera bounds for culling and screen-space conversion.
@@ -107,6 +108,7 @@ export function createVectorRuntime(
   options: VectorRuntimeOptions = DEFAULT_VECTOR_RUNTIME_OPTIONS
 ): VectorLayerRuntime {
   const state: VectorLayerState = {
+    enabled: true,
     lastFrameMs: 0,
     particleCount: options.particleCount,
     viewport: null,
@@ -145,6 +147,10 @@ export function createVectorRuntime(
       if (!state.available || !state.gl) throw new Error('Vector runtime unavailable (WebGL2 required)')
       // Upload the latest vector field and optionally reseed particles.
       applyVectorFieldToState(state, frame, options)
+      state.map?.triggerRepaint()
+    },
+    setEnabled: (enabled) => {
+      state.enabled = enabled
       state.map?.triggerRepaint()
     },
   }
@@ -249,7 +255,7 @@ export function createVectorRuntime(
     render(gl) {
       const gl2 = asWebGL2(gl, 'createTransformFeedback')
       if (!gl2) return
-      if (!state.available || !state.hasFrame) return
+      if (!state.enabled || !state.available || !state.hasFrame) return
       if (!isReady(state)) return
       if (!state.map) return
 
@@ -312,6 +318,7 @@ export function createVectorRuntime(
 
       state.map = undefined
       state.gl = undefined
+      state.enabled = true
       state.viewport = null
       state.vectorTexture = null
       state.available = false

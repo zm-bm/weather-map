@@ -9,6 +9,8 @@ type ForecastShellProps = {
   manifest: CycleManifest | null
 }
 
+const DEBUG_BASEMAP_ONLY = true
+
 export default function ForecastShell({
   manifest,
 }: ForecastShellProps) {
@@ -17,7 +19,7 @@ export default function ForecastShell({
       <ForecastStateProvider manifest={manifest}>
         <ForecastMap />
 
-        {manifest && (
+        {manifest && !DEBUG_BASEMAP_ONLY && (
           <>
             <LayerControls />
             <div className="lower-third" aria-label="Forecast details">

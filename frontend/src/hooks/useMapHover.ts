@@ -19,19 +19,19 @@ export function useMapHover(mapRef: RefObject<MapLibreMap | null>) {
 
       if (hoveredId !== null && hoveredId !== id) {
         map.setFeatureState(
-          { source: 'openmaptiles', sourceLayer: 'place', id: hoveredId },
+          { source: 'basemap', sourceLayer: 'place', id: hoveredId },
           { hover: false },
         )
       }
       hoveredId = id
-      map.setFeatureState({ source: 'openmaptiles', sourceLayer: 'place', id }, { hover: true })
+      map.setFeatureState({ source: 'basemap', sourceLayer: 'place', id }, { hover: true })
     }
 
     const onLeave = () => {
       map.getCanvas().style.cursor = ''
       if (hoveredId !== null) {
         map.setFeatureState(
-          { source: 'openmaptiles', sourceLayer: 'place', id: hoveredId },
+          { source: 'basemap', sourceLayer: 'place', id: hoveredId },
           { hover: false },
         )
       }

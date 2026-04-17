@@ -1,4 +1,5 @@
 import type {
+  RasterSourceSpecification,
   StyleSpecification,
   SymbolLayerSpecification,
   VectorSourceSpecification,
@@ -24,6 +25,36 @@ export function setVectorTiles(
   const source = style.sources?.[sourceId]
   if (!source || source.type !== 'vector') return
   ;(source as VectorSourceSpecification).tiles = tiles
+}
+
+export function setRasterTiles(
+  style: StyleSpecification,
+  sourceId: string,
+  tiles: string[]
+): void {
+  const source = style.sources?.[sourceId]
+  if (!source || source.type !== 'raster') return
+  ;(source as RasterSourceSpecification).tiles = tiles
+}
+
+export function setRasterSourceMaxzoom(
+  style: StyleSpecification,
+  sourceId: string,
+  maxzoom: number
+): void {
+  const source = style.sources?.[sourceId]
+  if (!source || source.type !== 'raster') return
+  ;(source as RasterSourceSpecification).maxzoom = maxzoom
+}
+
+export function setVectorSourceMaxzoom(
+  style: StyleSpecification,
+  sourceId: string,
+  maxzoom: number
+): void {
+  const source = style.sources?.[sourceId]
+  if (!source || source.type !== 'vector') return
+  ;(source as VectorSourceSpecification).maxzoom = maxzoom
 }
 
 export function mergeSources(
@@ -64,7 +95,7 @@ export function setLocalizedTextField(
   symbolLayer.layout['text-field'] = [
     'coalesce',
     ['get', `name:${language}`],
-    ['get', 'name:latin'],
+    ['get', 'name:en'],
     ['get', 'name'],
   ]
 }

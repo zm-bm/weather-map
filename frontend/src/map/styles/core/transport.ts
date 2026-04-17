@@ -4,7 +4,7 @@ export const coreTransportLayers: NonNullable<StyleSpecification['layers']> = [
   {
     id: 'highway-casing',
     type: 'line',
-    source: 'openmaptiles',
+    source: 'basemap',
     'source-layer': 'transportation',
     minzoom: 5,
     filter: [
@@ -44,7 +44,7 @@ export const coreTransportLayers: NonNullable<StyleSpecification['layers']> = [
   {
     id: 'highway',
     type: 'line',
-    source: 'openmaptiles',
+    source: 'basemap',
     'source-layer': 'transportation',
     minzoom: 5,
     filter: [

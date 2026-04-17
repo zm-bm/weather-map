@@ -3,6 +3,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 export type FrameRuntimeController<TFrame> = {
   isAvailable: () => boolean
   applyFrame: (frame: TFrame) => void
+  setEnabled: (enabled: boolean) => void
 }
 
 export type ControllerRegistry<TController> = {

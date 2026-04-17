@@ -1,0 +1,48 @@
+{
+  "layers": {
+    "water": {
+      "minzoom": 0,
+      "maxzoom": 9,
+      "simplify_below": 9,
+      "simplify_length": 2.0,
+      "simplify_algorithm": "visvalingam",
+      "combine_polygons_below": 9
+    },
+    "waterway": {
+      "minzoom": 7,
+      "maxzoom": 9,
+      "simplify_below": 9,
+      "simplify_length": 2.0,
+      "combine_lines_below": 9
+    },
+    "boundary": {
+      "minzoom": 0,
+      "maxzoom": 9,
+      "simplify_below": 9,
+      "simplify_length": 1.0,
+      "combine_lines_below": 9
+    },
+    "transportation": {
+      "minzoom": 6,
+      "maxzoom": 9,
+      "simplify_below": 9,
+      "simplify_length": 1.6,
+      "combine_lines_below": 9
+    },
+    "place": {
+      "minzoom": 0,
+      "maxzoom": 9,
+      "combine_points": false
+    }
+  },
+  "settings": {
+    "minzoom": 0,
+    "maxzoom": 9,
+    "basezoom": 9,
+    "include_ids": false,
+    "compress": "gzip",
+    "name": "weather-basemap-vector",
+    "version": "1",
+    "description": "Planet-derived weather basemap layers without coastline"
+  }
+}
