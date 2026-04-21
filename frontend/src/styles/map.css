@@ -10,6 +10,8 @@
 }
 
 .map-stage__viewport {
+  --wm-map-ctrl-radius: 6px;
+  --wm-map-ctrl-button-radius: 5px;
   --wm-map-ctrl-shell-border: rgba(239, 212, 158, 0.48);
   --wm-map-ctrl-shell-outline: rgba(8, 12, 37, 0.82);
   --wm-map-ctrl-shell-top: #274198;
@@ -59,8 +61,7 @@
 .map-stage__viewport .maplibregl-ctrl-group,
 .map-stage__viewport .maplibregl-ctrl-options-panel {
   border: 1px solid var(--wm-map-ctrl-shell-border);
-  outline: 1px solid var(--wm-map-ctrl-shell-outline);
-  outline-offset: -2px;
+  border-radius: var(--wm-map-ctrl-radius);
   background:
     linear-gradient(180deg, var(--wm-gloss-soft), transparent 18%),
     repeating-linear-gradient(
@@ -70,6 +71,7 @@
     ),
     linear-gradient(180deg, var(--wm-map-ctrl-shell-top) 0%, var(--wm-map-ctrl-shell-mid) 54%, var(--wm-map-ctrl-shell-bottom) 100%);
   box-shadow:
+    inset 0 0 0 1px var(--wm-map-ctrl-shell-outline),
     0 10px 0 var(--wm-map-ctrl-shell-shadow),
     inset 0 0 0 1px var(--wm-map-ctrl-shell-inset);
 }
@@ -78,7 +80,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 6px;
+  border-radius: var(--wm-map-ctrl-radius);
   overflow: hidden;
 }
 
@@ -107,6 +109,7 @@
   width: 48px;
   height: 39px;
   border: 0;
+  border-radius: 0;
   padding: 0;
   border-top: 1px solid rgba(255, 237, 202, 0.26);
   border-bottom: 1px solid rgba(7, 12, 42, 0.58);
@@ -121,6 +124,17 @@
 
 .map-stage__viewport .maplibregl-ctrl-group button:first-of-type {
   border-top: 0;
+  border-top-left-radius: var(--wm-map-ctrl-button-radius);
+  border-top-right-radius: var(--wm-map-ctrl-button-radius);
+}
+
+.map-stage__viewport .maplibregl-ctrl-group button:last-of-type {
+  border-bottom-left-radius: var(--wm-map-ctrl-button-radius);
+  border-bottom-right-radius: var(--wm-map-ctrl-button-radius);
+}
+
+.map-stage__viewport .maplibregl-ctrl-group button:only-of-type {
+  border-radius: var(--wm-map-ctrl-button-radius);
 }
 
 .map-stage__viewport .maplibregl-ctrl-group button + button {
@@ -242,6 +256,7 @@
     inset 0 1px 0 rgba(255, 250, 232, 0.62),
     inset 0 -1px 0 rgba(0, 0, 0, 0.42),
     0 0 0 2px rgba(255, 226, 171, 0.95);
+  outline: none;
 }
 
 .map-stage__viewport .maplibregl-ctrl button:disabled .maplibregl-ctrl-icon {
