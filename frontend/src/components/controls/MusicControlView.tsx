@@ -39,9 +39,6 @@ export function MusicControlView({
     audio.addEventListener('error', handleError)
     audio.load()
     audioRef.current = audio
-    setIsPlaying(false)
-    setIsUnavailable(false)
-    setStatusDetail(null)
 
     return () => {
       audio.pause()

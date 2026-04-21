@@ -27,6 +27,7 @@ export class MusicControl implements IControl {
     this.container = wrap
     this.root = createRoot(wrap)
     this.root.render(createElement(MusicControlView, {
+      key: this.src,
       src: this.src,
       createAudio: this.createAudio,
     }))
