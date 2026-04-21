@@ -100,7 +100,7 @@ export default function TimelineTransport() {
 
         <div className="transport-bar__controls">
           <button
-            className="control-button wm-bevel-button control-button--transport"
+            className="panel-button wm-bevel-button panel-button--transport"
             type="button"
             onClick={requestPrev}
             disabled={hourControlsDisabled}
@@ -110,7 +110,7 @@ export default function TimelineTransport() {
           </button>
 
           <button
-            className="control-button wm-bevel-button control-button--primary control-button--play"
+            className="panel-button wm-bevel-button panel-button--primary panel-button--play"
             type="button"
             onClick={togglePlay}
             disabled={hourControlsDisabled}
@@ -120,7 +120,7 @@ export default function TimelineTransport() {
           </button>
 
           <button
-            className="control-button wm-bevel-button control-button--transport"
+            className="panel-button wm-bevel-button panel-button--transport"
             type="button"
             onClick={requestNext}
             disabled={hourControlsDisabled}

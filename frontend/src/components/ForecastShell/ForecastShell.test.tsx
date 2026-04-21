@@ -8,8 +8,8 @@ vi.mock('../LayerControls', () => ({
   default: () => <div data-testid="layer-controls" />,
 }))
 
-vi.mock('../LayerLegend', () => ({
-  default: () => <div data-testid="layer-legend" />,
+vi.mock('../LegendPanel', () => ({
+  default: () => <div data-testid="legend-panel" />,
 }))
 
 vi.mock('../TimelineTransport', () => ({
@@ -30,7 +30,7 @@ describe('ForecastShell', () => {
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.queryByTestId('layer-controls')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('layer-legend')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('time-transport')).not.toBeInTheDocument()
   })
 
@@ -44,7 +44,7 @@ describe('ForecastShell', () => {
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('layer-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('layer-legend')).toBeInTheDocument()
+    expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
     expect(screen.getByTestId('time-transport')).toBeInTheDocument()
   })
 })

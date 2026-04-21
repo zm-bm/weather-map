@@ -1,7 +1,7 @@
 import type { CycleManifest } from '../../map/manifest'
 import ForecastStateProvider from '../../state/ForecastStateProvider'
 import LayerControls from '../LayerControls'
-import LayerLegend from '../LayerLegend'
+import LegendPanel from '../LegendPanel'
 import TimelineTransport from '../TimelineTransport'
 import ForecastMap from '../ForecastMap/ForecastMap'
 
@@ -23,7 +23,9 @@ export default function ForecastShell({
           <>
             <LayerControls />
             <div className="lower-third" aria-label="Forecast details">
-              <LayerLegend />
+              <div className="lower-third__stack">
+                <LegendPanel />
+              </div>
               <TimelineTransport />
             </div>
           </>

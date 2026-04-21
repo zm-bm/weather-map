@@ -16,7 +16,6 @@ export type ForecastMapProps = {
 export default function ForecastMap({
   containerId = 'map',
 }: ForecastMapProps) {
-
   const { mapRef, getMap, mapReadyVersion } = useMapLibre({
     config: config,
     containerId,

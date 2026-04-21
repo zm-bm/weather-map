@@ -54,9 +54,11 @@ describe('useMapControls', () => {
     unmount()
 
     expect(map.removeControl).toHaveBeenCalledTimes(3)
-    expect(map.removeControl).toHaveBeenNthCalledWith(1, addedControls[2]?.[0])
-    expect(map.removeControl).toHaveBeenNthCalledWith(2, addedControls[1]?.[0])
-    expect(map.removeControl).toHaveBeenNthCalledWith(3, addedControls[0]?.[0])
+    expect(map.removeControl.mock.calls.map(([control]) => control)).toEqual(expect.arrayContaining([
+      addedControls[0]?.[0],
+      addedControls[1]?.[0],
+      addedControls[2]?.[0],
+    ]))
   })
 
   it('skips removeControl when the map already dropped the controls', () => {

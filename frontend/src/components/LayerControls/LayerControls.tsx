@@ -15,17 +15,17 @@ function LayerControls() {
   const cycleText = formatCycleLabel(cycle)
 
   return (
-    <section className="control-dock wm-panel-shell" aria-label="Weather controls">
-      <div className="control-dock__header wm-titlebar">
-        <span className="control-dock__eyebrow wm-eyebrow">Weather Map</span>
-        <strong className="control-dock__title wm-display-caps">{activeScalarMeta.label}</strong>
-        <span className="control-dock__subtitle wm-mono-meta">
+    <section className="layer-panel wm-panel-shell" aria-label="Weather map panel">
+      <div className="layer-panel__header wm-titlebar">
+        <span className="layer-panel__eyebrow wm-eyebrow">Weather Map</span>
+        <strong className="layer-panel__title wm-display-caps">{activeScalarMeta.label}</strong>
+        <span className="layer-panel__subtitle wm-mono-meta">
           {cycleText ?? 'Forecast view'}
         </span>
       </div>
 
-      <fieldset className="control-section">
-        <legend className="control-section__legend wm-eyebrow">Variable</legend>
+      <fieldset className="panel-section">
+        <legend className="panel-section__legend wm-eyebrow">Variable</legend>
         <div className="layer-pill-list">
           {scalarVariables.map((variableId) => {
             const meta = getScalarLayerMeta(variableId, variableMeta)
