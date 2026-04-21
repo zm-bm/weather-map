@@ -154,40 +154,32 @@
 
 /* Lower-third panel shell */
 .lower-third {
-  position: absolute;
-  left: 20px;
-  right: 20px;
-  bottom: 20px;
+  position: relative;
   z-index: 2;
   display: flex;
-  gap: 12px;
-  align-items: flex-end;
+  align-items: stretch;
   pointer-events: none;
 }
 
 .lower-third__module {
   pointer-events: auto;
-  height: auto;
-}
-
-.lower-third__stack {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 12px);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
-  pointer-events: none;
-}
-
-.lower-third__stack > * {
-  pointer-events: auto;
 }
 
 .transport-bar.lower-third__module {
   flex: 1 1 auto;
-  align-self: flex-end;
+  width: 100%;
+}
+
+.forecast-stage__legend {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.forecast-stage__legend > * {
+  pointer-events: auto;
 }
 
 /* Legend panel */
@@ -396,6 +388,14 @@
 }
 
 /* Timeline transport panel */
+.transport-bar__titlebar {
+  position: relative;
+  border-bottom: 1px solid rgba(255, 236, 197, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 214, 0.55),
+    0 1px 0 rgba(5, 10, 30, 0.42);
+}
+
 .transport-bar__body {
   display: grid;
   grid-template-columns: minmax(260px, 320px) auto minmax(0, 1fr);
@@ -522,18 +522,9 @@
     overflow: auto;
   }
 
-  .lower-third {
-    left: 12px;
+  .forecast-stage__legend {
     right: 12px;
     bottom: 12px;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .lower-third__stack {
-    position: static;
-    align-self: flex-end;
-    margin-bottom: 12px;
   }
 
   .layer-panel__title {

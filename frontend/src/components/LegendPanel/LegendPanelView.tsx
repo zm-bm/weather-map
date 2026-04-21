@@ -38,7 +38,7 @@ export function LegendPanelView({ meta }: LegendPanelViewProps) {
   }
 
   return (
-    <section className="legend-panel lower-third__module" aria-label={`${meta.label} legend`}>
+    <section className="legend-panel" aria-label={`${meta.label} legend`}>
       <div className="legend-panel__body">
         {canCycleUnits ? (
           <button

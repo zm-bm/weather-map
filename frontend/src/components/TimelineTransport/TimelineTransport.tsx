@@ -83,7 +83,7 @@ export default function TimelineTransport() {
   }
 
   return (
-    <section className="transport-bar wm-panel-shell wm-module-shell lower-third__module" aria-label="Forecast timeline">
+    <section className="transport-bar wm-docked-band-shell wm-module-shell lower-third__module" aria-label="Forecast timeline">
       <div className="transport-bar__titlebar wm-titlebar wm-module-titlebar">
         <span className="transport-bar__eyebrow wm-eyebrow">Forecast Timeline</span>
       </div>

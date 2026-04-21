@@ -17,18 +17,23 @@ export default function ForecastShell({
   return (
     <main className="forecast-screen">
       <ForecastStateProvider manifest={manifest}>
-        <ForecastMap />
+        <div className="forecast-stage">
+          <ForecastMap />
 
-        {manifest && !DEBUG_BASEMAP_ONLY && (
-          <>
-            <LayerPanel />
-            <div className="lower-third" aria-label="Forecast details">
-              <div className="lower-third__stack">
+          {manifest && !DEBUG_BASEMAP_ONLY && (
+            <>
+              <LayerPanel />
+              <div className="forecast-stage__legend">
                 <LegendPanel />
               </div>
-              <TimelineTransport />
-            </div>
-          </>
+            </>
+          )}
+        </div>
+
+        {manifest && !DEBUG_BASEMAP_ONLY && (
+          <div className="lower-third" aria-label="Forecast details">
+            <TimelineTransport />
+          </div>
         )}
       </ForecastStateProvider>
     </main>

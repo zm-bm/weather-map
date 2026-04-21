@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createManifestFixture } from '../../test/fixtures'
@@ -40,11 +40,19 @@ describe('ForecastShell', () => {
       forecastHours: ['000', '003'],
     })
 
-    render(<ForecastShell manifest={manifest} />)
+    const { container } = render(<ForecastShell manifest={manifest} />)
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('layer-panel')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
     expect(screen.getByTestId('time-transport')).toBeInTheDocument()
+
+    const forecastStage = container.querySelector('.forecast-stage')
+    const lowerThird = screen.getByLabelText('Forecast details')
+
+    expect(forecastStage).not.toBeNull()
+    expect(lowerThird).toBeInTheDocument()
+    expect(within(forecastStage as HTMLElement).getByTestId('legend-panel')).toBeInTheDocument()
+    expect(within(lowerThird).queryByTestId('legend-panel')).not.toBeInTheDocument()
   })
 })
