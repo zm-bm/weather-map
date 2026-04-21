@@ -1,10 +1,13 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
+import { createElement, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useMapClick } from './useMapClick'
 import { clearScalarProbeFrame, setScalarProbeFrame } from '../map/scalar'
 import type { ScalarFrameData } from '../map/scalar/engine/types'
+import MapProbeProvider from '../state/MapProbeProvider'
+import { useMapProbe } from '../state/MapProbeContext'
 
 type EventHandler = (event: { lngLat: { lng: number; lat: number } }) => void
 
@@ -68,23 +71,31 @@ function createFrame(): ScalarFrameData {
   }
 }
 
+function Wrapper({ children }: { children: ReactNode }) {
+  return createElement(MapProbeProvider, null, children)
+}
+
 describe('useMapClick', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('logs the probed scalar value at the clicked coordinate', () => {
+  it('stores the probed scalar value at the clicked coordinate', () => {
     const map = createClickableMap()
     setScalarProbeFrame(map, createFrame())
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    const { unmount } = renderHook(() => useMapClick({ current: map }))
+    const { result, unmount } = renderHook(() => {
+      useMapClick({ current: map })
+      return useMapProbe()
+    }, { wrapper: Wrapper })
 
-    map.emit('click', {
-      lngLat: { lng: 0.5, lat: 0.5 },
+    act(() => {
+      map.emit('click', {
+        lngLat: { lng: 0.5, lat: 0.5 },
+      })
     })
 
-    expect(logSpy).toHaveBeenCalledWith('[probe]', {
+    expect(result.current.lastProbe).toEqual({
       variableId: 'tmp_surface',
       lon: 0.5,
       lat: 0.5,

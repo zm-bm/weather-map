@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import type { CycleManifest } from '../map/manifest'
+import MapProbeProvider from './MapProbeProvider'
 import VariableProvider from './VariableProvider'
 import TimelineProvider from './TimelineProvider'
 
@@ -18,12 +19,17 @@ export default function ForecastStateProvider({
   const timelineProviderKey = manifest == null
     ? 'timeline:none'
     : `timeline:${manifest.cycle}:${manifest.forecastHours.join(',')}`
+  const mapProbeProviderKey = manifest == null
+    ? 'probe:none'
+    : `probe:${manifest.cycle}`
 
   return (
     <VariableProvider manifest={manifest}>
-      <TimelineProvider key={timelineProviderKey} manifest={manifest}>
-        {children}
-      </TimelineProvider>
+      <MapProbeProvider key={mapProbeProviderKey}>
+        <TimelineProvider key={timelineProviderKey} manifest={manifest}>
+          {children}
+        </TimelineProvider>
+      </MapProbeProvider>
     </VariableProvider>
   )
 }

@@ -2,8 +2,11 @@ import { useEffect, type RefObject } from 'react'
 import type { Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl'
 
 import { getScalarProbeFrame, probeScalarFrame } from '../map/scalar'
+import { useMapProbe } from '../state/MapProbeContext'
 
 export function useMapClick(mapRef: RefObject<MapLibreMap | null>) {
+  const { setLastProbe } = useMapProbe()
+
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -14,7 +17,7 @@ export function useMapClick(mapRef: RefObject<MapLibreMap | null>) {
       const lat = event.lngLat.lat
       const probe = frame ? probeScalarFrame(frame, { lon, lat }) : null
 
-      console.log('[probe]', {
+      setLastProbe({
         variableId: frame?.variableId ?? null,
         lon,
         lat,
@@ -27,5 +30,5 @@ export function useMapClick(mapRef: RefObject<MapLibreMap | null>) {
     return () => {
       map.off('click', onClick)
     }
-  }, [mapRef])
+  }, [mapRef, setLastProbe])
 }

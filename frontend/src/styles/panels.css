@@ -1,5 +1,5 @@
-/* Layer panel */
-.layer-panel {
+/* Forecast panel */
+.forecast-panel {
   --wm-panel-shell-radius: 6px;
   --wm-panel-shell-background:
     linear-gradient(180deg, var(--wm-gloss-soft), transparent 18%),
@@ -20,7 +20,7 @@
   padding: 14px;
 }
 
-.layer-panel__header {
+.forecast-panel__header {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -29,25 +29,23 @@
   border-bottom: 2px solid var(--wm-rule-warm-soft);
 }
 
-.layer-panel__title {
+.forecast-panel__title {
   font-size: 28px;
   line-height: 0.98;
   font-weight: 700;
   text-shadow: 2px 2px 0 rgba(47, 27, 8, 0.4);
 }
 
-.layer-panel__subtitle {
-  color: var(--wm-text-cream);
-}
-
-.panel-section {
+.forecast-panel__body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.forecast-panel__readout {
   min-width: 0;
-  border: 2px solid var(--wm-rule-cool-soft);
-  margin: 0;
   padding: 10px 10px 12px;
+  border: 2px solid var(--wm-ui-border-cool-soft);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 35%),
     rgba(7, 16, 50, 0.18);
@@ -56,49 +54,30 @@
     inset 0 -1px 0 rgba(0, 0, 0, 0.28);
 }
 
-.layer-pill-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.forecast-panel__label {
+  --wm-mono-caps-size: 11px;
+  --wm-mono-caps-spacing: 0.05em;
+  display: block;
+  margin-bottom: 6px;
+  color: var(--wm-text-muted);
 }
 
-.layer-pill {
-  min-height: 38px;
-  padding: 0 14px;
-  font-size: 18px;
+.forecast-panel__value {
+  display: block;
+  color: var(--wm-text-cream-bright);
+  font-size: 24px;
+  line-height: 1;
+  text-wrap: balance;
 }
 
-.layer-pill__input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
+.forecast-panel__value:last-child {
+  color: var(--wm-text-warm);
 }
 
-.panel-render-status {
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 2px solid var(--wm-ui-border-cool-soft);
-  border-radius: 3px;
-  font-size: 12px;
-  font-family: var(--wm-font-mono);
-  letter-spacing: 0.03em;
-  line-height: 1.35;
-}
-
-.panel-render-status--ok {
-  color: var(--wm-text-cool-bright);
+.forecast-panel__empty {
   background:
-    linear-gradient(180deg, rgba(95, 169, 110, 0.18), rgba(24, 62, 36, 0.12)),
-    rgba(8, 24, 56, 0.3);
-}
-
-.panel-render-status--error {
-  color: var(--wm-text-danger-soft);
-  border-color: rgba(255, 178, 161, 0.68);
-  background:
-    linear-gradient(180deg, rgba(181, 58, 43, 0.36), rgba(96, 24, 18, 0.24)),
-    rgba(40, 10, 18, 0.45);
+    linear-gradient(180deg, rgba(255, 246, 220, 0.04), rgba(255, 246, 220, 0)),
+    rgba(7, 16, 50, 0.18);
 }
 
 .panel-button {
@@ -158,6 +137,7 @@
   z-index: 2;
   display: flex;
   align-items: stretch;
+  gap: 10px;
   pointer-events: none;
 }
 
@@ -165,8 +145,13 @@
   pointer-events: auto;
 }
 
+.layer-deck.lower-third__module {
+  flex: 0 0 360px;
+  max-width: 420px;
+}
+
 .transport-bar.lower-third__module {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   width: 100%;
 }
 
@@ -180,6 +165,64 @@
 
 .forecast-stage__legend > * {
   pointer-events: auto;
+}
+
+/* Layer deck */
+.layer-deck__titlebar {
+  position: relative;
+  border-bottom: 1px solid rgba(255, 236, 197, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 214, 0.55),
+    0 1px 0 rgba(5, 10, 30, 0.42);
+}
+
+.layer-deck__body {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  min-width: 0;
+}
+
+.layer-deck__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.layer-deck__label {
+  --wm-mono-caps-size: 11px;
+  --wm-mono-caps-spacing: 0.05em;
+  color: var(--wm-text-muted);
+}
+
+.layer-deck__meta strong {
+  font-size: clamp(24px, 1.8vw, 30px);
+  line-height: 0.95;
+}
+
+.layer-deck__detail {
+  color: var(--wm-text-cream-soft);
+}
+
+.layer-deck__pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.layer-deck__pill {
+  position: relative;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 16px;
+}
+
+.layer-deck__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* Legend panel */
@@ -513,7 +556,7 @@
 
 /* Panel responsiveness */
 @media (max-width: 760px) {
-  .layer-panel {
+  .forecast-panel {
     top: 12px;
     left: 12px;
     right: 12px;
@@ -522,13 +565,23 @@
     overflow: auto;
   }
 
+  .lower-third {
+    flex-direction: column;
+    gap: 0;
+  }
+
   .forecast-stage__legend {
     right: 12px;
     bottom: 12px;
   }
 
-  .layer-panel__title {
+  .forecast-panel__title {
     font-size: 22px;
+  }
+
+  .layer-deck.lower-third__module {
+    flex: 1 1 auto;
+    max-width: none;
   }
 
   .transport-bar__body {

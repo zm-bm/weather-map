@@ -1,0 +1,74 @@
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+
+import { createManifestFixture, createScalarVariableMetaFixture } from '../../test/fixtures'
+import ForecastPanel from './ForecastPanel'
+
+const mocks = vi.hoisted(() => ({
+  lastProbe: null as { lat: number; lon: number; value: number | null; variableId: 'tmp_surface' | 'rh_surface' | null } | null,
+}))
+
+vi.mock('../../state/VariableContext', () => ({
+  useLoadedVariableContext: () => {
+    const manifest = createManifestFixture({
+      cycle: '2026041100',
+      scalarVariables: ['tmp_surface', 'rh_surface'],
+      vectorVariables: ['wind10m_uv'],
+      variableMeta: {
+        tmp_surface: createScalarVariableMetaFixture(),
+        rh_surface: createScalarVariableMetaFixture({
+          units: '%',
+          parameter: 'rh',
+          valid_min: 0,
+          valid_max: 100,
+        }),
+      },
+    })
+
+    return {
+      manifest,
+      cycle: manifest.cycle,
+      scalarVariables: manifest.scalarVariables,
+      vectorVariables: manifest.vectorVariables,
+      variableMeta: manifest.variableMeta,
+      activeScalar: manifest.scalarVariables[0],
+      activeVector: manifest.vectorVariables[0],
+      setActiveScalar: vi.fn(),
+      setActiveVector: vi.fn(),
+    }
+  },
+}))
+
+vi.mock('../../state/MapProbeContext', () => ({
+  useMapProbe: () => ({
+    lastProbe: mocks.lastProbe,
+    setLastProbe: vi.fn(),
+  }),
+}))
+
+describe('ForecastPanel', () => {
+  it('shows a click prompt before any map sample exists', () => {
+    mocks.lastProbe = null
+
+    render(<ForecastPanel />)
+
+    expect(screen.getByText('Click Map')).toBeInTheDocument()
+    expect(screen.getByText('-- / --')).toBeInTheDocument()
+    expect(screen.getByText('Click map to sample current layer')).toBeInTheDocument()
+  })
+
+  it('shows the last clicked coordinate and value', () => {
+    mocks.lastProbe = {
+      lat: 35.125,
+      lon: -97.5,
+      value: 25,
+      variableId: 'tmp_surface',
+    }
+
+    render(<ForecastPanel />)
+
+    expect(screen.getByText('Temperature')).toBeInTheDocument()
+    expect(screen.getByText('35.13 / -97.50')).toBeInTheDocument()
+    expect(screen.getByText('25 C')).toBeInTheDocument()
+  })
+})
