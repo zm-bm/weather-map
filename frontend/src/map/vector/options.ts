@@ -74,20 +74,20 @@ export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   dashMinPx: 10,
   dashMaxPx: 14,
   dashPerMps: 0.035,
-  coreWidthPx: 1.5,
-  shadowWidthPx: 2.6,
+  coreWidthPx: 1.6,
+  shadowWidthPx: 2.8,
   dirSampleStepSec: 0.24,
 
-  speedRampGamma: 1.1,
-  coreSlow: [0.86, 0.9, 0.94, 0.24],
-  coreFast: [0.98, 0.99, 1, 0.5],
-  shadowSlow: [0.12, 0.16, 0.3, 0.13],
-  shadowFast: [0.08, 0.1, 0.2, 0.2],
+  speedRampGamma: 1.2,
+  coreSlow: [0.86, 0.9, 0.94, 0.2],
+  coreFast: [0.98, 0.99, 1, 0.3],
+  shadowSlow: [0.52, 0.56, 0.7, 0.06],
+  shadowFast: [0.58, 0.6, 0.7, 0.12],
 
   trailScale: 0.95,
   trailFade: 0.975,
   trailQuantize: true,
-  trailCompositeOpacity: 0.7,
+  trailCompositeOpacity: 1,
   clearTrailsOnViewChange: true,
 }
 
