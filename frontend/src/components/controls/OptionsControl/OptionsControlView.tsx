@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   SCALAR_COLOR_SAMPLING_MODES,
   type ScalarColorSamplingMode,
-} from '../../scalar/options'
+} from '../../../map/scalar/options'
 
 type OptionsControlViewProps = {
   scalarColorSamplingMode: ScalarColorSamplingMode

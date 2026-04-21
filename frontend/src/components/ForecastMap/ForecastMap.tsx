@@ -1,5 +1,6 @@
 import config from '../../config'
 import { useForecastMapStatus } from '../../hooks/useForecastMapStatus'
+import { useMapControls } from '../../hooks/useMapControls'
 import { useFrameSyncRunner } from '../../hooks/useFrameSyncRunner'
 import { useMapClick } from '../../hooks/useMapClick'
 import { useStartupSyncState } from '../../hooks/useStartupSyncState'
@@ -27,6 +28,7 @@ export default function ForecastMap({
 
   useMapHover(mapRef)
   useMapClick(mapRef)
+  useMapControls(mapRef, mapReadyVersion)
 
   const syncState = useStartupSyncState()
   const syncRequest = useFrameSyncRequest(syncState.retryToken)

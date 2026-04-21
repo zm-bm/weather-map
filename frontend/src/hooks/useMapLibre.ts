@@ -5,11 +5,7 @@ import maplibregl, {
 
 import { normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
-import { TRACK_URL, MusicControl } from '../map/controls/MusicControl'
-import { OptionsControl } from '../map/controls/OptionsControl'
 import { loadStoredViewport, saveStoredViewport } from '../map/viewportStore'
-import { scalarRuntimeOptions } from '../map/scalar'
-import { vectorRuntimeOptions } from '../map/vector'
 import { buildMapStyle, onStyleLoad } from '../map/styles/helpers'
 
 const VIEWPORT_SAVE_DEBOUNCE_MS = 250
@@ -56,12 +52,6 @@ export function useMapLibre({
       style: buildMapStyle(config),
     })
 
-    m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-    m.addControl(new MusicControl(TRACK_URL), 'top-right')
-    m.addControl(new OptionsControl({
-      scalarOptions: scalarRuntimeOptions,
-      vectorOptions: vectorRuntimeOptions,
-    }), 'top-right')
     mapRef.current = m
 
     const handleStyleLoad = () => {

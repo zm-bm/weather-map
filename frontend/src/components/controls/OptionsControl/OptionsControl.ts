@@ -2,8 +2,8 @@ import type { IControl } from 'maplibre-gl'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-import type { ScalarColorSamplingMode, ScalarRuntimeOptions } from '../../scalar/options'
-import type { VectorRuntimeOptions } from '../../vector/options'
+import type { ScalarColorSamplingMode, ScalarRuntimeOptions } from '../../../map/scalar/options'
+import type { VectorRuntimeOptions } from '../../../map/vector/options'
 import { OptionsControlView } from './OptionsControlView'
 
 type OptionsControlConfig = {
