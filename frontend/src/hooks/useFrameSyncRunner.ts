@@ -44,7 +44,6 @@ type RunnerMachine = {
   isCurrent: (request: ActiveRequest) => boolean
   markApplied: (request: ActiveRequest) => void
   finish: (request: ActiveRequest) => void
-  cancelIfCurrent: (request: ActiveRequest) => void
 }
 
 export function useFrameSyncRunner({
@@ -139,10 +138,6 @@ export function useFrameSyncRunner({
     }
 
     void runRequest()
-
-    return () => {
-      machine.cancelIfCurrent(activeRequest)
-    }
   }, [
     config,
     getMap,
@@ -216,11 +211,6 @@ function createRunnerMachine(): RunnerMachine {
     },
     finish(request) {
       if (active !== request) return
-      active = null
-    },
-    cancelIfCurrent(request) {
-      if (active !== request) return
-      request.controller.abort()
       active = null
     },
   }

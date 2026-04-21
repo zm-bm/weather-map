@@ -2,7 +2,6 @@ listen_addresses: "0.0.0.0:3001"
 
 mbtiles:
   paths:
-    - "/data/tiles/"
     - "/data/static/"
 
 sprites:

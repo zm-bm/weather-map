@@ -430,8 +430,8 @@ def run_publish(
         print("Publish not ready: ctx.forecast_hours is empty")
         return PublishResult(ready=False, already_published=False)
 
-    if not scalar_variables and not vector_variables:
-        print("Publish not ready: scalar_variables and vector_variables are empty")
+    if not scalar_variables or not vector_variables:
+        print("Publish not ready: scalar_variables or vector_variables are empty")
         return PublishResult(ready=False, already_published=False)
 
     store = make_store()

@@ -1,31 +1,3 @@
-.transport-bar {
-  display: flex;
-  flex-direction: column;
-  border: 3px solid var(--wm-panel-line);
-  border-radius: 4px;
-  overflow: hidden;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.012) 0 2px,
-      rgba(0, 0, 0, 0.015) 2px 4px
-    ),
-    linear-gradient(180deg, #20306f 0%, #122357 100%);
-  box-shadow: var(--wm-shadow);
-  outline: 2px solid rgba(8, 12, 37, 0.9);
-  outline-offset: -5px;
-}
-
-.transport-bar__titlebar {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 14px;
-  background:
-    linear-gradient(180deg, #d9982d 0%, #be731d 54%, #7d4010 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.55);
-}
-
 .transport-bar__body {
   display: grid;
   grid-template-columns: minmax(260px, 320px) auto minmax(0, 1fr);
@@ -39,49 +11,31 @@
   flex-direction: column;
   gap: 4px;
   padding-right: 16px;
-  border-right: 2px solid rgba(217, 224, 244, 0.22);
+  border-right: 2px solid var(--wm-rule-cool-muted);
 }
 
 .transport-bar__label,
 .transport-bar__scrubber-header {
+  --wm-mono-caps-size: 12px;
+  --wm-mono-caps-spacing: 0.05em;
   color: var(--wm-text-muted);
-  font-size: 12px;
-  font-family: var(--wm-font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
 .transport-bar__meta strong {
-  font-family: var(--wm-font-display);
   height: 40px;
   font-size: clamp(34px, 2.2vw, 42px);
   line-height: 0.95;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
 }
 
 .transport-bar__detail {
-  color: #fff0d4;
-  font-size: 12px;
-  font-family: var(--wm-font-mono);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--wm-text-cream);
 }
 
 .transport-bar__status {
-  color: #ffe8b8;
-  font-size: 11px;
-  font-family: var(--wm-font-mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  --wm-mono-caps-size: 11px;
+  --wm-mono-caps-spacing: 0.05em;
+  color: var(--wm-text-cream-soft);
 }
 
 .transport-bar__controls {
@@ -89,8 +43,8 @@
   align-items: stretch;
   gap: 10px;
   padding-inline: 2px 6px;
-  border-left: 2px solid rgba(217, 224, 244, 0.22);
-  border-right: 2px solid rgba(217, 224, 244, 0.22);
+  border-left: 2px solid var(--wm-rule-cool-muted);
+  border-right: 2px solid var(--wm-rule-cool-muted);
 }
 
 .transport-bar__controls .control-button {
@@ -120,11 +74,9 @@
 }
 
 .transport-bar__ticks {
+  --wm-mono-caps-size: 11px;
+  --wm-mono-caps-spacing: 0.03em;
   color: var(--wm-text-muted);
-  font-size: 11px;
-  font-family: var(--wm-font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -157,7 +109,6 @@
 }
 
 .transport-bar__ticks strong {
-  color: #fff3d2;
+  color: var(--wm-text-cream-bright);
   font-weight: 700;
 }
-

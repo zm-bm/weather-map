@@ -8,6 +8,11 @@ import TimelineProvider from './TimelineProvider'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
+function timelineProviderKey(manifest: ReturnType<typeof createManifestFixture> | null): string {
+  if (manifest == null) return 'timeline:none'
+  return `timeline:${manifest.cycle}:${manifest.forecastHours.join(',')}`
+}
+
 function renderTimelineProvider(initialManifest: ReturnType<typeof createManifestFixture> | null) {
   const contextRef: { current: TimelineContextValue | null } = { current: null }
 
@@ -26,7 +31,7 @@ function renderTimelineProvider(initialManifest: ReturnType<typeof createManifes
   }
 
   const ui = (manifest: ReturnType<typeof createManifestFixture> | null) => (
-    <TimelineProvider manifest={manifest}>
+    <TimelineProvider key={timelineProviderKey(manifest)} manifest={manifest}>
       <Probe />
     </TimelineProvider>
   )
@@ -158,6 +163,21 @@ describe('TimelineProvider', () => {
     expect(getContext().state.pendingHourIndex).toBeNull()
     expect(getContext().state.isPlaying).toBe(false)
     expect(getContext().state.isInFlight).toBe(false)
+  })
+
+  it('resets to closest hour when manifest appears after initial empty state', () => {
+    vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
+
+    const { getContext, rerenderManifest } = renderTimelineProvider(null)
+    expect(getContext().state.targetHourIndex).toBe(0)
+
+    rerenderManifest(createManifestFixture({
+      cycle: '2026040900',
+      forecastHours: DEFAULT_FORECAST_HOURS,
+    }))
+
+    expect(getContext().state.appliedHourIndex).toBe(1)
+    expect(getContext().state.targetHourIndex).toBe(1)
   })
 
   it('steps next from latest desired hour while in flight', () => {

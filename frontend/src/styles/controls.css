@@ -1,4 +1,13 @@
 .control-dock {
+  --wm-panel-shell-radius: 6px;
+  --wm-panel-shell-background:
+    linear-gradient(180deg, var(--wm-gloss-soft), transparent 18%),
+    repeating-linear-gradient(
+      0deg,
+      var(--wm-stripe-light) 0 2px,
+      var(--wm-stripe-dark) 2px 4px
+    ),
+    linear-gradient(180deg, #243b91 0%, var(--wm-panel) 42%, var(--wm-panel-deep) 100%);
   position: absolute;
   top: 20px;
   left: 20px;
@@ -8,19 +17,6 @@
   flex-direction: column;
   gap: 14px;
   padding: 14px;
-  border: 3px solid var(--wm-panel-line);
-  border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 18%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.015) 0 2px,
-      rgba(0, 0, 0, 0.015) 2px 4px
-    ),
-    linear-gradient(180deg, #243b91 0%, var(--wm-panel) 42%, var(--wm-panel-deep) 100%);
-  box-shadow: var(--wm-shadow);
-  outline: 2px solid rgba(8, 12, 37, 0.9);
-  outline-offset: -5px;
 }
 
 .control-dock__header {
@@ -29,39 +25,18 @@
   gap: 6px;
   margin: -14px -14px 2px;
   padding: 12px 14px 10px;
-  border-bottom: 2px solid rgba(255, 235, 196, 0.25);
-  background:
-    linear-gradient(180deg, #d9982d 0%, #be731d 54%, #7d4010 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.55);
-}
-
-.control-dock__eyebrow,
-.legend-card__eyebrow,
-.transport-bar__eyebrow,
-.control-section__legend {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #fff4ce;
-  text-shadow: 1px 1px 0 rgba(65, 36, 9, 0.45);
+  border-bottom: 2px solid var(--wm-rule-warm-soft);
 }
 
 .control-dock__title {
   font-size: 28px;
   line-height: 0.98;
   font-weight: 700;
-  font-family: var(--wm-font-display);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   text-shadow: 2px 2px 0 rgba(47, 27, 8, 0.4);
 }
 
 .control-dock__subtitle {
-  color: #fff0d4;
-  font-size: 12px;
-  font-family: var(--wm-font-mono);
-  letter-spacing: 0.04em;
+  color: var(--wm-text-cream);
 }
 
 .control-section {
@@ -69,7 +44,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  border: 2px solid rgba(217, 224, 244, 0.32);
+  border: 2px solid var(--wm-rule-cool-soft);
   margin: 0;
   padding: 10px 10px 12px;
   background:
@@ -87,39 +62,9 @@
 }
 
 .layer-pill {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-height: 38px;
   padding: 0 14px;
-  border: 2px solid rgba(210, 218, 239, 0.42);
-  border-radius: 3px;
-  color: var(--wm-text);
-  background:
-    linear-gradient(180deg, rgba(110, 131, 214, 0.22), rgba(10, 20, 61, 0.22)),
-    var(--wm-panel-dark);
-  cursor: pointer;
-  font-family: var(--wm-font-display);
   font-size: 18px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.layer-pill:hover {
-  border-color: rgba(255, 236, 199, 0.62);
-}
-
-.layer-pill--active {
-  border-color: rgba(255, 231, 188, 0.88);
-  background:
-    linear-gradient(180deg, rgba(243, 178, 82, 0.34), rgba(110, 46, 9, 0.18)),
-    #2d3d8d;
-  color: #fff7e5;
 }
 
 .layer-pill__input {
@@ -132,7 +77,7 @@
 .control-render-status {
   min-height: 38px;
   padding: 8px 10px;
-  border: 2px solid rgba(210, 218, 239, 0.4);
+  border: 2px solid var(--wm-ui-border-cool-soft);
   border-radius: 3px;
   font-size: 12px;
   font-family: var(--wm-font-mono);
@@ -141,14 +86,14 @@
 }
 
 .control-render-status--ok {
-  color: #eaf2ff;
+  color: var(--wm-text-cool-bright);
   background:
     linear-gradient(180deg, rgba(95, 169, 110, 0.18), rgba(24, 62, 36, 0.12)),
     rgba(8, 24, 56, 0.3);
 }
 
 .control-render-status--error {
-  color: #ffd9d2;
+  color: var(--wm-text-danger-soft);
   border-color: rgba(255, 178, 161, 0.68);
   background:
     linear-gradient(180deg, rgba(181, 58, 43, 0.36), rgba(96, 24, 18, 0.24)),
@@ -157,36 +102,17 @@
 
 .control-button {
   min-height: 42px;
-  border: 2px solid rgba(210, 218, 239, 0.5);
-  border-radius: 3px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 45%),
-    linear-gradient(180deg, #324595 0%, #1f317b 100%);
-  color: var(--wm-text);
-  cursor: pointer;
   font-family: var(--wm-font-display);
   font-size: 20px;
   text-transform: uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
-}
-
-.control-button:hover:not(:disabled) {
-  border-color: rgba(255, 242, 216, 0.68);
-}
-
-.control-button:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .control-button--primary {
-  border-color: rgba(255, 231, 188, 0.86);
-  background:
+  --wm-bevel-border: 2px solid var(--wm-ui-border-warm-active);
+  --wm-bevel-background:
     linear-gradient(180deg, rgba(255, 244, 216, 0.25), transparent 42%),
     linear-gradient(180deg, #dd9533 0%, #ad5f1f 100%);
-  color: #fff9eb;
+  --wm-bevel-text: var(--wm-text-warm);
 }
 
 .control-button--transport,
@@ -224,4 +150,3 @@
   font-family: var(--wm-font-mono);
   letter-spacing: 0.08em;
 }
-

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { scalarLayerAdapter } from './adapter'
+import { scalarRuntimeOptions } from './options'
+import { getScalarProbeFrame } from './probe'
 import {
   createConfigFixture,
   createManifestFixture,
@@ -10,7 +12,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   loadScalarFrame: vi.fn(),
-  getScalarRuntimeController: vi.fn(),
+  getScalarController: vi.fn(),
   createScalarRuntime: vi.fn(),
 }))
 
@@ -18,8 +20,11 @@ vi.mock('./engine/frame', () => ({
   loadScalarFrame: mocks.loadScalarFrame,
 }))
 
+vi.mock('./controller', () => ({
+  getScalarController: mocks.getScalarController,
+}))
+
 vi.mock('./engine/runtime', () => ({
-  getScalarRuntimeController: mocks.getScalarRuntimeController,
   createScalarRuntime: mocks.createScalarRuntime,
 }))
 
@@ -40,9 +45,10 @@ describe('scalarLayerAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadScalarFrame.mockResolvedValue({ variableId: 'tmp_surface' })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
   })
 
@@ -55,6 +61,7 @@ describe('scalarLayerAdapter', () => {
 
     const layer = scalarLayerAdapter.createLayer()
 
+    expect(mocks.createScalarRuntime).toHaveBeenCalledWith(scalarRuntimeOptions)
     expect(layer.id).toBe('scalar-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')
@@ -63,26 +70,33 @@ describe('scalarLayerAdapter', () => {
   it('loads and applies a scalar frame for the active scalar', async () => {
     const frame = { variableId: 'tmp_surface' }
     const applyFrame = vi.fn()
+    const map = createMapFixture()
 
     mocks.loadScalarFrame.mockResolvedValue(frame)
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
-    await scalarLayerAdapter.applySync(createArgs(createSignalFixture()))
+    await scalarLayerAdapter.applySync({
+      ...createArgs(createSignalFixture()),
+      map,
+    })
 
     expect(mocks.loadScalarFrame).toHaveBeenCalledWith(
       expect.objectContaining({ variable: 'tmp_surface' })
     )
     expect(applyFrame).toHaveBeenCalledWith(frame)
+    expect(getScalarProbeFrame(map)).toBe(frame)
   })
 
   it('throws when runtime is unavailable', async () => {
     mocks.loadScalarFrame.mockResolvedValue({ variableId: 'tmp_surface' })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
     })
 
     await expect(scalarLayerAdapter.applySync(createArgs(createSignalFixture())))
@@ -97,9 +111,10 @@ describe('scalarLayerAdapter', () => {
       ac.abort()
       return { variableId: 'tmp_surface' }
     })
-    mocks.getScalarRuntimeController.mockReturnValue({
+    mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
+      setEnabled: vi.fn(),
     })
 
     await expect(scalarLayerAdapter.applySync(createArgs(ac.signal)))

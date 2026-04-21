@@ -21,14 +21,14 @@ export default function LayerLegend() {
   const legendTicks = getLegendTicks(meta, selectedOption)
 
   return (
-    <section className="legend-card lower-third__module" aria-label={`${meta.label} legend`}>
-      <div className="legend-card__titlebar">
-        <span className="legend-card__eyebrow">Legend</span>
+    <section className="legend-card wm-panel-shell wm-module-shell lower-third__module" aria-label={`${meta.label} legend`}>
+      <div className="legend-card__titlebar wm-titlebar wm-module-titlebar">
+        <span className="legend-card__eyebrow wm-eyebrow">Legend</span>
       </div>
 
       <div className="legend-card__body legend-card__body--vertical">
         <div className="legend-card__header">
-          <strong>{meta.label}</strong>
+          <strong className="wm-display-caps">{meta.label}</strong>
 
           {legendUnitDisplay.options.length > 1 ? (
             <div className="legend-card__unit-toggle" role="group" aria-label={`${meta.label} units`}>
@@ -38,7 +38,7 @@ export default function LayerLegend() {
                   <button
                     key={option.id}
                     type="button"
-                    className={`legend-card__unit-button${isActive ? ' legend-card__unit-button--active' : ''}`}
+                    className={`legend-card__unit-button wm-bevel-button${isActive ? ' legend-card__unit-button--active' : ''}`}
                     aria-pressed={isActive}
                     onClick={() => {
                       setSelectedUnitsByLayer((prev) => ({ ...prev, [meta.id]: option.id }))
@@ -50,7 +50,7 @@ export default function LayerLegend() {
               })}
             </div>
           ) : (
-            <span>{selectedOption.units}</span>
+            <span className="legend-card__units wm-mono-meta wm-text-truncate">{selectedOption.units}</span>
           )}
         </div>
 

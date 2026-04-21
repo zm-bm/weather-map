@@ -1,31 +1,3 @@
-.legend-card {
-  display: flex;
-  flex-direction: column;
-  border: 3px solid var(--wm-panel-line);
-  border-radius: 4px;
-  overflow: hidden;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.012) 0 2px,
-      rgba(0, 0, 0, 0.015) 2px 4px
-    ),
-    linear-gradient(180deg, #20306f 0%, #122357 100%);
-  box-shadow: var(--wm-shadow);
-  outline: 2px solid rgba(8, 12, 37, 0.9);
-  outline-offset: -5px;
-}
-
-.legend-card__titlebar {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 14px;
-  background:
-    linear-gradient(180deg, #d9982d 0%, #be731d 54%, #7d4010 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.55);
-}
-
 .legend-card__body {
   display: grid;
   grid-template-columns: 1fr;
@@ -49,19 +21,20 @@
 }
 
 .legend-card__header strong {
-  font-family: var(--wm-font-display);
   font-size: 19px;
   line-height: 0.95;
-  text-transform: uppercase;
   min-width: 0;
 }
 
 .legend-card__header span {
   color: var(--wm-text-muted);
-  font-size: 12px;
-  font-family: var(--wm-font-mono);
   text-align: right;
   white-space: nowrap;
+}
+
+.legend-card__units {
+  display: inline-block;
+  max-width: 100%;
 }
 
 .legend-card__layer-list {
@@ -72,36 +45,28 @@
 }
 
 .legend-card__layer-button {
+  --wm-bevel-border: 1px solid var(--wm-ui-border-cool);
+  --wm-bevel-radius: 2px;
+  --wm-bevel-background:
+    linear-gradient(180deg, rgba(110, 131, 214, 0.2), rgba(10, 20, 61, 0.2)),
+    var(--wm-panel-dark);
+  --wm-bevel-hover-border: var(--wm-ui-border-warm-hover);
   min-height: 32px;
   width: 100%;
   padding: 0 10px;
-  border: 1px solid rgba(210, 218, 239, 0.5);
-  border-radius: 2px;
-  background:
-    linear-gradient(180deg, rgba(110, 131, 214, 0.2), rgba(10, 20, 61, 0.2)),
-    var(--wm-panel-dark);
-  color: var(--wm-text);
-  cursor: pointer;
   text-align: left;
   font-family: var(--wm-font-display);
   font-size: 14px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-}
-
-.legend-card__layer-button:hover {
-  border-color: rgba(255, 236, 199, 0.62);
 }
 
 .legend-card__layer-button--active {
-  border-color: rgba(255, 231, 188, 0.88);
-  background:
+  --wm-bevel-border: 1px solid var(--wm-ui-border-warm-active);
+  --wm-bevel-background:
     linear-gradient(180deg, rgba(243, 178, 82, 0.34), rgba(110, 46, 9, 0.18)),
     #2d3d8d;
-  color: #fff7e5;
+  --wm-bevel-text: var(--wm-text-warm);
 }
 
 .legend-card__unit-toggle {
@@ -111,33 +76,26 @@
 }
 
 .legend-card__unit-button {
+  --wm-bevel-border: 1px solid var(--wm-ui-border-cool);
+  --wm-bevel-radius: 2px;
+  --wm-bevel-background:
+    linear-gradient(180deg, rgba(112, 134, 218, 0.2), rgba(13, 24, 66, 0.2)),
+    #1d2d73;
+  --wm-bevel-text: var(--wm-text-muted);
+  --wm-bevel-hover-border: var(--wm-ui-border-warm-hover);
   min-width: 38px;
   height: 24px;
   padding: 0 8px;
-  border: 1px solid rgba(211, 220, 243, 0.52);
-  border-radius: 2px;
-  background:
-    linear-gradient(180deg, rgba(112, 134, 218, 0.2), rgba(13, 24, 66, 0.2)),
-    #1d2d73;
-  color: var(--wm-text-muted);
   font-family: var(--wm-font-mono);
   font-size: 12px;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
-}
-
-.legend-card__unit-button:hover {
-  border-color: rgba(255, 242, 216, 0.72);
 }
 
 .legend-card__unit-button--active {
-  border-color: rgba(255, 233, 194, 0.92);
-  color: #fff8e5;
-  background:
+  --wm-bevel-border: 1px solid var(--wm-ui-border-warm-active);
+  --wm-bevel-text: var(--wm-text-warm);
+  --wm-bevel-background:
     linear-gradient(180deg, rgba(247, 187, 89, 0.36), rgba(112, 51, 13, 0.14)),
     #2f4290;
 }
@@ -171,7 +129,7 @@
   width: 22px;
   height: 100%;
   min-height: 218px;
-  border: 1px solid rgba(220, 230, 255, 0.42);
+  border: 1px solid var(--wm-ui-border-cool-soft);
   border-radius: 1px;
   box-shadow: none;
   overflow: hidden;
@@ -203,7 +161,7 @@
 .legend-card__tick-label {
   position: absolute;
   left: 14px;
-  color: #e9edf7;
+  color: var(--wm-text-cool);
   font-size: 13px;
   font-family: var(--wm-font-mono);
   letter-spacing: 0.01em;
@@ -212,4 +170,3 @@
   text-shadow: 0 1px 0 rgba(4, 10, 34, 0.65);
   transform: translateY(50%);
 }
-

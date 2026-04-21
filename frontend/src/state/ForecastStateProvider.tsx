@@ -13,9 +13,15 @@ export default function ForecastStateProvider({
   manifest,
   children,
 }: ForecastStateProviderProps) {
+  // Remount timeline state whenever cycle/hour list changes so initial index
+  // is computed from the new manifest synchronously during mount.
+  const timelineProviderKey = manifest == null
+    ? 'timeline:none'
+    : `timeline:${manifest.cycle}:${manifest.forecastHours.join(',')}`
+
   return (
     <VariableProvider manifest={manifest}>
-      <TimelineProvider manifest={manifest}>
+      <TimelineProvider key={timelineProviderKey} manifest={manifest}>
         {children}
       </TimelineProvider>
     </VariableProvider>
