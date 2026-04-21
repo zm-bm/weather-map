@@ -1,4 +1,4 @@
-import type { FillLayerSpecification, GeoJSONSourceSpecification, Map as MapLibreMap } from 'maplibre-gl'
+import type { FillLayerSpecification, Map as MapLibreMap, SourceSpecification } from 'maplibre-gl'
 import type { FeatureCollection, Polygon } from 'geojson'
 
 export const NOISE_PATTERN_ID = 'noise-pattern'
@@ -25,7 +25,7 @@ const WORLD_NOISE_BOUNDS: FeatureCollection<Polygon> = {
   ],
 } as const
 
-export function buildNoiseSource(): GeoJSONSourceSpecification {
+export function buildNoiseSource(): SourceSpecification {
   return {
     type: 'geojson',
     data: WORLD_NOISE_BOUNDS,

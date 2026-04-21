@@ -45,6 +45,10 @@ vi.mock('../../hooks/useMapHover', () => ({
   useMapHover: vi.fn(),
 }))
 
+vi.mock('../../hooks/useMapClick', () => ({
+  useMapClick: vi.fn(),
+}))
+
 vi.mock('../../state/appStatus', () => ({
   useAppStatus: () => ({
     entries: [],

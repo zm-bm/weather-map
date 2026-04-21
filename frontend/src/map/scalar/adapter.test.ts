@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { scalarLayerAdapter } from './adapter'
 import { scalarRuntimeOptions } from './options'
+import { getScalarProbeFrame } from './probe'
 import {
   createConfigFixture,
   createManifestFixture,
@@ -69,6 +70,7 @@ describe('scalarLayerAdapter', () => {
   it('loads and applies a scalar frame for the active scalar', async () => {
     const frame = { variableId: 'tmp_surface' }
     const applyFrame = vi.fn()
+    const map = createMapFixture()
 
     mocks.loadScalarFrame.mockResolvedValue(frame)
     mocks.getScalarController.mockReturnValue({
@@ -77,12 +79,16 @@ describe('scalarLayerAdapter', () => {
       setEnabled: vi.fn(),
     })
 
-    await scalarLayerAdapter.applySync(createArgs(createSignalFixture()))
+    await scalarLayerAdapter.applySync({
+      ...createArgs(createSignalFixture()),
+      map,
+    })
 
     expect(mocks.loadScalarFrame).toHaveBeenCalledWith(
       expect.objectContaining({ variable: 'tmp_surface' })
     )
     expect(applyFrame).toHaveBeenCalledWith(frame)
+    expect(getScalarProbeFrame(map)).toBe(frame)
   })
 
   it('throws when runtime is unavailable', async () => {

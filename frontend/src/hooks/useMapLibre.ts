@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl, {
   Map as MapLibreMap,
-  type LayerSpecification,
-  type StyleSpecification,
 } from 'maplibre-gl'
 
 import { normalizeError } from '../abort'
@@ -10,34 +8,21 @@ import type { WeatherMapConfig } from '../config'
 import { TRACK_URL, MusicControl } from '../map/controls/MusicControl'
 import { OptionsControl } from '../map/controls/OptionsControl'
 import {
-  buildNoiseLayer,
-  buildNoiseSource,
   ensureNoisePattern,
   NOISE_LAYER_ID,
-  NOISE_SOURCE_ID,
 } from '../map/noise'
 import { loadStoredViewport, saveStoredViewport } from '../map/viewportStore'
 import { vectorLayerAdapter, vectorRuntimeOptions } from '../map/vector'
 import { scalarLayerAdapter, scalarRuntimeOptions } from '../map/scalar'
 import { getScalarController } from '../map/scalar/controller'
 import { getVectorController } from '../map/vector/controller'
-import { mapStyleTemplate } from '../map/styles/mapStyleTemplate'
-import { hydrateCoreSources } from '../map/styles/core/sources'
-import {
-  cloneStyle,
-  insertLayersAfter,
-  mergeSources,
-  setGlyphUrl,
-  setLocalizedTextField,
-} from '../map/styles/maplibreStyleHelpers'
+import { buildMapStyle } from '../map/styles/helpers'
 
-const DEBUG_BASEMAP_ONLY = true 
+const DEBUG_BASEMAP_ONLY = false
 const DEBUG_LOG_ZOOM_LEVEL = true
 
 const VIEWPORT_SAVE_DEBOUNCE_MS = 250
-const LOCALIZED_LABEL_LAYER_IDS = ['place-country', 'place-city'] as const
-const NOISE_INSERT_AFTER_LAYER_ID = 'highway'
-const BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS = ['esri-hillshade', NOISE_LAYER_ID] as const
+const BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS = ['hillshade', 'esri-hillshade', NOISE_LAYER_ID] as const
 
 export type UseMapLibreResult = {
   mapRef: React.RefObject<MapLibreMap | null>
@@ -78,7 +63,7 @@ export function useMapLibre({
       minZoom,
       maxZoom,
       dragRotate: false,
-      style: buildInitialMapStyle(config),
+      style: buildMapStyle(config),
     })
 
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
@@ -91,8 +76,28 @@ export function useMapLibre({
 
     const handleStyleLoad = () => {
       try {
-        ensureStartupRuntimeOverlays(m)
-        applyBasemapOnlyVisibility(m, DEBUG_BASEMAP_ONLY)
+        ensureNoisePattern(m)
+
+        if (!m.getLayer(scalarLayerAdapter.layerId)) {
+          try {
+            m.addLayer(scalarLayerAdapter.createLayer(), NOISE_LAYER_ID)
+          } catch {
+            m.addLayer(scalarLayerAdapter.createLayer())
+          }
+        }
+
+        if (!m.getLayer(vectorLayerAdapter.layerId)) {
+          m.addLayer(vectorLayerAdapter.createLayer())
+        }
+
+        const showAuxiliaryLayers = !DEBUG_BASEMAP_ONLY
+        for (const layerId of BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS) {
+          if (!m.getLayer(layerId)) continue
+          m.setLayoutProperty(layerId, 'visibility', showAuxiliaryLayers ? 'visible' : 'none')
+        }
+
+        getScalarController(m)?.setEnabled(showAuxiliaryLayers)
+        getVectorController(m)?.setEnabled(showAuxiliaryLayers)
       } catch (error) {
         const normalizedError = normalizeError(error)
         console.error('[map] startup overlay initialization failed', normalizedError)
@@ -137,68 +142,4 @@ export function useMapLibre({
   }, []) // intentionally mount/unmount only
 
   return { mapRef, getMap, mapReadyVersion }
-}
-
-export function buildInitialMapStyle(config: WeatherMapConfig): StyleSpecification {
-  const style = cloneStyle(mapStyleTemplate)
-  hydrateBaseMapStyle(style, config)
-  addNoiseOverlayToStyle(style)
-  return style
-}
-
-function hydrateBaseMapStyle(style: StyleSpecification, config: WeatherMapConfig) {
-  setGlyphUrl(style, config.serverUrl)
-  hydrateCoreSources(style, config.serverUrl)
-
-  for (const layerId of LOCALIZED_LABEL_LAYER_IDS) {
-    setLocalizedTextField(style, layerId, config.language)
-  }
-}
-
-function addNoiseOverlayToStyle(style: StyleSpecification) {
-  mergeSources(style, {
-    [NOISE_SOURCE_ID]: buildNoiseSource() as NonNullable<StyleSpecification['sources']>[string],
-  })
-
-  const hasNoiseLayer = (style.layers ?? []).some((layer) => layer.id === NOISE_LAYER_ID)
-  if (hasNoiseLayer) return
-
-  insertLayersAfter(style, NOISE_INSERT_AFTER_LAYER_ID, [buildNoiseLayer() as LayerSpecification])
-}
-
-function ensureStartupRuntimeOverlays(map: MapLibreMap) {
-  ensureNoisePattern(map)
-  ensureScalarLayer(map)
-  ensureVectorLayer(map)
-}
-
-function ensureScalarLayer(map: MapLibreMap) {
-  if (map.getLayer(scalarLayerAdapter.layerId)) return
-
-  try {
-    map.addLayer(scalarLayerAdapter.createLayer(), NOISE_LAYER_ID)
-  } catch {
-    map.addLayer(scalarLayerAdapter.createLayer())
-  }
-}
-
-function ensureVectorLayer(map: MapLibreMap) {
-  if (map.getLayer(vectorLayerAdapter.layerId)) return
-  map.addLayer(vectorLayerAdapter.createLayer())
-}
-
-function applyBasemapOnlyVisibility(map: MapLibreMap, basemapOnly: boolean) {
-  const showAuxiliaryLayers = !basemapOnly
-
-  for (const layerId of BASEMAP_ONLY_HIDDEN_STYLE_LAYER_IDS) {
-    setLayerVisibility(map, layerId, showAuxiliaryLayers)
-  }
-
-  getScalarController(map)?.setEnabled(showAuxiliaryLayers)
-  getVectorController(map)?.setEnabled(showAuxiliaryLayers)
-}
-
-function setLayerVisibility(map: MapLibreMap, layerId: string, visible: boolean) {
-  if (!map.getLayer(layerId)) return
-  map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
 }

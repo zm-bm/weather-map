@@ -60,7 +60,7 @@ export type VectorRuntimeOptions = {
 
 export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   reseedOnFrameChange: false,
-  particleCount: 9000,
+  particleCount: 5000,
   maxAgeSec: 8.5,
   respawnBasePerSec: 0.035,
   respawnSpeedPerMps: 0.007,
@@ -87,7 +87,7 @@ export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   trailScale: 0.95,
   trailFade: 0.975,
   trailQuantize: true,
-  trailCompositeOpacity: 0.92,
+  trailCompositeOpacity: 0.7,
   clearTrailsOnViewChange: true,
 }
 

@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest'
+
+import { probeScalarFrame } from './probe'
+import type { ScalarFrameData } from './engine/types'
+
+function createFrame(values: number[]): ScalarFrameData {
+  return {
+    variableId: 'tmp_surface',
+    grid: {
+      crs: 'EPSG:4326',
+      nx: 2,
+      ny: 2,
+      lon0: 0,
+      lat0: 1,
+      dx: 1,
+      dy: -1,
+      origin: 'cell_center',
+      layout: 'row_major',
+      x_wrap: 'repeat',
+      y_mode: 'clamp',
+    },
+    encoding: {
+      format: 'scalar-i16-linear-v1',
+      dtype: 'int16',
+      byte_order: 'little',
+      nodata: -32768,
+      scale: 1,
+      offset: 0,
+      decode_formula: 'value = stored * scale + offset',
+    },
+    values: Int16Array.from(values),
+    displayRange: [0, 100],
+    colortable: [[0, 0, 0, 0]],
+  }
+}
+
+describe('probeScalarFrame', () => {
+  it('bilinearly interpolates nearby scalar values', () => {
+    const probe = probeScalarFrame(createFrame([10, 20, 30, 40]), {
+      lon: 0.5,
+      lat: 0.5,
+    })
+
+    expect(probe?.value).toBe(25)
+    expect(probe?.points.map((point) => point.weight)).toEqual([0.25, 0.25, 0.25, 0.25])
+  })
+
+  it('skips nodata neighbors when interpolating', () => {
+    const probe = probeScalarFrame(createFrame([10, -32768, 30, 50]), {
+      lon: 0.5,
+      lat: 0.5,
+    })
+
+    expect(probe?.value).toBe(30)
+    expect(probe?.points.map((point) => point.value)).toEqual([10, null, 30, 50])
+  })
+
+  it('wraps longitudes across repeating grids', () => {
+    const probe = probeScalarFrame(createFrame([10, 20, 30, 40]), {
+      lon: 2.25,
+      lat: 0.5,
+    })
+
+    expect(probe?.gridX).toBe(0.25)
+    expect(probe?.value).toBe(22.5)
+  })
+})

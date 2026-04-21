@@ -9,7 +9,7 @@ type ForecastShellProps = {
   manifest: CycleManifest | null
 }
 
-const DEBUG_BASEMAP_ONLY = true
+const DEBUG_BASEMAP_ONLY = false
 
 export default function ForecastShell({
   manifest,

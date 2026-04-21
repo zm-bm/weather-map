@@ -9,3 +9,13 @@ export type { ScalarColorSamplingMode, ScalarRuntimeOptions } from './options'
 export { getScalarCatalogEntry } from './ui/catalog'
 export { getScalarLayerMeta } from './ui/meta'
 export type { ScalarLayerMeta } from './ui/meta'
+export {
+  clearScalarProbeFrame,
+  getScalarProbeFrame,
+  probeScalarFrame,
+  setScalarProbeFrame,
+} from './probe'
+export type {
+  ScalarProbePoint,
+  ScalarProbeResult,
+} from './probe'

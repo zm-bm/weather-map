@@ -1,0 +1,411 @@
+{
+  "version": 8,
+  "sources": {
+    "dem-source": {
+      "type": "raster-dem",
+      "encoding": "terrarium",
+      "tileSize": 256,
+      "tiles": [],
+      "maxzoom": 5
+    },
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet"
+    }
+  },
+  "sprite": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgb(244, 241, 235)"
+      }
+    },
+    {
+      "id": "hillshade",
+      "type": "hillshade",
+      "source": "dem-source",
+      "paint": {
+        "hillshade-exaggeration": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 0.18,
+          2, 0.22,
+          4, 0.3,
+          5, 0.4,
+          6, 0.52,
+          8, 0.7
+        ],
+        "hillshade-shadow-color": "rgba(22, 28, 36, 0.18)",
+        "hillshade-highlight-color": "rgba(245, 247, 250, 0.18)",
+        "hillshade-accent-color": "rgba(88, 102, 116, 0.12)"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["match", ["geometry-type"], ["MultiPolygon", "Polygon"], true, false],
+        ["!=", ["get", "brunnel"], "tunnel"]
+      ],
+      "paint": {
+        "fill-antialias": true,
+        "fill-color": "rgb(208, 216, 220)",
+        "fill-opacity": 0.05
+      }
+    },
+    {
+      "id": "coastline",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["match", ["geometry-type"], ["MultiPolygon", "Polygon"], true, false],
+        ["==", ["get", "class"], "ocean"],
+        ["!=", ["get", "brunnel"], "tunnel"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(8, 12, 20)",
+        "line-opacity": 1,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 0.5,
+          4, 0.9,
+          5.99, 1
+        ]
+      }
+    },
+    {
+      "id": "lake_outline",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["match", ["geometry-type"], ["MultiPolygon", "Polygon"], true, false],
+        ["==", ["get", "class"], "lake"],
+        ["!=", ["get", "brunnel"], "tunnel"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(18, 22, 30)",
+        "line-opacity": 1,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          1, 0.55,
+          4, 0.65,
+          5.99, 0.72
+        ]
+      }
+    },
+    {
+      "id": "river_outline",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["match", ["geometry-type"], ["MultiPolygon", "Polygon"], true, false],
+        ["==", ["get", "class"], "river"],
+        ["!=", ["get", "brunnel"], "tunnel"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(18, 22, 30)",
+        "line-opacity": 1,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          1, 0.24,
+          4, 0.32,
+          5.99, 0.38
+        ],
+        "line-blur": [
+          "interpolate", ["linear"], ["zoom"],
+          6, 0.18,
+          8, 0.1,
+          12, 0.04,
+          20, 0
+        ]
+      }
+    },
+    {
+      "id": "road_major",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 5,
+      "filter": [
+        "all",
+        ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false],
+        ["match", ["get", "class"], ["motorway", "trunk"], true, false]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(48, 52, 58)",
+        "line-opacity": 0.2,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          5, 0.78,
+          5.5, 0.84,
+          6, 0.92
+        ]
+      }
+    },
+    {
+      "id": "boundary_4",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "minzoom": 3.5,
+      "filter": [
+        "all",
+        ["match", ["get", "admin_level"], [3, 4], true, false],
+        ["!=", ["get", "maritime"], 1],
+        ["!=", ["get", "disputed"], 1],
+        ["!", ["has", "claimed_by"]]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(8, 12, 18)",
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          4, 0.48,
+          7, 0.56,
+          11, 0.62,
+          20, 0.68
+        ],
+        "line-width": [
+          "interpolate", ["linear", 1], ["zoom"],
+          3, 0.6,
+          7, 0.8,
+          11, 0.84,
+          20, 1.16
+        ]
+      }
+    },
+    {
+      "id": "boundary_2",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "filter": [
+        "all",
+        ["==", ["get", "admin_level"], 2],
+        ["!=", ["get", "maritime"], 1],
+        ["!=", ["get", "disputed"], 1],
+        ["!", ["has", "claimed_by"]]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(6, 10, 16)",
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          0, 0.4,
+          4, 0.72,
+          10, 0.78
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          3, 0.82,
+          5, 0.98,
+          12, 1.9,
+          20, 2.15
+        ]
+      }
+    },
+    {
+      "id": "label_city_rank_10",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 5.5,
+      "maxzoom": 10,
+      "filter": [
+        "all",
+        ["==", ["get", "class"], "city"],
+        ["!=", ["get", "capital"], 2],
+        ["<", ["get", "rank"], 10]
+      ],
+      "layout": {
+        "icon-allow-overlap": true,
+        "icon-image": ["step", ["zoom"], "circle_11_black", 9, ""],
+        "icon-optional": false,
+        "icon-size": 0.35,
+        "text-anchor": "bottom",
+        "text-field": [
+          "case",
+          ["has", "name:nonlatin"],
+          ["concat", ["get", "name:latin"], "\n", ["get", "name:nonlatin"]],
+          ["coalesce", ["get", "name_en"], ["get", "name"]]
+        ],
+        "text-font": ["Star4 Large Regular"],
+        "text-max-width": 8,
+        "text-offset": [0, -0.2],
+        "text-letter-spacing": 0.04,
+        "text-size": [
+          "interpolate", ["exponential", 1.2], ["zoom"],
+          4, 12,
+          7, 14,
+          10, 17.5
+        ]
+      },
+      "paint": {
+        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-halo-blur": 0.7,
+        "text-halo-color": "rgba(27, 35, 60, 0.96)",
+        "text-halo-width": 1.75
+      }
+    },
+    {
+      "id": "label_city_rank_5",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 5,
+      "maxzoom": 10,
+      "filter": [
+        "all",
+        ["==", ["get", "class"], "city"],
+        ["!=", ["get", "capital"], 2],
+        ["==", ["get", "rank"], 5]
+      ],
+      "layout": {
+        "icon-allow-overlap": true,
+        "icon-image": ["step", ["zoom"], "circle_11_black", 9, ""],
+        "icon-optional": false,
+        "icon-size": 0.35,
+        "text-anchor": "bottom",
+        "text-field": [
+          "case",
+          ["has", "name:nonlatin"],
+          ["concat", ["get", "name:latin"], "\n", ["get", "name:nonlatin"]],
+          ["coalesce", ["get", "name_en"], ["get", "name"]]
+        ],
+        "text-font": ["Star4 Large Regular"],
+        "text-max-width": 8,
+        "text-offset": [0, -0.2],
+        "text-letter-spacing": 0.04,
+        "text-size": [
+          "interpolate", ["exponential", 1.2], ["zoom"],
+          4, 12,
+          7, 14,
+          10, 17.5
+        ]
+      },
+      "paint": {
+        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-halo-blur": 0.7,
+        "text-halo-color": "rgba(27, 35, 60, 0.96)",
+        "text-halo-width": 1.75
+      }
+    },
+    {
+      "id": "label_city_rank_1_4",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 4,
+      "maxzoom": 10,
+      "filter": [
+        "all",
+        ["==", ["get", "class"], "city"],
+        ["!=", ["get", "capital"], 2],
+        ["match", ["get", "rank"], [1, 2, 3, 4], true, false]
+      ],
+      "layout": {
+        "icon-allow-overlap": true,
+        "icon-image": ["step", ["zoom"], "circle_11_black", 9, ""],
+        "icon-optional": false,
+        "icon-size": 0.35,
+        "text-anchor": "bottom",
+        "text-field": [
+          "case",
+          ["has", "name:nonlatin"],
+          ["concat", ["get", "name:latin"], "\n", ["get", "name:nonlatin"]],
+          ["coalesce", ["get", "name_en"], ["get", "name"]]
+        ],
+        "text-font": ["Star4 Large Regular"],
+        "text-max-width": 8,
+        "text-offset": [0, -0.2],
+        "text-letter-spacing": 0.04,
+        "text-size": [
+          "interpolate", ["exponential", 1.2], ["zoom"],
+          4, 12,
+          7, 14,
+          10, 17.5
+        ]
+      },
+      "paint": {
+        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-halo-blur": 0.7,
+        "text-halo-color": "rgba(27, 35, 60, 0.96)",
+        "text-halo-width": 1.75
+      }
+    },
+    {
+      "id": "label_city_capital",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 4,
+      "maxzoom": 10,
+      "filter": [
+        "all",
+        ["==", ["get", "class"], "city"],
+        ["==", ["get", "capital"], 2]
+      ],
+      "layout": {
+        "icon-allow-overlap": true,
+        "icon-image": ["step", ["zoom"], "circle_11_black", 9, ""],
+        "icon-optional": false,
+        "icon-size": 0.35,
+        "text-anchor": "bottom",
+        "text-field": [
+          "case",
+          ["has", "name:nonlatin"],
+          ["concat", ["get", "name:latin"], "\n", ["get", "name:nonlatin"]],
+          ["coalesce", ["get", "name_en"], ["get", "name"]]
+        ],
+        "text-font": ["Star4 Large Regular"],
+        "text-max-width": 8,
+        "text-offset": [0, -0.2],
+        "text-letter-spacing": 0.04,
+        "text-size": [
+          "interpolate", ["exponential", 1.2], ["zoom"],
+          4, 12,
+          7, 14,
+          10, 17.5
+        ]
+      },
+      "paint": {
+        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-halo-blur": 0.7,
+        "text-halo-color": "rgba(27, 35, 60, 0.96)",
+        "text-halo-width": 1.75
+      }
+    }
+  ]
+}

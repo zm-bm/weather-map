@@ -4,6 +4,7 @@ import { loadScalarFrame } from './engine/frame'
 import { createScalarRuntime } from './engine/runtime'
 import { getScalarController } from './controller'
 import { scalarRuntimeOptions } from './options'
+import { setScalarProbeFrame } from './probe'
 
 export const SCALAR_LAYER_ID = 'scalar-layer-id'
 
@@ -39,5 +40,6 @@ export const scalarLayerAdapter: LayerAdapter = {
     }
 
     controller.applyFrame(frame)
+    setScalarProbeFrame(args.map, frame)
   },
 }
