@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import type { FrameSyncRequest } from '../hooks/frameSyncTypes'
+import type { FrameSyncRequest } from './frameSyncTypes'
 import { hourTokenAt, normalizeHourIndex } from '../map/time/core'
 import { useTimelineContext } from './TimelineContext'
 import { useVariableContext } from './VariableContext'

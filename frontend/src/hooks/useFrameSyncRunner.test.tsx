@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
 import { hourTokenAt, normalizeHourIndex } from '../map/time/core'
-import type { FrameSyncCallbacks, FrameSyncRequest, FrameSyncSelectionInput } from './frameSyncTypes'
+import type {
+  FrameSyncCallbacks,
+  FrameSyncRequest,
+  FrameSyncSelectionInput,
+} from '../state/frameSyncTypes'
 import { useFrameSyncRunner } from './useFrameSyncRunner'
 import { useStartupSyncState } from './useStartupSyncState'
 

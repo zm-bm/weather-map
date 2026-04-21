@@ -5,7 +5,7 @@ import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { scalarLayerAdapter } from '../map/scalar'
 import { vectorLayerAdapter } from '../map/vector'
-import type { FrameSyncRequest } from './frameSyncTypes'
+import type { FrameSyncRequest } from '../state/frameSyncTypes'
 import type { StartupSyncState } from './useStartupSyncState'
 
 const LAYER_ADAPTERS = [scalarLayerAdapter, vectorLayerAdapter] as const

@@ -1,4 +1,4 @@
-import type { FrameSyncCallbacks } from '../hooks/frameSyncTypes'
+import type { FrameSyncCallbacks } from './frameSyncTypes'
 
 export type TimelineViewState = {
   appliedHourIndex: number

@@ -2,7 +2,7 @@ import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ForecastMap from './ForecastMap'
-import type { FrameSyncRequest } from '../../hooks/frameSyncTypes'
+import type { FrameSyncRequest } from '../../state/frameSyncTypes'
 import type { StartupSyncState, StartupSyncStatus } from '../../hooks/useStartupSyncState'
 import { createManifestFixture, createMapFixture } from '../../test/fixtures'
 
