@@ -1,5 +1,6 @@
 import type {
   LayerSpecification,
+  Map as MapLibreMap,
   RasterDEMSourceSpecification,
   RasterSourceSpecification,
   StyleSpecification,
@@ -9,11 +10,14 @@ import type {
 import type { WeatherMapConfig } from '../../config'
 import { joinUrl } from '../../url/joinUrl'
 import {
+  ensureNoisePattern,
   buildNoiseLayer,
   buildNoiseSource,
   NOISE_LAYER_ID,
   NOISE_SOURCE_ID,
 } from '../noise'
+import { scalarLayerAdapter } from '../scalar'
+import { vectorLayerAdapter } from '../vector'
 import baseStyleJson from './style.json'
 
 const DEM_SOURCE_ID = 'dem-source' as const
@@ -81,4 +85,20 @@ export function buildMapStyle(config: WeatherMapConfig): StyleSpecification {
   }
 
   return style
+}
+
+export function onStyleLoad(map: MapLibreMap): void {
+  ensureNoisePattern(map)
+
+  if (!map.getLayer(scalarLayerAdapter.layerId)) {
+    try {
+      map.addLayer(scalarLayerAdapter.createLayer(), NOISE_LAYER_ID)
+    } catch {
+      map.addLayer(scalarLayerAdapter.createLayer())
+    }
+  }
+
+  if (!map.getLayer(vectorLayerAdapter.layerId)) {
+    map.addLayer(vectorLayerAdapter.createLayer())
+  }
 }

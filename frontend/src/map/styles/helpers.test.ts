@@ -7,11 +7,14 @@ import { describe, expect, it } from 'vitest'
 
 import { createConfigFixture } from '../../test/fixtures'
 import { NOISE_LAYER_ID, NOISE_SOURCE_ID } from '../noise'
+import { SCALAR_LAYER_ID } from '../scalar'
+import { VECTOR_LAYER_ID } from '../vector'
 import baseStyleJson from './style.json'
 import {
   buildMapStyle,
   copyStyle,
   insertLayerAfter,
+  onStyleLoad,
   setSource,
   setSourceTiles,
 } from './helpers'
@@ -65,5 +68,26 @@ describe('helpers', () => {
     ])
     expect(style.sources?.[NOISE_SOURCE_ID]).toBeDefined()
     expect((style.layers ?? []).some((layer) => layer.id === NOISE_LAYER_ID)).toBe(true)
+  })
+
+  it('initializes runtime overlay layers on style load', () => {
+    const layerIds = new Set<string>()
+    const addLayer = (layer: { id: string }, beforeId?: string) => {
+      if (beforeId === NOISE_LAYER_ID) throw new Error('missing noise anchor')
+      layerIds.add(layer.id)
+    }
+    const map = {
+      addImage: () => {},
+      hasImage: () => false,
+      addSource: () => {},
+      getSource: () => undefined,
+      getLayer: (id: string) => (layerIds.has(id) ? { id } : undefined),
+      addLayer,
+    }
+
+    onStyleLoad(map as never)
+
+    expect(layerIds.has(SCALAR_LAYER_ID)).toBe(true)
+    expect(layerIds.has(VECTOR_LAYER_ID)).toBe(true)
   })
 })
