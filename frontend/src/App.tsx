@@ -6,7 +6,7 @@ import AppStatusHost from './components/AppStatusHost'
 import ForecastShell from './components/ForecastShell/ForecastShell'
 import { useManifest } from './hooks/useManifest'
 import AppStatusProvider from './state/AppStatusProvider'
-import { useAppStatus } from './state/appStatus'
+import { useAppStatusActions } from './state/appStatus'
 
 function App() {
   return (
@@ -18,7 +18,7 @@ function App() {
 
 function AppContent() {
   const { manifest, loading, error, retry } = useManifest()
-  const { setStatus, clearStatus } = useAppStatus()
+  const { setStatus, clearStatus } = useAppStatusActions()
 
   useEffect(() => {
     if (manifest) {

@@ -1,11 +1,14 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 
 import AppStatusProvider from './AppStatusProvider'
 import {
   selectActiveStatus,
   useAppStatus,
+  useAppStatusActions,
+  useAppStatusEntries,
 } from './appStatus'
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -113,5 +116,74 @@ describe('appStatus state', () => {
 
     const active = selectActiveStatus(result.current.entries)
     expect(active?.sourceId).toBe('startupSyncB')
+  })
+
+  it('does not rewrite timestamps when a status payload is unchanged', () => {
+    const { result } = renderHook(() => useAppStatus(), { wrapper })
+
+    act(() => {
+      result.current.setStatus('manifest', {
+        mode: 'blocking',
+        level: 'loading',
+        title: 'Loading Forecast',
+        detail: 'Fetching manifest...',
+      })
+    })
+
+    const firstTimestamp = result.current.entries[0]?.updatedAtMs
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+      result.current.setStatus('manifest', {
+        mode: 'blocking',
+        level: 'loading',
+        title: 'Loading Forecast',
+        detail: 'Fetching manifest...',
+      })
+    })
+
+    expect(result.current.entries).toHaveLength(1)
+    expect(result.current.entries[0]?.updatedAtMs).toBe(firstTimestamp)
+  })
+
+  it('keeps action-only consumers from rerendering when entries change', () => {
+    let actionRenders = 0
+    let actionsRef: ReturnType<typeof useAppStatusActions> | null = null
+
+    function ActionsObserver() {
+      const actions = useAppStatusActions()
+
+      useEffect(() => {
+        actionsRef = actions
+        actionRenders += 1
+      })
+
+      return null
+    }
+
+    function EntriesObserver() {
+      useAppStatusEntries()
+      return null
+    }
+
+    render(
+      <AppStatusProvider>
+        <ActionsObserver />
+        <EntriesObserver />
+      </AppStatusProvider>
+    )
+
+    expect(actionRenders).toBe(1)
+
+    act(() => {
+      actionsRef?.setStatus('manifest', {
+        mode: 'blocking',
+        level: 'loading',
+        title: 'Loading Forecast',
+        detail: 'Fetching manifest...',
+      })
+    })
+
+    expect(actionRenders).toBe(1)
   })
 })

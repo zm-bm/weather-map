@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
-import { AppStatusContext, type AppStatusContextValue, type AppStatusEntry, type AppStatusPayload } from './appStatus'
+import {
+  AppStatusActionsContext,
+  AppStatusEntriesContext,
+  type AppStatusActions,
+  type AppStatusEntry,
+  type AppStatusPayload,
+} from './appStatus'
 
 type AppStatusMap = Record<string, AppStatusEntry>
 
@@ -8,14 +14,29 @@ export default function AppStatusProvider({ children }: { children: ReactNode })
   const [statusBySource, setStatusBySource] = useState<AppStatusMap>({})
 
   const setStatus = useCallback((sourceId: string, payload: AppStatusPayload) => {
-    setStatusBySource((prev) => ({
-      ...prev,
-      [sourceId]: {
-        sourceId,
-        updatedAtMs: Date.now(),
-        ...payload,
-      },
-    }))
+    setStatusBySource((prev) => {
+      const existing = prev[sourceId]
+      if (
+        existing &&
+        existing.mode === payload.mode &&
+        existing.level === payload.level &&
+        existing.title === payload.title &&
+        existing.detail === payload.detail &&
+        existing.actionLabel === payload.actionLabel &&
+        existing.onAction === payload.onAction
+      ) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [sourceId]: {
+          sourceId,
+          updatedAtMs: Date.now(),
+          ...payload,
+        },
+      }
+    })
   }, [])
 
   const clearStatus = useCallback((sourceId: string) => {
@@ -28,16 +49,16 @@ export default function AppStatusProvider({ children }: { children: ReactNode })
   }, [])
 
   const entries = useMemo(() => Object.values(statusBySource), [statusBySource])
-
-  const value = useMemo<AppStatusContextValue>(() => ({
-    entries,
+  const actions = useMemo<AppStatusActions>(() => ({
     setStatus,
     clearStatus,
-  }), [clearStatus, entries, setStatus])
+  }), [clearStatus, setStatus])
 
   return (
-    <AppStatusContext.Provider value={value}>
-      {children}
-    </AppStatusContext.Provider>
+    <AppStatusActionsContext.Provider value={actions}>
+      <AppStatusEntriesContext.Provider value={entries}>
+        {children}
+      </AppStatusEntriesContext.Provider>
+    </AppStatusActionsContext.Provider>
   )
 }

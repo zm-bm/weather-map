@@ -1,7 +1,7 @@
-import { selectActiveStatus, useAppStatus } from '../../state/appStatus'
+import { selectActiveStatus, useAppStatusEntries } from '../../state/appStatus'
 
 export default function AppStatusHost() {
-  const { entries } = useAppStatus()
+  const entries = useAppStatusEntries()
   const activeStatus = selectActiveStatus(entries)
 
   if (!activeStatus) return null

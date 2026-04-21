@@ -17,13 +17,17 @@ export type AppStatusEntry = AppStatusPayload & {
   updatedAtMs: number
 }
 
-export type AppStatusContextValue = {
-  entries: AppStatusEntry[]
+export type AppStatusActions = {
   setStatus: (sourceId: string, payload: AppStatusPayload) => void
   clearStatus: (sourceId: string) => void
 }
 
-export const AppStatusContext = createContext<AppStatusContextValue | null>(null)
+export type AppStatusContextValue = AppStatusActions & {
+  entries: AppStatusEntry[]
+}
+
+export const AppStatusEntriesContext = createContext<AppStatusEntry[] | null>(null)
+export const AppStatusActionsContext = createContext<AppStatusActions | null>(null)
 
 function statusPriority(entry: AppStatusEntry): number {
   if (entry.mode === 'blocking' && entry.level === 'error') return 30
@@ -56,9 +60,27 @@ export function selectActiveStatus(entries: AppStatusEntry[]): AppStatusEntry | 
 }
 
 export function useAppStatus(): AppStatusContextValue {
-  const value = useContext(AppStatusContext)
+  const entries = useAppStatusEntries()
+  const actions = useAppStatusActions()
+
+  return {
+    entries,
+    ...actions,
+  }
+}
+
+export function useAppStatusEntries(): AppStatusEntry[] {
+  const value = useContext(AppStatusEntriesContext)
   if (!value) {
-    throw new Error('useAppStatus must be used within an AppStatusProvider')
+    throw new Error('useAppStatusEntries must be used within an AppStatusProvider')
+  }
+  return value
+}
+
+export function useAppStatusActions(): AppStatusActions {
+  const value = useContext(AppStatusActionsContext)
+  if (!value) {
+    throw new Error('useAppStatusActions must be used within an AppStatusProvider')
   }
   return value
 }

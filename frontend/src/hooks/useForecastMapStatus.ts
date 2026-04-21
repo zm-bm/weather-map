@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { useAppStatus } from '../state/appStatus'
+import { useAppStatusActions } from '../state/appStatus'
 import type { StartupSyncStatus } from './useStartupSyncState'
 
 type UseForecastMapStatusArgs = {
@@ -10,7 +10,7 @@ type UseForecastMapStatusArgs = {
 export function useForecastMapStatus({
   status,
 }: UseForecastMapStatusArgs) {
-  const { setStatus, clearStatus } = useAppStatus()
+  const { setStatus, clearStatus } = useAppStatusActions()
 
   useEffect(() => {
     if (status.startupPhase === 'idle' || status.startupPhase === 'ready') {
