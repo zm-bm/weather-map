@@ -61,7 +61,7 @@ describe('helpers', () => {
 
     expect(style.glyphs).toBe('http://localhost:8081/font/{fontstack}/{range}')
     expect((style.sources?.['dem-source'] as RasterDEMSourceSpecification).tiles).toEqual([
-      'http://localhost:8081/land-dem-z5/{z}/{x}/{y}',
+      'http://localhost:8081/land-dem/{z}/{x}/{y}',
     ])
     expect(style.sources?.[NOISE_SOURCE_ID]).toBeDefined()
     expect((style.layers ?? []).some((layer) => layer.id === NOISE_LAYER_ID)).toBe(true)

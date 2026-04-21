@@ -20,7 +20,7 @@ describe('buildMapStyle', () => {
     const demSource = style.sources?.['dem-source'] as RasterDEMSourceSpecification | undefined
     expect(demSource?.type).toBe('raster-dem')
     expect(demSource?.encoding).toBe('terrarium')
-    expect(demSource?.tiles).toEqual(['http://localhost:8081/land-dem-z5/{z}/{x}/{y}'])
+    expect(demSource?.tiles).toEqual(['http://localhost:8081/land-dem/{z}/{x}/{y}'])
     expect(demSource?.maxzoom).toBe(5)
     expect(style.terrain).toBeUndefined()
   })

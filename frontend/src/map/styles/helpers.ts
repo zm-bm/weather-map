@@ -17,7 +17,7 @@ import {
 import baseStyleJson from './style.json'
 
 const DEM_SOURCE_ID = 'dem-source' as const
-const DEM_TILE_PATH = 'land-dem-z5/{z}/{x}/{y}' as const
+const DEM_TILE_PATH = 'land-dem/{z}/{x}/{y}' as const
 const NOISE_INSERT_AFTER_LAYER_ID = 'background' as const
 
 type TileSourceSpecification =
