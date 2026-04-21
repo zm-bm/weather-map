@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createManifestFixture } from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
 
-vi.mock('../LayerControls', () => ({
-  default: () => <div data-testid="layer-controls" />,
+vi.mock('../LayerPanel', () => ({
+  default: () => <div data-testid="layer-panel" />,
 }))
 
 vi.mock('../LegendPanel', () => ({
@@ -29,7 +29,7 @@ describe('ForecastShell', () => {
     render(<ForecastShell manifest={null} />)
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
-    expect(screen.queryByTestId('layer-controls')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('layer-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('time-transport')).not.toBeInTheDocument()
   })
@@ -43,7 +43,7 @@ describe('ForecastShell', () => {
     render(<ForecastShell manifest={manifest} />)
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
-    expect(screen.getByTestId('layer-controls')).toBeInTheDocument()
+    expect(screen.getByTestId('layer-panel')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
     expect(screen.getByTestId('time-transport')).toBeInTheDocument()
   })

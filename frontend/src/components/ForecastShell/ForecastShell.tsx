@@ -1,6 +1,6 @@
 import type { CycleManifest } from '../../map/manifest'
 import ForecastStateProvider from '../../state/ForecastStateProvider'
-import LayerControls from '../LayerControls'
+import LayerPanel from '../LayerPanel'
 import LegendPanel from '../LegendPanel'
 import TimelineTransport from '../TimelineTransport'
 import ForecastMap from '../ForecastMap/ForecastMap'
@@ -21,7 +21,7 @@ export default function ForecastShell({
 
         {manifest && !DEBUG_BASEMAP_ONLY && (
           <>
-            <LayerControls />
+            <LayerPanel />
             <div className="lower-third" aria-label="Forecast details">
               <div className="lower-third__stack">
                 <LegendPanel />

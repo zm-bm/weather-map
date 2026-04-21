@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createScalarVariableMetaFixture } from '../../test/fixtures'
 import { createManifestFixture } from '../../test/fixtures'
-import LayerControls from './LayerControls'
+import LayerPanel from './LayerPanel'
 
 const mocks = vi.hoisted(() => ({
   setActiveScalar: vi.fn(),
@@ -40,9 +40,9 @@ vi.mock('../../state/VariableContext', () => ({
   },
 }))
 
-describe('LayerControls', () => {
+describe('LayerPanel', () => {
   it('updates active variable through radio controls', () => {
-    render(<LayerControls />)
+    render(<LayerPanel />)
 
     fireEvent.click(screen.getByLabelText('Relative Humidity'))
     expect(mocks.setActiveScalar).toHaveBeenCalledWith('rh_surface')

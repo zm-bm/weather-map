@@ -2,7 +2,7 @@ import { cycleLabel as formatCycleLabel } from '../../map/time/format'
 import { useLoadedVariableContext } from '../../state/VariableContext'
 import { getScalarLayerMeta } from '../../map/scalar'
 
-function LayerControls() {
+function LayerPanel() {
   const {
     scalarVariables,
     activeScalar,
@@ -53,4 +53,4 @@ function LayerControls() {
   )
 }
 
-export default LayerControls
+export default LayerPanel
