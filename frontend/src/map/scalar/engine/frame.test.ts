@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { CycleManifest } from '../../../manifest'
 import { decodeScalarPayloadInt16, loadScalarFrame } from './frame'
 import {
   createConfigFixture,
@@ -68,5 +69,49 @@ describe('scalar payload', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     vi.unstubAllGlobals()
+  })
+
+  it('rejects unsupported scalar encodings locally', async () => {
+    const baseManifest = createFrameManifestFixture()
+
+    await expect(
+      loadScalarFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            e0: {
+              ...baseManifest.encodings.e0,
+              format: 'bad-format',
+            } as unknown as CycleManifest['encodings'][string],
+          },
+        }),
+        variable: 'tmp_surface',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Unsupported scalar format')
+
+    await expect(
+      loadScalarFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            e0: {
+              format: 'scalar-i16-linear-v1',
+              dtype: 'int16',
+              byte_order: 'little',
+              scale: 0.01,
+              offset: 0,
+              decode_formula: 'value = stored * scale + offset',
+            } as unknown as CycleManifest['encodings'][string],
+          },
+        }),
+        variable: 'tmp_surface',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Scalar encoding for tmp_surface is missing nodata')
   })
 })

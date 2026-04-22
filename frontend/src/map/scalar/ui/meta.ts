@@ -1,7 +1,7 @@
 import type {
   LayerColortableStop,
   ManifestVariableSpec,
-} from '../../manifest'
+} from '../../../manifest'
 import {
   getScalarCatalogEntry,
 } from './catalog'

@@ -1,4 +1,4 @@
-import type { LayerColortableStop } from '../../manifest'
+import type { LayerColortableStop } from '../../../manifest'
 
 export type LayerCatalogEntry = {
   label: string

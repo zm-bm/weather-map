@@ -4,9 +4,9 @@ import { useEffect } from 'react'
 
 import AppStatusHost from './components/AppStatusHost'
 import ForecastShell from './components/ForecastShell/ForecastShell'
-import { useManifest } from './hooks/useManifest'
-import AppStatusProvider from './state/AppStatusProvider'
-import { useAppStatusActions } from './state/appStatus'
+import { useManifest } from './manifest/useManifest'
+import { useAppStatusActions } from './app-status/AppStatusContext'
+import AppStatusProvider from './app-status/AppStatusProvider'
 
 function App() {
   return (

@@ -5,7 +5,7 @@ import {
   createManifestFixture,
   createScalarVariableMetaFixture,
 } from '../../test/fixtures'
-import ProductProvider from '../../state/ProductProvider'
+import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
 import ProductPanel from './ProductPanel'
 
 function renderProductPanel(activeScalar: 'tmp_surface' | 'prmsl_surface' = 'tmp_surface') {
@@ -27,9 +27,9 @@ function renderProductPanel(activeScalar: 'tmp_surface' | 'prmsl_surface' = 'tmp
   })
 
   return render(
-    <ProductProvider manifest={manifest}>
+    <ForecastSelectionProvider manifest={manifest}>
       <ProductPanel />
-    </ProductProvider>
+    </ForecastSelectionProvider>
   )
 }
 

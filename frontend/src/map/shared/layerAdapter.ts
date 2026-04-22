@@ -5,7 +5,7 @@ import type {
   CycleManifest,
   ScalarVariableId,
   VectorVariableId,
-} from '../manifest'
+} from '../../manifest'
 
 export type LayerSyncArgs = {
   map: MapLibreMap

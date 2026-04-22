@@ -1,13 +1,10 @@
 import config from '../../config'
-import { useForecastMapStatus } from '../../hooks/useForecastMapStatus'
+import { useForecastSync } from '../../forecast-sync'
 import { useMapControls } from '../../hooks/useMapControls'
-import { useFrameSyncRunner } from '../../hooks/useFrameSyncRunner'
-import { useMapClick } from '../../hooks/useMapClick'
-import { useStartupSyncState } from '../../hooks/useStartupSyncState'
+import { useMapClickProbe } from '../../map-probe/useMapClickProbe'
 import { useMapHover } from '../../hooks/useMapHover'
 import { useMapLibre } from '../../hooks/useMapLibre'
 import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../../map/config'
-import { useFrameSyncRequest } from '../../state/useFrameSyncRequest'
 
 export type ForecastMapProps = {
   containerId?: string
@@ -26,21 +23,13 @@ export default function ForecastMap({
   })
 
   useMapHover(mapRef)
-  useMapClick(mapRef)
+  useMapClickProbe(mapRef)
   useMapControls(mapRef, mapReadyVersion)
-
-  const syncState = useStartupSyncState()
-  const syncRequest = useFrameSyncRequest(syncState.retryToken)
-  useFrameSyncRunner({
+  
+  useForecastSync({
     getMap,
     mapReadyVersion,
     config,
-    syncRequest,
-    syncState,
-  })
-
-  useForecastMapStatus({
-    status: syncState.status,
   })
 
   return (

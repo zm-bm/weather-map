@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../../state/TimelineContext', () => ({
-  useTimelineContext: () => ({
+vi.mock('../../forecast-time/ForecastTimeContext', () => ({
+  useForecastTimeContext: () => ({
     cycle: '2026040900',
     forecastHours: ['000', '003', '006'],
     state: mocks.timelineState,
@@ -28,7 +28,11 @@ vi.mock('../../state/TimelineContext', () => ({
       requestNext: mocks.requestNext,
       togglePlay: mocks.togglePlay,
     },
-    sync: {},
+    sync: {
+      onRequestStart: vi.fn(),
+      onRequestApplied: vi.fn(),
+      onRequestError: vi.fn(),
+    },
   }),
 }))
 

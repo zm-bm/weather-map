@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { asVectorVariableId } from '../manifest'
+import { asVectorVariableId } from '../../manifest'
 import { vectorLayerAdapter } from './adapter'
 import { vectorRuntimeOptions } from './options'
 import {

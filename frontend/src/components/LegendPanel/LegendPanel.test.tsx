@@ -6,7 +6,7 @@ import {
   createScalarVariableMetaFixture,
   createVectorVariableMetaFixture,
 } from '../../test/fixtures'
-import ProductProvider from '../../state/ProductProvider'
+import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
 import ProductPanel from '../ProductPanel'
 import LegendPanel from './LegendPanel'
 
@@ -36,10 +36,10 @@ function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'pr
   })
 
   return render(
-    <ProductProvider manifest={manifest}>
+    <ForecastSelectionProvider manifest={manifest}>
       <ProductPanel />
       <LegendPanel />
-    </ProductProvider>
+    </ForecastSelectionProvider>
   )
 }
 

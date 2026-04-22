@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { FaPause, FaPlay, FaStepBackward, FaStepForward } from 'react-icons/fa'
 
 import {
-  shortTickLabel as formatShortTickLabel,
-  validLabel as formatValidLabel,
-} from '../../map/time/format'
-import { useTimelineContext } from '../../state/TimelineContext'
+  formatShortTickLabel,
+  formatValidLabel,
+} from '../../forecast-time/format'
 import {
   hourTokenAt,
   normalizeHourIndex,
-} from '../../map/time/core'
+} from '../../forecast-time/time'
+import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
 
 function getTransportStatusLabel(options: {
   isInFlight: boolean
@@ -29,22 +29,17 @@ export default function TimelinePanel() {
   const {
     cycle,
     forecastHours,
-    state: timelineState,
-    controls: timelineControls,
-  } = useTimelineContext()
+    state: forecastTimeState,
+    controls: forecastTimeControls,
+  } = useForecastTimeContext()
   const {
     appliedHourIndex,
     targetHourIndex,
     pendingHourIndex,
     isInFlight,
     isPlaying,
-  } = timelineState
-  const {
-    requestHour,
-    requestPrev,
-    requestNext,
-    togglePlay,
-  } = timelineControls
+  } = forecastTimeState
+  const { requestHour, requestPrev, requestNext, togglePlay } = forecastTimeControls
 
   const forecastHourCount = forecastHours.length
   const totalHours = Math.max(1, forecastHourCount)

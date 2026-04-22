@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import AppStatusHost from './AppStatusHost'
-import AppStatusProvider from '../../state/AppStatusProvider'
-import { useAppStatusActions } from '../../state/appStatus'
+import { useAppStatusActions } from '../../app-status/AppStatusContext'
+import AppStatusProvider from '../../app-status/AppStatusProvider'
 
 function StatusPublisher(props: {
   sourceId: string

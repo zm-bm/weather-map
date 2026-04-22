@@ -1,11 +1,11 @@
-import type { ScalarVariableId } from '../../map/manifest'
+import type { ScalarVariableId } from '../../manifest'
 import { getScalarLayerMeta } from '../../map/scalar'
-import { useLoadedProductContext } from '../../state/ProductContext'
+import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
 import {
-  formatUnitDisplayLabel,
-  getLegendUnitDisplay,
-  getLegendUnitOption,
-} from '../LegendPanel/legendFormatting'
+  formatUnitLabel,
+  getUnitDisplay,
+  getUnitOption,
+} from '../../units'
 
 function ProductPanel() {
   const {
@@ -15,10 +15,10 @@ function ProductPanel() {
     setActiveScalar,
     getScalarUnitOptionId,
     setScalarUnitOptionId,
-  } = useLoadedProductContext()
+  } = useLoadedForecastSelectionContext()
   const scalarMeta = getScalarLayerMeta(activeScalar, variableMeta)
-  const scalarUnitDisplay = getLegendUnitDisplay(scalarMeta)
-  const scalarUnitOption = getLegendUnitOption(
+  const scalarUnitDisplay = getUnitDisplay(scalarMeta)
+  const scalarUnitOption = getUnitOption(
     scalarUnitDisplay,
     getScalarUnitOptionId(scalarMeta.id, scalarUnitDisplay.defaultOptionId)
   )
@@ -73,7 +73,7 @@ function ProductPanel() {
                 >
                   {scalarUnitDisplay.options.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {formatUnitDisplayLabel(option.buttonLabel)}
+                      {formatUnitLabel(option.buttonLabel)}
                     </option>
                   ))}
                 </select>
@@ -82,7 +82,7 @@ function ProductPanel() {
                   className={`product-panel__readout product-panel__readout--unit${scalarUnitOption.casing === 'literal' ? ' product-panel__readout--literal' : ''}`}
                   aria-label={`Scalar units ${scalarUnitOption.units}`}
                 >
-                  {formatUnitDisplayLabel(scalarUnitOption.buttonLabel)}
+                  {formatUnitLabel(scalarUnitOption.buttonLabel)}
                 </span>
               )}
             </div>

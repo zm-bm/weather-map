@@ -1,10 +1,10 @@
-import { validLabel as formatValidLabel } from '../../map/time/format'
-import { hourTokenAt, normalizeHourIndex } from '../../map/time/core'
+import { getUnitDisplay, getUnitOption } from '../../units'
+import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
+import { formatValidLabel } from '../../forecast-time/format'
+import { hourTokenAt, normalizeHourIndex } from '../../forecast-time/time'
+import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
 import { getScalarLayerMeta } from '../../map/scalar'
-import { useTimelineContext } from '../../state/TimelineContext'
-import { useLoadedProductContext } from '../../state/ProductContext'
-import { useMapProbe } from '../../state/MapProbeContext'
-import { getLegendUnitDisplay, getLegendUnitOption } from '../LegendPanel/legendFormatting'
+import { useMapProbe } from '../../map-probe/MapProbeContext'
 
 function formatCoordinate(value: number) {
   return value.toFixed(2)
@@ -18,18 +18,18 @@ function formatProbeValue(value: number | null) {
 }
 
 function ForecastPanel() {
-  const { variableMeta, getScalarUnitOptionId } = useLoadedProductContext()
-  const { cycle, forecastHours, state: timelineState } = useTimelineContext()
+  const { variableMeta, getScalarUnitOptionId } = useLoadedForecastSelectionContext()
+  const { cycle, forecastHours, state: forecastTimeState } = useForecastTimeContext()
   const { lastProbe } = useMapProbe()
   const totalHours = Math.max(1, forecastHours.length)
-  const appliedHourIdx = normalizeHourIndex(timelineState.appliedHourIndex, totalHours)
+  const appliedHourIdx = normalizeHourIndex(forecastTimeState.appliedHourIndex, totalHours)
   const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
   const validTimeLabel = formatValidLabel(cycle, appliedHourToken)
   const probeMeta = lastProbe?.variableId == null ? null : getScalarLayerMeta(lastProbe.variableId, variableMeta)
-  const probeUnitDisplay = probeMeta == null ? null : getLegendUnitDisplay(probeMeta)
+  const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
   const probeUnitOption = probeMeta == null || probeUnitDisplay == null
     ? null
-    : getLegendUnitOption(
+    : getUnitOption(
       probeUnitDisplay,
       getScalarUnitOptionId(probeMeta.id, probeUnitDisplay.defaultOptionId)
     )

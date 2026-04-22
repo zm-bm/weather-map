@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { CycleManifest } from '../../../manifest'
 import { loadVectorFrame } from './frame'
 import {
   createConfigFixture,
@@ -33,5 +34,63 @@ describe('vector payload', () => {
     expect(frame.metadata.component_count).toBe(2)
 
     vi.unstubAllGlobals()
+  })
+
+  it('rejects invalid vector encodings locally', async () => {
+    const baseManifest = createFrameManifestFixture()
+
+    await expect(
+      loadVectorFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            wind10m_uv_vector_i8_v1: {
+              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
+              dtype: 'int16',
+            } as unknown as CycleManifest['encodings'][string],
+          },
+        }),
+        variable: 'wind10m_uv',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Unsupported vector dtype')
+
+    await expect(
+      loadVectorFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            wind10m_uv_vector_i8_v1: {
+              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
+              components: ['v', 'u'],
+            } as unknown as CycleManifest['encodings'][string],
+          },
+        }),
+        variable: 'wind10m_uv',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Unsupported vector components')
+
+    await expect(
+      loadVectorFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            wind10m_uv_vector_i8_v1: {
+              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
+              scale: 1,
+            } as unknown as CycleManifest['encodings'][string],
+          },
+        }),
+        variable: 'wind10m_uv',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Unsupported vector decode params')
   })
 })

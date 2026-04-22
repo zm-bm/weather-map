@@ -2,7 +2,7 @@ import type {
   LayerColortableStop,
   ScalarEncodingSpec,
   ScalarGridSpec,
-} from '../../manifest'
+} from '../../../manifest'
 
 export type ScalarFrameData = {
   variableId: string

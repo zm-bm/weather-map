@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { validLabel as formatValidLabel } from '../../map/time/format'
+import { formatValidLabel } from '../../forecast-time/format'
 import { createManifestFixture, createScalarVariableMetaFixture } from '../../test/fixtures'
 import ForecastPanel from './ForecastPanel'
 
@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   lastProbe: null as { lat: number; lon: number; value: number | null; variableId: 'tmp_surface' | 'rh_surface' | null } | null,
 }))
 
-vi.mock('../../state/ProductContext', () => ({
-  useLoadedProductContext: () => {
+vi.mock('../../forecast-selection/ForecastSelectionContext', () => ({
+  useLoadedForecastSelectionContext: () => {
     const manifest = createManifestFixture({
       cycle: '2026041100',
       scalarVariables: ['tmp_surface', 'rh_surface'],
@@ -48,15 +48,15 @@ vi.mock('../../state/ProductContext', () => ({
   },
 }))
 
-vi.mock('../../state/MapProbeContext', () => ({
+vi.mock('../../map-probe/MapProbeContext', () => ({
   useMapProbe: () => ({
     lastProbe: mocks.lastProbe,
     setLastProbe: vi.fn(),
   }),
 }))
 
-vi.mock('../../state/TimelineContext', () => ({
-  useTimelineContext: () => ({
+vi.mock('../../forecast-time/ForecastTimeContext', () => ({
+  useForecastTimeContext: () => ({
     cycle: '2026042113',
     forecastHours: ['000', '003', '006'],
     state: {
@@ -72,7 +72,11 @@ vi.mock('../../state/TimelineContext', () => ({
       requestNext: vi.fn(),
       togglePlay: vi.fn(),
     },
-    sync: {},
+    sync: {
+      onRequestStart: vi.fn(),
+      onRequestApplied: vi.fn(),
+      onRequestError: vi.fn(),
+    },
   }),
 }))
 

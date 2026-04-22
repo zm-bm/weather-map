@@ -43,21 +43,24 @@ describe('useMapControls', () => {
     mapRef.current = map
     rerender({ version: 1 })
 
-    expect(map.addControl).toHaveBeenCalledTimes(3)
+    expect(map.addControl).toHaveBeenCalledTimes(4)
 
     const addedControls = map.addControl.mock.calls as unknown as AddedControl[]
-    expect(addedControls.every(([, position]) => position === 'top-right')).toBe(true)
+    expect(addedControls.slice(0, 3).every(([, position]) => position === 'top-right')).toBe(true)
+    expect(addedControls[3]?.[1]).toBe('bottom-left')
     expect(addedControls[0]?.[0]).toBeInstanceOf(maplibregl.NavigationControl)
     expect(addedControls[1]?.[0]).toBeInstanceOf(MusicControl)
     expect(addedControls[2]?.[0]).toBeInstanceOf(OptionsControl)
+    expect(addedControls[3]?.[0]).toBeInstanceOf(maplibregl.AttributionControl)
 
     unmount()
 
-    expect(map.removeControl).toHaveBeenCalledTimes(3)
+    expect(map.removeControl).toHaveBeenCalledTimes(4)
     expect(map.removeControl.mock.calls.map(([control]) => control)).toEqual(expect.arrayContaining([
       addedControls[0]?.[0],
       addedControls[1]?.[0],
       addedControls[2]?.[0],
+      addedControls[3]?.[0],
     ]))
   })
 
@@ -67,7 +70,7 @@ describe('useMapControls', () => {
 
     const { unmount } = renderHook(() => useMapControls(mapRef, 1))
 
-    expect(map.addControl).toHaveBeenCalledTimes(3)
+    expect(map.addControl).toHaveBeenCalledTimes(4)
 
     const addedControls = map.addControl.mock.calls as unknown as AddedControl[]
     addedControls.forEach(([control]) => {
@@ -78,7 +81,7 @@ describe('useMapControls', () => {
 
     unmount()
 
-    expect(map.hasControl).toHaveBeenCalledTimes(3)
+    expect(map.hasControl).toHaveBeenCalledTimes(4)
     expect(map.removeControl).not.toHaveBeenCalled()
   })
 })
