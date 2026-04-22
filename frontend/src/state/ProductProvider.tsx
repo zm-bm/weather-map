@@ -5,13 +5,13 @@ import type {
   ScalarVariableId,
   VectorVariableId,
 } from '../map/manifest'
-import { VariableContext, type VariableContextValue } from './VariableContext'
+import { ProductContext, type ProductContextValue } from './ProductContext'
 
 const EMPTY_SCALAR_VARIABLES: [] = []
 const EMPTY_VECTOR_VARIABLES: [] = []
 const NO_VARIABLE_META: null = null
 
-export default function VariableProvider({
+export default function ProductProvider({
   manifest,
   children,
 }: {
@@ -27,6 +27,8 @@ export default function VariableProvider({
     activeScalar: manifest?.scalarVariables[0] ?? null,
     activeVector: manifest?.vectorVariables[0] ?? null,
   }))
+  const [scalarUnitOptionIds, setScalarUnitOptionIds] = useState<Record<string, string>>({})
+  const [vectorUnitOptionIds, setVectorUnitOptionIds] = useState<Record<string, string>>({})
 
   const setActiveScalar = useCallback((value: ScalarVariableId) => {
     setSelection((current) => ({
@@ -44,7 +46,29 @@ export default function VariableProvider({
     }))
   }, [])
 
-  const value = useMemo<VariableContextValue>(() => {
+  const setScalarUnitOptionId = useCallback((variableId: string, optionId: string) => {
+    setScalarUnitOptionIds((current) => ({
+      ...current,
+      [variableId]: optionId,
+    }))
+  }, [])
+
+  const setVectorUnitOptionId = useCallback((variableId: string, optionId: string) => {
+    setVectorUnitOptionIds((current) => ({
+      ...current,
+      [variableId]: optionId,
+    }))
+  }, [])
+
+  const getScalarUnitOptionId = useCallback((variableId: string, fallbackOptionId: string) => {
+    return scalarUnitOptionIds[variableId] ?? fallbackOptionId
+  }, [scalarUnitOptionIds])
+
+  const getVectorUnitOptionId = useCallback((variableId: string, fallbackOptionId: string) => {
+    return vectorUnitOptionIds[variableId] ?? fallbackOptionId
+  }, [vectorUnitOptionIds])
+
+  const value = useMemo<ProductContextValue>(() => {
     if (!manifest) {
       return {
         manifest: null,
@@ -54,8 +78,14 @@ export default function VariableProvider({
         variableMeta: NO_VARIABLE_META,
         activeScalar: null,
         activeVector: null,
+        scalarUnitOptionIds,
+        vectorUnitOptionIds,
         setActiveScalar,
         setActiveVector,
+        getScalarUnitOptionId,
+        getVectorUnitOptionId,
+        setScalarUnitOptionId,
+        setVectorUnitOptionId,
       }
     }
 
@@ -79,6 +109,8 @@ export default function VariableProvider({
       variableMeta: manifest.variableMeta,
       activeScalar,
       activeVector,
+      scalarUnitOptionIds,
+      vectorUnitOptionIds,
       setActiveScalar: (nextScalar) => {
         setSelection((current) => ({
           cycle,
@@ -99,12 +131,29 @@ export default function VariableProvider({
           activeVector: nextVector,
         }))
       },
+      getScalarUnitOptionId,
+      getVectorUnitOptionId,
+      setScalarUnitOptionId,
+      setVectorUnitOptionId,
     }
-  }, [manifest, selection.activeScalar, selection.activeVector, selection.cycle, setActiveScalar, setActiveVector])
+  }, [
+    getScalarUnitOptionId,
+    getVectorUnitOptionId,
+    manifest,
+    scalarUnitOptionIds,
+    selection.activeScalar,
+    selection.activeVector,
+    selection.cycle,
+    setActiveScalar,
+    setActiveVector,
+    setScalarUnitOptionId,
+    setVectorUnitOptionId,
+    vectorUnitOptionIds,
+  ])
 
   return (
-    <VariableContext.Provider value={value}>
+    <ProductContext.Provider value={value}>
       {children}
-    </VariableContext.Provider>
+    </ProductContext.Provider>
   )
 }

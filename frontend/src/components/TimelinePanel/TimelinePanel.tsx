@@ -15,14 +15,14 @@ function getTransportStatusLabel(options: {
   isInFlight: boolean
   loadingHourLabel: string
   pendingHourLabel: string | null
-}) {
+}): string | null {
   const { isInFlight, loadingHourLabel, pendingHourLabel } = options
   if (isInFlight && pendingHourLabel != null) {
     return `Loading ${loadingHourLabel} · Queued ${pendingHourLabel}`
   }
   if (isInFlight) return `Loading ${loadingHourLabel}`
   if (pendingHourLabel != null) return `Queued ${pendingHourLabel}`
-  return 'Ready'
+  return null
 }
 
 export default function TimelinePanel() {
@@ -86,45 +86,43 @@ export default function TimelinePanel() {
 
       <div className="timeline-panel__body">
         <div className="timeline-panel__console lower-third__console">
-          <div className="timeline-panel__meta-row">
-            <span className="timeline-panel__status wm-mono-caps">{transportStatus}</span>
-
-            <div className="timeline-panel__frame wm-mono-caps">
-              Frame {appliedHourIdx + 1} of {forecastHourCount}
-            </div>
-          </div>
-
           <div className="timeline-panel__control-row">
-            <div className="timeline-panel__controls" aria-label="Timeline transport controls">
-              <button
-                className="panel-button wm-bevel-button panel-button--transport"
-                type="button"
-                onClick={requestPrev}
-                disabled={hourControlsDisabled}
-                aria-label="Previous forecast frame"
-              >
-                <FaStepBackward aria-hidden="true" />
-              </button>
+            <div className="timeline-panel__controls-bay">
+              <div className="timeline-panel__controls" aria-label="Timeline transport controls">
+                <button
+                  className="panel-button wm-bevel-button panel-button--transport"
+                  type="button"
+                  onClick={requestPrev}
+                  disabled={hourControlsDisabled}
+                  aria-label="Previous forecast frame"
+                >
+                  <FaStepBackward aria-hidden="true" />
+                </button>
 
-              <button
-                className="panel-button wm-bevel-button panel-button--primary panel-button--play"
-                type="button"
-                onClick={togglePlay}
-                disabled={hourControlsDisabled}
-                aria-label={isPlaying ? 'Pause playback' : 'Play forecast timeline'}
-              >
-                {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
-              </button>
+                <button
+                  className="panel-button wm-bevel-button panel-button--primary panel-button--play"
+                  type="button"
+                  onClick={togglePlay}
+                  disabled={hourControlsDisabled}
+                  aria-label={isPlaying ? 'Pause playback' : 'Play forecast timeline'}
+                >
+                  {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
+                </button>
 
-              <button
-                className="panel-button wm-bevel-button panel-button--transport"
-                type="button"
-                onClick={requestNext}
-                disabled={hourControlsDisabled}
-                aria-label="Next forecast frame"
-              >
-                <FaStepForward aria-hidden="true" />
-              </button>
+                <button
+                  className="panel-button wm-bevel-button panel-button--transport"
+                  type="button"
+                  onClick={requestNext}
+                  disabled={hourControlsDisabled}
+                  aria-label="Next forecast frame"
+                >
+                  <FaStepForward aria-hidden="true" />
+                </button>
+              </div>
+
+              {transportStatus ? (
+                <span className="timeline-panel__status wm-mono-caps">{transportStatus}</span>
+              ) : null}
             </div>
 
             <div className="timeline-panel__timeline-well">

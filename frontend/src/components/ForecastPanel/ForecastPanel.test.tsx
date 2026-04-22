@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   lastProbe: null as { lat: number; lon: number; value: number | null; variableId: 'tmp_surface' | 'rh_surface' | null } | null,
 }))
 
-vi.mock('../../state/VariableContext', () => ({
-  useLoadedVariableContext: () => {
+vi.mock('../../state/ProductContext', () => ({
+  useLoadedProductContext: () => {
     const manifest = createManifestFixture({
       cycle: '2026041100',
       scalarVariables: ['tmp_surface', 'rh_surface'],
@@ -36,6 +36,14 @@ vi.mock('../../state/VariableContext', () => ({
       activeVector: manifest.vectorVariables[0],
       setActiveScalar: vi.fn(),
       setActiveVector: vi.fn(),
+      scalarUnitOptionIds: {},
+      vectorUnitOptionIds: {},
+      getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => (
+        variableId === 'tmp_surface' ? 'fahrenheit' : fallbackOptionId
+      ),
+      getVectorUnitOptionId: (_variableId: string, fallbackOptionId: string) => fallbackOptionId,
+      setScalarUnitOptionId: vi.fn(),
+      setVectorUnitOptionId: vi.fn(),
     }
   },
 }))
@@ -92,6 +100,6 @@ describe('ForecastPanel', () => {
 
     expect(screen.getByText('Temperature')).toBeInTheDocument()
     expect(screen.getByText('35.13 / -97.50')).toBeInTheDocument()
-    expect(screen.getByText('25 C')).toBeInTheDocument()
+    expect(screen.getByText('77 F')).toBeInTheDocument()
   })
 })

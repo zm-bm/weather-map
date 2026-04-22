@@ -2,15 +2,15 @@ import { useMemo } from 'react'
 
 import type { FrameSyncRequest } from './frameSyncTypes'
 import { hourTokenAt, normalizeHourIndex } from '../map/time/core'
+import { useProductContext } from './ProductContext'
 import { useTimelineContext } from './TimelineContext'
-import { useVariableContext } from './VariableContext'
 
 export function useFrameSyncRequest(retryToken: number): FrameSyncRequest | null {
   const {
     manifest,
     activeScalar,
     activeVector,
-  } = useVariableContext()
+  } = useProductContext()
   const {
     state: timelineState,
     sync,

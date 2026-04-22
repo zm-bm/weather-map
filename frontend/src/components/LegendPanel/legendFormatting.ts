@@ -353,11 +353,24 @@ function formatLegendValue(value: number, units: string): string {
   return `${Number(value.toFixed(1)).toString()}`
 }
 
+export function formatUnitDisplayLabel(label: string): string {
+  return label
+    .replace(/\^2/g, '²')
+    .replace(/\^3/g, '³')
+}
+
+export function getLegendUnitOption(
+  display: LegendUnitDisplay,
+  optionId?: string | null
+): LegendUnitOption {
+  return display.options.find((option) => option.id === optionId) ?? display.options[0]!
+}
+
 const LEGEND_UNIT_RULES: LegendUnitRule[] = [
   {
     labelIncludes: ['temperature'],
     display: {
-      defaultOptionId: 'celsius',
+      defaultOptionId: 'fahrenheit',
       options: [
         {
           id: 'celsius',

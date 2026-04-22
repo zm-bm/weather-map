@@ -48,6 +48,7 @@ describe('TimelinePanel', () => {
     render(<TimelinePanel />)
 
     expect(screen.queryByText('Valid Time')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument()
 
     const slider = screen.getByLabelText('Forecast step')
     fireEvent.pointerDown(slider)

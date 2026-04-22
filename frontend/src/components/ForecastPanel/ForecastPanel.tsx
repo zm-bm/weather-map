@@ -2,8 +2,9 @@ import { validLabel as formatValidLabel } from '../../map/time/format'
 import { hourTokenAt, normalizeHourIndex } from '../../map/time/core'
 import { getScalarLayerMeta } from '../../map/scalar'
 import { useTimelineContext } from '../../state/TimelineContext'
-import { useLoadedVariableContext } from '../../state/VariableContext'
+import { useLoadedProductContext } from '../../state/ProductContext'
 import { useMapProbe } from '../../state/MapProbeContext'
+import { getLegendUnitDisplay, getLegendUnitOption } from '../LegendPanel/legendFormatting'
 
 function formatCoordinate(value: number) {
   return value.toFixed(2)
@@ -17,7 +18,7 @@ function formatProbeValue(value: number | null) {
 }
 
 function ForecastPanel() {
-  const { variableMeta } = useLoadedVariableContext()
+  const { variableMeta, getScalarUnitOptionId } = useLoadedProductContext()
   const { cycle, forecastHours, state: timelineState } = useTimelineContext()
   const { lastProbe } = useMapProbe()
   const totalHours = Math.max(1, forecastHours.length)
@@ -25,7 +26,19 @@ function ForecastPanel() {
   const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
   const validTimeLabel = formatValidLabel(cycle, appliedHourToken)
   const probeMeta = lastProbe?.variableId == null ? null : getScalarLayerMeta(lastProbe.variableId, variableMeta)
-  const probeValueText = lastProbe == null ? 'Click map to sample current layer' : formatProbeValue(lastProbe.value)
+  const probeUnitDisplay = probeMeta == null ? null : getLegendUnitDisplay(probeMeta)
+  const probeUnitOption = probeMeta == null || probeUnitDisplay == null
+    ? null
+    : getLegendUnitOption(
+      probeUnitDisplay,
+      getScalarUnitOptionId(probeMeta.id, probeUnitDisplay.defaultOptionId)
+    )
+  const convertedProbeValue = lastProbe?.value == null || probeUnitOption == null
+    ? lastProbe?.value ?? null
+    : probeUnitOption.convert(lastProbe.value)
+  const probeValueText = lastProbe == null
+    ? 'Click map to sample current layer'
+    : formatProbeValue(convertedProbeValue)
 
   return (
     <section className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -58,7 +71,7 @@ function ForecastPanel() {
           <strong className="forecast-panel__value wm-display-caps">
             {lastProbe == null
               ? probeValueText
-              : `${probeValueText}${probeMeta?.units ? ` ${probeMeta.units}` : ''}`}
+              : `${probeValueText}${convertedProbeValue != null && probeUnitOption?.buttonLabel ? ` ${probeUnitOption.buttonLabel}` : ''}`}
           </strong>
         </div>
       </div>

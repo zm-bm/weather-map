@@ -1,24 +1,23 @@
-import { useMemo, useState } from 'react'
-
 import type { ScalarLayerMeta } from '../../map/scalar'
 import {
   getLegendTicks,
-  getLegendUnitDisplay,
+  type LegendUnitOption,
   toLegendSteppedGradient,
 } from './legendFormatting'
 
 type LegendPanelViewProps = {
   meta: ScalarLayerMeta
+  selectedOption: LegendUnitOption
+  canCycleUnits: boolean
+  onCycleUnits: () => void
 }
 
-export function LegendPanelView({ meta }: LegendPanelViewProps) {
-  const legendUnitDisplay = useMemo(() => getLegendUnitDisplay(meta), [meta])
-  const [selectedUnitsByLayer, setSelectedUnitsByLayer] = useState<Record<string, string>>({})
-
-  const options = legendUnitDisplay.options
-  const canCycleUnits = options.length > 1
-  const selectedOptionId = selectedUnitsByLayer[meta.id] ?? legendUnitDisplay.defaultOptionId
-  const selectedOption = options.find((option) => option.id === selectedOptionId) ?? options[0]
+export function LegendPanelView({
+  meta,
+  selectedOption,
+  canCycleUnits,
+  onCycleUnits,
+}: LegendPanelViewProps) {
   const unitPillClassName = [
     'legend-panel__unit-pill',
     selectedOption.casing === 'literal' ? 'legend-panel__unit-pill--literal' : '',
@@ -26,16 +25,6 @@ export function LegendPanelView({ meta }: LegendPanelViewProps) {
     !canCycleUnits ? 'legend-panel__unit-pill--static' : '',
   ].filter(Boolean).join(' ')
   const legendTicks = getLegendTicks(meta, selectedOption)
-
-  const handleCycleUnits = () => {
-    if (!canCycleUnits) return
-
-    const currentIndex = options.findIndex((option) => option.id === selectedOption.id)
-    const nextOption = options[(currentIndex + 1) % options.length]
-    if (!nextOption) return
-
-    setSelectedUnitsByLayer((prev) => ({ ...prev, [meta.id]: nextOption.id }))
-  }
 
   return (
     <section className="legend-panel" aria-label={`${meta.label} legend`}>
@@ -45,7 +34,7 @@ export function LegendPanelView({ meta }: LegendPanelViewProps) {
             type="button"
             className={unitPillClassName}
             aria-label={`Cycle ${meta.label} units. Current units ${selectedOption.units}.`}
-            onClick={handleCycleUnits}
+            onClick={onCycleUnits}
           >
             <span className="legend-panel__unit-current">{selectedOption.buttonLabel}</span>
           </button>

@@ -5,12 +5,12 @@ import { createManifestFixture } from '../test/fixtures'
 import { useFrameSyncRequest } from './useFrameSyncRequest'
 
 const mocks = vi.hoisted(() => ({
-  useVariableContext: vi.fn(),
+  useProductContext: vi.fn(),
   useTimelineContext: vi.fn(),
 }))
 
-vi.mock('./VariableContext', () => ({
-  useVariableContext: () => mocks.useVariableContext(),
+vi.mock('./ProductContext', () => ({
+  useProductContext: () => mocks.useProductContext(),
 }))
 
 vi.mock('./TimelineContext', () => ({
@@ -28,7 +28,7 @@ describe('useFrameSyncRequest', () => {
       forecastHours: ['000', '003', '006'],
     })
 
-    mocks.useVariableContext.mockReturnValue({
+    mocks.useProductContext.mockReturnValue({
       manifest,
       cycle: manifest.cycle,
       scalarVariables: manifest.scalarVariables,
@@ -36,8 +36,14 @@ describe('useFrameSyncRequest', () => {
       variableMeta: manifest.variableMeta,
       activeScalar: manifest.scalarVariables[0],
       activeVector: manifest.vectorVariables[0],
+      scalarUnitOptionIds: {},
+      vectorUnitOptionIds: {},
       setActiveScalar: vi.fn(),
       setActiveVector: vi.fn(),
+      getScalarUnitOptionId: vi.fn(),
+      getVectorUnitOptionId: vi.fn(),
+      setScalarUnitOptionId: vi.fn(),
+      setVectorUnitOptionId: vi.fn(),
     })
 
     timelineContextValue = {
@@ -67,7 +73,7 @@ describe('useFrameSyncRequest', () => {
   })
 
   it('returns null when manifest is unavailable', () => {
-    mocks.useVariableContext.mockReturnValue({
+    mocks.useProductContext.mockReturnValue({
       manifest: null,
       cycle: null,
       scalarVariables: [],
@@ -75,8 +81,14 @@ describe('useFrameSyncRequest', () => {
       variableMeta: null,
       activeScalar: null,
       activeVector: null,
+      scalarUnitOptionIds: {},
+      vectorUnitOptionIds: {},
       setActiveScalar: vi.fn(),
       setActiveVector: vi.fn(),
+      getScalarUnitOptionId: vi.fn(),
+      getVectorUnitOptionId: vi.fn(),
+      setScalarUnitOptionId: vi.fn(),
+      setVectorUnitOptionId: vi.fn(),
     })
 
     const { result } = renderHook(() => useFrameSyncRequest(0))

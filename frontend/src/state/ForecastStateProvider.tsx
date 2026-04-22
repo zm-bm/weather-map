@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import type { CycleManifest } from '../map/manifest'
 import MapProbeProvider from './MapProbeProvider'
-import VariableProvider from './VariableProvider'
+import ProductProvider from './ProductProvider'
 import TimelineProvider from './TimelineProvider'
 
 type ForecastStateProviderProps = {
@@ -24,12 +24,12 @@ export default function ForecastStateProvider({
     : `probe:${manifest.cycle}`
 
   return (
-    <VariableProvider manifest={manifest}>
+    <ProductProvider manifest={manifest}>
       <MapProbeProvider key={mapProbeProviderKey}>
         <TimelineProvider key={timelineProviderKey} manifest={manifest}>
           {children}
         </TimelineProvider>
       </MapProbeProvider>
-    </VariableProvider>
+    </ProductProvider>
   )
 }
