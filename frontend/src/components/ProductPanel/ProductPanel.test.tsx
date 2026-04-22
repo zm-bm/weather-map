@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createManifestFixture, createScalarVariableMetaFixture } from '../../test/fixtures'
-import LayerDeck from './LayerDeck'
+import ProductPanel from './ProductPanel'
 
 const mocks = vi.hoisted(() => ({
   setActiveScalar: vi.fn(),
@@ -39,11 +39,14 @@ vi.mock('../../state/VariableContext', () => ({
   },
 }))
 
-describe('LayerDeck', () => {
-  it('updates active variable through radio controls', () => {
-    render(<LayerDeck />)
+describe('ProductPanel', () => {
+  it('updates active variable through selector control', () => {
+    render(<ProductPanel />)
 
-    fireEvent.click(screen.getByLabelText('Relative Humidity'))
+    fireEvent.change(screen.getByLabelText('Current layer'), {
+      target: { value: 'rh_surface' },
+    })
+
     expect(mocks.setActiveScalar).toHaveBeenCalledWith('rh_surface')
   })
 })

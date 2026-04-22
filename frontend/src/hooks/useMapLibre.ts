@@ -49,6 +49,7 @@ export function useMapLibre({
       minZoom,
       maxZoom,
       dragRotate: false,
+      attributionControl: false,
       style: buildMapStyle(config),
     })
 

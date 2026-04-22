@@ -1,9 +1,9 @@
 import type { CycleManifest } from '../../map/manifest'
 import ForecastStateProvider from '../../state/ForecastStateProvider'
-import LayerDeck from '../LayerDeck'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
-import TimelineTransport from '../TimelineTransport'
+import ProductPanel from '../ProductPanel'
+import TimelinePanel from '../TimelinePanel'
 import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
@@ -32,9 +32,10 @@ export default function ForecastShell({
         </div>
 
         {manifest && !DEBUG_BASEMAP_ONLY && (
-          <div className="lower-third" aria-label="Forecast details">
-            <LayerDeck />
-            <TimelineTransport />
+          <div className="lower-third wm-docked-band-shell" aria-label="Forecast details">
+            <ProductPanel />
+            <div className="lower-third__divider" aria-hidden="true" />
+            <TimelinePanel />
           </div>
         )}
       </ForecastStateProvider>

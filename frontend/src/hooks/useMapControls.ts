@@ -17,6 +17,7 @@ export function useMapControls(
     if (!map || attachedMapRef.current === map) return
 
     const navigationControl = new maplibregl.NavigationControl({ showCompass: false })
+    const attributionControl = new maplibregl.AttributionControl({ compact: true })
     const musicControl = new MusicControl({ src: TRACK_URL })
     const optionsControl = new OptionsControl({
       scalarOptions: scalarRuntimeOptions,
@@ -26,6 +27,8 @@ export function useMapControls(
     map.addControl(navigationControl, 'top-right')
     map.addControl(musicControl, 'top-right')
     map.addControl(optionsControl, 'top-right')
+    map.addControl(attributionControl, 'bottom-left');
+
     attachedMapRef.current = map
 
     return () => {
@@ -38,6 +41,9 @@ export function useMapControls(
       }
       if (map.hasControl(navigationControl)) {
         map.removeControl(navigationControl)
+      }
+      if (map.hasControl(attributionControl)) {
+        map.removeControl(attributionControl)
       }
     }
   }, [mapReadyVersion, mapRef])

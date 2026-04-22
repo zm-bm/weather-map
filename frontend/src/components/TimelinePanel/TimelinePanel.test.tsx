@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import TimelineTransport from './TimelineTransport'
+import TimelinePanel from './TimelinePanel'
 
 const mocks = vi.hoisted(() => ({
   requestHour: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('../../state/TimelineContext', () => ({
   }),
 }))
 
-describe('TimelineTransport', () => {
+describe('TimelinePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.timelineState = {
@@ -45,7 +45,9 @@ describe('TimelineTransport', () => {
   })
 
   it('commits slider hour only on release, not during drag changes', () => {
-    render(<TimelineTransport />)
+    render(<TimelinePanel />)
+
+    expect(screen.queryByText('Valid Time')).not.toBeInTheDocument()
 
     const slider = screen.getByLabelText('Forecast step')
     fireEvent.pointerDown(slider)
@@ -65,7 +67,7 @@ describe('TimelineTransport', () => {
       isInFlight: true,
       isPlaying: false,
     }
-    render(<TimelineTransport />)
+    render(<TimelinePanel />)
 
     expect(screen.getByText(/loading/i)).toBeInTheDocument()
     expect(screen.getByText(/queued/i)).toBeInTheDocument()

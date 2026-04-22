@@ -1,4 +1,7 @@
+import { validLabel as formatValidLabel } from '../../map/time/format'
+import { hourTokenAt, normalizeHourIndex } from '../../map/time/core'
 import { getScalarLayerMeta } from '../../map/scalar'
+import { useTimelineContext } from '../../state/TimelineContext'
 import { useLoadedVariableContext } from '../../state/VariableContext'
 import { useMapProbe } from '../../state/MapProbeContext'
 
@@ -15,7 +18,12 @@ function formatProbeValue(value: number | null) {
 
 function ForecastPanel() {
   const { variableMeta } = useLoadedVariableContext()
+  const { cycle, forecastHours, state: timelineState } = useTimelineContext()
   const { lastProbe } = useMapProbe()
+  const totalHours = Math.max(1, forecastHours.length)
+  const appliedHourIdx = normalizeHourIndex(timelineState.appliedHourIndex, totalHours)
+  const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
+  const validTimeLabel = formatValidLabel(cycle, appliedHourToken)
   const probeMeta = lastProbe?.variableId == null ? null : getScalarLayerMeta(lastProbe.variableId, variableMeta)
   const probeValueText = lastProbe == null ? 'Click map to sample current layer' : formatProbeValue(lastProbe.value)
 
@@ -29,6 +37,13 @@ function ForecastPanel() {
       </div>
 
       <div className="forecast-panel__body">
+        <div className="forecast-panel__readout forecast-panel__readout--headline">
+          <span className="forecast-panel__label wm-mono-caps">Valid Time</span>
+          <strong className="forecast-panel__value forecast-panel__value--headline wm-display-caps">
+            {validTimeLabel ?? `Hour ${appliedHourToken}`}
+          </strong>
+        </div>
+
         <div className="forecast-panel__readout">
           <span className="forecast-panel__label wm-mono-caps">Latitude / Longitude</span>
           <strong className="forecast-panel__value wm-display-caps">

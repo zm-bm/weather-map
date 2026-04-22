@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { validLabel as formatValidLabel } from '../../map/time/format'
 import { createManifestFixture, createScalarVariableMetaFixture } from '../../test/fixtures'
 import ForecastPanel from './ForecastPanel'
 
@@ -46,6 +47,27 @@ vi.mock('../../state/MapProbeContext', () => ({
   }),
 }))
 
+vi.mock('../../state/TimelineContext', () => ({
+  useTimelineContext: () => ({
+    cycle: '2026042113',
+    forecastHours: ['000', '003', '006'],
+    state: {
+      appliedHourIndex: 1,
+      targetHourIndex: 1,
+      pendingHourIndex: null,
+      isInFlight: false,
+      isPlaying: false,
+    },
+    controls: {
+      requestHour: vi.fn(),
+      requestPrev: vi.fn(),
+      requestNext: vi.fn(),
+      togglePlay: vi.fn(),
+    },
+    sync: {},
+  }),
+}))
+
 describe('ForecastPanel', () => {
   it('shows a click prompt before any map sample exists', () => {
     mocks.lastProbe = null
@@ -53,6 +75,7 @@ describe('ForecastPanel', () => {
     render(<ForecastPanel />)
 
     expect(screen.getByText('Click Map')).toBeInTheDocument()
+    expect(screen.getByText(formatValidLabel('2026042113', '003') ?? '')).toBeInTheDocument()
     expect(screen.getByText('-- / --')).toBeInTheDocument()
     expect(screen.getByText('Click map to sample current layer')).toBeInTheDocument()
   })

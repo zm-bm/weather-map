@@ -8,16 +8,16 @@ vi.mock('../ForecastPanel', () => ({
   default: () => <div data-testid="forecast-panel" />,
 }))
 
-vi.mock('../LayerDeck', () => ({
-  default: () => <div data-testid="layer-deck" />,
+vi.mock('../ProductPanel', () => ({
+  default: () => <div data-testid="product-panel" />,
 }))
 
 vi.mock('../LegendPanel', () => ({
   default: () => <div data-testid="legend-panel" />,
 }))
 
-vi.mock('../TimelineTransport', () => ({
-  default: () => <div data-testid="time-transport" />,
+vi.mock('../TimelinePanel', () => ({
+  default: () => <div data-testid="timeline-panel" />,
 }))
 
 vi.mock('../ForecastMap/ForecastMap', () => ({
@@ -34,9 +34,9 @@ describe('ForecastShell', () => {
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.queryByTestId('forecast-panel')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('layer-deck')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('product-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('time-transport')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('timeline-panel')).not.toBeInTheDocument()
   })
 
   it('renders controls and transport modules when manifest is available', () => {
@@ -49,9 +49,9 @@ describe('ForecastShell', () => {
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
-    expect(screen.getByTestId('layer-deck')).toBeInTheDocument()
+    expect(screen.getByTestId('product-panel')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
-    expect(screen.getByTestId('time-transport')).toBeInTheDocument()
+    expect(screen.getByTestId('timeline-panel')).toBeInTheDocument()
 
     const forecastStage = container.querySelector('.forecast-stage')
     const lowerThird = screen.getByLabelText('Forecast details')
@@ -59,7 +59,7 @@ describe('ForecastShell', () => {
     expect(forecastStage).not.toBeNull()
     expect(lowerThird).toBeInTheDocument()
     expect(within(forecastStage as HTMLElement).getByTestId('legend-panel')).toBeInTheDocument()
-    expect(within(lowerThird).getByTestId('layer-deck')).toBeInTheDocument()
+    expect(within(lowerThird).getByTestId('product-panel')).toBeInTheDocument()
     expect(within(lowerThird).queryByTestId('legend-panel')).not.toBeInTheDocument()
   })
 })
