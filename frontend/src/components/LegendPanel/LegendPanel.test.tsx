@@ -1,21 +1,21 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
   createManifestFixture,
   createScalarVariableMetaFixture,
   createVectorVariableMetaFixture,
+  renderWithForecastSelection,
 } from '../../test/fixtures'
-import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
 import ProductPanel from '../ProductPanel'
 import LegendPanel from './LegendPanel'
 
-function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' = 'tmp_surface') {
-  const manifest = createManifestFixture({
+function createLegendSelectionManifest(
+  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface'
+) {
+  return createManifestFixture({
     cycle: '2026041100',
-    scalarVariables: [activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface'].filter(
-      (value, index, values) => values.indexOf(value) === index
-    ),
+    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface'])),
     vectorVariables: ['wind10m_uv'],
     variableMeta: {
       tmp_surface: createScalarVariableMetaFixture(),
@@ -34,12 +34,15 @@ function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'pr
       wind10m_uv: createVectorVariableMetaFixture(),
     },
   })
+}
 
-  return render(
-    <ForecastSelectionProvider manifest={manifest}>
+function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' = 'tmp_surface') {
+  return renderWithForecastSelection(
+    <>
       <ProductPanel />
       <LegendPanel />
-    </ForecastSelectionProvider>
+    </>,
+    createLegendSelectionManifest(activeScalar)
   )
 }
 

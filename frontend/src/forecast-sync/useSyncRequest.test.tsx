@@ -1,7 +1,11 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createManifestFixture } from '../test/fixtures'
+import {
+  createForecastSelectionContextValue,
+  createForecastTimeContextValue,
+  createManifestFixture,
+} from '../test/fixtures'
 import { useSyncRequest } from './useSyncRequest'
 
 const mocks = vi.hoisted(() => ({
@@ -18,8 +22,6 @@ vi.mock('../forecast-time/ForecastTimeContext', () => ({
 }))
 
 describe('useSyncRequest', () => {
-  let forecastTimeContextValue: ReturnType<typeof mocks.useForecastTimeContext>
-
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -27,69 +29,25 @@ describe('useSyncRequest', () => {
       cycle: '2026040900',
       forecastHours: ['000', '003', '006'],
     })
-
-    mocks.useForecastSelectionContext.mockReturnValue({
+    const selection = createForecastSelectionContextValue(manifest)
+    const time = createForecastTimeContextValue(
       manifest,
-      cycle: manifest.cycle,
-      scalarVariables: manifest.scalarVariables,
-      vectorVariables: manifest.vectorVariables,
-      variableMeta: manifest.variableMeta,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
-      scalarUnitOptionIds: {},
-      vectorUnitOptionIds: {},
-      setActiveScalar: vi.fn(),
-      setActiveVector: vi.fn(),
-      getScalarUnitOptionId: vi.fn(),
-      getVectorUnitOptionId: vi.fn(),
-      setScalarUnitOptionId: vi.fn(),
-      setVectorUnitOptionId: vi.fn(),
-    })
+      {
+        state: {
+          appliedHourIndex: 1,
+          targetHourIndex: 1,
+        },
+      }
+    )
 
-    forecastTimeContextValue = {
-      cycle: manifest.cycle,
-      forecastHours: manifest.forecastHours,
-      state: {
-        appliedHourIndex: 1,
-        targetHourIndex: 1,
-        pendingHourIndex: null,
-        isInFlight: false,
-        isPlaying: false,
-      },
-      controls: {
-        requestHour: vi.fn(),
-        requestNext: vi.fn(),
-        requestPrev: vi.fn(),
-        togglePlay: vi.fn(),
-      },
-      sync: {
-        onRequestStart: vi.fn(),
-        onRequestApplied: vi.fn(),
-        onRequestError: vi.fn(),
-      },
-    }
-
-    mocks.useForecastTimeContext.mockReturnValue(forecastTimeContextValue)
+    mocks.useForecastSelectionContext.mockReturnValue(selection)
+    mocks.useForecastTimeContext.mockReturnValue(time)
   })
 
   it('returns null when manifest is unavailable', () => {
-    mocks.useForecastSelectionContext.mockReturnValue({
-      manifest: null,
-      cycle: null,
-      scalarVariables: [],
-      vectorVariables: [],
-      variableMeta: null,
-      activeScalar: null,
-      activeVector: null,
-      scalarUnitOptionIds: {},
-      vectorUnitOptionIds: {},
-      setActiveScalar: vi.fn(),
-      setActiveVector: vi.fn(),
-      getScalarUnitOptionId: vi.fn(),
-      getVectorUnitOptionId: vi.fn(),
-      setScalarUnitOptionId: vi.fn(),
-      setVectorUnitOptionId: vi.fn(),
-    })
+    mocks.useForecastSelectionContext.mockReturnValue(
+      createForecastSelectionContextValue(null)
+    )
 
     const { result } = renderHook(() => useSyncRequest(0))
     expect(result.current).toBeNull()

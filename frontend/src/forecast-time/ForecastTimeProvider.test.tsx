@@ -8,6 +8,16 @@ import ForecastTimeProvider from './ForecastTimeProvider'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
+function createTimelineManifest(
+  overrides: Partial<Pick<ReturnType<typeof createManifestFixture>, 'cycle' | 'generatedAt' | 'forecastHours'>> = {}
+) {
+  return createManifestFixture({
+    cycle: '2026040900',
+    forecastHours: DEFAULT_FORECAST_HOURS,
+    ...overrides,
+  })
+}
+
 function forecastTimeProviderKey(manifest: ReturnType<typeof createManifestFixture> | null): string {
   if (manifest == null) return 'forecast-time:none'
   return `forecast-time:${manifest.cycle}:${manifest.forecastHours.join(',')}`
@@ -76,10 +86,7 @@ describe('ForecastTimeProvider', () => {
   })
 
   it('forwards manifest cycle and forecast hours to context value', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
 
     renderForecastTimeProvider(manifest)
 
@@ -89,10 +96,7 @@ describe('ForecastTimeProvider', () => {
 
   it('starts at the hour closest to current time', () => {
     vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
 
     const { getContext } = renderForecastTimeProvider(manifest)
 
@@ -101,10 +105,7 @@ describe('ForecastTimeProvider', () => {
   })
 
   it('coalesces in-flight requests to latest queued hour', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -136,10 +137,8 @@ describe('ForecastTimeProvider', () => {
   it('resets timeline state when manifest cycle changes', () => {
     vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
 
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
+    const manifest = createTimelineManifest({
       generatedAt: '2026-04-09T00:00:00Z',
-      forecastHours: DEFAULT_FORECAST_HOURS,
     })
     const { getContext, rerenderManifest } = renderForecastTimeProvider(manifest)
 
@@ -150,10 +149,9 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.targetHourIndex).toBe(2)
     expect(getContext().state.isPlaying).toBe(true)
 
-    const nextManifest = createManifestFixture({
+    const nextManifest = createTimelineManifest({
       cycle: '2026040912',
       generatedAt: '2026-04-09T12:00:00Z',
-      forecastHours: DEFAULT_FORECAST_HOURS,
     })
 
     rerenderManifest(nextManifest)
@@ -171,20 +169,14 @@ describe('ForecastTimeProvider', () => {
     const { getContext, rerenderManifest } = renderForecastTimeProvider(null)
     expect(getContext().state.targetHourIndex).toBe(0)
 
-    rerenderManifest(createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    }))
+    rerenderManifest(createTimelineManifest())
 
     expect(getContext().state.appliedHourIndex).toBe(1)
     expect(getContext().state.targetHourIndex).toBe(1)
   })
 
   it('steps next from latest desired hour while in flight', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -204,10 +196,7 @@ describe('ForecastTimeProvider', () => {
   })
 
   it('normalizes out-of-range frame callback hour indexes', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -225,10 +214,7 @@ describe('ForecastTimeProvider', () => {
   })
 
   it('advances autoplay only after apply plus the minimum interval', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      forecastHours: DEFAULT_FORECAST_HOURS,
-    })
+    const manifest = createTimelineManifest()
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {

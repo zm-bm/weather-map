@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CycleManifest } from '../../../manifest'
 import { decodeScalarPayloadInt16, loadScalarFrame } from './frame'
@@ -8,6 +8,11 @@ import {
   createScalarPayloadFixture,
   createSignalFixture,
 } from '../../../test/fixtures'
+import { stubFetchArrayBufferOnce } from '../../../test/fetch'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('scalar payload', () => {
   it('decodes little-endian int16 payloads', () => {
@@ -22,11 +27,7 @@ describe('scalar payload', () => {
 
   it('maps loaded scalar payload into frame data', async () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      arrayBuffer: async () => payload,
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetchArrayBufferOnce(payload)
 
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
@@ -67,8 +68,6 @@ describe('scalar payload', () => {
     expect(frame.grid.nx).toBe(2)
     expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
     expect(fetchMock).toHaveBeenCalledTimes(1)
-
-    vi.unstubAllGlobals()
   })
 
   it('rejects unsupported scalar encodings locally', async () => {

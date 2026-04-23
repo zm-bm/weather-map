@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CycleManifest } from '../../../manifest'
 import { loadVectorFrame } from './frame'
@@ -8,15 +8,16 @@ import {
   createSignalFixture,
   createVectorPayloadFixture,
 } from '../../../test/fixtures'
+import { stubFetchArrayBufferOnce } from '../../../test/fetch'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('vector payload', () => {
   it('loads vector payload from manifest frame and splits u/v', async () => {
     const payload = createVectorPayloadFixture([1, -2, 3, -4], [-5, 6, -7, 8])
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      arrayBuffer: async () => payload,
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetchArrayBufferOnce(payload)
 
     const frame = await loadVectorFrame({
       config: createConfigFixture(),
@@ -32,8 +33,6 @@ describe('vector payload', () => {
     expect(frame.metadata.kind).toBe('vector')
     expect(frame.metadata.hourToken).toBe('000')
     expect(frame.metadata.component_count).toBe(2)
-
-    vi.unstubAllGlobals()
   })
 
   it('rejects invalid vector encodings locally', async () => {

@@ -6,7 +6,7 @@ import { createCycleManifestPayloadFixture } from '../test/fixtures'
 describe('parseCycleManifest', () => {
   it('rejects empty scalar variable lists', () => {
     const payload = createCycleManifestPayloadFixture({
-      scalar_variables: [],
+      scalarVariables: [],
     })
 
     expect(() => parseCycleManifest(payload)).toThrow(
@@ -16,7 +16,7 @@ describe('parseCycleManifest', () => {
 
   it('rejects empty vector variable lists', () => {
     const payload = createCycleManifestPayloadFixture({
-      vector_variables: [],
+      vectorVariables: [],
     })
 
     expect(() => parseCycleManifest(payload)).toThrow(
@@ -26,7 +26,7 @@ describe('parseCycleManifest', () => {
 
   it('rejects scalar list entries that are not scalar metadata', () => {
     const payload = createCycleManifestPayloadFixture({
-      scalar_variables: ['wind10m_uv'],
+      scalarVariables: ['wind10m_uv'],
     })
 
     expect(() => parseCycleManifest(payload)).toThrow(
@@ -36,7 +36,7 @@ describe('parseCycleManifest', () => {
 
   it('rejects vector list entries that are not vector metadata', () => {
     const payload = createCycleManifestPayloadFixture({
-      vector_variables: ['tmp_surface'],
+      vectorVariables: ['tmp_surface'],
     })
 
     expect(() => parseCycleManifest(payload)).toThrow(

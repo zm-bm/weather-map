@@ -1,36 +1,17 @@
 import { renderHook } from '@testing-library/react'
 import maplibregl, { type IControl, type Map as MapLibreMap } from 'maplibre-gl'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { MusicControl } from '../../components/controls/MusicControl'
 import { OptionsControl } from '../../components/controls/OptionsControl'
+import { createMapFixture } from '../../test/fixtures'
 import { useMapControls } from './useMapControls'
 
 type AddedControl = [IControl, string?]
 
-type ControllableMap = MapLibreMap & {
-  addControl: ReturnType<typeof vi.fn>
-  hasControl: ReturnType<typeof vi.fn>
-  removeControl: ReturnType<typeof vi.fn>
-}
-
-function createControllableMap(): ControllableMap {
-  const controls = new Set<IControl>()
-
-  return {
-    addControl: vi.fn((control: IControl) => {
-      controls.add(control)
-    }),
-    hasControl: vi.fn((control: IControl) => controls.has(control)),
-    removeControl: vi.fn((control: IControl) => {
-      controls.delete(control)
-    }),
-  } as unknown as ControllableMap
-}
-
 describe('useMapControls', () => {
   it('adds and removes navigation, music, and options controls', () => {
-    const map = createControllableMap()
+    const map = createMapFixture()
     const mapRef = { current: null as MapLibreMap | null }
 
     const { rerender, unmount } = renderHook(
@@ -65,7 +46,7 @@ describe('useMapControls', () => {
   })
 
   it('skips removeControl when the map already dropped the controls', () => {
-    const map = createControllableMap()
+    const map = createMapFixture()
     const mapRef = { current: map as MapLibreMap | null }
 
     const { unmount } = renderHook(() => useMapControls(mapRef, 1))

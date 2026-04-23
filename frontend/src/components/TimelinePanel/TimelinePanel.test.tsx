@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createForecastTimeContextValue } from '../../test/fixtures'
 import TimelinePanel from './TimelinePanel'
 
 const mocks = vi.hoisted(() => ({
@@ -18,22 +19,20 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => ({
-    cycle: '2026040900',
-    forecastHours: ['000', '003', '006'],
-    state: mocks.timelineState,
-    controls: {
-      requestHour: mocks.requestHour,
-      requestPrev: mocks.requestPrev,
-      requestNext: mocks.requestNext,
-      togglePlay: mocks.togglePlay,
-    },
-    sync: {
-      onRequestStart: vi.fn(),
-      onRequestApplied: vi.fn(),
-      onRequestError: vi.fn(),
-    },
-  }),
+  useForecastTimeContext: () => createForecastTimeContextValue(
+    null,
+    {
+      cycle: '2026040900',
+      forecastHours: ['000', '003', '006'],
+      state: mocks.timelineState,
+      controls: {
+        requestHour: mocks.requestHour,
+        requestPrev: mocks.requestPrev,
+        requestNext: mocks.requestNext,
+        togglePlay: mocks.togglePlay,
+      },
+    }
+  ),
 }))
 
 describe('TimelinePanel', () => {
