@@ -1,11 +1,11 @@
 import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
-import { getScalarLayerMeta } from '../../map/scalar'
+import { getScalarMeta } from '../../forecast-metadata/scalar'
 import { getUnitDisplay, getUnitOption } from '../../units'
 import { LegendPanelView } from './LegendPanelView'
 
 export default function LegendPanel() {
   const { activeScalar, variableMeta, getScalarUnitOptionId, setScalarUnitOptionId } = useLoadedForecastSelectionContext()
-  const meta = getScalarLayerMeta(activeScalar, variableMeta)
+  const meta = getScalarMeta(activeScalar, variableMeta)
   const unitDisplay = getUnitDisplay(meta)
   const selectedOption = getUnitOption(
     unitDisplay,

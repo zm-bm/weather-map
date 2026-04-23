@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   fetchCurrentManifest: vi.fn(),
 }))
 
-vi.mock('./client', () => ({
+vi.mock('./fetch', () => ({
   fetchCurrentManifest: mocks.fetchCurrentManifest,
 }))
 

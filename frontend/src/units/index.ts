@@ -1,4 +1,4 @@
-import type { ScalarLayerMeta } from '../map/scalar'
+import type { ScalarMeta } from '../forecast-metadata/scalar'
 
 export type UnitOption = {
   id: string
@@ -106,7 +106,7 @@ const UNIT_RULES: UnitRule[] = [
   },
 ]
 
-export function getUnitDisplay(meta: ScalarLayerMeta): UnitDisplay {
+export function getUnitDisplay(meta: ScalarMeta): UnitDisplay {
   const normalizedLabel = meta.label.toLowerCase()
   const normalizedUnits = meta.units.trim()
 

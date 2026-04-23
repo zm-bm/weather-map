@@ -3,11 +3,10 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
-import { scalarLayerAdapter } from '../map/scalar'
-import { vectorLayerAdapter } from '../map/vector'
+import { syncableForecastLayers } from '../forecast-layers'
 import type { StartupState, SyncRequest } from './types'
 
-const LAYER_ADAPTERS = [scalarLayerAdapter, vectorLayerAdapter] as const
+const SYNCABLE_FORECAST_LAYERS = syncableForecastLayers
 
 type UseSyncRunnerArgs = {
   getMap: () => MapLibreMap | null
@@ -110,7 +109,7 @@ export function useSyncRunner({
     const runRequest = async () => {
       try {
         await Promise.all(
-          LAYER_ADAPTERS.map((adapter) => adapter.applySync({
+          SYNCABLE_FORECAST_LAYERS.map((layer) => layer.applySync({
             map,
             config,
             manifest,

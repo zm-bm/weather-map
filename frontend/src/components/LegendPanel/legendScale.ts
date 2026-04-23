@@ -1,4 +1,4 @@
-import type { ScalarLayerMeta } from '../../map/scalar'
+import type { ScalarMeta } from '../../forecast-metadata/scalar'
 import type { UnitOption } from '../../units'
 
 export type LegendTick = {
@@ -26,7 +26,7 @@ type LegendTickSet = {
   minor: number[]
 }
 
-function toLegendGradient(meta: ScalarLayerMeta): string {
+function toLegendGradient(meta: ScalarMeta): string {
   const range = meta.max - meta.min || 1
   const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
   const stops = orderedStops
@@ -157,7 +157,7 @@ function buildEvenTicks(min: number, max: number, targetCount: number): number[]
   return sampleEvenly(uniqueTicks, targetCount)
 }
 
-function buildStopBasedTicks(meta: ScalarLayerMeta, option: UnitOption, maxCount: number): number[] {
+function buildStopBasedTicks(meta: ScalarMeta, option: UnitOption, maxCount: number): number[] {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min]
@@ -226,7 +226,7 @@ function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, ma
   }
 }
 
-function getLegendTickValues(meta: ScalarLayerMeta, option: UnitOption): LegendTickSet {
+function getLegendTickValues(meta: ScalarMeta, option: UnitOption): LegendTickSet {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
@@ -249,7 +249,7 @@ function getLegendTickValues(meta: ScalarLayerMeta, option: UnitOption): LegendT
   }
 }
 
-export function getLegendTicks(meta: ScalarLayerMeta, option: UnitOption): LegendTick[] {
+export function getLegendTicks(meta: ScalarMeta, option: UnitOption): LegendTick[] {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   const range = max - min || 1
@@ -279,7 +279,7 @@ export function getLegendTicks(meta: ScalarLayerMeta, option: UnitOption): Legen
   return [...minorTicks, ...majorTicks].sort((a, b) => a.value - b.value)
 }
 
-export function toLegendSteppedGradient(meta: ScalarLayerMeta, direction = 'to top'): string {
+export function toLegendSteppedGradient(meta: ScalarMeta, direction = 'to top'): string {
   const range = meta.max - meta.min || 1
   const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
   if (orderedStops.length < 2) return toLegendGradient(meta)

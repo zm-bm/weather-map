@@ -1,10 +1,14 @@
 import { getUnitDisplay, getUnitOption } from '../../units'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
-import { formatValidLabel } from '../../forecast-time/format'
-import { hourTokenAt, normalizeHourIndex } from '../../forecast-time/time'
-import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
-import { getScalarLayerMeta } from '../../map/scalar'
-import { useMapProbe } from '../../map-probe/MapProbeContext'
+import {
+  formatValidLabel,
+  hourTokenAt,
+  normalizeHourIndex,
+  useForecastTimeContext,
+} from '../../forecast-time'
+import { getScalarMeta } from '../../forecast-metadata/scalar'
+import { useMapProbe } from '../../map-probe/context'
+import { useProbeValue } from '../../map-probe/useProbeValue'
 
 function formatCoordinate(value: number) {
   return value.toFixed(2)
@@ -18,26 +22,31 @@ function formatProbeValue(value: number | null) {
 }
 
 function ForecastPanel() {
-  const { variableMeta, getScalarUnitOptionId } = useLoadedForecastSelectionContext()
+  const { activeScalar, variableMeta, getScalarUnitOptionId } = useLoadedForecastSelectionContext()
   const { cycle, forecastHours, state: forecastTimeState } = useForecastTimeContext()
   const { lastProbe } = useMapProbe()
+  const { value: rawProbeValue, loading: probeLoading } = useProbeValue(activeScalar)
   const totalHours = Math.max(1, forecastHours.length)
   const appliedHourIdx = normalizeHourIndex(forecastTimeState.appliedHourIndex, totalHours)
   const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
   const validTimeLabel = formatValidLabel(cycle, appliedHourToken)
-  const probeMeta = lastProbe?.variableId == null ? null : getScalarLayerMeta(lastProbe.variableId, variableMeta)
+  const probeMeta = getScalarMeta(activeScalar, variableMeta)
   const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
+
   const probeUnitOption = probeMeta == null || probeUnitDisplay == null
     ? null
     : getUnitOption(
       probeUnitDisplay,
       getScalarUnitOptionId(probeMeta.id, probeUnitDisplay.defaultOptionId)
     )
-  const convertedProbeValue = lastProbe?.value == null || probeUnitOption == null
-    ? lastProbe?.value ?? null
-    : probeUnitOption.convert(lastProbe.value)
+  const convertedProbeValue = rawProbeValue == null || probeUnitOption == null
+    ? rawProbeValue
+    : probeUnitOption.convert(rawProbeValue)
+
   const probeValueText = lastProbe == null
     ? 'Click map to sample current layer'
+    : probeLoading
+      ? 'Loading current layer'
     : formatProbeValue(convertedProbeValue)
 
   return (
@@ -45,7 +54,7 @@ function ForecastPanel() {
       <div className="forecast-panel__header wm-titlebar">
         <span className="forecast-panel__eyebrow wm-eyebrow">Local Forecast</span>
         <strong className="forecast-panel__title wm-display-caps">
-          {probeMeta?.label ?? 'Click Map'}
+          {lastProbe == null ? 'Click Map' : (probeMeta?.label ?? activeScalar)}
         </strong>
       </div>
 

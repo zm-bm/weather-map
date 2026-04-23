@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
-import { loadScalarFrame } from '../map/scalar/engine/frame'
-import { loadVectorFrame } from '../map/vector/engine/frame'
+import { loadScalarFrame } from '../forecast-layers/scalar'
+import { loadVectorFrame } from '../forecast-layers/vector'
 import {
   createConfigFixture,
   createCycleManifestPayloadFixture,

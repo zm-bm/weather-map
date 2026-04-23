@@ -1,6 +1,6 @@
 import type { CycleManifest } from '../../manifest'
 import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
-import ForecastTimeProvider from '../../forecast-time/ForecastTimeProvider'
+import { ForecastTimeProvider } from '../../forecast-time'
 import MapProbeProvider from '../../map-probe/MapProbeProvider'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'

@@ -1,5 +1,5 @@
 import type { ScalarVariableId } from '../../manifest'
-import { getScalarLayerMeta } from '../../map/scalar'
+import { getScalarMeta } from '../../forecast-metadata/scalar'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
 import {
   formatUnitLabel,
@@ -16,7 +16,7 @@ function ProductPanel() {
     getScalarUnitOptionId,
     setScalarUnitOptionId,
   } = useLoadedForecastSelectionContext()
-  const scalarMeta = getScalarLayerMeta(activeScalar, variableMeta)
+  const scalarMeta = getScalarMeta(activeScalar, variableMeta)
   const scalarUnitDisplay = getUnitDisplay(scalarMeta)
   const scalarUnitOption = getUnitOption(
     scalarUnitDisplay,
@@ -54,7 +54,7 @@ function ProductPanel() {
                 onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarVariableId)}
               >
                 {scalarVariables.map((variableId) => {
-                  const meta = getScalarLayerMeta(variableId, variableMeta)
+                  const meta = getScalarMeta(variableId, variableMeta)
 
                   return (
                     <option key={variableId} value={variableId}>

@@ -19,20 +19,19 @@ const mocks = vi.hoisted(() => ({
   vectorApplySync: vi.fn(),
 }))
 
-vi.mock('../map/scalar', () => ({
-  scalarLayerAdapter: {
-    layerId: 'scalar-layer-id',
-    createLayer: vi.fn(),
-    applySync: mocks.scalarApplySync,
-  },
-}))
-
-vi.mock('../map/vector', () => ({
-  vectorLayerAdapter: {
-    layerId: 'vector-layer-id',
-    createLayer: vi.fn(),
-    applySync: mocks.vectorApplySync,
-  },
+vi.mock('../forecast-layers', () => ({
+  syncableForecastLayers: [
+    {
+      layerId: 'scalar-layer-id',
+      install: vi.fn(),
+      applySync: mocks.scalarApplySync,
+    },
+    {
+      layerId: 'vector-layer-id',
+      install: vi.fn(),
+      applySync: mocks.vectorApplySync,
+    },
+  ],
 }))
 
 type SyncInput = {

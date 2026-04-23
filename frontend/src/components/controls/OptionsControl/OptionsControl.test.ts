@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { OptionsControl } from './OptionsControl'
-import { DEFAULT_VECTOR_RUNTIME_OPTIONS } from '../../../map/vector/options'
+import { DEFAULT_VECTOR_RUNTIME_OPTIONS } from '../../../forecast-layers/vector'
 
 describe('OptionsControl', () => {
   it('toggles panel visibility and updates scalar/vector runtime options', async () => {

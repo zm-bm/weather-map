@@ -1,16 +1,13 @@
 {
   "version": 8,
+  "glyphs": "/font/{fontstack}/{range}",
   "sources": {
-    "dem-source": {
-      "type": "raster-dem",
-      "encoding": "terrarium",
-      "tileSize": 256,
-      "tiles": [],
-      "maxzoom": 5
-    },
     "openmaptiles": {
       "type": "vector",
-      "url": "https://tiles.openfreemap.org/planet"
+      "url": "https://tiles.openfreemap.org/planet",
+      "promoteId": {
+        "place": "name"
+      }
     }
   },
   "sprite": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
@@ -20,25 +17,6 @@
       "type": "background",
       "paint": {
         "background-color": "rgb(244, 241, 235)"
-      }
-    },
-    {
-      "id": "hillshade",
-      "type": "hillshade",
-      "source": "dem-source",
-      "paint": {
-        "hillshade-exaggeration": [
-          "interpolate", ["linear"], ["zoom"],
-          0, 0.18,
-          2, 0.22,
-          4, 0.3,
-          5, 0.4,
-          6, 0.52,
-          8, 0.7
-        ],
-        "hillshade-shadow-color": "rgba(22, 28, 36, 0.18)",
-        "hillshade-highlight-color": "rgba(245, 247, 250, 0.18)",
-        "hillshade-accent-color": "rgba(88, 102, 116, 0.12)"
       }
     },
     {
@@ -273,10 +251,25 @@
         ]
       },
       "paint": {
-        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(255, 255, 255, 1)",
+          "rgba(244, 247, 255, 0.96)"
+        ],
         "text-halo-blur": 0.7,
-        "text-halo-color": "rgba(27, 35, 60, 0.96)",
-        "text-halo-width": 1.75
+        "text-halo-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(16, 24, 44, 1)",
+          "rgba(27, 35, 60, 0.96)"
+        ],
+        "text-halo-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          2.35,
+          1.75
+        ]
       }
     },
     {
@@ -316,10 +309,25 @@
         ]
       },
       "paint": {
-        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(255, 255, 255, 1)",
+          "rgba(244, 247, 255, 0.96)"
+        ],
         "text-halo-blur": 0.7,
-        "text-halo-color": "rgba(27, 35, 60, 0.96)",
-        "text-halo-width": 1.75
+        "text-halo-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(16, 24, 44, 1)",
+          "rgba(27, 35, 60, 0.96)"
+        ],
+        "text-halo-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          2.35,
+          1.75
+        ]
       }
     },
     {
@@ -359,10 +367,25 @@
         ]
       },
       "paint": {
-        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(255, 255, 255, 1)",
+          "rgba(244, 247, 255, 0.96)"
+        ],
         "text-halo-blur": 0.7,
-        "text-halo-color": "rgba(27, 35, 60, 0.96)",
-        "text-halo-width": 1.75
+        "text-halo-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(16, 24, 44, 1)",
+          "rgba(27, 35, 60, 0.96)"
+        ],
+        "text-halo-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          2.35,
+          1.75
+        ]
       }
     },
     {
@@ -401,10 +424,25 @@
         ]
       },
       "paint": {
-        "text-color": "rgba(244, 247, 255, 0.96)",
+        "text-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(255, 255, 255, 1)",
+          "rgba(244, 247, 255, 0.96)"
+        ],
         "text-halo-blur": 0.7,
-        "text-halo-color": "rgba(27, 35, 60, 0.96)",
-        "text-halo-width": 1.75
+        "text-halo-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "rgba(16, 24, 44, 1)",
+          "rgba(27, 35, 60, 0.96)"
+        ],
+        "text-halo-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          2.35,
+          1.75
+        ]
       }
     }
   ]

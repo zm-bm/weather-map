@@ -27,14 +27,17 @@ This document defines the preferred domain terms for frontend map/forecast code.
   - startup sync policy, request composition, dedupe/abort, and app-status projection.
   - no scalar/vector payload decoding or runtime uploads.
 
-- `map/scalar/*`:
-  - scalar payload fetch/decode, scalar runtime uploads, scalar-specific sync.
+- `forecast-layers/scalar/*`:
+  - scalar payload fetch/decode, scalar runtime uploads, probe ownership, and scalar display metadata.
 
-- `map/vector/*`:
+- `forecast-layers/vector/*`:
   - vector payload fetch/decode and vector layer runtime updates.
 
+- `forecast-frame/*`:
+  - frame spec/loading shared by forecast renderers.
+
 - `map/*`:
-  - generic MapLibre style/runtime scaffolding.
+  - MapLibre host platform: style/runtime scaffolding, viewport/config, and host contracts.
 
 ## Coordinator Pattern
 
@@ -43,6 +46,6 @@ Preferred orchestration shape:
 1. `forecast-time/ForecastTimeProvider` + `forecast-time/useForecastTimeContext`
 2. `forecast-sync/useForecastSync` as the primary `ForecastMap` coordinator
 3. `forecast-sync/useStartupState`, `useSyncRequest`, `useSyncRunner`, `useStartupAppStatus` as the internal orchestration pieces
-4. `map/scalar/*` + `map/vector/*` runtime/frame adapters/controllers
+4. `forecast-layers/*` renderers and frame adapters/controllers
 
-Guideline: keep sync orchestration in `forecast-sync`, wired into `ForecastMap` via `useForecastSync`, while scalar and vector runtime concerns remain in separate domain modules.
+Guideline: keep sync orchestration in `forecast-sync`, wired into `ForecastMap` via `useForecastSync`, while the MapLibre host lives in `map/*` and forecast renderers live in `forecast-layers/*`.
