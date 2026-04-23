@@ -1,19 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
   createManifestFixture,
   createScalarVariableMetaFixture,
+  renderWithForecastSelection,
 } from '../../test/fixtures'
-import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
 import ProductPanel from './ProductPanel'
 
-function renderProductPanel(activeScalar: 'tmp_surface' | 'prmsl_surface' = 'tmp_surface') {
-  const manifest = createManifestFixture({
+function createProductSelectionManifest(activeScalar: 'tmp_surface' | 'prmsl_surface') {
+  return createManifestFixture({
     cycle: '2026041100',
-    scalarVariables: [activeScalar, 'tmp_surface', 'prmsl_surface'].filter(
-      (value, index, values) => values.indexOf(value) === index
-    ),
+    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface'])),
     vectorVariables: ['wind10m_uv', 'gust10m_uv'],
     variableMeta: {
       tmp_surface: createScalarVariableMetaFixture(),
@@ -25,12 +23,10 @@ function renderProductPanel(activeScalar: 'tmp_surface' | 'prmsl_surface' = 'tmp
       }),
     },
   })
+}
 
-  return render(
-    <ForecastSelectionProvider manifest={manifest}>
-      <ProductPanel />
-    </ForecastSelectionProvider>
-  )
+function renderProductPanel(activeScalar: 'tmp_surface' | 'prmsl_surface' = 'tmp_surface') {
+  return renderWithForecastSelection(<ProductPanel />, createProductSelectionManifest(activeScalar))
 }
 
 describe('ProductPanel', () => {

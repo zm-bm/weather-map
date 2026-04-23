@@ -64,4 +64,44 @@ describe('useManifest', () => {
     expect(mocks.fetchCurrentManifest).toHaveBeenCalledTimes(2)
     expect(mocks.fetchCurrentManifest).toHaveBeenCalledWith(expect.anything())
   })
+
+  it('ignores aborted in-flight requests when retry starts a newer load', async () => {
+    const abortError = new Error('Request aborted')
+    abortError.name = 'AbortError'
+
+    const manifest = createManifestFixture({
+      cycle: '2026041200',
+      generatedAt: '2026-04-12T00:00:00Z',
+      revision: 'retry-success',
+    })
+
+    let firstSignal: AbortSignal | null = null
+
+    mocks.fetchCurrentManifest
+      .mockImplementationOnce(({ signal }: { signal?: AbortSignal }) => {
+        firstSignal = signal ?? null
+        return new Promise<CycleManifest>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      })
+      .mockResolvedValueOnce(manifest)
+
+    const { result } = renderHook(() => useManifest())
+
+    await waitFor(() => {
+      expect(mocks.fetchCurrentManifest).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      result.current.retry()
+    })
+
+    await waitFor(() => {
+      expect(firstSignal?.aborted).toBe(true)
+      expect(mocks.fetchCurrentManifest).toHaveBeenCalledTimes(2)
+      expect(result.current.loading).toBe(false)
+      expect(result.current.error).toBeNull()
+      expect(result.current.manifest).toEqual(manifest)
+    })
+  })
 })

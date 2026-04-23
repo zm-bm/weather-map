@@ -154,6 +154,69 @@ describe('useSyncRunner + useStartupState', () => {
     expect(result.current.startupErrorMessage).toBeNull()
   })
 
+  it('waits for map readiness before syncing', async () => {
+    const args = createBaseArgs({
+      mapReadyVersion: 0,
+    })
+    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.scalarApplySync).not.toHaveBeenCalled()
+    expect(mocks.vectorApplySync).not.toHaveBeenCalled()
+    expect(callbacks.onRequestStart).not.toHaveBeenCalled()
+    expect(result.current.startupPhase).toBe('loading')
+
+    rerender({
+      ...args,
+      mapReadyVersion: 1,
+    })
+
+    await waitFor(() => {
+      expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
+      expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(result.current.startupPhase).toBe('ready')
+    })
+  })
+
+  it('waits for a map instance before syncing', async () => {
+    const map = createMapFixture()
+    const args = createBaseArgs({
+      getMap: () => null,
+    })
+    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.scalarApplySync).not.toHaveBeenCalled()
+    expect(mocks.vectorApplySync).not.toHaveBeenCalled()
+    expect(callbacks.onRequestStart).not.toHaveBeenCalled()
+    expect(result.current.startupPhase).toBe('loading')
+
+    rerender({
+      ...args,
+      getMap: () => map,
+    })
+
+    await waitFor(() => {
+      expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
+      expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(result.current.startupPhase).toBe('ready')
+    })
+  })
+
   it('starts syncing when request becomes enabled', async () => {
     const syncInput = createSyncInput()
     const callbacks = syncInput.sync
@@ -199,6 +262,38 @@ describe('useSyncRunner + useStartupState', () => {
     rerender({
       ...args,
       config: { ...args.config },
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
+    expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not rerun requests while startup is blocked after an initial failure', async () => {
+    const startupError = new Error('wind failed')
+    mocks.scalarApplySync.mockRejectedValueOnce(startupError)
+
+    const args = createBaseArgs()
+    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await waitFor(() => {
+      expect(callbacks.onRequestError).toHaveBeenCalledWith(0, startupError)
+      expect(result.current.startupPhase).toBe('error')
+      expect(result.current.startupErrorMessage).toBe('wind failed')
+    })
+
+    rerender({
+      ...args,
+      syncInput: {
+        ...(args.syncInput as SyncInput),
+        targetHourIndex: 1,
+      },
     })
 
     await act(async () => {

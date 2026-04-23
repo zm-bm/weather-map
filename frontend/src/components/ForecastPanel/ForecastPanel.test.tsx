@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { formatValidLabel } from '../../forecast-time'
-import { createManifestFixture, createScalarVariableMetaFixture } from '../../test/fixtures'
+import {
+  createForecastSelectionContextValue,
+  createForecastTimeContextValue,
+  createManifestFixture,
+  createScalarVariableMetaFixture,
+} from '../../test/fixtures'
 import ForecastPanel from './ForecastPanel'
 
 const mocks = vi.hoisted(() => ({
@@ -38,43 +43,50 @@ const mocks = vi.hoisted(() => ({
   } | null,
 }))
 
-vi.mock('../../forecast-selection/ForecastSelectionContext', () => ({
-  useLoadedForecastSelectionContext: () => {
-    const manifest = createManifestFixture({
-      cycle: '2026041100',
-      scalarVariables: ['tmp_surface', 'rh_surface'],
-      vectorVariables: ['wind10m_uv'],
-      variableMeta: {
-        tmp_surface: createScalarVariableMetaFixture(),
-        rh_surface: createScalarVariableMetaFixture({
-          units: '%',
-          parameter: 'rh',
-          valid_min: 0,
-          valid_max: 100,
-        }),
-      },
-    })
-
-    return {
-      manifest,
-      cycle: manifest.cycle,
-      scalarVariables: manifest.scalarVariables,
-      vectorVariables: manifest.vectorVariables,
-      variableMeta: manifest.variableMeta,
-      activeScalar: mocks.activeScalar,
-      activeVector: manifest.vectorVariables[0],
-      setActiveScalar: vi.fn(),
-      setActiveVector: vi.fn(),
-      scalarUnitOptionIds: {},
-      vectorUnitOptionIds: {},
-      getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => (
-        variableId === 'tmp_surface' ? 'fahrenheit' : fallbackOptionId
-      ),
-      getVectorUnitOptionId: (_variableId: string, fallbackOptionId: string) => fallbackOptionId,
-      setScalarUnitOptionId: vi.fn(),
-      setVectorUnitOptionId: vi.fn(),
-    }
+const manifest = createManifestFixture({
+  cycle: '2026041100',
+  scalarVariables: ['tmp_surface', 'rh_surface'],
+  vectorVariables: ['wind10m_uv'],
+  variableMeta: {
+    tmp_surface: createScalarVariableMetaFixture(),
+    rh_surface: createScalarVariableMetaFixture({
+      units: '%',
+      parameter: 'rh',
+      valid_min: 0,
+      valid_max: 100,
+    }),
   },
+})
+
+function createPanelSelectionContextValue() {
+  return createForecastSelectionContextValue(
+    manifest,
+    {
+    activeScalar: mocks.activeScalar,
+    getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => (
+      variableId === 'tmp_surface' ? 'fahrenheit' : fallbackOptionId
+    ),
+    getVectorUnitOptionId: (_variableId: string, fallbackOptionId: string) => fallbackOptionId,
+    }
+  )
+}
+
+function createPanelTimeContextValue() {
+  return createForecastTimeContextValue(
+    manifest,
+    {
+      cycle: '2026042113',
+      forecastHours: ['000', '003', '006'],
+      state: {
+        appliedHourIndex: 1,
+        targetHourIndex: 1,
+      },
+    }
+  )
+}
+
+vi.mock('../../forecast-selection/ForecastSelectionContext', () => ({
+  useLoadedForecastSelectionContext: () => createPanelSelectionContextValue(),
 }))
 
 vi.mock('../../map-probe/context', () => ({
@@ -104,28 +116,7 @@ vi.mock('../../map-probe/useProbeValue', () => ({
 }))
 
 vi.mock('../../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => ({
-    cycle: '2026042113',
-    forecastHours: ['000', '003', '006'],
-    state: {
-      appliedHourIndex: 1,
-      targetHourIndex: 1,
-      pendingHourIndex: null,
-      isInFlight: false,
-      isPlaying: false,
-    },
-    controls: {
-      requestHour: vi.fn(),
-      requestPrev: vi.fn(),
-      requestNext: vi.fn(),
-      togglePlay: vi.fn(),
-    },
-    sync: {
-      onRequestStart: vi.fn(),
-      onRequestApplied: vi.fn(),
-      onRequestError: vi.fn(),
-    },
-  }),
+  useForecastTimeContext: () => createPanelTimeContextValue(),
 }))
 
 describe('ForecastPanel', () => {

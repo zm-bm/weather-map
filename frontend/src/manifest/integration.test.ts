@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
 import { loadScalarFrame } from '../forecast-layers/scalar'
@@ -11,12 +11,21 @@ import {
   createSignalFixture,
   createVectorPayloadFixture,
 } from '../test/fixtures'
+import {
+  createFetchArrayBufferResponse,
+  createFetchErrorResponse,
+  createFetchJsonResponse,
+} from '../test/fetch'
 
 function toUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
   if (input instanceof URL) return input.toString()
   return input.url
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('manifest + frame loading end-to-end', () => {
   it('fetches current manifest and loads scalar/vector frames from it', async () => {
@@ -27,38 +36,22 @@ describe('manifest + frame loading end-to-end', () => {
       const url = toUrl(input)
 
       if (url.endsWith('/latest.json')) {
-        return {
-          ok: true,
-          json: async () => createLatestManifestPayloadFixture(),
-        }
+        return createFetchJsonResponse(createLatestManifestPayloadFixture())
       }
 
       if (url.endsWith('/2026041312.json')) {
-        return {
-          ok: true,
-          json: async () => createCycleManifestPayloadFixture(),
-        }
+        return createFetchJsonResponse(createCycleManifestPayloadFixture())
       }
 
       if (url.endsWith('/tmp_surface.scalar.i16.bin')) {
-        return {
-          ok: true,
-          arrayBuffer: async () => scalarPayload,
-        }
+        return createFetchArrayBufferResponse(scalarPayload)
       }
 
       if (url.endsWith('/wind10m_uv.vector.i8.bin')) {
-        return {
-          ok: true,
-          arrayBuffer: async () => vectorPayload,
-        }
+        return createFetchArrayBufferResponse(vectorPayload)
       }
 
-      return {
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-      }
+      return createFetchErrorResponse(404, 'Not Found')
     })
 
     vi.stubGlobal('fetch', fetchMock)
@@ -91,7 +84,5 @@ describe('manifest + frame loading end-to-end', () => {
     expect(Array.from(vectorFrame.u)).toEqual([5, 6, 7, 8])
     expect(Array.from(vectorFrame.v)).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(4)
-
-    vi.unstubAllGlobals()
   })
 })
