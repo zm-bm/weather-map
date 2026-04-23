@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import AppStatusHost from './AppStatusHost'
-import AppStatusProvider from '../../state/AppStatusProvider'
-import { useAppStatus } from '../../state/appStatus'
+import { useAppStatusActions } from '../../app-status/AppStatusContext'
+import AppStatusProvider from '../../app-status/AppStatusProvider'
 
 function StatusPublisher(props: {
   sourceId: string
@@ -14,7 +14,7 @@ function StatusPublisher(props: {
   detail: string
 }) {
   const { sourceId, mode, level, title, detail } = props
-  const { setStatus } = useAppStatus()
+  const { setStatus } = useAppStatusActions()
 
   useEffect(() => {
     setStatus(sourceId, { mode, level, title, detail })

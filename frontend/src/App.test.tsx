@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from './map/manifest'
+import type { CycleManifest } from './manifest'
 import { createFrameManifestFixture } from './test/fixtures'
 import App from './App'
 
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   workspaceProps: null as Record<string, unknown> | null,
 }))
 
-vi.mock('./hooks/useManifest', () => ({
+vi.mock('./manifest/useManifest', () => ({
   useManifest: mocks.useManifest,
 }))
 

@@ -6,11 +6,11 @@ import type {
   ScalarVariableSpec,
   VectorVariableId,
   VectorVariableSpec,
-} from '../../map/manifest/types'
+} from '../../manifest/types'
 import {
   asScalarVariableId,
   asVectorVariableId,
-} from '../../map/manifest/types'
+} from '../../manifest/types'
 
 export const FIXTURE_CYCLE = '2026041312'
 export const FIXTURE_HOUR_TOKEN = '000'

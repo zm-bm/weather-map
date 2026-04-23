@@ -26,4 +26,7 @@ services:
       - ./frontend:/app
     environment:
       - VITE_SERVER_URL=http://localhost:3000
+      - VITE_DEV_PROXY_TARGET=http://nginx:3000
       - VITE_MANIFEST_BASE_URL=http://localhost:3000/manifests
+    depends_on:
+      - nginx

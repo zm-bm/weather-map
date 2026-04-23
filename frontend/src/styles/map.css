@@ -1,7 +1,14 @@
 .forecast-screen {
-  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
   height: 100vh;
+}
+
+.forecast-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
 }
 
 .map-stage {
@@ -10,17 +17,6 @@
 }
 
 .map-stage__viewport {
-  --wm-map-ctrl-shell-border: rgba(239, 212, 158, 0.48);
-  --wm-map-ctrl-shell-outline: rgba(8, 12, 37, 0.82);
-  --wm-map-ctrl-shell-top: #274198;
-  --wm-map-ctrl-shell-mid: #172a67;
-  --wm-map-ctrl-shell-bottom: #101e4d;
-  --wm-map-ctrl-shell-shadow: rgba(0, 0, 0, 0.2);
-  --wm-map-ctrl-shell-inset: rgba(255, 246, 222, 0.12);
-  --wm-map-btn-active-border: rgba(255, 234, 182, 0.72);
-  --wm-map-btn-active-gloss: rgba(255, 242, 208, 0.26);
-  --wm-map-btn-active-fill-top: rgba(232, 166, 67, 0.68);
-  --wm-map-btn-active-fill-bottom: rgba(134, 66, 18, 0.88);
   width: 100%;
   height: 100%;
   filter: saturate(0.975) contrast(1.035) brightness(0.98);
@@ -46,204 +42,4 @@
     linear-gradient(180deg, var(--wm-gloss-faint), transparent 16%, rgba(0, 0, 0, 0.08));
   mix-blend-mode: soft-light;
   opacity: 0.28;
-}
-
-.map-stage__viewport .maplibregl-ctrl-top-right .maplibregl-ctrl {
-  margin: 18px 18px 0 0;
-}
-
-.map-stage__viewport .maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl {
-  margin-top: 8px;
-}
-
-.map-stage__viewport .maplibregl-ctrl-group,
-.map-stage__viewport .maplibregl-ctrl-options-panel {
-  border: 1px solid var(--wm-map-ctrl-shell-border);
-  outline: 1px solid var(--wm-map-ctrl-shell-outline);
-  outline-offset: -2px;
-  background:
-    linear-gradient(180deg, var(--wm-gloss-soft), transparent 18%),
-    repeating-linear-gradient(
-      0deg,
-      var(--wm-stripe-light) 0 2px,
-      var(--wm-stripe-dark) 2px 4px
-    ),
-    linear-gradient(180deg, var(--wm-map-ctrl-shell-top) 0%, var(--wm-map-ctrl-shell-mid) 54%, var(--wm-map-ctrl-shell-bottom) 100%);
-  box-shadow:
-    0 10px 0 var(--wm-map-ctrl-shell-shadow),
-    inset 0 0 0 1px var(--wm-map-ctrl-shell-inset);
-}
-
-.map-stage__viewport .maplibregl-ctrl-group {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.map-stage__viewport .maplibregl-ctrl-group::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 2;
-  background:
-    repeating-linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.05) 0 1px,
-      rgba(8, 18, 50, 0.06) 1px 3px
-    );
-  mix-blend-mode: soft-light;
-  opacity: 0.4;
-}
-
-.map-stage__viewport .maplibregl-ctrl-group button {
-  position: relative;
-  z-index: 1;
-  width: 48px;
-  height: 39px;
-  border: 0;
-  padding: 0;
-  border-top: 1px solid rgba(255, 237, 202, 0.26);
-  border-bottom: 1px solid rgba(7, 12, 42, 0.58);
-  background:
-    linear-gradient(180deg, rgba(245, 196, 111, 0.18) 0%, rgba(245, 196, 111, 0) 24%),
-    linear-gradient(180deg, rgba(104, 134, 228, 0.3) 0%, rgba(15, 29, 79, 0.9) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 250, 232, 0.44),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.48);
-  transition: filter 120ms ease, transform 120ms ease, border-color 120ms ease;
-}
-
-.map-stage__viewport .maplibregl-ctrl-group button:first-of-type {
-  border-top: 0;
-}
-
-.map-stage__viewport .maplibregl-ctrl-group button + button {
-  border-top: 1px solid rgba(255, 231, 184, 0.32);
-}
-
-.map-stage__viewport .maplibregl-ctrl button .maplibregl-ctrl-icon {
-  background-position: center;
-  background-size: 22px 22px;
-  opacity: 0.96;
-  filter: drop-shadow(0 1px 0 rgba(8, 14, 42, 0.65));
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M13 8.5a1.5 1.5 0 1 1 3 0V13h4.5a1.5 1.5 0 0 1 0 3H16v4.5a1.5 1.5 0 1 1-3 0V16H8.5a1.5 1.5 0 0 1 0-3H13z'/%3E%3C/svg%3E");
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M8.5 13h12a1.5 1.5 0 0 1 0 3h-12a1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E");
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23ffc766' d='M14.5 5.2 20 14.3H9z'/%3E%3Cpath fill='%239ec0f0' d='M14.5 23.8 9 14.7h11z'/%3E%3Ccircle cx='14.5' cy='14.5' r='1.05' fill='%23fff5db'/%3E%3C/svg%3E");
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-music .maplibregl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M17.4 7.2v11.9a3.02 3.02 0 1 1-1.5-2.6v-7l-6 1.1v8a3.02 3.02 0 1 1-1.5-2.6V8.3c0-.7.49-1.3 1.18-1.43l6.87-1.28a1.28 1.28 0 0 1 1.53 1.26Z'/%3E%3C/svg%3E");
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-options-toggle .maplibregl-ctrl-icon {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='m15.99 6.01.37 1.72a6.96 6.96 0 0 1 1.41.58l1.5-.96 1.82 1.82-.95 1.49c.22.45.4.92.55 1.4l1.73.38v2.57l-1.72.37a6.9 6.9 0 0 1-.58 1.42l.96 1.49-1.82 1.82-1.5-.95a7.02 7.02 0 0 1-1.4.55l-.38 1.73h-2.57l-.37-1.72a7.1 7.1 0 0 1-1.42-.58l-1.49.96-1.82-1.82.95-1.5a7.1 7.1 0 0 1-.55-1.4l-1.73-.38v-2.57l1.72-.37c.14-.49.34-.96.58-1.42l-.96-1.49 1.82-1.82 1.5.95c.44-.22.91-.4 1.4-.55l.38-1.73zm-1.29 5.18a2.61 2.61 0 1 0 0 5.22 2.61 2.61 0 0 0 0-5.22z'/%3E%3C/svg%3E");
-}
-
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-music.is-playing,
-.map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-options-toggle[aria-pressed="true"] {
-  border-top-color: var(--wm-map-btn-active-border);
-  background:
-    linear-gradient(180deg, var(--wm-map-btn-active-gloss) 0%, rgba(255, 242, 208, 0) 24%),
-    linear-gradient(180deg, var(--wm-map-btn-active-fill-top) 0%, var(--wm-map-btn-active-fill-bottom) 100%);
-}
-
-.map-stage__viewport .maplibregl-ctrl-group.maplibregl-ctrl-options {
-  overflow: visible;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-panel {
-  position: absolute;
-  top: 0;
-  right: calc(100% + 10px);
-  z-index: 3;
-  min-width: 220px;
-  padding: 10px 12px;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-heading {
-  --wm-mono-caps-size: 0.66rem;
-  --wm-mono-caps-spacing: 0.14em;
-  color: var(--wm-text-cream);
-  font-weight: 700;
-  opacity: 0.9;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-divider {
-  margin: 8px 0;
-  border-top: 1px solid var(--wm-rule-warm-soft);
-  box-shadow: 0 1px 0 rgba(7, 12, 42, 0.45);
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-row {
-  --wm-mono-caps-size: 0.82rem;
-  --wm-mono-caps-spacing: 0.04em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--wm-text);
-  user-select: none;
-}
-
-.map-stage__viewport .maplibregl-ctrl-options-row input[type="checkbox"],
-.map-stage__viewport .maplibregl-ctrl-options-row input[type="radio"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--wm-accent-strong);
-}
-
-@media (hover: hover) {
-  .map-stage__viewport .maplibregl-ctrl button.maplibregl-ctrl-music.is-playing:hover {
-    filter: brightness(1.06);
-  }
-}
-
-@media (hover: hover) {
-  .map-stage__viewport .maplibregl-ctrl-group button:not(:disabled):hover {
-    border-top-color: rgba(255, 244, 211, 0.52);
-    filter: brightness(1.11);
-  }
-}
-
-.map-stage__viewport .maplibregl-ctrl-group button:not(:disabled):active {
-  transform: translateY(1px);
-  filter: brightness(0.9);
-}
-
-.map-stage__viewport .maplibregl-ctrl-group button:focus-visible {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 250, 232, 0.62),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.42),
-    0 0 0 2px rgba(255, 226, 171, 0.95);
-}
-
-.map-stage__viewport .maplibregl-ctrl button:disabled .maplibregl-ctrl-icon {
-  opacity: 0.3;
 }
