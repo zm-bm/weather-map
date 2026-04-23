@@ -1,18 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchCurrentManifest, fetchCycleManifest } from './fetch'
+import { fetchCurrentManifest, fetchCycleManifest, fetchLatestManifest } from './fetch'
 import {
   createCycleManifestPayloadFixture,
   createLatestManifestPayloadFixture,
   createSignalFixture,
 } from '../test/fixtures'
 import {
+  createFetchErrorResponse,
   createFetchJsonResponse,
   stubFetchJsonOnce,
 } from '../test/fetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('fetchLatestManifest', () => {
+  it('fails on non-ok responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createFetchErrorResponse(503, 'Service Unavailable'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      fetchLatestManifest({ signal: createSignalFixture() })
+    ).rejects.toThrow('Failed to fetch latest manifest: 503 Service Unavailable')
+  })
 })
 
 describe('fetchCycleManifest', () => {
@@ -33,6 +45,15 @@ describe('fetchCycleManifest', () => {
     await expect(
       fetchCycleManifest('2026041312', { signal: createSignalFixture() })
     ).rejects.toThrow('Unsupported cycle manifest version')
+  })
+
+  it('fails on non-ok responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createFetchErrorResponse(404, 'Not Found'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      fetchCycleManifest('2026041312', { signal: createSignalFixture() })
+    ).rejects.toThrow('Failed to fetch cycle manifest: 404 Not Found')
   })
 })
 

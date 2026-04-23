@@ -99,4 +99,40 @@ describe('ForecastSelectionContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'set-wind-knots' }))
     expect(screen.getByTestId('wind-unit')).toHaveTextContent('knots')
   })
+
+  it('preserves active selections when the manifest changes within the same cycle', () => {
+    const firstManifest = createManifestFixture({
+      cycle: '2026040900',
+      scalarVariables: ['tmp_surface', 'rh_2m'],
+      vectorVariables: ['gust10m_uv', 'wind10m_uv'],
+    })
+
+    const { rerender } = render(
+      <ForecastSelectionProvider manifest={firstManifest}>
+        <ForecastSelectionProbe />
+      </ForecastSelectionProvider>
+    )
+
+    expect(screen.getByTestId('active-scalar')).toHaveTextContent('tmp_surface')
+    expect(screen.getByTestId('active-vector')).toHaveTextContent('gust10m_uv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'set-scalar-rh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-vector-wind' }))
+
+    const secondManifest = createManifestFixture({
+      cycle: '2026040900',
+      scalarVariables: ['tmp_surface', 'rh_2m'],
+      vectorVariables: ['gust10m_uv', 'wind10m_uv'],
+      revision: 'same-cycle-new-revision',
+    })
+
+    rerender(
+      <ForecastSelectionProvider manifest={secondManifest}>
+        <ForecastSelectionProbe />
+      </ForecastSelectionProvider>
+    )
+
+    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_2m')
+    expect(screen.getByTestId('active-vector')).toHaveTextContent('wind10m_uv')
+  })
 })

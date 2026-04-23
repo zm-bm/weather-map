@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -114,5 +114,37 @@ describe('useMapLibre', () => {
     expect(mocks.installForecastLayers).toHaveBeenCalledTimes(1)
     expect(mocks.installForecastLayers).toHaveBeenCalledWith(mocks.getMap())
     expect(result.current.mapReadyVersion).toBe(1)
+  })
+
+  it('installs forecast layers immediately when the style is already loaded', async () => {
+    mocks.setStyleLoaded(true)
+
+    const { result } = renderHook(() => useMapLibre({
+      center: [-95, 39],
+      zoom: 4,
+      minZoom: 2,
+      maxZoom: 8,
+    }))
+
+    await waitFor(() => {
+      expect(mocks.installForecastLayers).toHaveBeenCalledTimes(1)
+      expect(result.current.mapReadyVersion).toBe(1)
+    })
+  })
+
+  it('removes listeners and tears down the map on unmount', () => {
+    const { unmount } = renderHook(() => useMapLibre({
+      center: [-95, 39],
+      zoom: 4,
+      minZoom: 2,
+      maxZoom: 8,
+    }))
+
+    unmount()
+
+    expect(mocks.getMap().off).toHaveBeenCalledWith('moveend', expect.any(Function))
+    expect(mocks.getMap().off).toHaveBeenCalledWith('style.load', expect.any(Function))
+    expect(mocks.getMap().off).toHaveBeenCalledWith('error', expect.any(Function))
+    expect(mocks.getMap().remove).toHaveBeenCalledTimes(1)
   })
 })

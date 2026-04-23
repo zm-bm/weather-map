@@ -145,6 +145,37 @@ describe('MusicControl', () => {
     })
   })
 
+  it('shows blocked playback feedback when play rejects', async () => {
+    const { createAudio } = installAudioMock({
+      playError: new Error('Playback blocked'),
+    })
+    const control = new MusicControl({ src: TRACK_URL, createAudio })
+    let root: HTMLElement
+
+    await act(async () => {
+      root = control.onAdd()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const button = root!.querySelector('button')
+    expect(button).toBeTruthy()
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(button).not.toBeDisabled()
+    expect(button).not.toHaveClass('is-playing')
+    expect(button).toHaveAttribute('aria-label', 'Play radio')
+    expect(button).toHaveAttribute('title', 'Playback blocked or unavailable')
+
+    await act(async () => {
+      control.onRemove()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
