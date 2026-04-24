@@ -1,29 +1,29 @@
-import { useState } from 'react'
-import { FaPause, FaPlay, FaStepBackward, FaStepForward } from 'react-icons/fa'
+import {
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type TouchEvent,
+} from 'react'
+import { FaPause, FaPlay } from 'react-icons/fa'
 
 import {
-  formatShortTickLabel,
-  formatValidLabel,
+  formatValidTimeLabel,
+  formatValidTimeTickLabel,
 } from '../../forecast-time/format'
 import {
-  hourTokenAt,
-  normalizeHourIndex,
+  FORECAST_TIME_STEP_MINUTES,
+  forecastTimeBounds,
+  minuteOffsetForValidTime,
+  validTimeMsForMinuteOffset,
 } from '../../forecast-time/time'
 import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
 
-function getTransportStatusLabel(options: {
-  isInFlight: boolean
-  loadingHourLabel: string
-  pendingHourLabel: string | null
-}): string | null {
-  const { isInFlight, loadingHourLabel, pendingHourLabel } = options
-  if (isInFlight && pendingHourLabel != null) {
-    return `Loading ${loadingHourLabel} · Queued ${pendingHourLabel}`
-  }
-  if (isInFlight) return `Loading ${loadingHourLabel}`
-  if (pendingHourLabel != null) return `Queued ${pendingHourLabel}`
-  return null
-}
+type SliderReleaseEvent =
+  | PointerEvent<HTMLInputElement>
+  | MouseEvent<HTMLInputElement>
+  | TouchEvent<HTMLInputElement>
 
 export default function TimelinePanel() {
   const {
@@ -33,44 +33,37 @@ export default function TimelinePanel() {
     controls: forecastTimeControls,
   } = useForecastTimeContext()
   const {
-    appliedHourIndex,
-    targetHourIndex,
-    pendingHourIndex,
-    isInFlight,
+    appliedTimeMs,
     isPlaying,
   } = forecastTimeState
-  const { requestHour, requestPrev, requestNext, togglePlay } = forecastTimeControls
+  const { requestTime, togglePlay } = forecastTimeControls
 
-  const forecastHourCount = forecastHours.length
-  const totalHours = Math.max(1, forecastHourCount)
-  const maxHourIdx = totalHours - 1
-  const appliedHourIdx = normalizeHourIndex(appliedHourIndex, totalHours)
-  const targetHourIdx = normalizeHourIndex(targetHourIndex, totalHours)
-  const pendingHourIdx = pendingHourIndex == null ? null : normalizeHourIndex(pendingHourIndex, totalHours)
-  const hourControlsDisabled = forecastHourCount <= 1
+  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const totalMinutes = bounds?.totalMinutes ?? 0
+  const appliedMinuteOffset = minuteOffsetForValidTime(cycle, forecastHours, appliedTimeMs)
+  const timelineControlsDisabled = forecastHours.length <= 1 || bounds == null
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)
 
-  const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
-  const targetHourToken = hourTokenAt(forecastHours, targetHourIdx)
-  const pendingHourToken = pendingHourIdx == null ? null : hourTokenAt(forecastHours, pendingHourIdx)
+  const startTickLabel = formatValidTimeTickLabel(bounds?.startValidTimeMs) ?? 'Start'
+  const appliedTickLabel = formatValidTimeLabel(appliedTimeMs) ?? 'Now'
+  const endTickLabel = formatValidTimeTickLabel(bounds?.endValidTimeMs) ?? 'End'
 
-  const startTickLabel = formatValidLabel(cycle, hourTokenAt(forecastHours, 0)) ?? 'Start'
-  const appliedTickLabel = formatValidLabel(cycle, appliedHourToken) ?? 'Now'
-  const endTickLabel = formatValidLabel(cycle, hourTokenAt(forecastHours, maxHourIdx)) ?? 'End'
-  const loadingHourLabel = formatShortTickLabel(cycle, targetHourToken) ?? `Hour ${targetHourToken}`
-  const pendingHourLabel = pendingHourToken == null
-    ? null
-    : (formatShortTickLabel(cycle, pendingHourToken) ?? `Hour ${pendingHourToken}`)
+  const commitSliderTime = (minuteOffset: number) => {
+    if (timelineControlsDisabled) return
+    requestTime(validTimeMsForMinuteOffset(cycle, forecastHours, minuteOffset))
+  }
 
-  const transportStatus = getTransportStatusLabel({
-    isInFlight,
-    loadingHourLabel,
-    pendingHourLabel,
-  })
+  const sliderMinuteOffset = (event: Pick<ChangeEvent<HTMLInputElement>, 'currentTarget'>) => (
+    Number(event.currentTarget.value)
+  )
 
-  const commitSliderHour = (hourIdx: number) => {
-    if (hourControlsDisabled) return
-    requestHour(normalizeHourIndex(hourIdx, totalHours))
+  const finishSliderDrag = (minuteOffset: number) => {
+    setIsDraggingSlider(false)
+    commitSliderTime(minuteOffset)
+  }
+
+  const handleSliderRelease = (event: SliderReleaseEvent) => {
+    finishSliderDrag(sliderMinuteOffset(event))
   }
 
   return (
@@ -82,42 +75,16 @@ export default function TimelinePanel() {
       <div className="timeline-panel__body">
         <div className="timeline-panel__console lower-third__console">
           <div className="timeline-panel__control-row">
-            <div className="timeline-panel__controls-bay">
-              <div className="timeline-panel__controls" aria-label="Timeline transport controls">
-                <button
-                  className="panel-button wm-bevel-button panel-button--transport"
-                  type="button"
-                  onClick={requestPrev}
-                  disabled={hourControlsDisabled}
-                  aria-label="Previous forecast frame"
-                >
-                  <FaStepBackward aria-hidden="true" />
-                </button>
-
-                <button
-                  className="panel-button wm-bevel-button panel-button--primary panel-button--play"
-                  type="button"
-                  onClick={togglePlay}
-                  disabled={hourControlsDisabled}
-                  aria-label={isPlaying ? 'Pause playback' : 'Play forecast timeline'}
-                >
-                  {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
-                </button>
-
-                <button
-                  className="panel-button wm-bevel-button panel-button--transport"
-                  type="button"
-                  onClick={requestNext}
-                  disabled={hourControlsDisabled}
-                  aria-label="Next forecast frame"
-                >
-                  <FaStepForward aria-hidden="true" />
-                </button>
-              </div>
-
-              {transportStatus ? (
-                <span className="timeline-panel__status wm-mono-caps">{transportStatus}</span>
-              ) : null}
+            <div className="timeline-panel__controls" aria-label="Timeline transport controls">
+              <button
+                className="panel-button wm-bevel-button panel-button--primary panel-button--play timeline-panel__play-button"
+                type="button"
+                onClick={togglePlay}
+                disabled={timelineControlsDisabled}
+                aria-label={isPlaying ? 'Pause playback' : 'Play forecast timeline'}
+              >
+                {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
+              </button>
             </div>
 
             <div className="timeline-panel__timeline-well">
@@ -126,37 +93,29 @@ export default function TimelinePanel() {
               </div>
 
               <input
-                key={appliedHourIdx}
+                key={appliedMinuteOffset}
                 className="timeline-panel__slider"
                 type="range"
                 min={0}
-                max={maxHourIdx}
-                step={1}
-                defaultValue={appliedHourIdx}
-                onChange={(event) => {
+                max={totalMinutes}
+                step={FORECAST_TIME_STEP_MINUTES}
+                defaultValue={appliedMinuteOffset}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
                   if (isDraggingSlider) return
-                  commitSliderHour(Number(event.currentTarget.value))
+                  commitSliderTime(sliderMinuteOffset(event))
                 }}
-                onPointerDown={() => setIsDraggingSlider(true)}
-                onPointerUp={(event) => {
-                  setIsDraggingSlider(false)
-                  commitSliderHour(Number(event.currentTarget.value))
+                onPointerDown={() => {
+                  setIsDraggingSlider(true)
                 }}
-                onMouseUp={(event) => {
-                  setIsDraggingSlider(false)
-                  commitSliderHour(Number(event.currentTarget.value))
-                }}
-                onTouchEnd={(event) => {
-                  setIsDraggingSlider(false)
-                  commitSliderHour(Number(event.currentTarget.value))
-                }}
-                onBlur={(event) => {
+                onPointerUp={handleSliderRelease}
+                onMouseUp={handleSliderRelease}
+                onTouchEnd={handleSliderRelease}
+                onBlur={(event: FocusEvent<HTMLInputElement>) => {
                   if (!isDraggingSlider) return
-                  setIsDraggingSlider(false)
-                  commitSliderHour(Number(event.currentTarget.value))
+                  finishSliderDrag(sliderMinuteOffset(event))
                 }}
-                disabled={hourControlsDisabled}
-                aria-label="Forecast step"
+                disabled={timelineControlsDisabled}
+                aria-label="Forecast time"
               />
 
               <div className="timeline-panel__ticks wm-mono-caps" aria-hidden="true">

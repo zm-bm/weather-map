@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatValidLabel } from '../../forecast-time'
+import { formatValidTimeLabel } from '../../forecast-time'
 import {
   createForecastSelectionContextValue,
   createForecastTimeContextValue,
@@ -14,32 +14,9 @@ const mocks = vi.hoisted(() => ({
   activeScalar: 'tmp_surface' as 'tmp_surface' | 'rh_surface',
   lastProbe: null as { lat: number; lon: number } | null,
   currentScalarProbeFrame: null as {
-    variableId: 'tmp_surface' | 'rh_surface'
-    grid: {
-      crs: 'EPSG:4326'
-      nx: number
-      ny: number
-      lon0: number
-      lat0: number
-      dx: number
-      dy: number
-      origin: 'cell_center'
-      layout: 'row_major'
-      x_wrap: 'repeat'
-      y_mode: 'clamp'
+    lower: {
+      variableId: 'tmp_surface' | 'rh_surface'
     }
-    encoding: {
-      format: 'scalar-i16-linear-v1'
-      dtype: 'int16'
-      byte_order: 'little'
-      nodata: number
-      scale: number
-      offset: number
-      decode_formula: string
-    }
-    values: Int16Array
-    displayRange: [number, number]
-    colortable: number[][]
   } | null,
 }))
 
@@ -78,8 +55,8 @@ function createPanelTimeContextValue() {
       cycle: '2026042113',
       forecastHours: ['000', '003', '006'],
       state: {
-        appliedHourIndex: 1,
-        targetHourIndex: 1,
+        appliedTimeMs: Date.UTC(2026, 3, 21, 16, 0),
+        targetTimeMs: Date.UTC(2026, 3, 21, 16, 0),
       },
     }
   )
@@ -106,12 +83,11 @@ vi.mock('../../map-probe/useProbeValue', () => ({
       return { value: null, loading: false }
     }
 
-    if (mocks.currentScalarProbeFrame == null || mocks.currentScalarProbeFrame.variableId !== activeScalar) {
+    if (mocks.currentScalarProbeFrame == null || mocks.currentScalarProbeFrame.lower.variableId !== activeScalar) {
       return { value: null, loading: true }
     }
 
-    const [topLeft] = mocks.currentScalarProbeFrame.values
-    return { value: topLeft, loading: false }
+    return { value: 20, loading: false }
   },
 }))
 
@@ -128,7 +104,7 @@ describe('ForecastPanel', () => {
     render(<ForecastPanel />)
 
     expect(screen.getByText('Click Map')).toBeInTheDocument()
-    expect(screen.getByText(formatValidLabel('2026042113', '003') ?? '')).toBeInTheDocument()
+    expect(screen.getByText(formatValidTimeLabel(Date.UTC(2026, 3, 21, 16, 0)) ?? '')).toBeInTheDocument()
     expect(screen.getByText('-- / --')).toBeInTheDocument()
     expect(screen.getByText('Click map to sample current layer')).toBeInTheDocument()
   })
@@ -140,32 +116,9 @@ describe('ForecastPanel', () => {
       lon: -97.5,
     }
     mocks.currentScalarProbeFrame = {
-      variableId: 'tmp_surface',
-      grid: {
-        crs: 'EPSG:4326',
-        nx: 2,
-        ny: 2,
-        lon0: -98,
-        lat0: 36,
-        dx: 1,
-        dy: -1,
-        origin: 'cell_center',
-        layout: 'row_major',
-        x_wrap: 'repeat',
-        y_mode: 'clamp',
+      lower: {
+        variableId: 'tmp_surface',
       },
-      encoding: {
-        format: 'scalar-i16-linear-v1',
-        dtype: 'int16',
-        byte_order: 'little',
-        nodata: -32768,
-        scale: 1,
-        offset: 0,
-        decode_formula: 'value = stored * scale + offset',
-      },
-      values: Int16Array.from([20, 30, 40, 50]),
-      displayRange: [0, 100],
-      colortable: [[0, 0, 0, 0]],
     }
 
     render(<ForecastPanel />)
@@ -182,32 +135,9 @@ describe('ForecastPanel', () => {
       lon: -97.5,
     }
     mocks.currentScalarProbeFrame = {
-      variableId: 'tmp_surface',
-      grid: {
-        crs: 'EPSG:4326',
-        nx: 2,
-        ny: 2,
-        lon0: -98,
-        lat0: 36,
-        dx: 1,
-        dy: -1,
-        origin: 'cell_center',
-        layout: 'row_major',
-        x_wrap: 'repeat',
-        y_mode: 'clamp',
+      lower: {
+        variableId: 'tmp_surface',
       },
-      encoding: {
-        format: 'scalar-i16-linear-v1',
-        dtype: 'int16',
-        byte_order: 'little',
-        nodata: -32768,
-        scale: 1,
-        offset: 0,
-        decode_formula: 'value = stored * scale + offset',
-      },
-      values: Int16Array.from([20, 30, 40, 50]),
-      displayRange: [0, 100],
-      colortable: [[0, 0, 0, 0]],
     }
 
     render(<ForecastPanel />)

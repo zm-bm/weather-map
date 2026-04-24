@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { ScalarFrameData } from './engine/types'
+import type { ScalarFrameWindowData } from './engine/types'
 
-export type ScalarController = MapFrameController<ScalarFrameData>
+export type ScalarController = MapFrameController<ScalarFrameWindowData>
 
 const controllers = createMapControllerRegistry<ScalarController>()
 

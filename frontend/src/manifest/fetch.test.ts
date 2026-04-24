@@ -38,9 +38,10 @@ describe('fetchCycleManifest', () => {
   })
 
   it('rejects non-v4 contracts', async () => {
-    stubFetchJsonOnce(
-      createCycleManifestPayloadFixture({ version: 2, contract: 'weather-scalar-v1' })
-    )
+    const payload = createCycleManifestPayloadFixture()
+    payload.version = 2
+    payload.contract = 'weather-scalar-v1'
+    stubFetchJsonOnce(payload)
 
     await expect(
       fetchCycleManifest('2026041312', { signal: createSignalFixture() })

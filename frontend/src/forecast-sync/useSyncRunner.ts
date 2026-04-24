@@ -93,8 +93,10 @@ export function useSyncRunner({
       manifest,
       activeScalar,
       activeVector,
-      hourIndex,
-      hourToken,
+      selectedValidTimeMs,
+      lowerHourToken,
+      upperHourToken,
+      mix,
       requestKey,
       sync,
     } = syncRequest
@@ -104,7 +106,7 @@ export function useSyncRunner({
 
     const activeRequest = machine.start(requestKey)
     handlePending()
-    sync.onRequestStart(hourIndex)
+    sync.onRequestStart(selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
@@ -113,7 +115,10 @@ export function useSyncRunner({
             map,
             config,
             manifest,
-            hourToken,
+            selectedValidTimeMs,
+            lowerHourToken,
+            upperHourToken,
+            mix,
             activeScalar,
             activeVector,
             signal: activeRequest.controller.signal,
@@ -122,13 +127,13 @@ export function useSyncRunner({
 
         if (isRequestStale(machine, activeRequest)) return
         machine.markApplied(activeRequest)
-        sync.onRequestApplied(hourIndex)
+        sync.onRequestApplied(selectedValidTimeMs)
         handleApplied()
       } catch (error: unknown) {
         if (isRequestStale(machine, activeRequest)) return
         const normalizedError = normalizeError(error)
         if (isAbortError(normalizedError)) return
-        sync.onRequestError(hourIndex, normalizedError)
+        sync.onRequestError(selectedValidTimeMs, normalizedError)
         handleError(normalizedError)
       } finally {
         machine.finish(activeRequest)

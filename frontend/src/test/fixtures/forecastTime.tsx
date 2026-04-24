@@ -5,6 +5,7 @@ import { vi } from 'vitest'
 import type { CycleManifest } from '../../manifest'
 import type { ForecastTimeContextValue } from '../../forecast-time/ForecastTimeContext'
 import ForecastTimeProvider from '../../forecast-time/ForecastTimeProvider'
+import { validTimeMs } from '../../forecast-time/time'
 
 type ForecastTimeContextOptions = Partial<{
   cycle: string | null
@@ -17,19 +18,23 @@ export function createForecastTimeContextValue(
   manifest: CycleManifest | null,
   options: ForecastTimeContextOptions = {}
 ): ForecastTimeContextValue {
+  const cycle = options.cycle ?? manifest?.cycle ?? '2026041312'
+  const forecastHours = options.forecastHours ?? manifest?.forecastHours ?? ['000', '003']
+  const defaultValidTimeMs = validTimeMs(cycle, forecastHours[0] ?? '000') ?? 0
+
   return {
-    cycle: options.cycle ?? manifest?.cycle ?? '2026041312',
-    forecastHours: options.forecastHours ?? manifest?.forecastHours ?? ['000', '003'],
+    cycle,
+    forecastHours,
     state: {
-      appliedHourIndex: 0,
-      targetHourIndex: 0,
-      pendingHourIndex: null,
+      appliedTimeMs: defaultValidTimeMs,
+      targetTimeMs: defaultValidTimeMs,
+      pendingTimeMs: null,
       isInFlight: false,
       isPlaying: false,
       ...options.state,
     },
     controls: {
-      requestHour: vi.fn(),
+      requestTime: vi.fn(),
       requestNext: vi.fn(),
       requestPrev: vi.fn(),
       togglePlay: vi.fn(),

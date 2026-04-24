@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { VectorFrameData } from './engine/types'
+import type { VectorFrameWindowData } from './engine/types'
 
-export type VectorController = MapFrameController<VectorFrameData>
+export type VectorController = MapFrameController<VectorFrameWindowData>
 
 const controllers = createMapControllerRegistry<VectorController>()
 

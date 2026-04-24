@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { probeScalarFrame } from './probe'
+import { blendScalarValues, probeScalarFrame, probeScalarFrameWindow } from './probe'
 import type { ScalarFrameData } from './engine/types'
 
 function createFrame(values: number[]): ScalarFrameData {
   return {
+    hourToken: '000',
     variableId: 'tmp_surface',
     grid: {
       crs: 'EPSG:4326',
@@ -63,5 +64,31 @@ describe('probeScalarFrame', () => {
 
     expect(probe?.gridX).toBe(0.25)
     expect(probe?.value).toBe(22.5)
+  })
+
+  it('blends probe values across a scalar frame window', () => {
+    const probe = probeScalarFrameWindow({
+      lower: createFrame([10, 20, 30, 40]),
+      upper: {
+        ...createFrame([20, 30, 40, 50]),
+        hourToken: '001',
+      },
+      selectedValidTimeMs: 1,
+      lowerHourToken: '000',
+      upperHourToken: '001',
+      mix: 0.5,
+    }, {
+      lon: 0.5,
+      lat: 0.5,
+    })
+
+    expect(probe?.value).toBe(30)
+    expect(probe?.mix).toBe(0.5)
+  })
+
+  it('falls back to the available side when blending nodata values', () => {
+    expect(blendScalarValues(12, null, 0.5)).toBe(12)
+    expect(blendScalarValues(null, 24, 0.5)).toBe(24)
+    expect(blendScalarValues(null, null, 0.5)).toBeNull()
   })
 })

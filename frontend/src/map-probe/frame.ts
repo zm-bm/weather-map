@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
-import type { ScalarFrameData } from '../forecast-layers/scalar'
+import type { ScalarFrameWindowData } from '../forecast-layers/scalar'
 
-let currentFrame: ScalarFrameData | null = null
+let currentFrame: ScalarFrameWindowData | null = null
 const listeners = new Set<() => void>()
 
 function emitChange() {
@@ -20,12 +20,12 @@ function getSnapshot() {
   return currentFrame
 }
 
-export function setProbeFrame(frame: ScalarFrameData) {
+export function setProbeFrame(frame: ScalarFrameWindowData) {
   currentFrame = frame
   emitChange()
 }
 
-export function getProbeFrame(): ScalarFrameData | null {
+export function getProbeFrame(): ScalarFrameWindowData | null {
   return currentFrame
 }
 
@@ -34,6 +34,6 @@ export function clearProbeFrame() {
   emitChange()
 }
 
-export function useProbeFrame(): ScalarFrameData | null {
+export function useProbeFrame(): ScalarFrameWindowData | null {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

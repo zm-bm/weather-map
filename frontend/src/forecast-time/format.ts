@@ -40,6 +40,11 @@ function parseValidTime(cycle: string | null | undefined, forecastHour: string):
   return new Date(epochMs)
 }
 
+function parseTimestamp(value: number | null | undefined): Date | null {
+  if (!Number.isFinite(value)) return null
+  return new Date(value as number)
+}
+
 export function formatCycleLabel(cycle: string | null | undefined): string | null {
   const date = parseCycle(cycle)
   if (!date) return null
@@ -53,14 +58,32 @@ export function formatValidLabel(cycle: string | null | undefined, forecastHour:
   return LOCAL_DATE_TIME.format(valid)
 }
 
+export function formatValidTimeLabel(validTimeMsValue: number | null | undefined): string | null {
+  const valid = parseTimestamp(validTimeMsValue)
+  if (!valid) return null
+  return LOCAL_DATE_TIME.format(valid)
+}
+
 export function formatTickLabel(cycle: string | null | undefined, forecastHour: string): string | null {
   const valid = parseValidTime(cycle, forecastHour)
   if (!valid) return null
   return LOCAL_TICK_TIME.format(valid)
 }
 
+export function formatValidTimeTickLabel(validTimeMsValue: number | null | undefined): string | null {
+  const valid = parseTimestamp(validTimeMsValue)
+  if (!valid) return null
+  return LOCAL_TICK_TIME.format(valid)
+}
+
 export function formatShortTickLabel(cycle: string | null | undefined, forecastHour: string): string | null {
   const valid = parseValidTime(cycle, forecastHour)
+  if (!valid) return null
+  return LOCAL_SHORT_TIME.format(valid)
+}
+
+export function formatShortValidTimeLabel(validTimeMsValue: number | null | undefined): string | null {
+  const valid = parseTimestamp(validTimeMsValue)
   if (!valid) return null
   return LOCAL_SHORT_TIME.format(valid)
 }

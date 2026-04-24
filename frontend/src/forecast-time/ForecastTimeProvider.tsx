@@ -8,15 +8,14 @@ import {
 
 import type { CycleManifest } from '../manifest'
 import {
-  closestHourIndex,
-  nextHourIndex,
-  normalizeHourIndex,
-  prevHourIndex,
+  clampForecastValidTimeMs,
+  initialForecastValidTimeMs,
+  stepForecastValidTimeMs,
 } from './time'
 import {
   createForecastTimeState,
-  DEFAULT_BUTTON_DEBOUNCE_MS,
   DEFAULT_PLAY_MIN_INTERVAL_MS,
+  DEFAULT_PLAY_STEP_COUNT,
   reduceForecastTimeState,
 } from './state'
 import { ForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
@@ -33,58 +32,64 @@ export default function ForecastTimeProvider({
   const cycle = manifest?.cycle ?? null
   const forecastHours = manifest?.forecastHours ?? EMPTY_FORECAST_HOURS
   const forecastHourCount = forecastHours.length
-  const initialHourIndex = closestHourIndex(cycle ?? '', forecastHours)
+  const initialTimeMs = initialForecastValidTimeMs(cycle, forecastHours)
 
   const [state, dispatch] = useReducer(
     reduceForecastTimeState,
-    initialHourIndex,
+    initialTimeMs,
     createForecastTimeState
   )
 
-  const requestHour = useCallback((targetHourIndex: number) => {
+  const requestTime = useCallback((targetTimeMs: number) => {
     dispatch({
-      type: 'requestHour',
-      hourIndex: normalizeHourIndex(targetHourIndex, forecastHourCount),
-      nowMs: Date.now(),
-      debounceMs: DEFAULT_BUTTON_DEBOUNCE_MS,
+      type: 'requestTime',
+      timeMs: clampForecastValidTimeMs(cycle, forecastHours, targetTimeMs),
     })
-  }, [forecastHourCount])
+  }, [cycle, forecastHours])
 
   const requestNext = useCallback(() => {
-    const referenceHourIndex = state.pendingHourIndex ?? state.targetHourIndex
-    requestHour(nextHourIndex(referenceHourIndex, forecastHourCount))
-  }, [forecastHourCount, requestHour, state.pendingHourIndex, state.targetHourIndex])
+    const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
+    requestTime(
+      stepForecastValidTimeMs(
+        cycle,
+        forecastHours,
+        referenceTimeMs,
+        1
+      )
+    )
+  }, [cycle, forecastHours, requestTime, state.pendingTimeMs, state.targetTimeMs])
 
   const requestPrev = useCallback(() => {
-    const referenceHourIndex = state.pendingHourIndex ?? state.targetHourIndex
-    requestHour(prevHourIndex(referenceHourIndex, forecastHourCount))
-  }, [forecastHourCount, requestHour, state.pendingHourIndex, state.targetHourIndex])
+    const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
+    requestTime(
+      stepForecastValidTimeMs(
+        cycle,
+        forecastHours,
+        referenceTimeMs,
+        -1
+      )
+    )
+  }, [cycle, forecastHours, requestTime, state.pendingTimeMs, state.targetTimeMs])
 
   const togglePlay = useCallback(() => {
     if (forecastHourCount <= 1) return
     dispatch({ type: 'togglePlay' })
   }, [forecastHourCount])
 
-  const onRequestStart = useCallback((hourIndex: number) => {
+  const onRequestStart = useCallback((timeMs: number) => {
     dispatch({
       type: 'requestStart',
-      hourIndex: normalizeHourIndex(hourIndex, forecastHourCount),
+      timeMs: clampForecastValidTimeMs(cycle, forecastHours, timeMs),
     })
-  }, [forecastHourCount])
+  }, [cycle, forecastHours])
 
-  const onRequestApplied = useCallback((hourIndex: number) => {
-    const nowMs = Date.now()
+  const onRequestApplied = useCallback((timeMs: number) => {
     dispatch({
       type: 'requestApplied',
-      hourIndex: normalizeHourIndex(hourIndex, forecastHourCount),
-      nowMs,
+      timeMs: clampForecastValidTimeMs(cycle, forecastHours, timeMs),
+      nowMs: Date.now(),
     })
-    dispatch({
-      type: 'flushPending',
-      nowMs,
-      debounceMs: DEFAULT_BUTTON_DEBOUNCE_MS,
-    })
-  }, [forecastHourCount])
+  }, [cycle, forecastHours])
 
   const onRequestError = useCallback(() => {
     dispatch({ type: 'requestError' })
@@ -97,38 +102,28 @@ export default function ForecastTimeProvider({
   }), [onRequestApplied, onRequestError, onRequestStart])
 
   useEffect(() => {
-    if (state.pendingHourIndex == null || state.pendingRetryAtMs == null) return
-
-    const delayMs = Math.max(0, state.pendingRetryAtMs - Date.now())
-    const timerId = window.setTimeout(() => {
-      dispatch({
-        type: 'flushPending',
-        nowMs: Date.now(),
-        debounceMs: DEFAULT_BUTTON_DEBOUNCE_MS,
-      })
-    }, delayMs)
-
-    return () => window.clearTimeout(timerId)
-  }, [state.pendingHourIndex, state.pendingRetryAtMs])
-
-  useEffect(() => {
     if (!state.isPlaying || state.isInFlight || forecastHourCount <= 1) return
     const elapsedMs = Date.now() - state.lastAppliedAtMs
     const delayMs = Math.max(0, DEFAULT_PLAY_MIN_INTERVAL_MS - elapsedMs)
 
     const timerId = window.setTimeout(() => {
       dispatch({
-        type: 'requestHour',
-        hourIndex: nextHourIndex(state.appliedHourIndex, forecastHourCount),
-        nowMs: Date.now(),
-        debounceMs: DEFAULT_BUTTON_DEBOUNCE_MS,
+        type: 'requestTime',
+        timeMs: stepForecastValidTimeMs(
+          cycle,
+          forecastHours,
+          state.appliedTimeMs,
+          DEFAULT_PLAY_STEP_COUNT
+        ),
       })
     }, delayMs)
 
     return () => window.clearTimeout(timerId)
   }, [
+    cycle,
+    forecastHours,
     forecastHourCount,
-    state.appliedHourIndex,
+    state.appliedTimeMs,
     state.isInFlight,
     state.isPlaying,
     state.lastAppliedAtMs,
@@ -138,14 +133,14 @@ export default function ForecastTimeProvider({
     cycle,
     forecastHours,
     state: {
-      appliedHourIndex: state.appliedHourIndex,
-      targetHourIndex: state.targetHourIndex,
-      pendingHourIndex: state.pendingHourIndex,
+      appliedTimeMs: state.appliedTimeMs,
+      targetTimeMs: state.targetTimeMs,
+      pendingTimeMs: state.pendingTimeMs,
       isInFlight: state.isInFlight,
       isPlaying: state.isPlaying,
     },
     controls: {
-      requestHour,
+      requestTime,
       requestNext,
       requestPrev,
       togglePlay,
@@ -154,15 +149,15 @@ export default function ForecastTimeProvider({
   }), [
     cycle,
     forecastHours,
-    requestHour,
+    requestTime,
     requestNext,
     requestPrev,
     togglePlay,
-    state.appliedHourIndex,
+    state.appliedTimeMs,
     state.isInFlight,
     state.isPlaying,
-    state.pendingHourIndex,
-    state.targetHourIndex,
+    state.pendingTimeMs,
+    state.targetTimeMs,
     sync,
   ])
 

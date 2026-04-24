@@ -1,9 +1,7 @@
 import { getUnitDisplay, getUnitOption } from '../../units'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
 import {
-  formatValidLabel,
-  hourTokenAt,
-  normalizeHourIndex,
+  formatValidTimeLabel,
   useForecastTimeContext,
 } from '../../forecast-time'
 import { getScalarMeta } from '../../forecast-metadata/scalar'
@@ -23,13 +21,10 @@ function formatProbeValue(value: number | null) {
 
 function ForecastPanel() {
   const { activeScalar, variableMeta, getScalarUnitOptionId } = useLoadedForecastSelectionContext()
-  const { cycle, forecastHours, state: forecastTimeState } = useForecastTimeContext()
+  const { state: forecastTimeState } = useForecastTimeContext()
   const { lastProbe } = useMapProbe()
   const { value: rawProbeValue, loading: probeLoading } = useProbeValue(activeScalar)
-  const totalHours = Math.max(1, forecastHours.length)
-  const appliedHourIdx = normalizeHourIndex(forecastTimeState.appliedHourIndex, totalHours)
-  const appliedHourToken = hourTokenAt(forecastHours, appliedHourIdx)
-  const validTimeLabel = formatValidLabel(cycle, appliedHourToken)
+  const validTimeLabel = formatValidTimeLabel(forecastTimeState.appliedTimeMs)
   const probeMeta = getScalarMeta(activeScalar, variableMeta)
   const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
 
@@ -62,7 +57,7 @@ function ForecastPanel() {
         <div className="forecast-panel__readout forecast-panel__readout--headline">
           <span className="forecast-panel__label wm-mono-caps">Valid Time</span>
           <strong className="forecast-panel__value forecast-panel__value--headline wm-display-caps">
-            {validTimeLabel ?? `Hour ${appliedHourToken}`}
+            {validTimeLabel ?? 'Unavailable'}
           </strong>
         </div>
 

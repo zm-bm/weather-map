@@ -5,6 +5,8 @@ import {
 } from '../../../manifest'
 import type { WeatherMapConfig } from '../../../config'
 import { loadFramePayload, normalizeFrameHourToken } from '../../../forecast-frame/loader'
+import { loadFrameWindow } from '../../../forecast-frame/window'
+import type { ForecastFrameSelection } from '../../../forecast-time/time'
 import { resolveFrameSpec } from '../../../forecast-frame/spec'
 import {
   VECTOR_COMPONENT_ORDER,
@@ -14,12 +16,21 @@ import {
 } from './types'
 import {
   type VectorFrameData,
+  type VectorFrameWindowData,
 } from './types'
 
 export type LoadVectorFrameArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
   hourToken: string
+  variable: string
+  signal: AbortSignal
+}
+
+export type LoadVectorFrameWindowArgs = ForecastFrameSelection & {
+  config: WeatherMapConfig
+  manifest: CycleManifest
+  previousWindow?: VectorFrameWindowData | null
   variable: string
   signal: AbortSignal
 }
@@ -31,13 +42,14 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
   const encoding = resolveVectorEncoding(variable, spec.encoding)
   const { payload, hourToken: loadedHourToken } = await loadFramePayload({
     config,
+    manifest,
     frameRef: spec.frameRef,
     grid: spec.grid,
     hourToken: normalizedHourToken,
-    variable,
-    domain: 'vector',
+    variableId: variable,
+    frameKind: 'vector',
     signal,
-    verifySha256: config.verifyScalarSha256,
+    verifyPayloadSha256: config.verifyPayloadSha256,
   })
 
   const componentBytes = spec.grid.nx * spec.grid.ny
@@ -74,6 +86,55 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
       dy: spec.grid.dy,
     },
   }
+}
+
+export async function loadVectorFrameWindow(
+  args: LoadVectorFrameWindowArgs
+): Promise<VectorFrameWindowData> {
+  const {
+    config,
+    manifest,
+    previousWindow,
+    variable,
+    signal,
+  } = args
+
+  return loadFrameWindow({
+    selection: args,
+    previousWindow,
+    loadFrame: (hourToken) => loadVectorFrame({
+      config,
+      manifest,
+      hourToken,
+      variable,
+      signal,
+    }),
+  })
+}
+
+export function canInterpolateVectorFrames(
+  lower: VectorFrameData,
+  upper: VectorFrameData
+): boolean {
+  return (
+    lower.metadata.variableId === upper.metadata.variableId &&
+    lower.metadata.units === upper.metadata.units &&
+    lower.metadata.parameter === upper.metadata.parameter &&
+    lower.metadata.level === upper.metadata.level &&
+    lower.metadata.format === upper.metadata.format &&
+    lower.metadata.dtype === upper.metadata.dtype &&
+    lower.metadata.byte_order === upper.metadata.byte_order &&
+    lower.metadata.scale === upper.metadata.scale &&
+    lower.metadata.offset === upper.metadata.offset &&
+    lower.metadata.decode_formula === upper.metadata.decode_formula &&
+    lower.metadata.grid_id === upper.metadata.grid_id &&
+    lower.metadata.nx === upper.metadata.nx &&
+    lower.metadata.ny === upper.metadata.ny &&
+    lower.metadata.lon0 === upper.metadata.lon0 &&
+    lower.metadata.lat0 === upper.metadata.lat0 &&
+    lower.metadata.dx === upper.metadata.dx &&
+    lower.metadata.dy === upper.metadata.dy
+  )
 }
 
 function resolveVectorEncoding(

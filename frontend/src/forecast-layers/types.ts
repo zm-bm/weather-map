@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import type { WeatherMapConfig } from '../config'
+import type { ForecastFrameSelection } from '../forecast-time/time'
 import type {
   CycleManifest,
   ScalarVariableId,
@@ -9,11 +10,10 @@ import type {
 
 export const FORECAST_LAYER_BEFORE_ID = 'background' as const
 
-export type ForecastLayerSyncArgs = {
+export type ForecastLayerSyncArgs = ForecastFrameSelection & {
   map: MapLibreMap
   config: WeatherMapConfig
   manifest: CycleManifest
-  hourToken: string
   activeScalar: ScalarVariableId
   activeVector: VectorVariableId
   signal: AbortSignal

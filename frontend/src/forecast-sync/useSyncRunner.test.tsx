@@ -8,7 +8,11 @@ import type {
   VectorVariableId,
 } from '../manifest'
 import type { ForecastTimeSyncBridge } from '../forecast-time/types'
-import { hourTokenAt, normalizeHourIndex } from '../forecast-time/time'
+import {
+  frameWindowMinuteOffset,
+  resolveForecastFrameWindow,
+  validTimeMs,
+} from '../forecast-time/time'
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
 import type { SyncRequest } from './types'
 import { useSyncRunner } from './useSyncRunner'
@@ -38,7 +42,7 @@ type SyncInput = {
   manifest: CycleManifest
   activeScalar: ScalarVariableId
   activeVector: VectorVariableId
-  targetHourIndex: number
+  targetTimeMs: number
   sync: ForecastTimeSyncBridge
 }
 
@@ -81,7 +85,7 @@ function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
     manifest,
     activeScalar: manifest.scalarVariables[0],
     activeVector: manifest.vectorVariables[0],
-    targetHourIndex: 0,
+    targetTimeMs: validTimeMs(manifest.cycle, manifest.forecastHours[0] ?? '000') ?? 0,
     sync: createSyncCallbacks(),
     ...overrides,
   }
@@ -113,19 +117,22 @@ function buildSyncRequest(
   retryToken: number
 ): SyncRequest | null {
   if (!syncInput) return null
-  const hourIndex = normalizeHourIndex(
-    syncInput.targetHourIndex,
-    syncInput.manifest.forecastHours.length
+  const frameWindow = resolveForecastFrameWindow(
+    syncInput.manifest.cycle,
+    syncInput.manifest.forecastHours,
+    syncInput.targetTimeMs
   )
-  const hourToken = hourTokenAt(syncInput.manifest.forecastHours, hourIndex)
+  const minuteOffset = frameWindowMinuteOffset(frameWindow)
 
   return {
     manifest: syncInput.manifest,
     activeScalar: syncInput.activeScalar,
     activeVector: syncInput.activeVector,
-    hourIndex,
-    hourToken,
-    requestKey: `${syncInput.manifest.cycle}:${syncInput.activeScalar}:${syncInput.activeVector}:${hourToken}:${retryToken}`,
+    selectedValidTimeMs: frameWindow.selectedValidTimeMs,
+    lowerHourToken: frameWindow.lowerHourToken,
+    upperHourToken: frameWindow.upperHourToken,
+    mix: frameWindow.mix,
+    requestKey: `${syncInput.manifest.cycle}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
     sync: syncInput.sync,
   }
 }
@@ -180,7 +187,9 @@ describe('useSyncRunner + useStartupState', () => {
     await waitFor(() => {
       expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
       expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
       expect(result.current.startupPhase).toBe('ready')
     })
   })
@@ -212,7 +221,9 @@ describe('useSyncRunner + useStartupState', () => {
     await waitFor(() => {
       expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
       expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
       expect(result.current.startupPhase).toBe('ready')
     })
   })
@@ -238,7 +249,7 @@ describe('useSyncRunner + useStartupState', () => {
     await waitFor(() => {
       expect(mocks.scalarApplySync).toHaveBeenCalledTimes(1)
       expect(mocks.vectorApplySync).toHaveBeenCalledTimes(1)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(syncInput.targetTimeMs)
       expect(result.current.startupPhase).toBe('ready')
     })
   })
@@ -283,7 +294,10 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     await waitFor(() => {
-      expect(callbacks.onRequestError).toHaveBeenCalledWith(0, startupError)
+      expect(callbacks.onRequestError).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs,
+        startupError
+      )
       expect(result.current.startupPhase).toBe('error')
       expect(result.current.startupErrorMessage).toBe('wind failed')
     })
@@ -292,7 +306,10 @@ describe('useSyncRunner + useStartupState', () => {
       ...args,
       syncInput: {
         ...(args.syncInput as SyncInput),
-        targetHourIndex: 1,
+        targetTimeMs: validTimeMs(
+          (args.syncInput as SyncInput).manifest.cycle,
+          (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
+        ) ?? 0,
       },
     })
 
@@ -314,12 +331,16 @@ describe('useSyncRunner + useStartupState', () => {
 
     expect(result.current.startupPhase).toBe('loading')
     expect(result.current.startupErrorMessage).toBeNull()
-    expect(callbacks.onRequestStart).toHaveBeenCalledWith(0)
+    expect(callbacks.onRequestStart).toHaveBeenCalledWith(
+      (args.syncInput as SyncInput).targetTimeMs
+    )
     expect(callbacks.onRequestApplied).not.toHaveBeenCalled()
 
     request.resolve()
     await waitFor(() => {
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
     })
@@ -362,7 +383,10 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     await waitFor(() => {
-      expect(callbacks.onRequestError).toHaveBeenCalledWith(0, startupError)
+      expect(callbacks.onRequestError).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs,
+        startupError
+      )
       expect(result.current.startupPhase).toBe('error')
       expect(result.current.startupErrorMessage).toBe('wind failed')
     })
@@ -376,7 +400,9 @@ describe('useSyncRunner + useStartupState', () => {
     await waitFor(() => {
       expect(mocks.scalarApplySync).toHaveBeenCalledTimes(2)
       expect(mocks.vectorApplySync).toHaveBeenCalledTimes(2)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
     })
@@ -395,20 +421,27 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     await waitFor(() => {
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(0)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
       expect(result.current.startupPhase).toBe('ready')
     })
+
+    const nextValidTimeMs = validTimeMs(
+      (args.syncInput as SyncInput).manifest.cycle,
+      (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
+    ) ?? 0
 
     rerender({
       ...args,
       syncInput: {
         ...(args.syncInput as SyncInput),
-        targetHourIndex: 1,
+        targetTimeMs: nextValidTimeMs,
       },
     })
 
     await waitFor(() => {
-      expect(callbacks.onRequestError).toHaveBeenCalledWith(1, laterError)
+      expect(callbacks.onRequestError).toHaveBeenCalledWith(nextValidTimeMs, laterError)
     })
     expect(result.current.startupPhase).toBe('ready')
     expect(result.current.startupErrorMessage).toBeNull()

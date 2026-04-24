@@ -10,7 +10,8 @@ import {
   unregisterVectorController,
   type VectorController,
 } from '../controller'
-import type { VectorFrameData } from './types'
+import type { VectorFrameData, VectorFrameWindowData } from './types'
+import { canInterpolateVectorFrames } from './frame'
 import {
   VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
@@ -54,9 +55,6 @@ type VectorLayerState = {
   particleCount: number
   // Camera bounds for culling and screen-space conversion.
   viewport: ViewportState | null
-  // Signed int8 vector components from frame payload.
-  vectorU: Int8Array
-  vectorV: Int8Array
   // Grid shape for U/V arrays.
   vectorNx: number
   vectorNy: number
@@ -65,8 +63,13 @@ type VectorLayerState = {
   vectorLat0: number
   vectorDx: number
   vectorDy: number
-  // Packed RGBA texture built from vectorU/vectorV.
-  vectorTexture: WebGLTexture | null
+  // Packed RGBA textures built from lower/upper vector frames.
+  vectorTextureLower: WebGLTexture | null
+  vectorTextureUpper: WebGLTexture | null
+  vectorFrameLower: VectorFrameData | null
+  vectorFrameUpper: VectorFrameData | null
+  timeMix: number
+  frameSignature: string | null
   available: boolean
   hasFrame: boolean
   // Compiled programs for update/draw passes.
@@ -112,15 +115,18 @@ export function createVectorRuntime(
     lastFrameMs: 0,
     particleCount: options.particleCount,
     viewport: null,
-    vectorU: new Int8Array(0),
-    vectorV: new Int8Array(0),
     vectorNx: 0,
     vectorNy: 0,
     vectorLon0: 0,
     vectorLat0: 0,
     vectorDx: 1,
     vectorDy: -1,
-    vectorTexture: null,
+    vectorTextureLower: null,
+    vectorTextureUpper: null,
+    vectorFrameLower: null,
+    vectorFrameUpper: null,
+    timeMix: 0,
+    frameSignature: null,
     available: false,
     hasFrame: false,
     updateProgramInfo: null,
@@ -294,7 +300,8 @@ export function createVectorRuntime(
 
       if (gl2) {
         // Release GPU resources owned by this runtime.
-        if (state.vectorTexture) gl2.deleteTexture(state.vectorTexture)
+        deleteUnusedVectorTexture(gl2, state.vectorTextureLower, null, state.vectorTextureUpper)
+        if (state.vectorTextureUpper) gl2.deleteTexture(state.vectorTextureUpper)
         if (state.updateProgramInfo) gl2.deleteProgram(state.updateProgramInfo.program)
         if (state.particleProgramInfo) gl2.deleteProgram(state.particleProgramInfo.program)
         if (state.trailProgramInfo) gl2.deleteProgram(state.trailProgramInfo.program)
@@ -320,7 +327,12 @@ export function createVectorRuntime(
       state.gl = undefined
       state.enabled = true
       state.viewport = null
-      state.vectorTexture = null
+      state.vectorTextureLower = null
+      state.vectorTextureUpper = null
+      state.vectorFrameLower = null
+      state.vectorFrameUpper = null
+      state.timeMix = 0
+      state.frameSignature = null
       state.available = false
       state.hasFrame = false
       state.updateProgramInfo = null
@@ -345,41 +357,70 @@ export function createVectorRuntime(
 
 function applyVectorFieldToState(
   state: VectorLayerState,
-  vectorField: VectorFrameData,
+  vectorField: VectorFrameWindowData,
   options: VectorRuntimeOptions,
 ) {
   const gl = state.gl
   if (!gl) return
+  const lowerFrame = vectorField.lower
+  const canBlend = vectorField.mix > 0 && canInterpolateVectorFrames(vectorField.lower, vectorField.upper)
+  const upperFrame = canBlend ? vectorField.upper : vectorField.lower
 
   // Normalize metadata origin so sampling lines up with cell centers.
   const samplingOrigin = toCellCenterOrigin(
-    vectorField.metadata.lon0,
-    vectorField.metadata.lat0,
-    vectorField.metadata.dx,
-    vectorField.metadata.dy,
+    lowerFrame.metadata.lon0,
+    lowerFrame.metadata.lat0,
+    lowerFrame.metadata.dx,
+    lowerFrame.metadata.dy,
   )
 
-  // Store raw components and grid metadata for texture upload/uniforms.
-  state.vectorU = vectorField.u
-  state.vectorV = vectorField.v
-  state.vectorNx = vectorField.metadata.nx
-  state.vectorNy = vectorField.metadata.ny
+  state.vectorNx = lowerFrame.metadata.nx
+  state.vectorNy = lowerFrame.metadata.ny
   state.vectorLon0 = samplingOrigin.lon0
   state.vectorLat0 = samplingOrigin.lat0
-  state.vectorDx = vectorField.metadata.dx
-  state.vectorDy = vectorField.metadata.dy
+  state.vectorDx = lowerFrame.metadata.dx
+  state.vectorDy = lowerFrame.metadata.dy
+  state.timeMix = canBlend ? vectorField.mix : 0
 
-  // Rebuild packed vector texture for the latest frame.
-  const nextTexture = createVectorTexture(gl, state)
-  if (!nextTexture) {
+  const previousTextureLower = state.vectorTextureLower
+  const previousTextureUpper = state.vectorTextureUpper
+  const reusableTextureLower = findReusableVectorTexture(state, lowerFrame)
+  const reusableTextureUpper = upperFrame === lowerFrame
+    ? reusableTextureLower
+    : findReusableVectorTexture(state, upperFrame)
+  const createdTextureLower = reusableTextureLower ? null : createVectorTexture(gl, lowerFrame)
+  const nextTextureLower = reusableTextureLower ?? createdTextureLower
+  if (!nextTextureLower) {
+    console.warn('[vector] failed to upload live vector texture; keeping previous texture')
+    return
+  }
+  const createdTextureUpper = upperFrame === lowerFrame || reusableTextureUpper
+    ? null
+    : createVectorTexture(gl, upperFrame)
+  const nextTextureUpper = upperFrame === lowerFrame
+    ? nextTextureLower
+    : reusableTextureUpper ?? createdTextureUpper
+  if (!nextTextureUpper) {
+    if (createdTextureLower) gl.deleteTexture(createdTextureLower)
     console.warn('[vector] failed to upload live vector texture; keeping previous texture')
     return
   }
 
-  if (state.vectorTexture) gl.deleteTexture(state.vectorTexture)
-  state.vectorTexture = nextTexture
+  deleteUnusedVectorTexture(gl, previousTextureLower, nextTextureLower, nextTextureUpper)
+  deleteUnusedVectorTexture(gl, previousTextureUpper, nextTextureLower, nextTextureUpper)
+  state.vectorTextureLower = nextTextureLower
+  state.vectorTextureUpper = nextTextureUpper
+  state.vectorFrameLower = lowerFrame
+  state.vectorFrameUpper = upperFrame
   state.hasFrame = true
-  if (options.reseedOnFrameChange) {
+  const nextFrameSignature = [
+    lowerFrame.metadata.variableId,
+    lowerFrame.metadata.hourToken,
+    upperFrame.metadata.hourToken,
+  ].join(':')
+  const didFramePairChange = state.frameSignature !== nextFrameSignature
+  state.frameSignature = nextFrameSignature
+  if (options.reseedOnFrameChange && didFramePairChange) {
     // Optional continuity break on frame change.
     reseedParticles(state, options.maxAgeSec)
     state.activeSourceIndex = 0
@@ -387,6 +428,26 @@ function applyVectorFieldToState(
     clearTrailTextures(state)
   }
   state.lastFrameMs = performance.now()
+}
+
+function findReusableVectorTexture(
+  state: VectorLayerState,
+  frame: VectorFrameData
+): WebGLTexture | null {
+  if (state.vectorFrameLower === frame) return state.vectorTextureLower
+  if (state.vectorFrameUpper === frame) return state.vectorTextureUpper
+  return null
+}
+
+function deleteUnusedVectorTexture(
+  gl: WebGL2RenderingContext,
+  texture: WebGLTexture | null,
+  nextLowerTexture: WebGLTexture | null,
+  nextUpperTexture: WebGLTexture | null
+) {
+  if (!texture) return
+  if (texture === nextLowerTexture || texture === nextUpperTexture) return
+  gl.deleteTexture(texture)
 }
 
 function runUpdatePass(
@@ -398,7 +459,8 @@ function runUpdatePass(
   const {
     gl,
     updateProgramInfo,
-    vectorTexture,
+    vectorTextureLower,
+    vectorTextureUpper,
     transformFeedback,
     stateBufferInfos,
     activeSourceIndex,
@@ -409,7 +471,8 @@ function runUpdatePass(
   if (
     !gl ||
     !updateProgramInfo ||
-    !vectorTexture ||
+    !vectorTextureLower ||
+    !vectorTextureUpper ||
     !transformFeedback ||
     !stateBufferInfos[0] ||
     !stateBufferInfos[1] ||
@@ -439,6 +502,7 @@ function runUpdatePass(
     u_dx: state.vectorDx,
     u_dy: state.vectorDy,
     u_vector_size: [state.vectorNx, state.vectorNy],
+    u_time_mix: state.timeMix,
     u_speed_multiplier: options.flowSpeedScale,
     u_zoom_scale: Math.pow(2, options.flowRefZoom - zoom),
     u_deg_per_meter: EARTH_DEG_PER_METER,
@@ -451,7 +515,8 @@ function runUpdatePass(
     u_bounds_east: viewport.east,
     u_bounds_south: viewport.south,
     u_bounds_north: viewport.north,
-    u_vector_tex: vectorTexture,
+    u_vector_tex_lower: vectorTextureLower,
+    u_vector_tex_upper: vectorTextureUpper,
   })
 
   gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback)
@@ -561,7 +626,8 @@ function drawParticleGeometryPass(state: VectorLayerState, options: VectorRuntim
   const {
     gl,
     viewport,
-    vectorTexture,
+    vectorTextureLower,
+    vectorTextureUpper,
     particleProgramInfo,
     stateBufferInfos,
     activeSourceIndex,
@@ -571,7 +637,8 @@ function drawParticleGeometryPass(state: VectorLayerState, options: VectorRuntim
   if (
     !gl ||
     !viewport ||
-    !vectorTexture ||
+    !vectorTextureLower ||
+    !vectorTextureUpper ||
     !particleProgramInfo ||
     !stateBufferInfos[activeSourceIndex] ||
     !map
@@ -602,6 +669,7 @@ function drawParticleGeometryPass(state: VectorLayerState, options: VectorRuntim
     u_dx: state.vectorDx,
     u_dy: state.vectorDy,
     u_vector_size: [state.vectorNx, state.vectorNy],
+    u_time_mix: state.timeMix,
     u_deg_per_meter: EARTH_DEG_PER_METER,
     u_dir_step_sec: options.dirSampleStepSec,
     u_speed_multiplier: options.flowSpeedScale,
@@ -610,7 +678,8 @@ function drawParticleGeometryPass(state: VectorLayerState, options: VectorRuntim
     u_dash_max_len_px: options.dashMaxPx,
     u_dash_len_per_mps: options.dashPerMps,
     u_speed_ramp_gamma: options.speedRampGamma,
-    u_vector_tex: vectorTexture,
+    u_vector_tex_lower: vectorTextureLower,
+    u_vector_tex_upper: vectorTextureUpper,
   }
   twgl.setUniforms(particleProgramInfo, commonUniforms)
 
@@ -863,9 +932,9 @@ function getStateBufferFromInfo(bufferInfo: twgl.BufferInfo) {
   return attrib?.buffer ?? null
 }
 
-function createVectorTexture(gl: WebGL2RenderingContext, state: VectorLayerState) {
-  const componentBytes = state.vectorNx * state.vectorNy
-  if (state.vectorU.length !== componentBytes || state.vectorV.length !== componentBytes) {
+function createVectorTexture(gl: WebGL2RenderingContext, frame: VectorFrameData) {
+  const componentBytes = frame.metadata.nx * frame.metadata.ny
+  if (frame.u.length !== componentBytes || frame.v.length !== componentBytes) {
     console.warn('[vector] unexpected vector component sizes')
     return null
   }
@@ -874,8 +943,8 @@ function createVectorTexture(gl: WebGL2RenderingContext, state: VectorLayerState
   const rgba = new Uint8Array(componentBytes * 4)
   for (let i = 0; i < componentBytes; i += 1) {
     const base = i * 4
-    rgba[base] = i8ToU8(state.vectorU[i])
-    rgba[base + 1] = i8ToU8(state.vectorV[i])
+    rgba[base] = i8ToU8(frame.u[i])
+    rgba[base + 1] = i8ToU8(frame.v[i])
     rgba[base + 2] = 128
     rgba[base + 3] = 255
   }
@@ -883,8 +952,8 @@ function createVectorTexture(gl: WebGL2RenderingContext, state: VectorLayerState
   try {
     return twgl.createTexture(gl, {
       src: rgba,
-      width: state.vectorNx,
-      height: state.vectorNy,
+      width: frame.metadata.nx,
+      height: frame.metadata.ny,
       internalFormat: gl.RGBA,
       format: gl.RGBA,
       type: gl.UNSIGNED_BYTE,
@@ -988,7 +1057,8 @@ function isReady(state: VectorLayerState) {
       state.gl &&
       state.viewport &&
       state.hasFrame &&
-      state.vectorTexture &&
+      state.vectorTextureLower &&
+      state.vectorTextureUpper &&
       state.updateProgramInfo &&
       state.particleProgramInfo &&
       state.trailProgramInfo &&

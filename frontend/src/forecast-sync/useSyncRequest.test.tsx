@@ -34,8 +34,8 @@ describe('useSyncRequest', () => {
       manifest,
       {
         state: {
-          appliedHourIndex: 1,
-          targetHourIndex: 1,
+          appliedTimeMs: Date.UTC(2026, 3, 9, 3, 30),
+          targetTimeMs: Date.UTC(2026, 3, 9, 3, 30),
         },
       }
     )
@@ -57,9 +57,11 @@ describe('useSyncRequest', () => {
     const { result } = renderHook(() => useSyncRequest(0))
 
     expect(result.current).toEqual(expect.objectContaining({
-      hourIndex: 1,
-      hourToken: '003',
-      requestKey: expect.stringContaining(':003:0'),
+      selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 30),
+      lowerHourToken: '003',
+      upperHourToken: '006',
+      mix: 0.16666666666666666,
+      requestKey: expect.stringContaining(':003:006:30:0'),
     }))
   })
 })
