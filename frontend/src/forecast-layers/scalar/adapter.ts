@@ -1,12 +1,18 @@
 import { createAbortError } from '../../abort'
 import { FORECAST_LAYER_BEFORE_ID, type ForecastLayer } from '../types'
-import { loadScalarFrame } from './engine/frame'
+import { loadScalarFrameWindow } from './engine/frame'
 import { createScalarRuntime } from './engine/runtime'
 import { getScalarController } from './controller'
 import { setProbeFrame } from '../../map-probe/frame'
 import { scalarRuntimeOptions } from './options'
+import type { ScalarFrameWindowData } from './engine/types'
 
 export const SCALAR_LAYER_ID = 'scalar-layer-id'
+
+const scalarFrameWindowByMap = new WeakMap<object, {
+  reuseKey: string
+  frameWindow: ScalarFrameWindowData
+}>()
 
 export const scalarLayerAdapter: ForecastLayer = {
   layerId: SCALAR_LAYER_ID,
@@ -16,11 +22,19 @@ export const scalarLayerAdapter: ForecastLayer = {
   },
   async applySync(args) {
     if (args.signal.aborted) throw createAbortError()
+    const reuseKey = `${args.manifest.cycle}:${args.manifest.revision}:${args.activeScalar}`
+    const previousFrameWindow = scalarFrameWindowByMap.get(args.map)
 
-    const frame = await loadScalarFrame({
+    const frame = await loadScalarFrameWindow({
       config: args.config,
       manifest: args.manifest,
-      hourToken: args.hourToken,
+      previousWindow: previousFrameWindow?.reuseKey === reuseKey
+        ? previousFrameWindow.frameWindow
+        : null,
+      lowerHourToken: args.lowerHourToken,
+      upperHourToken: args.upperHourToken,
+      selectedValidTimeMs: args.selectedValidTimeMs,
+      mix: args.mix,
       variable: args.activeScalar,
       signal: args.signal,
     })
@@ -34,6 +48,7 @@ export const scalarLayerAdapter: ForecastLayer = {
 
     controller.applyFrame(frame)
     setProbeFrame(frame)
+    scalarFrameWindowByMap.set(args.map, { reuseKey, frameWindow: frame })
   },
 }
 

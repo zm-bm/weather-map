@@ -1,3 +1,5 @@
+import type { LoadedFrameWindow } from '../../../forecast-frame/window'
+
 export const VECTOR_PAYLOAD_FORMAT = 'uv-i8-q0p5-v1'
 export const VECTOR_COMPONENT_ORDER = 'u_then_v'
 export const VECTOR_DECODE_FORMULA = 'value = stored * scale + offset'
@@ -35,3 +37,5 @@ export type VectorFrameData = {
   v: Int8Array
   metadata: VectorFrameMetadata
 }
+
+export type VectorFrameWindowData = LoadedFrameWindow<VectorFrameData>

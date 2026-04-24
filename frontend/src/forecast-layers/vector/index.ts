@@ -1,6 +1,10 @@
 export { vectorLayerAdapter, VECTOR_LAYER_ID } from './adapter'
-export { loadVectorFrame } from './engine/frame'
-export type { VectorFrameData } from './engine/types'
+export {
+  canInterpolateVectorFrames,
+  loadVectorFrame,
+  loadVectorFrameWindow,
+} from './engine/frame'
+export type { VectorFrameData, VectorFrameWindowData } from './engine/types'
 export {
   DEFAULT_VECTOR_RUNTIME_OPTIONS,
   vectorRuntimeOptions,

@@ -6,7 +6,7 @@ export function createConfigFixture(
   return {
     serverUrl: 'http://localhost:8081',
     manifestBaseUrl: 'http://localhost:8081/manifests',
-    verifyScalarSha256: false,
+    verifyPayloadSha256: false,
     language: 'en',
     ...overrides,
   }

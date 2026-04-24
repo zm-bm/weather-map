@@ -5,12 +5,14 @@ layout(location = 0) in vec3 a_state; // lon, lat, age
 
 uniform float u_dt_sec;
 uniform float u_seed;
-uniform sampler2D u_vector_tex;
+uniform sampler2D u_vector_tex_lower;
+uniform sampler2D u_vector_tex_upper;
 uniform vec2 u_vector_size;
 uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
+uniform float u_time_mix;
 uniform float u_speed_multiplier;
 uniform float u_zoom_scale;
 uniform float u_deg_per_meter;
@@ -75,13 +77,13 @@ vec3 respawn(float id) {
 }
 
 // Decode U/V components (stored as packed int8 in RG channels).
-vec2 decode_vector(ivec2 coord) {
-  vec4 texel = texelFetch(u_vector_tex, coord, 0);
+vec2 decode_vector(sampler2D vectorTex, ivec2 coord) {
+  vec4 texel = texelFetch(vectorTex, coord, 0);
   return vec2(decode_i8(texel.r), decode_i8(texel.g)) * 0.5;
 }
 
 // Sample vector field in lon/lat space with wrap-aware bilinear filtering.
-vec2 sample_vector_bilinear(float lon, float lat) {
+vec2 sample_vector_bilinear(sampler2D vectorTex, float lon, float lat) {
   float lon_norm = lon - u_lon0;
   lon_norm = lon_norm - floor(lon_norm / 360.0) * 360.0;
   float lon_wrapped = u_lon0 + lon_norm;
@@ -105,10 +107,10 @@ vec2 sample_vector_bilinear(float lon, float lat) {
   float y0c = clamp(y0, 0.0, ny - 1.0);
   float y1c = clamp(y0 + 1.0, 0.0, ny - 1.0);
 
-  vec2 w00 = decode_vector(ivec2(int(x0w), int(y0c)));
-  vec2 w10 = decode_vector(ivec2(int(x1w), int(y0c)));
-  vec2 w01 = decode_vector(ivec2(int(x0w), int(y1c)));
-  vec2 w11 = decode_vector(ivec2(int(x1w), int(y1c)));
+  vec2 w00 = decode_vector(vectorTex, ivec2(int(x0w), int(y0c)));
+  vec2 w10 = decode_vector(vectorTex, ivec2(int(x1w), int(y0c)));
+  vec2 w01 = decode_vector(vectorTex, ivec2(int(x0w), int(y1c)));
+  vec2 w11 = decode_vector(vectorTex, ivec2(int(x1w), int(y1c)));
 
   return mix(mix(w00, w10, tx), mix(w01, w11, tx), ty);
 }
@@ -116,7 +118,10 @@ vec2 sample_vector_bilinear(float lon, float lat) {
 void main() {
   float id = float(gl_VertexID);
   vec3 state = a_state;
-  vec2 vector_mps = sample_vector_bilinear(state.x, state.y);
+  float time_mix = clamp(u_time_mix, 0.0, 1.0);
+  vec2 vector_lower = sample_vector_bilinear(u_vector_tex_lower, state.x, state.y);
+  vec2 vector_upper = sample_vector_bilinear(u_vector_tex_upper, state.x, state.y);
+  vec2 vector_mps = mix(vector_lower, vector_upper, time_mix);
   float speed_mps = length(vector_mps);
   float age = state.z + u_dt_sec;
 
@@ -220,7 +225,8 @@ uniform float u_bounds_west;
 uniform float u_bounds_east;
 uniform vec4 u_mercator_bounds; // west_x, east_x, north_y, south_y
 uniform float u_point_size;
-uniform sampler2D u_vector_tex;
+uniform sampler2D u_vector_tex_lower;
+uniform sampler2D u_vector_tex_upper;
 uniform vec2 u_vector_size;
 uniform float u_lon0;
 uniform float u_lat0;
@@ -228,6 +234,7 @@ uniform float u_dx;
 uniform float u_dy;
 uniform float u_deg_per_meter;
 uniform float u_dir_step_sec;
+uniform float u_time_mix;
 uniform float u_speed_multiplier;
 uniform float u_zoom_scale;
 uniform float u_dash_min_len_px;
@@ -247,8 +254,8 @@ float decode_i8(float encoded) {
 }
 
 // Decode U/V components (stored as packed int8 in RG channels).
-vec2 decode_vector(ivec2 coord) {
-  vec4 texel = texelFetch(u_vector_tex, coord, 0);
+vec2 decode_vector(sampler2D vectorTex, ivec2 coord) {
+  vec4 texel = texelFetch(vectorTex, coord, 0);
   return vec2(decode_i8(texel.r), decode_i8(texel.g)) * 0.5;
 }
 
@@ -267,7 +274,7 @@ float lon_to_view_interval(float lon) {
 }
 
 // Sample vector field in lon/lat space with wrap-aware bilinear filtering.
-vec2 sample_vector_bilinear(float lon, float lat) {
+vec2 sample_vector_bilinear(sampler2D vectorTex, float lon, float lat) {
   float lon_norm = lon - u_lon0;
   lon_norm = lon_norm - floor(lon_norm / 360.0) * 360.0;
   float lon_wrapped = u_lon0 + lon_norm;
@@ -291,10 +298,10 @@ vec2 sample_vector_bilinear(float lon, float lat) {
   float y0c = clamp(y0, 0.0, ny - 1.0);
   float y1c = clamp(y0 + 1.0, 0.0, ny - 1.0);
 
-  vec2 w00 = decode_vector(ivec2(int(x0w), int(y0c)));
-  vec2 w10 = decode_vector(ivec2(int(x1w), int(y0c)));
-  vec2 w01 = decode_vector(ivec2(int(x0w), int(y1c)));
-  vec2 w11 = decode_vector(ivec2(int(x1w), int(y1c)));
+  vec2 w00 = decode_vector(vectorTex, ivec2(int(x0w), int(y0c)));
+  vec2 w10 = decode_vector(vectorTex, ivec2(int(x1w), int(y0c)));
+  vec2 w01 = decode_vector(vectorTex, ivec2(int(x0w), int(y1c)));
+  vec2 w11 = decode_vector(vectorTex, ivec2(int(x1w), int(y1c)));
 
   return mix(mix(w00, w10, tx), mix(w01, w11, tx), ty);
 }
@@ -324,7 +331,10 @@ void main() {
   float lat = a_state.y;
 
   // Dash length scales with speed but is clamped by style bounds.
-  vec2 vector_now = sample_vector_bilinear(a_state.x, lat);
+  float time_mix = clamp(u_time_mix, 0.0, 1.0);
+  vec2 vector_now_lower = sample_vector_bilinear(u_vector_tex_lower, a_state.x, lat);
+  vec2 vector_now_upper = sample_vector_bilinear(u_vector_tex_upper, a_state.x, lat);
+  vec2 vector_now = mix(vector_now_lower, vector_now_upper, time_mix);
   float speed_mps = length(vector_now);
   v_dash_len = clamp(
     u_dash_min_len_px + speed_mps * u_dash_len_per_mps,
@@ -343,7 +353,9 @@ void main() {
   float preview_delta_lon = vector_now.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
   float preview_lon = wrap_lon(a_state.x + preview_delta_lon);
   float preview_lat = clamp(lat + preview_delta_lat, -89.5, 89.5);
-  vec2 vector_ahead = sample_vector_bilinear(preview_lon, preview_lat);
+  vec2 vector_ahead_lower = sample_vector_bilinear(u_vector_tex_lower, preview_lon, preview_lat);
+  vec2 vector_ahead_upper = sample_vector_bilinear(u_vector_tex_upper, preview_lon, preview_lat);
+  vec2 vector_ahead = mix(vector_ahead_lower, vector_ahead_upper, time_mix);
   vec2 vector_dir = mix(vector_now, vector_ahead, 0.5);
 
   float delta_lat = vector_dir.y * u_dir_step_sec * u_deg_per_meter * speed;

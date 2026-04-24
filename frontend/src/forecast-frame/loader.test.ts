@@ -5,6 +5,7 @@ import {
   createFetchErrorResponse,
   stubFetchArrayBufferOnce,
 } from '../test/fetch'
+import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrameCache'
 import { loadFramePayload, normalizeFrameHourToken } from './loader'
 
 const BASE_MANIFEST = createFrameManifestFixture({ forecastHours: ['000'] })
@@ -14,6 +15,7 @@ const GRID = BASE_MANIFEST.grids.g0!
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  return __resetPayloadFrameCacheForTests()
 })
 
 describe('normalizeFrameHourToken', () => {
@@ -29,17 +31,43 @@ describe('loadFramePayload', () => {
 
     const loaded = await loadFramePayload({
       config: createConfigFixture(),
+      manifest: BASE_MANIFEST,
       frameRef: SCALAR_FRAME_REF,
       grid: GRID,
       hourToken: '0',
-      variable: 'tmp_surface',
-      domain: 'scalar',
+      variableId: 'tmp_surface',
+      frameKind: 'scalar',
       signal: createSignalFixture(),
-      verifySha256: false,
+      verifyPayloadSha256: false,
     })
 
     expect(loaded.hourToken).toBe('000')
     expect(loaded.payload.byteLength).toBe(8)
+  })
+
+  it('uses the in-memory cache for repeated manifest-scoped loads', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new Int16Array([1, 2, 3, 4]).buffer,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const args = {
+      config: createConfigFixture(),
+      manifest: BASE_MANIFEST,
+      frameRef: SCALAR_FRAME_REF,
+      grid: GRID,
+      hourToken: '000',
+      variableId: 'tmp_surface',
+      frameKind: 'scalar' as const,
+      signal: createSignalFixture(),
+      verifyPayloadSha256: false,
+    }
+
+    await loadFramePayload(args)
+    await loadFramePayload(args)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('fails on fetch errors', async () => {
@@ -48,13 +76,14 @@ describe('loadFramePayload', () => {
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
+        manifest: BASE_MANIFEST,
         frameRef: SCALAR_FRAME_REF,
         grid: GRID,
         hourToken: '000',
-        variable: 'tmp_surface',
-        domain: 'scalar',
+        variableId: 'tmp_surface',
+        frameKind: 'scalar',
         signal: createSignalFixture(),
-        verifySha256: false,
+        verifyPayloadSha256: false,
       })
     ).rejects.toThrow('Failed to fetch scalar payload: 404 Not Found')
   })
@@ -65,16 +94,17 @@ describe('loadFramePayload', () => {
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
+        manifest: BASE_MANIFEST,
         frameRef: {
           ...SCALAR_FRAME_REF,
           byte_length: 6,
         },
         grid: GRID,
         hourToken: '000',
-        variable: 'tmp_surface',
-        domain: 'scalar',
+        variableId: 'tmp_surface',
+        frameKind: 'scalar',
         signal: createSignalFixture(),
-        verifySha256: false,
+        verifyPayloadSha256: false,
       })
     ).rejects.toThrow('Unexpected scalar payload size')
   })
@@ -85,6 +115,7 @@ describe('loadFramePayload', () => {
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
+        manifest: BASE_MANIFEST,
         frameRef: SCALAR_FRAME_REF,
         grid: {
           ...GRID,
@@ -92,10 +123,10 @@ describe('loadFramePayload', () => {
           ny: 3,
         },
         hourToken: '000',
-        variable: 'tmp_surface',
-        domain: 'scalar',
+        variableId: 'tmp_surface',
+        frameKind: 'scalar',
         signal: createSignalFixture(),
-        verifySha256: false,
+        verifyPayloadSha256: false,
       })
     ).rejects.toThrow('scalar payload bytes do not match grid dimensions')
   })
@@ -106,32 +137,34 @@ describe('loadFramePayload', () => {
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
+        manifest: BASE_MANIFEST,
         frameRef: {
           ...SCALAR_FRAME_REF,
           sha256: 'deadbeef',
         },
         grid: GRID,
         hourToken: '000',
-        variable: 'tmp_surface',
-        domain: 'scalar',
+        variableId: 'tmp_surface',
+        frameKind: 'scalar',
         signal: createSignalFixture(),
-        verifySha256: true,
+        verifyPayloadSha256: true,
       })
     ).rejects.toThrow('scalar SHA-256 mismatch')
 
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
+        manifest: BASE_MANIFEST,
         frameRef: {
           ...VECTOR_FRAME_REF,
           sha256: 'cafebabe',
         },
         grid: GRID,
         hourToken: '000',
-        variable: 'wind10m_uv',
-        domain: 'vector',
+        variableId: 'wind10m_uv',
+        frameKind: 'vector',
         signal: createSignalFixture(),
-        verifySha256: true,
+        verifyPayloadSha256: true,
       })
     ).rejects.toThrow('vector SHA-256 mismatch')
   })

@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { createManifestFixture } from '../test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
+import { validTimeMs } from './time'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
@@ -79,7 +80,7 @@ describe('ForecastTimeProvider', () => {
 
     expect(screen.getByTestId('cycle')).toHaveTextContent('none')
     expect(screen.getByTestId('hours')).toHaveTextContent('')
-    expect(getContext().state.targetHourIndex).toBe(0)
+    expect(getContext().state.targetTimeMs).toBe(0)
     expect(typeof getContext().sync.onRequestStart).toBe('function')
     expect(typeof getContext().sync.onRequestApplied).toBe('function')
     expect(typeof getContext().sync.onRequestError).toBe('function')
@@ -94,59 +95,57 @@ describe('ForecastTimeProvider', () => {
     expect(screen.getByTestId('hours')).toHaveTextContent('000,003,006')
   })
 
-  it('starts at the hour closest to current time', () => {
-    vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
+  it('starts at the current time snapped to the 10-minute timeline grid', () => {
+    vi.setSystemTime(new Date('2026-04-09T04:14:00Z'))
     const manifest = createTimelineManifest()
 
     const { getContext } = renderForecastTimeProvider(manifest)
 
-    expect(getContext().state.appliedHourIndex).toBe(1)
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
+    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
   })
 
-  it('coalesces in-flight requests to latest queued hour', () => {
+  it('coalesces in-flight requests to the latest queued time', () => {
     const manifest = createTimelineManifest()
+    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
+    const validAt0600 = validTimeMs(manifest.cycle, '006') ?? 0
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().controls.requestHour(1)
+      getContext().controls.requestTime(validAt0300)
     })
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.targetTimeMs).toBe(validAt0300)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().controls.requestHour(2)
-      getContext().controls.requestHour(1)
-      getContext().controls.requestHour(2)
+      getContext().controls.requestTime(validAt0600)
+      getContext().controls.requestTime(validAt0300)
+      getContext().controls.requestTime(validAt0600)
     })
-    expect(getContext().state.pendingHourIndex).toBe(2)
+    expect(getContext().state.pendingTimeMs).toBe(validAt0600)
 
     act(() => {
-      getContext().sync.onRequestApplied(1)
+      getContext().sync.onRequestApplied(validAt0300)
     })
 
-    act(() => {
-      vi.advanceTimersByTime(300)
-      vi.runOnlyPendingTimers()
-    })
-
-    expect(getContext().state.targetHourIndex).toBe(2)
+    expect(getContext().state.targetTimeMs).toBe(validAt0600)
     expect(getContext().state.isInFlight).toBe(true)
   })
 
   it('resets timeline state when manifest cycle changes', () => {
-    vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
+    vi.setSystemTime(new Date('2026-04-09T04:14:00Z'))
 
     const manifest = createTimelineManifest({
       generatedAt: '2026-04-09T00:00:00Z',
     })
+    const validAt0600 = validTimeMs(manifest.cycle, '006') ?? 0
     const { getContext, rerenderManifest } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().controls.requestHour(2)
+      getContext().controls.requestTime(validAt0600)
       getContext().controls.togglePlay()
     })
-    expect(getContext().state.targetHourIndex).toBe(2)
+    expect(getContext().state.targetTimeMs).toBe(validAt0600)
     expect(getContext().state.isPlaying).toBe(true)
 
     const nextManifest = createTimelineManifest({
@@ -156,65 +155,72 @@ describe('ForecastTimeProvider', () => {
 
     rerenderManifest(nextManifest)
 
-    expect(getContext().state.appliedHourIndex).toBe(0)
-    expect(getContext().state.targetHourIndex).toBe(0)
-    expect(getContext().state.pendingHourIndex).toBeNull()
+    const resetValidTimeMs = validTimeMs(nextManifest.cycle, '000') ?? 0
+    expect(getContext().state.appliedTimeMs).toBe(resetValidTimeMs)
+    expect(getContext().state.targetTimeMs).toBe(resetValidTimeMs)
+    expect(getContext().state.pendingTimeMs).toBeNull()
     expect(getContext().state.isPlaying).toBe(false)
     expect(getContext().state.isInFlight).toBe(false)
   })
 
-  it('resets to closest hour when manifest appears after initial empty state', () => {
-    vi.setSystemTime(new Date('2026-04-09T04:10:00Z'))
+  it('resets to the current snapped timeline step when manifest appears after initial empty state', () => {
+    vi.setSystemTime(new Date('2026-04-09T04:14:00Z'))
 
     const { getContext, rerenderManifest } = renderForecastTimeProvider(null)
-    expect(getContext().state.targetHourIndex).toBe(0)
+    expect(getContext().state.targetTimeMs).toBe(0)
 
     rerenderManifest(createTimelineManifest())
 
-    expect(getContext().state.appliedHourIndex).toBe(1)
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
+    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
   })
 
-  it('steps next from latest desired hour while in flight', () => {
+  it('steps next from the latest desired 10-minute slot while in flight', () => {
     const manifest = createTimelineManifest()
+    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().controls.requestHour(1)
+      getContext().controls.requestTime(validAt0300)
     })
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.targetTimeMs).toBe(validAt0300)
 
     act(() => {
       getContext().controls.requestNext()
     })
-    expect(getContext().state.pendingHourIndex).toBe(2)
+    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (10 * 60 * 1000))
 
     act(() => {
       getContext().controls.requestNext()
     })
-    expect(getContext().state.pendingHourIndex).toBe(0)
+    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (20 * 60 * 1000))
   })
 
-  it('normalizes out-of-range frame callback hour indexes', () => {
+  it('clamps out-of-range frame callback times into the forecast window', () => {
     const manifest = createTimelineManifest()
+    const validAtStart = validTimeMs(manifest.cycle, '000') ?? 0
+    const validAtEnd = validTimeMs(manifest.cycle, '006') ?? 0
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().sync.onRequestStart(99)
+      getContext().sync.onRequestStart(Date.UTC(2026, 3, 10, 0, 0))
     })
-    expect(getContext().state.targetHourIndex).toBe(2)
+    expect(getContext().state.targetTimeMs).toBe(validAtEnd)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().sync.onRequestApplied(-9)
+      getContext().sync.onRequestApplied(Date.UTC(2026, 3, 8, 0, 0))
     })
-    expect(getContext().state.appliedHourIndex).toBe(0)
-    expect(getContext().state.targetHourIndex).toBe(0)
+    expect(getContext().state.appliedTimeMs).toBe(validAtStart)
+    expect(getContext().state.targetTimeMs).toBe(validAtStart)
     expect(getContext().state.isInFlight).toBe(false)
   })
 
-  it('advances autoplay only after apply plus the minimum interval', () => {
+  it('advances autoplay by ten forecast minutes after each apply', () => {
     const manifest = createTimelineManifest()
+    const validAt0000 = validTimeMs(manifest.cycle, '000') ?? 0
+    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
+    const validAt0020 = Date.UTC(2026, 3, 9, 0, 20)
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -223,33 +229,33 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.isPlaying).toBe(true)
 
     act(() => {
-      vi.advanceTimersByTime(999)
+      vi.advanceTimersByTime(99)
     })
-    expect(getContext().state.targetHourIndex).toBe(0)
+    expect(getContext().state.targetTimeMs).toBe(validAt0000)
     expect(getContext().state.isInFlight).toBe(false)
 
     act(() => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().sync.onRequestApplied(1)
+      getContext().sync.onRequestApplied(validAt0010)
     })
-    expect(getContext().state.appliedHourIndex).toBe(1)
+    expect(getContext().state.appliedTimeMs).toBe(validAt0010)
     expect(getContext().state.isInFlight).toBe(false)
 
     act(() => {
-      vi.advanceTimersByTime(999)
+      vi.advanceTimersByTime(99)
     })
-    expect(getContext().state.targetHourIndex).toBe(1)
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
 
     act(() => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetHourIndex).toBe(2)
+    expect(getContext().state.targetTimeMs).toBe(validAt0020)
   })
 })

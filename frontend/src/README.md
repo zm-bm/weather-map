@@ -7,7 +7,8 @@ This document defines the preferred domain terms for frontend map/forecast code.
 - `forecast`: umbrella domain for timeline navigation and cross-domain frame application.
 - `cycle`: model run initialization timestamp (`YYYYMMDDHH`).
 - `hourToken` (or `leadHour`): forecast offset token from cycle (`000`, `003`, ...), used for frame/payload keys.
-- `hourIndex`: index into `manifest.forecast_hours`; primary timeline state value in UI/transport/coordinator APIs.
+- `validTimeMs`: minute-resolved selected forecast time in UTC epoch milliseconds; primary timeline state value in UI/coordinator APIs.
+- `frame window`: the lower/upper forecast-hour pair plus interpolation mix used to represent a continuous selected time.
 - `frame`: concrete render target formed by `{ cycle, hourToken }`.
 - `scalar`: gridded scalar fields (temperature, humidity, pressure, etc.) rendered from numeric payloads.
 - `vector`: vector field (`u/v`) and particle visualization pipeline.
@@ -20,7 +21,7 @@ This document defines the preferred domain terms for frontend map/forecast code.
 ## Ownership Boundaries
 
 - `forecast-time/state` + `forecast-time/ForecastTimeProvider`:
-  - forecast-time intent/state only.
+  - forecast-time intent/state only, including minute-resolved valid-time selection.
   - no map rendering logic, no product fetch/upload logic.
 
 - `forecast-sync/*`:

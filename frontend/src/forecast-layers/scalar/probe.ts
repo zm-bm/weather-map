@@ -1,4 +1,6 @@
+import { canInterpolateScalarFrames } from './engine/frame'
 import type { ScalarFrameData } from './engine/types'
+import type { ScalarFrameWindowData } from './engine/types'
 
 export type ScalarProbePoint = {
   x: number
@@ -16,6 +18,15 @@ export type ScalarProbeResult = {
   gridY: number
   value: number | null
   points: [ScalarProbePoint, ScalarProbePoint, ScalarProbePoint, ScalarProbePoint]
+}
+
+export type ScalarFrameWindowProbeResult = {
+  lon: number
+  lat: number
+  mix: number
+  value: number | null
+  lower: ScalarProbeResult
+  upper: ScalarProbeResult
 }
 
 export function probeScalarFrame(
@@ -62,6 +73,40 @@ export function probeScalarFrame(
     gridY,
     value: totalWeight > 0 ? totalValue / totalWeight : null,
     points,
+  }
+}
+
+export function blendScalarValues(
+  lowerValue: number | null,
+  upperValue: number | null,
+  mix: number
+): number | null {
+  const normalizedMix = Number.isFinite(mix) ? Math.max(0, Math.min(1, mix)) : 0
+  if (lowerValue == null && upperValue == null) return null
+  if (lowerValue == null) return upperValue
+  if (upperValue == null) return lowerValue
+  return lowerValue + ((upperValue - lowerValue) * normalizedMix)
+}
+
+export function probeScalarFrameWindow(
+  frameWindow: ScalarFrameWindowData,
+  coords: { lon: number; lat: number },
+): ScalarFrameWindowProbeResult | null {
+  const lower = probeScalarFrame(frameWindow.lower, coords)
+  if (!lower) return null
+
+  const canBlend = frameWindow.mix > 0 && canInterpolateScalarFrames(frameWindow.lower, frameWindow.upper)
+  const upper = canBlend
+    ? (probeScalarFrame(frameWindow.upper, coords) ?? lower)
+    : lower
+
+  return {
+    lon: coords.lon,
+    lat: coords.lat,
+    mix: canBlend ? frameWindow.mix : 0,
+    value: blendScalarValues(lower.value, upper.value, canBlend ? frameWindow.mix : 0),
+    lower,
+    upper,
   }
 }
 

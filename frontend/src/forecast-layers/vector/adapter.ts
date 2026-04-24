@@ -1,11 +1,17 @@
 import { createAbortError } from '../../abort'
 import { FORECAST_LAYER_BEFORE_ID, type ForecastLayer } from '../types'
-import { loadVectorFrame } from './engine/frame'
+import { loadVectorFrameWindow } from './engine/frame'
 import { createVectorRuntime } from './engine/runtime'
 import { getVectorController } from './controller'
 import { vectorRuntimeOptions } from './options'
+import type { VectorFrameWindowData } from './engine/types'
 
 export const VECTOR_LAYER_ID = 'vector-layer-id'
+
+const vectorFrameWindowByMap = new WeakMap<object, {
+  reuseKey: string
+  frameWindow: VectorFrameWindowData
+}>()
 
 export const vectorLayerAdapter: ForecastLayer = {
   layerId: VECTOR_LAYER_ID,
@@ -16,11 +22,19 @@ export const vectorLayerAdapter: ForecastLayer = {
   async applySync(args) {
     if (args.signal.aborted) throw createAbortError()
     const variable = args.activeVector
+    const reuseKey = `${args.manifest.cycle}:${args.manifest.revision}:${variable}`
+    const previousFrameWindow = vectorFrameWindowByMap.get(args.map)
 
-    const frame = await loadVectorFrame({
+    const frame = await loadVectorFrameWindow({
       config: args.config,
       manifest: args.manifest,
-      hourToken: args.hourToken,
+      previousWindow: previousFrameWindow?.reuseKey === reuseKey
+        ? previousFrameWindow.frameWindow
+        : null,
+      lowerHourToken: args.lowerHourToken,
+      upperHourToken: args.upperHourToken,
+      selectedValidTimeMs: args.selectedValidTimeMs,
+      mix: args.mix,
       variable,
       signal: args.signal,
     })
@@ -33,6 +47,7 @@ export const vectorLayerAdapter: ForecastLayer = {
     }
 
     controller.applyFrame(frame)
+    vectorFrameWindowByMap.set(args.map, { reuseKey, frameWindow: frame })
   },
 }
 

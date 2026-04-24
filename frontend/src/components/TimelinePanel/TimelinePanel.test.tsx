@@ -5,14 +5,12 @@ import { createForecastTimeContextValue } from '../../test/fixtures'
 import TimelinePanel from './TimelinePanel'
 
 const mocks = vi.hoisted(() => ({
-  requestHour: vi.fn(),
-  requestPrev: vi.fn(),
-  requestNext: vi.fn(),
+  requestTime: vi.fn(),
   togglePlay: vi.fn(),
   timelineState: {
-    appliedHourIndex: 0,
-    targetHourIndex: 0,
-    pendingHourIndex: null as number | null,
+    appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+    targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+    pendingTimeMs: null as number | null,
     isInFlight: false,
     isPlaying: false,
   },
@@ -26,9 +24,7 @@ vi.mock('../../forecast-time/ForecastTimeContext', () => ({
       forecastHours: ['000', '003', '006'],
       state: mocks.timelineState,
       controls: {
-        requestHour: mocks.requestHour,
-        requestPrev: mocks.requestPrev,
-        requestNext: mocks.requestNext,
+        requestTime: mocks.requestTime,
         togglePlay: mocks.togglePlay,
       },
     }
@@ -39,41 +35,45 @@ describe('TimelinePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.timelineState = {
-      appliedHourIndex: 0,
-      targetHourIndex: 0,
-      pendingHourIndex: null,
+      appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+      targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+      pendingTimeMs: null,
       isInFlight: false,
       isPlaying: false,
     }
   })
 
-  it('commits slider hour only on release, not during drag changes', () => {
+  it('commits slider time only on release, not during drag changes', () => {
     render(<TimelinePanel />)
 
     expect(screen.queryByText('Valid Time')).not.toBeInTheDocument()
     expect(screen.queryByText('Ready')).not.toBeInTheDocument()
 
-    const slider = screen.getByLabelText('Forecast step')
+    const slider = screen.getByLabelText('Forecast time')
+    expect(slider).toHaveAttribute('step', '10')
     fireEvent.pointerDown(slider)
-    fireEvent.change(slider, { target: { value: '2' } })
-    expect(mocks.requestHour).not.toHaveBeenCalled()
+    fireEvent.change(slider, { target: { value: '30' } })
+    expect(mocks.requestTime).not.toHaveBeenCalled()
 
     fireEvent.pointerUp(slider)
-    expect(mocks.requestHour).toHaveBeenCalledOnce()
-    expect(mocks.requestHour).toHaveBeenCalledWith(2)
+    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 0, 30))
   })
 
-  it('shows loading and queued status text', () => {
+  it('renders only the hero play control without transport status text', () => {
     mocks.timelineState = {
-      appliedHourIndex: 0,
-      targetHourIndex: 1,
-      pendingHourIndex: 2,
+      appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+      targetTimeMs: Date.UTC(2026, 3, 9, 0, 30),
+      pendingTimeMs: Date.UTC(2026, 3, 9, 0, 45),
       isInFlight: true,
       isPlaying: false,
     }
     render(<TimelinePanel />)
 
-    expect(screen.getByText(/loading/i)).toBeInTheDocument()
-    expect(screen.getByText(/queued/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play forecast timeline' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Previous forecast minute')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Next forecast minute')).not.toBeInTheDocument()
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/queued/i)).not.toBeInTheDocument()
   })
 })

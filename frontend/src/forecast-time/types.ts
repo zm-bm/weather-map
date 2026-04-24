@@ -1,20 +1,20 @@
 export type ForecastTimeViewState = {
-  appliedHourIndex: number
-  targetHourIndex: number
-  pendingHourIndex: number | null
+  appliedTimeMs: number
+  targetTimeMs: number
+  pendingTimeMs: number | null
   isInFlight: boolean
   isPlaying: boolean
 }
 
 export type ForecastTimeControls = {
-  requestHour: (hourIndex: number) => void
+  requestTime: (timeMs: number) => void
   requestNext: () => void
   requestPrev: () => void
   togglePlay: () => void
 }
 
 export type ForecastTimeSyncBridge = {
-  onRequestStart: (hourIndex: number) => void
-  onRequestApplied: (hourIndex: number) => void
-  onRequestError: (hourIndex: number, error?: Error) => void
+  onRequestStart: (timeMs: number) => void
+  onRequestApplied: (timeMs: number) => void
+  onRequestError: (timeMs: number, error?: Error) => void
 }

@@ -1,4 +1,4 @@
-import { probeScalarFrame } from '../forecast-layers/scalar/probe'
+import { probeScalarFrameWindow } from '../forecast-layers/scalar/probe'
 import { useMapProbe } from './context'
 import { useProbeFrame } from './frame'
 
@@ -13,7 +13,7 @@ export function useProbeValue(activeScalar: string) {
     }
   }
 
-  if (frame == null || frame.variableId !== activeScalar) {
+  if (frame == null || frame.lower.variableId !== activeScalar) {
     return {
       value: null,
       loading: true,
@@ -21,7 +21,7 @@ export function useProbeValue(activeScalar: string) {
   }
 
   return {
-    value: probeScalarFrame(frame, {
+    value: probeScalarFrameWindow(frame, {
       lon: lastProbe.lon,
       lat: lastProbe.lat,
     })?.value ?? null,

@@ -1,101 +1,97 @@
-export const DEFAULT_BUTTON_DEBOUNCE_MS = 250
-export const DEFAULT_PLAY_MIN_INTERVAL_MS = 1500
+export const DEFAULT_PLAY_MIN_INTERVAL_MS = 100
+export const DEFAULT_PLAY_STEP_COUNT = 1
 
 export type ForecastTimeState = {
-  appliedHourIndex: number
-  targetHourIndex: number
-  pendingHourIndex: number | null
-  pendingRetryAtMs: number | null
+  appliedTimeMs: number
+  targetTimeMs: number
+  pendingTimeMs: number | null
   isInFlight: boolean
   isPlaying: boolean
-  lastDispatchAtMs: number
   lastAppliedAtMs: number
 }
 
 export type ForecastTimeAction =
-  | { type: 'requestHour'; hourIndex: number; nowMs: number; debounceMs: number }
-  | { type: 'flushPending'; nowMs: number; debounceMs: number }
-  | { type: 'requestStart'; hourIndex: number }
-  | { type: 'requestApplied'; hourIndex: number; nowMs: number }
+  | { type: 'requestTime'; timeMs: number }
+  | { type: 'requestStart'; timeMs: number }
+  | { type: 'requestApplied'; timeMs: number; nowMs: number }
   | { type: 'requestError' }
-  | { type: 'reset'; hourIndex: number; nowMs: number }
+  | { type: 'reset'; timeMs: number; nowMs: number }
   | { type: 'togglePlay' }
 
-export function createForecastTimeState(initialHourIndex: number): ForecastTimeState {
+export function createForecastTimeState(initialTimeMs: number): ForecastTimeState {
   return {
-    appliedHourIndex: initialHourIndex,
-    targetHourIndex: initialHourIndex,
-    pendingHourIndex: null,
-    pendingRetryAtMs: null,
+    appliedTimeMs: initialTimeMs,
+    targetTimeMs: initialTimeMs,
+    pendingTimeMs: null,
     isInFlight: false,
     isPlaying: false,
-    lastDispatchAtMs: 0,
     lastAppliedAtMs: Date.now(),
   }
 }
 
 function clearPending(state: ForecastTimeState): ForecastTimeState {
-  if (state.pendingHourIndex == null && state.pendingRetryAtMs == null) return state
-  return { ...state, pendingHourIndex: null, pendingRetryAtMs: null }
+  if (state.pendingTimeMs == null) return state
+  return { ...state, pendingTimeMs: null }
 }
 
-function dispatchHour(state: ForecastTimeState, hourIndex: number, nowMs: number): ForecastTimeState {
+function dispatchTime(
+  state: ForecastTimeState,
+  timeMs: number
+): ForecastTimeState {
   return {
     ...state,
-    pendingHourIndex: null,
-    pendingRetryAtMs: null,
-    targetHourIndex: hourIndex,
+    pendingTimeMs: null,
+    targetTimeMs: timeMs,
     isInFlight: true,
-    lastDispatchAtMs: nowMs,
   }
 }
 
-function queueHour(state: ForecastTimeState, hourIndex: number, retryAtMs: number | null): ForecastTimeState {
-  if (state.pendingHourIndex === hourIndex && state.pendingRetryAtMs === retryAtMs) return state
-  return { ...state, pendingHourIndex: hourIndex, pendingRetryAtMs: retryAtMs }
-}
-
-function computeRetryAtMs(lastDispatchAtMs: number, nowMs: number, debounceMs: number): number | null {
-  const elapsedSinceDispatch = nowMs - lastDispatchAtMs
-  if (elapsedSinceDispatch >= debounceMs) return null
-  return nowMs + (debounceMs - elapsedSinceDispatch)
-}
-
-function reduceRequestHour(
+function queueTime(
   state: ForecastTimeState,
-  hourIndex: number,
-  nowMs: number,
-  debounceMs: number
+  timeMs: number
+): ForecastTimeState {
+  if (state.pendingTimeMs === timeMs) return state
+  return { ...state, pendingTimeMs: timeMs }
+}
+
+function reduceRequestTime(
+  state: ForecastTimeState,
+  timeMs: number
 ): ForecastTimeState {
   if (state.isInFlight) {
-    if (hourIndex === state.targetHourIndex) return state
-    return queueHour(state, hourIndex, null)
+    if (timeMs === state.targetTimeMs) return clearPending(state)
+    return queueTime(state, timeMs)
   }
 
-  if (hourIndex === state.appliedHourIndex) return clearPending(state)
+  if (timeMs === state.appliedTimeMs) return clearPending(state)
 
-  const retryAtMs = computeRetryAtMs(state.lastDispatchAtMs, nowMs, debounceMs)
-  if (retryAtMs != null) {
-    return queueHour(state, hourIndex, retryAtMs)
-  }
-
-  return dispatchHour(state, hourIndex, nowMs)
+  return dispatchTime(state, timeMs)
 }
 
-function reduceFlushPending(
+function reduceRequestApplied(
   state: ForecastTimeState,
-  nowMs: number,
-  debounceMs: number
+  timeMs: number,
+  nowMs: number
 ): ForecastTimeState {
-  if (state.pendingHourIndex == null || state.isInFlight) return state
-  if (state.pendingHourIndex === state.appliedHourIndex) return clearPending(state)
-
-  const retryAtMs = computeRetryAtMs(state.lastDispatchAtMs, nowMs, debounceMs)
-  if (retryAtMs != null) {
-    return queueHour(state, state.pendingHourIndex, retryAtMs)
+  if (state.pendingTimeMs != null && state.pendingTimeMs !== timeMs) {
+    return {
+      ...state,
+      appliedTimeMs: timeMs,
+      targetTimeMs: state.pendingTimeMs,
+      pendingTimeMs: null,
+      isInFlight: true,
+      lastAppliedAtMs: nowMs,
+    }
   }
 
-  return dispatchHour(state, state.pendingHourIndex, nowMs)
+  return {
+    ...state,
+    appliedTimeMs: timeMs,
+    targetTimeMs: timeMs,
+    pendingTimeMs: null,
+    isInFlight: false,
+    lastAppliedAtMs: nowMs,
+  }
 }
 
 export function reduceForecastTimeState(
@@ -104,47 +100,31 @@ export function reduceForecastTimeState(
 ): ForecastTimeState {
   if (action.type === 'reset') {
     return {
-      ...createForecastTimeState(action.hourIndex),
+      ...createForecastTimeState(action.timeMs),
       lastAppliedAtMs: action.nowMs,
     }
   }
 
-  if (action.type === 'requestHour') {
-    return reduceRequestHour(
-      state,
-      action.hourIndex,
-      action.nowMs,
-      action.debounceMs
-    )
-  }
-
-  if (action.type === 'flushPending') {
-    return reduceFlushPending(state, action.nowMs, action.debounceMs)
+  if (action.type === 'requestTime') {
+    return reduceRequestTime(state, action.timeMs)
   }
 
   if (action.type === 'requestStart') {
     return {
       ...state,
-      targetHourIndex: action.hourIndex,
+      targetTimeMs: action.timeMs,
       isInFlight: true,
     }
   }
 
   if (action.type === 'requestApplied') {
-    return {
-      ...state,
-      appliedHourIndex: action.hourIndex,
-      targetHourIndex: action.hourIndex,
-      isInFlight: false,
-      lastAppliedAtMs: action.nowMs,
-    }
+    return reduceRequestApplied(state, action.timeMs, action.nowMs)
   }
 
   if (action.type === 'requestError') {
     return {
       ...state,
-      pendingHourIndex: null,
-      pendingRetryAtMs: null,
+      pendingTimeMs: null,
       isInFlight: false,
       isPlaying: false,
     }

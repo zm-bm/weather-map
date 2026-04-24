@@ -23,12 +23,14 @@ in vec2 v_mercator;
 out vec4 outColor;
 
 uniform isampler2D u_scalar_tex;
+uniform isampler2D u_scalar_tex_upper;
 uniform sampler2D u_colormap_tex;
 uniform vec2 u_grid_size;
 uniform vec2 u_display_range;
 uniform float u_scale;
 uniform float u_offset;
 uniform int u_nodata;
+uniform float u_time_mix;
 uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
@@ -50,12 +52,37 @@ float wrapRepeat(float value, float span) {
 }
 
 // Decode one scalar texel and return (value, validityWeight).
-vec2 sampleDecoded(int x, int y) {
-  int stored = texelFetch(u_scalar_tex, ivec2(x, y), 0).r;
+vec2 sampleDecoded(isampler2D scalarTex, int x, int y) {
+  int stored = texelFetch(scalarTex, ivec2(x, y), 0).r;
   if (stored == u_nodata) {
     return vec2(0.0, 0.0);
   }
   return vec2(float(stored) * u_scale + u_offset, 1.0);
+}
+
+vec2 sampleScalarField(isampler2D scalarTex, int x0, int y0, int x1, int y1, float w00, float w10, float w01, float w11) {
+  vec2 s00 = sampleDecoded(scalarTex, x0, y0);
+  vec2 s10 = sampleDecoded(scalarTex, x1, y0);
+  vec2 s01 = sampleDecoded(scalarTex, x0, y1);
+  vec2 s11 = sampleDecoded(scalarTex, x1, y1);
+
+  float totalWeight =
+    w00 * s00.y +
+    w10 * s10.y +
+    w01 * s01.y +
+    w11 * s11.y;
+
+  if (totalWeight <= 0.0) {
+    return vec2(0.0, 0.0);
+  }
+
+  float value =
+    (w00 * s00.x * s00.y +
+      w10 * s10.x * s10.y +
+      w01 * s01.x * s01.y +
+      w11 * s11.x * s11.y) / totalWeight;
+
+  return vec2(value, 1.0);
 }
 
 void main() {
@@ -90,28 +117,18 @@ void main() {
   float w01 = (1.0 - tx) * ty;
   float w11 = tx * ty;
 
-  vec2 s00 = sampleDecoded(x0, y0);
-  vec2 s10 = sampleDecoded(x1, y0);
-  vec2 s01 = sampleDecoded(x0, y1);
-  vec2 s11 = sampleDecoded(x1, y1);
+  vec2 lower = sampleScalarField(u_scalar_tex, x0, y0, x1, y1, w00, w10, w01, w11);
+  vec2 upper = sampleScalarField(u_scalar_tex_upper, x0, y0, x1, y1, w00, w10, w01, w11);
 
-  // Weighted nodata-aware interpolation (invalid samples contribute zero weight).
-  float totalWeight =
-    w00 * s00.y +
-    w10 * s10.y +
-    w01 * s01.y +
-    w11 * s11.y;
-
-  if (totalWeight <= 0.0) {
+  if (lower.y <= 0.0 && upper.y <= 0.0) {
     outColor = vec4(0.0);
     return;
   }
 
-  float value =
-    (w00 * s00.x * s00.y +
-      w10 * s10.x * s10.y +
-      w01 * s01.x * s01.y +
-      w11 * s11.x * s11.y) / totalWeight;
+  float mixValue = clamp(u_time_mix, 0.0, 1.0);
+  float value = lower.y <= 0.0
+    ? upper.x
+    : (upper.y <= 0.0 ? lower.x : mix(lower.x, upper.x, mixValue));
 
   // Normalize value into display range and sample color LUT.
   float range = max(1e-6, u_display_range.y - u_display_range.x);

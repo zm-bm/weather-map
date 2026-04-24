@@ -2,7 +2,10 @@ import { useMemo } from 'react'
 
 import { useForecastSelectionContext } from '../forecast-selection/ForecastSelectionContext'
 import { useForecastTimeContext } from '../forecast-time/ForecastTimeContext'
-import { hourTokenAt, normalizeHourIndex } from '../forecast-time/time'
+import {
+  frameWindowMinuteOffset,
+  resolveForecastFrameWindow,
+} from '../forecast-time/time'
 import type { SyncRequest } from './types'
 
 export function useSyncRequest(retryToken: number): SyncRequest | null {
@@ -21,19 +24,22 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
       return null
     }
 
-    const hourIndex = normalizeHourIndex(
-      timelineState.targetHourIndex,
-      manifest.forecastHours.length
+    const frameWindow = resolveForecastFrameWindow(
+      manifest.cycle,
+      manifest.forecastHours,
+      timelineState.targetTimeMs
     )
-    const hourToken = hourTokenAt(manifest.forecastHours, hourIndex)
+    const minuteOffset = frameWindowMinuteOffset(frameWindow)
 
     return {
       manifest,
       activeScalar,
       activeVector,
-      hourIndex,
-      hourToken,
-      requestKey: `${manifest.cycle}:${activeScalar}:${activeVector}:${hourToken}:${retryToken}`,
+      selectedValidTimeMs: frameWindow.selectedValidTimeMs,
+      lowerHourToken: frameWindow.lowerHourToken,
+      upperHourToken: frameWindow.upperHourToken,
+      mix: frameWindow.mix,
+      requestKey: `${manifest.cycle}:${activeScalar}:${activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
       sync,
     }
   }, [
@@ -42,6 +48,6 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
     manifest,
     retryToken,
     sync,
-    timelineState.targetHourIndex,
+    timelineState.targetTimeMs,
   ])
 }
