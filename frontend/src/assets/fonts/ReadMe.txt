@@ -15,13 +15,13 @@ Star3000 Large Outline.ttf - A contrast border (stroke) that surrounds the Star3
 
 --Star 4000--
 
-Star4000.ttf - Standard text style for zone forecast, observation tables, regional map cities, almanac, extended forecast day/weather/temperature headers, Current Conditions right half data and most page header titles (also Travel Cities title header before Nov. 1992). Martin font stack: STAR 4 Regular
-Star4000 Small.ttf - Time/Date, NWS Local Update page header, temperature header for Travel Cities Forecast (after Nov. 1992). Martin font stack: STAR 4 Small Regular
-Star4000 Large.ttf - City names and temperature data on Travel Cities Forecast (after Nov. 1992), Extended forecast temperature values (after Feb. 1991), Current Conditions temperature value (after Mar. 1991). Martin font stack: Star4 Large Regular
-Star4000 Large Compressed.ttf - Travel Cities Forecast (before Nov. 1992), regional map temperatures. Martin font stack: STAR 4 Large Compressed Regular
-Star4000 Large Compressed Numbers.ttf - Temperature values on regional forecast/observation maps. Martin font stack: STAR 4 Large Compressed Numbers Regular
-Star4000 Extended.ttf - A proportional width font used for the Current Conditions present weather description and wind data. Martin font stack: STAR 4 Extended Regular
-Star 4 Radar.ttf - Radar airport I.D. Martin font stack: Star 4 Radar Regular
+Star4000.ttf - Standard text style for zone forecast, observation tables, regional map cities, almanac, extended forecast day/weather/temperature headers, Current Conditions right half data and most page header titles (also Travel Cities title header before Nov. 1992). Glyph stack name: STAR 4 Regular
+Star4000 Small.ttf - Time/Date, NWS Local Update page header, temperature header for Travel Cities Forecast (after Nov. 1992). Glyph stack name: STAR 4 Small Regular
+Star4000 Large.ttf - City names and temperature data on Travel Cities Forecast (after Nov. 1992), Extended forecast temperature values (after Feb. 1991), Current Conditions temperature value (after Mar. 1991). Glyph stack name: Star4 Large Regular
+Star4000 Large Compressed.ttf - Travel Cities Forecast (before Nov. 1992), regional map temperatures. Glyph stack name: STAR 4 Large Compressed Regular
+Star4000 Large Compressed Numbers.ttf - Temperature values on regional forecast/observation maps. Glyph stack name: STAR 4 Large Compressed Numbers Regular
+Star4000 Extended.ttf - A proportional width font used for the Current Conditions present weather description and wind data. Glyph stack name: STAR 4 Extended Regular
+Star 4 Radar.ttf - Radar airport I.D. Glyph stack name: Star 4 Radar Regular
 
 --Star Jr.--
 

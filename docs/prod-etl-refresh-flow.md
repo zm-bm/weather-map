@@ -1,16 +1,16 @@
 # Production ETL Refresh Flow
 
-This documents how scalar weather + wind artifacts are produced and refreshed in production using:
+This documents how forecast artifacts are produced for production and the
+intended static delivery shape for the app and artifact paths.
 
-- `weather-map` repo runtime scripts/systemd units
-- `infra` repo Terraform in `/home/rick/code/infra`
+Infra still lives in `/home/rick/code/infra`.
 
 ## Scope
 
 There are two connected flows in production:
 
 1. Artifact production (NOAA event -> Lambda -> Batch ETL -> S3 artifacts)
-2. Tileserver refresh on EC2 (poll S3 -> copy latest cycle -> restart compose)
+2. Static delivery from S3 + CloudFront on one public origin
 
 ## 1) Artifact production flow (infra `stacks/weather-etl`)
 
@@ -97,44 +97,31 @@ Outputs are written to the artifacts bucket under:
 - `manifests/latest.json`
 - `status/<cycle>/_PUBLISHED.json`
 
-## 2) Legacy prod serving path
+## 2) Static delivery path
 
-The repo no longer carries the old poll-and-sync tileserver refresh script.
+The repo no longer carries the old EC2/nginx/Martin serving path.
 
-What remains here:
+The intended production shape is:
 
-- `deploy/compose.prod.yml`
-- `deploy/systemd/weather-map-compose.service`
-- nginx/Martin config under `deploy/` and `tileserver/`
+- frontend static build in S3
+- artifact prefixes in S3:
+  - `manifests/*`
+  - `fields/*`
+  - `pmtiles/*`
+  - `radio/*`
+- CloudFront in front of those S3 origins with one public origin surface
 
-What does not remain here anymore:
+That keeps the frontend request model aligned with local development:
 
-- `scripts/poll-tiles.sh`
-- `deploy/systemd/weather-map-poll-tiles.service`
-- `deploy/systemd/weather-map-poll-tiles.timer`
-- `deploy/.env.example`
+- `/manifests/*` for manifests
+- `/fields/*` for forecast payloads
+- `/pmtiles/*` for optional basemap archives
+- `/radio/*` for audio assets
+- frontend-owned glyph/font assets served from the frontend build itself
 
-The infra repo may still have wiring that assumes those files exist. That handoff has not been updated yet.
-
-### Current compose unit in this repo
-
-`weather-map-compose.service` now just starts `deploy/compose.prod.yml` directly.
-
-It no longer:
-
-- reads `/etc/weather-map/poll-tiles.env`
-- runs `ExecStartPre=/opt/weather-map/scripts/poll-tiles.sh`
-
-That means production artifact delivery still needs a new design pass before the infra handoff is complete.
-
-## Serving path in production
-
-- `deploy/compose.prod.yml` runs Martin + nginx.
-- Martin reads basemap/static tiles from `/data/static` and any configured tilesets.
-- nginx serves:
-  - `/manifests/*` from `/data/public/manifests/`
-  - `/fields/*` from `/data/public/fields/`
-- nginx proxies tile/font requests to Martin.
+The frontend runtime already assumes that same-origin path layout. The remaining
+handoff work is in the infra repo: update S3/CloudFront routing and deployment
+to match this static serving model.
 
 ## Operational notes
 
@@ -153,10 +140,10 @@ Terraform still lives in `/home/rick/code/infra/stacks/weather-etl` for now, so 
 
 `stacks/weather-etl` defaults `use_dev_artifacts_bucket=true`.
 
-That means ETL may write to `gfs-artifacts-dev-*` unless explicitly set to false.  
-Tileserver instances in `stacks/weather-map` are configured to read `gfs-artifacts-prod-*`.
+That means ETL may write to `gfs-artifacts-dev-*` unless explicitly set to false.
 
-For real production refresh, make sure ETL writes to the same artifacts bucket the tiles instances poll.
+For real production refresh, make sure ETL writes to the same artifacts bucket
+that CloudFront/S3 production delivery reads from.
 
 ### Manual testing helpers
 
