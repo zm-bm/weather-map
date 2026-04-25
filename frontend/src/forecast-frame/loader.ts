@@ -90,7 +90,7 @@ async function getOrFetchFramePayload(args: {
   if (cached) return cached
 
   const payload = await fetchFramePayloadBuffer({
-    dataBaseUrl: args.config.dataBaseUrl,
+    artifactBaseUrl: args.config.artifactBaseUrl,
     payloadPath: args.frameRef.path,
     signal: args.signal,
     frameKind: args.frameKind,
@@ -106,12 +106,12 @@ async function getOrFetchFramePayload(args: {
 }
 
 async function fetchFramePayloadBuffer(args: {
-  dataBaseUrl: string
+  artifactBaseUrl: string
   payloadPath: string
   signal: AbortSignal
   frameKind: FrameKind
 }): Promise<ArrayBuffer> {
-  const payloadUrl = joinUrl(args.dataBaseUrl, args.payloadPath)
+  const payloadUrl = joinUrl(args.artifactBaseUrl, args.payloadPath)
   const response = await fetch(payloadUrl, { signal: args.signal })
   if (!response.ok) {
     throw new Error(

@@ -54,8 +54,7 @@ describe('manifest + frame loading end-to-end', () => {
     const signal = createSignalFixture()
     const manifest = await fetchCurrentManifest({ signal })
     const config = createConfigFixture({
-      dataBaseUrl: 'http://localhost:8081',
-      manifestBaseUrl: 'http://localhost:8081/manifests',
+      artifactBaseUrl: 'http://localhost:3000',
     })
 
     const scalarFrame = await loadScalarFrame({

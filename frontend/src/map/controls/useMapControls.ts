@@ -13,7 +13,7 @@ export function useMapControls(
   mapReadyVersion: number,
 ) {
   const attachedMapRef = useRef<MapLibreMap | null>(null)
-  const trackUrl = joinUrl(config.radioBaseUrl, 'song.mp3')
+  const trackUrl = joinUrl(config.artifactBaseUrl, 'radio/song.mp3')
 
   useEffect(() => {
     const map = mapRef.current

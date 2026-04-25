@@ -14,7 +14,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
     environment:
-      - VITE_DATA_BASE_URL=http://localhost:3000
+      - VITE_ARTIFACT_BASE_URL=http://localhost:3000
       - VITE_BASEMAP_FILENAME=${VITE_BASEMAP_FILENAME:-}
     depends_on:
       - nginx

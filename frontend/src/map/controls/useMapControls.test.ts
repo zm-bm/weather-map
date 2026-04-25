@@ -33,7 +33,9 @@ describe('useMapControls', () => {
     expect(addedControls[3]?.[1]).toBe('bottom-left')
     expect(addedControls[0]?.[0]).toBeInstanceOf(maplibregl.NavigationControl)
     expect(addedControls[1]?.[0]).toBeInstanceOf(MusicControl)
-    expect(Reflect.get(addedControls[1]?.[0] as object, 'src')).toBe(joinUrl(config.radioBaseUrl, 'song.mp3'))
+    expect(Reflect.get(addedControls[1]?.[0] as object, 'src')).toBe(
+      joinUrl(config.artifactBaseUrl, 'radio/song.mp3')
+    )
     expect(addedControls[2]?.[0]).toBeInstanceOf(OptionsControl)
     expect(addedControls[3]?.[0]).toBeInstanceOf(maplibregl.AttributionControl)
 

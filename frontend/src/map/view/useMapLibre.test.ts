@@ -77,6 +77,7 @@ vi.mock('./viewportPersistence', () => ({
 import baseStyleJson from './style.json'
 import config from '../../config'
 import { useMapLibre } from './useMapLibre'
+import { joinUrl } from '../../url/joinUrl'
 
 describe('useMapLibre', () => {
   beforeEach(() => {
@@ -98,13 +99,13 @@ describe('useMapLibre', () => {
     const style = options.style
 
     expect(style).not.toBe(baseStyleJson)
-    expect(style.glyphs).toBe(config.mapGlyphsUrl)
+    expect(style.glyphs).toBe(joinUrl(config.frontendBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
     expect(basemapSource?.url).toBe(config.basemapUrl)
     expect(basemapSource?.promoteId).toEqual({ places: 'name' })
 
-    ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:8081/basemap/{z}/{x}/{y}']
+    ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:3000/basemap/{z}/{x}/{y}']
     expect((baseStyleJson.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification).tiles).toBeUndefined()
 
     const layerIds = (style.layers ?? []).map((layer) => layer.id)

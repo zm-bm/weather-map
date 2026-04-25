@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MusicControl } from './MusicControl'
 import type { AudioFactory, AudioLike } from './MusicControlView'
 
-const TRACK_URL = 'http://localhost:8081/radio/song.mp3'
+const TRACK_URL = 'http://localhost:3000/radio/song.mp3'
 
 type MockAudioConfig = {
   playError?: Error | null

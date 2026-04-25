@@ -1,6 +1,7 @@
 import type { LayerSpecification, StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 
 import type { WeatherMapConfig } from '../../config'
+import { joinUrl } from '../../url/joinUrl'
 import { BASEMAP_SOURCE_ID } from './constants'
 import styleJson from './style.json'
 
@@ -16,7 +17,7 @@ function cloneMapStyle(style: StyleSpecification): StyleSpecification {
 export function buildMapStyle(config: WeatherMapConfig): StyleSpecification {
   const style = cloneMapStyle(styleJson as unknown as StyleSpecification)
 
-  style.glyphs = config.mapGlyphsUrl
+  style.glyphs = joinUrl(config.frontendBaseUrl, 'glyphs/{fontstack}/{range}.pbf')
 
   if (!config.basemapUrl) {
     delete style.sources[BASEMAP_SOURCE_ID]
