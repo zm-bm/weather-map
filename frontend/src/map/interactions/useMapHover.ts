@@ -1,10 +1,9 @@
 import { useEffect, type RefObject } from 'react'
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl'
 
-import { PLACE_LABEL_LAYER_IDS } from './placeLayers'
+import { PLACE_LABEL_LAYER_IDS } from "../view/constants"
+import { BASEMAP_SOURCE_ID, PLACE_SOURCE_LAYER_ID } from "../view/constants"
 
-const HOVER_SOURCE_ID = 'openmaptiles' as const
-const HOVER_SOURCE_LAYER_ID = 'place' as const
 const HOVER_FEATURE_NAME_PROPERTY = 'name' as const
 
 function getHoveredPlaceName(feature: maplibregl.MapGeoJSONFeature | undefined): string | null {
@@ -14,7 +13,7 @@ function getHoveredPlaceName(feature: maplibregl.MapGeoJSONFeature | undefined):
 
 function setPlaceHover(map: MapLibreMap, name: string, hovered: boolean): void {
   map.setFeatureState(
-    { source: HOVER_SOURCE_ID, sourceLayer: HOVER_SOURCE_LAYER_ID, id: name },
+    { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: name },
     { hover: hovered },
   )
 }

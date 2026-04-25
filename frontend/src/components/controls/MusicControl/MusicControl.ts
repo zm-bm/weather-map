@@ -4,8 +4,6 @@ import { createRoot, type Root } from 'react-dom/client'
 
 import { MusicControlView, type AudioFactory } from './MusicControlView'
 
-export const TRACK_URL = '/radio/song.mp3'
-
 type MusicControlConfig = {
   src: string
   createAudio?: AudioFactory

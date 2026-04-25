@@ -2,10 +2,12 @@ import { renderHook } from '@testing-library/react'
 import maplibregl, { type IControl, type Map as MapLibreMap } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
+import config from '../../config'
 import { MusicControl } from '../../components/controls/MusicControl'
 import { OptionsControl } from '../../components/controls/OptionsControl'
 import { createMapFixture } from '../../test/fixtures'
 import { useMapControls } from './useMapControls'
+import { joinUrl } from '../../url/joinUrl'
 
 type AddedControl = [IControl, string?]
 
@@ -31,6 +33,7 @@ describe('useMapControls', () => {
     expect(addedControls[3]?.[1]).toBe('bottom-left')
     expect(addedControls[0]?.[0]).toBeInstanceOf(maplibregl.NavigationControl)
     expect(addedControls[1]?.[0]).toBeInstanceOf(MusicControl)
+    expect(Reflect.get(addedControls[1]?.[0] as object, 'src')).toBe(joinUrl(config.radioBaseUrl, 'song.mp3'))
     expect(addedControls[2]?.[0]).toBeInstanceOf(OptionsControl)
     expect(addedControls[3]?.[0]).toBeInstanceOf(maplibregl.AttributionControl)
 

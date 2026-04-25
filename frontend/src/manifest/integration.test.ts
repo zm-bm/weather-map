@@ -6,7 +6,6 @@ import { loadVectorFrame } from '../forecast-layers/vector'
 import {
   createConfigFixture,
   createCycleManifestPayloadFixture,
-  createLatestManifestPayloadFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
@@ -36,10 +35,6 @@ describe('manifest + frame loading end-to-end', () => {
       const url = toUrl(input)
 
       if (url.endsWith('/latest.json')) {
-        return createFetchJsonResponse(createLatestManifestPayloadFixture())
-      }
-
-      if (url.endsWith('/2026041312.json')) {
         return createFetchJsonResponse(createCycleManifestPayloadFixture())
       }
 
@@ -59,7 +54,7 @@ describe('manifest + frame loading end-to-end', () => {
     const signal = createSignalFixture()
     const manifest = await fetchCurrentManifest({ signal })
     const config = createConfigFixture({
-      serverUrl: 'http://localhost:8081',
+      dataBaseUrl: 'http://localhost:8081',
       manifestBaseUrl: 'http://localhost:8081/manifests',
     })
 
@@ -83,6 +78,6 @@ describe('manifest + frame loading end-to-end', () => {
     expect(Array.from(scalarFrame.values)).toEqual([1, 2, 3, 4])
     expect(Array.from(vectorFrame.u)).toEqual([5, 6, 7, 8])
     expect(Array.from(vectorFrame.v)).toEqual([-1, -2, -3, -4])
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "build:glyphs": "node ./scripts/build-glyphs.mjs",
+    "predev": "npm run build:glyphs",
+    "prebuild": "npm run build:glyphs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -14,6 +17,7 @@
   },
   "dependencies": {
     "maplibre-gl": "^5.15.0",
+    "pmtiles": "^4.4.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.6.0",
@@ -21,6 +25,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@mapka/font-sdf": "^0.5.0",
+    "@mapka/font-sdf-composite": "^0.5.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

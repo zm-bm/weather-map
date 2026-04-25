@@ -121,6 +121,6 @@ class ArtifactPaths:
         return join_uri(self.artifact_root_uri, path)
 
     def manifest_latest_uri(self) -> str:
-        """Pointer to latest published cycle: {root}/manifests/latest.json"""
+        """Canonical latest manifest alias: {root}/manifests/latest.json"""
         path = ["manifests", "latest.json"]
         return join_uri(self.artifact_root_uri, path)

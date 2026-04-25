@@ -1,7 +1,6 @@
 import type {
   CycleManifest,
   FramePayloadRef,
-  LatestManifest,
   NonEmptyArray,
   ScalarEncodingSpec,
   ScalarGridSpec,
@@ -31,12 +30,6 @@ export type ManifestFixtureOverrides =
     scalarVariables?: string[]
     vectorVariables?: string[]
   }
-
-type LatestManifestFixtureOverrides = Partial<{
-  cycle: string
-  generatedAt: string
-  revision: string
-}>
 
 function toNonEmptyIds<T>(
   values: string[],
@@ -265,21 +258,5 @@ export function createCycleManifestPayloadFixture(
     ...payload,
     ...(scalarVariables ? { scalar_variables: scalarVariables } : {}),
     ...(vectorVariables ? { vector_variables: vectorVariables } : {}),
-  }
-}
-
-export function createLatestManifestPayloadFixture(
-  overrides: LatestManifestFixtureOverrides = {}
-): LatestManifest {
-  const manifest = createManifestFixture({
-    ...(overrides.cycle ? { cycle: overrides.cycle } : {}),
-    ...(overrides.generatedAt ? { generatedAt: overrides.generatedAt } : {}),
-    ...(overrides.revision ? { revision: overrides.revision } : {}),
-  })
-
-  return {
-    cycle: manifest.cycle,
-    generated_at: manifest.generatedAt,
-    revision: manifest.revision,
   }
 }

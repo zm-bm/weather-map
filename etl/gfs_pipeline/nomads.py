@@ -4,7 +4,7 @@ This module builds filtered GFS GRIB2 URLs for the NOMADS "filter" endpoint and
 downloads missing GRIBs into a local cache.
 
 Intended usage:
-- `dev-run` prefetch stage: download once per (cycle, fhour) into grib_cache
+- `run-cycle` prefetch stage: download once per (cycle, fhour) into etl/cache/grib
 - Worker then consumes local file:// URIs as usual
 """
 

@@ -56,7 +56,11 @@ def _minimal_layer_config() -> dict:
 
 def _minimal_pipeline_config() -> dict:
     return {
-        "workload": {"forecast_hours": ["000"], "variables": ["tmp_surface"]},
+        "workload": {
+            "forecast_hour_start": 0,
+            "forecast_hour_end": 0,
+            "variables": ["tmp_surface"],
+        },
         "nomads": {
             "base_url": "https://example.test",
             "vars_levels": {},
@@ -67,6 +71,115 @@ def _minimal_pipeline_config() -> dict:
         },
         "vector_variables": {},
     }
+
+
+def _grid_meta_fixture() -> dict[str, object]:
+    return {
+        "crs": "EPSG:4326",
+        "nx": 4,
+        "ny": 3,
+        "lon0": -180.0,
+        "lat0": 90.0,
+        "dx": 0.25,
+        "dy": -0.25,
+        "origin": "cell_center",
+        "layout": "row_major",
+        "x_wrap": "repeat",
+        "y_mode": "clamp",
+    }
+
+
+def _write_scalar_marker(
+    *,
+    store,
+    ap: ArtifactPaths,
+    cycle: str,
+    fhour: str,
+    variable: str,
+    source_values: list[float],
+    scalar_config: dict,
+    grid_meta: dict[str, object],
+) -> None:
+    payload = encode_scalar_f32_to_i16_payload(
+        source_f32_bytes=_pack_f32(source_values, byte_order="little"),
+        source_byte_order="little",
+        target_byte_order=str(scalar_config["scalar_encoding"]["byte_order"]),
+        scale=float(scalar_config["scalar_encoding"]["scale"]),
+        offset=float(scalar_config["scalar_encoding"]["offset"]),
+        nodata=int(scalar_config["scalar_encoding"]["nodata"]),
+        source_transform=str(scalar_config.get("scalar_source_transform", "identity")),
+    )
+    payload_sha = hashlib.sha256(payload).hexdigest()
+    payload_uri = ap.output_scalar_payload_uri(
+        item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+    )
+    store.write_bytes(uri=payload_uri, data=payload)
+    _write_json(
+        ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable),
+        {
+            "cycle": cycle,
+            "fhour": fhour,
+            "layer": variable,
+            "kind": "scalar",
+            "scalar": {
+                "payload_uri": payload_uri,
+                "byte_length": len(payload),
+                "sha256": payload_sha,
+                "grid": grid_meta,
+            },
+        },
+    )
+
+
+def _write_vector_marker(
+    *,
+    store,
+    ap: ArtifactPaths,
+    cycle: str,
+    fhour: str,
+    variable: str,
+    grid_meta: dict[str, object],
+) -> None:
+    component_bytes = int(grid_meta["nx"]) * int(grid_meta["ny"])
+    u_bytes = bytes((i % 128) for i in range(component_bytes))
+    v_bytes = bytes(((i + 7) % 128) for i in range(component_bytes))
+    payload = u_bytes + v_bytes
+    payload_sha = hashlib.sha256(payload).hexdigest()
+    payload_uri = ap.output_vector_payload_uri(
+        item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+    )
+    store.write_bytes(uri=payload_uri, data=payload)
+    _write_json(
+        ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable),
+        {
+            "cycle": cycle,
+            "fhour": fhour,
+            "layer": variable,
+            "kind": "vector",
+            "vector": {
+                "payload_uri": payload_uri,
+                "byte_length": len(payload),
+                "sha256": payload_sha,
+                "format": "uv-i8-q0p5-v1",
+                "dtype": "int8",
+                "byte_order": "none",
+                "scale": 0.5,
+                "offset": 0.0,
+                "decode_formula": "value = stored * scale + offset",
+                "components": ["u", "v"],
+                "component_count": 2,
+                "component_order": "u_then_v",
+                "encoding_id": "wind10m_uv_vector_i8_v1",
+                "units": "m/s",
+                "parameter": "wind_uv",
+                "level": "10m_above_ground",
+                "valid_min": -64.0,
+                "valid_max": 63.5,
+                "grid_id": "gfs_0p25_global",
+                "grid": grid_meta,
+            },
+        },
+    )
 
 
 class ScalarPayloadTest(unittest.TestCase):
@@ -115,10 +228,31 @@ class ScalarPayloadTest(unittest.TestCase):
         self.assertEqual(high_nodata, 32766)
 
 class ConfigValidationTest(unittest.TestCase):
-    def test_pipeline_config_parses_minimal_schema(self) -> None:
+    def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = PipelineConfig.from_obj(_minimal_pipeline_config())
-        self.assertEqual(parsed.workload.forecast_hours, ["000"])
+        self.assertEqual(parsed.workload.forecast_hours, ("000",))
+        self.assertEqual(parsed.workload.variables, ("tmp_surface",))
         self.assertIn("tmp_surface", parsed.scalar_variables)
+
+    def test_pipeline_config_still_accepts_explicit_forecast_hours(self) -> None:
+        parsed = PipelineConfig.from_obj(
+            {
+                **_minimal_pipeline_config(),
+                "workload": {
+                    "forecast_hours": ["000", "003", "006"],
+                    "variables": ["tmp_surface"],
+                },
+            }
+        )
+        self.assertEqual(parsed.workload.forecast_hours, ("000", "003", "006"))
+
+    def test_pipeline_config_rejects_invalid_forecast_hour_range(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        bad_cfg["workload"]["forecast_hour_start"] = 12
+        bad_cfg["workload"]["forecast_hour_end"] = 6
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(bad_cfg)
 
     def test_pipeline_config_requires_scalar_encoding(self) -> None:
         bad_cfg = _minimal_pipeline_config()
@@ -284,58 +418,24 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             ap = ArtifactPaths(artifact_root_uri)
             store = make_store()
-
-            grid_meta = {
-                "crs": "EPSG:4326",
-                "nx": 4,
-                "ny": 3,
-                "lon0": -180.0,
-                "lat0": 90.0,
-                "dx": 0.25,
-                "dy": -0.25,
-                "origin": "cell_center",
-                "layout": "row_major",
-                "x_wrap": "repeat",
-                "y_mode": "clamp",
-            }
+            grid_meta = _grid_meta_fixture()
 
             for fhour in fhours:
                 for variable in variables:
-                    if variable == "tmp_surface":
-                        source_values = [-10.0 + float(i) for i in range(grid_meta["nx"] * grid_meta["ny"])]
-                    else:
-                        source_values = [20.0 + float(i) for i in range(grid_meta["nx"] * grid_meta["ny"])]
-                    source_transform = str(scalar_variables_cfg[variable].get("scalar_source_transform", "identity"))
-                    payload = encode_scalar_f32_to_i16_payload(
-                        source_f32_bytes=_pack_f32(source_values, byte_order="little"),
-                        source_byte_order="little",
-                        target_byte_order=str(scalar_variables_cfg[variable]["scalar_encoding"]["byte_order"]),
-                        scale=float(scalar_variables_cfg[variable]["scalar_encoding"]["scale"]),
-                        offset=float(scalar_variables_cfg[variable]["scalar_encoding"]["offset"]),
-                        nodata=int(scalar_variables_cfg[variable]["scalar_encoding"]["nodata"]),
-                        source_transform=source_transform,
+                    source_values = (
+                        [-10.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))]
+                        if variable == "tmp_surface"
+                        else [20.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))]
                     )
-                    payload_sha = hashlib.sha256(payload).hexdigest()
-                    payload_uri = ap.output_scalar_payload_uri(
-                        item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
-                    )
-                    store.write_bytes(uri=payload_uri, data=payload)
-
-                    marker_uri = ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable)
-                    _write_json(
-                        marker_uri,
-                        {
-                            "cycle": cycle,
-                            "fhour": fhour,
-                            "layer": variable,
-                            "kind": "scalar",
-                            "scalar": {
-                                "payload_uri": payload_uri,
-                                "byte_length": len(payload),
-                                "sha256": payload_sha,
-                                "grid": grid_meta,
-                            },
-                        },
+                    _write_scalar_marker(
+                        store=store,
+                        ap=ap,
+                        cycle=cycle,
+                        fhour=fhour,
+                        variable=variable,
+                        source_values=source_values,
+                        scalar_config=scalar_variables_cfg[variable],
+                        grid_meta=grid_meta,
                     )
 
             result_first = run_publish(
@@ -356,14 +456,20 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["scalar_variables"], list(variables))
             self.assertEqual(cycle_manifest["vector_variables"], [])
             self.assertIn("frames", cycle_manifest)
-            self.assertEqual(cycle_manifest["frames"]["000"]["tmp_surface"]["path"], f"fields/{cycle}/000/tmp_surface.scalar.i16.bin")
-            self.assertEqual(cycle_manifest["frames"]["003"]["rh_surface"]["path"], f"fields/{cycle}/003/rh_surface.scalar.i16.bin")
-            self.assertEqual(latest_manifest["cycle"], cycle)
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["tmp_surface"]["path"],
+                f"fields/{cycle}/000/tmp_surface.scalar.i16.bin",
+            )
+            self.assertEqual(
+                cycle_manifest["frames"]["003"]["rh_surface"]["path"],
+                f"fields/{cycle}/003/rh_surface.scalar.i16.bin",
+            )
+            self.assertEqual(latest_manifest, cycle_manifest)
 
             for fhour in fhours:
                 for variable in variables:
                     frame = cycle_manifest["frames"][fhour][variable]
-                    self.assertEqual(frame["byte_length"], grid_meta["nx"] * grid_meta["ny"] * 2)
+                    self.assertEqual(frame["byte_length"], int(grid_meta["nx"]) * int(grid_meta["ny"]) * 2)
                     payload_uri = ap.output_scalar_payload_uri(
                         item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
                     )
@@ -380,6 +486,195 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
+
+    def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-monotonic-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            fhours = ("000",)
+            cycle_old = "2026041100"
+            cycle_new = "2026041200"
+            scalar_variables = ("tmp_surface",)
+            scalar_variables_cfg = {
+                "tmp_surface": {
+                    "parameter": "tmp",
+                    "level": "surface",
+                    "units": "C",
+                    "scale_min": -45.0,
+                    "scale_max": 50.0,
+                    "scalar_source_transform": "identity",
+                    "scalar_encoding": {
+                        "encoding_id": "tmp_surface_i16_v1",
+                        "dtype": "int16",
+                        "byte_order": "little",
+                        "scale": 0.01,
+                        "offset": 0.0,
+                        "nodata": -32768,
+                    },
+                },
+            }
+
+            ctx = ExecutionContext(artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+
+            for cycle_value, base in ((cycle_new, 10.0), (cycle_old, -10.0)):
+                _write_scalar_marker(
+                    store=store,
+                    ap=ap,
+                    cycle=cycle_value,
+                    fhour="000",
+                    variable="tmp_surface",
+                    source_values=[base + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                    scalar_config=scalar_variables_cfg["tmp_surface"],
+                    grid_meta=grid_meta,
+                )
+
+            result_new = run_publish(
+                ctx=ctx,
+                cycle=cycle_new,
+                scalar_variables=scalar_variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+            )
+            self.assertTrue(result_new.ready)
+
+            result_old = run_publish(
+                ctx=ctx,
+                cycle=cycle_old,
+                scalar_variables=scalar_variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+            )
+            self.assertTrue(result_old.ready)
+
+            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri()).decode("utf-8"))
+            old_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle_old)).decode("utf-8"))
+            new_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle_new)).decode("utf-8"))
+            self.assertEqual(latest_manifest, new_cycle_manifest)
+            self.assertNotEqual(latest_manifest["cycle"], old_cycle_manifest["cycle"])
+
+    def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-refresh-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041100"
+            fhours = ("000",)
+            scalar_variables = ("tmp_surface",)
+            scalar_variables_cfg = {
+                "tmp_surface": {
+                    "parameter": "tmp",
+                    "level": "surface",
+                    "units": "C",
+                    "scale_min": -45.0,
+                    "scale_max": 50.0,
+                    "scalar_source_transform": "identity",
+                    "scalar_encoding": {
+                        "encoding_id": "tmp_surface_i16_v1",
+                        "dtype": "int16",
+                        "byte_order": "little",
+                        "scale": 0.01,
+                        "offset": 0.0,
+                        "nodata": -32768,
+                    },
+                },
+            }
+
+            ctx = ExecutionContext(artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+
+            _write_scalar_marker(
+                store=store,
+                ap=ap,
+                cycle=cycle,
+                fhour="000",
+                variable="tmp_surface",
+                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                scalar_config=scalar_variables_cfg["tmp_surface"],
+                grid_meta=grid_meta,
+            )
+
+            result_first = run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=scalar_variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+            )
+            self.assertTrue(result_first.ready)
+            initial_latest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri()).decode("utf-8"))
+
+            _write_json(
+                ap.manifest_latest_uri(),
+                {
+                    "cycle": "2026041000",
+                    "generated_at": "2026-04-10T00:00:00+00:00",
+                    "revision": "stale",
+                },
+            )
+
+            result_second = run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=scalar_variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+            )
+            self.assertTrue(result_second.ready)
+            self.assertTrue(result_second.already_published)
+
+            refreshed_latest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri()).decode("utf-8"))
+            self.assertEqual(refreshed_latest, initial_latest)
+
+    def test_publish_writes_vector_only_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-vector-only-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041200"
+            fhours = ("000", "003")
+            vector_variables = ("wind10m_uv",)
+
+            ctx = ExecutionContext(
+                artifact_root_uri=artifact_root_uri,
+                forecast_hours=fhours,
+            )
+
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+
+            for fhour in fhours:
+                _write_vector_marker(
+                    store=store,
+                    ap=ap,
+                    cycle=cycle,
+                    fhour=fhour,
+                    variable="wind10m_uv",
+                    grid_meta=grid_meta,
+                )
+
+            result = run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=(),
+                vector_variables=vector_variables,
+                scalar_variables_cfg={},
+            )
+            self.assertTrue(result.ready)
+            self.assertFalse(result.already_published)
+
+            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri()).decode("utf-8"))
+            self.assertEqual(cycle_manifest["scalar_variables"], [])
+            self.assertEqual(cycle_manifest["vector_variables"], ["wind10m_uv"])
+            self.assertEqual(latest_manifest, cycle_manifest)
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["wind10m_uv"]["path"],
+                f"fields/{cycle}/000/wind10m_uv.vector.i8.bin",
+            )
 
     def test_publish_includes_wind_frames_and_metadata_without_sidecars(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-wind-") as td:
@@ -416,92 +711,26 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             ap = ArtifactPaths(artifact_root_uri)
             store = make_store()
-
-            grid_meta = {
-                "crs": "EPSG:4326",
-                "nx": 4,
-                "ny": 3,
-                "lon0": -180.0,
-                "lat0": 90.0,
-                "dx": 0.25,
-                "dy": -0.25,
-                "origin": "cell_center",
-                "layout": "row_major",
-                "x_wrap": "repeat",
-                "y_mode": "clamp",
-            }
+            grid_meta = _grid_meta_fixture()
 
             for fhour in fhours:
-                source_values = [-10.0 + float(i) for i in range(grid_meta["nx"] * grid_meta["ny"])]
-                payload = encode_scalar_f32_to_i16_payload(
-                    source_f32_bytes=_pack_f32(source_values, byte_order="little"),
-                    source_byte_order="little",
-                    target_byte_order="little",
-                    scale=0.01,
-                    offset=0.0,
-                    nodata=-32768,
-                    source_transform="identity",
+                _write_scalar_marker(
+                    store=store,
+                    ap=ap,
+                    cycle=cycle,
+                    fhour=fhour,
+                    variable="tmp_surface",
+                    source_values=[-10.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                    scalar_config=scalar_variables_cfg["tmp_surface"],
+                    grid_meta=grid_meta,
                 )
-                payload_sha = hashlib.sha256(payload).hexdigest()
-                payload_uri = ap.output_scalar_payload_uri(
-                    item=WorkItem(cycle=cycle, fhour=fhour, layer="tmp_surface", source_uri="file:///dev/null")
-                )
-                store.write_bytes(uri=payload_uri, data=payload)
-                _write_json(
-                    ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer="tmp_surface"),
-                    {
-                        "cycle": cycle,
-                        "fhour": fhour,
-                        "layer": "tmp_surface",
-                        "kind": "scalar",
-                        "scalar": {
-                            "payload_uri": payload_uri,
-                            "byte_length": len(payload),
-                            "sha256": payload_sha,
-                            "grid": grid_meta,
-                        },
-                    },
-                )
-
-                component_bytes = grid_meta["nx"] * grid_meta["ny"]
-                u_bytes = bytes((i % 128) for i in range(component_bytes))
-                v_bytes = bytes(((i + 7) % 128) for i in range(component_bytes))
-                wind_payload = u_bytes + v_bytes
-                wind_payload_sha = hashlib.sha256(wind_payload).hexdigest()
-                wind_payload_uri = ap.output_vector_payload_uri(
-                    item=WorkItem(cycle=cycle, fhour=fhour, layer="wind10m_uv", source_uri="file:///dev/null")
-                )
-                store.write_bytes(uri=wind_payload_uri, data=wind_payload)
-                _write_json(
-                    ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer="wind10m_uv"),
-                    {
-                        "cycle": cycle,
-                        "fhour": fhour,
-                        "layer": "wind10m_uv",
-                        "kind": "vector",
-                        "vector": {
-                            "payload_uri": wind_payload_uri,
-                            "byte_length": len(wind_payload),
-                            "sha256": wind_payload_sha,
-                            "format": "uv-i8-q0p5-v1",
-                            "dtype": "int8",
-                            "byte_order": "none",
-                            "scale": 0.5,
-                            "offset": 0.0,
-                            "decode_formula": "value = stored * scale + offset",
-                            "components": ["u", "v"],
-                            "component_count": 2,
-                            "component_order": "u_then_v",
-                            "encoding_id": "wind10m_uv_vector_i8_v1",
-                            "units": "m/s",
-                            "parameter": "wind_uv",
-                            "level": "10m_above_ground",
-                            "valid_min": -64.0,
-                            "valid_max": 63.5,
-                            "grid_id": "gfs_0p25_global",
-                            "grid": grid_meta,
-                        },
-                    },
+                _write_vector_marker(
+                    store=store,
+                    ap=ap,
+                    cycle=cycle,
+                    fhour=fhour,
+                    variable="wind10m_uv",
+                    grid_meta=grid_meta,
                 )
 
             result = run_publish(
@@ -515,6 +744,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertFalse(result.already_published)
 
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri()).decode("utf-8"))
             self.assertEqual(cycle_manifest["version"], 4)
             self.assertEqual(cycle_manifest["contract"], "forecast-binary-v2")
             self.assertEqual(cycle_manifest["scalar_variables"], ["tmp_surface"])
@@ -530,6 +760,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
             self.assertEqual(cycle_manifest["variable_meta"]["tmp_surface"]["kind"], "scalar")
             self.assertEqual(cycle_manifest["variable_meta"]["wind10m_uv"]["kind"], "vector")
+            self.assertEqual(latest_manifest, cycle_manifest)
 
 
 if __name__ == "__main__":

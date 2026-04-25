@@ -30,7 +30,7 @@ def grib_name(*, cycle_hour: str, fhour: str) -> str:
 
 def grib_cache_path(*, etl_dir: Path, cycle: str, cycle_hour: str, fhour: str) -> Path:
     """Local cache location for a GRIB file."""
-    return etl_dir / "data" / "grib_cache" / cycle / grib_name(cycle_hour=cycle_hour, fhour=fhour)
+    return etl_dir / "cache" / "grib" / cycle / grib_name(cycle_hour=cycle_hour, fhour=fhour)
 
 
 # ---------- Local repo / URIs ----------
@@ -40,6 +40,11 @@ def default_etl_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def default_repo_dir() -> Path:
+    """Root directory for the weather-map checkout."""
+    return default_etl_dir().parent
+
+
 def file_uri(p: Path) -> str:
     """Absolute file:// URI for a local path."""
     return f"file://{p.resolve().as_posix()}"
@@ -47,12 +52,12 @@ def file_uri(p: Path) -> str:
 
 def default_artifact_root_uri() -> str:
     """Default local artifact root (used in dev mode)."""
-    return file_uri(default_etl_dir() / "out")
+    return file_uri(default_repo_dir() / "artifacts")
 
 
 def default_pipeline_config_uri() -> str:
     """Default pipeline config URI (used when CLI/env does not provide one)."""
-    return file_uri(default_etl_dir() / "pipeline_config.json")
+    return file_uri(default_etl_dir() / "gfs.etl_config.json")
 
 
 def join_uri(root_uri: str, parts: Iterable[str]) -> str:
@@ -93,6 +98,6 @@ def path_from_file_uri(uri: str) -> Path:
     if p.netloc in ("", "localhost"):
         return Path(p.path)
 
-    # Lenient support for shorthand like file://data/grib_cache/...
+    # Lenient support for shorthand like file://cache/grib/...
     # Treat netloc as the first path segment.
     return Path(p.netloc) / p.path.lstrip("/")

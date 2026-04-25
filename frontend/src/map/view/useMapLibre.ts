@@ -2,14 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl, {
   Map as MapLibreMap,
 } from 'maplibre-gl'
-import type { StyleSpecification } from 'maplibre-gl'
+import { Protocol } from 'pmtiles'
 
 import { normalizeError } from '../../abort'
+import config from '../../config'
 import { installForecastLayers } from '../../forecast-layers'
+import { buildMapStyle } from './buildMapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
-import baseStyleJson from '../styles/style.json'
 
+const PMTILES_PROTOCOL = 'pmtiles'
 const VIEWPORT_SAVE_DEBOUNCE_MS = 250
+let pmtilesProtocolInstalled = false
 
 export type UseMapLibreResult = {
   mapRef: React.RefObject<MapLibreMap | null>
@@ -23,6 +26,16 @@ export type UseMapLibreOptions = {
   zoom: number
   minZoom: number
   maxZoom: number
+}
+
+function ensurePmtilesProtocol(url: string | undefined): void {
+  if (!url) return
+  if (!url.startsWith(`${PMTILES_PROTOCOL}://`)) return
+  if (pmtilesProtocolInstalled) return
+
+  const protocol = new Protocol()
+  maplibregl.addProtocol(PMTILES_PROTOCOL, protocol.tile)
+  pmtilesProtocolInstalled = true
 }
 
 export function useMapLibre({
@@ -40,10 +53,8 @@ export function useMapLibre({
 
   useEffect(() => {
     const stored = loadStoredViewport()
-    const clone = globalThis.structuredClone as ((value: StyleSpecification) => StyleSpecification) | undefined
-    const style = typeof clone === 'function'
-      ? clone(baseStyleJson as unknown as StyleSpecification)
-      : JSON.parse(JSON.stringify(baseStyleJson)) as StyleSpecification
+    ensurePmtilesProtocol(config.basemapUrl)
+    const style = buildMapStyle(config)
 
     const m = new maplibregl.Map({
       container: containerId,

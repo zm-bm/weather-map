@@ -1,65 +1,63 @@
-# Development Scalar Weather Flow
+# Development Forecast Artifact Flow
 
-This documents how scalar weather payloads are produced by `etl` and loaded into `tileserver` in local development.
+This documents how forecast manifests and binary payloads are produced by `etl` and served in local development.
+
+The local artifact root is `artifacts/`, which mirrors the production bucket layout.
 
 ## One-command dev refresh
 
 Run:
 
 ```bash
-scripts/dev-refresh.sh <cycle>
+etl/scripts/local/run-cycle.sh <cycle>
 ```
 
 Example cycle format: `YYYYMMDDHH` (for example `2026021606`).
 
-That script runs three steps in order:
+`run-cycle.sh` refreshes the local forecast artifacts for that cycle. Internally
+it makes sure the local ETL environment is ready before running:
 
-1. `python -m gfs_pipeline.cli dev-run --cycle <cycle>`
-2. `python -m gfs_pipeline.cli publish --cycle <cycle>`
-3. `scripts/poll-tiles.sh` with:
-   - `ARTIFACT_SOURCE=<repo>/etl/out`
-   - `TILESERVER_DIR=<repo>/tileserver`
-   - `RESTART_ENABLED=false`
+1. `etl/.venv/bin/python -m gfs_pipeline.cli run-cycle --cycle <cycle>`
 
-Source: `scripts/dev-refresh.sh`.
+Source: `etl/scripts/local/run-cycle.sh`.
 
-## ETL processing (dev-run)
+## ETL processing (`run-cycle`)
 
-`dev-run` reads `etl/pipeline_config.json` for:
+`run-cycle` reads `etl/gfs.etl_config.json` for:
 
-- forecast hours (currently `000..018` every 3h)
-- weather layers (`workload.layers`)
-- wind artifacts (`wind_artifacts`)
+- forecast hours (currently `000..036` hourly)
+- scalar variables (`workload.variables`)
+- vector variables (`vector_variables`)
 - NOMADS download config
 
 For each forecast hour:
 
 1. Build NOMADS URL for that cycle/hour.
 2. Download GRIB to local cache:
-   - `etl/data/grib_cache/<cycle>/gfs.t<hour>z.pgrb2.0p25.f<fhour>`
-3. Queue one `process-hour` task that processes all configured weather layers and wind artifacts for that hour.
+   - `etl/cache/grib/<cycle>/gfs.t<hour>z.pgrb2.0p25.f<fhour>`
+3. Queue one `run-hour` task that processes all configured scalar and vector variables for that hour.
 
 Workers run in a multiprocessing pool (`--procs`, default `4`).
 
-Sources: `etl/gfs_pipeline/cli.py`, `etl/gfs_pipeline/nomads.py`, `etl/pipeline_config.json`.
+Sources: `etl/gfs_pipeline/cli.py`, `etl/gfs_pipeline/nomads.py`, `etl/gfs.etl_config.json`.
 
 ## Per-hour processing pipeline
 
-Each `process-hour` run handles one `(cycle, fhour)` and then loops configured weather layers and wind layers.
+Each `run-hour` invocation handles one `(cycle, fhour)` and then loops configured scalar and vector variables.
 
-For each weather layer it does:
+For each scalar variable it does:
 
 1. Read GRIB from `source_uri`.
 2. Resolve the source GRIB band using `layer.grib_match`.
 3. Extract source values and apply configured scalar source transform (`identity` or `kelvin_to_celsius`).
 4. Encode payload as `scalar-i16-linear-v1` and write:
-   - `etl/out/weather/<cycle>/<fhour>/<layer>.scalar.i16.bin`
+   - `artifacts/fields/<cycle>/<fhour>/<layer>.scalar.i16.bin`
 5. Write success marker:
-   - `etl/out/status/<cycle>/<layer>/<fhour>._SUCCESS.json`
+   - `artifacts/status/<cycle>/<layer>/<fhour>._SUCCESS.json`
 
-For each wind layer it writes vector payloads under:
+For each vector variable it writes vector payloads under:
 
-- `etl/out/weather/<cycle>/<fhour>/<layer>.vector.i8.bin`
+- `artifacts/fields/<cycle>/<fhour>/<layer>.vector.i8.bin`
 
 Wind decode/grid metadata is written into success markers and then promoted into the cycle manifest during publish.
 
@@ -67,45 +65,48 @@ Sources: `etl/gfs_pipeline/worker.py`, `etl/gfs_pipeline/scalar_product.py`, `et
 
 ## Publish step
 
-`publish` validates readiness before writing manifests:
+`run-hour` publishes by default after processing one hour, and `run-cycle`
+publishes once at the end of the cycle. Both use the same readiness checks in
+`publish.py` before writing manifests:
 
-1. Compute expected success markers for all configured weather layers, wind layers, and forecast hours.
+1. Compute expected success markers for all configured scalar variables, vector variables, and forecast hours.
 2. If anything is missing, exit not-ready.
 3. If complete, write:
-   - `etl/out/manifests/<cycle>.json`
-   - `etl/out/manifests/latest.json`
-   - `etl/out/status/<cycle>/_PUBLISHED.json`
+   - `artifacts/manifests/<cycle>.json`
+   - `artifacts/manifests/latest.json`
+   - `artifacts/status/<cycle>/_PUBLISHED.json`
 
-`latest.json` is the single canonical pointer used by the frontend.
+`latest.json` is the single canonical latest-manifest alias used by the frontend.
 
-Source: `etl/gfs_pipeline/publish.py`.
-
-## Sync into tileserver (dev)
-
-`scripts/poll-tiles.sh` compares upstream `manifests/latest.json` with local
-`tileserver/public/manifests/latest.json`.
-
-When cycle changes, it copies:
-
-- manifests to `tileserver/public/manifests/`:
-  - `<cycle>.json`, `latest.json`
-- matching cycle weather scalar/vector payloads to `tileserver/public/weather/<cycle>/`
-
-By default it also prunes old cycle weather artifacts and removes legacy manifest names.
-
-Source: `scripts/poll-tiles.sh`.
+Sources: `etl/gfs_pipeline/cli.py`, `etl/gfs_pipeline/publish.py`.
 
 ## Runtime serving path
 
-In `compose.dev.yml`:
+In `compose.yml`:
 
-- Martin mounts `./tileserver` as `/data` and serves basemap/static tilesets.
-- nginx mounts the same `/data` and serves:
-  - `/manifests/*` from `/data/public/manifests/`
-  - `/weather/*` from `/data/public/weather/`
-- nginx proxies tile/font/sprite requests to Martin (`http://martin:3001`).
+- nginx mounts `./artifacts` as `/artifacts` and serves:
+  - `/manifests/*` from `/artifacts/manifests/`
+  - `/fields/*` from `/artifacts/fields/`
+  - `/radio/*` from `/artifacts/radio/`
+  - `/pmtiles/*` from `/artifacts/pmtiles/`
+- the frontend dev server serves app/static assets directly from `frontend/public`, including:
+  - `/glyphs/{fontstack}/{range}.pbf`
+- `compose.yml` bind-mounts `frontend/src` into the frontend container for live
+  source edits
+- `frontend/public` stays inside the container image, so changes there require a
+  frontend rebuild instead of live-updating through a bind mount
+- `compose.yml` forwards `VITE_BASEMAP_FILENAME` from the repo-root `.env` into
+  the frontend container
+- the frontend only adds the basemap when `VITE_BASEMAP_FILENAME` is provided
 
-Sources: `compose.dev.yml`, `tileserver/martin.yaml`, `deploy/nginx.dev.conf`.
+The PMTiles basemap is optional in local development. If you want it enabled:
+
+1. Download a PMTiles build from `https://maps.protomaps.com/builds/`
+2. Put it at `artifacts/pmtiles/20260424.z6.pmtiles`
+3. Set `VITE_BASEMAP_FILENAME` in a repo-local `.env` file using `.env.example` as
+   the template
+
+Sources: `compose.yml`, `nginx.conf`, `frontend/scripts/build-glyphs.mjs`.
 
 ## Frontend loading behavior
 
@@ -114,11 +115,7 @@ Frontend flow:
 1. Fetch `GET /manifests/latest.json`
 2. Fetch `GET /manifests/<cycle>.json`
 3. Resolve weather payload from `frames[hourToken][variable].path`
-4. Fetch payload from `/weather/<cycle>/<hour>/<variable>.*.bin` (`scalar.i16.bin` for weather, `vector.i8.bin` for wind)
+4. Fetch payload from `/fields/<cycle>/<hour>/<variable>.*.bin` (`scalar.i16.bin` for weather, `vector.i8.bin` for wind)
 5. Decode and render using manifest-provided encoding/grid metadata
 
-Sources: `frontend/src/api/manifests.ts`, `frontend/src/map/weather/payload.ts`, `frontend/src/map/wind/payload.ts`.
-
-## Practical note
-
-`scripts/dev-refresh.sh` sets `RESTART_ENABLED=false`, so it does not restart services automatically after sync. If runtime does not pick up new files in your local run, restart the compose stack.
+Sources: `frontend/src/manifest/fetch.ts`, `frontend/src/forecast-frame/loader.ts`.

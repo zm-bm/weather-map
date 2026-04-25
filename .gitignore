@@ -140,3 +140,13 @@ vite.config.ts.timestamp-*
 
 # Codex
 .codex
+
+# Local forecast artifact root used in development
+artifacts/*
+!artifacts/README.md
+!artifacts/pmtiles/
+artifacts/pmtiles/*
+!artifacts/pmtiles/.gitignore
+
+# Local Lambda helper output
+etl/scripts/aws/events/invoke-output.json
