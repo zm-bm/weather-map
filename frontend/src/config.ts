@@ -1,21 +1,25 @@
-const parseBooleanEnv = (value: unknown): boolean => {
-  if (typeof value !== 'string') return false
-  return value.trim().toLowerCase() === 'true'
-}
+import { joinUrl } from './url/joinUrl'
+
+const frontendBaseUrl = globalThis.location?.origin ?? 'http://localhost:5173'
+const dataBaseUrl = import.meta.env.VITE_DATA_BASE_URL ?? 'http://localhost:3000'
+const basemapFilename = import.meta.env.VITE_BASEMAP_FILENAME?.trim()
+const basemapHttpUrl = basemapFilename ? joinUrl(dataBaseUrl, `pmtiles/${basemapFilename}`) : undefined
 
 export default {
-  serverUrl: import.meta.env.VITE_SERVER_URL ?? 'https://weather-tiles.zmbm.dev',
-  manifestBaseUrl: import.meta.env.VITE_MANIFEST_BASE_URL ?? 'https://weather-tiles.zmbm.dev/manifests/',
-  verifyPayloadSha256: parseBooleanEnv(
-    import.meta.env.VITE_VERIFY_PAYLOAD_SHA256 ?? import.meta.env.VITE_VERIFY_SCALAR_SHA256
-  ),
-  language: (navigator.language ?? 'en').split('-')[0],
+  dataBaseUrl,
+  manifestBaseUrl: joinUrl(dataBaseUrl, 'manifests'),
+  mapGlyphsUrl:
+    import.meta.env.VITE_MAP_GLYPHS_URL ?? joinUrl(frontendBaseUrl, 'glyphs/{fontstack}/{range}.pbf'),
+  basemapUrl: basemapHttpUrl ? `pmtiles://${basemapHttpUrl}` : undefined,
+  radioBaseUrl: import.meta.env.VITE_RADIO_BASE_URL ?? joinUrl(dataBaseUrl, 'radio'),
+  verifyPayloadSha256: import.meta.env.VITE_VERIFY_PAYLOAD_SHA256 === 'true',
 }
 
 export type WeatherMapConfig = {
-  serverUrl: string
+  dataBaseUrl: string
   manifestBaseUrl: string
+  mapGlyphsUrl: string
+  basemapUrl?: string
+  radioBaseUrl: string
   verifyPayloadSha256: boolean
-
-  language: string
 }

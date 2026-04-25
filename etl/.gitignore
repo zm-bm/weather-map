@@ -1,3 +1,4 @@
-data/
-out/
+cache/*
+!cache/README.md
+.venv/
 **/__pycache__/

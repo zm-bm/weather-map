@@ -2,7 +2,7 @@
 
 This module intentionally defines *naming-level* configuration only:
 - artifact root URI (file:// or s3://)
-- forecast hours list
+- forecast hour workload
 """
 
 from __future__ import annotations
@@ -50,7 +50,16 @@ class WorkloadConfig:
         if not isinstance(obj, dict):
             raise SystemExit("pipeline_config missing valid 'workload' object")
 
-        return WorkloadConfig(**obj)
+        forecast_hours = _parse_workload_forecast_hours(obj)
+        variables = _parse_string_tuple(
+            obj.get("variables"),
+            field_name="workload.variables",
+        )
+
+        return WorkloadConfig(
+            forecast_hours=forecast_hours,
+            variables=variables,
+        )
 
 
 @dataclass(frozen=True)
@@ -69,7 +78,7 @@ class NomadsConfig:
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    """Validated view of pipeline_config.json (entire pipeline knobs)."""
+    """Validated view of gfs.etl_config.json (entire pipeline knobs)."""
 
     workload: WorkloadConfig
     nomads: NomadsConfig
@@ -200,3 +209,89 @@ def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -
             f"Layer {layer_key!r} scalar_source_transform must be one of "
             f"{sorted(ALLOWED_SCALAR_SOURCE_TRANSFORMS)!r}"
         )
+
+
+def _parse_workload_forecast_hours(obj: Mapping[str, Any]) -> tuple[str, ...]:
+    raw_forecast_hours = obj.get("forecast_hours")
+    raw_start = obj.get("forecast_hour_start")
+    raw_end = obj.get("forecast_hour_end")
+
+    has_explicit_hours = raw_forecast_hours is not None
+    has_range = raw_start is not None or raw_end is not None
+
+    if has_explicit_hours and has_range:
+        raise SystemExit(
+            "workload must specify either 'forecast_hours' or "
+            "'forecast_hour_start'/'forecast_hour_end', not both"
+        )
+
+    if has_explicit_hours:
+        return _parse_forecast_hour_list(raw_forecast_hours)
+
+    if raw_start is None or raw_end is None:
+        raise SystemExit(
+            "workload must specify either 'forecast_hours' or both "
+            "'forecast_hour_start' and 'forecast_hour_end'"
+        )
+
+    start_hour = _parse_forecast_hour_int(raw_start, field_name="workload.forecast_hour_start")
+    end_hour = _parse_forecast_hour_int(raw_end, field_name="workload.forecast_hour_end")
+    if end_hour < start_hour:
+        raise SystemExit(
+            "workload.forecast_hour_end must be greater than or equal to "
+            "workload.forecast_hour_start"
+        )
+
+    return tuple(_format_forecast_hour(hour) for hour in range(start_hour, end_hour + 1))
+
+
+def _parse_forecast_hour_list(raw_value: Any) -> tuple[str, ...]:
+    if not isinstance(raw_value, list) or not raw_value:
+        raise SystemExit("workload.forecast_hours must be a non-empty array")
+
+    normalized: list[str] = []
+    for index, raw_hour in enumerate(raw_value):
+        normalized.append(
+            _format_forecast_hour(
+                _parse_forecast_hour_int(raw_hour, field_name=f"workload.forecast_hours[{index}]")
+            )
+        )
+
+    return tuple(normalized)
+
+
+def _parse_string_tuple(raw_value: Any, *, field_name: str) -> tuple[str, ...]:
+    if not isinstance(raw_value, list) or not raw_value:
+        raise SystemExit(f"{field_name} must be a non-empty array")
+
+    values: list[str] = []
+    for index, raw_item in enumerate(raw_value):
+        if not isinstance(raw_item, str) or not raw_item.strip():
+            raise SystemExit(f"{field_name}[{index}] must be a non-empty string")
+        values.append(raw_item.strip())
+
+    return tuple(values)
+
+
+def _parse_forecast_hour_int(raw_value: Any, *, field_name: str) -> int:
+    if isinstance(raw_value, bool):
+        raise SystemExit(f"{field_name} must be an integer forecast hour")
+
+    if isinstance(raw_value, int):
+        value = raw_value
+    elif isinstance(raw_value, str) and raw_value.strip():
+        try:
+            value = int(raw_value.strip(), 10)
+        except ValueError as exc:
+            raise SystemExit(f"{field_name} must be an integer forecast hour") from exc
+    else:
+        raise SystemExit(f"{field_name} must be an integer forecast hour")
+
+    if value < 0 or value > 999:
+        raise SystemExit(f"{field_name} must be in the range 0..999")
+
+    return value
+
+
+def _format_forecast_hour(hour: int) -> str:
+    return f"{hour:03d}"

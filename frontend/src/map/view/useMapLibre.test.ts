@@ -2,6 +2,9 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { BASEMAP_SOURCE_ID } from "./constants"
+import { createConfigFixture } from '../../test/fixtures/config'
+
 const mocks = vi.hoisted(() => {
   let styleLoaded = false
   const listeners = new globalThis.Map<string, Set<() => void>>()
@@ -22,6 +25,7 @@ const mocks = vi.hoisted(() => {
   })
 
   return {
+    addProtocol: vi.fn(),
     Map: MockMapConstructor,
     installForecastLayers: vi.fn(),
     loadStoredViewport: vi.fn(() => null),
@@ -46,8 +50,19 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('maplibre-gl', () => ({
   default: {
+    addProtocol: mocks.addProtocol,
     Map: mocks.Map,
   },
+}))
+
+vi.mock('pmtiles', () => ({
+  Protocol: class MockProtocol {
+    tile = vi.fn()
+  },
+}))
+
+vi.mock('../../config', () => ({
+  default: createConfigFixture(),
 }))
 
 vi.mock('../../forecast-layers', () => ({
@@ -59,7 +74,8 @@ vi.mock('./viewportPersistence', () => ({
   saveStoredViewport: (map: unknown) => mocks.saveStoredViewport(map),
 }))
 
-import baseStyleJson from '../styles/style.json'
+import baseStyleJson from './style.json'
+import config from '../../config'
 import { useMapLibre } from './useMapLibre'
 
 describe('useMapLibre', () => {
@@ -82,19 +98,60 @@ describe('useMapLibre', () => {
     const style = options.style
 
     expect(style).not.toBe(baseStyleJson)
-    expect(style.glyphs).toBe('/font/{fontstack}/{range}')
-    const openMapTilesSource = style.sources?.openmaptiles as VectorSourceSpecification | undefined
-    expect(openMapTilesSource?.type).toBe('vector')
-    expect(openMapTilesSource?.url).toBe('https://tiles.openfreemap.org/planet')
-    expect(openMapTilesSource?.promoteId).toEqual({ place: 'name' })
+    expect(style.glyphs).toBe(config.mapGlyphsUrl)
+    const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
+    expect(basemapSource?.type).toBe('vector')
+    expect(basemapSource?.url).toBe(config.basemapUrl)
+    expect(basemapSource?.promoteId).toEqual({ places: 'name' })
 
-    ;(openMapTilesSource as VectorSourceSpecification).tiles = ['http://localhost:8081/basemap/{z}/{x}/{y}']
-    expect((baseStyleJson.sources?.openmaptiles as VectorSourceSpecification).tiles).toBeUndefined()
+    ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:8081/basemap/{z}/{x}/{y}']
+    expect((baseStyleJson.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification).tiles).toBeUndefined()
 
     const layerIds = (style.layers ?? []).map((layer) => layer.id)
     expect(layerIds).toContain('background')
     expect(layerIds).toContain('water')
     expect(layerIds).toContain('label_city_capital')
+
+    const capitalLayer = (style.layers ?? []).find((layer) => layer.id === 'label_city_capital')
+    expect(capitalLayer?.type).toBe('symbol')
+    const textField = (capitalLayer as { layout?: { ['text-field']?: unknown } }).layout?.['text-field']
+    expect(textField).toEqual([
+      'case',
+      ['all', ['has', 'name:en'], ['has', 'script'], ['!=', ['get', 'name:en'], ['get', 'name']]],
+      ['concat', ['get', 'name:en'], '\n', ['get', 'name']],
+      ['all', ['has', 'name:en'], ['has', 'script2'], ['!=', ['get', 'name:en'], ['get', 'name2']]],
+      ['concat', ['get', 'name:en'], '\n', ['get', 'name2']],
+      ['all', ['has', 'name:en'], ['has', 'script3'], ['!=', ['get', 'name:en'], ['get', 'name3']]],
+      ['concat', ['get', 'name:en'], '\n', ['get', 'name3']],
+      ['coalesce', ['get', 'name:en'], ['get', 'name'], ['get', 'name2'], ['get', 'name3']],
+    ])
+  })
+
+  it('omits the basemap source and dependent layers when no basemap url is configured', async () => {
+    vi.resetModules()
+    vi.doMock('../../config', () => ({
+      default: {
+        ...config,
+        basemapUrl: undefined,
+      },
+    }))
+
+    const { useMapLibre: useMapLibreWithoutBasemap } = await import('./useMapLibre')
+
+    renderHook(() => useMapLibreWithoutBasemap({
+      center: [-95, 39],
+      zoom: 4,
+      minZoom: 2,
+      maxZoom: 8,
+    }))
+
+    expect(mocks.addProtocol).not.toHaveBeenCalled()
+    const calls = mocks.Map.mock.calls as unknown as Array<[{ style: StyleSpecification }]>
+    const style = calls[0][0].style
+
+    expect(style.sources?.[BASEMAP_SOURCE_ID]).toBeUndefined()
+    expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
+    expect((style.layers ?? []).map((layer) => layer.id)).toEqual(['background'])
   })
 
   it('installs forecast layers on style load and bumps readiness', () => {

@@ -1,8 +1,10 @@
 import { act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MusicControl, TRACK_URL } from './MusicControl'
+import { MusicControl } from './MusicControl'
 import type { AudioFactory, AudioLike } from './MusicControlView'
+
+const TRACK_URL = 'http://localhost:8081/radio/song.mp3'
 
 type MockAudioConfig = {
   playError?: Error | null

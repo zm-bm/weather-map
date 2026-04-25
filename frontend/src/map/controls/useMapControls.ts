@@ -1,16 +1,19 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl'
 
-import { MusicControl, TRACK_URL } from '../../components/controls/MusicControl'
+import config from '../../config'
+import { MusicControl } from '../../components/controls/MusicControl'
 import { OptionsControl } from '../../components/controls/OptionsControl'
 import { scalarRuntimeOptions } from '../../forecast-layers/scalar'
 import { vectorRuntimeOptions } from '../../forecast-layers/vector'
+import { joinUrl } from '../../url/joinUrl'
 
 export function useMapControls(
   mapRef: RefObject<MapLibreMap | null>,
   mapReadyVersion: number,
 ) {
   const attachedMapRef = useRef<MapLibreMap | null>(null)
+  const trackUrl = joinUrl(config.radioBaseUrl, 'song.mp3')
 
   useEffect(() => {
     const map = mapRef.current
@@ -18,7 +21,7 @@ export function useMapControls(
 
     const controls = [
       [new maplibregl.NavigationControl({ showCompass: false }), 'top-right'],
-      [new MusicControl({ src: TRACK_URL }), 'top-right'],
+      [new MusicControl({ src: trackUrl }), 'top-right'],
       [new OptionsControl({
         scalarOptions: scalarRuntimeOptions,
         vectorOptions: vectorRuntimeOptions,
@@ -40,5 +43,5 @@ export function useMapControls(
         }
       }
     }
-  }, [mapReadyVersion, mapRef])
+  }, [mapReadyVersion, mapRef, trackUrl])
 }

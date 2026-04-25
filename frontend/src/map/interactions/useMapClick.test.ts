@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import MapProbeProvider from '../../map-probe/MapProbeProvider'
 import { useMapProbe } from '../../map-probe/context'
+import { PLACE_LABEL_LAYER_IDS } from "../view/constants"
 import { useMapClick } from './useMapClick'
-import { PLACE_LABEL_LAYER_IDS } from './placeLayers'
 
 type ClickEvent = {
   lngLat: { lng: number; lat: number }

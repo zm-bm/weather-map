@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseCycleManifest, parseLatestManifest } from './parse'
-import {
-  createCycleManifestPayloadFixture,
-  createLatestManifestPayloadFixture,
-} from '../test/fixtures'
+import { parseCycleManifest } from './parse'
+import { createCycleManifestPayloadFixture } from '../test/fixtures'
 
 describe('parseCycleManifest', () => {
   it('rejects empty scalar variable lists', () => {
@@ -71,17 +68,6 @@ describe('parseCycleManifest', () => {
 
     expect(() => parseCycleManifest(payload)).toThrow(
       'Manifest encodings missing id e0 for tmp_surface'
-    )
-  })
-})
-
-describe('parseLatestManifest', () => {
-  it('rejects payloads missing required fields', () => {
-    const payload = createLatestManifestPayloadFixture() as Record<string, unknown>
-    delete payload.revision
-
-    expect(() => parseLatestManifest(payload)).toThrow(
-      'latest.json missing valid { cycle, generated_at, revision }'
     )
   })
 })

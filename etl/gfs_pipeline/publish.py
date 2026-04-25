@@ -183,6 +183,22 @@ def _relative_artifact_path(*, artifact_root_uri: str, uri: str) -> str:
     return rel
 
 
+def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | None:
+    if not store.exists(uri=latest_manifest_uri):
+        return None
+
+    try:
+        latest = _read_json(store=store, uri=latest_manifest_uri)
+    except Exception as exc:
+        print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
+        return None
+
+    cycle_raw = latest.get("cycle")
+    if isinstance(cycle_raw, str) and cycle_raw.strip():
+        return cycle_raw.strip()
+    return None
+
+
 def _build_manifest_sections(
     *,
     store: UriStore,
@@ -430,8 +446,8 @@ def run_publish(
         print("Publish not ready: ctx.forecast_hours is empty")
         return PublishResult(ready=False, already_published=False)
 
-    if not scalar_variables or not vector_variables:
-        print("Publish not ready: scalar_variables or vector_variables are empty")
+    if not scalar_variables and not vector_variables:
+        print("Publish not ready: scalar_variables and vector_variables are empty")
         return PublishResult(ready=False, already_published=False)
 
     store = make_store()
@@ -481,9 +497,24 @@ def run_publish(
     )
 
     cycle_manifest_uri = ap.manifest_cycle_uri(cycle=cycle)
+    manifest_obj = {
+        "version": MANIFEST_VERSION,
+        "contract": FORECAST_BINARY_CONTRACT,
+        "cycle": cycle,
+        "generated_at": generated_at,
+        "revision": revision,
+        "forecast_hours": list(fhours),
+        "scalar_variables": list(scalar_variables),
+        "vector_variables": list(vector_variables),
+        "grids": grids,
+        "encodings": encodings,
+        "variable_meta": variable_meta,
+        "frames": frames,
+    }
 
     # All markers present; check published marker
     published_uri = ap.published_marker_uri(cycle=cycle)
+    already_published = False
     if store.exists(uri=published_uri):
         prev = _read_json(store=store, uri=published_uri)
         prev_rev = str(prev.get("revision", "")).strip()
@@ -492,60 +523,53 @@ def run_publish(
             prev_rev == revision
             and store.exists(uri=cycle_manifest_uri)
         ):
+            already_published = True
             print(f"Already published (same revisions): {published_uri}")
-            return PublishResult(ready=True, already_published=True)
+        else:
+            print(
+                "Publish marker exists but revision differs; republishing.\n"
+                f"  cycle={cycle}\n"
+                f"  prev_revision={prev_rev!r}\n"
+                f"  new_revision={revision!r}\n"
+                f"  marker={published_uri}"
+            )
 
-        print(
-            "Publish marker exists but revision differs; republishing.\n"
-            f"  cycle={cycle}\n"
-            f"  prev_revision={prev_rev!r}\n"
-            f"  new_revision={revision!r}\n"
-            f"  marker={published_uri}"
+    if not already_published:
+        _write_json(
+            store=store,
+            uri=cycle_manifest_uri,
+            obj=manifest_obj,
         )
 
-    # Write cycle manifest.
-    _write_json(
-        store=store,
-        uri=cycle_manifest_uri,
-        obj={
-            "version": MANIFEST_VERSION,
-            "contract": FORECAST_BINARY_CONTRACT,
-            "cycle": cycle,
-            "generated_at": generated_at,
-            "revision": revision,
-            "forecast_hours": list(fhours),
-            "scalar_variables": list(scalar_variables),
-            "vector_variables": list(vector_variables),
-            "grids": grids,
-            "encodings": encodings,
-            "variable_meta": variable_meta,
-            "frames": frames,
-        },
-    )
-
-    # Overwrite latest manifests (loaded by frontend clients).
+    # Promote latest.json to the newest published cycle only.
     latest_manifest_uri = ap.manifest_latest_uri()
-    _write_json(
-        store=store,
-        uri=latest_manifest_uri,
-        obj={
-            "cycle": cycle,
-            "generated_at": generated_at,
-            "revision": revision,
-        },
-    )
+    current_latest_cycle = _read_latest_cycle(store=store, latest_manifest_uri=latest_manifest_uri)
+    promote_latest = current_latest_cycle is None or cycle >= current_latest_cycle
+    if promote_latest:
+        _write_json(
+            store=store,
+            uri=latest_manifest_uri,
+            obj=manifest_obj,
+        )
+    else:
+        print(
+            "Skipping latest manifest promotion for older cycle.\n"
+            f"  cycle={cycle}\n"
+            f"  current_latest_cycle={current_latest_cycle}"
+        )
 
-    # Write publish marker last (signals publish completion).
-    _write_json(
-        store=store,
-        uri=published_uri,
-        obj={
-            "cycle": cycle,
-            "generated_at": generated_at,
-            "revision": revision,
-            "manifest_uri": cycle_manifest_uri,
-        },
-    )
+    if not already_published:
+        # Write publish marker last (signals publish completion).
+        _write_json(
+            store=store,
+            uri=published_uri,
+            obj={
+                "cycle": cycle,
+                "generated_at": generated_at,
+                "revision": revision,
+                "manifest_uri": cycle_manifest_uri,
+            },
+        )
 
     print(f"Published: {cycle_manifest_uri}")
-    return PublishResult(ready=True, already_published=False)
+    return PublishResult(ready=True, already_published=already_published)

@@ -2,15 +2,12 @@
 Description=Weather Map Docker Compose
 After=network-online.target docker.service cloud-final.service
 Wants=network-online.target cloud-final.service
-ConditionPathExists=/etc/weather-map/poll-tiles.env
 
 [Service]
 Type=oneshot
-EnvironmentFile=-/etc/weather-map/poll-tiles.env
-ExecStartPre=/opt/weather-map/scripts/poll-tiles.sh
 WorkingDirectory=/opt/weather-map
-ExecStart=/usr/local/lib/docker/cli-plugins/docker-compose -f compose.prod.yml up -d
-ExecStop=/usr/local/lib/docker/cli-plugins/docker-compose -f compose.prod.yml down
+ExecStart=/usr/local/lib/docker/cli-plugins/docker-compose -f deploy/compose.prod.yml up -d
+ExecStop=/usr/local/lib/docker/cli-plugins/docker-compose -f deploy/compose.prod.yml down
 RemainAfterExit=yes
 
 [Install]

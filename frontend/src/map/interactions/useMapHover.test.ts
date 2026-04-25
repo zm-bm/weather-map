@@ -2,7 +2,8 @@ import { renderHook } from '@testing-library/react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PLACE_LABEL_LAYER_IDS } from './placeLayers'
+import { PLACE_LABEL_LAYER_IDS } from "../view/constants"
+import { BASEMAP_SOURCE_ID, PLACE_SOURCE_LAYER_ID } from "../view/constants"
 import { useMapHover } from './useMapHover'
 
 type LayerHandler = (...args: any[]) => void
@@ -63,7 +64,7 @@ describe('useMapHover', () => {
 
     expect(canvas.style.cursor).toBe('pointer')
     expect(map.setFeatureState).toHaveBeenLastCalledWith(
-      { source: 'openmaptiles', sourceLayer: 'place', id: 'Chicago' },
+      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Chicago' },
       { hover: true }
     )
 
@@ -72,11 +73,11 @@ describe('useMapHover', () => {
     })
 
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: 'openmaptiles', sourceLayer: 'place', id: 'Chicago' },
+      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Chicago' },
       { hover: false }
     )
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: 'openmaptiles', sourceLayer: 'place', id: 'Milwaukee' },
+      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Milwaukee' },
       { hover: true }
     )
 
@@ -84,7 +85,7 @@ describe('useMapHover', () => {
 
     expect(canvas.style.cursor).toBe('')
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: 'openmaptiles', sourceLayer: 'place', id: 'Milwaukee' },
+      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Milwaukee' },
       { hover: false }
     )
   })

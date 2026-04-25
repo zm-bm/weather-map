@@ -5,7 +5,6 @@ import {
   MANIFEST_VERSION,
   type CycleManifest,
   type FramePayloadRef,
-  type LatestManifest,
   type ManifestEncodingSpec,
   type ManifestVariableSpec,
   type NonEmptyArray,
@@ -164,25 +163,6 @@ function parseRecordMap<T>(
     out[key] = parseItem(value, `${field}.${key}`)
   }
   return out
-}
-
-export function parseLatestManifest(raw: unknown): LatestManifest {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('latest.json missing valid { cycle, generated_at, revision }')
-  }
-  const o = raw as Record<string, unknown>
-  if (
-    typeof o.cycle !== 'string' ||
-    typeof o.generated_at !== 'string' ||
-    typeof o.revision !== 'string'
-  ) {
-    throw new Error('latest.json missing valid { cycle, generated_at, revision }')
-  }
-  return {
-    cycle: o.cycle,
-    generated_at: o.generated_at,
-    revision: o.revision,
-  }
 }
 
 type DecodedCycleManifest = Omit<CycleManifest, 'scalarVariables' | 'vectorVariables'> & {

@@ -12,6 +12,7 @@ part of the active runtime pipeline.
 from __future__ import annotations
 
 __all__ = [
+    "aws",
     "config",
     "contracts",
     "wind_codec",

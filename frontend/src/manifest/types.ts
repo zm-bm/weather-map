@@ -17,12 +17,6 @@ export function asVectorVariableId(value: string): VectorVariableId {
   return value as VectorVariableId
 }
 
-export type LatestManifest = {
-  cycle: string
-  generated_at: string
-  revision: string
-}
-
 export type ScalarGridSpec = {
   crs: string
   nx: number

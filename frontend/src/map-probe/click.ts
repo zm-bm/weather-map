@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from 'maplibre-gl'
 
-import { PLACE_LABEL_LAYER_IDS } from '../map/interactions/placeLayers'
+import { PLACE_LABEL_LAYER_IDS } from "../map/view/constants"
 
 export type ProbePoint = {
   lon: number

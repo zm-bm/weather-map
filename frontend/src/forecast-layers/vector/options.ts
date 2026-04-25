@@ -20,7 +20,7 @@ export type VectorRuntimeOptions = {
   // Minimum net zoom-out delta required to trigger zoomOutRespawnFraction.
   zoomOutRespawnMinDelta: number
 
-  // Point sprite size used for each dash draw call.
+  // Point size used for each dash draw call.
   pointSizePx: number
   // Minimum dash length in pixels.
   dashMinPx: number
