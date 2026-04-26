@@ -24,3 +24,6 @@ How it is used:
 - frontend-owned static assets such as `glyphs/` are served separately from the frontend origin.
 
 Generated contents under this directory are ignored by git.
+
+See [../etl/README.md](../etl/README.md) for the local and production ETL flow
+that writes this layout.

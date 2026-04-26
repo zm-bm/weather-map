@@ -5,6 +5,14 @@
 Weather forecast map app with a local ETL pipeline, a Vite frontend, and a
 small nginx dev server that serves generated artifacts from `artifacts/`.
 
+## Layout
+
+- `frontend/` is the React/Vite MapLibre app.
+- `etl/` owns the GFS artifact pipeline and release helpers.
+- `artifacts/` is the local artifact root served by nginx in development.
+- A private infra checkout owns production ETL deployment, production config,
+  and AWS operator scripts under `stacks/weather-etl/`.
+
 ## Prerequisites
 
 - Docker with `docker compose`
@@ -70,5 +78,5 @@ python -m unittest discover -s gfs_pipeline/tests -p 'test_*.py'
 
 ## Docs
 
-- Development ETL artifact flow: [docs/dev-etl-refresh-flow.md](docs/dev-etl-refresh-flow.md)
-- Production ETL refresh flow: [docs/prod-etl-refresh-flow.md](docs/prod-etl-refresh-flow.md)
+- ETL local and production flow: [etl/README.md](etl/README.md)
+- Frontend domain naming: [frontend/src/README.md](frontend/src/README.md)
