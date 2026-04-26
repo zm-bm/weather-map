@@ -102,12 +102,13 @@ class S3Store(UriStore):
             with open(tmp, "wb") as f:
                 s3.download_fileobj(bucket, key, f)
         except ClientError as e:
+            tmp.unlink(missing_ok=True)
             if self._is_not_found(e):
                 raise FileNotFoundError(uri) from e
             raise
-        finally:
-            if tmp.exists() and not dst.exists():
-                tmp.unlink(missing_ok=True)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
         tmp.replace(dst)
 
     def put_file(self, *, uri: str, src: Path) -> None:

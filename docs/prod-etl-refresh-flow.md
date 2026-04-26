@@ -119,9 +119,8 @@ That keeps the frontend request model aligned with local development:
 - `/radio/*` for audio assets
 - frontend-owned glyph/font assets served from the frontend build itself
 
-The frontend runtime already assumes that same-origin path layout. The remaining
-handoff work is in the infra repo: update S3/CloudFront routing and deployment
-to match this static serving model.
+The frontend runtime already assumes that same-origin path layout. Production
+infra should keep CloudFront routing aligned with this static serving model.
 
 ## Operational notes
 
@@ -134,16 +133,13 @@ Canonical ETL application sources now live in `weather-map`:
 - pipeline config: `etl/gfs.etl_config.json`
 - operator helpers: `etl/scripts/aws/*`
 
-Terraform still lives in `/home/rick/code/infra/stacks/weather-etl` for now, so infra wiring can temporarily lag the canonical application sources until the next handoff step.
+Terraform still lives in `/home/rick/code/infra/stacks/weather-etl` for now.
 
 ### Artifacts bucket selection
 
-`stacks/weather-etl` defaults `use_dev_artifacts_bucket=true`.
-
-That means ETL may write to `gfs-artifacts-dev-*` unless explicitly set to false.
-
-For real production refresh, make sure ETL writes to the same artifacts bucket
-that CloudFront/S3 production delivery reads from.
+`stacks/weather-etl` is production-only for now and writes artifacts to
+`gfs-artifacts-prod-<account>`, the same bucket CloudFront serves for
+`/manifests/*`, `/fields/*`, `/pmtiles/*`, and `/radio/*`.
 
 ### Manual testing helpers
 
