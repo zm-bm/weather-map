@@ -6,7 +6,7 @@ import { PLACE_LABEL_LAYER_IDS } from "../view/constants"
 import { BASEMAP_SOURCE_ID, PLACE_SOURCE_LAYER_ID } from "../view/constants"
 import { useMapHover } from './useMapHover'
 
-type LayerHandler = (...args: any[]) => void
+type LayerHandler = (...args: unknown[]) => void
 
 type HoverableMap = MapLibreMap & {
   on: ReturnType<typeof vi.fn>

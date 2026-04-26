@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useStartupState: vi.fn(),
   useSyncRequest: vi.fn(),
   useSyncRunner: vi.fn(),
+  useFramePrefetch: vi.fn(),
   useStartupAppStatus: vi.fn(),
 }))
 
@@ -22,6 +23,10 @@ vi.mock('./useSyncRequest', () => ({
 
 vi.mock('./useSyncRunner', () => ({
   useSyncRunner: (args: unknown) => mocks.useSyncRunner(args),
+}))
+
+vi.mock('./useFramePrefetch', () => ({
+  useFramePrefetch: (args: unknown) => mocks.useFramePrefetch(args),
 }))
 
 vi.mock('./useStartupAppStatus', () => ({
@@ -96,6 +101,11 @@ describe('useForecastSync', () => {
       request,
       startup,
     })
+    expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
+      config,
+      request,
+      enabled: true,
+    })
     expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
   })
 
@@ -118,6 +128,33 @@ describe('useForecastSync', () => {
       request: null,
       startup,
     }))
+    expect(mocks.useFramePrefetch).toHaveBeenCalledWith(expect.objectContaining({
+      request: null,
+      enabled: true,
+    }))
     expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
+  })
+
+  it('disables frame prefetch while startup is blocked', () => {
+    const map = createMapFixture()
+    const getMap = () => map
+    const config = createConfigFixture()
+    const startup = createStartupState({ isBlocked: true })
+    const request = createSyncRequest()
+
+    mocks.useStartupState.mockReturnValue(startup)
+    mocks.useSyncRequest.mockReturnValue(request)
+
+    renderHook(() => useForecastSync({
+      getMap,
+      mapReadyVersion: 1,
+      config,
+    }))
+
+    expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
+      config,
+      request,
+      enabled: false,
+    })
   })
 })

@@ -3,6 +3,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { WeatherMapConfig } from '../config'
 import { useStartupAppStatus } from './useStartupAppStatus'
 import { useStartupState } from './useStartupState'
+import { useFramePrefetch } from './useFramePrefetch'
 import { useSyncRequest } from './useSyncRequest'
 import { useSyncRunner } from './useSyncRunner'
 
@@ -26,6 +27,11 @@ export function useForecastSync({
     config,
     request,
     startup,
+  })
+  useFramePrefetch({
+    config,
+    request,
+    enabled: !startup.isBlocked,
   })
   useStartupAppStatus(startup.status)
 }

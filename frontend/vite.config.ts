@@ -1,10 +1,57 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import type { Plugin } from 'vite'
+
+const DEV_ARTIFACT_ORIGIN = process.env.VITE_DEV_ARTIFACT_PROXY_TARGET ?? 'http://localhost:3000'
+const DEV_ARTIFACT_DELAY_MS = Math.max(
+  0,
+  Number.parseInt(
+    process.env.VITE_DEV_ARTIFACT_DELAY_MS ?? process.env.DEV_ARTIFACT_DELAY_MS ?? '0',
+    10
+  ) || 0
+)
+
+function devArtifactDelay(): Plugin {
+  return {
+    name: 'weather-map-dev-artifact-delay',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        if (DEV_ARTIFACT_DELAY_MS <= 0 || !req.url?.startsWith('/fields/')) {
+          next()
+          return
+        }
+
+        setTimeout(next, DEV_ARTIFACT_DELAY_MS)
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [devArtifactDelay(), react()],
+  server: {
+    proxy: {
+      '/manifests': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+      '/fields': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+      '/pmtiles': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+      '/radio': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       // Sets "@" to point to the "src" directory

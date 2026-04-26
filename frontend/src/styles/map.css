@@ -43,3 +43,41 @@
   mix-blend-mode: soft-light;
   opacity: 0.28;
 }
+
+.map-sync-indicator {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 238, 198, 0.58);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0)),
+    rgba(12, 24, 65, 0.88);
+  color: var(--wm-text-cream-bright);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 220, 0.16),
+    0 6px 14px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.map-sync-indicator__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 244, 211, 0.32);
+  border-top-color: var(--wm-accent-strong);
+  border-radius: 50%;
+  animation: map-sync-indicator-spin 780ms linear infinite;
+}
+
+@keyframes map-sync-indicator-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

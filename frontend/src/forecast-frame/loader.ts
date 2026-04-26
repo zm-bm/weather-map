@@ -4,6 +4,7 @@ import type {
   ScalarGridSpec,
 } from '../manifest/types'
 import type { WeatherMapConfig } from '../config'
+import { createAbortError } from '../abort'
 import { joinUrl } from '../url/joinUrl'
 import {
   ensurePayloadFrameCacheScope,
@@ -29,6 +30,8 @@ export type LoadFramePayloadArgs = {
   signal: AbortSignal
   verifyPayloadSha256: boolean
 }
+
+const inFlightPayloadFetchesByKey = new Map<string, Promise<ArrayBuffer>>()
 
 export function normalizeFrameHourToken(value: string): string {
   return value.trim().padStart(3, '0')
@@ -89,10 +92,31 @@ async function getOrFetchFramePayload(args: {
   const cached = await readCachedPayloadFrame(args.cacheKey)
   if (cached) return cached
 
+  const payload = await waitForSharedPayloadFetch({
+    cacheKey: args.cacheKey,
+    signal: args.signal,
+    fetchPayload: () => fetchAndCacheFramePayload({
+      config: args.config,
+      manifest: args.manifest,
+      frameRef: args.frameRef,
+      cacheKey: args.cacheKey,
+      frameKind: args.frameKind,
+    }),
+  })
+
+  return payload
+}
+
+async function fetchAndCacheFramePayload(args: {
+  config: WeatherMapConfig
+  manifest: CycleManifest
+  frameRef: FramePayloadRef
+  cacheKey: string
+  frameKind: FrameKind
+}): Promise<ArrayBuffer> {
   const payload = await fetchFramePayloadBuffer({
     artifactBaseUrl: args.config.artifactBaseUrl,
     payloadPath: args.frameRef.path,
-    signal: args.signal,
     frameKind: args.frameKind,
   })
 
@@ -105,14 +129,63 @@ async function getOrFetchFramePayload(args: {
   return payload
 }
 
+function waitForSharedPayloadFetch(args: {
+  cacheKey: string
+  signal: AbortSignal
+  fetchPayload: () => Promise<ArrayBuffer>
+}): Promise<ArrayBuffer> {
+  if (args.signal.aborted) return Promise.reject(createAbortError())
+
+  let inFlightFetch = inFlightPayloadFetchesByKey.get(args.cacheKey)
+  if (!inFlightFetch) {
+    const nextFetch = (async () => {
+      try {
+        return await args.fetchPayload()
+      } finally {
+        inFlightPayloadFetchesByKey.delete(args.cacheKey)
+      }
+    })()
+    inFlightPayloadFetchesByKey.set(args.cacheKey, nextFetch)
+    inFlightFetch = nextFetch
+  }
+
+  return waitForPayloadOrAbort(inFlightFetch, args.signal)
+}
+
+function waitForPayloadOrAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(createAbortError())
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(createAbortError())
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        if (signal.aborted) {
+          reject(createAbortError())
+          return
+        }
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+  })
+}
+
 async function fetchFramePayloadBuffer(args: {
   artifactBaseUrl: string
   payloadPath: string
-  signal: AbortSignal
   frameKind: FrameKind
 }): Promise<ArrayBuffer> {
   const payloadUrl = joinUrl(args.artifactBaseUrl, args.payloadPath)
-  const response = await fetch(payloadUrl, { signal: args.signal })
+  const response = await fetch(payloadUrl)
   if (!response.ok) {
     throw new Error(
       `Failed to fetch ${args.frameKind} payload: ${response.status} ${response.statusText}`

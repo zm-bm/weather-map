@@ -14,7 +14,9 @@ services:
     volumes:
       - ./frontend/src:/app/src
     environment:
-      - VITE_ARTIFACT_BASE_URL=http://localhost:3000
+      - VITE_ARTIFACT_BASE_URL=${VITE_ARTIFACT_BASE_URL:-http://localhost:5173}
       - VITE_BASEMAP_FILENAME=${VITE_BASEMAP_FILENAME:-}
+      - VITE_DEV_ARTIFACT_DELAY_MS=${VITE_DEV_ARTIFACT_DELAY_MS:-0}
+      - VITE_DEV_ARTIFACT_PROXY_TARGET=${VITE_DEV_ARTIFACT_PROXY_TARGET:-http://nginx:3000}
     depends_on:
       - nginx

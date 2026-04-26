@@ -4,6 +4,7 @@ import { ForecastTimeProvider } from '../../forecast-time'
 import MapProbeProvider from '../../map-probe/MapProbeProvider'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
+import MapSyncIndicator from '../MapSyncIndicator'
 import ProductPanel from '../ProductPanel'
 import TimelinePanel from '../TimelinePanel'
 import ForecastMap from '../ForecastMap/ForecastMap'
@@ -36,6 +37,7 @@ export default function ForecastShell({
 
               {manifest && !DEBUG_BASEMAP_ONLY && (
                 <>
+                  <MapSyncIndicator />
                   <ForecastPanel />
                   <div className="forecast-stage__legend">
                     <LegendPanel />
