@@ -17,7 +17,7 @@ export function useMap({
     center: [-100, 35],
     zoom: 3,
     minZoom: 2,
-    maxZoom: 5.99,
+    maxZoom: 6.99,
   })
 
   useMapHover(map.mapRef)
