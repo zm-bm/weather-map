@@ -11,6 +11,7 @@ Typical contents:
 - `fields/<cycle>/<fhour>/<layer>.scalar.i16.bin`
 - `fields/<cycle>/<fhour>/<layer>.vector.i8.bin`
 - `pmtiles/<name>.pmtiles`
+- `radio/playlist.json`
 - `radio/<track>.mp3`
 - `status/...`
 

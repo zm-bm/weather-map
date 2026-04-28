@@ -2,22 +2,30 @@ import type { IControl } from 'maplibre-gl'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-import { MusicControlView, type AudioFactory } from './MusicControlView'
+import type { RadioPlaylistFetch } from './playlist'
+import { MusicControlView } from './MusicControlView'
+import type { AudioFactory } from './useRadioPlayer'
 
 type MusicControlConfig = {
-  src: string
+  playlistUrl: string
   createAudio?: AudioFactory
+  fetchPlaylist?: RadioPlaylistFetch
+  random?: () => number
 }
 
 export class MusicControl implements IControl {
-  private readonly src: string
+  private readonly playlistUrl: string
   private readonly createAudio?: AudioFactory
+  private readonly fetchPlaylist?: RadioPlaylistFetch
+  private readonly random?: () => number
   private container: HTMLDivElement | null = null
   private root: Root | null = null
 
   constructor(config: MusicControlConfig) {
-    this.src = config.src
+    this.playlistUrl = config.playlistUrl
     this.createAudio = config.createAudio
+    this.fetchPlaylist = config.fetchPlaylist
+    this.random = config.random
   }
 
   onAdd(): HTMLElement {
@@ -25,9 +33,11 @@ export class MusicControl implements IControl {
     this.container = wrap
     this.root = createRoot(wrap)
     this.root.render(createElement(MusicControlView, {
-      key: this.src,
-      src: this.src,
+      key: this.playlistUrl,
+      playlistUrl: this.playlistUrl,
       createAudio: this.createAudio,
+      fetchPlaylist: this.fetchPlaylist,
+      random: this.random,
     }))
 
     return wrap

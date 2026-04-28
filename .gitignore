@@ -147,6 +147,9 @@ artifacts/*
 !artifacts/pmtiles/
 artifacts/pmtiles/*
 !artifacts/pmtiles/.gitignore
+!artifacts/radio/
+artifacts/radio/*
+!artifacts/radio/playlist.json
 
 # Local Lambda helper output
 etl/scripts/aws/events/invoke-output.json

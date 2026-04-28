@@ -13,7 +13,7 @@ export function useMapControls(
   mapReadyVersion: number,
 ) {
   const attachedMapRef = useRef<MapLibreMap | null>(null)
-  const trackUrl = joinUrl(config.artifactBaseUrl, 'radio/song.mp3')
+  const playlistUrl = joinUrl(config.artifactBaseUrl, 'radio/playlist.json')
 
   useEffect(() => {
     const map = mapRef.current
@@ -21,7 +21,7 @@ export function useMapControls(
 
     const controls = [
       [new maplibregl.NavigationControl({ showCompass: false }), 'top-right'],
-      [new MusicControl({ src: trackUrl }), 'top-right'],
+      [new MusicControl({ playlistUrl }), 'top-right'],
       [new OptionsControl({
         scalarOptions: scalarRuntimeOptions,
         vectorOptions: vectorRuntimeOptions,
@@ -43,5 +43,5 @@ export function useMapControls(
         }
       }
     }
-  }, [mapReadyVersion, mapRef, trackUrl])
+  }, [mapReadyVersion, mapRef, playlistUrl])
 }

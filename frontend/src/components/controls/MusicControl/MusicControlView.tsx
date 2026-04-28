@@ -1,89 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
-
-export type AudioLike = Pick<
-  HTMLAudioElement,
-  'loop' | 'preload' | 'volume' | 'paused' | 'addEventListener' | 'removeEventListener' | 'load' | 'play' | 'pause'
->
-
-export type AudioFactory = (src: string) => AudioLike
+import type { RadioPlaylistFetch } from './playlist'
+import { useRadioPlayer, type AudioFactory } from './useRadioPlayer'
 
 type MusicControlViewProps = {
-  src: string
+  playlistUrl: string
   createAudio?: AudioFactory
+  fetchPlaylist?: RadioPlaylistFetch
+  random?: () => number
 }
 
-const MUSIC_VOLUME = 0.45
-
-const defaultCreateAudio: AudioFactory = (src) => new Audio(src)
-
 export function MusicControlView({
-  src,
-  createAudio = defaultCreateAudio,
+  playlistUrl,
+  createAudio,
+  fetchPlaylist,
+  random,
 }: MusicControlViewProps) {
-  const audioRef = useRef<AudioLike | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isUnavailable, setIsUnavailable] = useState(false)
-  const [statusDetail, setStatusDetail] = useState<string | null>(null)
+  const player = useRadioPlayer({
+    playlistUrl,
+    createAudio,
+    fetchPlaylist,
+    random,
+  })
 
-  useEffect(() => {
-    const audio = createAudio(src)
-    const handleError = () => {
-      setIsPlaying(false)
-      setIsUnavailable(true)
-      setStatusDetail(null)
-    }
-
-    audio.loop = true
-    audio.preload = 'metadata'
-    audio.volume = MUSIC_VOLUME
-    audio.addEventListener('error', handleError)
-    audio.load()
-    audioRef.current = audio
-
-    return () => {
-      audio.pause()
-      audio.removeEventListener('error', handleError)
-      audioRef.current = null
-    }
-  }, [createAudio, src])
-
-  const actionLabel = isPlaying ? 'Pause radio' : 'Play radio'
-  const title = isUnavailable
-    ? 'Music track unavailable'
-    : (statusDetail ?? actionLabel)
-
-  const handleToggle = async () => {
-    const audio = audioRef.current
-    if (!audio || isUnavailable) return
-
-    if (audio.paused) {
-      try {
-        await audio.play()
-        setIsPlaying(true)
-        setStatusDetail(null)
-      } catch {
-        setIsPlaying(false)
-        setStatusDetail('Playback blocked or unavailable')
-      }
-      return
-    }
-
-    audio.pause()
-    setIsPlaying(false)
-    setStatusDetail(null)
-  }
+  const actionLabel = player.isPlaying ? 'Pause radio' : 'Play radio'
+  const title = player.isUnavailable
+    ? 'Radio playlist unavailable'
+    : (player.statusDetail ?? (
+        player.currentTrackTitle
+          ? `${actionLabel}: ${player.currentTrackTitle}`
+          : actionLabel
+      ))
 
   return (
     <div className="maplibregl-ctrl maplibregl-ctrl-group">
       <button
         type="button"
-        className={isPlaying ? 'maplibregl-ctrl-music is-playing' : 'maplibregl-ctrl-music'}
+        className={player.isPlaying ? 'maplibregl-ctrl-music is-playing' : 'maplibregl-ctrl-music'}
         title={title}
         aria-label={actionLabel}
-        aria-pressed={isPlaying}
-        disabled={isUnavailable}
+        aria-pressed={player.isPlaying}
+        disabled={player.isUnavailable || player.isLoading}
         onClick={() => {
-          void handleToggle()
+          void player.toggle()
         }}
       >
         <span className="maplibregl-ctrl-icon maplibregl-ctrl-icon--music" />
