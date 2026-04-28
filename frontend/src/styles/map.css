@@ -105,8 +105,8 @@
 @media (max-width: 760px) {
   .forecast-screen {
     --wm-chrome-inset: 12px;
-    --wm-forecast-mobile-max-height: 280px;
-    --wm-mobile-map-control-top: 304px;
+    --wm-forecast-mobile-max-height: 220px;
+    --wm-mobile-map-control-top: 236px;
     grid-template-rows: minmax(380px, 1fr) auto;
   }
 
@@ -122,8 +122,8 @@
 
 @media (max-width: 420px) {
   .forecast-screen {
-    --wm-forecast-mobile-max-height: 280px;
-    --wm-mobile-map-control-top: 304px;
+    --wm-forecast-mobile-max-height: 220px;
+    --wm-mobile-map-control-top: 236px;
     grid-template-rows: minmax(360px, 1fr) auto;
   }
 }
