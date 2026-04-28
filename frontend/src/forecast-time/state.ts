@@ -12,6 +12,7 @@ export type ForecastTimeState = {
 
 export type ForecastTimeAction =
   | { type: 'requestTime'; timeMs: number }
+  | { type: 'queueTime'; timeMs: number }
   | { type: 'requestStart'; timeMs: number }
   | { type: 'requestApplied'; timeMs: number; nowMs: number }
   | { type: 'requestError' }
@@ -55,6 +56,23 @@ function queueTime(
 }
 
 function reduceRequestTime(
+  state: ForecastTimeState,
+  timeMs: number
+): ForecastTimeState {
+  if (timeMs === state.targetTimeMs) return clearPending(state)
+  if (timeMs === state.appliedTimeMs) {
+    return {
+      ...state,
+      targetTimeMs: timeMs,
+      pendingTimeMs: null,
+      isInFlight: false,
+    }
+  }
+
+  return dispatchTime(state, timeMs)
+}
+
+function reduceQueueTime(
   state: ForecastTimeState,
   timeMs: number
 ): ForecastTimeState {
@@ -107,6 +125,10 @@ export function reduceForecastTimeState(
 
   if (action.type === 'requestTime') {
     return reduceRequestTime(state, action.timeMs)
+  }
+
+  if (action.type === 'queueTime') {
+    return reduceQueueTime(state, action.timeMs)
   }
 
   if (action.type === 'requestStart') {

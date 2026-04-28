@@ -47,9 +47,16 @@ export default function ForecastTimeProvider({
     })
   }, [cycle, forecastHours])
 
+  const queueTime = useCallback((targetTimeMs: number) => {
+    dispatch({
+      type: 'queueTime',
+      timeMs: clampForecastValidTimeMs(cycle, forecastHours, targetTimeMs),
+    })
+  }, [cycle, forecastHours])
+
   const requestNext = useCallback(() => {
     const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
-    requestTime(
+    queueTime(
       stepForecastValidTimeMs(
         cycle,
         forecastHours,
@@ -57,11 +64,11 @@ export default function ForecastTimeProvider({
         1
       )
     )
-  }, [cycle, forecastHours, requestTime, state.pendingTimeMs, state.targetTimeMs])
+  }, [cycle, forecastHours, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const requestPrev = useCallback(() => {
     const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
-    requestTime(
+    queueTime(
       stepForecastValidTimeMs(
         cycle,
         forecastHours,
@@ -69,7 +76,7 @@ export default function ForecastTimeProvider({
         -1
       )
     )
-  }, [cycle, forecastHours, requestTime, state.pendingTimeMs, state.targetTimeMs])
+  }, [cycle, forecastHours, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const togglePlay = useCallback(() => {
     if (forecastHourCount <= 1) return

@@ -105,7 +105,7 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
   })
 
-  it('coalesces in-flight requests to the latest queued time', () => {
+  it('replaces in-flight requests so direct timeline seeks win', () => {
     const manifest = createTimelineManifest()
     const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
     const validAt0600 = validTimeMs(manifest.cycle, '006') ?? 0
@@ -119,16 +119,9 @@ describe('ForecastTimeProvider', () => {
 
     act(() => {
       getContext().controls.requestTime(validAt0600)
-      getContext().controls.requestTime(validAt0300)
-      getContext().controls.requestTime(validAt0600)
     })
-    expect(getContext().state.pendingTimeMs).toBe(validAt0600)
-
-    act(() => {
-      getContext().sync.onRequestApplied(validAt0300)
-    })
-
     expect(getContext().state.targetTimeMs).toBe(validAt0600)
+    expect(getContext().state.pendingTimeMs).toBeNull()
     expect(getContext().state.isInFlight).toBe(true)
   })
 

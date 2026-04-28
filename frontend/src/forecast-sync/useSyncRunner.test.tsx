@@ -507,4 +507,56 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupErrorMessage).toBeNull()
     })
   })
+
+  it('aborts an in-flight request when the target returns to an already applied frame', async () => {
+    const args = createBaseArgs()
+    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await waitFor(() => {
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.syncInput as SyncInput).targetTimeMs
+      )
+    })
+
+    const request = deferred<void>()
+    const observedSignals: AbortSignal[] = []
+    mocks.scalarApplySync.mockImplementationOnce((syncArgs: { signal: AbortSignal }) => {
+      observedSignals.push(syncArgs.signal)
+      return request.promise
+    })
+
+    const nextValidTimeMs = validTimeMs(
+      (args.syncInput as SyncInput).manifest.cycle,
+      (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
+    ) ?? 0
+
+    rerender({
+      ...args,
+      syncInput: {
+        ...(args.syncInput as SyncInput),
+        targetTimeMs: nextValidTimeMs,
+      },
+    })
+
+    await waitFor(() => {
+      expect(mocks.scalarApplySync).toHaveBeenCalledTimes(2)
+      expect(observedSignals[0]).toBeDefined()
+    })
+
+    rerender(args)
+
+    await waitFor(() => {
+      expect(observedSignals[0]?.aborted).toBe(true)
+    })
+
+    request.resolve()
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(1)
+  })
 })

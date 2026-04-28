@@ -20,7 +20,43 @@ describe('forecast time state machine', () => {
     expect(state.pendingTimeMs).toBeNull()
   })
 
-  it('queues the latest requested time while a request is in flight', () => {
+  it('replaces the in-flight target for direct time requests', () => {
+    const initial = {
+      ...createForecastTimeState(0),
+      targetTimeMs: 60_000,
+      isInFlight: true,
+      pendingTimeMs: 120_000,
+    }
+
+    const state = reduceForecastTimeState(initial, {
+      type: 'requestTime',
+      timeMs: 180_000,
+    })
+
+    expect(state.targetTimeMs).toBe(180_000)
+    expect(state.pendingTimeMs).toBeNull()
+    expect(state.isInFlight).toBe(true)
+  })
+
+  it('cancels an in-flight target when directly requesting the applied time', () => {
+    const initial = {
+      ...createForecastTimeState(0),
+      targetTimeMs: 60_000,
+      isInFlight: true,
+      pendingTimeMs: 120_000,
+    }
+
+    const state = reduceForecastTimeState(initial, {
+      type: 'requestTime',
+      timeMs: 0,
+    })
+
+    expect(state.targetTimeMs).toBe(0)
+    expect(state.pendingTimeMs).toBeNull()
+    expect(state.isInFlight).toBe(false)
+  })
+
+  it('queues the latest stepped time while a request is in flight', () => {
     const initial = {
       ...createForecastTimeState(0),
       targetTimeMs: 60_000,
@@ -28,7 +64,7 @@ describe('forecast time state machine', () => {
     }
 
     const state = reduceForecastTimeState(initial, {
-      type: 'requestTime',
+      type: 'queueTime',
       timeMs: 120_000,
     })
 
@@ -44,7 +80,7 @@ describe('forecast time state machine', () => {
     }
 
     const state = reduceForecastTimeState(initial, {
-      type: 'requestTime',
+      type: 'queueTime',
       timeMs: 60_000,
     })
 

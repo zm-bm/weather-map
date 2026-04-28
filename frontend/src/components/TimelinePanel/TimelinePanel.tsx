@@ -34,15 +34,20 @@ export default function TimelinePanel() {
   } = useForecastTimeContext()
   const {
     appliedTimeMs,
+    targetTimeMs,
+    pendingTimeMs,
     isPlaying,
   } = forecastTimeState
   const { requestTime, togglePlay } = forecastTimeControls
 
   const bounds = forecastTimeBounds(cycle, forecastHours)
   const totalMinutes = bounds?.totalMinutes ?? 0
-  const appliedMinuteOffset = minuteOffsetForValidTime(cycle, forecastHours, appliedTimeMs)
+  const requestedTimeMs = pendingTimeMs ?? targetTimeMs
+  const requestedMinuteOffset = minuteOffsetForValidTime(cycle, forecastHours, requestedTimeMs)
   const timelineControlsDisabled = forecastHours.length <= 1 || bounds == null
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)
+  const [sliderDraftMinuteOffset, setSliderDraftMinuteOffset] = useState<number | null>(null)
+  const sliderMinuteOffsetValue = sliderDraftMinuteOffset ?? requestedMinuteOffset
 
   const startTickLabel = formatValidTimeTickLabel(bounds?.startValidTimeMs) ?? 'Start'
   const appliedTickLabel = formatValidTimeLabel(appliedTimeMs) ?? 'Now'
@@ -59,6 +64,7 @@ export default function TimelinePanel() {
 
   const finishSliderDrag = (minuteOffset: number) => {
     setIsDraggingSlider(false)
+    setSliderDraftMinuteOffset(null)
     commitSliderTime(minuteOffset)
   }
 
@@ -93,19 +99,23 @@ export default function TimelinePanel() {
               </div>
 
               <input
-                key={appliedMinuteOffset}
                 className="timeline-panel__slider"
                 type="range"
                 min={0}
                 max={totalMinutes}
                 step={FORECAST_TIME_STEP_MINUTES}
-                defaultValue={appliedMinuteOffset}
+                value={sliderMinuteOffsetValue}
                 onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                  if (isDraggingSlider) return
-                  commitSliderTime(sliderMinuteOffset(event))
+                  const minuteOffset = sliderMinuteOffset(event)
+                  if (isDraggingSlider) {
+                    setSliderDraftMinuteOffset(minuteOffset)
+                    return
+                  }
+                  commitSliderTime(minuteOffset)
                 }}
-                onPointerDown={() => {
+                onPointerDown={(event: PointerEvent<HTMLInputElement>) => {
                   setIsDraggingSlider(true)
+                  setSliderDraftMinuteOffset(sliderMinuteOffset(event))
                 }}
                 onPointerUp={handleSliderRelease}
                 onMouseUp={handleSliderRelease}

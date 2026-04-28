@@ -41,7 +41,7 @@ describe('useMap', () => {
       center: [-100, 35],
       zoom: 3,
       minZoom: 2,
-      maxZoom: 5.99,
+      maxZoom: 6.99,
     })
 
     const map = mocks.useMapLibre.mock.results[0]?.value as {

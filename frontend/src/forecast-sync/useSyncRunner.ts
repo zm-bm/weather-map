@@ -101,7 +101,10 @@ export function useSyncRunner({
       sync,
     } = syncRequest
 
-    if (machine.isApplied(requestKey)) return
+    if (machine.isApplied(requestKey)) {
+      machine.abort()
+      return
+    }
     if (machine.isActive(requestKey)) return
 
     const activeRequest = machine.start(requestKey)
