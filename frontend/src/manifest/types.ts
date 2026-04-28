@@ -31,7 +31,7 @@ export type ScalarGridSpec = {
   y_mode: 'clamp'
 }
 
-export type ScalarEncodingSpec = {
+export type ScalarInt16EncodingSpec = {
   format: 'scalar-i16-linear-v1'
   dtype: 'int16'
   byte_order: 'little' | 'big'
@@ -40,6 +40,28 @@ export type ScalarEncodingSpec = {
   offset: number
   decode_formula: string
 }
+
+export type ScalarInt8EncodingSpec = {
+  format: 'scalar-i8-linear-v1'
+  dtype: 'int8'
+  byte_order: 'none'
+  nodata: number
+  scale: number
+  offset: number
+  decode_formula: string
+}
+
+export type ScalarTempCPiecewiseEncodingSpec = {
+  format: 'scalar-i8-temp-c-piecewise-v1'
+  dtype: 'int8'
+  byte_order: 'none'
+  nodata: number
+}
+
+export type ScalarEncodingSpec =
+  | ScalarInt16EncodingSpec
+  | ScalarInt8EncodingSpec
+  | ScalarTempCPiecewiseEncodingSpec
 
 export type VectorEncodingSpec = {
   format: 'uv-i8-q0p5-v1'

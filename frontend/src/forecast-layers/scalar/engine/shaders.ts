@@ -17,19 +17,15 @@ export const SCALAR_FRAGMENT_SHADER_SOURCE = `#version 300 es
 precision highp float;
 precision highp int;
 precision highp sampler2D;
-precision highp isampler2D;
 
 in vec2 v_mercator;
 out vec4 outColor;
 
-uniform isampler2D u_scalar_tex;
-uniform isampler2D u_scalar_tex_upper;
+uniform sampler2D u_scalar_tex;
+uniform sampler2D u_scalar_tex_upper;
 uniform sampler2D u_colormap_tex;
 uniform vec2 u_grid_size;
 uniform vec2 u_display_range;
-uniform float u_scale;
-uniform float u_offset;
-uniform int u_nodata;
 uniform float u_time_mix;
 uniform float u_lon0;
 uniform float u_lat0;
@@ -52,15 +48,15 @@ float wrapRepeat(float value, float span) {
 }
 
 // Decode one scalar texel and return (value, validityWeight).
-vec2 sampleDecoded(isampler2D scalarTex, int x, int y) {
-  int stored = texelFetch(scalarTex, ivec2(x, y), 0).r;
-  if (stored == u_nodata) {
+vec2 sampleDecoded(sampler2D scalarTex, int x, int y) {
+  float value = texelFetch(scalarTex, ivec2(x, y), 0).r;
+  if (isnan(value)) {
     return vec2(0.0, 0.0);
   }
-  return vec2(float(stored) * u_scale + u_offset, 1.0);
+  return vec2(value, 1.0);
 }
 
-vec2 sampleScalarField(isampler2D scalarTex, int x0, int y0, int x1, int y1, float w00, float w10, float w01, float w11) {
+vec2 sampleScalarField(sampler2D scalarTex, int x0, int y0, int x1, int y1, float w00, float w10, float w01, float w11) {
   vec2 s00 = sampleDecoded(scalarTex, x0, y0);
   vec2 s10 = sampleDecoded(scalarTex, x1, y0);
   vec2 s01 = sampleDecoded(scalarTex, x0, y1);

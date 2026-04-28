@@ -74,7 +74,7 @@ describe('manifest + frame loading end-to-end', () => {
     })
 
     expect(manifest.cycle).toBe('2026041312')
-    expect(Array.from(scalarFrame.values)).toEqual([1, 2, 3, 4])
+    expect(Array.from(scalarFrame.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(Array.from(vectorFrame.u)).toEqual([5, 6, 7, 8])
     expect(Array.from(vectorFrame.v)).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)

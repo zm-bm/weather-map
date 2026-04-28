@@ -12,9 +12,17 @@ import math
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .scalar_encoding import (
+    SCALAR_BYTE_ORDERS_BY_DTYPE,
+    SCALAR_SOURCE_TRANSFORMS,
+    is_linear_scalar_format,
+    scalar_format_for_encoding,
+    scalar_required_nodata,
+    scalar_storage_bounds,
+)
 from .stores import make_store
 
-ALLOWED_SCALAR_SOURCE_TRANSFORMS = {"identity"}
+ALLOWED_SCALAR_SOURCE_TRANSFORMS = SCALAR_SOURCE_TRANSFORMS
 REQUIRED_SCALAR_VARIABLE_FIELDS = {
     "parameter",
     "level",
@@ -168,7 +176,7 @@ def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -
     if not isinstance(scalar, Mapping):
         raise SystemExit(f"Layer {layer_key!r} missing required object field 'scalar_encoding'")
 
-    required = ("encoding_id", "scale", "offset", "nodata", "byte_order", "dtype")
+    required = ("encoding_id", "nodata", "byte_order", "dtype")
     for field in required:
         if field not in scalar:
             raise SystemExit(f"Layer {layer_key!r} scalar_encoding missing required field {field!r}")
@@ -178,29 +186,55 @@ def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -
         raise SystemExit(f"Layer {layer_key!r} scalar_encoding.encoding_id must be a non-empty string")
 
     dtype = scalar.get("dtype")
-    if dtype != "int16":
+    if dtype not in SCALAR_BYTE_ORDERS_BY_DTYPE:
         raise SystemExit(
-            f"Layer {layer_key!r} scalar_encoding.dtype must be 'int16', got: {dtype!r}"
+            f"Layer {layer_key!r} scalar_encoding.dtype must be one of "
+            f"{sorted(SCALAR_BYTE_ORDERS_BY_DTYPE)!r}, got: {dtype!r}"
         )
+    format_raw = scalar.get("format")
+    if format_raw is not None and not isinstance(format_raw, str):
+        raise SystemExit(f"Layer {layer_key!r} scalar_encoding.format must be a string")
+    try:
+        scalar_format = scalar_format_for_encoding(
+            dtype=str(dtype),
+            explicit_format=format_raw,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"Layer {layer_key!r} has invalid scalar_encoding.format: {exc}") from exc
 
     byte_order = scalar.get("byte_order")
-    if byte_order not in {"little", "big"}:
+    allowed_byte_orders = SCALAR_BYTE_ORDERS_BY_DTYPE[str(dtype)]
+    if byte_order not in allowed_byte_orders:
         raise SystemExit(
-            f"Layer {layer_key!r} scalar_encoding.byte_order must be 'little' or 'big', got: {byte_order!r}"
+            f"Layer {layer_key!r} scalar_encoding.byte_order must be one of "
+            f"{sorted(allowed_byte_orders)!r}, got: {byte_order!r}"
         )
 
-    scale = scalar.get("scale")
-    if not isinstance(scale, (int, float)) or not math.isfinite(float(scale)) or float(scale) == 0:
-        raise SystemExit(f"Layer {layer_key!r} scalar_encoding.scale must be a finite non-zero number")
+    if is_linear_scalar_format(scalar_format):
+        for field in ("scale", "offset"):
+            if field not in scalar:
+                raise SystemExit(f"Layer {layer_key!r} scalar_encoding missing required field {field!r}")
 
-    offset = scalar.get("offset")
-    if not isinstance(offset, (int, float)) or not math.isfinite(float(offset)):
-        raise SystemExit(f"Layer {layer_key!r} scalar_encoding.offset must be a finite number")
+        scale = scalar.get("scale")
+        if not isinstance(scale, (int, float)) or not math.isfinite(float(scale)) or float(scale) == 0:
+            raise SystemExit(f"Layer {layer_key!r} scalar_encoding.scale must be a finite non-zero number")
+
+        offset = scalar.get("offset")
+        if not isinstance(offset, (int, float)) or not math.isfinite(float(offset)):
+            raise SystemExit(f"Layer {layer_key!r} scalar_encoding.offset must be a finite number")
 
     nodata = scalar.get("nodata")
-    if not isinstance(nodata, int) or nodata < -32768 or nodata > 32767:
+    min_stored, max_stored = scalar_storage_bounds(str(dtype))
+    if not isinstance(nodata, int) or nodata < min_stored or nodata > max_stored:
         raise SystemExit(
-            f"Layer {layer_key!r} scalar_encoding.nodata must be an int16 integer (-32768..32767)"
+            f"Layer {layer_key!r} scalar_encoding.nodata must be a {dtype} integer "
+            f"({min_stored}..{max_stored})"
+        )
+    required_nodata = scalar_required_nodata(scalar_format)
+    if required_nodata is not None and nodata != required_nodata:
+        raise SystemExit(
+            f"Layer {layer_key!r} scalar_encoding.nodata must be {required_nodata} "
+            f"for format {scalar_format!r}"
         )
 
     source_transform = layer_cfg.get("scalar_source_transform", "identity")

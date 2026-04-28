@@ -196,26 +196,26 @@ describe('loadFramePayload', () => {
     ).rejects.toThrow('Unexpected scalar payload size')
   })
 
-  it('fails when payload byte length does not match the grid dimensions', async () => {
+  it('fails when vector payload byte length does not match the grid dimensions', async () => {
     stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
 
     await expect(
       loadFramePayload({
         config: createConfigFixture(),
         manifest: BASE_MANIFEST,
-        frameRef: SCALAR_FRAME_REF,
+        frameRef: VECTOR_FRAME_REF,
         grid: {
           ...GRID,
           nx: 3,
           ny: 3,
         },
         hourToken: '000',
-        variableId: 'tmp_surface',
-        frameKind: 'scalar',
+        variableId: 'wind10m_uv',
+        frameKind: 'vector',
         signal: createSignalFixture(),
         verifyPayloadSha256: false,
       })
-    ).rejects.toThrow('scalar payload bytes do not match grid dimensions')
+    ).rejects.toThrow('vector payload bytes do not match grid dimensions')
   })
 
   it('fails scalar and vector sha verification when enabled', async () => {

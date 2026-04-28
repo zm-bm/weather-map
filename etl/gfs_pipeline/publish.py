@@ -23,11 +23,15 @@ from .stores import make_store
 from .stores.base import UriStore
 from .config import ExecutionContext
 from .contracts import ArtifactPaths, SUCCESS_MARKER_SUFFIX
+from .scalar_encoding import (
+    SCALAR_DECODE_FORMULA,
+    is_linear_scalar_format,
+    scalar_format_for_encoding,
+    scalar_required_nodata,
+)
 
 FORECAST_BINARY_CONTRACT = "forecast-binary-v2"
 MANIFEST_VERSION = 4
-WEATHER_SCALAR_FORMAT = "scalar-i16-linear-v1"
-WEATHER_SCALAR_DECODE_FORMULA = "value = stored * scale + offset"
 WEATHER_SCALAR_GRID_ID = "gfs_0p25_global"
 
 
@@ -235,19 +239,34 @@ def _build_manifest_sections(
         encoding_id = _as_str(scalar_cfg.get("encoding_id"), field=f"{variable}.scalar_encoding.encoding_id")
         dtype = _as_str(scalar_cfg.get("dtype"), field=f"{variable}.scalar_encoding.dtype")
         byte_order = _as_str(scalar_cfg.get("byte_order"), field=f"{variable}.scalar_encoding.byte_order")
-        scale = _as_float(scalar_cfg.get("scale"), field=f"{variable}.scalar_encoding.scale")
-        offset = _as_float(scalar_cfg.get("offset"), field=f"{variable}.scalar_encoding.offset")
         nodata = _as_int(scalar_cfg.get("nodata"), field=f"{variable}.scalar_encoding.nodata")
+        format_raw = scalar_cfg.get("format")
+        if format_raw is not None and not isinstance(format_raw, str):
+            raise SystemExit(f"{variable}.scalar_encoding.format must be a string")
+        try:
+            scalar_format = scalar_format_for_encoding(
+                dtype=dtype,
+                explicit_format=format_raw,
+            )
+        except ValueError as exc:
+            raise SystemExit(f"Unsupported scalar encoding for {variable!r}: {exc}") from exc
+        required_nodata = scalar_required_nodata(scalar_format)
+        if required_nodata is not None and nodata != required_nodata:
+            raise SystemExit(
+                f"{variable}.scalar_encoding.nodata must be {required_nodata} "
+                f"for format {scalar_format!r}"
+            )
 
         encoding_entry = {
-            "format": WEATHER_SCALAR_FORMAT,
+            "format": scalar_format,
             "dtype": dtype,
             "byte_order": byte_order,
-            "scale": scale,
-            "offset": offset,
             "nodata": nodata,
-            "decode_formula": WEATHER_SCALAR_DECODE_FORMULA,
         }
+        if is_linear_scalar_format(scalar_format):
+            encoding_entry["scale"] = _as_float(scalar_cfg.get("scale"), field=f"{variable}.scalar_encoding.scale")
+            encoding_entry["offset"] = _as_float(scalar_cfg.get("offset"), field=f"{variable}.scalar_encoding.offset")
+            encoding_entry["decode_formula"] = SCALAR_DECODE_FORMULA
         prev_encoding = encodings.get(encoding_id)
         if prev_encoding is None:
             encodings[encoding_id] = encoding_entry
@@ -294,10 +313,10 @@ def _build_manifest_sections(
             marker_format_raw = scalar.get("format")
             if marker_format_raw is not None:
                 marker_format = _as_str(marker_format_raw, field=f"{marker_uri}.scalar.format")
-                if marker_format != WEATHER_SCALAR_FORMAT:
+                if marker_format != scalar_format:
                     raise SystemExit(
                         f"Scalar format mismatch in marker {marker_uri}: "
-                        f"marker={marker_format!r} expected={WEATHER_SCALAR_FORMAT!r}"
+                        f"marker={marker_format!r} expected={scalar_format!r}"
                     )
             if byte_length <= 0:
                 raise SystemExit(f"Invalid scalar.byte_length in marker {marker_uri}: {byte_length}")

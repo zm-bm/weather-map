@@ -1,8 +1,6 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import type {
-  LayerColortableStop,
-} from '../../../manifest'
+import type { LayerColortableStop } from '../../../manifest'
 import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,
@@ -58,10 +56,7 @@ type ScalarLayerState = {
   lat0: number
   dx: number
   dy: number
-  // Packed-value decode parameters + LUT display range.
-  scale: number
-  offset: number
-  nodata: number
+  // LUT display range.
   displayMin: number
   displayMax: number
   timeMix: number
@@ -72,9 +67,6 @@ type ScalarLayerState = {
     colormapTex: WebGLUniformLocation | null
     gridSize: WebGLUniformLocation | null
     displayRange: WebGLUniformLocation | null
-    scale: WebGLUniformLocation | null
-    offset: WebGLUniformLocation | null
-    nodata: WebGLUniformLocation | null
     timeMix: WebGLUniformLocation | null
     matrix: WebGLUniformLocation | null
     worldOffsetX: WebGLUniformLocation | null
@@ -120,9 +112,6 @@ export function createScalarRuntime(
     lat0: 0,
     dx: 1,
     dy: 1,
-    scale: 1,
-    offset: 0,
-    nodata: -32768,
     displayMin: 0,
     displayMax: 1,
     timeMix: 0,
@@ -132,9 +121,6 @@ export function createScalarRuntime(
       colormapTex: null,
       gridSize: null,
       displayRange: null,
-      scale: null,
-      offset: null,
-      nodata: null,
       timeMix: null,
       matrix: null,
       worldOffsetX: null,
@@ -253,9 +239,6 @@ export function createScalarRuntime(
       state.lat0 = lowerFrame.grid.lat0
       state.dx = lowerFrame.grid.dx
       state.dy = lowerFrame.grid.dy
-      state.scale = lowerFrame.encoding.scale
-      state.offset = lowerFrame.encoding.offset
-      state.nodata = lowerFrame.encoding.nodata
       state.displayMin = lowerFrame.displayRange[0]
       state.displayMax = lowerFrame.displayRange[1]
       state.timeMix = upperFrame === lowerFrame ? 0 : frame.mix
@@ -297,9 +280,6 @@ export function createScalarRuntime(
         colormapTex: gl2.getUniformLocation(state.program, 'u_colormap_tex'),
         gridSize: gl2.getUniformLocation(state.program, 'u_grid_size'),
         displayRange: gl2.getUniformLocation(state.program, 'u_display_range'),
-        scale: gl2.getUniformLocation(state.program, 'u_scale'),
-        offset: gl2.getUniformLocation(state.program, 'u_offset'),
-        nodata: gl2.getUniformLocation(state.program, 'u_nodata'),
         timeMix: gl2.getUniformLocation(state.program, 'u_time_mix'),
         matrix: gl2.getUniformLocation(state.program, 'u_matrix'),
         worldOffsetX: gl2.getUniformLocation(state.program, 'u_world_offset_x'),
@@ -342,9 +322,6 @@ export function createScalarRuntime(
       gl2.uniform1i(state.uniforms.colormapTex, 2)
       gl2.uniform2f(state.uniforms.gridSize, state.gridNx, state.gridNy)
       gl2.uniform2f(state.uniforms.displayRange, state.displayMin, state.displayMax)
-      gl2.uniform1f(state.uniforms.scale, state.scale)
-      gl2.uniform1f(state.uniforms.offset, state.offset)
-      gl2.uniform1i(state.uniforms.nodata, state.nodata)
       gl2.uniform1f(state.uniforms.timeMix, state.timeMix)
       gl2.uniformMatrix4fv(state.uniforms.matrix, false, input.modelViewProjectionMatrix)
       gl2.uniform1f(state.uniforms.lon0, state.lon0)
@@ -427,9 +404,9 @@ function createScalarTexture(
   gl: WebGL2RenderingContext,
   nx: number,
   ny: number,
-  values: Int16Array
+  values: Float32Array
 ): WebGLTexture | null {
-  // Upload signed 16-bit scalar texture; decode in shader.
+  // Upload decoded scalar values; missing data is represented as NaN.
   const texture = gl.createTexture()
   if (!texture) return null
 
@@ -439,7 +416,7 @@ function createScalarTexture(
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16I, nx, ny, 0, gl.RED_INTEGER, gl.SHORT, values)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, nx, ny, 0, gl.RED, gl.FLOAT, values)
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture

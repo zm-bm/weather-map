@@ -29,7 +29,7 @@ function createFrame(values: number[]): ScalarFrameData {
       offset: 0,
       decode_formula: 'value = stored * scale + offset',
     },
-    values: Int16Array.from(values),
+    values: Float32Array.from(values),
     displayRange: [0, 100],
     colortable: [[0, 0, 0, 0]],
   }
@@ -47,7 +47,7 @@ describe('probeScalarFrame', () => {
   })
 
   it('skips nodata neighbors when interpolating', () => {
-    const probe = probeScalarFrame(createFrame([10, -32768, 30, 50]), {
+    const probe = probeScalarFrame(createFrame([10, Number.NaN, 30, 50]), {
       lon: 0.5,
       lat: 0.5,
     })

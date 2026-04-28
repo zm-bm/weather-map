@@ -128,9 +128,8 @@ function buildPoint(
 }
 
 function decodeValue(frame: ScalarFrameData, x: number, y: number): number | null {
-  const stored = frame.values[(y * frame.grid.nx) + x]
-  if (stored === frame.encoding.nodata) return null
-  return (stored * frame.encoding.scale) + frame.encoding.offset
+  const value = frame.values[(y * frame.grid.nx) + x]
+  return Number.isNaN(value) ? null : value
 }
 
 function toGridCoord(

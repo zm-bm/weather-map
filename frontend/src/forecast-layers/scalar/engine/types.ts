@@ -10,7 +10,7 @@ export type ScalarFrameData = {
   variableId: string
   grid: ScalarGridSpec
   encoding: ScalarEncodingSpec
-  values: Int16Array
+  values: Float32Array
   displayRange: [number, number]
   colortable: LayerColortableStop[]
 }

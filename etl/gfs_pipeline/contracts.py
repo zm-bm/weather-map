@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 from .layout import join_uri
+from .scalar_encoding import scalar_payload_suffix_for_dtype
 
 
 def _safe_segment(value: str) -> str:
@@ -85,10 +86,10 @@ class ArtifactPaths:
         path = ["fields", cycle, fhour, f"{layer}.vector.i8.bin"]
         return join_uri(self.artifact_root_uri, path)
 
-    def output_scalar_payload_uri(self, item: WorkItem) -> str:
-        """Scalar payload URI: {root}/fields/{cycle}/{fhour}/{layer}.scalar.i16.bin"""
+    def output_scalar_payload_uri(self, item: WorkItem, *, dtype: str = "int16") -> str:
+        """Scalar payload URI: {root}/fields/{cycle}/{fhour}/{layer}.scalar.<dtype>.bin"""
         cycle, fhour, layer = self._cycle_fhour_layer_parts(item)
-        path = ["fields", cycle, fhour, f"{layer}.scalar.i16.bin"]
+        path = ["fields", cycle, fhour, f"{layer}.scalar.{scalar_payload_suffix_for_dtype(dtype)}.bin"]
         return join_uri(self.artifact_root_uri, path)
 
     def logs_uri(self, item: WorkItem) -> str:

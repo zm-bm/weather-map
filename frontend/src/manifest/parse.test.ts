@@ -70,4 +70,45 @@ describe('parseCycleManifest', () => {
       'Manifest encodings missing id e0 for tmp_surface'
     )
   })
+
+  it('accepts fixed temperature piecewise scalar encodings', () => {
+    const baseManifest = createCycleManifestPayloadFixture()
+    const payload = createCycleManifestPayloadFixture({
+      encodings: {
+        ...(baseManifest.encodings as Record<string, unknown>),
+        e0: {
+          format: 'scalar-i8-temp-c-piecewise-v1',
+          dtype: 'int8',
+          byte_order: 'none',
+          nodata: -128,
+        },
+      },
+    })
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.encodings.e0).toEqual({
+      format: 'scalar-i8-temp-c-piecewise-v1',
+      dtype: 'int8',
+      byte_order: 'none',
+      nodata: -128,
+    })
+  })
+
+  it('rejects temperature piecewise encodings without the reserved nodata value', () => {
+    const baseManifest = createCycleManifestPayloadFixture()
+    const payload = createCycleManifestPayloadFixture({
+      encodings: {
+        ...(baseManifest.encodings as Record<string, unknown>),
+        e0: {
+          format: 'scalar-i8-temp-c-piecewise-v1',
+          dtype: 'int8',
+          byte_order: 'none',
+          nodata: -127,
+        },
+      },
+    })
+
+    expect(() => parseCycleManifest(payload)).toThrow('expected -128')
+  })
 })

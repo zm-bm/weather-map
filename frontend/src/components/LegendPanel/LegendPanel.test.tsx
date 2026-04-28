@@ -26,10 +26,10 @@ function createLegendSelectionManifest(
         valid_max: 103500,
       }),
       prate_surface: createScalarVariableMetaFixture({
-        units: 'kg/m^2/s',
+        units: 'mm/hr',
         parameter: 'prate',
         valid_min: 0,
-        valid_max: 0.008333333,
+        valid_max: 30,
       }),
       wind10m_uv: createVectorVariableMetaFixture(),
     },

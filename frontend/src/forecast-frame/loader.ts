@@ -209,6 +209,8 @@ function assertPayloadSize(args: {
     )
   }
 
+  if (frameKind !== 'vector') return
+
   const expectedGridByteLength = grid.nx * grid.ny * 2
   if (actualByteLength !== expectedGridByteLength) {
     throw new Error(

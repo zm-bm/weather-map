@@ -103,6 +103,31 @@ function parseEncoding(raw: unknown, field: string): ManifestEncodingSpec {
     }
   }
 
+  if (format === 'scalar-i8-linear-v1') {
+    return {
+      format: 'scalar-i8-linear-v1',
+      dtype: asLiteralString(raw.dtype, `${field}.dtype`, 'int8'),
+      byte_order: asLiteralString(raw.byte_order, `${field}.byte_order`, 'none'),
+      nodata: asFiniteNumber(raw.nodata, `${field}.nodata`),
+      scale: asFiniteNumber(raw.scale, `${field}.scale`),
+      offset: asFiniteNumber(raw.offset, `${field}.offset`),
+      decode_formula: asString(raw.decode_formula, `${field}.decode_formula`),
+    }
+  }
+
+  if (format === 'scalar-i8-temp-c-piecewise-v1') {
+    const nodata = asFiniteNumber(raw.nodata, `${field}.nodata`)
+    if (nodata !== -128) {
+      throw new Error(`Invalid manifest field ${field}.nodata: expected -128`)
+    }
+    return {
+      format: 'scalar-i8-temp-c-piecewise-v1',
+      dtype: asLiteralString(raw.dtype, `${field}.dtype`, 'int8'),
+      byte_order: asLiteralString(raw.byte_order, `${field}.byte_order`, 'none'),
+      nodata,
+    }
+  }
+
   if (format === 'uv-i8-q0p5-v1') {
     return {
       format: 'uv-i8-q0p5-v1',

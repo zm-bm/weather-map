@@ -2,7 +2,7 @@
   "version": 1,
   "workload": {
     "forecast_hour_start": 0,
-    "forecast_hour_end": 36,
+    "forecast_hour_end": 72,
     "variables": [
       "tmp_surface",
       "rh_surface",
@@ -31,17 +31,16 @@
         "GRIB_ELEMENT": "TMP",
         "GRIB_SHORT_NAME": "2-HTGL"
       },
-      "scale_min": -45,
+      "scale_min": -35,
       "scale_max": 50,
       "units": "C",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "tmp_surface_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 0.01,
-        "offset": 0,
-        "nodata": -32768
+        "encoding_id": "tmp_surface_i8_temp_c_piecewise_v1",
+        "format": "scalar-i8-temp-c-piecewise-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "nodata": -128
       }
     },
     "aptmp_surface": {
@@ -76,12 +75,12 @@
       "units": "%",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "rh_surface_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 0.01,
-        "offset": 0,
-        "nodata": -32768
+        "encoding_id": "rh_surface_i8_0p5pct_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 50,
+        "nodata": -128
       }
     },
     "prmsl_surface": {
@@ -96,12 +95,12 @@
       "units": "Pa",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "prmsl_surface_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 0.1,
+        "encoding_id": "prmsl_surface_i8_25pa_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 25,
         "offset": 100500,
-        "nodata": -32768
+        "nodata": -128
       }
     },
     "tcdc": {
@@ -116,12 +115,12 @@
       "units": "%",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "tcdc_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 0.01,
-        "offset": 0,
-        "nodata": -32768
+        "encoding_id": "tcdc_i8_0p5pct_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 50,
+        "nodata": -128
       }
     },
     "prate_surface": {
@@ -132,16 +131,16 @@
         "GRIB_SHORT_NAME": "0-SFC"
       },
       "scale_min": 0,
-      "scale_max": 0.008333333,
-      "units": "kg/m^2/s",
-      "scalar_source_transform": "identity",
+      "scale_max": 30,
+      "units": "mm/hr",
+      "scalar_source_transform": "kg_m2_s_to_mm_hr",
       "scalar_encoding": {
-        "encoding_id": "prate_surface_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 3e-07,
-        "offset": 0,
-        "nodata": -32768
+        "encoding_id": "prate_surface_i8_0p15mmhr_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.15,
+        "offset": 19.05,
+        "nodata": -128
       }
     }
   },

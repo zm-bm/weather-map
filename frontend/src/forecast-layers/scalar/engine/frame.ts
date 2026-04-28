@@ -9,6 +9,7 @@ import { loadFrameWindow } from '../../../forecast-frame/window'
 import type { ForecastFrameSelection } from '../../../forecast-time/time'
 import { resolveFrameSpec } from '../../../forecast-frame/spec'
 import { getScalarStyle } from '../../../forecast-metadata/scalar'
+import { decodeScalarPayloadToValues } from './codec'
 import type { ScalarFrameData, ScalarFrameWindowData } from './types'
 
 export type LoadScalarFrameArgs = {
@@ -43,7 +44,14 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     signal,
     verifyPayloadSha256: config.verifyPayloadSha256,
   })
-  const values = decodeScalarPayloadInt16(payload, encoding.byte_order)
+  const values = decodeScalarPayloadToValues(payload, encoding)
+  const expectedCellCount = spec.grid.nx * spec.grid.ny
+  if (values.length !== expectedCellCount) {
+    throw new Error(
+      `Scalar payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
+      `got=${values.length} expected=${expectedCellCount}`
+    )
+  }
   const catalog = getScalarStyle(variable)
 
   return {
@@ -90,7 +98,11 @@ export function canInterpolateScalarFrames(
   if (lower.grid.lon0 !== upper.grid.lon0 || lower.grid.lat0 !== upper.grid.lat0) return false
   if (lower.grid.dx !== upper.grid.dx || lower.grid.dy !== upper.grid.dy) return false
   if (lower.grid.x_wrap !== upper.grid.x_wrap || lower.grid.y_mode !== upper.grid.y_mode) return false
-  if (lower.encoding.scale !== upper.encoding.scale || lower.encoding.offset !== upper.encoding.offset) return false
+  if (lower.encoding.format !== upper.encoding.format) return false
+  if ('scale' in lower.encoding || 'scale' in upper.encoding) {
+    if (!('scale' in lower.encoding) || !('scale' in upper.encoding)) return false
+    if (lower.encoding.scale !== upper.encoding.scale || lower.encoding.offset !== upper.encoding.offset) return false
+  }
   if (lower.encoding.nodata !== upper.encoding.nodata) return false
   if (lower.displayRange[0] !== upper.displayRange[0] || lower.displayRange[1] !== upper.displayRange[1]) return false
   if (lower.colortable.length !== upper.colortable.length) return false
@@ -111,30 +123,15 @@ function resolveScalarEncoding(
   variable: string,
   encoding: ManifestEncodingSpec
 ): ScalarEncodingSpec {
-  if (encoding.format !== 'scalar-i16-linear-v1') {
+  if (
+    encoding.format !== 'scalar-i16-linear-v1' &&
+    encoding.format !== 'scalar-i8-linear-v1' &&
+    encoding.format !== 'scalar-i8-temp-c-piecewise-v1'
+  ) {
     throw new Error(`Unsupported scalar format for ${variable}: ${encoding.format}`)
   }
   if (!('nodata' in encoding)) {
     throw new Error(`Scalar encoding for ${variable} is missing nodata`)
   }
   return encoding
-}
-
-export function decodeScalarPayloadInt16(
-  payload: ArrayBuffer,
-  byteOrder: ScalarEncodingSpec['byte_order']
-): Int16Array {
-  if (byteOrder === 'little') {
-    return new Int16Array(payload.slice(0))
-  }
-  if (byteOrder === 'big') {
-    const view = new DataView(payload)
-    const out = new Int16Array(payload.byteLength / 2)
-    for (let i = 0; i < out.length; i += 1) {
-      out[i] = view.getInt16(i * 2, false)
-    }
-    return out
-  }
-
-  throw new Error(`Unsupported scalar byte order: ${byteOrder}`)
 }

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import boto3  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
+from .artifact_encoding import encode_artifact_body, is_gzip_encoded_artifact_key
 from .base import UriStore
 
 
@@ -43,6 +44,18 @@ class S3Store(UriStore):
             return "application/x-sqlite3"
         return "application/octet-stream"
 
+    def _is_gzip_encoded_artifact(self, *, key: str) -> bool:
+        return is_gzip_encoded_artifact_key(key=key)
+
+    def _put_extra_args(self, *, key: str) -> dict[str, str]:
+        extra_args = {"ContentType": self._guess_content_type(key=key)}
+        if self._is_gzip_encoded_artifact(key=key):
+            extra_args["ContentEncoding"] = "gzip"
+        return extra_args
+
+    def _encode_body(self, *, key: str, data: bytes) -> bytes:
+        return encode_artifact_body(key=key, data=data)
+
     def _is_not_found(self, e: ClientError) -> bool:
         code = e.response.get("Error", {}).get("Code")
         return code in {"404", "NoSuchKey", "NotFound"}
@@ -60,8 +73,12 @@ class S3Store(UriStore):
 
     def write_bytes(self, *, uri: str, data: bytes) -> None:
         bucket, key = self._parse_s3_uri(uri)
-        content_type = self._guess_content_type(key=key)
-        self._client().put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+        self._client().put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=self._encode_body(key=key, data=data),
+            **self._put_extra_args(key=key),
+        )
 
     def exists(self, *, uri: str) -> bool:
         bucket, key = self._parse_s3_uri(uri)
@@ -113,13 +130,23 @@ class S3Store(UriStore):
 
     def put_file(self, *, uri: str, src: Path) -> None:
         bucket, key = self._parse_s3_uri(uri)
-        content_type = self._guess_content_type(key=key)
+        extra_args = self._put_extra_args(key=key)
+        should_gzip = self._is_gzip_encoded_artifact(key=key)
 
         s3 = self._client()
         with open(src, "rb") as f:
+            if should_gzip:
+                s3.put_object(
+                    Bucket=bucket,
+                    Key=key,
+                    Body=self._encode_body(key=key, data=f.read()),
+                    **extra_args,
+                )
+                return
+
             s3.upload_fileobj(
                 f,
                 bucket,
                 key,
-                ExtraArgs={"ContentType": content_type},
+                ExtraArgs=extra_args,
             )

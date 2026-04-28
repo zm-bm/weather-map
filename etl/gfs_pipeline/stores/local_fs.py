@@ -11,8 +11,8 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
 
+from .artifact_encoding import encode_artifact_body, is_gzip_encoded_artifact_key
 from .base import UriStore
 from ..layout import path_from_file_uri
 
@@ -29,7 +29,7 @@ class LocalFSStore(UriStore):
         path = path_from_file_uri(uri)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_bytes(data)
+        tmp.write_bytes(encode_artifact_body(key=path.as_posix(), data=data))
         tmp.replace(path)
 
     def exists(self, *, uri: str) -> bool:
@@ -59,5 +59,10 @@ class LocalFSStore(UriStore):
         dst = path_from_file_uri(uri)
         dst.parent.mkdir(parents=True, exist_ok=True)
         tmp = dst.with_suffix(dst.suffix + ".tmp")
+        if is_gzip_encoded_artifact_key(key=dst.as_posix()):
+            tmp.write_bytes(encode_artifact_body(key=dst.as_posix(), data=src.read_bytes()))
+            tmp.replace(dst)
+            return
+
         shutil.copyfile(src, tmp)
         tmp.replace(dst)

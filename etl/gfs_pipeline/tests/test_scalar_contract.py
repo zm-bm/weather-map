@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import struct
@@ -15,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from gfs_pipeline.config import ExecutionContext, PipelineConfig
 from gfs_pipeline.contracts import ArtifactPaths, WorkItem
 from gfs_pipeline.publish import run_publish
-from gfs_pipeline.scalar_product import encode_scalar_f32_to_i16_payload
+from gfs_pipeline.scalar_encoding import is_linear_scalar_format, scalar_format_for_encoding
+from gfs_pipeline.scalar_product import encode_scalar_f32_to_i16_payload, encode_scalar_f32_to_payload
 from gfs_pipeline.stores import make_store
 from gfs_pipeline.wind_codec import quantize_f32_to_i8_q0p5
 from gfs_pipeline.vector_product import run_vector_item_in_workdir
@@ -100,20 +102,46 @@ def _write_scalar_marker(
     scalar_config: dict,
     grid_meta: dict[str, object],
 ) -> None:
-    payload = encode_scalar_f32_to_i16_payload(
+    scalar_encoding = scalar_config["scalar_encoding"]
+    dtype = str(scalar_encoding["dtype"])
+    scalar_format = scalar_format_for_encoding(
+        dtype=dtype,
+        explicit_format=scalar_encoding.get("format"),
+    )
+    payload = encode_scalar_f32_to_payload(
         source_f32_bytes=_pack_f32(source_values, byte_order="little"),
         source_byte_order="little",
-        target_byte_order=str(scalar_config["scalar_encoding"]["byte_order"]),
-        scale=float(scalar_config["scalar_encoding"]["scale"]),
-        offset=float(scalar_config["scalar_encoding"]["offset"]),
-        nodata=int(scalar_config["scalar_encoding"]["nodata"]),
+        target_dtype=dtype,
+        target_byte_order=str(scalar_encoding["byte_order"]),
+        target_format=scalar_format,
+        scale=float(scalar_encoding["scale"]) if is_linear_scalar_format(scalar_format) else None,
+        offset=float(scalar_encoding["offset"]) if is_linear_scalar_format(scalar_format) else None,
+        nodata=int(scalar_encoding["nodata"]),
         source_transform=str(scalar_config.get("scalar_source_transform", "identity")),
     )
     payload_sha = hashlib.sha256(payload).hexdigest()
+    item = WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
     payload_uri = ap.output_scalar_payload_uri(
-        item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+        item=item,
+        dtype=dtype,
     )
     store.write_bytes(uri=payload_uri, data=payload)
+    scalar_marker = {
+        "payload_uri": payload_uri,
+        "byte_length": len(payload),
+        "sha256": payload_sha,
+        "format": scalar_format,
+        "dtype": dtype,
+        "byte_order": str(scalar_encoding["byte_order"]),
+        "encoding_id": str(scalar_encoding["encoding_id"]),
+        "nodata": int(scalar_encoding["nodata"]),
+        "grid": grid_meta,
+    }
+    if is_linear_scalar_format(scalar_format):
+        scalar_marker["scale"] = float(scalar_encoding["scale"])
+        scalar_marker["offset"] = float(scalar_encoding["offset"])
+        scalar_marker["decode_formula"] = "value = stored * scale + offset"
+
     _write_json(
         ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable),
         {
@@ -121,12 +149,7 @@ def _write_scalar_marker(
             "fhour": fhour,
             "layer": variable,
             "kind": "scalar",
-            "scalar": {
-                "payload_uri": payload_uri,
-                "byte_length": len(payload),
-                "sha256": payload_sha,
-                "grid": grid_meta,
-            },
+            "scalar": scalar_marker,
         },
     )
 
@@ -227,6 +250,51 @@ class ScalarPayloadTest(unittest.TestCase):
         high_nodata = struct.unpack_from("<h", high_nodata_payload, offset=0)[0]
         self.assertEqual(high_nodata, 32766)
 
+    def test_encode_scalar_payload_supports_int8_linear_encoding(self) -> None:
+        payload = encode_scalar_f32_to_payload(
+            source_f32_bytes=_pack_f32([0.0, 50.0, 100.0, float("nan")], byte_order="little"),
+            source_byte_order="little",
+            target_dtype="int8",
+            target_byte_order="none",
+            scale=0.5,
+            offset=50.0,
+            nodata=-128,
+            source_transform="identity",
+        )
+
+        self.assertEqual(list(struct.unpack("bbbb", payload)), [-100, 0, 100, -128])
+
+    def test_encode_scalar_payload_applies_precipitation_rate_transform(self) -> None:
+        payload = encode_scalar_f32_to_payload(
+            source_f32_bytes=_pack_f32([0.0, 0.001, 0.008333333, float("nan")], byte_order="little"),
+            source_byte_order="little",
+            target_dtype="int8",
+            target_byte_order="none",
+            scale=0.15,
+            offset=19.05,
+            nodata=-128,
+            source_transform="kg_m2_s_to_mm_hr",
+        )
+
+        self.assertEqual(list(struct.unpack("bbbb", payload)), [-127, -103, 73, -128])
+
+    def test_encode_scalar_payload_supports_temperature_piecewise_encoding(self) -> None:
+        payload = encode_scalar_f32_to_payload(
+            source_f32_bytes=_pack_f32(
+                [-100.0, -35.0, -8.0, -7.75, 34.0, 34.5, 50.0, 100.0, float("nan")],
+                byte_order="little",
+            ),
+            source_byte_order="little",
+            target_dtype="int8",
+            target_byte_order="none",
+            target_format="scalar-i8-temp-c-piecewise-v1",
+            nodata=-128,
+            source_transform="identity",
+        )
+
+        self.assertEqual(list(struct.unpack("bbbbbbbbb", payload)), [-127, -127, -73, -72, 95, 96, 127, 127, -128])
+
+
 class ConfigValidationTest(unittest.TestCase):
     def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = PipelineConfig.from_obj(_minimal_pipeline_config())
@@ -267,6 +335,34 @@ class ConfigValidationTest(unittest.TestCase):
 
         with self.assertRaises(SystemExit):
             PipelineConfig.from_obj(bad_cfg)
+
+    def test_pipeline_config_accepts_precipitation_rate_source_transform(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["scalar_variables"]["tmp_surface"]["scalar_source_transform"] = "kg_m2_s_to_mm_hr"
+
+        parsed = PipelineConfig.from_obj(cfg)
+
+        self.assertEqual(
+            parsed.scalar_variables["tmp_surface"]["scalar_source_transform"],
+            "kg_m2_s_to_mm_hr",
+        )
+
+    def test_pipeline_config_accepts_temperature_piecewise_encoding_without_scale_offset(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["scalar_variables"]["tmp_surface"]["scalar_encoding"] = {
+            "encoding_id": "tmp_surface_i8_temp_c_piecewise_v1",
+            "format": "scalar-i8-temp-c-piecewise-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "nodata": -128,
+        }
+
+        parsed = PipelineConfig.from_obj(cfg)
+
+        self.assertEqual(
+            parsed.scalar_variables["tmp_surface"]["scalar_encoding"]["format"],
+            "scalar-i8-temp-c-piecewise-v1",
+        )
 
 
 class ArtifactPathContractTest(unittest.TestCase):
@@ -346,7 +442,7 @@ class WindProductContractTest(unittest.TestCase):
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
-            payload_bytes = payload_path.read_bytes()
+            payload_bytes = gzip.decompress(payload_path.read_bytes())
             expected_u = quantize_f32_to_i8_q0p5(u_src, byte_order="little")
             expected_v = quantize_f32_to_i8_q0p5(v_src, byte_order="little")
             expected_payload = expected_u + expected_v
@@ -473,7 +569,7 @@ class PublishScalarManifestTest(unittest.TestCase):
                     payload_uri = ap.output_scalar_payload_uri(
                         item=WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
                     )
-                    payload_bytes = store.read_bytes(uri=payload_uri)
+                    payload_bytes = gzip.decompress(store.read_bytes(uri=payload_uri))
                     self.assertEqual(len(payload_bytes), frame["byte_length"])
                     self.assertEqual(hashlib.sha256(payload_bytes).hexdigest(), frame["sha256"])
 
@@ -486,6 +582,75 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
+
+    def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-temp-piecewise-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041100"
+            fhours = ("000",)
+            variables = ("tmp_surface",)
+            scalar_variables_cfg = {
+                "tmp_surface": {
+                    "parameter": "tmp",
+                    "level": "surface",
+                    "units": "C",
+                    "scale_min": -35.0,
+                    "scale_max": 50.0,
+                    "scalar_source_transform": "identity",
+                    "scalar_encoding": {
+                        "encoding_id": "tmp_surface_i8_temp_c_piecewise_v1",
+                        "format": "scalar-i8-temp-c-piecewise-v1",
+                        "dtype": "int8",
+                        "byte_order": "none",
+                        "nodata": -128,
+                    },
+                },
+            }
+
+            ctx = ExecutionContext(artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+            _write_scalar_marker(
+                store=store,
+                ap=ap,
+                cycle=cycle,
+                fhour="000",
+                variable="tmp_surface",
+                source_values=[-35.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                scalar_config=scalar_variables_cfg["tmp_surface"],
+                grid_meta=grid_meta,
+            )
+
+            result = run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+            )
+
+            self.assertTrue(result.ready)
+            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+            encoding = cycle_manifest["encodings"]["tmp_surface_i8_temp_c_piecewise_v1"]
+            self.assertEqual(
+                encoding,
+                {
+                    "format": "scalar-i8-temp-c-piecewise-v1",
+                    "dtype": "int8",
+                    "byte_order": "none",
+                    "nodata": -128,
+                },
+            )
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["tmp_surface"]["path"],
+                f"fields/{cycle}/000/tmp_surface.scalar.i8.bin",
+            )
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["tmp_surface"]["byte_length"],
+                int(grid_meta["nx"]) * int(grid_meta["ny"]),
+            )
 
     def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-monotonic-") as td:

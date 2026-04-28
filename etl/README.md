@@ -41,7 +41,7 @@ Local and production artifacts use the same object layout:
 
 - `manifests/latest.json`
 - `manifests/<cycle>.json`
-- `fields/<cycle>/<fhour>/<layer>.scalar.i16.bin`
+- `fields/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
 - `fields/<cycle>/<fhour>/<layer>.vector.i8.bin`
 - `status/<cycle>/<layer>/<fhour>._SUCCESS.json`
 - `status/<cycle>/_PUBLISHED.json`
