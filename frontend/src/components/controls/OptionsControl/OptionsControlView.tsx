@@ -4,33 +4,35 @@ import { useState } from 'react'
 import {
   SCALAR_COLOR_SAMPLING_MODES,
   type ScalarColorSamplingMode,
+  type ScalarRuntimeOptions,
 } from '../../../forecast-layers/scalar'
+import type { VectorRuntimeOptions } from '../../../forecast-layers/vector'
 
 type OptionsControlViewProps = {
-  scalarColorSamplingMode: ScalarColorSamplingMode
+  scalarOptions: ScalarRuntimeOptions,
+  vectorOptions: VectorRuntimeOptions,
   onScalarColorSamplingModeChange: (nextValue: ScalarColorSamplingMode) => void
-  reseedOnFrameChange: boolean
-  onReseedOnFrameChange: (nextValue: boolean) => void
+  onClearTrailsOnViewChange: (nextValue: boolean) => void
 }
 
 export function OptionsControlView({
-  scalarColorSamplingMode: initialScalarColorSamplingMode,
+  scalarOptions,
+  vectorOptions,
   onScalarColorSamplingModeChange,
-  reseedOnFrameChange: initialReseedOnFrameChange,
-  onReseedOnFrameChange,
+  onClearTrailsOnViewChange,
 }: OptionsControlViewProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [scalarColorSamplingMode, setScalarColorSamplingMode] = useState(initialScalarColorSamplingMode)
-  const [reseedOnFrameChange, setReseedOnFrameChange] = useState(initialReseedOnFrameChange)
+  const [scalarColorSamplingMode, setScalarColorSamplingMode] = useState(scalarOptions.colorSamplingMode)
+  const [clearTrailsOnViewChange, setClearTrailsOnViewChange] = useState(vectorOptions.clearTrailsOnViewChange)
 
   const handleToggle = () => {
     setIsOpen((value) => !value)
   }
 
-  const handleReseedChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleClearTrailsOnViewChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.checked
-    setReseedOnFrameChange(nextValue)
-    onReseedOnFrameChange(nextValue)
+    setClearTrailsOnViewChange(nextValue)
+    onClearTrailsOnViewChange(nextValue)
   }
 
   const handleScalarColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -76,10 +78,10 @@ export function OptionsControlView({
           <label className="maplibregl-ctrl-options-row wm-mono-caps">
             <input
               type="checkbox"
-              checked={reseedOnFrameChange}
-              onChange={handleReseedChange}
+              checked={clearTrailsOnViewChange}
+              onChange={handleClearTrailsOnViewChange}
             />
-            <span>Reseed on frame change</span>
+            <span>Clear trails on view change</span>
           </label>
         </div>
       </div>

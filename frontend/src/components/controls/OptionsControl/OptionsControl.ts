@@ -28,13 +28,13 @@ export class OptionsControl implements IControl {
     this.root = createRoot(wrap)
 
     this.root.render(createElement(OptionsControlView, {
-      scalarColorSamplingMode: this.scalarOptions.colorSamplingMode,
+      scalarOptions: this.scalarOptions,
+      vectorOptions: this.vectorOptions,
       onScalarColorSamplingModeChange: (nextValue: ScalarColorSamplingMode) => {
         this.scalarOptions.colorSamplingMode = nextValue
       },
-      reseedOnFrameChange: this.vectorOptions.reseedOnFrameChange,
-      onReseedOnFrameChange: (nextValue: boolean) => {
-        this.vectorOptions.reseedOnFrameChange = nextValue
+      onClearTrailsOnViewChange: (nextValue: boolean) => {
+        this.vectorOptions.clearTrailsOnViewChange = nextValue
       },
     }))
 

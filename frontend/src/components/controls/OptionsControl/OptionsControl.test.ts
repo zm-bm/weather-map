@@ -24,7 +24,7 @@ describe('OptionsControl', () => {
     expect(scalarBandedRadio).toBeTruthy()
     expect(panel?.hidden).toBe(true)
     expect(scalarOptions.colorSamplingMode).toBe('interpolated')
-    expect(vectorOptions.reseedOnFrameChange).toBe(false)
+    expect(vectorOptions.clearTrailsOnViewChange).toBe(true)
 
     button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -36,7 +36,7 @@ describe('OptionsControl', () => {
 
     checkbox?.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(vectorOptions.reseedOnFrameChange).toBe(true)
+    expect(vectorOptions.clearTrailsOnViewChange).toBe(false)
 
     control.onRemove()
   })
