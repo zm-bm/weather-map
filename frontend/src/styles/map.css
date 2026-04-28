@@ -1,14 +1,22 @@
 .forecast-screen {
+  --wm-chrome-inset: 20px;
+  --wm-forecast-panel-width: 330px;
+  --wm-lower-third-product-width: 334px;
+  --wm-forecast-mobile-max-height: 248px;
+  --wm-mobile-map-control-top: 270px;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .forecast-stage {
   position: relative;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .map-stage {
@@ -79,5 +87,43 @@
 @keyframes map-sync-indicator-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .forecast-screen {
+    --wm-chrome-inset: 16px;
+    --wm-forecast-panel-width: 300px;
+    --wm-lower-third-product-width: 306px;
+  }
+
+  .map-sync-indicator {
+    top: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .forecast-screen {
+    --wm-chrome-inset: 12px;
+    --wm-forecast-mobile-max-height: 280px;
+    --wm-mobile-map-control-top: 304px;
+    grid-template-rows: minmax(380px, 1fr) auto;
+  }
+
+  .map-sync-indicator {
+    top: calc(var(--wm-mobile-map-control-top) + 4px);
+    right: calc(var(--wm-chrome-inset) + 48px);
+    left: calc(var(--wm-chrome-inset) + 84px);
+    min-height: 28px;
+    padding: 6px 9px;
+    transform: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .forecast-screen {
+    --wm-forecast-mobile-max-height: 280px;
+    --wm-mobile-map-control-top: 304px;
+    grid-template-rows: minmax(360px, 1fr) auto;
   }
 }

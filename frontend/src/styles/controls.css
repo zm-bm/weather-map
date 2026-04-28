@@ -273,12 +273,63 @@
 }
 
 /* MapLibre control rail responsiveness */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
+  .map-stage__viewport {
+    --wm-map-ctrl-button-size: 44px;
+    --wm-map-ctrl-button-height: 36px;
+  }
+
   .map-stage__viewport .maplibregl-ctrl-top-right > .maplibregl-ctrl {
-    margin: 12px 12px 0 0;
+    margin: 14px 14px 0 0;
   }
 
   .map-stage__viewport .maplibregl-ctrl-top-right > div {
-    margin: 6px 12px 0 0;
+    margin: 7px 14px 0 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .map-stage__viewport {
+    --wm-map-ctrl-radius: 5px;
+    --wm-map-ctrl-stack-radius: 4px;
+    --wm-map-ctrl-button-size: 40px;
+    --wm-map-ctrl-button-height: 34px;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-top-right {
+    top: var(--wm-mobile-map-control-top, 270px);
+    right: 0;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-top-right > .maplibregl-ctrl {
+    margin: 0 var(--wm-chrome-inset, 12px) 0 0;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-top-right > div {
+    margin: 6px var(--wm-chrome-inset, 12px) 0 0;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl button .maplibregl-ctrl-icon {
+    background-size: 20px 20px;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-options-panel {
+    right: calc(100% + 8px);
+    min-width: min(216px, calc(100vw - 96px));
+    padding: 9px 10px;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-options-row {
+    gap: 7px;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-options-row input[type="checkbox"],
+  .map-stage__viewport .maplibregl-ctrl-options-row input[type="radio"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .map-stage__viewport .maplibregl-ctrl-bottom-left > .maplibregl-ctrl {
+    margin: 0 0 8px 8px;
   }
 }

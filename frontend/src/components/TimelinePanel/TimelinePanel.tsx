@@ -74,10 +74,6 @@ export default function TimelinePanel() {
 
   return (
     <section className="timeline-panel wm-module-shell lower-third__module" aria-label="Forecast timeline">
-      <div className="timeline-panel__titlebar wm-titlebar wm-module-titlebar">
-        <span className="timeline-panel__eyebrow wm-eyebrow">Timeline</span>
-      </div>
-
       <div className="timeline-panel__body">
         <div className="timeline-panel__console lower-third__console">
           <div className="timeline-panel__control-row">

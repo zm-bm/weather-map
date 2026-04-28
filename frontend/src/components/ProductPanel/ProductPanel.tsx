@@ -26,10 +26,6 @@ function ProductPanel() {
 
   return (
     <section className="product-panel wm-module-shell lower-third__module" aria-label="Product panel">
-      <div className="product-panel__titlebar wm-titlebar wm-module-titlebar">
-        <span className="product-panel__eyebrow wm-eyebrow">Current Map</span>
-      </div>
-
       <div className="product-panel__body">
         <div className="product-panel__console lower-third__console">
           <div className="product-panel__field product-panel__field--plate">

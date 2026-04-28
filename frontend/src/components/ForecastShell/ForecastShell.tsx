@@ -48,8 +48,8 @@ export default function ForecastShell({
 
             {manifest && !DEBUG_BASEMAP_ONLY && (
               <div className="lower-third wm-docked-band-shell" aria-label="Forecast details">
+                <div className="lower-third__titlebar wm-titlebar wm-module-titlebar" aria-hidden="true" />
                 <ProductPanel />
-                <div className="lower-third__divider" aria-hidden="true" />
                 <TimelinePanel />
               </div>
             )}

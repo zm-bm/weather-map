@@ -58,8 +58,13 @@ describe('ForecastShell', () => {
 
     expect(forecastStage).not.toBeNull()
     expect(lowerThird).toBeInTheDocument()
+    expect(within(lowerThird).queryByText('Forecast Controls')).not.toBeInTheDocument()
     expect(within(forecastStage as HTMLElement).getByTestId('legend-panel')).toBeInTheDocument()
     expect(within(lowerThird).getByTestId('product-panel')).toBeInTheDocument()
     expect(within(lowerThird).queryByTestId('legend-panel')).not.toBeInTheDocument()
+    expect(lowerThird.querySelector('.lower-third__titlebar')).not.toBeNull()
+    expect(lowerThird.querySelector('.lower-third__divider')).toBeNull()
+    expect(lowerThird.querySelector('.product-panel__titlebar')).toBeNull()
+    expect(lowerThird.querySelector('.timeline-panel__titlebar')).toBeNull()
   })
 })
