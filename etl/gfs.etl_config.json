@@ -2,7 +2,7 @@
   "version": 1,
   "workload": {
     "forecast_hour_start": 0,
-    "forecast_hour_end": 120,
+    "forecast_hour_end": 72,
     "variables": [
       "tmp_surface",
       "rh_surface",
