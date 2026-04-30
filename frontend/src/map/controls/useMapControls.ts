@@ -26,7 +26,7 @@ export function useMapControls(
         scalarOptions: scalarRuntimeOptions,
         vectorOptions: vectorRuntimeOptions,
       }), 'top-right'],
-      [new maplibregl.AttributionControl({ compact: true }), 'bottom-left'],
+      [new maplibregl.AttributionControl({ compact: true }), 'bottom-right'],
     ] as const
 
     for (const [control, position] of controls) {

@@ -1,11 +1,14 @@
 import type { ScalarMeta } from '../forecast-metadata/scalar'
 
+export type UnitSystem = 'imperial' | 'metric'
+
 export type UnitOption = {
   id: string
   buttonLabel: string
   units: string
   convert: (value: number) => number
   casing?: 'caps' | 'literal'
+  unitSystem?: UnitSystem
 }
 
 export type UnitDisplay = {
@@ -29,7 +32,21 @@ export function getUnitOption(
   display: UnitDisplay,
   optionId?: string | null
 ): UnitOption {
-  return display.options.find((option) => option.id === optionId) ?? display.options[0]!
+  const requestedOptionId = optionId ?? display.defaultOptionId
+  return display.options.find((option) => option.id === requestedOptionId) ?? display.options[0]!
+}
+
+export function getUnitOptionForSystem(
+  display: UnitDisplay,
+  unitSystem: UnitSystem
+): UnitOption {
+  return display.options.find((option) => option.unitSystem === unitSystem)
+    ?? getUnitOption(display, display.defaultOptionId)
+}
+
+export function canToggleUnitSystem(display: UnitDisplay): boolean {
+  return display.options.some((option) => option.unitSystem === 'imperial')
+    && display.options.some((option) => option.unitSystem === 'metric')
 }
 
 const UNIT_RULES: UnitRule[] = [
@@ -43,12 +60,14 @@ const UNIT_RULES: UnitRule[] = [
           buttonLabel: 'C',
           units: 'C',
           convert: (value) => value,
+          unitSystem: 'metric',
         },
         {
           id: 'fahrenheit',
           buttonLabel: 'F',
           units: 'F',
           convert: (value) => (value * 9) / 5 + 32,
+          unitSystem: 'imperial',
         },
       ],
     },
@@ -85,7 +104,7 @@ const UNIT_RULES: UnitRule[] = [
   {
     labelIncludes: ['precipitation rate'],
     display: {
-      defaultOptionId: 'mm_per_hour',
+      defaultOptionId: 'in_per_hour',
       options: [
         {
           id: 'mm_per_hour',
@@ -93,6 +112,7 @@ const UNIT_RULES: UnitRule[] = [
           units: 'mm/hr',
           convert: (value) => value,
           casing: 'literal',
+          unitSystem: 'metric',
         },
         {
           id: 'in_per_hour',
@@ -100,6 +120,7 @@ const UNIT_RULES: UnitRule[] = [
           units: 'in/hr',
           convert: (value) => value / 25.4,
           casing: 'literal',
+          unitSystem: 'imperial',
         },
       ],
     },

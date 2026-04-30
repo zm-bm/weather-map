@@ -30,7 +30,7 @@ describe('useMapControls', () => {
 
     const addedControls = map.addControl.mock.calls as unknown as AddedControl[]
     expect(addedControls.slice(0, 3).every(([, position]) => position === 'top-right')).toBe(true)
-    expect(addedControls[3]?.[1]).toBe('bottom-left')
+    expect(addedControls[3]?.[1]).toBe('bottom-right')
     expect(addedControls[0]?.[0]).toBeInstanceOf(maplibregl.NavigationControl)
     expect(addedControls[1]?.[0]).toBeInstanceOf(MusicControl)
     expect(Reflect.get(addedControls[1]?.[0] as object, 'playlistUrl')).toBe(

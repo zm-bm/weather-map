@@ -1,9 +1,8 @@
 .forecast-screen {
   --wm-chrome-inset: 20px;
-  --wm-forecast-panel-width: 330px;
-  --wm-lower-third-product-width: 334px;
-  --wm-forecast-mobile-max-height: 248px;
-  --wm-mobile-map-control-top: 270px;
+  --wm-forecast-panel-width: 370px;
+  --wm-forecast-mobile-max-height: 180px;
+  --wm-mobile-map-control-top: 196px;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
@@ -93,8 +92,7 @@
 @media (max-width: 900px) {
   .forecast-screen {
     --wm-chrome-inset: 16px;
-    --wm-forecast-panel-width: 300px;
-    --wm-lower-third-product-width: 306px;
+    --wm-forecast-panel-width: 320px;
   }
 
   .map-sync-indicator {
@@ -122,8 +120,8 @@
 
 @media (max-width: 420px) {
   .forecast-screen {
-    --wm-forecast-mobile-max-height: 220px;
-    --wm-mobile-map-control-top: 236px;
+    --wm-forecast-mobile-max-height: 216px;
+    --wm-mobile-map-control-top: 232px;
     grid-template-rows: minmax(360px, 1fr) auto;
   }
 }

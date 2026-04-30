@@ -8,28 +8,26 @@ import ForecastSelectionProvider from './ForecastSelectionProvider'
 
 function ForecastSelectionProbe() {
   const context = useForecastSelectionContext()
+  const rawContext = context as unknown as Record<string, unknown>
 
   return (
     <div>
       <div data-testid="active-scalar">{context.activeScalar}</div>
       <div data-testid="active-vector">{context.activeVector}</div>
-      <div data-testid="tmp-unit">{context.getScalarUnitOptionId('tmp_surface', 'celsius')}</div>
-      <div data-testid="prate-unit">{context.getScalarUnitOptionId('prate_surface', 'mm_per_hour')}</div>
-      <div data-testid="wind-unit">{context.getVectorUnitOptionId('wind10m_uv', 'm/s')}</div>
+      <div data-testid="unit-system">{context.unitSystem}</div>
+      <div data-testid="has-scalar-unit-api">{String('getScalarUnitOptionId' in rawContext)}</div>
+      <div data-testid="has-vector-unit-api">{String('getVectorUnitOptionId' in rawContext)}</div>
       <button type="button" onClick={() => context.setActiveScalar(asScalarVariableId('rh_2m'))}>
         set-scalar-rh
       </button>
       <button type="button" onClick={() => context.setActiveVector(asVectorVariableId('wind10m_uv'))}>
         set-vector-wind
       </button>
-      <button type="button" onClick={() => context.setScalarUnitOptionId('tmp_surface', 'fahrenheit')}>
-        set-temp-f
+      <button type="button" onClick={() => context.setUnitSystem('metric')}>
+        set-metric
       </button>
-      <button type="button" onClick={() => context.setScalarUnitOptionId('prate_surface', 'in_per_hour')}>
-        set-prate-in
-      </button>
-      <button type="button" onClick={() => context.setVectorUnitOptionId('wind10m_uv', 'knots')}>
-        set-wind-knots
+      <button type="button" onClick={context.toggleUnitSystem}>
+        toggle-unit-system
       </button>
     </div>
   )
@@ -71,7 +69,7 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('active-vector')).toHaveTextContent('gust10m_uv')
   })
 
-  it('persists scalar unit selections per variable id and keeps vector unit defaults/readouts available', () => {
+  it('uses one global unit system and omits per-layer unit APIs', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
       scalarVariables: ['tmp_surface', 'rh_2m'],
@@ -84,20 +82,15 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('tmp-unit')).toHaveTextContent('celsius')
-    expect(screen.getByTestId('prate-unit')).toHaveTextContent('mm_per_hour')
-    expect(screen.getByTestId('wind-unit')).toHaveTextContent('m/s')
+    expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
+    expect(screen.getByTestId('has-scalar-unit-api')).toHaveTextContent('false')
+    expect(screen.getByTestId('has-vector-unit-api')).toHaveTextContent('false')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-temp-f' }))
-    expect(screen.getByTestId('tmp-unit')).toHaveTextContent('fahrenheit')
-    expect(screen.getByTestId('prate-unit')).toHaveTextContent('mm_per_hour')
+    fireEvent.click(screen.getByRole('button', { name: 'set-metric' }))
+    expect(screen.getByTestId('unit-system')).toHaveTextContent('metric')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-prate-in' }))
-    expect(screen.getByTestId('tmp-unit')).toHaveTextContent('fahrenheit')
-    expect(screen.getByTestId('prate-unit')).toHaveTextContent('in_per_hour')
-
-    fireEvent.click(screen.getByRole('button', { name: 'set-wind-knots' }))
-    expect(screen.getByTestId('wind-unit')).toHaveTextContent('knots')
+    fireEvent.click(screen.getByRole('button', { name: 'toggle-unit-system' }))
+    expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
   })
 
   it('preserves active selections when the manifest changes within the same cycle', () => {

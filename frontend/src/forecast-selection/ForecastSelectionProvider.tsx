@@ -5,6 +5,7 @@ import type {
   ScalarVariableId,
   VectorVariableId,
 } from '../manifest'
+import type { UnitSystem } from '../units'
 import {
   ForecastSelectionContext,
   type ForecastSelectionContextValue,
@@ -30,8 +31,7 @@ export default function ForecastSelectionProvider({
     activeScalar: manifest?.scalarVariables[0] ?? null,
     activeVector: manifest?.vectorVariables[0] ?? null,
   }))
-  const [scalarUnitOptionIds, setScalarUnitOptionIds] = useState<Record<string, string>>({})
-  const [vectorUnitOptionIds, setVectorUnitOptionIds] = useState<Record<string, string>>({})
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
   const setActiveScalar = useCallback((value: ScalarVariableId) => {
     setSelection((current) => ({
@@ -49,27 +49,9 @@ export default function ForecastSelectionProvider({
     }))
   }, [])
 
-  const setScalarUnitOptionId = useCallback((variableId: string, optionId: string) => {
-    setScalarUnitOptionIds((current) => ({
-      ...current,
-      [variableId]: optionId,
-    }))
+  const toggleUnitSystem = useCallback(() => {
+    setUnitSystem((current) => current === 'imperial' ? 'metric' : 'imperial')
   }, [])
-
-  const setVectorUnitOptionId = useCallback((variableId: string, optionId: string) => {
-    setVectorUnitOptionIds((current) => ({
-      ...current,
-      [variableId]: optionId,
-    }))
-  }, [])
-
-  const getScalarUnitOptionId = useCallback((variableId: string, fallbackOptionId: string) => {
-    return scalarUnitOptionIds[variableId] ?? fallbackOptionId
-  }, [scalarUnitOptionIds])
-
-  const getVectorUnitOptionId = useCallback((variableId: string, fallbackOptionId: string) => {
-    return vectorUnitOptionIds[variableId] ?? fallbackOptionId
-  }, [vectorUnitOptionIds])
 
   const value = useMemo<ForecastSelectionContextValue>(() => {
     if (!manifest) {
@@ -81,14 +63,11 @@ export default function ForecastSelectionProvider({
         variableMeta: NO_VARIABLE_META,
         activeScalar: null,
         activeVector: null,
-        scalarUnitOptionIds,
-        vectorUnitOptionIds,
+        unitSystem,
         setActiveScalar,
         setActiveVector,
-        getScalarUnitOptionId,
-        getVectorUnitOptionId,
-        setScalarUnitOptionId,
-        setVectorUnitOptionId,
+        setUnitSystem,
+        toggleUnitSystem,
       }
     }
 
@@ -112,8 +91,7 @@ export default function ForecastSelectionProvider({
       variableMeta: manifest.variableMeta,
       activeScalar,
       activeVector,
-      scalarUnitOptionIds,
-      vectorUnitOptionIds,
+      unitSystem,
       setActiveScalar: (nextScalar) => {
         setSelection((current) => ({
           cycle,
@@ -134,24 +112,18 @@ export default function ForecastSelectionProvider({
           activeVector: nextVector,
         }))
       },
-      getScalarUnitOptionId,
-      getVectorUnitOptionId,
-      setScalarUnitOptionId,
-      setVectorUnitOptionId,
+      setUnitSystem,
+      toggleUnitSystem,
     }
   }, [
-    getScalarUnitOptionId,
-    getVectorUnitOptionId,
     manifest,
-    scalarUnitOptionIds,
     selection.activeScalar,
     selection.activeVector,
     selection.cycle,
     setActiveScalar,
     setActiveVector,
-    setScalarUnitOptionId,
-    setVectorUnitOptionId,
-    vectorUnitOptionIds,
+    toggleUnitSystem,
+    unitSystem,
   ])
 
   return (

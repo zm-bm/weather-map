@@ -1,10 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatValidTimeLabel } from '../../forecast-time'
 import {
   createForecastSelectionContextValue,
-  createForecastTimeContextValue,
   createManifestFixture,
   createScalarVariableMetaFixture,
 } from '../../test/fixtures'
@@ -12,6 +10,7 @@ import ForecastPanel from './ForecastPanel'
 
 const mocks = vi.hoisted(() => ({
   activeScalar: 'tmp_surface' as 'tmp_surface' | 'rh_surface',
+  unitSystem: 'imperial' as 'imperial' | 'metric',
   lastProbe: null as { lat: number; lon: number } | null,
   currentScalarProbeFrame: null as {
     lower: {
@@ -39,25 +38,8 @@ function createPanelSelectionContextValue() {
   return createForecastSelectionContextValue(
     manifest,
     {
-    activeScalar: mocks.activeScalar,
-    getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => (
-      variableId === 'tmp_surface' ? 'fahrenheit' : fallbackOptionId
-    ),
-    getVectorUnitOptionId: (_variableId: string, fallbackOptionId: string) => fallbackOptionId,
-    }
-  )
-}
-
-function createPanelTimeContextValue() {
-  return createForecastTimeContextValue(
-    manifest,
-    {
-      cycle: '2026042113',
-      forecastHours: ['000', '003', '006'],
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 21, 16, 0),
-        targetTimeMs: Date.UTC(2026, 3, 21, 16, 0),
-      },
+      activeScalar: mocks.activeScalar,
+      unitSystem: mocks.unitSystem,
     }
   )
 }
@@ -91,26 +73,29 @@ vi.mock('../../map-probe/useProbeValue', () => ({
   },
 }))
 
-vi.mock('../../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => createPanelTimeContextValue(),
-}))
-
 describe('ForecastPanel', () => {
-  it('shows a click prompt before any map sample exists', () => {
+  it('hides probe readouts before any map sample exists', () => {
     mocks.activeScalar = 'tmp_surface'
+    mocks.unitSystem = 'imperial'
     mocks.lastProbe = null
     mocks.currentScalarProbeFrame = null
 
     render(<ForecastPanel />)
 
-    expect(screen.getByText('Click Map')).toBeInTheDocument()
-    expect(screen.getByText(formatValidTimeLabel(Date.UTC(2026, 3, 21, 16, 0)) ?? '')).toBeInTheDocument()
-    expect(screen.getByText('-- / --')).toBeInTheDocument()
-    expect(screen.getByText('Click map to sample current layer')).toBeInTheDocument()
+    expect(screen.getByLabelText('Scalar layer')).toHaveValue('tmp_surface')
+    expect(screen.getByLabelText('Forecast level Surface, forecast model GFS, model run Apr 11, 00Z')).toHaveTextContent(/GFS.00Z/)
+    expect(screen.getByLabelText('Forecast model')).toHaveValue('gfs')
+    expect(screen.getByLabelText('Forecast level')).toHaveValue('surface')
+    expect(screen.queryByText('Time')).not.toBeInTheDocument()
+    expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
+    expect(screen.queryByText('Value')).not.toBeInTheDocument()
+    expect(screen.queryByText('-- / --')).not.toBeInTheDocument()
+    expect(screen.queryByText('Click map')).not.toBeInTheDocument()
   })
 
   it('shows the last clicked coordinate and value', () => {
     mocks.activeScalar = 'tmp_surface'
+    mocks.unitSystem = 'imperial'
     mocks.lastProbe = {
       lat: 35.125,
       lon: -97.5,
@@ -128,8 +113,27 @@ describe('ForecastPanel', () => {
     expect(screen.getByText('68 F')).toBeInTheDocument()
   })
 
+  it('uses the global unit system for sampled values', () => {
+    mocks.activeScalar = 'tmp_surface'
+    mocks.unitSystem = 'metric'
+    mocks.lastProbe = {
+      lat: 35.125,
+      lon: -97.5,
+    }
+    mocks.currentScalarProbeFrame = {
+      lower: {
+        variableId: 'tmp_surface',
+      },
+    }
+
+    render(<ForecastPanel />)
+
+    expect(screen.getByText('20 C')).toBeInTheDocument()
+  })
+
   it('shows a loading message while the selected scalar has not synced yet', () => {
     mocks.activeScalar = 'rh_surface'
+    mocks.unitSystem = 'imperial'
     mocks.lastProbe = {
       lat: 35.125,
       lon: -97.5,
@@ -143,6 +147,6 @@ describe('ForecastPanel', () => {
     render(<ForecastPanel />)
 
     expect(screen.getByText('Relative Humidity')).toBeInTheDocument()
-    expect(screen.getByText('Loading current layer')).toBeInTheDocument()
+    expect(screen.getByText('Loading')).toBeInTheDocument()
   })
 })

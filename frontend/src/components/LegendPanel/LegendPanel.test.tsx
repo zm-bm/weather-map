@@ -7,7 +7,7 @@ import {
   createVectorVariableMetaFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
-import ProductPanel from '../ProductPanel'
+import ForecastControls from '../ForecastControls'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
@@ -39,7 +39,7 @@ function createLegendSelectionManifest(
 function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
-      <ProductPanel />
+      <ForecastControls />
       <LegendPanel />
     </>,
     createLegendSelectionManifest(activeScalar)
@@ -47,17 +47,13 @@ function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'pr
 }
 
 describe('LegendPanel', () => {
-  it('keeps unit interaction in the legend and synchronizes with the product panel', () => {
+  it('uses the legend pill as the global imperial/metric unit toggle', () => {
     const { container } = renderLegendHarness('tmp_surface')
 
-    const scalarUnits = screen.getByLabelText('Scalar units') as HTMLSelectElement
-    expect(scalarUnits.value).toBe('fahrenheit')
+    expect(screen.queryByLabelText('Scalar units')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /cycle temperature units/i })).toHaveTextContent('F')
 
-    fireEvent.change(scalarUnits, {
-      target: { value: 'celsius' },
-    })
-
+    fireEvent.click(screen.getByRole('button', { name: /cycle temperature units/i }))
     expect(screen.getByRole('button', { name: /cycle temperature units/i })).toHaveTextContent('C')
 
     const tickLabelsAfterSelect = Array.from(container.querySelectorAll('.legend-panel__tick-label'))
@@ -66,8 +62,13 @@ describe('LegendPanel', () => {
     expect(tickLabelsAfterSelect).toContain('50')
     expect(tickLabelsAfterSelect).not.toContain(' C')
 
-    fireEvent.click(screen.getByRole('button', { name: /cycle temperature units/i }))
-    expect((screen.getByLabelText('Scalar units') as HTMLSelectElement).value).toBe('fahrenheit')
+    fireEvent.change(screen.getByLabelText('Scalar layer'), {
+      target: { value: 'prate_surface' },
+    })
+    expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('mm/hr')
+
+    fireEvent.click(screen.getByRole('button', { name: /cycle precipitation rate units/i }))
+    expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('in/hr')
   })
 
   it('shows a static hPa unit readout for pressure', () => {
@@ -77,16 +78,17 @@ describe('LegendPanel', () => {
     expect(screen.getByLabelText('Pressure units hPa.')).toBeInTheDocument()
   })
 
-  it('uses rounded precipitation tick labels without repeated units', () => {
+  it('uses rounded imperial precipitation tick labels without repeated units by default', () => {
     const { container } = renderLegendHarness('prate_surface')
 
     const tickLabels = Array.from(container.querySelectorAll('.legend-panel__tick-label'))
       .map((element) => element.textContent ?? '')
       .join(' ')
 
-    expect(tickLabels).toContain('30')
-    expect(tickLabels).toContain('15')
-    expect(tickLabels).toContain('7')
+    expect(tickLabels).toContain('1')
+    expect(tickLabels).toContain('0.7')
+    expect(tickLabels).toContain('0.3')
+    expect(tickLabels).not.toContain('in/hr')
     expect(tickLabels).not.toContain('mm/hr')
     expect(tickLabels).not.toContain('0.000')
   })

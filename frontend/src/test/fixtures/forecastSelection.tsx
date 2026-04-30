@@ -9,30 +9,25 @@ import {
 } from '../../manifest'
 import type { ForecastSelectionContextValue } from '../../forecast-selection/ForecastSelectionContext'
 import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
- 
+import type { UnitSystem } from '../../units'
+
 
 type ForecastSelectionContextOptions = Partial<{
   activeScalar: string
   activeVector: string
-  getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => string
-  getVectorUnitOptionId: (variableId: string, fallbackOptionId: string) => string
+  unitSystem: UnitSystem
 }>
-
-const passthroughUnitOptionId = (_variableId: string, fallbackOptionId: string) => fallbackOptionId
 
 export function createForecastSelectionContextValue(
   manifest: CycleManifest | null,
   options: ForecastSelectionContextOptions = {}
 ): ForecastSelectionContextValue {
   const shared = {
-    scalarUnitOptionIds: {},
-    vectorUnitOptionIds: {},
+    unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
     setActiveScalar: vi.fn(),
     setActiveVector: vi.fn(),
-    getScalarUnitOptionId: options.getScalarUnitOptionId ?? passthroughUnitOptionId,
-    getVectorUnitOptionId: options.getVectorUnitOptionId ?? passthroughUnitOptionId,
-    setScalarUnitOptionId: vi.fn(),
-    setVectorUnitOptionId: vi.fn(),
+    setUnitSystem: vi.fn(),
+    toggleUnitSystem: vi.fn(),
   }
 
   return (

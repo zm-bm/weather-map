@@ -5,6 +5,14 @@
   text-align: initial;
 }
 
+@font-face {
+  font-family: "Star4000";
+  src: url("../assets/fonts/Star4000.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --wm-bg: #0e1442;
   --wm-panel: #1d2c73;
@@ -42,9 +50,9 @@
   --wm-rule-cool-soft: rgba(217, 224, 244, 0.32);
   --wm-rule-warm-soft: rgba(255, 235, 196, 0.25);
   --wm-shadow: 0 10px 0 rgba(0, 0, 0, 0.22);
-  --wm-font-display: "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif;
-  --wm-font-body: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
-  --wm-font-mono: "Courier New", "Liberation Mono", monospace;
+  --wm-font-display: "Star4000", "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif;
+  --wm-font-body: "Star4000", "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  --wm-font-mono: var(--wm-font-display);
 }
 
 .wm-panel-shell {
@@ -66,7 +74,7 @@
 
 .wm-docked-band-shell {
   position: relative;
-  border-top: 3px solid rgba(255, 233, 188, 0.78);
+  border-top: 1px solid rgba(255, 233, 188, 0.52);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
@@ -87,12 +95,12 @@
 .wm-docked-band-shell::before {
   content: "";
   position: absolute;
-  top: 3px;
+  top: 1px;
   right: 0;
   left: 0;
   height: 1px;
   pointer-events: none;
-  background: rgba(7, 12, 37, 0.72);
+  background: rgba(7, 12, 37, 0.5);
 }
 
 .wm-titlebar {
@@ -115,20 +123,20 @@
 
 .wm-display-caps {
   font-family: var(--wm-font-display);
-  letter-spacing: var(--wm-display-caps-spacing, 0.02em);
+  letter-spacing: var(--wm-display-caps-spacing, 0);
   text-transform: uppercase;
 }
 
 .wm-mono-meta {
-  font-size: 12px;
+  font-size: 13px;
   font-family: var(--wm-font-mono);
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .wm-mono-caps {
   font-size: var(--wm-mono-caps-size, 12px);
   font-family: var(--wm-font-mono);
-  letter-spacing: var(--wm-mono-caps-spacing, 0.05em);
+  letter-spacing: var(--wm-mono-caps-spacing, 0);
   text-transform: uppercase;
 }
 
@@ -140,9 +148,9 @@
 }
 
 .wm-eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: #fff4ce;
   text-shadow: 1px 1px 0 rgba(65, 36, 9, 0.45);
@@ -184,7 +192,7 @@
   justify-content: center;
   color: var(--wm-text);
   font-family: var(--wm-font-display);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 

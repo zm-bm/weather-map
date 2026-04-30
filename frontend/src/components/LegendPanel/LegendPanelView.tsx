@@ -50,10 +50,13 @@ export function LegendPanelView({
             <div className="legend-panel__ticks">
               <div className="legend-panel__annotations">
                 {legendTicks.map((tick) => (
-                  <div key={`${meta.id}-${selectedOption.id}-${tick.value}`} className="legend-panel__tick">
+                  <div
+                    key={`${meta.id}-${selectedOption.id}-${tick.value}`}
+                    className="legend-panel__tick"
+                    style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
+                  >
                     <span
                       className={`legend-panel__tick-mark${tick.variant === 'minor' ? ' legend-panel__tick-mark--minor' : ''}`}
-                      style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
                     />
                     {tick.label != null && (
                       <span
@@ -62,7 +65,6 @@ export function LegendPanelView({
                           tick.positionPct >= 99.9 ? 'legend-panel__tick-label--top' : '',
                           tick.positionPct <= 0.1 ? 'legend-panel__tick-label--bottom' : '',
                         ].filter(Boolean).join(' ')}
-                        style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
                       >
                         {tick.label}
                       </span>

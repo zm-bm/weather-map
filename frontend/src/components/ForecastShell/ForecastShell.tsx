@@ -2,11 +2,10 @@ import type { CycleManifest } from '../../manifest'
 import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
 import { ForecastTimeProvider } from '../../forecast-time'
 import MapProbeProvider from '../../map-probe/MapProbeProvider'
+import TimelineBar from '../TimelineBar'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
 import MapSyncIndicator from '../MapSyncIndicator'
-import ProductPanel from '../ProductPanel'
-import TimelinePanel from '../TimelinePanel'
 import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
@@ -47,11 +46,7 @@ export default function ForecastShell({
             </div>
 
             {manifest && !DEBUG_BASEMAP_ONLY && (
-              <div className="lower-third wm-docked-band-shell" aria-label="Forecast details">
-                <div className="lower-third__titlebar wm-titlebar wm-module-titlebar" aria-hidden="true" />
-                <ProductPanel />
-                <TimelinePanel />
-              </div>
+              <TimelineBar />
             )}
           </ForecastTimeProvider>
         </MapProbeProvider>

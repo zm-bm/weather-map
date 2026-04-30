@@ -71,8 +71,8 @@ export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   zoomOutRespawnMinDelta: 0.05,
 
   pointSizePx: 20,
-  dashMinPx: 10,
-  dashMaxPx: 14,
+  dashMinPx: 8,
+  dashMaxPx: 12,
   dashPerMps: 0.035,
   coreWidthPx: 1.6,
   shadowWidthPx: 2.8,
@@ -84,10 +84,10 @@ export const DEFAULT_VECTOR_RUNTIME_OPTIONS: Readonly<VectorRuntimeOptions> = {
   shadowSlow: [0.52, 0.56, 0.7, 0.06],
   shadowFast: [0.58, 0.6, 0.7, 0.12],
 
-  trailScale: 0.95,
-  trailFade: 0.975,
+  trailScale: 0.90,
+  trailFade: 0.925,
   trailQuantize: true,
-  trailCompositeOpacity: 1,
+  trailCompositeOpacity: 1.0,
   clearTrailsOnViewChange: true,
 }
 

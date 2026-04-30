@@ -5,6 +5,7 @@ import type {
   ScalarVariableId,
   VectorVariableId,
 } from '../manifest'
+import type { UnitSystem } from '../units'
 
 type ForecastSelectionContextLoadedValue = {
   manifest: CycleManifest
@@ -14,14 +15,11 @@ type ForecastSelectionContextLoadedValue = {
   variableMeta: CycleManifest['variableMeta']
   activeScalar: ScalarVariableId
   activeVector: VectorVariableId
-  scalarUnitOptionIds: Record<string, string>
-  vectorUnitOptionIds: Record<string, string>
+  unitSystem: UnitSystem
   setActiveScalar: (value: ScalarVariableId) => void
   setActiveVector: (value: VectorVariableId) => void
-  getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => string
-  getVectorUnitOptionId: (variableId: string, fallbackOptionId: string) => string
-  setScalarUnitOptionId: (variableId: string, optionId: string) => void
-  setVectorUnitOptionId: (variableId: string, optionId: string) => void
+  setUnitSystem: (value: UnitSystem) => void
+  toggleUnitSystem: () => void
 }
 
 type ForecastSelectionContextUnloadedValue = {
@@ -32,14 +30,11 @@ type ForecastSelectionContextUnloadedValue = {
   variableMeta: CycleManifest['variableMeta'] | null
   activeScalar: null
   activeVector: null
-  scalarUnitOptionIds: Record<string, string>
-  vectorUnitOptionIds: Record<string, string>
+  unitSystem: UnitSystem
   setActiveScalar: (value: ScalarVariableId) => void
   setActiveVector: (value: VectorVariableId) => void
-  getScalarUnitOptionId: (variableId: string, fallbackOptionId: string) => string
-  getVectorUnitOptionId: (variableId: string, fallbackOptionId: string) => string
-  setScalarUnitOptionId: (variableId: string, optionId: string) => void
-  setVectorUnitOptionId: (variableId: string, optionId: string) => void
+  setUnitSystem: (value: UnitSystem) => void
+  toggleUnitSystem: () => void
 }
 
 export type ForecastSelectionContextValue =
