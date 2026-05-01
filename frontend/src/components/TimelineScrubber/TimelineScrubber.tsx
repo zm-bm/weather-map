@@ -24,6 +24,11 @@ type SliderReleaseEvent =
   | MouseEvent<HTMLInputElement>
   | TouchEvent<HTMLInputElement>
 
+type SliderStartEvent =
+  | PointerEvent<HTMLInputElement>
+  | MouseEvent<HTMLInputElement>
+  | TouchEvent<HTMLInputElement>
+
 type TimelineScaleTick = {
   id: string
   kind: 'major' | 'minor'
@@ -129,7 +134,6 @@ export default function TimelineScrubber() {
   const requestedTimeMs = pendingTimeMs ?? targetTimeMs
   const requestedMinuteOffset = minuteOffsetForValidTime(cycle, forecastHours, requestedTimeMs)
   const timelineControlsDisabled = forecastHours.length <= 1 || bounds == null
-  const [isDraggingSlider, setIsDraggingSlider] = useState(false)
   const [sliderDraftMinuteOffset, setSliderDraftMinuteOffset] = useState<number | null>(null)
   const sliderMinuteOffsetValue = sliderDraftMinuteOffset ?? requestedMinuteOffset
 
@@ -148,14 +152,26 @@ export default function TimelineScrubber() {
     Number(event.currentTarget.value)
   )
 
-  const finishSliderDrag = (minuteOffset: number) => {
-    setIsDraggingSlider(false)
+  const startSliderDraft = (minuteOffset: number) => {
+    setSliderDraftMinuteOffset(minuteOffset)
+  }
+
+  const commitSliderDraft = (minuteOffset: number) => {
+    if (sliderDraftMinuteOffset === null) return
     setSliderDraftMinuteOffset(null)
     commitSliderTime(minuteOffset)
   }
 
+  const cancelSliderDraft = () => {
+    setSliderDraftMinuteOffset(null)
+  }
+
+  const handleSliderStart = (event: SliderStartEvent) => {
+    startSliderDraft(sliderMinuteOffset(event))
+  }
+
   const handleSliderRelease = (event: SliderReleaseEvent) => {
-    finishSliderDrag(sliderMinuteOffset(event))
+    commitSliderDraft(sliderMinuteOffset(event))
   }
 
   return (
@@ -176,22 +192,21 @@ export default function TimelineScrubber() {
           value={sliderMinuteOffsetValue}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const minuteOffset = sliderMinuteOffset(event)
-            if (isDraggingSlider) {
+            if (sliderDraftMinuteOffset !== null) {
               setSliderDraftMinuteOffset(minuteOffset)
               return
             }
             commitSliderTime(minuteOffset)
           }}
-          onPointerDown={(event: PointerEvent<HTMLInputElement>) => {
-            setIsDraggingSlider(true)
-            setSliderDraftMinuteOffset(sliderMinuteOffset(event))
-          }}
+          onPointerDown={handleSliderStart}
+          onMouseDown={handleSliderStart}
+          onTouchStart={handleSliderStart}
           onPointerUp={handleSliderRelease}
+          onPointerCancel={cancelSliderDraft}
           onMouseUp={handleSliderRelease}
           onTouchEnd={handleSliderRelease}
           onBlur={(event: FocusEvent<HTMLInputElement>) => {
-            if (!isDraggingSlider) return
-            finishSliderDrag(sliderMinuteOffset(event))
+            commitSliderDraft(sliderMinuteOffset(event))
           }}
           disabled={timelineControlsDisabled}
           aria-label="Forecast time"

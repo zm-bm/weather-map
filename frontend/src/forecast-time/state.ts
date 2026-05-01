@@ -2,6 +2,7 @@ export const DEFAULT_PLAY_MIN_INTERVAL_MS = 100
 export const DEFAULT_PLAY_STEP_COUNT = 1
 
 export type ForecastTimeState = {
+  version: number
   appliedTimeMs: number
   targetTimeMs: number
   pendingTimeMs: number | null
@@ -13,6 +14,7 @@ export type ForecastTimeState = {
 export type ForecastTimeAction =
   | { type: 'requestTime'; timeMs: number }
   | { type: 'queueTime'; timeMs: number }
+  | { type: 'playbackTick'; fromVersion: number; fromTimeMs: number; timeMs: number }
   | { type: 'requestStart'; timeMs: number }
   | { type: 'requestApplied'; timeMs: number; nowMs: number }
   | { type: 'requestError' }
@@ -21,6 +23,7 @@ export type ForecastTimeAction =
 
 export function createForecastTimeState(initialTimeMs: number): ForecastTimeState {
   return {
+    version: 0,
     appliedTimeMs: initialTimeMs,
     targetTimeMs: initialTimeMs,
     pendingTimeMs: null,
@@ -30,9 +33,17 @@ export function createForecastTimeState(initialTimeMs: number): ForecastTimeStat
   }
 }
 
+function nextVersion(state: ForecastTimeState): number {
+  return state.version + 1
+}
+
 function clearPending(state: ForecastTimeState): ForecastTimeState {
   if (state.pendingTimeMs == null) return state
-  return { ...state, pendingTimeMs: null }
+  return {
+    ...state,
+    version: nextVersion(state),
+    pendingTimeMs: null,
+  }
 }
 
 function dispatchTime(
@@ -41,6 +52,7 @@ function dispatchTime(
 ): ForecastTimeState {
   return {
     ...state,
+    version: nextVersion(state),
     pendingTimeMs: null,
     targetTimeMs: timeMs,
     isInFlight: true,
@@ -52,7 +64,11 @@ function queueTime(
   timeMs: number
 ): ForecastTimeState {
   if (state.pendingTimeMs === timeMs) return state
-  return { ...state, pendingTimeMs: timeMs }
+  return {
+    ...state,
+    version: nextVersion(state),
+    pendingTimeMs: timeMs,
+  }
 }
 
 function reduceRequestTime(
@@ -63,6 +79,7 @@ function reduceRequestTime(
   if (timeMs === state.appliedTimeMs) {
     return {
       ...state,
+      version: nextVersion(state),
       targetTimeMs: timeMs,
       pendingTimeMs: null,
       isInFlight: false,
@@ -86,6 +103,23 @@ function reduceQueueTime(
   return dispatchTime(state, timeMs)
 }
 
+function reducePlaybackTick(
+  state: ForecastTimeState,
+  fromVersion: number,
+  fromTimeMs: number,
+  timeMs: number
+): ForecastTimeState {
+  if (state.version !== fromVersion) return state
+  if (!state.isPlaying) return state
+  if (state.isInFlight) return state
+  if (state.pendingTimeMs != null) return state
+  if (state.appliedTimeMs !== fromTimeMs) return state
+  if (state.targetTimeMs !== fromTimeMs) return state
+  if (timeMs === state.appliedTimeMs) return state
+
+  return dispatchTime(state, timeMs)
+}
+
 function reduceRequestApplied(
   state: ForecastTimeState,
   timeMs: number,
@@ -94,6 +128,7 @@ function reduceRequestApplied(
   if (state.pendingTimeMs != null && state.pendingTimeMs !== timeMs) {
     return {
       ...state,
+      version: nextVersion(state),
       appliedTimeMs: timeMs,
       targetTimeMs: state.pendingTimeMs,
       pendingTimeMs: null,
@@ -104,6 +139,7 @@ function reduceRequestApplied(
 
   return {
     ...state,
+    version: nextVersion(state),
     appliedTimeMs: timeMs,
     targetTimeMs: timeMs,
     pendingTimeMs: null,
@@ -119,6 +155,7 @@ export function reduceForecastTimeState(
   if (action.type === 'reset') {
     return {
       ...createForecastTimeState(action.timeMs),
+      version: nextVersion(state),
       lastAppliedAtMs: action.nowMs,
     }
   }
@@ -131,9 +168,19 @@ export function reduceForecastTimeState(
     return reduceQueueTime(state, action.timeMs)
   }
 
+  if (action.type === 'playbackTick') {
+    return reducePlaybackTick(
+      state,
+      action.fromVersion,
+      action.fromTimeMs,
+      action.timeMs
+    )
+  }
+
   if (action.type === 'requestStart') {
     return {
       ...state,
+      version: nextVersion(state),
       targetTimeMs: action.timeMs,
       isInFlight: true,
     }
@@ -146,6 +193,7 @@ export function reduceForecastTimeState(
   if (action.type === 'requestError') {
     return {
       ...state,
+      version: nextVersion(state),
       pendingTimeMs: null,
       isInFlight: false,
       isPlaying: false,
@@ -153,7 +201,11 @@ export function reduceForecastTimeState(
   }
 
   if (action.type === 'togglePlay') {
-    return { ...state, isPlaying: !state.isPlaying }
+    return {
+      ...state,
+      version: nextVersion(state),
+      isPlaying: !state.isPlaying,
+    }
   }
 
   return state

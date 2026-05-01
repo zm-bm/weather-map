@@ -72,6 +72,30 @@ describe('TimelineScrubber', () => {
     expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 0, 30))
   })
 
+  it('commits a drag release once when multiple release events fire', () => {
+    render(<TimelineScrubber />)
+
+    const slider = screen.getByLabelText('Forecast time')
+    fireEvent.pointerDown(slider)
+    fireEvent.change(slider, { target: { value: '30' } })
+    fireEvent.pointerUp(slider)
+    fireEvent.mouseUp(slider)
+    fireEvent.touchEnd(slider)
+
+    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 0, 30))
+  })
+
+  it('commits non-drag slider changes immediately', () => {
+    render(<TimelineScrubber />)
+
+    const slider = screen.getByLabelText('Forecast time')
+    fireEvent.change(slider, { target: { value: '30' } })
+
+    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 0, 30))
+  })
+
   it('preserves an in-progress slider seek across playback frame updates', () => {
     mocks.timelineState = {
       appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
@@ -103,6 +127,31 @@ describe('TimelineScrubber', () => {
     fireEvent.pointerUp(currentSlider)
     expect(mocks.requestTime).toHaveBeenCalledOnce()
     expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 1, 0))
+  })
+
+  it('commits an active slider draft on blur', () => {
+    render(<TimelineScrubber />)
+
+    const slider = screen.getByLabelText('Forecast time')
+    fireEvent.pointerDown(slider)
+    fireEvent.change(slider, { target: { value: '30' } })
+    fireEvent.blur(slider)
+
+    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    expect(mocks.requestTime).toHaveBeenCalledWith(Date.UTC(2026, 3, 9, 0, 30))
+  })
+
+  it('cancels an active slider draft on pointer cancel', () => {
+    render(<TimelineScrubber />)
+
+    const slider = screen.getByLabelText('Forecast time')
+    fireEvent.pointerDown(slider)
+    fireEvent.change(slider, { target: { value: '30' } })
+    fireEvent.pointerCancel(slider)
+    fireEvent.pointerUp(slider)
+
+    expect(mocks.requestTime).not.toHaveBeenCalled()
+    expect(slider).toHaveValue('0')
   })
 
   it('renders selected time without embedded transport controls or status text', () => {

@@ -146,4 +146,102 @@ describe('forecast time state machine', () => {
     expect(state.pendingTimeMs).toBeNull()
     expect(state.isInFlight).toBe(false)
   })
+
+  it('accepts a playback tick only from the matching idle state', () => {
+    const initial = {
+      ...createForecastTimeState(0),
+      version: 4,
+      isPlaying: true,
+    }
+
+    const state = reduceForecastTimeState(initial, {
+      type: 'playbackTick',
+      fromVersion: 4,
+      fromTimeMs: 0,
+      timeMs: 60_000,
+    })
+
+    expect(state.appliedTimeMs).toBe(0)
+    expect(state.targetTimeMs).toBe(60_000)
+    expect(state.pendingTimeMs).toBeNull()
+    expect(state.isInFlight).toBe(true)
+    expect(state.version).toBe(5)
+  })
+
+  it('ignores stale or non-idle playback ticks', () => {
+    const base = {
+      ...createForecastTimeState(0),
+      version: 4,
+      isPlaying: true,
+    }
+    const cases = [
+      {
+        name: 'stale version',
+        state: base,
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 3,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+      {
+        name: 'paused playback',
+        state: { ...base, isPlaying: false },
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 4,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+      {
+        name: 'in-flight request',
+        state: { ...base, isInFlight: true },
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 4,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+      {
+        name: 'queued pending request',
+        state: { ...base, pendingTimeMs: 120_000 },
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 4,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+      {
+        name: 'changed applied time',
+        state: { ...base, appliedTimeMs: 30_000 },
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 4,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+      {
+        name: 'changed target time',
+        state: { ...base, targetTimeMs: 30_000 },
+        action: {
+          type: 'playbackTick' as const,
+          fromVersion: 4,
+          fromTimeMs: 0,
+          timeMs: 60_000,
+        },
+      },
+    ]
+
+    for (const testCase of cases) {
+      expect(
+        reduceForecastTimeState(testCase.state, testCase.action),
+        testCase.name
+      ).toBe(testCase.state)
+    }
+  })
 })

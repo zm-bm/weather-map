@@ -251,4 +251,46 @@ describe('ForecastTimeProvider', () => {
     })
     expect(getContext().state.targetTimeMs).toBe(validAt0020)
   })
+
+  it('lets a manual seek win over a scheduled playback tick', () => {
+    const manifest = createTimelineManifest()
+    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
+    const { getContext } = renderForecastTimeProvider(manifest)
+
+    act(() => {
+      getContext().controls.togglePlay()
+    })
+    expect(getContext().state.isPlaying).toBe(true)
+
+    act(() => {
+      getContext().controls.requestTime(validAt0300)
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(getContext().state.targetTimeMs).toBe(validAt0300)
+    expect(getContext().state.isInFlight).toBe(true)
+  })
+
+  it('keeps playback ticking after a same-time seek', () => {
+    const manifest = createTimelineManifest()
+    const validAt0000 = validTimeMs(manifest.cycle, '000') ?? 0
+    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
+    const { getContext } = renderForecastTimeProvider(manifest)
+
+    act(() => {
+      getContext().controls.togglePlay()
+    })
+    expect(getContext().state.isPlaying).toBe(true)
+    expect(getContext().state.targetTimeMs).toBe(validAt0000)
+
+    act(() => {
+      getContext().controls.requestTime(validAt0000)
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(getContext().state.isPlaying).toBe(true)
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+    expect(getContext().state.appliedTimeMs).toBe(validAt0000)
+    expect(getContext().state.isInFlight).toBe(true)
+  })
 })

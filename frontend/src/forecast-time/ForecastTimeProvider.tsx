@@ -112,16 +112,21 @@ export default function ForecastTimeProvider({
     if (!state.isPlaying || state.isInFlight || forecastHourCount <= 1) return
     const elapsedMs = Date.now() - state.lastAppliedAtMs
     const delayMs = Math.max(0, DEFAULT_PLAY_MIN_INTERVAL_MS - elapsedMs)
+    const fromVersion = state.version
+    const fromTimeMs = state.appliedTimeMs
+    const timeMs = stepForecastValidTimeMs(
+      cycle,
+      forecastHours,
+      fromTimeMs,
+      DEFAULT_PLAY_STEP_COUNT
+    )
 
     const timerId = window.setTimeout(() => {
       dispatch({
-        type: 'requestTime',
-        timeMs: stepForecastValidTimeMs(
-          cycle,
-          forecastHours,
-          state.appliedTimeMs,
-          DEFAULT_PLAY_STEP_COUNT
-        ),
+        type: 'playbackTick',
+        fromVersion,
+        fromTimeMs,
+        timeMs,
       })
     }, delayMs)
 
@@ -134,6 +139,7 @@ export default function ForecastTimeProvider({
     state.isInFlight,
     state.isPlaying,
     state.lastAppliedAtMs,
+    state.version,
   ])
 
   const value = useMemo<ForecastTimeContextValue>(() => ({
