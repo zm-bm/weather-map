@@ -10,14 +10,14 @@ import {
 import {
   formatValidTimeLabel,
   formatValidTimeScaleLabel,
-} from '../../forecast-time/format'
+} from '../../forecast-time'
 import {
   FORECAST_TIME_STEP_MINUTES,
   forecastTimeBounds,
   minuteOffsetForValidTime,
   validTimeMsForMinuteOffset,
-} from '../../forecast-time/time'
-import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
+} from '../../forecast-time'
+import { useForecastTimeContext } from '../../forecast-time'
 
 type SliderReleaseEvent =
   | PointerEvent<HTMLInputElement>

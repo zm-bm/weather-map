@@ -2,12 +2,12 @@ import {
   type CycleManifest,
   type ManifestEncodingSpec,
   type VectorEncodingSpec,
-} from '../../../manifest'
-import type { WeatherMapConfig } from '../../../config'
-import { loadFramePayload, normalizeFrameHourToken } from '../../../forecast-frame/loader'
-import { loadFrameWindow } from '../../../forecast-frame/window'
-import type { ForecastFrameSelection } from '../../../forecast-time/time'
-import { resolveFrameSpec } from '../../../forecast-frame/spec'
+} from '../../manifest'
+import type { WeatherMapConfig } from '../../config'
+import { loadFramePayload, normalizeFrameHourToken } from '../loader'
+import { loadFrameWindow } from '../window'
+import type { ForecastFrameSelection } from '../../forecast-time'
+import { resolveFrameSpec } from '../spec'
 import {
   VECTOR_COMPONENT_ORDER,
   VECTOR_COMPONENTS,

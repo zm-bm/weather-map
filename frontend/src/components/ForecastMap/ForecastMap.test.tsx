@@ -7,20 +7,23 @@ import ForecastMap from './ForecastMap'
 
 const mocks = vi.hoisted(() => ({
   useMap: vi.fn(),
-  useMapClick: vi.fn(),
   useForecastSync: vi.fn(),
+  ForecastPlaceProbes: vi.fn(),
 }))
 
 vi.mock('../../map/useMap', () => ({
   useMap: (args: unknown) => mocks.useMap(args),
 }))
 
-vi.mock('../../map/interactions/useMapClick', () => ({
-  useMapClick: (mapRef: unknown) => mocks.useMapClick(mapRef),
-}))
-
 vi.mock('../../forecast-sync', () => ({
   useForecastSync: (args: unknown) => mocks.useForecastSync(args),
+}))
+
+vi.mock('../ForecastPlaceProbes', () => ({
+  default: (props: unknown) => {
+    mocks.ForecastPlaceProbes(props)
+    return <div data-testid="forecast-place-probes" />
+  },
 }))
 
 describe('ForecastMap', () => {
@@ -50,11 +53,14 @@ describe('ForecastMap', () => {
     expect(mocks.useMap).toHaveBeenCalledWith({
       containerId: 'map',
     })
-    expect(mocks.useMapClick).toHaveBeenCalledWith(mapRef)
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
       getMap,
       mapReadyVersion,
       config,
+    })
+    expect(mocks.ForecastPlaceProbes).toHaveBeenCalledWith({
+      mapRef,
+      mapReadyVersion,
     })
   })
 

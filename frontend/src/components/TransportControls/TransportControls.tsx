@@ -1,7 +1,7 @@
 import { FaPause, FaPlay, FaStepBackward, FaStepForward } from 'react-icons/fa'
 
-import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
-import { forecastTimeBounds } from '../../forecast-time/time'
+import { useForecastTimeContext } from '../../forecast-time'
+import { forecastTimeBounds } from '../../forecast-time'
 
 function TransportControls() {
   const {

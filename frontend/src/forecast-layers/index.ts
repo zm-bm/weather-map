@@ -1,6 +1,6 @@
 export {
+  applyForecastFrames,
   forecastLayers,
   installForecastLayers,
-  syncableForecastLayers,
 } from './host'
-export type { ForecastLayer, ForecastLayerSyncArgs } from './types'
+export type { ForecastLayer } from './types'

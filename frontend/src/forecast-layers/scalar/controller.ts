@@ -4,7 +4,7 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { ScalarFrameWindowData } from './engine/types'
+import type { ScalarFrameWindowData } from '../../forecast-frame/scalar'
 
 export type ScalarController = MapFrameController<ScalarFrameWindowData>
 

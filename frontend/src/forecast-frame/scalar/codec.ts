@@ -1,4 +1,4 @@
-import type { ScalarEncodingSpec } from '../../../manifest'
+import type { ScalarEncodingSpec } from '../../manifest'
 
 export function decodeScalarPayloadToValues(
   payload: ArrayBuffer,

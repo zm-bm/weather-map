@@ -1,6 +1,8 @@
-import { canInterpolateScalarFrames } from './engine/frame'
-import type { ScalarFrameData } from './engine/types'
-import type { ScalarFrameWindowData } from './engine/types'
+import {
+  canInterpolateScalarFrames,
+  type ScalarFrameData,
+  type ScalarFrameWindowData,
+} from '../forecast-frame/scalar'
 
 export type ScalarProbePoint = {
   x: number
@@ -27,6 +29,30 @@ export type ScalarFrameWindowProbeResult = {
   value: number | null
   lower: ScalarProbeResult
   upper: ScalarProbeResult
+}
+
+export type ScalarProbeSampleCell = {
+  index: number
+  weight: number
+}
+
+export type ScalarProbeSampler = {
+  lon: number
+  lat: number
+  nx: number
+  ny: number
+  lon0: number
+  lat0: number
+  dx: number
+  dy: number
+  xWrap: ScalarFrameData['grid']['x_wrap']
+  yMode: ScalarFrameData['grid']['y_mode']
+  cells: [
+    ScalarProbeSampleCell,
+    ScalarProbeSampleCell,
+    ScalarProbeSampleCell,
+    ScalarProbeSampleCell,
+  ]
 }
 
 export function probeScalarFrame(
@@ -76,6 +102,81 @@ export function probeScalarFrame(
   }
 }
 
+export function createScalarProbeSampler(
+  frame: ScalarFrameData,
+  coords: { lon: number; lat: number },
+): ScalarProbeSampler | null {
+  const { grid, values } = frame
+  const { nx, ny, lon0, lat0, dx, dy } = grid
+  if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
+  if (values.length !== nx * ny) return null
+
+  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.x_wrap === 'repeat')
+  const gridY = clamp((coords.lat - lat0) / dy, 0, ny - 1)
+
+  const x0 = Math.floor(gridX)
+  const y0 = Math.floor(gridY)
+  const x1 = grid.x_wrap === 'repeat'
+    ? wrapIndex(x0 + 1, nx)
+    : Math.min(x0 + 1, nx - 1)
+  const y1 = Math.min(y0 + 1, ny - 1)
+
+  const tx = gridX - x0
+  const ty = gridY - y0
+
+  return {
+    lon: coords.lon,
+    lat: coords.lat,
+    nx,
+    ny,
+    lon0,
+    lat0,
+    dx,
+    dy,
+    xWrap: grid.x_wrap,
+    yMode: grid.y_mode,
+    cells: [
+      { index: (y0 * nx) + x0, weight: (1 - tx) * (1 - ty) },
+      { index: (y0 * nx) + x1, weight: tx * (1 - ty) },
+      { index: (y1 * nx) + x0, weight: (1 - tx) * ty },
+      { index: (y1 * nx) + x1, weight: tx * ty },
+    ],
+  }
+}
+
+export function isScalarProbeSamplerCompatible(
+  frame: ScalarFrameData,
+  sampler: ScalarProbeSampler
+): boolean {
+  return frame.grid.nx === sampler.nx &&
+    frame.grid.ny === sampler.ny &&
+    frame.grid.lon0 === sampler.lon0 &&
+    frame.grid.lat0 === sampler.lat0 &&
+    frame.grid.dx === sampler.dx &&
+    frame.grid.dy === sampler.dy &&
+    frame.grid.x_wrap === sampler.xWrap &&
+    frame.grid.y_mode === sampler.yMode &&
+    frame.values.length === sampler.nx * sampler.ny
+}
+
+export function sampleScalarFrameWithSampler(
+  frame: ScalarFrameData,
+  sampler: ScalarProbeSampler
+): number | null {
+  if (!isScalarProbeSamplerCompatible(frame, sampler)) return null
+
+  let totalWeight = 0
+  let totalValue = 0
+  for (const cell of sampler.cells) {
+    const value = frame.values[cell.index]
+    if (value == null || Number.isNaN(value)) continue
+    totalWeight += cell.weight
+    totalValue += value * cell.weight
+  }
+
+  return totalWeight > 0 ? totalValue / totalWeight : null
+}
+
 export function blendScalarValues(
   lowerValue: number | null,
   upperValue: number | null,
@@ -86,6 +187,21 @@ export function blendScalarValues(
   if (lowerValue == null) return upperValue
   if (upperValue == null) return lowerValue
   return lowerValue + ((upperValue - lowerValue) * normalizedMix)
+}
+
+export function sampleScalarFrameWindowWithSampler(
+  frameWindow: ScalarFrameWindowData,
+  sampler: ScalarProbeSampler,
+): number | null {
+  const lowerValue = sampleScalarFrameWithSampler(frameWindow.lower, sampler)
+  const canBlend = frameWindow.mix > 0 &&
+    canInterpolateScalarFrames(frameWindow.lower, frameWindow.upper) &&
+    isScalarProbeSamplerCompatible(frameWindow.upper, sampler)
+  const upperValue = canBlend
+    ? sampleScalarFrameWithSampler(frameWindow.upper, sampler)
+    : lowerValue
+
+  return blendScalarValues(lowerValue, upperValue, canBlend ? frameWindow.mix : 0)
 }
 
 export function probeScalarFrameWindow(

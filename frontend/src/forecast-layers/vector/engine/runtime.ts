@@ -10,8 +10,11 @@ import {
   unregisterVectorController,
   type VectorController,
 } from '../controller'
-import type { VectorFrameData, VectorFrameWindowData } from './types'
-import { canInterpolateVectorFrames } from './frame'
+import {
+  canInterpolateVectorFrames,
+  type VectorFrameData,
+  type VectorFrameWindowData,
+} from '../../../forecast-frame/vector'
 import {
   VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,

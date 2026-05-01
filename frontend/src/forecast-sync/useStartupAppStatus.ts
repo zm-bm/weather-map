@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { useAppStatusActions } from '../app-status/AppStatusContext'
+import { useAppStatusActions } from '../app-status'
 import type { StartupStatus } from './types'
 
 export function useStartupAppStatus(status: StartupStatus): void {

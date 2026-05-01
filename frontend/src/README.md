@@ -16,7 +16,7 @@ This document defines preferred domain terms and module ownership boundaries for
 - `variable`: selected meteorological field; prefer this over generic `layer` in UI/domain code.
 - `overlay`: map-rendered visual layer above the basemap.
 - `sync`: process that turns current app state into applied MapLibre/runtime resources.
-- `probe`: map interaction state for inspecting the rendered forecast value at a coordinate.
+- `probe`: sampling a rendered forecast frame at a map coordinate for label/readout display.
 
 ## Top-Level Flow
 
@@ -26,7 +26,6 @@ startup state into `app-status`, then renders `components/ForecastShell`.
 `ForecastShell` wires the main providers:
 
 - `forecast-selection`: active scalar/vector variables and unit options.
-- `map-probe`: latest clicked/hovered probe sample.
 - `forecast-time`: selected valid time and playback state.
 
 `components/ForecastMap` owns the MapLibre host instance and calls
@@ -45,19 +44,19 @@ payload loading, and layer application.
 
 - `manifest/*`: fetch, parse, validate, and expose forecast manifests. This is the source of typed manifest contracts used by selection, frame loading, and UI metadata.
 
-- `forecast-frame/*`: frame specs, frame windows, and frame loading. This module translates manifest data plus the selected time into concrete payload fetch targets.
+- `forecast-frame/*`: frame specs, frame windows, scalar/vector payload decoding, frame loading, and frame prefetching. This module translates manifest data plus the selected time into concrete frame data.
 
 - `forecast-cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so frame/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast-sync/*`: orchestration layer for startup policy, sync request composition, abort/dedupe, payload loading, layer updates, and app-status projection. It should coordinate modules, not decode payload formats itself.
+- `forecast-sync/*`: orchestration layer for startup policy, sync request composition, abort/dedupe, frame loading, layer updates, probe-frame publication, and app-status projection. It should coordinate modules, not decode payload formats itself.
 
-- `forecast-layers/*`: forecast renderer adapters and controllers. Scalar/vector submodules own payload decode/upload, runtime layer updates, and renderer-specific options.
+- `forecast-layers/*`: forecast renderer adapters, controllers, shaders, and renderer-specific options. This module should install MapLibre custom layers and apply already-loaded frame windows only; frame loading and probe behavior live elsewhere.
 
 - `forecast-metadata/*`: static metadata helpers for forecast products when the manifest does not carry all UI metadata directly.
 
 - `map/*`: MapLibre host platform, style construction, viewport persistence, map controls, and base map interactions. Keep forecast product logic out of this layer.
 
-- `map-probe/*`: probe interaction state and sampled frame/value helpers. Map interactions can write probe state, and panels can read it.
+- `forecast-probe/*`: public probe facade, scalar point samplers, current applied scalar frame store, and probe-value formatting. `forecast-sync` publishes applied scalar frames, and map label components read sampled values through the public facade.
 
 - `units/*`: unit conversion and formatting primitives shared by UI and probe display.
 
@@ -72,11 +71,13 @@ payload loading, and layer application.
 Preferred orchestration shape:
 
 1. `App` loads manifest and owns top-level app status projection for manifest startup.
-2. `ForecastShell` installs selection, probe, and time providers around map and panel UI.
+2. `ForecastShell` installs selection and time providers around map and panel UI.
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap`.
 4. `forecast-sync/useForecastSync` turns provider state into frame/layer sync requests.
-5. `forecast-layers/*` adapters/controllers apply scalar/vector renderer changes to the map host.
+5. `forecast-sync/useSyncRunner` loads frames through `forecast-frame`, applies them through `forecast-layers`, then publishes the applied scalar frame through `forecast-probe`.
+6. `forecast-layers/*` adapters/controllers apply scalar/vector renderer changes to the map host.
 
 Guideline: keep durable domain state in the relevant provider module, use
-`forecast-sync` for cross-domain coordination, and keep renderer/runtime details
-inside `forecast-layers` and `map`.
+`forecast-sync` for cross-domain coordination, keep frame loading inside
+`forecast-frame`, keep probe sampling inside `forecast-probe`, and keep
+renderer/runtime details inside `forecast-layers` and `map`.

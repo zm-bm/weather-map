@@ -1,18 +1,12 @@
-import { createAbortError } from '../../abort'
+import type { Map as MapLibreMap } from 'maplibre-gl'
+
 import { FORECAST_LAYER_BEFORE_ID, type ForecastLayer } from '../types'
-import { loadScalarFrameWindow } from './engine/frame'
 import { createScalarRuntime } from './engine/runtime'
 import { getScalarController } from './controller'
-import { setProbeFrame } from '../../map-probe/frame'
 import { scalarRuntimeOptions } from './options'
-import type { ScalarFrameWindowData } from './engine/types'
+import type { ScalarFrameWindowData } from '../../forecast-frame/scalar'
 
 export const SCALAR_LAYER_ID = 'scalar-layer-id'
-
-const scalarFrameWindowByMap = new WeakMap<object, {
-  reuseKey: string
-  frameWindow: ScalarFrameWindowData
-}>()
 
 export const scalarLayerAdapter: ForecastLayer = {
   layerId: SCALAR_LAYER_ID,
@@ -20,36 +14,15 @@ export const scalarLayerAdapter: ForecastLayer = {
     if (map.getLayer(SCALAR_LAYER_ID)) return
     map.addLayer(createScalarCustomLayer(), FORECAST_LAYER_BEFORE_ID)
   },
-  async applySync(args) {
-    if (args.signal.aborted) throw createAbortError()
-    const reuseKey = `${args.manifest.cycle}:${args.manifest.revision}:${args.activeScalar}`
-    const previousFrameWindow = scalarFrameWindowByMap.get(args.map)
+}
 
-    const frame = await loadScalarFrameWindow({
-      config: args.config,
-      manifest: args.manifest,
-      previousWindow: previousFrameWindow?.reuseKey === reuseKey
-        ? previousFrameWindow.frameWindow
-        : null,
-      lowerHourToken: args.lowerHourToken,
-      upperHourToken: args.upperHourToken,
-      selectedValidTimeMs: args.selectedValidTimeMs,
-      mix: args.mix,
-      variable: args.activeScalar,
-      signal: args.signal,
-    })
+export function applyScalarFrame(map: MapLibreMap, frame: ScalarFrameWindowData): void {
+  const controller = getScalarController(map)
+  if (!controller?.isAvailable()) {
+    throw new Error('Scalar runtime unavailable (WebGL2 required)')
+  }
 
-    if (args.signal.aborted) throw createAbortError()
-
-    const controller = getScalarController(args.map)
-    if (!controller?.isAvailable()) {
-      throw new Error('Scalar runtime unavailable (WebGL2 required)')
-    }
-
-    controller.applyFrame(frame)
-    setProbeFrame(frame)
-    scalarFrameWindowByMap.set(args.map, { reuseKey, frameWindow: frame })
-  },
+  controller.applyFrame(frame)
 }
 
 function createScalarCustomLayer() {

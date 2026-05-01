@@ -7,8 +7,10 @@ import {
   asScalarVariableId,
   asVectorVariableId,
 } from '../../manifest'
-import type { ForecastSelectionContextValue } from '../../forecast-selection/ForecastSelectionContext'
-import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
+import {
+  ForecastSelectionProvider,
+  type ForecastSelectionContextValue,
+} from '../../forecast-selection'
 import type { UnitSystem } from '../../units'
 
 

@@ -1,6 +1,6 @@
 import type { CycleManifest, ScalarVariableId, VectorVariableId } from '../manifest'
-import type { ForecastFrameSelection } from '../forecast-time/time'
-import type { ForecastTimeSyncBridge } from '../forecast-time/types'
+import type { ForecastFrameSelection } from '../forecast-time'
+import type { ForecastTimeSyncBridge } from '../forecast-time'
 
 export type StartupPhase = 'idle' | 'loading' | 'ready' | 'error'
 

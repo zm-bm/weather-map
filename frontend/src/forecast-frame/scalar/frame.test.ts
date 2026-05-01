@@ -1,23 +1,28 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from '../../../manifest'
+import type { CycleManifest } from '../../manifest'
 import {
   decodeScalarPayloadInt16,
   decodeScalarPayloadInt8,
   decodeScalarPayloadToValues,
   decodeTemperaturePiecewiseStoredValue,
 } from './codec'
-import { loadScalarFrame } from './frame'
+import { clearDecodedScalarFrameCache, loadScalarFrame } from './frame'
 import {
   createConfigFixture,
+  createFrameRefFixture,
   createFrameManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
-} from '../../../test/fixtures'
-import { stubFetchArrayBufferOnce } from '../../../test/fetch'
+} from '../../test/fixtures'
+import { stubFetchArrayBufferOnce } from '../../test/fetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+beforeEach(() => {
+  clearDecodedScalarFrameCache()
 })
 
 describe('scalar payload', () => {
@@ -110,6 +115,71 @@ describe('scalar payload', () => {
     expect(frame.grid.nx).toBe(2)
     expect(Array.from(frame.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses decoded scalar frames from the in-memory frame cache', async () => {
+    const payload = createScalarPayloadFixture([1, 2, 3, 4])
+    const fetchMock = stubFetchArrayBufferOnce(payload)
+    const manifest = createFrameManifestFixture()
+    const args = {
+      config: createConfigFixture(),
+      manifest,
+      variable: 'tmp_surface',
+      hourToken: '000',
+      signal: createSignalFixture(),
+    }
+
+    const firstFrame = await loadScalarFrame(args)
+    const secondFrame = await loadScalarFrame(args)
+
+    expect(secondFrame).toBe(firstFrame)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('evicts the oldest decoded scalar frame when the frame cache exceeds its limit', async () => {
+    const payload = createScalarPayloadFixture([1, 2, 3, 4])
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => payload,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const hourTokens = ['000', '001', '002', '003', '004', '005', '006']
+    const baseManifest = createFrameManifestFixture()
+    const manifest = createFrameManifestFixture({
+      forecastHours: hourTokens,
+      frames: Object.fromEntries(hourTokens.map((hourToken) => [
+        hourToken,
+        {
+          tmp_surface: createFrameRefFixture({
+            path: `fields/2026041100/${hourToken}/tmp_surface.scalar.i16.bin`,
+            sha256: `sha-${hourToken}`,
+          }),
+        },
+      ])),
+      variableMeta: baseManifest.variableMeta,
+    })
+
+    const loadedFrames = []
+    for (const hourToken of hourTokens) {
+      loadedFrames.push(await loadScalarFrame({
+        config: createConfigFixture(),
+        manifest,
+        variable: 'tmp_surface',
+        hourToken,
+        signal: createSignalFixture(),
+      }))
+    }
+
+    const reloadedFirstFrame = await loadScalarFrame({
+      config: createConfigFixture(),
+      manifest,
+      variable: 'tmp_surface',
+      hourToken: '000',
+      signal: createSignalFixture(),
+    })
+
+    expect(reloadedFirstFrame).not.toBe(loadedFrames[0])
+    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 
   it('maps loaded int8 scalar payloads into frame data', async () => {

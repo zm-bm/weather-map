@@ -2,6 +2,11 @@ import type { ScalarMeta } from '../forecast-metadata/scalar'
 
 export type UnitSystem = 'imperial' | 'metric'
 
+export type UnitValueFormat = {
+  minimumFractionDigits: number
+  maximumFractionDigits: number
+}
+
 export type UnitOption = {
   id: string
   buttonLabel: string
@@ -9,6 +14,7 @@ export type UnitOption = {
   convert: (value: number) => number
   casing?: 'caps' | 'literal'
   unitSystem?: UnitSystem
+  valueFormat?: UnitValueFormat
 }
 
 export type UnitDisplay = {
@@ -22,10 +28,45 @@ type UnitRule = {
   display: UnitDisplay
 }
 
+const WHOLE_VALUE_FORMAT: UnitValueFormat = {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+}
+
+const PRECIPITATION_VALUE_FORMAT: UnitValueFormat = {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}
+
 export function formatUnitLabel(label: string): string {
   return label
     .replace(/\^2/g, '²')
     .replace(/\^3/g, '³')
+}
+
+export function formatUnitValue(
+  value: number,
+  option?: UnitOption | null,
+): string {
+  const format = option?.valueFormat
+  if (format == null) return formatCompactValue(value)
+
+  const fixedValue = value.toFixed(format.maximumFractionDigits)
+  if (format.minimumFractionDigits >= format.maximumFractionDigits) return fixedValue
+
+  const decimalIndex = fixedValue.indexOf('.')
+  if (decimalIndex < 0) return fixedValue
+
+  const minimumLength = decimalIndex + 1 + format.minimumFractionDigits
+  let endIndex = fixedValue.length
+  while (endIndex > minimumLength && fixedValue[endIndex - 1] === '0') {
+    endIndex -= 1
+  }
+  if (endIndex > decimalIndex && fixedValue[endIndex - 1] === '.') {
+    endIndex -= 1
+  }
+
+  return fixedValue.slice(0, endIndex)
 }
 
 export function getUnitOption(
@@ -61,6 +102,7 @@ const UNIT_RULES: UnitRule[] = [
           units: 'C',
           convert: (value) => value,
           unitSystem: 'metric',
+          valueFormat: WHOLE_VALUE_FORMAT,
         },
         {
           id: 'fahrenheit',
@@ -68,6 +110,7 @@ const UNIT_RULES: UnitRule[] = [
           units: 'F',
           convert: (value) => (value * 9) / 5 + 32,
           unitSystem: 'imperial',
+          valueFormat: WHOLE_VALUE_FORMAT,
         },
       ],
     },
@@ -82,6 +125,7 @@ const UNIT_RULES: UnitRule[] = [
           buttonLabel: '%',
           units: '%',
           convert: (value) => value,
+          valueFormat: WHOLE_VALUE_FORMAT,
         },
       ],
     },
@@ -97,6 +141,7 @@ const UNIT_RULES: UnitRule[] = [
           units: 'hPa',
           convert: (value) => value / 100,
           casing: 'literal',
+          valueFormat: WHOLE_VALUE_FORMAT,
         },
       ],
     },
@@ -113,6 +158,7 @@ const UNIT_RULES: UnitRule[] = [
           convert: (value) => value,
           casing: 'literal',
           unitSystem: 'metric',
+          valueFormat: PRECIPITATION_VALUE_FORMAT,
         },
         {
           id: 'in_per_hour',
@@ -121,6 +167,7 @@ const UNIT_RULES: UnitRule[] = [
           convert: (value) => value / 25.4,
           casing: 'literal',
           unitSystem: 'imperial',
+          valueFormat: PRECIPITATION_VALUE_FORMAT,
         },
       ],
     },
@@ -150,4 +197,9 @@ export function getUnitDisplay(meta: ScalarMeta): UnitDisplay {
       },
     ],
   }
+}
+
+function formatCompactValue(value: number): string {
+  const rounded = Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1)
+  return rounded.endsWith('.0') ? rounded.slice(0, -2) : rounded
 }

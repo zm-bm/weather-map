@@ -64,6 +64,7 @@ export function useMapLibre({
       maxZoom,
       dragRotate: false,
       attributionControl: false,
+      fadeDuration: 0,
       style,
     })
 

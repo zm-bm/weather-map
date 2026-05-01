@@ -1,9 +1,9 @@
-import type { LoadedFrameWindow } from '../../../forecast-frame/window'
+import type { LoadedFrameWindow } from '../window'
 import type {
   LayerColortableStop,
   ScalarEncodingSpec,
   ScalarGridSpec,
-} from '../../../manifest'
+} from '../../manifest'
 
 export type ScalarFrameData = {
   hourToken: string

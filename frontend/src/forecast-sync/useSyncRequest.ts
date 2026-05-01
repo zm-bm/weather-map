@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
 
-import { useForecastSelectionContext } from '../forecast-selection/ForecastSelectionContext'
-import { useForecastTimeContext } from '../forecast-time/ForecastTimeContext'
+import { useForecastSelectionContext } from '../forecast-selection'
+import { useForecastTimeContext } from '../forecast-time'
 import {
   frameWindowMinuteOffset,
   resolveForecastFrameWindow,
-} from '../forecast-time/time'
+} from '../forecast-time'
 import type { SyncRequest } from './types'
 
 export function useSyncRequest(retryToken: number): SyncRequest | null {

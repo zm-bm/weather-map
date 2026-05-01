@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatValidTimeLabel } from '../../forecast-time'
-import { createForecastTimeContextValue } from '../../test/fixtures'
 import TimelineScrubber from './TimelineScrubber'
 
 const mocks = vi.hoisted(() => ({
@@ -19,20 +18,28 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => createForecastTimeContextValue(
-    null,
-    {
+vi.mock('../../forecast-time', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../forecast-time')>()
+  return {
+    ...actual,
+    useForecastTimeContext: () => ({
       cycle: mocks.cycle,
       forecastHours: mocks.forecastHours,
       state: mocks.timelineState,
       controls: {
+        requestNext: vi.fn(),
+        requestPrev: vi.fn(),
         requestTime: mocks.requestTime,
         togglePlay: mocks.togglePlay,
       },
-    }
-  ),
-}))
+      sync: {
+        onRequestStart: vi.fn(),
+        onRequestApplied: vi.fn(),
+        onRequestError: vi.fn(),
+      },
+    }),
+  }
+})
 
 describe('TimelineScrubber', () => {
   beforeEach(() => {

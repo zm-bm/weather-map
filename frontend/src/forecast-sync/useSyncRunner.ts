@@ -3,10 +3,14 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
-import { syncableForecastLayers } from '../forecast-layers'
+import {
+  loadForecastFrames,
+  type ForecastFrames,
+  type PreviousForecastFrameWindows,
+} from '../forecast-frame'
+import { applyForecastFrames } from '../forecast-layers'
+import { forecastProbeFrameStore } from '../forecast-probe'
 import type { StartupState, SyncRequest } from './types'
-
-const SYNCABLE_FORECAST_LAYERS = syncableForecastLayers
 
 type UseSyncRunnerArgs = {
   getMap: () => MapLibreMap | null
@@ -25,6 +29,12 @@ type RunnerDecision =
 type ActiveRequest = {
   key: string
   controller: AbortController
+}
+
+type PreviousForecastFrames = {
+  scalarKey: string
+  vectorKey: string
+  frames: ForecastFrames
 }
 
 type RunnerMachine = {
@@ -63,6 +73,7 @@ export function useSyncRunner({
   if (machineRef.current == null) {
     machineRef.current = createRunnerMachine()
   }
+  const previousFramesRef = useRef<PreviousForecastFrames | null>(null)
 
   useEffect(() => {
     const machine = machineRef.current
@@ -77,6 +88,8 @@ export function useSyncRunner({
 
     switch (decision.kind) {
       case 'disabled':
+        previousFramesRef.current = null
+        forecastProbeFrameStore.clear()
         handleDisabled()
         return
       case 'blocked':
@@ -100,6 +113,8 @@ export function useSyncRunner({
       requestKey,
       sync,
     } = syncRequest
+    const scalarKey = createForecastFrameKey(manifest, activeScalar)
+    const vectorKey = createForecastFrameKey(manifest, activeVector)
 
     if (machine.isApplied(requestKey)) {
       machine.abort()
@@ -107,28 +122,39 @@ export function useSyncRunner({
     }
     if (machine.isActive(requestKey)) return
 
+    if (previousFramesRef.current != null && previousFramesRef.current.scalarKey !== scalarKey) {
+      forecastProbeFrameStore.clear()
+    }
+
     const activeRequest = machine.start(requestKey)
     handlePending()
     sync.onRequestStart(selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
-        await Promise.all(
-          SYNCABLE_FORECAST_LAYERS.map((layer) => layer.applySync({
-            map,
-            config,
-            manifest,
-            selectedValidTimeMs,
-            lowerHourToken,
-            upperHourToken,
-            mix,
-            activeScalar,
-            activeVector,
-            signal: activeRequest.controller.signal,
-          }))
-        )
+        const frames = await loadForecastFrames({
+          config,
+          manifest,
+          previousWindows: resolveReusableFrameWindows(previousFramesRef.current, syncRequest),
+          selectedValidTimeMs,
+          lowerHourToken,
+          upperHourToken,
+          mix,
+          activeScalar,
+          activeVector,
+          signal: activeRequest.controller.signal,
+        })
 
         if (isRequestStale(machine, activeRequest)) return
+        applyForecastFrames(map, frames)
+        if (isRequestStale(machine, activeRequest)) return
+
+        forecastProbeFrameStore.publish(frames.scalar)
+        previousFramesRef.current = {
+          scalarKey,
+          vectorKey,
+          frames,
+        }
         machine.markApplied(activeRequest)
         sync.onRequestApplied(selectedValidTimeMs)
         handleApplied()
@@ -155,6 +181,28 @@ export function useSyncRunner({
     mapReadyVersion,
     request,
   ])
+}
+
+function resolveReusableFrameWindows(
+  previous: PreviousForecastFrames | null,
+  request: SyncRequest
+): PreviousForecastFrameWindows {
+  if (previous == null) return {}
+
+  const scalarKey = createForecastFrameKey(request.manifest, request.activeScalar)
+  const vectorKey = createForecastFrameKey(request.manifest, request.activeVector)
+
+  return {
+    scalar: previous.scalarKey === scalarKey ? previous.frames.scalar : null,
+    vector: previous.vectorKey === vectorKey ? previous.frames.vector : null,
+  }
+}
+
+function createForecastFrameKey(
+  manifest: SyncRequest['manifest'],
+  variable: SyncRequest['activeScalar'] | SyncRequest['activeVector']
+): string {
+  return `${manifest.cycle}:${manifest.revision}:${variable}`
 }
 
 function createRunnerMachine(): RunnerMachine {

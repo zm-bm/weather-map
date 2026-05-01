@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ScalarMeta } from '../forecast-metadata/scalar'
 import {
   canToggleUnitSystem,
+  formatUnitValue,
   getUnitDisplay,
   getUnitOption,
   getUnitOptionForSystem,
@@ -34,5 +35,25 @@ describe('getUnitDisplay', () => {
     expect(getUnitOption(display).id).toBe('in_per_hour')
     expect(getUnitOptionForSystem(display, 'imperial').id).toBe('in_per_hour')
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('mm_per_hour')
+  })
+
+  it('uses fixed two-decimal formatting for precipitation display values', () => {
+    const display = getUnitDisplay(createPrecipMeta('mm/hr'))
+
+    expect(formatUnitValue(0.1, getUnitOption(display, 'in_per_hour'))).toBe('0.10')
+    expect(formatUnitValue(2.5, getUnitOption(display, 'mm_per_hour'))).toBe('2.50')
+  })
+
+  it('uses whole-number formatting for percentage values', () => {
+    const display = getUnitDisplay({
+      id: 'rh_surface',
+      label: 'Relative Humidity',
+      units: '%',
+      min: 0,
+      max: 100,
+      colortable: [],
+    })
+
+    expect(formatUnitValue(55.25, getUnitOption(display))).toBe('55')
   })
 })

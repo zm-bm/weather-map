@@ -5,8 +5,8 @@ import {
   SCALAR_COLOR_SAMPLING_MODES,
   type ScalarColorSamplingMode,
   type ScalarRuntimeOptions,
-} from '../../../forecast-layers/scalar'
-import type { VectorRuntimeOptions } from '../../../forecast-layers/vector'
+} from '../../../forecast-layers/options'
+import type { VectorRuntimeOptions } from '../../../forecast-layers/options'
 
 type OptionsControlViewProps = {
   scalarOptions: ScalarRuntimeOptions,

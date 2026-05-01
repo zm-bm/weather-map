@@ -94,16 +94,17 @@ describe('useMapLibre', () => {
     }))
 
     expect(mocks.Map).toHaveBeenCalledTimes(1)
-    const calls = mocks.Map.mock.calls as unknown as Array<[{ style: StyleSpecification }]>
+    const calls = mocks.Map.mock.calls as unknown as Array<[{ fadeDuration: number; style: StyleSpecification }]>
     const options = calls[0][0]
     const style = options.style
 
+    expect(options.fadeDuration).toBe(0)
     expect(style).not.toBe(baseStyleJson)
     expect(style.glyphs).toBe(joinUrl(config.frontendBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
     expect(basemapSource?.url).toBe(config.basemapUrl)
-    expect(basemapSource?.promoteId).toEqual({ places: 'name' })
+    expect(basemapSource?.promoteId).toBeUndefined()
 
     ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:3000/basemap/{z}/{x}/{y}']
     expect((baseStyleJson.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification).tiles).toBeUndefined()
@@ -111,21 +112,7 @@ describe('useMapLibre', () => {
     const layerIds = (style.layers ?? []).map((layer) => layer.id)
     expect(layerIds).toContain('background')
     expect(layerIds).toContain('water')
-    expect(layerIds).toContain('label_city_capital')
-
-    const capitalLayer = (style.layers ?? []).find((layer) => layer.id === 'label_city_capital')
-    expect(capitalLayer?.type).toBe('symbol')
-    const textField = (capitalLayer as { layout?: { ['text-field']?: unknown } }).layout?.['text-field']
-    expect(textField).toEqual([
-      'case',
-      ['all', ['has', 'name:en'], ['has', 'script'], ['!=', ['get', 'name:en'], ['get', 'name']]],
-      ['concat', ['get', 'name:en'], '\n', ['get', 'name']],
-      ['all', ['has', 'name:en'], ['has', 'script2'], ['!=', ['get', 'name:en'], ['get', 'name2']]],
-      ['concat', ['get', 'name:en'], '\n', ['get', 'name2']],
-      ['all', ['has', 'name:en'], ['has', 'script3'], ['!=', ['get', 'name:en'], ['get', 'name3']]],
-      ['concat', ['get', 'name:en'], '\n', ['get', 'name3']],
-      ['coalesce', ['get', 'name:en'], ['get', 'name'], ['get', 'name2'], ['get', 'name3']],
-    ])
+    expect(layerIds.some((layerId) => layerId.startsWith('label_city_'))).toBe(false)
   })
 
   it('omits the basemap source and dependent layers when no basemap url is configured', async () => {

@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
-import { loadScalarFrame } from '../forecast-layers/scalar'
-import { loadVectorFrame } from '../forecast-layers/vector'
+import { loadForecastFrames } from '../forecast-frame'
 import {
   createConfigFixture,
   createCycleManifestPayloadFixture,
@@ -57,26 +56,22 @@ describe('manifest + frame loading end-to-end', () => {
       artifactBaseUrl: 'http://localhost:3000',
     })
 
-    const scalarFrame = await loadScalarFrame({
+    const frames = await loadForecastFrames({
       config,
       manifest,
-      variable: 'tmp_surface',
-      hourToken: '000',
-      signal,
-    })
-
-    const vectorFrame = await loadVectorFrame({
-      config,
-      manifest,
-      variable: 'wind10m_uv',
-      hourToken: '000',
+      activeScalar: manifest.scalarVariables[0],
+      activeVector: manifest.vectorVariables[0],
+      selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
+      lowerHourToken: '000',
+      upperHourToken: '000',
+      mix: 0,
       signal,
     })
 
     expect(manifest.cycle).toBe('2026041312')
-    expect(Array.from(scalarFrame.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
-    expect(Array.from(vectorFrame.u)).toEqual([5, 6, 7, 8])
-    expect(Array.from(vectorFrame.v)).toEqual([-1, -2, -3, -4])
+    expect(Array.from(frames.scalar.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
+    expect(Array.from(frames.vector.lower.u)).toEqual([5, 6, 7, 8])
+    expect(Array.from(frames.vector.lower.v)).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

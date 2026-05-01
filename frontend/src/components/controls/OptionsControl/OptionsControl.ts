@@ -2,8 +2,8 @@ import type { IControl } from 'maplibre-gl'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-import type { ScalarColorSamplingMode, ScalarRuntimeOptions } from '../../../forecast-layers/scalar'
-import type { VectorRuntimeOptions } from '../../../forecast-layers/vector'
+import type { ScalarColorSamplingMode, ScalarRuntimeOptions } from '../../../forecast-layers/options'
+import type { VectorRuntimeOptions } from '../../../forecast-layers/options'
 import { OptionsControlView } from './OptionsControlView'
 
 type OptionsControlConfig = {

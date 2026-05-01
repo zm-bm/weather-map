@@ -1,24 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getProbeFrame } from '../../map-probe/frame'
 import { FORECAST_LAYER_BEFORE_ID } from '../types'
-import { scalarLayerAdapter } from './adapter'
+import { applyScalarFrame, scalarLayerAdapter } from './adapter'
 import { scalarRuntimeOptions } from './options'
-import {
-  createConfigFixture,
-  createManifestFixture,
-  createMapFixture,
-  createSignalFixture,
-} from '../../test/fixtures'
 
 const mocks = vi.hoisted(() => ({
-  loadScalarFrameWindow: vi.fn(),
   getScalarController: vi.fn(),
   createScalarRuntime: vi.fn(),
-}))
-
-vi.mock('./engine/frame', () => ({
-  loadScalarFrameWindow: mocks.loadScalarFrameWindow,
 }))
 
 vi.mock('./controller', () => ({
@@ -29,26 +17,9 @@ vi.mock('./engine/runtime', () => ({
   createScalarRuntime: mocks.createScalarRuntime,
 }))
 
-function createArgs(signal: AbortSignal) {
-  const manifest = createManifestFixture({ forecastHours: ['000'] })
-  return {
-    map: createMapFixture(),
-    config: createConfigFixture(),
-    manifest,
-    selectedValidTimeMs: 0,
-    lowerHourToken: '000',
-    upperHourToken: '000',
-    mix: 0,
-    activeScalar: manifest.scalarVariables[0],
-    activeVector: manifest.vectorVariables[0],
-    signal,
-  }
-}
-
 describe('scalarLayerAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.loadScalarFrameWindow.mockResolvedValue({ lower: { variableId: 'tmp_surface' } })
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
@@ -78,92 +49,41 @@ describe('scalarLayerAdapter', () => {
     expect(beforeId).toBe(FORECAST_LAYER_BEFORE_ID)
   })
 
-  it('loads and applies a scalar frame for the active scalar', async () => {
+  it('skips install when the layer already exists', () => {
+    const map = {
+      getLayer: vi.fn(() => ({ id: 'scalar-layer-id' })),
+      addLayer: vi.fn(),
+    }
+
+    scalarLayerAdapter.install(map as never)
+
+    expect(map.addLayer).not.toHaveBeenCalled()
+    expect(mocks.createScalarRuntime).not.toHaveBeenCalled()
+  })
+
+  it('applies a loaded scalar frame to the runtime controller', () => {
     const frame = { lower: { variableId: 'tmp_surface' } }
     const applyFrame = vi.fn()
-    const map = createMapFixture()
-
-    mocks.loadScalarFrameWindow.mockResolvedValue(frame)
+    const map = {}
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
       setEnabled: vi.fn(),
     })
 
-    await scalarLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      map,
-    })
+    applyScalarFrame(map as never, frame as never)
 
-    expect(mocks.loadScalarFrameWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ variable: 'tmp_surface' })
-    )
     expect(applyFrame).toHaveBeenCalledWith(frame)
-    expect(getProbeFrame()).toBe(frame)
   })
 
-  it('reuses the previous frame window for the same map and scalar', async () => {
-    const map = createMapFixture()
-    const firstFrame = { lower: { variableId: 'tmp_surface' }, upper: { variableId: 'tmp_surface' } }
-    const secondFrame = { lower: { variableId: 'tmp_surface' }, upper: { variableId: 'tmp_surface' } }
-    mocks.loadScalarFrameWindow
-      .mockResolvedValueOnce(firstFrame)
-      .mockResolvedValueOnce(secondFrame)
-
-    await scalarLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      map,
-      lowerHourToken: '000',
-      upperHourToken: '001',
-      mix: 0.5,
-    })
-    await scalarLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      map,
-      lowerHourToken: '001',
-      upperHourToken: '002',
-      mix: 0.25,
-    })
-
-    expect(mocks.loadScalarFrameWindow).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ previousWindow: null })
-    )
-    expect(mocks.loadScalarFrameWindow).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ previousWindow: firstFrame })
-    )
-  })
-
-  it('throws when runtime is unavailable', async () => {
-    mocks.loadScalarFrameWindow.mockResolvedValue({ lower: { variableId: 'tmp_surface' } })
+  it('throws when runtime is unavailable', () => {
     mocks.getScalarController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
     })
 
-    await expect(scalarLayerAdapter.applySync!(createArgs(createSignalFixture())))
-      .rejects.toThrow('Scalar runtime unavailable (WebGL2 required)')
-  })
-
-  it('throws abort when signal is aborted after load', async () => {
-    const ac = new AbortController()
-    const applyFrame = vi.fn()
-
-    mocks.loadScalarFrameWindow.mockImplementation(async () => {
-      ac.abort()
-      return { lower: { variableId: 'tmp_surface' } }
-    })
-    mocks.getScalarController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame,
-      setEnabled: vi.fn(),
-    })
-
-    await expect(scalarLayerAdapter.applySync!(createArgs(ac.signal)))
-      .rejects.toMatchObject({ name: 'AbortError' })
-
-    expect(applyFrame).not.toHaveBeenCalled()
+    expect(() => applyScalarFrame({} as never, { lower: { variableId: 'tmp_surface' } } as never))
+      .toThrow('Scalar runtime unavailable (WebGL2 required)')
   })
 })

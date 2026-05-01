@@ -4,7 +4,7 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { VectorFrameWindowData } from './engine/types'
+import type { VectorFrameWindowData } from '../../forecast-frame/vector'
 
 export type VectorController = MapFrameController<VectorFrameWindowData>
 

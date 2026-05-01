@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { useForecastTimeContext } from '../../forecast-time/ForecastTimeContext'
+import { useForecastTimeContext } from '../../forecast-time'
 
 const MAP_SYNC_INDICATOR_DELAY_MS = 150
 

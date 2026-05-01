@@ -1,14 +1,2 @@
-export { scalarLayerAdapter, SCALAR_LAYER_ID } from './adapter'
+export { applyScalarFrame, scalarLayerAdapter, SCALAR_LAYER_ID } from './adapter'
 export { SCALAR_ACTIVE_OPACITY } from './engine/constants'
-export {
-  canInterpolateScalarFrames,
-  loadScalarFrame,
-  loadScalarFrameWindow,
-} from './engine/frame'
-export type { ScalarFrameData, ScalarFrameWindowData } from './engine/types'
-export {
-  DEFAULT_SCALAR_RUNTIME_OPTIONS,
-  scalarRuntimeOptions,
-  SCALAR_COLOR_SAMPLING_MODES,
-} from './options'
-export type { ScalarColorSamplingMode, ScalarRuntimeOptions } from './options'

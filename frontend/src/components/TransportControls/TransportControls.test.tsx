@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createForecastTimeContextValue } from '../../test/fixtures'
 import TransportControls from './TransportControls'
 
 const mocks = vi.hoisted(() => ({
@@ -11,21 +10,34 @@ const mocks = vi.hoisted(() => ({
   togglePlay: vi.fn(),
 }))
 
-vi.mock('../../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => createForecastTimeContextValue(
-    null,
-    {
+vi.mock('../../forecast-time', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../forecast-time')>()
+  return {
+    ...actual,
+    useForecastTimeContext: () => ({
       cycle: mocks.cycle,
       forecastHours: mocks.forecastHours,
       state: {
+        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+        targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+        pendingTimeMs: null,
+        isInFlight: false,
         isPlaying: mocks.isPlaying,
       },
       controls: {
+        requestTime: vi.fn(),
+        requestNext: vi.fn(),
+        requestPrev: vi.fn(),
         togglePlay: mocks.togglePlay,
       },
-    }
-  ),
-}))
+      sync: {
+        onRequestStart: vi.fn(),
+        onRequestApplied: vi.fn(),
+        onRequestError: vi.fn(),
+      },
+    }),
+  }
+})
 
 describe('TransportControls', () => {
   beforeEach(() => {

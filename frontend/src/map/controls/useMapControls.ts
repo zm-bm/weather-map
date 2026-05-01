@@ -4,8 +4,8 @@ import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl'
 import config from '../../config'
 import { MusicControl } from '../../components/controls/MusicControl'
 import { OptionsControl } from '../../components/controls/OptionsControl'
-import { scalarRuntimeOptions } from '../../forecast-layers/scalar'
-import { vectorRuntimeOptions } from '../../forecast-layers/vector'
+import { scalarRuntimeOptions } from '../../forecast-layers/options'
+import { vectorRuntimeOptions } from '../../forecast-layers/options'
 import { joinUrl } from '../../url/joinUrl'
 
 export function useMapControls(

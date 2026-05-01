@@ -1,17 +1,12 @@
-import { createAbortError } from '../../abort'
+import type { Map as MapLibreMap } from 'maplibre-gl'
+
 import { FORECAST_LAYER_BEFORE_ID, type ForecastLayer } from '../types'
-import { loadVectorFrameWindow } from './engine/frame'
 import { createVectorRuntime } from './engine/runtime'
 import { getVectorController } from './controller'
 import { vectorRuntimeOptions } from './options'
-import type { VectorFrameWindowData } from './engine/types'
+import type { VectorFrameWindowData } from '../../forecast-frame/vector'
 
 export const VECTOR_LAYER_ID = 'vector-layer-id'
-
-const vectorFrameWindowByMap = new WeakMap<object, {
-  reuseKey: string
-  frameWindow: VectorFrameWindowData
-}>()
 
 export const vectorLayerAdapter: ForecastLayer = {
   layerId: VECTOR_LAYER_ID,
@@ -19,36 +14,15 @@ export const vectorLayerAdapter: ForecastLayer = {
     if (map.getLayer(VECTOR_LAYER_ID)) return
     map.addLayer(createVectorCustomLayer(), FORECAST_LAYER_BEFORE_ID)
   },
-  async applySync(args) {
-    if (args.signal.aborted) throw createAbortError()
-    const variable = args.activeVector
-    const reuseKey = `${args.manifest.cycle}:${args.manifest.revision}:${variable}`
-    const previousFrameWindow = vectorFrameWindowByMap.get(args.map)
+}
 
-    const frame = await loadVectorFrameWindow({
-      config: args.config,
-      manifest: args.manifest,
-      previousWindow: previousFrameWindow?.reuseKey === reuseKey
-        ? previousFrameWindow.frameWindow
-        : null,
-      lowerHourToken: args.lowerHourToken,
-      upperHourToken: args.upperHourToken,
-      selectedValidTimeMs: args.selectedValidTimeMs,
-      mix: args.mix,
-      variable,
-      signal: args.signal,
-    })
+export function applyVectorFrame(map: MapLibreMap, frame: VectorFrameWindowData): void {
+  const controller = getVectorController(map)
+  if (!controller?.isAvailable()) {
+    throw new Error('Vector runtime unavailable (WebGL2 required)')
+  }
 
-    if (args.signal.aborted) throw createAbortError()
-
-    const controller = getVectorController(args.map)
-    if (!controller?.isAvailable()) {
-      throw new Error('Vector runtime unavailable (WebGL2 required)')
-    }
-
-    controller.applyFrame(frame)
-    vectorFrameWindowByMap.set(args.map, { reuseKey, frameWindow: frame })
-  },
+  controller.applyFrame(frame)
 }
 
 function createVectorCustomLayer() {

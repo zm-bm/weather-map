@@ -1,24 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { asVectorVariableId } from '../../manifest'
 import { FORECAST_LAYER_BEFORE_ID } from '../types'
-import { vectorLayerAdapter } from './adapter'
+import { applyVectorFrame, vectorLayerAdapter } from './adapter'
 import { vectorRuntimeOptions } from './options'
-import {
-  createConfigFixture,
-  createManifestFixture,
-  createMapFixture,
-  createSignalFixture,
-} from '../../test/fixtures'
 
 const mocks = vi.hoisted(() => ({
-  loadVectorFrameWindow: vi.fn(),
   getVectorController: vi.fn(),
   createVectorRuntime: vi.fn(),
-}))
-
-vi.mock('./engine/frame', () => ({
-  loadVectorFrameWindow: mocks.loadVectorFrameWindow,
 }))
 
 vi.mock('./controller', () => ({
@@ -29,28 +17,9 @@ vi.mock('./engine/runtime', () => ({
   createVectorRuntime: mocks.createVectorRuntime,
 }))
 
-function createArgs(
-  signal: AbortSignal,
-  manifest = createManifestFixture({ forecastHours: ['000'] })
-) {
-  return {
-    map: createMapFixture(),
-    config: createConfigFixture(),
-    manifest,
-    selectedValidTimeMs: 0,
-    lowerHourToken: '000',
-    upperHourToken: '000',
-    mix: 0,
-    activeScalar: manifest.scalarVariables[0],
-    activeVector: manifest.vectorVariables[0],
-    signal,
-  }
-}
-
 describe('vectorLayerAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.loadVectorFrameWindow.mockResolvedValue({ lower: { metadata: { variableId: 'wind10m_uv' } } })
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => true,
       applyFrame: vi.fn(),
@@ -80,94 +49,41 @@ describe('vectorLayerAdapter', () => {
     expect(beforeId).toBe(FORECAST_LAYER_BEFORE_ID)
   })
 
-  it('loads and applies the active vector', async () => {
+  it('skips install when the layer already exists', () => {
+    const map = {
+      getLayer: vi.fn(() => ({ id: 'vector-layer-id' })),
+      addLayer: vi.fn(),
+    }
+
+    vectorLayerAdapter.install(map as never)
+
+    expect(map.addLayer).not.toHaveBeenCalled()
+    expect(mocks.createVectorRuntime).not.toHaveBeenCalled()
+  })
+
+  it('applies a loaded vector frame to the runtime controller', () => {
     const frame = { lower: { metadata: { variableId: 'wind10m_uv' } } }
     const applyFrame = vi.fn()
-
-    mocks.loadVectorFrameWindow.mockResolvedValue(frame)
+    const map = {}
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => true,
       applyFrame,
       setEnabled: vi.fn(),
     })
 
-    await vectorLayerAdapter.applySync!(createArgs(createSignalFixture()))
+    applyVectorFrame(map as never, frame as never)
 
-    expect(mocks.loadVectorFrameWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ variable: 'wind10m_uv' })
-    )
     expect(applyFrame).toHaveBeenCalledWith(frame)
   })
 
-  it('reuses the previous frame window for the same map and vector', async () => {
-    const map = createMapFixture()
-    const firstFrame = {
-      lower: { metadata: { variableId: 'wind10m_uv' } },
-      upper: { metadata: { variableId: 'wind10m_uv' } },
-    }
-    const secondFrame = {
-      lower: { metadata: { variableId: 'wind10m_uv' } },
-      upper: { metadata: { variableId: 'wind10m_uv' } },
-    }
-    mocks.loadVectorFrameWindow
-      .mockResolvedValueOnce(firstFrame)
-      .mockResolvedValueOnce(secondFrame)
-
-    await vectorLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      map,
-      lowerHourToken: '000',
-      upperHourToken: '001',
-      mix: 0.5,
-    })
-    await vectorLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      map,
-      lowerHourToken: '001',
-      upperHourToken: '002',
-      mix: 0.25,
-    })
-
-    expect(mocks.loadVectorFrameWindow).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ previousWindow: null })
-    )
-    expect(mocks.loadVectorFrameWindow).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ previousWindow: firstFrame })
-    )
-  })
-
-  it('forwards the requested active vector id', async () => {
-    const frame = { lower: { metadata: { variableId: 'gust10m_uv' } } }
-    const applyFrame = vi.fn()
-    mocks.loadVectorFrameWindow.mockResolvedValue(frame)
-    mocks.getVectorController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame,
-      setEnabled: vi.fn(),
-    })
-
-    await vectorLayerAdapter.applySync!({
-      ...createArgs(createSignalFixture()),
-      activeVector: asVectorVariableId('gust10m_uv'),
-    })
-
-    expect(mocks.loadVectorFrameWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ variable: 'gust10m_uv' })
-    )
-    expect(applyFrame).toHaveBeenCalledWith(frame)
-  })
-
-  it('throws when runtime is unavailable', async () => {
-    mocks.loadVectorFrameWindow.mockResolvedValue({ lower: { metadata: { variableId: 'wind10m_uv' } } })
+  it('throws when runtime is unavailable', () => {
     mocks.getVectorController.mockReturnValue({
       isAvailable: () => false,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
     })
 
-    await expect(vectorLayerAdapter.applySync!(createArgs(createSignalFixture())))
-      .rejects.toThrow('Vector runtime unavailable (WebGL2 required)')
+    expect(() => applyVectorFrame({} as never, { lower: { metadata: { variableId: 'wind10m_uv' } } } as never))
+      .toThrow('Vector runtime unavailable (WebGL2 required)')
   })
 })

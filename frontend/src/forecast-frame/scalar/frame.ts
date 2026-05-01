@@ -2,20 +2,32 @@ import type {
   CycleManifest,
   ManifestEncodingSpec,
   ScalarEncodingSpec,
-} from '../../../manifest'
-import type { WeatherMapConfig } from '../../../config'
-import { loadFramePayload, normalizeFrameHourToken } from '../../../forecast-frame/loader'
-import { loadFrameWindow } from '../../../forecast-frame/window'
-import type { ForecastFrameSelection } from '../../../forecast-time/time'
-import { resolveFrameSpec } from '../../../forecast-frame/spec'
-import { getScalarStyle } from '../../../forecast-metadata/scalar'
+} from '../../manifest'
+import { createAbortError } from '../../abort'
+import type { WeatherMapConfig } from '../../config'
+import { loadFramePayload, normalizeFrameHourToken } from '../loader'
+import { loadFrameWindow } from '../window'
+import type { ForecastFrameSelection } from '../../forecast-time'
+import { resolveFrameSpec } from '../spec'
+import { getScalarStyle } from '../../forecast-metadata/scalar'
 import { decodeScalarPayloadToValues } from './codec'
 import type { ScalarFrameData, ScalarFrameWindowData } from './types'
+
+const DECODED_SCALAR_FRAME_CACHE_LIMIT = 6
+const decodedScalarFrameCache = new Map<string, ScalarFrameData>()
 
 export type LoadScalarFrameArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
   hourToken: string
+  variable: string
+  signal: AbortSignal
+}
+
+export type PrefetchScalarFramesArgs = {
+  config: WeatherMapConfig
+  manifest: CycleManifest
+  hourTokens: string[]
   variable: string
   signal: AbortSignal
 }
@@ -29,8 +41,14 @@ export type LoadScalarFrameWindowArgs = ForecastFrameSelection & {
 }
 
 export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<ScalarFrameData> {
+  if (args.signal.aborted) throw createAbortError()
+
   const { config, manifest, hourToken, variable, signal } = args
   const normalizedHourToken = normalizeFrameHourToken(hourToken)
+  const cacheKey = decodedScalarFrameCacheKey(manifest, variable, normalizedHourToken)
+  const cachedFrame = getDecodedScalarFrame(cacheKey)
+  if (cachedFrame) return cachedFrame
+
   const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'scalar')
   const encoding = resolveScalarEncoding(variable, spec.encoding)
   const { payload } = await loadFramePayload({
@@ -44,6 +62,8 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     signal,
     verifyPayloadSha256: config.verifyPayloadSha256,
   })
+  if (signal.aborted) throw createAbortError()
+
   const values = decodeScalarPayloadToValues(payload, encoding)
   const expectedCellCount = spec.grid.nx * spec.grid.ny
   if (values.length !== expectedCellCount) {
@@ -54,7 +74,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   }
   const catalog = getScalarStyle(variable)
 
-  return {
+  const frame = {
     hourToken: normalizedHourToken,
     variableId: variable,
     grid: spec.grid,
@@ -63,6 +83,21 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     displayRange: catalog.displayRange,
     colortable: catalog.colortable,
   }
+  setDecodedScalarFrame(cacheKey, frame)
+
+  return frame
+}
+
+export async function prefetchScalarFrames(args: PrefetchScalarFramesArgs): Promise<void> {
+  await Promise.all(
+    uniqueNormalizedHourTokens(args.hourTokens).map((hourToken) => loadScalarFrame({
+      config: args.config,
+      manifest: args.manifest,
+      hourToken,
+      variable: args.variable,
+      signal: args.signal,
+    }))
+  )
 }
 
 export async function loadScalarFrameWindow(
@@ -87,6 +122,55 @@ export async function loadScalarFrameWindow(
       signal,
     }),
   })
+}
+
+export function clearDecodedScalarFrameCache() {
+  decodedScalarFrameCache.clear()
+}
+
+export function decodedScalarFrameCacheKey(
+  manifest: CycleManifest,
+  variable: string,
+  hourToken: string
+): string {
+  return `${manifest.cycle}:${manifest.revision}:${variable}:${normalizeFrameHourToken(hourToken)}`
+}
+
+function getDecodedScalarFrame(cacheKey: string): ScalarFrameData | null {
+  const frame = decodedScalarFrameCache.get(cacheKey)
+  if (!frame) return null
+
+  decodedScalarFrameCache.delete(cacheKey)
+  decodedScalarFrameCache.set(cacheKey, frame)
+  return frame
+}
+
+function setDecodedScalarFrame(cacheKey: string, frame: ScalarFrameData): void {
+  if (decodedScalarFrameCache.has(cacheKey)) {
+    decodedScalarFrameCache.delete(cacheKey)
+  }
+
+  decodedScalarFrameCache.set(cacheKey, frame)
+
+  while (decodedScalarFrameCache.size > DECODED_SCALAR_FRAME_CACHE_LIMIT) {
+    const oldestKey = decodedScalarFrameCache.keys().next().value
+    if (oldestKey == null) return
+    decodedScalarFrameCache.delete(oldestKey)
+  }
+}
+
+function uniqueNormalizedHourTokens(hourTokens: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+
+  for (const hourToken of hourTokens) {
+    const normalized = normalizeFrameHourToken(hourToken)
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    unique.push(normalized)
+  }
+
+  return unique
 }
 
 export function canInterpolateScalarFrames(

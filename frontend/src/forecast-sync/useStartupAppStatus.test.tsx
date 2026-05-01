@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   clearStatus: vi.fn(),
 }))
 
-vi.mock('../app-status/AppStatusContext', () => ({
+vi.mock('../app-status', () => ({
   useAppStatusActions: () => ({
     setStatus: mocks.setStatus,
     clearStatus: mocks.clearStatus,

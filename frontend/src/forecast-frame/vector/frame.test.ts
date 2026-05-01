@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from '../../../manifest'
+import type { CycleManifest } from '../../manifest'
 import { loadVectorFrame } from './frame'
 import {
   createConfigFixture,
   createFrameManifestFixture,
   createSignalFixture,
   createVectorPayloadFixture,
-} from '../../../test/fixtures'
-import { stubFetchArrayBufferOnce } from '../../../test/fetch'
+} from '../../test/fixtures'
+import { stubFetchArrayBufferOnce } from '../../test/fetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()

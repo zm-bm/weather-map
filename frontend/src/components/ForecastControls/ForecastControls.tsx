@@ -1,7 +1,7 @@
 import type { ScalarVariableId } from '../../manifest'
 import { formatCycleRunTimeLabel } from '../../forecast-time'
 import { getScalarMeta } from '../../forecast-metadata/scalar'
-import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
+import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 
 function formatCycleHourLabel(cycle: string | null): string {
   const match = /^(\d{8})(\d{2})$/.exec(cycle ?? '')

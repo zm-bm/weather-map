@@ -1,4 +1,4 @@
-import type { ForecastFrameSelection } from '../forecast-time/time'
+import type { ForecastFrameSelection } from '../forecast-time'
 
 import { normalizeFrameHourToken } from './loader'
 

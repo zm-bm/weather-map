@@ -13,13 +13,21 @@ const mocks = vi.hoisted(() => ({
   useForecastTimeContext: vi.fn(),
 }))
 
-vi.mock('../forecast-selection/ForecastSelectionContext', () => ({
-  useForecastSelectionContext: () => mocks.useForecastSelectionContext(),
-}))
+vi.mock('../forecast-selection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-selection')>()
+  return {
+    ...actual,
+    useForecastSelectionContext: () => mocks.useForecastSelectionContext(),
+  }
+})
 
-vi.mock('../forecast-time/ForecastTimeContext', () => ({
-  useForecastTimeContext: () => mocks.useForecastTimeContext(),
-}))
+vi.mock('../forecast-time', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-time')>()
+  return {
+    ...actual,
+    useForecastTimeContext: () => mocks.useForecastTimeContext(),
+  }
+})
 
 describe('useSyncRequest', () => {
   beforeEach(() => {

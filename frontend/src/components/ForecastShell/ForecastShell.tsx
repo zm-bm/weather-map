@@ -1,7 +1,6 @@
 import type { CycleManifest } from '../../manifest'
-import ForecastSelectionProvider from '../../forecast-selection/ForecastSelectionProvider'
+import { ForecastSelectionProvider } from '../../forecast-selection'
 import { ForecastTimeProvider } from '../../forecast-time'
-import MapProbeProvider from '../../map-probe/MapProbeProvider'
 import TimelineBar from '../TimelineBar'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
@@ -22,34 +21,29 @@ export default function ForecastShell({
   const forecastTimeProviderKey = manifest == null
     ? 'forecast-time:none'
     : `forecast-time:${manifest.cycle}:${manifest.forecastHours.join(',')}`
-  const mapProbeProviderKey = manifest == null
-    ? 'probe:none'
-    : `probe:${manifest.cycle}`
 
   return (
     <main className="forecast-screen">
       <ForecastSelectionProvider manifest={manifest}>
-        <MapProbeProvider key={mapProbeProviderKey}>
-          <ForecastTimeProvider key={forecastTimeProviderKey} manifest={manifest}>
-            <div className="forecast-stage">
-              <ForecastMap />
-
-              {manifest && !DEBUG_BASEMAP_ONLY && (
-                <>
-                  <MapSyncIndicator />
-                  <ForecastPanel />
-                  <div className="forecast-stage__legend">
-                    <LegendPanel />
-                  </div>
-                </>
-              )}
-            </div>
+        <ForecastTimeProvider key={forecastTimeProviderKey} manifest={manifest}>
+          <div className="forecast-stage">
+            <ForecastMap />
 
             {manifest && !DEBUG_BASEMAP_ONLY && (
-              <TimelineBar />
+              <>
+                <MapSyncIndicator />
+                <ForecastPanel />
+                <div className="forecast-stage__legend">
+                  <LegendPanel />
+                </div>
+              </>
             )}
-          </ForecastTimeProvider>
-        </MapProbeProvider>
+          </div>
+
+          {manifest && !DEBUG_BASEMAP_ONLY && (
+            <TimelineBar />
+          )}
+        </ForecastTimeProvider>
       </ForecastSelectionProvider>
     </main>
   )

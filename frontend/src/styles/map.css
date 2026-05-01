@@ -1,8 +1,7 @@
 .forecast-screen {
   --wm-chrome-inset: 20px;
   --wm-forecast-panel-width: 370px;
-  --wm-forecast-mobile-max-height: 180px;
-  --wm-mobile-map-control-top: 196px;
+  --wm-mobile-map-control-top: 108px;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
@@ -103,8 +102,7 @@
 @media (max-width: 760px) {
   .forecast-screen {
     --wm-chrome-inset: 12px;
-    --wm-forecast-mobile-max-height: 220px;
-    --wm-mobile-map-control-top: 236px;
+    --wm-mobile-map-control-top: 108px;
     grid-template-rows: minmax(380px, 1fr) auto;
   }
 
@@ -120,8 +118,7 @@
 
 @media (max-width: 420px) {
   .forecast-screen {
-    --wm-forecast-mobile-max-height: 216px;
-    --wm-mobile-map-control-top: 232px;
+    --wm-mobile-map-control-top: 106px;
     grid-template-rows: minmax(360px, 1fr) auto;
   }
 }

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { blendScalarValues, probeScalarFrame, probeScalarFrameWindow } from './probe'
-import type { ScalarFrameData } from './engine/types'
+import {
+  blendScalarValues,
+  createScalarProbeSampler,
+  probeScalarFrame,
+  probeScalarFrameWindow,
+  sampleScalarFrameWindowWithSampler,
+  sampleScalarFrameWithSampler,
+} from './scalar'
+import type { ScalarFrameData } from '../forecast-frame/scalar'
 
 function createFrame(values: number[]): ScalarFrameData {
   return {
@@ -67,7 +74,7 @@ describe('probeScalarFrame', () => {
   })
 
   it('blends probe values across a scalar frame window', () => {
-    const probe = probeScalarFrameWindow({
+    const frameWindow = {
       lower: createFrame([10, 20, 30, 40]),
       upper: {
         ...createFrame([20, 30, 40, 50]),
@@ -77,18 +84,35 @@ describe('probeScalarFrame', () => {
       lowerHourToken: '000',
       upperHourToken: '001',
       mix: 0.5,
-    }, {
+    }
+    const coords = {
       lon: 0.5,
       lat: 0.5,
-    })
+    }
+    const probe = probeScalarFrameWindow(frameWindow, coords)
+    const sampler = createScalarProbeSampler(frameWindow.lower, coords)
 
     expect(probe?.value).toBe(30)
     expect(probe?.mix).toBe(0.5)
+    expect(sampler).not.toBeNull()
+    expect(sampleScalarFrameWindowWithSampler(frameWindow, sampler!)).toBe(probe?.value)
   })
 
   it('falls back to the available side when blending nodata values', () => {
     expect(blendScalarValues(12, null, 0.5)).toBe(12)
     expect(blendScalarValues(null, 24, 0.5)).toBe(24)
     expect(blendScalarValues(null, null, 0.5)).toBeNull()
+  })
+
+  it('samples a scalar frame from a cached probe sampler', () => {
+    const frame = createFrame([10, Number.NaN, 30, 50])
+    const coords = {
+      lon: 0.5,
+      lat: 0.5,
+    }
+    const sampler = createScalarProbeSampler(frame, coords)
+
+    expect(sampler).not.toBeNull()
+    expect(sampleScalarFrameWithSampler(frame, sampler!)).toBe(probeScalarFrame(frame, coords)?.value)
   })
 })

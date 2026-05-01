@@ -18,13 +18,15 @@ import {
   unregisterScalarController,
   type ScalarController,
 } from '../controller'
-import { canInterpolateScalarFrames } from './frame'
+import {
+  canInterpolateScalarFrames,
+  type ScalarFrameData,
+} from '../../../forecast-frame/scalar'
 import {
   DEFAULT_SCALAR_RUNTIME_OPTIONS,
   type ScalarColorSamplingMode,
   type ScalarRuntimeOptions,
 } from '../options'
-import type { ScalarFrameData } from './types'
 
 type NormalizedColortableStop = [number, number, number, number]
 

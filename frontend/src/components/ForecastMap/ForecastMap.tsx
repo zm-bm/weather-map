@@ -1,7 +1,7 @@
 import config from '../../config'
 import { useForecastSync } from '../../forecast-sync'
-import { useMapClick } from '../../map/interactions/useMapClick'
 import { useMap } from '../../map/useMap'
+import ForecastPlaceProbes from '../ForecastPlaceProbes'
 
 export type ForecastMapProps = {
   containerId?: string
@@ -12,8 +12,6 @@ export default function ForecastMap({
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
 
-  useMapClick(mapRef)
-
   useForecastSync({
     getMap,
     mapReadyVersion,
@@ -23,6 +21,7 @@ export default function ForecastMap({
   return (
     <div className="map-stage">
       <div id={containerId} className="map-stage__viewport" />
+      <ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={mapReadyVersion} />
     </div>
   )
 }

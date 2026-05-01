@@ -1,4 +1,4 @@
-import type { LoadedFrameWindow } from '../../../forecast-frame/window'
+import type { LoadedFrameWindow } from '../window'
 
 export const VECTOR_PAYLOAD_FORMAT = 'uv-i8-q0p5-v1'
 export const VECTOR_COMPONENT_ORDER = 'u_then_v'

@@ -2,13 +2,13 @@ import { renderHook } from '@testing-library/react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PLACE_LABEL_LAYER_IDS } from "../view/constants"
-import { BASEMAP_SOURCE_ID, PLACE_SOURCE_LAYER_ID } from "../view/constants"
+import { placeProbeLayerIds } from '../view/constants'
 import { useMapHover } from './useMapHover'
 
 type LayerHandler = (...args: unknown[]) => void
 
 type HoverableMap = MapLibreMap & {
+  setProbeLayerAvailable: (available: boolean) => void
   on: ReturnType<typeof vi.fn>
   off: ReturnType<typeof vi.fn>
   getLayer: ReturnType<typeof vi.fn>
@@ -16,11 +16,15 @@ type HoverableMap = MapLibreMap & {
   setFeatureState: ReturnType<typeof vi.fn>
 }
 
-function createHoverableMap() {
+function createHoverableMap(initialProbeLayerAvailable = true) {
   const handlers = new Map<string, LayerHandler>()
   const canvas = { style: { cursor: '' } }
+  let probeLayerAvailable = initialProbeLayerAvailable
 
   const map = {
+    setProbeLayerAvailable(available: boolean) {
+      probeLayerAvailable = available
+    },
     on: vi.fn((event: string, layerOrHandler: string | LayerHandler, maybeHandler?: LayerHandler) => {
       if (typeof layerOrHandler === 'function') {
         handlers.set(event, layerOrHandler)
@@ -29,7 +33,7 @@ function createHoverableMap() {
       if (maybeHandler) handlers.set(`${event}:${layerOrHandler}`, maybeHandler)
     }),
     off: vi.fn(),
-    getLayer: vi.fn((id: string) => (PLACE_LABEL_LAYER_IDS.includes(id as typeof PLACE_LABEL_LAYER_IDS[number]) ? { id } : undefined)),
+    getLayer: vi.fn((id: string) => (id === placeProbeLayerIds.layer && probeLayerAvailable ? { id } : undefined)),
     getCanvas: vi.fn(() => canvas),
     setFeatureState: vi.fn(),
   } as unknown as HoverableMap
@@ -38,46 +42,40 @@ function createHoverableMap() {
 }
 
 describe('useMapHover', () => {
-  it('attaches hover listeners after map load and updates hover state', () => {
+  it('attaches hover listeners and updates GeoJSON hover state', () => {
     const { map, handlers, canvas } = createHoverableMap()
     const mapRef = { current: map as MapLibreMap | null }
 
     renderHook(() => useMapHover(mapRef))
 
     expect(map.on).toHaveBeenCalledWith('load', expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('styledata', expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, expect.any(Function))
 
-    const onLoad = handlers.get('load')
-    expect(onLoad).toBeTypeOf('function')
-    onLoad?.()
-
-    for (const layerId of PLACE_LABEL_LAYER_IDS) {
-      expect(map.on).toHaveBeenCalledWith('mousemove', layerId, expect.any(Function))
-      expect(map.on).toHaveBeenCalledWith('mouseleave', layerId, expect.any(Function))
-    }
-
-    const onMove = handlers.get(`mousemove:${PLACE_LABEL_LAYER_IDS[0]}`)
-    const onLeave = handlers.get(`mouseleave:${PLACE_LABEL_LAYER_IDS[0]}`)
+    const onMove = handlers.get(`mousemove:${placeProbeLayerIds.layer}`)
+    const onLeave = handlers.get(`mouseleave:${placeProbeLayerIds.layer}`)
 
     onMove?.({
-      features: [{ properties: { name: 'Chicago' } }],
+      features: [{ id: 'Chicago:-87.6250:41.8750' }],
     })
 
     expect(canvas.style.cursor).toBe('pointer')
     expect(map.setFeatureState).toHaveBeenLastCalledWith(
-      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Chicago' },
+      { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: true }
     )
 
     onMove?.({
-      features: [{ properties: { name: 'Milwaukee' } }],
+      features: [{ properties: { id: 'Milwaukee:-87.9000:43.0400' } }],
     })
 
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Chicago' },
+      { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: false }
     )
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Milwaukee' },
+      { source: placeProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
       { hover: true }
     )
 
@@ -85,9 +83,24 @@ describe('useMapHover', () => {
 
     expect(canvas.style.cursor).toBe('')
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: BASEMAP_SOURCE_ID, sourceLayer: PLACE_SOURCE_LAYER_ID, id: 'Milwaukee' },
+      { source: placeProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
       { hover: false }
     )
+  })
+
+  it('can attach after the probe layer is added later', () => {
+    const { map, handlers } = createHoverableMap(false)
+    const mapRef = { current: map as MapLibreMap | null }
+
+    renderHook(() => useMapHover(mapRef))
+
+    expect(map.on).not.toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
+
+    map.setProbeLayerAvailable(true)
+    handlers.get('styledata')?.()
+
+    expect(map.on).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, expect.any(Function))
   })
 
   it('ignores rendered features that do not expose a name', () => {
@@ -95,9 +108,8 @@ describe('useMapHover', () => {
     const mapRef = { current: map as MapLibreMap | null }
 
     renderHook(() => useMapHover(mapRef))
-    handlers.get('load')?.()
 
-    const onMove = handlers.get(`mousemove:${PLACE_LABEL_LAYER_IDS[0]}`)
+    const onMove = handlers.get(`mousemove:${placeProbeLayerIds.layer}`)
     onMove?.({
       features: [{ properties: { osm_id: 4242 } }],
     })
@@ -110,18 +122,15 @@ describe('useMapHover', () => {
     const mapRef = { current: map as MapLibreMap | null }
 
     const { unmount } = renderHook(() => useMapHover(mapRef))
-    handlers.get('load')?.()
 
     const onLoad = handlers.get('load')
+    const onStyleData = handlers.get('styledata')
 
     unmount()
 
     expect(map.off).toHaveBeenCalledWith('load', onLoad)
-    for (const layerId of PLACE_LABEL_LAYER_IDS) {
-      const onMove = handlers.get(`mousemove:${layerId}`)
-      const onLeave = handlers.get(`mouseleave:${layerId}`)
-      expect(map.off).toHaveBeenCalledWith('mousemove', layerId, onMove)
-      expect(map.off).toHaveBeenCalledWith('mouseleave', layerId, onLeave)
-    }
+    expect(map.off).toHaveBeenCalledWith('styledata', onStyleData)
+    expect(map.off).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, handlers.get(`mousemove:${placeProbeLayerIds.layer}`))
+    expect(map.off).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, handlers.get(`mouseleave:${placeProbeLayerIds.layer}`))
   })
 })

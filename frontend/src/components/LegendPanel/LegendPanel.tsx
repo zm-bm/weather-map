@@ -1,4 +1,4 @@
-import { useLoadedForecastSelectionContext } from '../../forecast-selection/ForecastSelectionContext'
+import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import { getScalarMeta } from '../../forecast-metadata/scalar'
 import {
   canToggleUnitSystem,
