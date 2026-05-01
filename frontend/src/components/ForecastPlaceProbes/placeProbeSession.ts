@@ -2,15 +2,21 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   forecastProbeFrameStore,
-  forecastProbePlaces,
-  type ForecastProbePlace,
-  type ForecastProbePlaceScalarSamplers,
 } from '../../forecast-probe'
 import type { ScalarFrameWindowData } from '../../forecast-frame/scalar'
+import {
+  mapPlaceSelection,
+  type MapSelectedPlace,
+} from '../../map/place-selection'
 import {
   mapPlaceProbeLayer,
   type PlaceProbeLabelSnapshot,
 } from '../../map/view/placeProbeLayer'
+import {
+  createScalarPlaceProbeValueLabels,
+  refreshScalarPlaceProbeSamplers,
+  type PlaceProbeScalarSamplers,
+} from './placeProbeValues'
 
 type ProbeValueFormatter = (
   rawProbeValue: number | null,
@@ -36,9 +42,9 @@ export function createPlaceProbeSession({
 }: PlaceProbeSessionOptions): PlaceProbeSession {
   let started = false
   let currentFrame: ScalarFrameWindowData | null = null
-  let visiblePlaces: ForecastProbePlace[] = []
+  let visiblePlaces: MapSelectedPlace[] = []
   let visiblePlaceKey = ''
-  let samplerState: ForecastProbePlaceScalarSamplers = forecastProbePlaces.refreshScalarSamplers(null, [])
+  let samplerState: PlaceProbeScalarSamplers = refreshScalarPlaceProbeSamplers(null, [])
   let labelsByPlaceId: PlaceProbeLabelSnapshot = new Map()
   let pendingSourceUpdateId: number | null = null
   let needsFullSourceUpdate = true
@@ -46,7 +52,7 @@ export function createPlaceProbeSession({
   let unsubscribeFrameStore: (() => void) | null = null
 
   const rebuildSamplers = (force: boolean) => {
-    samplerState = forecastProbePlaces.refreshScalarSamplers(
+    samplerState = refreshScalarPlaceProbeSamplers(
       currentFrame,
       visiblePlaces,
       samplerState,
@@ -56,7 +62,7 @@ export function createPlaceProbeSession({
 
   const updateSourceData = () => {
     pendingSourceUpdateId = null
-    const labels = forecastProbePlaces.createScalarValueLabels(
+    const labels = createScalarPlaceProbeValueLabels(
       visiblePlaces,
       currentFrame,
       samplerState,
@@ -83,8 +89,8 @@ export function createPlaceProbeSession({
     pendingSourceUpdateId = window.requestAnimationFrame(updateSourceData)
   }
 
-  const replaceVisiblePlaces = (nextVisiblePlaces: ForecastProbePlace[]) => {
-    const nextVisiblePlaceKey = forecastProbePlaces.getKey(nextVisiblePlaces)
+  const replaceVisiblePlaces = (nextVisiblePlaces: MapSelectedPlace[]) => {
+    const nextVisiblePlaceKey = mapPlaceSelection.getKey(nextVisiblePlaces)
     if (visiblePlaceKey === nextVisiblePlaceKey) return false
 
     visiblePlaces = nextVisiblePlaces
@@ -106,12 +112,13 @@ export function createPlaceProbeSession({
   const refreshPlaces = (followUpOnIdle = false) => {
     refreshOnNextIdle = false
     const selectionContext = mapPlaceProbeLayer.getSelectionContext(map)
-    const nextVisiblePlaces = forecastProbePlaces.selectVisible(
+    const nextVisiblePlaces = mapPlaceSelection.selectVisible(
       mapPlaceProbeLayer.queryBasemapPlaces(map),
       {
         zoom: map.getZoom(),
         bounds: selectionContext.bounds,
         project: selectionContext.project,
+        previousPlaces: visiblePlaces,
       },
     )
     if (shouldDeferProvisionalPlaceRefresh(followUpOnIdle, visiblePlaces, nextVisiblePlaces)) {
@@ -169,7 +176,7 @@ export function createPlaceProbeSession({
       currentFrame = null
       visiblePlaces = []
       visiblePlaceKey = ''
-      samplerState = forecastProbePlaces.refreshScalarSamplers(null, [])
+      samplerState = refreshScalarPlaceProbeSamplers(null, [])
       labelsByPlaceId.clear()
       refreshOnNextIdle = false
       needsFullSourceUpdate = true
@@ -181,8 +188,8 @@ export function createPlaceProbeSession({
 
 function shouldDeferProvisionalPlaceRefresh(
   followUpOnIdle: boolean,
-  currentPlaces: ForecastProbePlace[],
-  nextPlaces: ForecastProbePlace[],
+  currentPlaces: MapSelectedPlace[],
+  nextPlaces: MapSelectedPlace[],
 ): boolean {
   return followUpOnIdle &&
     currentPlaces.length > 0 &&

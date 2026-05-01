@@ -5,20 +5,14 @@ import {
   setForecastProbeFrame,
   subscribeForecastProbeFrame,
 } from './frame'
-import { forecastProbePlaces } from './places'
 import {
   createScalarProbeSampler,
   sampleScalarFrameWindowWithSampler,
 } from './scalar'
 
-export { forecastProbePlaces, useForecastProbeValueFormatter }
-export type {
-  ForecastProbePlace,
-  ForecastProbePlaceBounds,
-  ForecastProbePlaceScalarSamplers,
-  ForecastProbePlaceValueLabel,
-  SelectForecastProbePlacesOptions,
-} from './places'
+export { useForecastProbeValueFormatter }
+export type { ForecastProbeValueDisplay } from './display'
+export type { ScalarProbeSampler } from './scalar'
 
 export const forecastProbeFrameStore = {
   publish: setForecastProbeFrame,

@@ -89,53 +89,9 @@ vi.mock('../../forecast-probe', async () => {
         return vi.fn()
       },
     },
-    forecastProbePlaces: {
-      ...actual.forecastProbePlaces,
-      refreshScalarSamplers: (
-        frame: { lower?: unknown } | null,
-        places: Array<{ id: string }>,
-        previousSamplers?: { frameGridKey: string | null; placeKey: string; samplers: unknown[] },
-        force = false,
-      ) => {
-        const placeKey = places.map((place) => place.id).join('|')
-        if (frame == null) {
-          return {
-            frameGridKey: null,
-            placeKey,
-            samplers: [],
-          }
-        }
-
-        if (!force && previousSamplers?.frameGridKey === 'test-grid' && previousSamplers.placeKey === placeKey) {
-          return previousSamplers
-        }
-
-        return {
-          frameGridKey: 'test-grid',
-          placeKey,
-          samplers: places.map((place) => mocks.createScalarProbeSampler(frame.lower, place)),
-        }
-      },
-      createScalarValueLabels: (
-        places: Array<{ id: string; name: string; lon: number; lat: number; sortKey: number }>,
-        frame: unknown,
-        samplerState: { samplers: unknown[] },
-        formatProbeDisplay: (rawValue: number | null, loading?: boolean) => { text: string },
-      ) => places.map((place, index) => {
-        const sampler = samplerState.samplers[index]
-        const rawValue = frame != null && sampler != null
-          ? mocks.sampleScalarFrameWindowWithSampler(frame, sampler)
-          : null
-
-        return {
-          id: place.id,
-          name: place.name,
-          lon: place.lon,
-          lat: place.lat,
-          sortKey: place.sortKey,
-          probeText: formatProbeDisplay(rawValue, frame == null).text,
-        }
-      }),
+    scalarProbe: {
+      createPointSampler: mocks.createScalarProbeSampler,
+      sampleFrameWindowWithSampler: mocks.sampleScalarFrameWindowWithSampler,
     },
     useForecastProbeValueFormatter: () => mocks.formatProbeDisplay,
   }
@@ -147,6 +103,7 @@ function createPlaceFeature(
   lat: number,
   options: {
     capital?: 'yes'
+    nameEn?: string
     population?: number
     populationRank?: number
   } = {}
@@ -160,6 +117,7 @@ function createPlaceFeature(
     },
     properties: {
       name,
+      'name:en': options.nameEn,
       kind: 'locality',
       capital: options.capital,
       population: options.population,
@@ -238,7 +196,7 @@ function createProbeablePlacesMap(): ProbeablePlacesMap {
 
 function getLastProbeCollection(map: ProbeablePlacesMap) {
   return map.probeSource?.setData.mock.lastCall?.[0] as
-    | { features: Array<{ properties: { name: string; probeText: string; sortKey: number } }> }
+    | { features: Array<{ properties: { name: string; localName: string; probeText: string; sortKey: number } }> }
     | undefined
 }
 
@@ -330,8 +288,20 @@ describe('ForecastPlaceProbes', () => {
       id: placeProbeLayerIds.layer,
       layout: expect.objectContaining({
         'symbol-sort-key': ['get', 'sortKey'],
-        'text-overlap': 'never',
-        'text-padding': 0,
+        'text-justify': 'auto',
+        'text-padding': 1,
+        'text-radial-offset': 0.5,
+        'text-variable-anchor': [
+          'center',
+          'bottom',
+          'top',
+          'right',
+          'left',
+          'bottom-right',
+          'bottom-left',
+          'top-right',
+          'top-left',
+        ],
       }),
     }))
     expect(map.querySourceFeatures).toHaveBeenCalledWith(
@@ -343,6 +313,33 @@ describe('ForecastPlaceProbes', () => {
       expect.objectContaining({ name: 'Chicago', sortKey: 0, probeText: '20 F' }),
       expect.objectContaining({ name: 'Milwaukee', sortKey: 1, probeText: '20 F' }),
     ])
+  })
+
+  it('renders non-latin local names under English display names', () => {
+    const map = createProbeablePlacesMap()
+    map.setSourceFeatures([
+      createPlaceFeature('東京', 139.69, 35.68, {
+        nameEn: 'Tokyo',
+        population: 14_000_000,
+      }),
+    ])
+
+    render(<ForecastPlaceProbes mapRef={{ current: map }} mapReadyVersion={1} />)
+    act(flushAnimationFrames)
+
+    const addedLayer = map.addLayer.mock.calls[0]?.[0] as
+      | { layout?: Record<string, unknown> }
+      | undefined
+
+    expect(addedLayer?.layout?.['text-font']).toEqual(['NotoSansMonoCJKjpRegular'])
+    expect(JSON.stringify(addedLayer?.layout?.['text-field'])).toContain('localName')
+    expect(getLastProbeCollection(map)?.features[0]?.properties).toEqual(
+      expect.objectContaining({
+        name: 'Tokyo',
+        localName: '東京',
+        probeText: '20 F',
+      }),
+    )
   })
 
   it('updates playback frame values without querying source features or adding DOM nodes', () => {

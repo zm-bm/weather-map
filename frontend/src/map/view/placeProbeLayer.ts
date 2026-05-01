@@ -12,6 +12,7 @@ import { basemapLayerIds, placeProbeLayerIds } from './constants'
 type PlaceProbeFeatureProperties = {
   id: string
   name: string
+  localName: string
   sortKey: number
   probeText: string
 }
@@ -43,6 +44,7 @@ type PlaceProbeSelectionContext = {
 export type PlaceProbeValueLabel = {
   id: string
   name: string
+  localName: string | null
   lon: number
   lat: number
   sortKey: number
@@ -51,30 +53,61 @@ export type PlaceProbeValueLabel = {
 
 export type PlaceProbeLabelSnapshot = Map<string, PlaceProbeValueLabel>
 
-const PLACE_PROBE_LAYER_MIN_ZOOM = 3.5
-const PLACE_PROBE_COLLISION_PADDING_PX = 0
+const PLACE_LABEL_FONT_STACK = 'NotoSansMonoCJKjpRegular'
+const PLACE_PROBE_FORMAT = {
+  'font-scale': 1.15,
+  'text-color':'#e9cf3a',
+}
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
   id: placeProbeLayerIds.layer,
   type: 'symbol',
   source: placeProbeLayerIds.source,
-  minzoom: PLACE_PROBE_LAYER_MIN_ZOOM,
+  minzoom: 3.5,
   layout: {
     'symbol-sort-key': ['get', 'sortKey'],
-    'text-anchor': 'bottom',
-    'text-field': ['concat', ['get', 'name'], '\n', ['get', 'probeText']],
-    'text-font': ['Star4LargeRegular'],
-    'text-letter-spacing': 0.04,
-    'text-line-height': 1.38,
-    'text-max-width': 8,
-    'text-offset': [0, -0.2],
+    'text-field': [
+      'case',
+      ['!=', ['get', 'localName'], ''],
+      [
+        'format',
+        ['get', 'name'], {},
+        '\n', {},
+        ['get', 'localName'], {},
+        '\n', {},
+        ['get', 'probeText'], PLACE_PROBE_FORMAT,
+      ],
+      [
+        'format',
+        ['get', 'name'], {},
+        '\n', {},
+        ['get', 'probeText'], PLACE_PROBE_FORMAT,
+      ],
+    ],
+    'text-font': [PLACE_LABEL_FONT_STACK],
+    'text-justify': 'auto',
+    'text-letter-spacing': 0.01,
+    'text-line-height': 1.15,
+    'text-max-width': 10,
     'text-overlap': 'never',
-    'text-padding': PLACE_PROBE_COLLISION_PADDING_PX,
+    'text-padding': 1,
+    'text-radial-offset': 0.5,
     'text-size': [
       'interpolate', ['exponential', 1.2], ['zoom'],
       3, 12,
       7, 14,
       10, 17.5,
+    ],
+    'text-variable-anchor': [
+      'center',
+      'bottom',
+      'top',
+      'right',
+      'left',
+      'bottom-right',
+      'bottom-left',
+      'top-right',
+      'top-left',
     ],
   },
   paint: {
@@ -263,6 +296,9 @@ function buildPlaceProbeFeatureDiff(
   if (label.name !== previousLabel.name) {
     addOrUpdateProperties.push({ key: 'name', value: label.name })
   }
+  if (label.localName !== previousLabel.localName) {
+    addOrUpdateProperties.push({ key: 'localName', value: label.localName ?? '' })
+  }
   if (label.sortKey !== previousLabel.sortKey) {
     addOrUpdateProperties.push({ key: 'sortKey', value: label.sortKey })
   }
@@ -297,6 +333,7 @@ function buildPlaceProbeFeature(label: PlaceProbeValueLabel): PlaceProbeFeature 
     properties: {
       id: label.id,
       name: label.name,
+      localName: label.localName ?? '',
       sortKey: label.sortKey,
       probeText: label.probeText,
     },
