@@ -59,6 +59,37 @@ describe('TransportControls', () => {
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
+  it('toggles playback from the global space shortcut', () => {
+    render(<TransportControls />)
+
+    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+
+    expect(mocks.togglePlay).toHaveBeenCalledOnce()
+  })
+
+  it('ignores repeated space shortcut events', () => {
+    render(<TransportControls />)
+
+    fireEvent.keyDown(document, { key: ' ', code: 'Space', repeat: true })
+
+    expect(mocks.togglePlay).not.toHaveBeenCalled()
+  })
+
+  it('ignores the space shortcut while an interactive control has focus', () => {
+    render(
+      <>
+        <input aria-label="Location search" />
+        <TransportControls />
+      </>
+    )
+
+    const input = screen.getByRole('textbox', { name: 'Location search' })
+    input.focus()
+    fireEvent.keyDown(input, { key: ' ', code: 'Space' })
+
+    expect(mocks.togglePlay).not.toHaveBeenCalled()
+  })
+
   it('renders pause state and disables playback when timeline has one frame', () => {
     mocks.isPlaying = true
     mocks.forecastHours = ['000']
@@ -66,5 +97,8 @@ describe('TransportControls', () => {
     render(<TransportControls />)
 
     expect(screen.getByRole('button', { name: 'Pause playback' })).toBeDisabled()
+
+    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+    expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 })
