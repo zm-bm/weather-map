@@ -23,6 +23,8 @@ from .scalar_encoding import (
 from .stores import make_store
 
 ALLOWED_SCALAR_SOURCE_TRANSFORMS = SCALAR_SOURCE_TRANSFORMS
+DEFAULT_SCALAR_VARIABLE_GROUP_ID = "layers"
+DEFAULT_SCALAR_VARIABLE_GROUP_LABEL = "Layers"
 REQUIRED_SCALAR_VARIABLE_FIELDS = {
     "parameter",
     "level",
@@ -91,6 +93,7 @@ class PipelineConfig:
     workload: WorkloadConfig
     nomads: NomadsConfig
     scalar_variables: dict[str, dict[str, Any]]
+    scalar_variable_groups: tuple[dict[str, Any], ...]
     vector_variables: dict[str, dict[str, Any]]
 
     @staticmethod
@@ -108,6 +111,11 @@ class PipelineConfig:
             if not isinstance(layer_cfg, Mapping):
                 raise SystemExit(f"pipeline_config layer {layer_key!r} must be an object")
             _validate_scalar_variable_config(layer_key=str(layer_key), layer_cfg=layer_cfg)
+        scalar_variable_groups = _parse_scalar_variable_groups(
+            obj.get("scalar_variable_groups"),
+            scalar_variables_cfg=scalar_variables_obj,
+            workload_variables=workload.variables,
+        )
 
         vector_variables_obj = obj.get("vector_variables", {})
         if not isinstance(vector_variables_obj, dict):
@@ -117,6 +125,7 @@ class PipelineConfig:
             workload=workload,
             nomads=nomads,
             scalar_variables=scalar_variables_obj,
+            scalar_variable_groups=scalar_variable_groups,
             vector_variables=vector_variables_obj,
         )
 
@@ -245,6 +254,80 @@ def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -
         )
 
 
+def _default_scalar_variable_groups(workload_variables: tuple[str, ...]) -> tuple[dict[str, Any], ...]:
+    return (
+        {
+            "id": DEFAULT_SCALAR_VARIABLE_GROUP_ID,
+            "label": DEFAULT_SCALAR_VARIABLE_GROUP_LABEL,
+            "default_variable": workload_variables[0],
+            "variables": list(workload_variables),
+        },
+    )
+
+
+def _parse_scalar_variable_groups(
+    raw_value: Any,
+    *,
+    scalar_variables_cfg: Mapping[str, Mapping[str, Any]],
+    workload_variables: tuple[str, ...],
+) -> tuple[dict[str, Any], ...]:
+    if raw_value is None:
+        return _default_scalar_variable_groups(workload_variables)
+    if not isinstance(raw_value, list) or not raw_value:
+        raise SystemExit("scalar_variable_groups must be a non-empty array when provided")
+
+    workload_set = set(workload_variables)
+    seen_group_ids: set[str] = set()
+    seen_variables: set[str] = set()
+    groups: list[dict[str, Any]] = []
+
+    for group_index, raw_group in enumerate(raw_value):
+        field_name = f"scalar_variable_groups[{group_index}]"
+        if not isinstance(raw_group, Mapping):
+            raise SystemExit(f"{field_name} must be an object")
+
+        group_id = _parse_non_empty_string(raw_group.get("id"), field_name=f"{field_name}.id")
+        if group_id in seen_group_ids:
+            raise SystemExit(f"Duplicate scalar variable group id: {group_id!r}")
+        seen_group_ids.add(group_id)
+
+        label = _parse_non_empty_string(raw_group.get("label"), field_name=f"{field_name}.label")
+        default_variable = _parse_non_empty_string(
+            raw_group.get("default_variable"),
+            field_name=f"{field_name}.default_variable",
+        )
+        variables = _parse_string_tuple(raw_group.get("variables"), field_name=f"{field_name}.variables")
+
+        if default_variable not in variables:
+            raise SystemExit(
+                f"{field_name}.default_variable {default_variable!r} must be included in {field_name}.variables"
+            )
+
+        for variable in variables:
+            if variable not in scalar_variables_cfg:
+                raise SystemExit(f"{field_name}.variables references unknown scalar variable {variable!r}")
+            if variable not in workload_set:
+                raise SystemExit(f"{field_name}.variables references scalar variable not in workload.variables: {variable!r}")
+            if variable in seen_variables:
+                raise SystemExit(f"Scalar variable appears in multiple groups: {variable!r}")
+            seen_variables.add(variable)
+
+        groups.append(
+            {
+                "id": group_id,
+                "label": label,
+                "default_variable": default_variable,
+                "variables": list(variables),
+            }
+        )
+
+    missing_variables = sorted(workload_set - seen_variables)
+    if missing_variables:
+        raise SystemExit(f"scalar_variable_groups missing workload variables: {missing_variables!r}")
+
+    return tuple(groups)
+
+
 def _parse_workload_forecast_hours(obj: Mapping[str, Any]) -> tuple[str, ...]:
     raw_forecast_hours = obj.get("forecast_hours")
     raw_start = obj.get("forecast_hour_start")
@@ -305,6 +388,12 @@ def _parse_string_tuple(raw_value: Any, *, field_name: str) -> tuple[str, ...]:
         values.append(raw_item.strip())
 
     return tuple(values)
+
+
+def _parse_non_empty_string(raw_value: Any, *, field_name: str) -> str:
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        raise SystemExit(f"{field_name} must be a non-empty string")
+    return raw_value.strip()
 
 
 def _parse_forecast_hour_int(raw_value: Any, *, field_name: str) -> int:

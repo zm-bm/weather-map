@@ -117,6 +117,7 @@ def _publish_cycle(*, ctx: ExecutionContext, cfg: PipelineConfig, cycle: str) ->
         scalar_variables=cfg.workload.variables,
         vector_variables=cfg.vector_variables.keys(),
         scalar_variables_cfg=cfg.scalar_variables,
+        scalar_variable_groups=cfg.scalar_variable_groups,
     )
 
 

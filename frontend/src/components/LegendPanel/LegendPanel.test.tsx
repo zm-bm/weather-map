@@ -1,6 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { asScalarVariableId } from '../../manifest'
 import {
   createManifestFixture,
   createScalarVariableMetaFixture,
@@ -16,6 +17,26 @@ function createLegendSelectionManifest(
   return createManifestFixture({
     cycle: '2026041100',
     scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface'])),
+    scalarVariableGroups: [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        defaultVariable: asScalarVariableId('tmp_surface'),
+        variables: [asScalarVariableId('tmp_surface')],
+      },
+      {
+        id: 'precipitation',
+        label: 'Precipitation',
+        defaultVariable: asScalarVariableId('prate_surface'),
+        variables: [asScalarVariableId('prate_surface')],
+      },
+      {
+        id: 'pressure',
+        label: 'Pressure',
+        defaultVariable: asScalarVariableId('prmsl_surface'),
+        variables: [asScalarVariableId('prmsl_surface')],
+      },
+    ],
     vectorVariables: ['wind10m_uv'],
     variableMeta: {
       tmp_surface: createScalarVariableMetaFixture(),
@@ -62,9 +83,7 @@ describe('LegendPanel', () => {
     expect(tickLabelsAfterSelect).toContain('50')
     expect(tickLabelsAfterSelect).not.toContain(' C')
 
-    fireEvent.change(screen.getByLabelText('Scalar layer'), {
-      target: { value: 'prate_surface' },
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
     expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('mm/hr')
 
     fireEvent.click(screen.getByRole('button', { name: /cycle precipitation rate units/i }))

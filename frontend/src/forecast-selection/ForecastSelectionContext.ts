@@ -11,6 +11,7 @@ type ForecastSelectionContextLoadedValue = {
   manifest: CycleManifest
   cycle: string
   scalarVariables: CycleManifest['scalarVariables']
+  scalarVariableGroups: CycleManifest['scalarVariableGroups']
   vectorVariables: CycleManifest['vectorVariables']
   variableMeta: CycleManifest['variableMeta']
   activeScalar: ScalarVariableId
@@ -26,6 +27,7 @@ type ForecastSelectionContextUnloadedValue = {
   manifest: null
   cycle: string | null
   scalarVariables: []
+  scalarVariableGroups: []
   vectorVariables: []
   variableMeta: CycleManifest['variableMeta'] | null
   activeScalar: null

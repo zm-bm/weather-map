@@ -56,4 +56,34 @@ describe('getUnitDisplay', () => {
 
     expect(formatUnitValue(55.25, getUnitOption(display))).toBe('55')
   })
+
+  it('treats dew point as a temperature unit', () => {
+    const display = getUnitDisplay({
+      id: 'dewpoint_surface',
+      label: 'Dew Point',
+      units: 'C',
+      min: -60,
+      max: 40,
+      colortable: [],
+    })
+
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('fahrenheit')
+    expect(getUnitOption(display, 'fahrenheit').convert(10)).toBe(50)
+  })
+
+  it('maps wind gust from meters per second to speed display units', () => {
+    const display = getUnitDisplay({
+      id: 'gust_surface',
+      label: 'Wind Gust',
+      units: 'm/s',
+      min: 0,
+      max: 60,
+      colortable: [],
+    })
+
+    expect(canToggleUnitSystem(display)).toBe(true)
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers_per_hour')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('miles_per_hour')
+    expect(getUnitOption(display, 'kilometers_per_hour').convert(10)).toBe(36)
+  })
 })

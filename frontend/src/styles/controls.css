@@ -301,7 +301,7 @@
   }
 
   .map-stage__viewport .maplibregl-ctrl-top-right {
-    top: var(--wm-mobile-map-control-top, 270px);
+    top: var(--wm-map-control-rail-top, var(--wm-chrome-inset, 12px));
     right: 0;
   }
 

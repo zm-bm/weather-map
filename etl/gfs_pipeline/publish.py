@@ -33,6 +33,8 @@ from .scalar_encoding import (
 FORECAST_BINARY_CONTRACT = "forecast-binary-v2"
 MANIFEST_VERSION = 4
 WEATHER_SCALAR_GRID_ID = "gfs_0p25_global"
+DEFAULT_SCALAR_VARIABLE_GROUP_ID = "layers"
+DEFAULT_SCALAR_VARIABLE_GROUP_LABEL = "Layers"
 
 
 def _utc_now_iso() -> str:
@@ -45,6 +47,7 @@ def _compute_manifest_revision(
     cycle: str,
     hours: Iterable[str],
     scalar_variables: Iterable[str],
+    scalar_variable_groups: Iterable[Mapping[str, Any]],
     vector_variables: Iterable[str],
     grids: Mapping[str, Mapping[str, Any]],
     encodings: Mapping[str, Mapping[str, Any]],
@@ -58,6 +61,7 @@ def _compute_manifest_revision(
         "cycle": cycle,
         "forecast_hours": list(hours),
         "scalar_variables": list(scalar_variables),
+        "scalar_variable_groups": list(scalar_variable_groups),
         "vector_variables": list(vector_variables),
         "grids": grids,
         "encodings": encodings,
@@ -201,6 +205,76 @@ def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | No
     if isinstance(cycle_raw, str) and cycle_raw.strip():
         return cycle_raw.strip()
     return None
+
+
+def _default_scalar_variable_groups(scalar_variables: tuple[str, ...]) -> list[dict[str, Any]]:
+    if not scalar_variables:
+        return []
+    return [
+        {
+            "id": DEFAULT_SCALAR_VARIABLE_GROUP_ID,
+            "label": DEFAULT_SCALAR_VARIABLE_GROUP_LABEL,
+            "default_variable": scalar_variables[0],
+            "variables": list(scalar_variables),
+        }
+    ]
+
+
+def _normalize_scalar_variable_groups(
+    *,
+    raw_groups: Iterable[Mapping[str, Any]] | None,
+    scalar_variables: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    if not scalar_variables:
+        return []
+    if raw_groups is None:
+        return _default_scalar_variable_groups(scalar_variables)
+
+    scalar_set = set(scalar_variables)
+    seen_group_ids: set[str] = set()
+    seen_variables: set[str] = set()
+    groups: list[dict[str, Any]] = []
+
+    for group_index, raw_group in enumerate(raw_groups):
+        if not isinstance(raw_group, Mapping):
+            raise SystemExit(f"scalar_variable_groups[{group_index}] must be an object")
+        field_name = f"scalar_variable_groups[{group_index}]"
+
+        group_id = _as_str(raw_group.get("id"), field=f"{field_name}.id")
+        if group_id in seen_group_ids:
+            raise SystemExit(f"Duplicate scalar variable group id: {group_id!r}")
+        seen_group_ids.add(group_id)
+
+        label = _as_str(raw_group.get("label"), field=f"{field_name}.label")
+        default_variable = _as_str(raw_group.get("default_variable"), field=f"{field_name}.default_variable")
+        variables = _as_str_list(raw_group.get("variables"), field=f"{field_name}.variables")
+
+        if default_variable not in variables:
+            raise SystemExit(
+                f"{field_name}.default_variable {default_variable!r} must be included in {field_name}.variables"
+            )
+
+        for variable in variables:
+            if variable not in scalar_set:
+                raise SystemExit(f"{field_name}.variables references unknown scalar variable {variable!r}")
+            if variable in seen_variables:
+                raise SystemExit(f"Scalar variable appears in multiple groups: {variable!r}")
+            seen_variables.add(variable)
+
+        groups.append(
+            {
+                "id": group_id,
+                "label": label,
+                "default_variable": default_variable,
+                "variables": variables,
+            }
+        )
+
+    missing_variables = sorted(scalar_set - seen_variables)
+    if missing_variables:
+        raise SystemExit(f"scalar_variable_groups missing scalar variables: {missing_variables!r}")
+
+    return groups
 
 
 def _build_manifest_sections(
@@ -456,10 +530,15 @@ def run_publish(
     scalar_variables: Iterable[str],
     vector_variables: Iterable[str] = (),
     scalar_variables_cfg: Mapping[str, Mapping[str, Any]] | None = None,
+    scalar_variable_groups: Iterable[Mapping[str, Any]] | None = None,
 ) -> PublishResult:
     fhours = tuple(ctx.forecast_hours or ())
     scalar_variables = tuple(scalar_variables)
     vector_variables = tuple(vector_variables)
+    normalized_scalar_variable_groups = _normalize_scalar_variable_groups(
+        raw_groups=scalar_variable_groups,
+        scalar_variables=scalar_variables,
+    )
 
     if not fhours:
         print("Publish not ready: ctx.forecast_hours is empty")
@@ -508,6 +587,7 @@ def run_publish(
         cycle=cycle,
         hours=fhours,
         scalar_variables=scalar_variables,
+        scalar_variable_groups=normalized_scalar_variable_groups,
         vector_variables=vector_variables,
         grids=grids,
         encodings=encodings,
@@ -524,6 +604,7 @@ def run_publish(
         "revision": revision,
         "forecast_hours": list(fhours),
         "scalar_variables": list(scalar_variables),
+        "scalar_variable_groups": normalized_scalar_variable_groups,
         "vector_variables": list(vector_variables),
         "grids": grids,
         "encodings": encodings,

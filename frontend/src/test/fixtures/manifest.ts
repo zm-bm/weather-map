@@ -4,6 +4,7 @@ import type {
   NonEmptyArray,
   ScalarEncodingSpec,
   ScalarGridSpec,
+  ScalarVariableGroupSpec,
   ScalarVariableId,
   ScalarVariableSpec,
   VectorEncodingSpec,
@@ -94,6 +95,27 @@ function createFramePath(
   return `fields/${cycle}/${hourToken}/${variableId}.${extension}`
 }
 
+function createDefaultScalarVariableGroups(
+  scalarVariables: NonEmptyArray<ScalarVariableId>
+): NonEmptyArray<ScalarVariableGroupSpec> {
+  return [{
+    id: 'layers',
+    label: 'Layers',
+    defaultVariable: scalarVariables[0],
+    variables: scalarVariables,
+  }]
+}
+
+function createRawDefaultScalarVariableGroups(values: string[]): Array<Record<string, unknown>> {
+  if (values.length < 1) return []
+  return [{
+    id: 'layers',
+    label: 'Layers',
+    default_variable: values[0],
+    variables: [...values],
+  }]
+}
+
 export function createManifestFixture(
   overrides: ManifestFixtureOverrides = {}
 ): CycleManifest {
@@ -122,6 +144,7 @@ export function createManifestFixture(
     revision: FIXTURE_REVISION,
     forecastHours: ['000', '003'],
     scalarVariables,
+    scalarVariableGroups: createDefaultScalarVariableGroups(scalarVariables),
     vectorVariables,
     grids: {},
     encodings: {},
@@ -215,6 +238,12 @@ function toCycleManifestPayload(
     revision: manifest.revision,
     forecast_hours: [...manifest.forecastHours],
     scalar_variables: [...manifest.scalarVariables],
+    scalar_variable_groups: manifest.scalarVariableGroups.map((group) => ({
+      id: group.id,
+      label: group.label,
+      default_variable: group.defaultVariable,
+      variables: [...group.variables],
+    })),
     vector_variables: [...manifest.vectorVariables],
     grids: manifest.grids,
     encodings: manifest.encodings,
@@ -256,7 +285,10 @@ export function createCycleManifestPayloadFixture(
 
   return {
     ...payload,
-    ...(scalarVariables ? { scalar_variables: scalarVariables } : {}),
+    ...(scalarVariables ? {
+      scalar_variables: scalarVariables,
+      scalar_variable_groups: createRawDefaultScalarVariableGroups(scalarVariables),
+    } : {}),
     ...(vectorVariables ? { vector_variables: vectorVariables } : {}),
   }
 }

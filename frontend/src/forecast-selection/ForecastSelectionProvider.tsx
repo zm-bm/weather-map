@@ -12,6 +12,7 @@ import {
 } from './ForecastSelectionContext'
 
 const EMPTY_SCALAR_VARIABLES: [] = []
+const EMPTY_SCALAR_VARIABLE_GROUPS: [] = []
 const EMPTY_VECTOR_VARIABLES: [] = []
 const NO_VARIABLE_META: null = null
 
@@ -59,6 +60,7 @@ export default function ForecastSelectionProvider({
         manifest: null,
         cycle: null,
         scalarVariables: EMPTY_SCALAR_VARIABLES,
+        scalarVariableGroups: EMPTY_SCALAR_VARIABLE_GROUPS,
         vectorVariables: EMPTY_VECTOR_VARIABLES,
         variableMeta: NO_VARIABLE_META,
         activeScalar: null,
@@ -73,13 +75,18 @@ export default function ForecastSelectionProvider({
 
     const cycle = manifest.cycle
     const scalarVariables = manifest.scalarVariables
+    const scalarVariableGroups = manifest.scalarVariableGroups
     const vectorVariables = manifest.vectorVariables
     const activeScalar =
-      selection.cycle === cycle && selection.activeScalar != null
+      selection.cycle === cycle
+      && selection.activeScalar != null
+      && scalarVariables.includes(selection.activeScalar)
         ? selection.activeScalar
         : scalarVariables[0]
     const activeVector =
-      selection.cycle === cycle && selection.activeVector != null
+      selection.cycle === cycle
+      && selection.activeVector != null
+      && vectorVariables.includes(selection.activeVector)
         ? selection.activeVector
         : vectorVariables[0]
 
@@ -87,6 +94,7 @@ export default function ForecastSelectionProvider({
       manifest,
       cycle,
       scalarVariables,
+      scalarVariableGroups,
       vectorVariables,
       variableMeta: manifest.variableMeta,
       activeScalar,
@@ -106,7 +114,9 @@ export default function ForecastSelectionProvider({
         setSelection((current) => ({
           cycle,
           activeScalar:
-            current.cycle === cycle && current.activeScalar != null
+            current.cycle === cycle
+            && current.activeScalar != null
+            && scalarVariables.includes(current.activeScalar)
               ? current.activeScalar
               : scalarVariables[0],
           activeVector: nextVector,

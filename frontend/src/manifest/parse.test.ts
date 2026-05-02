@@ -111,4 +111,95 @@ describe('parseCycleManifest', () => {
 
     expect(() => parseCycleManifest(payload)).toThrow('expected -128')
   })
+
+  it('parses explicit scalar variable groups', () => {
+    const payload = createCycleManifestPayloadFixture()
+    payload.scalar_variable_groups = [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        default_variable: 'tmp_surface',
+        variables: ['tmp_surface'],
+      },
+    ]
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.scalarVariableGroups).toEqual([
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        defaultVariable: 'tmp_surface',
+        variables: ['tmp_surface'],
+      },
+    ])
+  })
+
+  it('derives a fallback scalar variable group for older manifests', () => {
+    const payload = createCycleManifestPayloadFixture()
+    delete payload.scalar_variable_groups
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.scalarVariableGroups).toEqual([
+      {
+        id: 'layers',
+        label: 'Layers',
+        defaultVariable: 'tmp_surface',
+        variables: ['tmp_surface'],
+      },
+    ])
+  })
+
+  it('rejects scalar variable groups that omit a scalar variable', () => {
+    const payload = createCycleManifestPayloadFixture({
+      scalarVariables: ['tmp_surface', 'rh_surface'],
+    })
+    const variableMeta = payload.variable_meta as Record<string, Record<string, unknown>>
+    variableMeta.rh_surface = {
+      ...variableMeta.tmp_surface,
+      units: '%',
+      parameter: 'rh',
+    }
+    payload.scalar_variable_groups = [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        default_variable: 'tmp_surface',
+        variables: ['tmp_surface'],
+      },
+    ]
+
+    expect(() => parseCycleManifest(payload)).toThrow(
+      'Manifest scalar_variable_groups missing scalar variables: rh_surface'
+    )
+  })
+
+  it('rejects scalar variable groups with defaults outside the group', () => {
+    const payload = createCycleManifestPayloadFixture()
+    payload.scalar_variable_groups = [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        default_variable: 'rh_surface',
+        variables: ['tmp_surface'],
+      },
+    ]
+
+    expect(() => parseCycleManifest(payload)).toThrow('default_variable rh_surface is not in variables')
+  })
+
+  it('rejects scalar variable groups with unknown variables', () => {
+    const payload = createCycleManifestPayloadFixture()
+    payload.scalar_variable_groups = [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        default_variable: 'missing_surface',
+        variables: ['missing_surface'],
+      },
+    ]
+
+    expect(() => parseCycleManifest(payload)).toThrow('references unknown scalar variable missing_surface')
+  })
 })

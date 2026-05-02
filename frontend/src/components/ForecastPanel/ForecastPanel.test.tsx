@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { asScalarVariableId } from '../../manifest'
 import {
   createManifestFixture,
   createScalarVariableMetaFixture,
@@ -12,6 +13,20 @@ function createPanelManifest(scalarVariables: ['tmp_surface', 'rh_surface'] | ['
   return createManifestFixture({
     cycle: '2026041100',
     scalarVariables,
+    scalarVariableGroups: [
+      {
+        id: 'temperature',
+        label: 'Temperature',
+        defaultVariable: asScalarVariableId('tmp_surface'),
+        variables: [asScalarVariableId('tmp_surface')],
+      },
+      {
+        id: 'moisture',
+        label: 'Moisture',
+        defaultVariable: asScalarVariableId('rh_surface'),
+        variables: [asScalarVariableId('rh_surface')],
+      },
+    ],
     vectorVariables: ['wind10m_uv'],
     variableMeta: {
       tmp_surface: createScalarVariableMetaFixture(),
@@ -37,7 +52,8 @@ describe('ForecastPanel', () => {
   it('renders forecast controls without probe readouts', () => {
     renderForecastPanel(['tmp_surface', 'rh_surface'])
 
-    expect(screen.getByLabelText('Scalar layer')).toHaveValue('tmp_surface')
+    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Measurement')).toHaveValue('tmp_surface')
     expect(screen.getByLabelText('Forecast level Surface, forecast model GFS, model run Apr 11, 00Z')).toHaveTextContent(/GFS.00Z/)
     expect(screen.getByLabelText('Forecast model')).toHaveValue('gfs')
     expect(screen.getByLabelText('Forecast level')).toHaveValue('surface')

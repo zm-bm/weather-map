@@ -101,6 +101,13 @@ export type VectorVariableSpec = {
 
 export type ManifestVariableSpec = ScalarVariableSpec | VectorVariableSpec
 
+export type ScalarVariableGroupSpec = {
+  id: string
+  label: string
+  defaultVariable: ScalarVariableId
+  variables: NonEmptyArray<ScalarVariableId>
+}
+
 export type FramePayloadRef = {
   path: string
   byte_length: number
@@ -115,6 +122,7 @@ export type CycleManifest = {
   revision: string
   forecastHours: string[]
   scalarVariables: NonEmptyArray<ScalarVariableId>
+  scalarVariableGroups: NonEmptyArray<ScalarVariableGroupSpec>
   vectorVariables: NonEmptyArray<VectorVariableId>
   grids: Record<string, ScalarGridSpec>
   encodings: Record<string, ManifestEncodingSpec>

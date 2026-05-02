@@ -9,6 +9,7 @@ import {
   type ManifestVariableSpec,
   type NonEmptyArray,
   type ScalarGridSpec,
+  type ScalarVariableGroupSpec,
   type ScalarVariableId,
   type VectorVariableId,
 } from './types'
@@ -190,9 +191,86 @@ function parseRecordMap<T>(
   return out
 }
 
-type DecodedCycleManifest = Omit<CycleManifest, 'scalarVariables' | 'vectorVariables'> & {
+type DecodedScalarVariableGroupSpec = Omit<ScalarVariableGroupSpec, 'defaultVariable' | 'variables'> & {
+  defaultVariable: string
+  variables: NonEmptyArray<string>
+}
+
+type DecodedCycleManifest = Omit<CycleManifest, 'scalarVariables' | 'scalarVariableGroups' | 'vectorVariables'> & {
   scalarVariables: NonEmptyArray<string>
+  scalarVariableGroups: NonEmptyArray<DecodedScalarVariableGroupSpec>
   vectorVariables: NonEmptyArray<string>
+}
+
+function fallbackScalarVariableGroups(scalarVariables: NonEmptyArray<string>): NonEmptyArray<DecodedScalarVariableGroupSpec> {
+  return [{
+    id: 'layers',
+    label: 'Layers',
+    defaultVariable: scalarVariables[0],
+    variables: scalarVariables,
+  }]
+}
+
+function parseScalarVariableGroups(
+  raw: unknown,
+  scalarVariables: NonEmptyArray<string>
+): NonEmptyArray<DecodedScalarVariableGroupSpec> {
+  if (raw == null) {
+    return fallbackScalarVariableGroups(scalarVariables)
+  }
+  if (!Array.isArray(raw) || raw.length < 1) {
+    throw new Error('Invalid manifest field scalar_variable_groups: expected non-empty object[]')
+  }
+
+  const scalarVariableSet = new Set(scalarVariables)
+  const groupIds = new Set<string>()
+  const seenVariables = new Set<string>()
+  const groups = raw.map((rawGroup, groupIndex) => {
+    const field = `scalar_variable_groups[${groupIndex}]`
+    if (!isRecord(rawGroup)) {
+      throw new Error(`Invalid manifest field ${field}: expected object`)
+    }
+
+    const id = asString(rawGroup.id, `${field}.id`)
+    if (groupIds.has(id)) {
+      throw new Error(`Manifest scalar_variable_groups has duplicate group id ${id}`)
+    }
+    groupIds.add(id)
+
+    const label = asString(rawGroup.label, `${field}.label`)
+    const defaultVariable = asString(rawGroup.default_variable, `${field}.default_variable`)
+    const variables = asNonEmptyStringArray(rawGroup.variables, `${field}.variables`)
+
+    if (!variables.includes(defaultVariable)) {
+      throw new Error(
+        `Manifest scalar_variable_groups entry ${id} default_variable ${defaultVariable} is not in variables`
+      )
+    }
+
+    for (const variableId of variables) {
+      if (!scalarVariableSet.has(variableId)) {
+        throw new Error(`Manifest scalar_variable_groups entry ${id} references unknown scalar variable ${variableId}`)
+      }
+      if (seenVariables.has(variableId)) {
+        throw new Error(`Manifest scalar_variable_groups assigns scalar variable ${variableId} to multiple groups`)
+      }
+      seenVariables.add(variableId)
+    }
+
+    return {
+      id,
+      label,
+      defaultVariable,
+      variables,
+    }
+  }) as NonEmptyArray<DecodedScalarVariableGroupSpec>
+
+  const missingVariables = scalarVariables.filter((variableId) => !seenVariables.has(variableId))
+  if (missingVariables.length > 0) {
+    throw new Error(`Manifest scalar_variable_groups missing scalar variables: ${missingVariables.join(', ')}`)
+  }
+
+  return groups
 }
 
 export function decodeCycleManifest(raw: unknown): DecodedCycleManifest {
@@ -209,6 +287,8 @@ export function decodeCycleManifest(raw: unknown): DecodedCycleManifest {
     throw new Error(`Unsupported cycle manifest contract: ${contract} (expected ${MANIFEST_CONTRACT})`)
   }
 
+  const scalarVariables = asNonEmptyStringArray(raw.scalar_variables, 'scalar_variables')
+
   return {
     version: MANIFEST_VERSION,
     contract: MANIFEST_CONTRACT,
@@ -216,7 +296,8 @@ export function decodeCycleManifest(raw: unknown): DecodedCycleManifest {
     generatedAt: asString(raw.generated_at, 'generated_at'),
     revision: asString(raw.revision, 'revision'),
     forecastHours: asStringArray(raw.forecast_hours, 'forecast_hours'),
-    scalarVariables: asNonEmptyStringArray(raw.scalar_variables, 'scalar_variables'),
+    scalarVariables,
+    scalarVariableGroups: parseScalarVariableGroups(raw.scalar_variable_groups, scalarVariables),
     vectorVariables: asNonEmptyStringArray(raw.vector_variables, 'vector_variables'),
     grids: parseRecordMap(raw.grids, 'grids', parseGrid),
     encodings: parseRecordMap(raw.encodings, 'encodings', parseEncoding),
@@ -261,6 +342,12 @@ export function parseCycleManifest(raw: unknown): CycleManifest {
     scalarVariables: decoded.scalarVariables.map(
       asScalarVariableId
     ) as NonEmptyArray<ScalarVariableId>,
+    scalarVariableGroups: decoded.scalarVariableGroups.map((group) => ({
+      id: group.id,
+      label: group.label,
+      defaultVariable: asScalarVariableId(group.defaultVariable),
+      variables: group.variables.map(asScalarVariableId) as NonEmptyArray<ScalarVariableId>,
+    })) as NonEmptyArray<ScalarVariableGroupSpec>,
     vectorVariables: decoded.vectorVariables.map(
       asVectorVariableId
     ) as NonEmptyArray<VectorVariableId>,

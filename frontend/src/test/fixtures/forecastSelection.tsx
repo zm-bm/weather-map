@@ -38,6 +38,7 @@ export function createForecastSelectionContextValue(
           manifest: null,
           cycle: null,
           scalarVariables: [],
+          scalarVariableGroups: [],
           vectorVariables: [],
           variableMeta: null,
           activeScalar: null,
@@ -48,6 +49,7 @@ export function createForecastSelectionContextValue(
           manifest,
           cycle: manifest.cycle,
           scalarVariables: manifest.scalarVariables,
+          scalarVariableGroups: manifest.scalarVariableGroups,
           vectorVariables: manifest.vectorVariables,
           variableMeta: manifest.variableMeta,
           activeScalar: options.activeScalar

@@ -1,11 +1,13 @@
+import { forwardRef } from 'react'
+
 import ForecastControls from '../ForecastControls'
 
-function ForecastPanel() {
+const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
   return (
-    <section className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
+    <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
       <ForecastControls />
     </section>
   )
-}
+})
 
 export default ForecastPanel

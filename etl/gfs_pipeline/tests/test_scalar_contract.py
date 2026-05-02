@@ -71,6 +71,14 @@ def _minimal_pipeline_config() -> dict:
         "scalar_variables": {
             "tmp_surface": _minimal_layer_config(),
         },
+        "scalar_variable_groups": [
+            {
+                "id": "temperature",
+                "label": "Temperature",
+                "default_variable": "tmp_surface",
+                "variables": ["tmp_surface"],
+            },
+        ],
         "vector_variables": {},
     }
 
@@ -301,6 +309,8 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(parsed.workload.forecast_hours, ("000",))
         self.assertEqual(parsed.workload.variables, ("tmp_surface",))
         self.assertIn("tmp_surface", parsed.scalar_variables)
+        self.assertEqual(parsed.scalar_variable_groups[0]["id"], "temperature")
+        self.assertEqual(parsed.scalar_variable_groups[0]["default_variable"], "tmp_surface")
 
     def test_pipeline_config_still_accepts_explicit_forecast_hours(self) -> None:
         parsed = PipelineConfig.from_obj(
@@ -363,6 +373,46 @@ class ConfigValidationTest(unittest.TestCase):
             parsed.scalar_variables["tmp_surface"]["scalar_encoding"]["format"],
             "scalar-i8-temp-c-piecewise-v1",
         )
+
+    def test_pipeline_config_rejects_scalar_group_missing_workload_variable(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["workload"]["variables"] = ["tmp_surface", "rh_surface"]
+        cfg["scalar_variables"]["rh_surface"] = {
+            **_minimal_layer_config(),
+            "parameter": "rh",
+        }
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
+
+    def test_pipeline_config_rejects_scalar_group_default_outside_group(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["scalar_variable_groups"][0]["default_variable"] = "rh_surface"
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
+
+    def test_pipeline_config_rejects_scalar_group_unknown_variable(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["scalar_variable_groups"][0]["variables"] = ["missing_surface"]
+        cfg["scalar_variable_groups"][0]["default_variable"] = "missing_surface"
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
+
+    def test_pipeline_config_rejects_scalar_group_duplicate_variable(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["scalar_variable_groups"].append(
+            {
+                "id": "duplicate",
+                "label": "Duplicate",
+                "default_variable": "tmp_surface",
+                "variables": ["tmp_surface"],
+            }
+        )
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
 
 
 class ArtifactPathContractTest(unittest.TestCase):
@@ -550,6 +600,17 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["version"], 4)
             self.assertEqual(cycle_manifest["contract"], "forecast-binary-v2")
             self.assertEqual(cycle_manifest["scalar_variables"], list(variables))
+            self.assertEqual(
+                cycle_manifest["scalar_variable_groups"],
+                [
+                    {
+                        "id": "layers",
+                        "label": "Layers",
+                        "default_variable": "tmp_surface",
+                        "variables": list(variables),
+                    },
+                ],
+            )
             self.assertEqual(cycle_manifest["vector_variables"], [])
             self.assertIn("frames", cycle_manifest)
             self.assertEqual(
@@ -582,6 +643,84 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
+
+    def test_publish_revision_includes_scalar_variable_groups(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-groups-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041100"
+            fhours = ("000",)
+            variables = ("tmp_surface",)
+            scalar_variables_cfg = {
+                "tmp_surface": {
+                    "parameter": "tmp",
+                    "level": "surface",
+                    "units": "C",
+                    "scale_min": -45.0,
+                    "scale_max": 50.0,
+                    "scalar_source_transform": "identity",
+                    "scalar_encoding": {
+                        "encoding_id": "tmp_surface_i16_v1",
+                        "dtype": "int16",
+                        "byte_order": "little",
+                        "scale": 0.01,
+                        "offset": 0.0,
+                        "nodata": -32768,
+                    },
+                },
+            }
+
+            ctx = ExecutionContext(artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+            _write_scalar_marker(
+                store=store,
+                ap=ap,
+                cycle=cycle,
+                fhour="000",
+                variable="tmp_surface",
+                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                scalar_config=scalar_variables_cfg["tmp_surface"],
+                grid_meta=grid_meta,
+            )
+
+            run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+                scalar_variable_groups=[
+                    {
+                        "id": "temperature",
+                        "label": "Temperature",
+                        "default_variable": "tmp_surface",
+                        "variables": ["tmp_surface"],
+                    },
+                ],
+            )
+            first_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+
+            run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+                scalar_variable_groups=[
+                    {
+                        "id": "layers",
+                        "label": "Layers",
+                        "default_variable": "tmp_surface",
+                        "variables": ["tmp_surface"],
+                    },
+                ],
+            )
+            second_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+
+            self.assertNotEqual(first_manifest["revision"], second_manifest["revision"])
+            self.assertEqual(second_manifest["scalar_variable_groups"][0]["id"], "layers")
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-temp-piecewise-") as td:

@@ -1,7 +1,6 @@
 .forecast-screen {
   --wm-chrome-inset: 20px;
   --wm-forecast-panel-width: 370px;
-  --wm-mobile-map-control-top: 108px;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
@@ -102,12 +101,11 @@
 @media (max-width: 760px) {
   .forecast-screen {
     --wm-chrome-inset: 12px;
-    --wm-mobile-map-control-top: 108px;
     grid-template-rows: minmax(380px, 1fr) auto;
   }
 
   .map-sync-indicator {
-    top: calc(var(--wm-mobile-map-control-top) + 4px);
+    top: calc(var(--wm-map-control-rail-top, var(--wm-chrome-inset, 12px)) + 4px);
     right: calc(var(--wm-chrome-inset) + 48px);
     left: calc(var(--wm-chrome-inset) + 84px);
     min-height: 28px;
@@ -118,7 +116,6 @@
 
 @media (max-width: 420px) {
   .forecast-screen {
-    --wm-mobile-map-control-top: 106px;
     grid-template-rows: minmax(360px, 1fr) auto;
   }
 }

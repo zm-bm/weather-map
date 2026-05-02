@@ -1,11 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
+import type { Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createManifestFixture } from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
 
 vi.mock('../ForecastPanel', () => ({
-  default: () => <div data-testid="forecast-panel" />,
+  default: ({ ref }: { ref?: Ref<HTMLDivElement> }) => <div ref={ref} data-testid="forecast-panel" />,
 }))
 
 vi.mock('../LegendPanel', () => ({
@@ -28,6 +29,7 @@ vi.mock('../ForecastMap/ForecastMap', () => ({
 describe('ForecastShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('always renders forecast map even when manifest is unavailable', () => {
@@ -61,5 +63,57 @@ describe('ForecastShell', () => {
     expect(within(timelineBar).getByTestId('timeline-scrubber')).toBeInTheDocument()
     expect(within(timelineBar).queryByTestId('forecast-controls')).not.toBeInTheDocument()
     expect(within(timelineBar).queryByTestId('legend-panel')).not.toBeInTheDocument()
+  })
+
+  it('measures the forecast panel to offset mobile map controls without hard-coded panel height', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      forecastHours: ['000', '003'],
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
+      if (this.classList.contains('forecast-stage')) {
+        return {
+          x: 0,
+          y: 20,
+          top: 20,
+          right: 680,
+          bottom: 420,
+          left: 0,
+          width: 680,
+          height: 400,
+          toJSON: () => ({}),
+        }
+      }
+      if (this.getAttribute('data-testid') === 'forecast-panel') {
+        return {
+          x: 12,
+          y: 32,
+          top: 32,
+          right: 668,
+          bottom: 154,
+          left: 12,
+          width: 656,
+          height: 122,
+          toJSON: () => ({}),
+        }
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      }
+    })
+
+    const { container } = render(<ForecastShell manifest={manifest} />)
+
+    expect(container.querySelector<HTMLElement>('.forecast-stage'))
+      .toHaveStyle({ '--wm-map-control-rail-top': '142px' })
   })
 })

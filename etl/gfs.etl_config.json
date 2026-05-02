@@ -2,9 +2,12 @@
   "version": 1,
   "workload": {
     "forecast_hour_start": 0,
-    "forecast_hour_end": 72,
+    "forecast_hour_end": 24,
     "variables": [
       "tmp_surface",
+      "aptmp_surface",
+      "gust_surface",
+      "dewpoint_surface",
       "rh_surface",
       "prmsl_surface",
       "tcdc",
@@ -23,6 +26,58 @@
     },
     "rate_limit_seconds": 2
   },
+  "scalar_variable_groups": [
+    {
+      "id": "temperature",
+      "label": "Temperature",
+      "default_variable": "tmp_surface",
+      "variables": [
+        "tmp_surface",
+        "aptmp_surface"
+      ]
+    },
+    {
+      "id": "moisture",
+      "label": "Moisture",
+      "default_variable": "rh_surface",
+      "variables": [
+        "rh_surface",
+        "dewpoint_surface"
+      ]
+    },
+    {
+      "id": "wind",
+      "label": "Wind",
+      "default_variable": "gust_surface",
+      "variables": [
+        "gust_surface"
+      ]
+    },
+    {
+      "id": "precipitation",
+      "label": "Precipitation",
+      "default_variable": "prate_surface",
+      "variables": [
+        "prate_surface"
+      ]
+    },
+    {
+      "id": "clouds",
+      "label": "Clouds",
+      "default_variable": "tcdc",
+      "variables": [
+        "tcdc"
+      ]
+    },
+    {
+      "id": "pressure",
+      "label": "Pressure",
+      "default_variable": "prmsl_surface",
+      "variables": [
+        "prmsl_surface"
+      ]
+    }
+  ],
   "scalar_variables": {
     "tmp_surface": {
       "parameter": "tmp",
@@ -50,17 +105,16 @@
         "GRIB_ELEMENT": "APTMP",
         "GRIB_SHORT_NAME": "2-HTGL"
       },
-      "scale_min": -45,
+      "scale_min": -35,
       "scale_max": 50,
       "units": "C",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "aptmp_surface_i16_v1",
-        "dtype": "int16",
-        "byte_order": "little",
-        "scale": 0.01,
-        "offset": 0,
-        "nodata": -32768
+        "encoding_id": "tmp_surface_i8_temp_c_piecewise_v1",
+        "format": "scalar-i8-temp-c-piecewise-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "nodata": -128
       }
     },
     "rh_surface": {
@@ -75,11 +129,51 @@
       "units": "%",
       "scalar_source_transform": "identity",
       "scalar_encoding": {
-        "encoding_id": "rh_surface_i8_0p5pct_v1",
+        "encoding_id": "rh_surface_i8_1pct_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 50,
+        "nodata": -128
+      }
+    },
+    "gust_surface": {
+      "parameter": "gust",
+      "level": "surface",
+      "grib_match": {
+        "GRIB_ELEMENT": "GUST",
+        "GRIB_SHORT_NAME": "0-SFC"
+      },
+      "scale_min": 0,
+      "scale_max": 60,
+      "units": "m/s",
+      "scalar_source_transform": "identity",
+      "scalar_encoding": {
+        "encoding_id": "gust_surface_i8_1ms_v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
-        "offset": 50,
+        "offset": 63.5,
+        "nodata": -128
+      }
+    },
+    "dewpoint_surface": {
+      "parameter": "dpt",
+      "level": "surface",
+      "grib_match": {
+        "GRIB_ELEMENT": "DPT",
+        "GRIB_SHORT_NAME": "2-HTGL"
+      },
+      "scale_min": -60,
+      "scale_max": 40,
+      "units": "C",
+      "scalar_source_transform": "identity",
+      "scalar_encoding": {
+        "encoding_id": "dewpoint_surface_i8_0p5c_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 0,
         "nodata": -128
       }
     },
@@ -118,7 +212,7 @@
         "encoding_id": "tcdc_i8_0p5pct_v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 0.5,
+        "scale": 1,
         "offset": 50,
         "nodata": -128
       }

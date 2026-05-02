@@ -92,7 +92,7 @@ export function canToggleUnitSystem(display: UnitDisplay): boolean {
 
 const UNIT_RULES: UnitRule[] = [
   {
-    labelIncludes: ['temperature'],
+    labelIncludes: ['temperature', 'dew point'],
     display: {
       defaultOptionId: 'fahrenheit',
       options: [
@@ -109,6 +109,40 @@ const UNIT_RULES: UnitRule[] = [
           buttonLabel: 'F',
           units: 'F',
           convert: (value) => (value * 9) / 5 + 32,
+          unitSystem: 'imperial',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['wind gust'],
+    display: {
+      defaultOptionId: 'miles_per_hour',
+      options: [
+        {
+          id: 'meters_per_second',
+          buttonLabel: 'm/s',
+          units: 'm/s',
+          convert: (value) => value,
+          casing: 'literal',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+        {
+          id: 'kilometers_per_hour',
+          buttonLabel: 'km/h',
+          units: 'km/h',
+          convert: (value) => value * 3.6,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+        {
+          id: 'miles_per_hour',
+          buttonLabel: 'mph',
+          units: 'mph',
+          convert: (value) => value * 2.2369362920544,
+          casing: 'literal',
           unitSystem: 'imperial',
           valueFormat: WHOLE_VALUE_FORMAT,
         },
