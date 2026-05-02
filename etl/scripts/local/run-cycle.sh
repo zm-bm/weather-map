@@ -4,55 +4,86 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/local/run-cycle.sh <cycle>
+	etl/scripts/local/run-cycle.sh --cycle <cycle> [--model <model>]
 
 Description:
 	Refreshes the local forecast artifacts for the provided cycle and publishes
 	manifests directly into artifacts/ for the local dev stack to serve.
 
-Arguments:
-	<cycle>   Forecast cycle string (examples: 2026021600)
-
 Options:
+	--cycle <cycle>  Forecast cycle string (example: 2026021600)
+	--model <model>  Forecast model id (default: gfs)
 	-h, --help  Show this help and exit
 EOF
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-	usage
-	exit 0
-fi
+CYCLE=""
+MODEL="gfs"
 
-if [[ $# -ne 1 ]]; then
-	echo "Error: expected exactly one <cycle> argument." >&2
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		-h|--help)
+			usage
+			exit 0
+			;;
+		--cycle)
+			if [[ $# -lt 2 || "${2:-}" == -* ]]; then
+				echo "Error: --cycle requires a value." >&2
+				usage >&2
+				exit 1
+			fi
+			CYCLE="$2"
+			shift 2
+			;;
+		--cycle=*)
+			CYCLE="${1#*=}"
+			if [[ -z "$CYCLE" ]]; then
+				echo "Error: --cycle requires a value." >&2
+				usage >&2
+				exit 1
+			fi
+			shift
+			;;
+		--model)
+			if [[ $# -lt 2 || "${2:-}" == -* ]]; then
+				echo "Error: --model requires a value." >&2
+				usage >&2
+				exit 1
+			fi
+			MODEL="$2"
+			shift 2
+			;;
+		--model=*)
+			MODEL="${1#*=}"
+			if [[ -z "$MODEL" ]]; then
+				echo "Error: --model requires a value." >&2
+				usage >&2
+				exit 1
+			fi
+			shift
+			;;
+		*)
+			echo "Error: unexpected argument: $1" >&2
+			usage >&2
+			exit 1
+			;;
+	esac
+done
+
+if [[ -z "$CYCLE" ]]; then
+	echo "Error: --cycle <cycle> is required." >&2
 	usage >&2
 	exit 1
 fi
 
-CYCLE="$1"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ETL_DIR="$ROOT/etl"
 VENV_DIR="$ETL_DIR/.venv"
 ARTIFACT_ROOT_URI="file://$ROOT/artifacts"
-HOST_PYTHON_BIN="${ETL_BOOTSTRAP_PYTHON:-python3}"
-VENV_PYTHON_BIN="$VENV_DIR/bin/python"
-VENV_PIP_BIN="$VENV_DIR/bin/pip"
-REQUIREMENTS_FILE="$ETL_DIR/requirements.txt"
-REQUIREMENTS_STAMP="$VENV_DIR/.requirements.txt"
+FORECAST_ETL_BIN="$VENV_DIR/bin/forecast-etl"
 mkdir -p "$ROOT/artifacts"
-cd "$ETL_DIR"
 
-require_cmd() {
-	local cmd="$1"
-	if ! command -v "$cmd" >/dev/null 2>&1; then
-		echo "Error: required command not found: $cmd" >&2
-		exit 1
-	fi
-}
-
-ensure_host_prereqs() {
-	require_cmd "$HOST_PYTHON_BIN"
-
+check_host_prereqs() {
 	local missing_gdal=0
 	local cmd
 	for cmd in gdalinfo gdal_translate gdalwarp; do
@@ -70,25 +101,16 @@ ensure_host_prereqs() {
 	fi
 }
 
-ensure_local_env() {
-	ensure_host_prereqs
-
-	if [[ ! -x "$VENV_PYTHON_BIN" ]]; then
-		echo "Creating ETL virtual environment: $VENV_DIR"
-		"$HOST_PYTHON_BIN" -m venv "$VENV_DIR"
-	fi
-
-	if [[ ! -f "$REQUIREMENTS_STAMP" ]] || ! cmp -s "$REQUIREMENTS_FILE" "$REQUIREMENTS_STAMP"; then
-		echo "Installing ETL Python dependencies"
-		"$VENV_PIP_BIN" install --upgrade pip
-		"$VENV_PIP_BIN" install -r "$REQUIREMENTS_FILE"
-		cp "$REQUIREMENTS_FILE" "$REQUIREMENTS_STAMP"
+bootstrap_if_needed() {
+	if [[ ! -x "$FORECAST_ETL_BIN" ]]; then
+		"$ETL_DIR/scripts/local/bootstrap.sh"
 	fi
 }
 
-ensure_local_env
+check_host_prereqs
+bootstrap_if_needed
 
-echo "Running local pipeline for cycle $CYCLE"
-"$VENV_PYTHON_BIN" -m gfs_pipeline.cli run-cycle --cycle "$CYCLE" --artifact-root-uri "$ARTIFACT_ROOT_URI"
+echo "Running local pipeline for model $MODEL cycle $CYCLE"
+"$FORECAST_ETL_BIN" run-cycle --model "$MODEL" --cycle "$CYCLE" --artifact-root-uri "$ARTIFACT_ROOT_URI"
 
 echo "Artifacts are ready in artifacts/ and are served directly by the local dev stack."

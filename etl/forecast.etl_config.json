@@ -1,0 +1,553 @@
+{
+  "version": 2,
+  "product_catalog": {
+    "tmp_surface": {
+      "kind": "scalar",
+      "parameter": "tmp",
+      "level": "surface",
+      "valid_min": -35,
+      "valid_max": 50,
+      "units": "C",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "tmp_surface_i8_temp_c_piecewise_v1",
+        "format": "scalar-i8-temp-c-piecewise-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "aptmp_surface": {
+      "kind": "scalar",
+      "parameter": "aptmp",
+      "level": "surface",
+      "valid_min": -35,
+      "valid_max": 50,
+      "units": "C",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "tmp_surface_i8_temp_c_piecewise_v1",
+        "format": "scalar-i8-temp-c-piecewise-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "rh_surface": {
+      "kind": "scalar",
+      "parameter": "rh",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 100,
+      "units": "%",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "rh_surface_i8_1pct_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 50,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "gust_surface": {
+      "kind": "scalar",
+      "parameter": "gust",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 60,
+      "units": "m/s",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "gust_surface_i8_1ms_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 63.5,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "dewpoint_surface": {
+      "kind": "scalar",
+      "parameter": "dpt",
+      "level": "surface",
+      "valid_min": -60,
+      "valid_max": 40,
+      "units": "C",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "dewpoint_surface_i8_0p5c_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 0,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "prmsl_surface": {
+      "kind": "scalar",
+      "parameter": "prmsl",
+      "level": "surface",
+      "valid_min": 98000,
+      "valid_max": 103500,
+      "units": "Pa",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "prmsl_surface_i8_25pa_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 25,
+        "offset": 100500,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "tcdc": {
+      "kind": "scalar",
+      "parameter": "tcdc",
+      "level": "entire atmosphere",
+      "valid_min": 0,
+      "valid_max": 100,
+      "units": "%",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "tcdc_i8_0p5pct_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 50,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "cloud_layers": {
+      "kind": "scalar",
+      "parameter": "cloud_layers",
+      "level": "low/medium/high cloud layers",
+      "valid_min": 0,
+      "valid_max": 100,
+      "units": "%",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "cloud_layers_i8_5pct_components_v1",
+        "format": "scalar-i8-linear-components-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 5,
+        "offset": 0,
+        "nodata": -128,
+        "component_order": "low_medium_high"
+      },
+      "components": [
+        {
+          "id": "low"
+        },
+        {
+          "id": "medium"
+        },
+        {
+          "id": "high"
+        }
+      ]
+    },
+    "prate_surface": {
+      "kind": "scalar",
+      "parameter": "prate",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 30,
+      "units": "mm/hr",
+      "source_transform": "kg_m2_s_to_mm_hr",
+      "encoding": {
+        "id": "prate_surface_i8_0p15mmhr_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.15,
+        "offset": 19.05,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "wind10m_uv": {
+      "kind": "vector",
+      "label": "10m Wind U/V",
+      "units": "m/s",
+      "parameter": "wind_uv",
+      "level": "10m_above_ground",
+      "valid_min": -64,
+      "valid_max": 63.5,
+      "encoding": {
+        "id": "wind10m_uv_vector_i8_v1",
+        "format": "uv-i8-q0p5-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 0,
+        "component_order": "u_then_v"
+      },
+      "components": [
+        {
+          "id": "u"
+        },
+        {
+          "id": "v"
+        }
+      ]
+    }
+  },
+  "models": {
+    "gfs": {
+      "label": "GFS",
+      "source": {
+        "type": "gfs_nomads",
+        "grid_id": "gfs_0p25_global",
+        "base_url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl",
+        "vars_levels": {
+          "all_var": "on",
+          "lev_2_m_above_ground": "on",
+          "lev_10_m_above_ground": "on",
+          "lev_surface": "on",
+          "lev_mean_sea_level": "on",
+          "lev_entire_atmosphere": "on",
+          "lev_low_cloud_layer": "on",
+          "lev_middle_cloud_layer": "on",
+          "lev_high_cloud_layer": "on"
+        },
+        "rate_limit_seconds": 2
+      },
+      "workload": {
+        "forecast_hour_start": 0,
+        "forecast_hour_end": 24,
+        "products": [
+          "tmp_surface",
+          "aptmp_surface",
+          "gust_surface",
+          "dewpoint_surface",
+          "rh_surface",
+          "prmsl_surface",
+          "tcdc",
+          "cloud_layers",
+          "prate_surface",
+          "wind10m_uv"
+        ]
+      },
+      "product_bindings": {
+        "tmp_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "TMP",
+                "GRIB_SHORT_NAME": "2-HTGL"
+              }
+            }
+          ]
+        },
+        "aptmp_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "APTMP",
+                "GRIB_SHORT_NAME": "2-HTGL"
+              }
+            }
+          ]
+        },
+        "rh_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "RH",
+                "GRIB_SHORT_NAME": "2-HTGL"
+              }
+            }
+          ]
+        },
+        "gust_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "GUST",
+                "GRIB_SHORT_NAME": "0-SFC"
+              }
+            }
+          ]
+        },
+        "dewpoint_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "DPT",
+                "GRIB_SHORT_NAME": "2-HTGL"
+              }
+            }
+          ]
+        },
+        "prmsl_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "PRMSL",
+                "GRIB_SHORT_NAME": "0-MSL"
+              }
+            }
+          ]
+        },
+        "tcdc": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "TCDC",
+                "GRIB_SHORT_NAME": "0-EATM"
+              }
+            }
+          ]
+        },
+        "cloud_layers": {
+          "components": [
+            {
+              "id": "low",
+              "grib_match": {
+                "GRIB_ELEMENT": "LCDC"
+              }
+            },
+            {
+              "id": "medium",
+              "grib_match": {
+                "GRIB_ELEMENT": "MCDC"
+              }
+            },
+            {
+              "id": "high",
+              "grib_match": {
+                "GRIB_ELEMENT": "HCDC"
+              }
+            }
+          ]
+        },
+        "prate_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "PRATE",
+                "GRIB_SHORT_NAME": "0-SFC"
+              }
+            }
+          ]
+        },
+        "wind10m_uv": {
+          "components": [
+            {
+              "id": "u",
+              "grib_match": {
+                "GRIB_ELEMENT": "UGRD",
+                "GRIB_SHORT_NAME": "10-HTGL"
+              }
+            },
+            {
+              "id": "v",
+              "grib_match": {
+                "GRIB_ELEMENT": "VGRD",
+                "GRIB_SHORT_NAME": "10-HTGL"
+              }
+            }
+          ]
+        }
+      },
+      "scalar_variable_groups": [
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "default_variable": "tmp_surface",
+          "variables": [
+            "tmp_surface",
+            "aptmp_surface"
+          ]
+        },
+        {
+          "id": "moisture",
+          "label": "Moisture",
+          "default_variable": "rh_surface",
+          "variables": [
+            "rh_surface",
+            "dewpoint_surface"
+          ]
+        },
+        {
+          "id": "wind",
+          "label": "Wind",
+          "default_variable": "gust_surface",
+          "variables": [
+            "gust_surface"
+          ]
+        },
+        {
+          "id": "precipitation",
+          "label": "Precipitation",
+          "default_variable": "prate_surface",
+          "variables": [
+            "prate_surface"
+          ]
+        },
+        {
+          "id": "clouds",
+          "label": "Clouds",
+          "default_variable": "tcdc",
+          "variables": [
+            "tcdc",
+            "cloud_layers"
+          ]
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "default_variable": "prmsl_surface",
+          "variables": [
+            "prmsl_surface"
+          ]
+        }
+      ]
+    },
+    "icon": {
+      "label": "ICON",
+      "source": {
+        "type": "zero_placeholder",
+        "grid_id": "icon_zero_placeholder",
+        "grid": {
+          "crs": "EPSG:4326",
+          "nx": 4,
+          "ny": 3,
+          "lon0": -180.0,
+          "lat0": 90.0,
+          "dx": 0.25,
+          "dy": -0.25,
+          "origin": "cell_center",
+          "layout": "row_major",
+          "x_wrap": "repeat",
+          "y_mode": "clamp"
+        }
+      },
+      "workload": {
+        "forecast_hour_start": 0,
+        "forecast_hour_end": 24,
+        "products": [
+          "tmp_surface",
+          "cloud_layers",
+          "wind10m_uv"
+        ]
+      },
+      "product_bindings": {
+        "tmp_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ZERO_COMPONENT": "tmp_surface.value"
+              }
+            }
+          ]
+        },
+        "cloud_layers": {
+          "components": [
+            {
+              "id": "low",
+              "grib_match": {
+                "ZERO_COMPONENT": "cloud_layers.low"
+              }
+            },
+            {
+              "id": "medium",
+              "grib_match": {
+                "ZERO_COMPONENT": "cloud_layers.medium"
+              }
+            },
+            {
+              "id": "high",
+              "grib_match": {
+                "ZERO_COMPONENT": "cloud_layers.high"
+              }
+            }
+          ]
+        },
+        "wind10m_uv": {
+          "components": [
+            {
+              "id": "u",
+              "grib_match": {
+                "ZERO_COMPONENT": "wind10m_uv.u"
+              }
+            },
+            {
+              "id": "v",
+              "grib_match": {
+                "ZERO_COMPONENT": "wind10m_uv.v"
+              }
+            }
+          ]
+        }
+      },
+      "scalar_variable_groups": [
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "default_variable": "tmp_surface",
+          "variables": [
+            "tmp_surface"
+          ]
+        },
+        {
+          "id": "clouds",
+          "label": "Clouds",
+          "default_variable": "cloud_layers",
+          "variables": [
+            "cloud_layers"
+          ]
+        }
+      ]
+    }
+  }
+}

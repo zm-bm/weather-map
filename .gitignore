@@ -138,6 +138,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Python packaging artifacts
+*.egg-info/
+
 # Codex
 .codex
 

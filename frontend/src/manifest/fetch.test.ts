@@ -25,9 +25,13 @@ describe('fetchCurrentManifest', () => {
   })
 
   it('parses latest.json as the current cycle manifest', async () => {
-    stubFetchJsonOnce(createCycleManifestPayloadFixture())
+    const fetchMock = stubFetchJsonOnce(createCycleManifestPayloadFixture())
 
     const manifest = await fetchCurrentManifest({ signal: createSignalFixture() })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/manifests/gfs/latest.json',
+      expect.any(Object)
+    )
     expect(manifest.version).toBe(4)
     expect(manifest.contract).toBe('forecast-binary-v2')
     expect(manifest.vectorVariables).toEqual(['wind10m_uv'])

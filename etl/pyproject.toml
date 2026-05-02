@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weather-map-forecast-etl"
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.390",
+    "ruff>=0.8.0",
+]
+
+[project.scripts]
+forecast-etl = "forecast_etl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["forecast_etl*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["forecast_etl"]
+exclude = [
+    ".venv",
+    "cache",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+]
+
+[tool.pyright]
+include = ["forecast_etl"]
+exclude = [
+    ".venv",
+    "cache",
+    "dist",
+]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.10"
+typeCheckingMode = "basic"

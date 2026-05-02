@@ -2,13 +2,13 @@
 
 ## Overview
 
-Weather forecast map app with a local ETL pipeline, a Vite frontend, and a
-small nginx dev server that serves generated artifacts from `artifacts/`.
+Weather forecast map app with a Vite frontend, a local forecast ETL, and an
+nginx artifact server for development.
 
 ## Layout
 
 - `frontend/` is the React/Vite MapLibre app.
-- `etl/` owns the GFS artifact pipeline and release helpers.
+- `etl/` owns forecast artifact generation and release helpers.
 - `artifacts/` is the local artifact root served by nginx in development.
 - A private infra checkout owns production ETL deployment, production config,
   and AWS operator scripts under `stacks/weather-etl/`.
@@ -17,7 +17,7 @@ small nginx dev server that serves generated artifacts from `artifacts/`.
 
 - Docker with `docker compose`
 - `python3` with `venv` support for local ETL runs
-- GDAL CLI tools on your host for local ETL runs (`gdalinfo`, `gdal_translate`, `gdalwarp`)
+- GDAL CLI tools for local ETL runs (`gdalinfo`, `gdal_translate`, `gdalwarp`)
 - Optional: `pmtiles` CLI if you want to extract a smaller local basemap archive
 
 ## Development
@@ -33,17 +33,15 @@ That runs:
 - `frontend` on `http://localhost:5173`
 - `nginx` artifact serving on `http://localhost:3000`
 
-Local forecast artifacts are written directly into `artifacts/` by the ETL.
-Run `run-cycle.sh` with a forecast cycle to refresh the local forecast
-artifacts served by the dev stack.
+Refresh local forecast artifacts with a forecast cycle:
 
 ```bash
-etl/scripts/local/run-cycle.sh <cycle>
+etl/scripts/local/run-cycle.sh --cycle <cycle>
 ```
 
 ## Configuration
 
-Local config lives in a repo-root `.env`. The only current optional dev setting
+Local config lives in a repo-root `.env`. The main optional frontend dev setting
 is `VITE_BASEMAP_FILENAME`.
 
 ### Optional PMTiles Basemap
@@ -56,27 +54,18 @@ without it.
 3. Set `VITE_BASEMAP_FILENAME=20260424.z6.pmtiles` in your repo-local `.env`
 4. Run `docker compose up --build`
 
-## Testing
+## Frontend Checks
 
-Run frontend tests from `frontend/`:
+Run from `frontend/`:
 
 ```bash
 npm run test:run
-```
-
-Run frontend typecheck/build verification from `frontend/`:
-
-```bash
 npm run build
-```
-
-Run ETL tests from `etl/`:
-
-```bash
-python -m unittest discover -s gfs_pipeline/tests -p 'test_*.py'
 ```
 
 ## Docs
 
-- ETL local and production flow: [etl/README.md](etl/README.md)
-- Frontend domain naming: [frontend/src/README.md](frontend/src/README.md)
+- [frontend/README.md](frontend/README.md): frontend development, configuration, and commands.
+- [frontend/src/README.md](frontend/src/README.md): frontend module boundaries and domain naming.
+- [etl/README.md](etl/README.md): ETL local runs, publishing, production release, and checks.
+- [artifacts/README.md](artifacts/README.md): local artifact root layout.

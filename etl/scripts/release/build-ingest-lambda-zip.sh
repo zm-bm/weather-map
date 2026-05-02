@@ -6,20 +6,10 @@ ETL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ETL_DIR/dist}"
 OUTPUT_ZIP="${OUTPUT_ZIP:-$DIST_DIR/gfs-ingest-lambda.zip}"
 
-FILES=(
-  "gfs.etl_config.json"
-  "gfs_pipeline/__init__.py"
-  "gfs_pipeline/aws/__init__.py"
-  "gfs_pipeline/aws/ingest.py"
-  "gfs_pipeline/config.py"
-  "gfs_pipeline/layout.py"
-  "gfs_pipeline/scalar_encoding.py"
-  "gfs_pipeline/stores/__init__.py"
-  "gfs_pipeline/stores/artifact_encoding.py"
-  "gfs_pipeline/stores/base.py"
-  "gfs_pipeline/stores/http.py"
-  "gfs_pipeline/stores/local_fs.py"
-  "gfs_pipeline/stores/s3.py"
+mapfile -t FILES < <(
+  cd "$ETL_DIR"
+  printf '%s\n' "forecast.etl_config.json"
+  find forecast_etl -type f -name '*.py' ! -path 'forecast_etl/tests/*' | sort
 )
 
 require_cmd() {

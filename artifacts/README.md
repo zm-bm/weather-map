@@ -6,10 +6,10 @@ It mirrors the object layout used in the production artifact bucket so the app c
 
 Typical contents:
 
-- `manifests/latest.json`
-- `manifests/<cycle>.json`
-- `fields/<cycle>/<fhour>/<layer>.scalar.i16.bin`
-- `fields/<cycle>/<fhour>/<layer>.vector.i8.bin`
+- `manifests/<model>/latest.json`
+- `manifests/<model>/<cycle>.json`
+- `fields/<model>/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
+- `fields/<model>/<cycle>/<fhour>/<layer>.vector.i8.bin`
 - `pmtiles/<name>.pmtiles`
 - `radio/playlist.json`
 - `radio/<track>.mp3`

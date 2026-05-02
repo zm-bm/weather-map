@@ -1,13 +1,13 @@
 # ETL
 
-This directory owns the GFS forecast artifact pipeline used by local development
+This directory owns the forecast artifact pipeline used by local development
 and production.
 
 `weather-map` is the source of truth for ETL application code:
 
-- `gfs_pipeline/cli.py` runs local and Batch worker commands.
-- `gfs_pipeline/aws/ingest.py` is the canonical production Lambda handler.
-- `gfs.etl_config.json` is the dev/default pipeline config.
+- `forecast_etl/cli.py` runs local and Batch worker commands.
+- `forecast_etl/aws/ingest.py` is the canonical production Lambda handler.
+- `forecast.etl_config.json` is the dev/default pipeline config.
 - `scripts/local/` contains local development helpers.
 - `scripts/release/` builds production release artifacts.
 
@@ -19,32 +19,60 @@ this repo in the private infra checkout, under `stacks/weather-etl/`.
 Run a full local cycle from the repo root:
 
 ```bash
-etl/scripts/local/run-cycle.sh <cycle>
+etl/scripts/local/run-cycle.sh --cycle <cycle>
 ```
 
 `<cycle>` is `YYYYMMDDHH`, for example `2026021606`.
+Pass `--model icon` to run the placeholder ICON model.
 
-The script creates/updates `etl/.venv`, installs `etl/requirements.txt`, checks
-for GDAL CLI tools, then runs:
+The wrapper creates `etl/.venv` when the `forecast-etl` command is missing.
+After changing ETL dependencies or tooling, update the local environment with:
 
 ```bash
-python -m gfs_pipeline.cli run-cycle --cycle <cycle>
+etl/scripts/local/bootstrap.sh
 ```
 
-`run-cycle` reads `etl/gfs.etl_config.json`, downloads GRIB files from NOMADS
-into `etl/cache/grib/<cycle>/`, processes each configured forecast hour, and
-writes artifacts into the repo-level `artifacts/` directory.
+That installs the ETL package from `etl/pyproject.toml` in editable mode. The
+cycle script then checks for GDAL CLI tools and runs:
+
+```bash
+etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
+```
+
+`run-cycle` reads `etl/forecast.etl_config.json`, downloads GFS GRIB files from
+NOMADS into `etl/cache/grib/gfs/<cycle>/`, processes each configured forecast
+hour, and writes artifacts into the repo-level `artifacts/` directory.
+
+## Product Pipeline
+
+The ETL config is product-based:
+
+- `product_catalog` defines shared scalar/vector products and encodings.
+- `models.<model>.workload.products` is the ordered product list for that model.
+- `models.<model>.product_bindings` maps product components to model-specific GRIB metadata.
+- `models.<model>.scalar_variable_groups` is published for the frontend category/measurement UI.
+
+The implementation follows this path:
+
+```text
+GRIB band -> encoded component -> product payload -> manifest
+```
+
+- `forecast_etl/sources/` finds GRIB bands, extracts Float32 component bytes, and reads grid metadata.
+- `forecast_etl/encoding/` defines encoding contracts and encodes component bytes.
+- `forecast_etl/products/` packs encoded components and writes `.scalar.*.bin` / `.vector.i8.bin` payloads.
+- `forecast_etl/manifest/` reads product success markers and emits frontend-compatible manifests.
 
 ## Artifact Layout
 
 Local and production artifacts use the same object layout:
 
-- `manifests/latest.json`
-- `manifests/<cycle>.json`
-- `fields/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
-- `fields/<cycle>/<fhour>/<layer>.vector.i8.bin`
-- `status/<cycle>/<layer>/<fhour>._SUCCESS.json`
-- `status/<cycle>/_PUBLISHED.json`
+- `manifests/<model>/latest.json`
+- `manifests/<model>/<cycle>.json`
+- `fields/<model>/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
+- `fields/<model>/<cycle>/<fhour>/<layer>.vector.i8.bin`
+- `status/<model>/<cycle>/<layer>/<fhour>._SUCCESS.json`
+- `status/<model>/<cycle>/_PUBLISHED.json`
 - `pmtiles/<name>.pmtiles`
 - `radio/<track>.mp3`
 
@@ -57,13 +85,14 @@ In local development, `compose.yml` mounts `artifacts/` into nginx, which serves
 Useful entrypoints:
 
 ```bash
-python -m gfs_pipeline.cli run-cycle --cycle <cycle>
-python -m gfs_pipeline.cli run-hour --cycle <cycle> --fhour <fff> --source-uri <uri>
-python -m gfs_pipeline.cli smoke
+etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
+etl/.venv/bin/forecast-etl run-hour --model gfs --cycle <cycle> --fhour <fff> --source-uri <uri>
+etl/.venv/bin/forecast-etl smoke
 ```
 
 `run-hour` also accepts production Batch inputs from environment variables:
 
+- `MODEL`
 - `CYCLE`
 - `FHOUR`
 - `GRIB_SOURCE_URI`
@@ -112,14 +141,32 @@ stacks/weather-etl/ops/invoke-lambda-test.sh
 
 ## Testing
 
-Run ETL tests from `etl/`:
+Bootstrap the local environment first if `etl/.venv` does not exist:
 
 ```bash
-python -m unittest discover -s gfs_pipeline/tests -p 'test_*.py'
+etl/scripts/local/bootstrap.sh
+```
+
+Run ETL tests from the repo root:
+
+```bash
+etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests -p 'test_*.py'
+```
+
+Run ETL linting from the repo root:
+
+```bash
+etl/.venv/bin/ruff check etl/forecast_etl
+```
+
+Run ETL type checking from the repo root:
+
+```bash
+etl/.venv/bin/pyright -p etl
 ```
 
 Run only the production ingest tests:
 
 ```bash
-python -m unittest discover -s gfs_pipeline/tests -p 'test_aws_ingest.py'
+etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests -p 'test_aws_ingest.py'
 ```
