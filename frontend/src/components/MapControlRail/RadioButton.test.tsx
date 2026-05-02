@@ -1,10 +1,10 @@
-import { act } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MusicControl } from './MusicControl'
-import type { RadioPlaylistFetch } from './playlist'
-import type { AudioFactory, AudioLike } from './useRadioPlayer'
-import { createFetchErrorResponse, createFetchJsonResponse } from '../../../test/fetch'
+import type { RadioPlaylistFetch } from '../../radio/playlist'
+import type { AudioFactory, AudioLike } from '../../radio/useRadioPlayer'
+import { createFetchErrorResponse, createFetchJsonResponse } from '../../test/fetch'
+import RadioButton from './RadioButton'
 
 const PLAYLIST_URL = 'http://localhost:3000/radio/playlist.json'
 
@@ -87,7 +87,7 @@ function installPlaylistFetch(payload: unknown) {
   )) satisfies RadioPlaylistFetch
 }
 
-describe('MusicControl', () => {
+describe('RadioButton', () => {
   it('does not request the playlist or audio until the button is clicked', async () => {
     const { createAudio, instances } = installAudioMock()
     const fetchPlaylist = installPlaylistFetch({
@@ -101,20 +101,16 @@ describe('MusicControl', () => {
       .mockReturnValueOnce(0.99)
       .mockReturnValueOnce(0)
       .mockReturnValue(0)
-    const control = new MusicControl({
-      playlistUrl: PLAYLIST_URL,
-      createAudio,
-      fetchPlaylist,
-      random,
-    })
-    let root: HTMLElement
+    const { container, unmount } = render(
+      <RadioButton
+        playlistUrl={PLAYLIST_URL}
+        createAudio={createAudio}
+        fetchPlaylist={fetchPlaylist}
+        random={random}
+      />
+    )
 
-    await act(async () => {
-      root = control.onAdd()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const button = root!.querySelector('button')
+    const button = container.querySelector('button')
     expect(button).toBeTruthy()
     expect(button).toHaveAttribute('aria-label', 'Play radio')
     expect(button).toHaveAttribute('aria-pressed', 'false')
@@ -156,10 +152,7 @@ describe('MusicControl', () => {
     expect(createAudio).toHaveBeenCalledTimes(1)
     expect(button).toHaveClass('is-playing')
 
-    await act(async () => {
-      control.onRemove()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    unmount()
   })
 
   it('advances through the shuffled playlist when a track ends', async () => {
@@ -175,20 +168,16 @@ describe('MusicControl', () => {
       .mockReturnValueOnce(0.99)
       .mockReturnValueOnce(0)
       .mockReturnValue(0)
-    const control = new MusicControl({
-      playlistUrl: PLAYLIST_URL,
-      createAudio,
-      fetchPlaylist,
-      random,
-    })
-    let root: HTMLElement
+    const { container, unmount } = render(
+      <RadioButton
+        playlistUrl={PLAYLIST_URL}
+        createAudio={createAudio}
+        fetchPlaylist={fetchPlaylist}
+        random={random}
+      />
+    )
 
-    await act(async () => {
-      root = control.onAdd()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const button = root!.querySelector('button')
+    const button = container.querySelector('button')
     expect(button).toBeTruthy()
 
     await act(async () => {
@@ -212,10 +201,7 @@ describe('MusicControl', () => {
     expect(fetchPlaylist).toHaveBeenCalledTimes(1)
     expect(button).toHaveAttribute('title', 'Pause radio: Alpha')
 
-    await act(async () => {
-      control.onRemove()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    unmount()
   })
 
   it('shows blocked playback feedback when play rejects', async () => {
@@ -225,19 +211,15 @@ describe('MusicControl', () => {
     const fetchPlaylist = installPlaylistFetch({
       tracks: [{ src: 'alpha.mp3', title: 'Alpha' }],
     })
-    const control = new MusicControl({
-      playlistUrl: PLAYLIST_URL,
-      createAudio,
-      fetchPlaylist,
-    })
-    let root: HTMLElement
+    const { container, unmount } = render(
+      <RadioButton
+        playlistUrl={PLAYLIST_URL}
+        createAudio={createAudio}
+        fetchPlaylist={fetchPlaylist}
+      />
+    )
 
-    await act(async () => {
-      root = control.onAdd()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const button = root!.querySelector('button')
+    const button = container.querySelector('button')
     expect(button).toBeTruthy()
 
     await act(async () => {
@@ -250,10 +232,7 @@ describe('MusicControl', () => {
     expect(button).toHaveAttribute('aria-label', 'Play radio')
     expect(button).toHaveAttribute('title', 'Playback blocked or unavailable')
 
-    await act(async () => {
-      control.onRemove()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    unmount()
   })
 
   it('disables the button when the playlist cannot be loaded', async () => {
@@ -261,19 +240,15 @@ describe('MusicControl', () => {
     const fetchPlaylist = vi.fn(async () => (
       createFetchErrorResponse(404, 'Not Found')
     )) satisfies RadioPlaylistFetch
-    const control = new MusicControl({
-      playlistUrl: PLAYLIST_URL,
-      createAudio,
-      fetchPlaylist,
-    })
-    let root: HTMLElement
+    const { container, unmount } = render(
+      <RadioButton
+        playlistUrl={PLAYLIST_URL}
+        createAudio={createAudio}
+        fetchPlaylist={fetchPlaylist}
+      />
+    )
 
-    await act(async () => {
-      root = control.onAdd()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const button = root!.querySelector('button')
+    const button = container.querySelector('button')
     expect(button).toBeTruthy()
 
     await act(async () => {
@@ -286,10 +261,7 @@ describe('MusicControl', () => {
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('title', 'Radio playlist unavailable')
 
-    await act(async () => {
-      control.onRemove()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    unmount()
   })
 
   afterEach(() => {

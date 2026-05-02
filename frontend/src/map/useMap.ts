@@ -1,4 +1,4 @@
-import { useMapControls } from './controls/useMapControls'
+import { useMapAttributionControl } from './controls/useMapAttributionControl'
 import { useMapHover } from './interactions/useMapHover'
 import {
   useMapLibre,
@@ -21,7 +21,7 @@ export function useMap({
   })
 
   useMapHover(map.mapRef)
-  useMapControls(map.mapRef, map.mapReadyVersion)
+  useMapAttributionControl(map.mapRef, map.mapReadyVersion)
 
   return map
 }

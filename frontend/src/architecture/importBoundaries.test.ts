@@ -197,5 +197,5 @@ function isForecastTimeInternalImport(path: string): boolean {
 }
 
 function isUiControlFile(path: string): boolean {
-  return path.includes('/components/controls/') || path.includes('/map/controls/')
+  return path.includes('/components/MapControlRail/') || path.includes('/map/controls/')
 }

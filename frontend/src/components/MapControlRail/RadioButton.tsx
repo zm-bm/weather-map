@@ -1,19 +1,19 @@
-import type { RadioPlaylistFetch } from './playlist'
-import { useRadioPlayer, type AudioFactory } from './useRadioPlayer'
+import type { RadioPlaylistFetch } from '../../radio/playlist'
+import { useRadioPlayer, type AudioFactory } from '../../radio/useRadioPlayer'
 
-type MusicControlViewProps = {
+export type RadioButtonProps = {
   playlistUrl: string
   createAudio?: AudioFactory
   fetchPlaylist?: RadioPlaylistFetch
   random?: () => number
 }
 
-export function MusicControlView({
+export default function RadioButton({
   playlistUrl,
   createAudio,
   fetchPlaylist,
   random,
-}: MusicControlViewProps) {
+}: RadioButtonProps) {
   const player = useRadioPlayer({
     playlistUrl,
     createAudio,
@@ -31,10 +31,12 @@ export function MusicControlView({
       ))
 
   return (
-    <div className="maplibregl-ctrl maplibregl-ctrl-group">
+    <div className="map-control-group">
       <button
         type="button"
-        className={player.isPlaying ? 'maplibregl-ctrl-music is-playing' : 'maplibregl-ctrl-music'}
+        className={player.isPlaying
+          ? 'map-control-button map-control-button--radio is-playing'
+          : 'map-control-button map-control-button--radio'}
         title={title}
         aria-label={actionLabel}
         aria-pressed={player.isPlaying}
@@ -43,7 +45,7 @@ export function MusicControlView({
           void player.toggle()
         }}
       >
-        <span className="maplibregl-ctrl-icon maplibregl-ctrl-icon--music" />
+        <span className="map-control-icon map-control-icon--radio" />
       </button>
     </div>
   )

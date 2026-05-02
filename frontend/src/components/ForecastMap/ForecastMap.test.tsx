@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useMap: vi.fn(),
   useForecastSync: vi.fn(),
   ForecastPlaceProbes: vi.fn(),
+  MapControlRail: vi.fn(),
 }))
 
 vi.mock('../../map/useMap', () => ({
@@ -23,6 +24,13 @@ vi.mock('../ForecastPlaceProbes', () => ({
   default: (props: unknown) => {
     mocks.ForecastPlaceProbes(props)
     return <div data-testid="forecast-place-probes" />
+  },
+}))
+
+vi.mock('../MapControlRail', () => ({
+  default: (props: unknown) => {
+    mocks.MapControlRail(props)
+    return <div data-testid="map-control-rail" />
   },
 }))
 
@@ -59,6 +67,10 @@ describe('ForecastMap', () => {
       config,
     })
     expect(mocks.ForecastPlaceProbes).toHaveBeenCalledWith({
+      mapRef,
+      mapReadyVersion,
+    })
+    expect(mocks.MapControlRail).toHaveBeenCalledWith({
       mapRef,
       mapReadyVersion,
     })

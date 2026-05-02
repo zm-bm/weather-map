@@ -30,7 +30,7 @@ type UseRadioPlayerOptions = {
   random?: () => number
 }
 
-const MUSIC_VOLUME = 0.45
+const RADIO_VOLUME = 0.45
 
 const defaultCreateAudio: AudioFactory = (src) => new Audio(src)
 
@@ -168,7 +168,7 @@ export function useRadioPlayer({
 
     audio.loop = false
     audio.preload = 'auto'
-    audio.volume = MUSIC_VOLUME
+    audio.volume = RADIO_VOLUME
     audio.addEventListener('ended', handleEnded)
     audio.addEventListener('error', handleError)
     audioCleanupRef.current = () => {
