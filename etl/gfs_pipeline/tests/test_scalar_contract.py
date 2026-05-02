@@ -17,7 +17,11 @@ from gfs_pipeline.config import ExecutionContext, PipelineConfig
 from gfs_pipeline.contracts import ArtifactPaths, WorkItem
 from gfs_pipeline.publish import run_publish
 from gfs_pipeline.scalar_encoding import is_linear_scalar_format, scalar_format_for_encoding
-from gfs_pipeline.scalar_product import encode_scalar_f32_to_i16_payload, encode_scalar_f32_to_payload
+from gfs_pipeline.scalar_product import (
+    encode_scalar_f32_to_i16_payload,
+    encode_scalar_f32_to_payload,
+    run_scalar_item_in_workdir,
+)
 from gfs_pipeline.stores import make_store
 from gfs_pipeline.wind_codec import quantize_f32_to_i8_q0p5
 from gfs_pipeline.vector_product import run_vector_item_in_workdir
@@ -52,6 +56,34 @@ def _minimal_layer_config() -> dict:
             "scale": 0.01,
             "offset": 0.0,
             "nodata": -32768,
+        },
+    }
+
+
+def _cloud_layers_config() -> dict:
+    return {
+        "parameter": "cloud_layers",
+        "level": "low/medium/high cloud layers",
+        "component_grib_matches": {
+            "low": {"GRIB_ELEMENT": "LCDC"},
+            "medium": {"GRIB_ELEMENT": "MCDC"},
+            "high": {"GRIB_ELEMENT": "HCDC"},
+        },
+        "units": "%",
+        "scale_min": 0,
+        "scale_max": 100,
+        "scalar_source_transform": "identity",
+        "scalar_encoding": {
+            "encoding_id": "cloud_layers_i8_5pct_components_v1",
+            "format": "scalar-i8-linear-components-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 5,
+            "offset": 0,
+            "nodata": -128,
+            "components": ["low", "medium", "high"],
+            "component_count": 3,
+            "component_order": "low_medium_high",
         },
     }
 
@@ -149,6 +181,73 @@ def _write_scalar_marker(
         scalar_marker["scale"] = float(scalar_encoding["scale"])
         scalar_marker["offset"] = float(scalar_encoding["offset"])
         scalar_marker["decode_formula"] = "value = stored * scale + offset"
+
+    _write_json(
+        ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable),
+        {
+            "cycle": cycle,
+            "fhour": fhour,
+            "layer": variable,
+            "kind": "scalar",
+            "scalar": scalar_marker,
+        },
+    )
+
+
+def _write_packed_cloud_scalar_marker(
+    *,
+    store,
+    ap: ArtifactPaths,
+    cycle: str,
+    fhour: str,
+    variable: str,
+    source_values_by_component: dict[str, list[float]],
+    scalar_config: dict,
+    grid_meta: dict[str, object],
+) -> None:
+    scalar_encoding = scalar_config["scalar_encoding"]
+    dtype = str(scalar_encoding["dtype"])
+    scalar_format = scalar_format_for_encoding(
+        dtype=dtype,
+        explicit_format=scalar_encoding.get("format"),
+    )
+    component_payloads = []
+    for component in scalar_encoding["components"]:
+        component_payloads.append(
+            encode_scalar_f32_to_payload(
+                source_f32_bytes=_pack_f32(source_values_by_component[component], byte_order="little"),
+                source_byte_order="little",
+                target_dtype=dtype,
+                target_byte_order=str(scalar_encoding["byte_order"]),
+                target_format=scalar_format,
+                scale=float(scalar_encoding["scale"]),
+                offset=float(scalar_encoding["offset"]),
+                nodata=int(scalar_encoding["nodata"]),
+                source_transform=str(scalar_config.get("scalar_source_transform", "identity")),
+            )
+        )
+    payload = b"".join(component_payloads)
+    payload_sha = hashlib.sha256(payload).hexdigest()
+    item = WorkItem(cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+    payload_uri = ap.output_scalar_payload_uri(item=item, dtype=dtype)
+    store.write_bytes(uri=payload_uri, data=payload)
+    scalar_marker = {
+        "payload_uri": payload_uri,
+        "byte_length": len(payload),
+        "sha256": payload_sha,
+        "format": scalar_format,
+        "dtype": dtype,
+        "byte_order": str(scalar_encoding["byte_order"]),
+        "encoding_id": str(scalar_encoding["encoding_id"]),
+        "nodata": int(scalar_encoding["nodata"]),
+        "scale": float(scalar_encoding["scale"]),
+        "offset": float(scalar_encoding["offset"]),
+        "decode_formula": "value = stored * scale + offset",
+        "components": list(scalar_encoding["components"]),
+        "component_count": int(scalar_encoding["component_count"]),
+        "component_order": str(scalar_encoding["component_order"]),
+        "grid": grid_meta,
+    }
 
     _write_json(
         ap.success_marker_uri_parts(cycle=cycle, fhour=fhour, layer=variable),
@@ -374,6 +473,72 @@ class ConfigValidationTest(unittest.TestCase):
             "scalar-i8-temp-c-piecewise-v1",
         )
 
+    def test_pipeline_config_accepts_packed_cloud_component_scalar(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["workload"]["variables"] = ["tmp_surface", "cloud_layers"]
+        cfg["scalar_variables"]["cloud_layers"] = _cloud_layers_config()
+        cfg["scalar_variable_groups"] = [
+            {
+                "id": "temperature",
+                "label": "Temperature",
+                "default_variable": "tmp_surface",
+                "variables": ["tmp_surface"],
+            },
+            {
+                "id": "clouds",
+                "label": "Clouds",
+                "default_variable": "cloud_layers",
+                "variables": ["cloud_layers"],
+            },
+        ]
+
+        parsed = PipelineConfig.from_obj(cfg)
+
+        self.assertEqual(
+            parsed.scalar_variables["cloud_layers"]["scalar_encoding"]["format"],
+            "scalar-i8-linear-components-v1",
+        )
+        self.assertEqual(
+            parsed.scalar_variables["cloud_layers"]["component_grib_matches"]["medium"]["GRIB_ELEMENT"],
+            "MCDC",
+        )
+
+    def test_pipeline_config_rejects_component_scalar_without_component_matches(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["workload"]["variables"] = ["cloud_layers"]
+        cfg["scalar_variables"] = {"cloud_layers": _cloud_layers_config()}
+        cfg["scalar_variable_groups"] = [
+            {
+                "id": "clouds",
+                "label": "Clouds",
+                "default_variable": "cloud_layers",
+                "variables": ["cloud_layers"],
+            },
+        ]
+        del cfg["scalar_variables"]["cloud_layers"]["component_grib_matches"]
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
+
+    def test_pipeline_config_rejects_component_scalar_with_unknown_component_match(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["workload"]["variables"] = ["cloud_layers"]
+        cfg["scalar_variables"] = {"cloud_layers": _cloud_layers_config()}
+        cfg["scalar_variable_groups"] = [
+            {
+                "id": "clouds",
+                "label": "Clouds",
+                "default_variable": "cloud_layers",
+                "variables": ["cloud_layers"],
+            },
+        ]
+        cfg["scalar_variables"]["cloud_layers"]["component_grib_matches"]["ceiling"] = {
+            "GRIB_ELEMENT": "CEIL"
+        }
+
+        with self.assertRaises(SystemExit):
+            PipelineConfig.from_obj(cfg)
+
     def test_pipeline_config_rejects_scalar_group_missing_workload_variable(self) -> None:
         cfg = _minimal_pipeline_config()
         cfg["workload"]["variables"] = ["tmp_surface", "rh_surface"]
@@ -425,6 +590,92 @@ class ArtifactPathContractTest(unittest.TestCase):
             uri,
             "file:///tmp/weather-map-artifacts/fields/2026041200/003/wind10m_uv.vector.i8.bin",
         )
+
+
+class ScalarProductContractTest(unittest.TestCase):
+    def test_cloud_layers_product_writes_packed_low_medium_high_scalar_payload(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-cloud-product-") as td:
+            out_dir = Path(td) / "out"
+            workdir = Path(td) / "work"
+            workdir.mkdir(parents=True, exist_ok=True)
+            grib_path = Path(td) / "input.grib2"
+            grib_path.write_bytes(b"grib")
+
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            ctx = ExecutionContext(
+                artifact_root_uri=artifact_root_uri,
+                forecast_hours=("000",),
+            )
+            item = WorkItem(
+                cycle="2026041200",
+                fhour="003",
+                layer="cloud_layers",
+                source_uri="file:///dev/null",
+            )
+            layer = _cloud_layers_config()
+
+            low_src = _pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
+            medium_src = _pack_f32([10.0, 55.0, 80.0, 25.0], byte_order="little")
+            high_src = _pack_f32([15.0, 45.0, 65.0, 95.0], byte_order="little")
+
+            with (
+                patch(
+                    "gfs_pipeline.scalar_product.gdal_ops.find_grib_band_by_metadata",
+                    side_effect=[
+                        (1, {"GRIB_ELEMENT": "LCDC"}),
+                        (2, {"GRIB_ELEMENT": "MCDC"}),
+                        (3, {"GRIB_ELEMENT": "HCDC"}),
+                    ],
+                ),
+                patch(
+                    "gfs_pipeline.scalar_product.extract_float32_band_bytes",
+                    side_effect=[
+                        (low_src, "little"),
+                        (medium_src, "little"),
+                        (high_src, "little"),
+                    ],
+                ),
+                patch(
+                    "gfs_pipeline.scalar_product.gdal_ops.gdalinfo_json",
+                    return_value={
+                        "size": [2, 2],
+                        "geoTransform": [-180.125, 0.25, 0.0, 90.125, 0.0, -0.25],
+                    },
+                ),
+            ):
+                result = run_scalar_item_in_workdir(
+                    workdir=workdir,
+                    ctx=ctx,
+                    item=item,
+                    layer=layer,
+                    store=make_store(),
+                    grib_path=grib_path,
+                    run=lambda *_args, **_kwargs: None,
+                )
+
+            ap = ArtifactPaths(artifact_root_uri)
+            payload_uri = ap.output_scalar_payload_uri(item, dtype="int8")
+            payload_path = out_dir / "fields" / "2026041200" / "003" / "cloud_layers.scalar.i8.bin"
+            self.assertEqual(result["payload_uri"], payload_uri)
+            self.assertTrue(payload_path.exists())
+
+            payload_bytes = gzip.decompress(payload_path.read_bytes())
+            expected_payload = (
+                struct.pack("bbbb", 0, 1, 20, -128)
+                + struct.pack("bbbb", 2, 11, 16, 5)
+                + struct.pack("bbbb", 3, 9, 13, 19)
+            )
+            self.assertEqual(payload_bytes, expected_payload)
+            self.assertEqual(result["byte_length"], len(expected_payload))
+            self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
+            self.assertEqual(result["format"], "scalar-i8-linear-components-v1")
+            self.assertEqual(result["dtype"], "int8")
+            self.assertEqual(result["components"], ["low", "medium", "high"])
+            self.assertEqual(result["component_count"], 3)
+            self.assertEqual(result["component_order"], "low_medium_high")
+            self.assertEqual(result["component_grib_matches"]["low"], {"GRIB_ELEMENT": "LCDC"})
+            self.assertEqual(result["grid"]["lon0"], -180.0)
+            self.assertEqual(result["grid"]["lat0"], 90.0)
 
 
 class WindProductContractTest(unittest.TestCase):
@@ -789,6 +1040,81 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertEqual(
                 cycle_manifest["frames"]["000"]["tmp_surface"]["byte_length"],
                 int(grid_meta["nx"]) * int(grid_meta["ny"]),
+            )
+
+    def test_publish_writes_packed_cloud_component_scalar_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-cloud-components-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041100"
+            fhours = ("000",)
+            variables = ("cloud_layers",)
+            scalar_variables_cfg = {
+                "cloud_layers": _cloud_layers_config(),
+            }
+
+            ctx = ExecutionContext(artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+            cell_count = int(grid_meta["nx"]) * int(grid_meta["ny"])
+            _write_packed_cloud_scalar_marker(
+                store=store,
+                ap=ap,
+                cycle=cycle,
+                fhour="000",
+                variable="cloud_layers",
+                source_values_by_component={
+                    "low": [0.0 for _ in range(cell_count)],
+                    "medium": [50.0 for _ in range(cell_count)],
+                    "high": [100.0 for _ in range(cell_count)],
+                },
+                scalar_config=scalar_variables_cfg["cloud_layers"],
+                grid_meta=grid_meta,
+            )
+
+            result = run_publish(
+                ctx=ctx,
+                cycle=cycle,
+                scalar_variables=variables,
+                vector_variables=(),
+                scalar_variables_cfg=scalar_variables_cfg,
+                scalar_variable_groups=[
+                    {
+                        "id": "clouds",
+                        "label": "Clouds",
+                        "default_variable": "cloud_layers",
+                        "variables": ["cloud_layers"],
+                    },
+                ],
+            )
+
+            self.assertTrue(result.ready)
+            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(cycle=cycle)).decode("utf-8"))
+            encoding = cycle_manifest["encodings"]["cloud_layers_i8_5pct_components_v1"]
+            self.assertEqual(
+                encoding,
+                {
+                    "format": "scalar-i8-linear-components-v1",
+                    "dtype": "int8",
+                    "byte_order": "none",
+                    "nodata": -128,
+                    "scale": 5.0,
+                    "offset": 0.0,
+                    "decode_formula": "value = stored * scale + offset",
+                    "components": ["low", "medium", "high"],
+                    "component_count": 3,
+                    "component_order": "low_medium_high",
+                },
+            )
+            self.assertEqual(cycle_manifest["variable_meta"]["cloud_layers"]["kind"], "scalar")
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["cloud_layers"]["path"],
+                f"fields/{cycle}/000/cloud_layers.scalar.i8.bin",
+            )
+            self.assertEqual(
+                cycle_manifest["frames"]["000"]["cloud_layers"]["byte_length"],
+                cell_count * 3,
             )
 
     def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:

@@ -116,6 +116,21 @@ function parseEncoding(raw: unknown, field: string): ManifestEncodingSpec {
     }
   }
 
+  if (format === 'scalar-i8-linear-components-v1') {
+    return {
+      format: 'scalar-i8-linear-components-v1',
+      dtype: asLiteralString(raw.dtype, `${field}.dtype`, 'int8'),
+      byte_order: asLiteralString(raw.byte_order, `${field}.byte_order`, 'none'),
+      nodata: asLiteralNumber(raw.nodata, `${field}.nodata`, -128),
+      scale: asLiteralNumber(raw.scale, `${field}.scale`, 5),
+      offset: asLiteralNumber(raw.offset, `${field}.offset`, 0),
+      decode_formula: asString(raw.decode_formula, `${field}.decode_formula`),
+      components: parseCloudLayerComponents(raw.components, `${field}.components`),
+      component_count: asLiteralNumber(raw.component_count, `${field}.component_count`, 3),
+      component_order: asLiteralString(raw.component_order, `${field}.component_order`, 'low_medium_high'),
+    }
+  }
+
   if (format === 'scalar-i8-temp-c-piecewise-v1') {
     const nodata = asFiniteNumber(raw.nodata, `${field}.nodata`)
     if (nodata !== -128) {
@@ -360,4 +375,12 @@ function parseVectorComponents(raw: unknown, field: string): ['u', 'v'] {
     throw new Error(`Invalid manifest field ${field}: expected ['u', 'v']`)
   }
   return ['u', 'v']
+}
+
+function parseCloudLayerComponents(raw: unknown, field: string): ['low', 'medium', 'high'] {
+  const parts = asStringArray(raw, field)
+  if (parts.length !== 3 || parts[0] !== 'low' || parts[1] !== 'medium' || parts[2] !== 'high') {
+    throw new Error(`Invalid manifest field ${field}: expected ['low', 'medium', 'high']`)
+  }
+  return ['low', 'medium', 'high']
 }

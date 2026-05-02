@@ -10,6 +10,8 @@ export type ScalarMeta = {
   min: number
   max: number
   colortable: LayerColortableStop[]
+  legendKind?: 'cloud_layers'
+  cloudLayerSwatches?: CloudLayerLegendSwatch[]
 }
 
 type ScalarCatalogEntry = {
@@ -17,6 +19,14 @@ type ScalarCatalogEntry = {
   units: string
   displayRange: [number, number]
   colortable: LayerColortableStop[]
+  legendKind?: 'cloud_layers'
+  cloudLayerSwatches?: CloudLayerLegendSwatch[]
+}
+
+export type CloudLayerLegendSwatch = {
+  id: 'low' | 'medium' | 'high'
+  label: string
+  color: string
 }
 
 const FALLBACK_ENTRY_KEY = '__fallback__'
@@ -150,6 +160,24 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
       [100, 60, 120, 170],
     ],
   },
+  cloud_layers: {
+    label: 'Cloud Layers',
+    units: '%',
+    displayRange: [0, 100],
+    legendKind: 'cloud_layers',
+    cloudLayerSwatches: [
+      { id: 'low', label: 'Low', color: 'rgb(110 105 89)' },
+      { id: 'medium', label: 'Mid', color: 'rgb(255 240 163)' },
+      { id: 'high', label: 'High', color: 'rgb(20 107 255)' },
+    ],
+    colortable: [
+      [0, 180, 180, 180],
+      [25, 120, 175, 220],
+      [50, 90, 160, 205],
+      [75, 72, 148, 192],
+      [100, 60, 120, 170],
+    ],
+  },
   prmsl_surface: {
     label: 'Pressure',
     units: 'Pa',
@@ -225,6 +253,8 @@ export function getScalarMeta(
     min: catalog.displayRange[0],
     max: catalog.displayRange[1],
     colortable: catalog.colortable,
+    legendKind: catalog.legendKind,
+    cloudLayerSwatches: catalog.cloudLayerSwatches,
   }
 }
 

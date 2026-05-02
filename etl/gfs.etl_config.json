@@ -11,6 +11,7 @@
       "rh_surface",
       "prmsl_surface",
       "tcdc",
+      "cloud_layers",
       "prate_surface"
     ]
   },
@@ -22,7 +23,10 @@
       "lev_10_m_above_ground": "on",
       "lev_surface": "on",
       "lev_mean_sea_level": "on",
-      "lev_entire_atmosphere": "on"
+      "lev_entire_atmosphere": "on",
+      "lev_low_cloud_layer": "on",
+      "lev_middle_cloud_layer": "on",
+      "lev_high_cloud_layer": "on"
     },
     "rate_limit_seconds": 2
   },
@@ -66,7 +70,8 @@
       "label": "Clouds",
       "default_variable": "tcdc",
       "variables": [
-        "tcdc"
+        "tcdc",
+        "cloud_layers"
       ]
     },
     {
@@ -215,6 +220,41 @@
         "scale": 1,
         "offset": 50,
         "nodata": -128
+      }
+    },
+    "cloud_layers": {
+      "parameter": "cloud_layers",
+      "level": "low/medium/high cloud layers",
+      "component_grib_matches": {
+        "low": {
+          "GRIB_ELEMENT": "LCDC"
+        },
+        "medium": {
+          "GRIB_ELEMENT": "MCDC"
+        },
+        "high": {
+          "GRIB_ELEMENT": "HCDC"
+        }
+      },
+      "scale_min": 0,
+      "scale_max": 100,
+      "units": "%",
+      "scalar_source_transform": "identity",
+      "scalar_encoding": {
+        "encoding_id": "cloud_layers_i8_5pct_components_v1",
+        "format": "scalar-i8-linear-components-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 5,
+        "offset": 0,
+        "nodata": -128,
+        "components": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "component_count": 3,
+        "component_order": "low_medium_high"
       }
     },
     "prate_surface": {

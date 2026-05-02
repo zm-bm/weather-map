@@ -144,4 +144,50 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
+
+  it('shows cloud layers as a Clouds measurement option', () => {
+    render(
+      <ForecastSelectionProvider
+        manifest={createManifestFixture({
+          cycle: '2026041118',
+          scalarVariables: ['tcdc', 'cloud_layers'],
+          scalarVariableGroups: [
+            {
+              id: 'clouds',
+              label: 'Clouds',
+              defaultVariable: asScalarVariableId('tcdc'),
+              variables: [asScalarVariableId('tcdc'), asScalarVariableId('cloud_layers')],
+            },
+          ],
+          vectorVariables: ['wind10m_uv'],
+          variableMeta: {
+            tcdc: createScalarVariableMetaFixture({
+              units: '%',
+              parameter: 'tcdc',
+              valid_min: 0,
+              valid_max: 100,
+            }),
+            cloud_layers: createScalarVariableMetaFixture({
+              units: '%',
+              parameter: 'cloud_layers',
+              valid_min: 0,
+              valid_max: 100,
+            }),
+          },
+        })}
+      >
+        <ForecastPanel />
+      </ForecastSelectionProvider>
+    )
+
+    const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    expect(screen.getByRole('button', { name: 'Clouds' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('option', { name: 'Cloud Layers' })).toHaveValue('cloud_layers')
+
+    fireEvent.change(measurement, {
+      target: { value: 'cloud_layers' },
+    })
+
+    expect(measurement.value).toBe('cloud_layers')
+  })
 })

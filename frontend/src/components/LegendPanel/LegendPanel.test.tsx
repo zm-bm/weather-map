@@ -12,11 +12,11 @@ import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
-  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface'
+  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'cloud_layers'
 ) {
   return createManifestFixture({
     cycle: '2026041100',
-    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface'])),
+    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'cloud_layers'])),
     scalarVariableGroups: [
       {
         id: 'temperature',
@@ -36,6 +36,12 @@ function createLegendSelectionManifest(
         defaultVariable: asScalarVariableId('prmsl_surface'),
         variables: [asScalarVariableId('prmsl_surface')],
       },
+      {
+        id: 'clouds',
+        label: 'Clouds',
+        defaultVariable: asScalarVariableId('cloud_layers'),
+        variables: [asScalarVariableId('cloud_layers')],
+      },
     ],
     vectorVariables: ['wind10m_uv'],
     variableMeta: {
@@ -52,12 +58,18 @@ function createLegendSelectionManifest(
         valid_min: 0,
         valid_max: 30,
       }),
+      cloud_layers: createScalarVariableMetaFixture({
+        units: '%',
+        parameter: 'cloud_layers',
+        valid_min: 0,
+        valid_max: 100,
+      }),
       wind10m_uv: createVectorVariableMetaFixture(),
     },
   })
 }
 
-function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' = 'tmp_surface') {
+function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'cloud_layers' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
       <ForecastPanel />
@@ -110,5 +122,16 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('in/hr')
     expect(tickLabels).not.toContain('mm/hr')
     expect(tickLabels).not.toContain('0.000')
+  })
+
+  it('shows compact cloud layer swatches for the packed cloud layer measurement', () => {
+    const { container } = renderLegendHarness('cloud_layers')
+
+    expect(screen.getByLabelText('Cloud Layers units %.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cloud layer tones')).toBeInTheDocument()
+    expect(screen.getByText('Low')).toBeInTheDocument()
+    expect(screen.getByText('Mid')).toBeInTheDocument()
+    expect(screen.getByText('High')).toBeInTheDocument()
+    expect(container.querySelector('.legend-panel__scale')).not.toBeInTheDocument()
   })
 })

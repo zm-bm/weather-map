@@ -41,6 +41,14 @@ class _FakePipelineConfig:
         self.workload = _FakeWorkload(forecast_hours=forecast_hours, variables=variables)
         self.nomads = _FakeNomads(rate_limit_seconds=rate_limit_seconds)
         self.scalar_variables = {name: {} for name in variables}
+        self.scalar_variable_groups = (
+            {
+                "id": "layers",
+                "label": "Layers",
+                "default_variable": variables[0],
+                "variables": list(variables),
+            },
+        ) if variables else ()
         self.vector_variables = vector_variables or {}
 
     def to_execution_context(self, artifact_root_uri: str) -> ExecutionContext:

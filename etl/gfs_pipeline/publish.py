@@ -24,7 +24,10 @@ from .stores.base import UriStore
 from .config import ExecutionContext
 from .contracts import ArtifactPaths, SUCCESS_MARKER_SUFFIX
 from .scalar_encoding import (
+    SCALAR_CLOUD_LAYER_COMPONENTS,
+    SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH,
     SCALAR_DECODE_FORMULA,
+    SCALAR_FORMAT_I8_LINEAR_COMPONENTS,
     is_linear_scalar_format,
     scalar_format_for_encoding,
     scalar_required_nodata,
@@ -167,6 +170,39 @@ def _as_str_list(raw: Any, *, field: str) -> list[str]:
     for idx, value in enumerate(raw):
         out.append(_as_str(value, field=f"{field}[{idx}]"))
     return out
+
+
+def _scalar_component_metadata_from_config(
+    *,
+    scalar_cfg: Mapping[str, Any],
+    field: str,
+) -> dict[str, Any]:
+    scale = _as_float(scalar_cfg.get("scale"), field=f"{field}.scale")
+    if scale != 5.0:
+        raise SystemExit(f"{field}.scale must be 5 for scalar component encodings")
+    offset = _as_float(scalar_cfg.get("offset"), field=f"{field}.offset")
+    if offset != 0.0:
+        raise SystemExit(f"{field}.offset must be 0 for scalar component encodings")
+    components = _as_str_list(scalar_cfg.get("components"), field=f"{field}.components")
+    if components != list(SCALAR_CLOUD_LAYER_COMPONENTS):
+        raise SystemExit(
+            f"{field}.components must be {list(SCALAR_CLOUD_LAYER_COMPONENTS)!r}, got {components!r}"
+        )
+    component_count = _as_int(scalar_cfg.get("component_count"), field=f"{field}.component_count")
+    if component_count != len(components):
+        raise SystemExit(
+            f"{field}.component_count must equal len(components), got {component_count}"
+        )
+    component_order = _as_str(scalar_cfg.get("component_order"), field=f"{field}.component_order")
+    if component_order != SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH:
+        raise SystemExit(
+            f"{field}.component_order must be {SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH!r}, got {component_order!r}"
+        )
+    return {
+        "components": components,
+        "component_count": component_count,
+        "component_order": component_order,
+    }
 
 
 def _relative_artifact_path(*, artifact_root_uri: str, uri: str) -> str:
@@ -341,6 +377,13 @@ def _build_manifest_sections(
             encoding_entry["scale"] = _as_float(scalar_cfg.get("scale"), field=f"{variable}.scalar_encoding.scale")
             encoding_entry["offset"] = _as_float(scalar_cfg.get("offset"), field=f"{variable}.scalar_encoding.offset")
             encoding_entry["decode_formula"] = SCALAR_DECODE_FORMULA
+        scalar_component_metadata: dict[str, Any] | None = None
+        if scalar_format == SCALAR_FORMAT_I8_LINEAR_COMPONENTS:
+            scalar_component_metadata = _scalar_component_metadata_from_config(
+                scalar_cfg=scalar_cfg,
+                field=f"{variable}.scalar_encoding",
+            )
+            encoding_entry.update(scalar_component_metadata)
         prev_encoding = encodings.get(encoding_id)
         if prev_encoding is None:
             encodings[encoding_id] = encoding_entry
@@ -391,6 +434,29 @@ def _build_manifest_sections(
                     raise SystemExit(
                         f"Scalar format mismatch in marker {marker_uri}: "
                         f"marker={marker_format!r} expected={scalar_format!r}"
+                    )
+            if scalar_component_metadata is not None:
+                marker_components = _as_str_list(
+                    scalar.get("components"),
+                    field=f"{marker_uri}.scalar.components",
+                )
+                marker_component_count = _as_int(
+                    scalar.get("component_count"),
+                    field=f"{marker_uri}.scalar.component_count",
+                )
+                marker_component_order = _as_str(
+                    scalar.get("component_order"),
+                    field=f"{marker_uri}.scalar.component_order",
+                )
+                marker_component_metadata = {
+                    "components": marker_components,
+                    "component_count": marker_component_count,
+                    "component_order": marker_component_order,
+                }
+                if marker_component_metadata != scalar_component_metadata:
+                    raise SystemExit(
+                        f"Scalar component metadata mismatch in marker {marker_uri}: "
+                        f"marker={marker_component_metadata!r} config={scalar_component_metadata!r}"
                     )
             if byte_length <= 0:
                 raise SystemExit(f"Invalid scalar.byte_length in marker {marker_uri}: {byte_length}")

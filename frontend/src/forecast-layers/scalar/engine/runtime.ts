@@ -20,6 +20,7 @@ import {
 } from '../controller'
 import {
   canInterpolateScalarFrames,
+  type CloudLayerFrameValues,
   type ScalarFrameData,
 } from '../../../forecast-frame/scalar'
 import {
@@ -29,6 +30,7 @@ import {
 } from '../options'
 
 type NormalizedColortableStop = [number, number, number, number]
+export type ScalarRenderMode = 'colormap' | 'cloud_layers'
 
 type ScalarLayerState = {
   map?: MapLibreMap
@@ -36,6 +38,7 @@ type ScalarLayerState = {
   available: boolean
   hasFrame: boolean
   opacity: number
+  renderMode: ScalarRenderMode
   // Active LUT sampling mode.
   colorSamplingMode: ScalarColorSamplingMode
   // Scalar program + fullscreen-quad geometry.
@@ -78,6 +81,7 @@ type ScalarLayerState = {
     dx: WebGLUniformLocation | null
     dy: WebGLUniformLocation | null
     opacity: WebGLUniformLocation | null
+    renderMode: WebGLUniformLocation | null
   }
 }
 
@@ -97,6 +101,7 @@ export function createScalarRuntime(
     available: false,
     hasFrame: false,
     opacity: SCALAR_ACTIVE_OPACITY,
+    renderMode: 'colormap',
     colorSamplingMode: options.colorSamplingMode,
     program: null,
     vao: null,
@@ -132,6 +137,7 @@ export function createScalarRuntime(
       dx: null,
       dy: null,
       opacity: null,
+      renderMode: null,
     },
   }
 
@@ -148,6 +154,10 @@ export function createScalarRuntime(
       if (lowerFrame.values.length !== expectedCellCount) {
         throw new Error(`Unexpected scalar grid size for ${lowerFrame.variableId}: got=${lowerFrame.values.length} expected=${expectedCellCount}`)
       }
+      const renderMode = getScalarFrameRenderMode(lowerFrame)
+      if (renderMode === 'cloud_layers') {
+        validateCloudLayerFrame(lowerFrame, expectedCellCount)
+      }
 
       const previousScalarTexture = state.scalarTexture
       const previousScalarTextureUpper = state.scalarTextureUpper
@@ -157,22 +167,20 @@ export function createScalarRuntime(
         : findReusableScalarTexture(state, upperFrame)
       const createdLowerTexture = reusableLowerTexture
         ? null
-        : createScalarTexture(
+        : createFrameTexture(
           gl,
-          lowerFrame.grid.nx,
-          lowerFrame.grid.ny,
-          lowerFrame.values
+          lowerFrame,
+          renderMode,
         )
       const nextScalarTexture = reusableLowerTexture ?? createdLowerTexture
       if (!nextScalarTexture) throw new Error('Failed to create scalar texture')
 
       const createdUpperTexture = upperFrame === lowerFrame || reusableUpperTexture
         ? null
-        : createScalarTexture(
+        : createFrameTexture(
           gl,
-          upperFrame.grid.nx,
-          upperFrame.grid.ny,
-          upperFrame.values
+          upperFrame,
+          renderMode,
         )
       const nextScalarTextureUpper = upperFrame === lowerFrame
         ? nextScalarTexture
@@ -182,12 +190,14 @@ export function createScalarRuntime(
         throw new Error('Failed to create scalar texture')
       }
 
-      // Rebuild colormap textures only when display range or stop table changes.
-      const nextColormapKey = createColormapKey(lowerFrame.colortable, lowerFrame.displayRange)
-      const shouldRebuildColormap =
+      const nextColormapKey = renderMode === 'colormap'
+        ? createColormapKey(lowerFrame.colortable, lowerFrame.displayRange)
+        : state.colormapKey
+      const shouldRebuildColormap = renderMode === 'colormap' && (
         state.colormapKey !== nextColormapKey ||
         !state.colormapTextureInterpolated ||
         !state.colormapTextureBanded
+      )
 
       let nextColormapTextureInterpolated = state.colormapTextureInterpolated
       let nextColormapTextureBanded = state.colormapTextureBanded
@@ -244,6 +254,7 @@ export function createScalarRuntime(
       state.displayMin = lowerFrame.displayRange[0]
       state.displayMax = lowerFrame.displayRange[1]
       state.timeMix = upperFrame === lowerFrame ? 0 : frame.mix
+      state.renderMode = renderMode
       state.colorSamplingMode = options.colorSamplingMode
       state.hasFrame = true
       state.map?.triggerRepaint()
@@ -291,6 +302,7 @@ export function createScalarRuntime(
         dx: gl2.getUniformLocation(state.program, 'u_dx'),
         dy: gl2.getUniformLocation(state.program, 'u_dy'),
         opacity: gl2.getUniformLocation(state.program, 'u_opacity'),
+        renderMode: gl2.getUniformLocation(state.program, 'u_render_mode'),
       }
 
       state.available = true
@@ -303,10 +315,12 @@ export function createScalarRuntime(
 
       // Pick the active LUT texture from runtime options.
       state.colorSamplingMode = options.colorSamplingMode
-      const colormapTexture = state.colorSamplingMode === 'banded'
-        ? state.colormapTextureBanded
-        : state.colormapTextureInterpolated
-      if (!colormapTexture) return
+      const colormapTexture = state.renderMode === 'colormap'
+        ? (state.colorSamplingMode === 'banded'
+            ? state.colormapTextureBanded
+            : state.colormapTextureInterpolated)
+        : null
+      if (state.renderMode === 'colormap' && !colormapTexture) return
 
       // Bind scalar/colormap textures and upload render uniforms.
       gl2.useProgram(state.program)
@@ -316,12 +330,16 @@ export function createScalarRuntime(
       gl2.bindTexture(gl2.TEXTURE_2D, state.scalarTexture)
       gl2.activeTexture(gl2.TEXTURE1)
       gl2.bindTexture(gl2.TEXTURE_2D, state.scalarTextureUpper)
-      gl2.activeTexture(gl2.TEXTURE2)
-      gl2.bindTexture(gl2.TEXTURE_2D, colormapTexture)
+      if (colormapTexture) {
+        gl2.activeTexture(gl2.TEXTURE2)
+        gl2.bindTexture(gl2.TEXTURE_2D, colormapTexture)
+      }
 
       gl2.uniform1i(state.uniforms.scalarTex, 0)
       gl2.uniform1i(state.uniforms.scalarTexUpper, 1)
-      gl2.uniform1i(state.uniforms.colormapTex, 2)
+      if (colormapTexture) {
+        gl2.uniform1i(state.uniforms.colormapTex, 2)
+      }
       gl2.uniform2f(state.uniforms.gridSize, state.gridNx, state.gridNy)
       gl2.uniform2f(state.uniforms.displayRange, state.displayMin, state.displayMax)
       gl2.uniform1f(state.uniforms.timeMix, state.timeMix)
@@ -331,6 +349,7 @@ export function createScalarRuntime(
       gl2.uniform1f(state.uniforms.dx, state.dx)
       gl2.uniform1f(state.uniforms.dy, state.dy)
       gl2.uniform1f(state.uniforms.opacity, state.opacity)
+      gl2.uniform1i(state.uniforms.renderMode, state.renderMode === 'cloud_layers' ? 1 : 0)
       gl2.uniform1f(state.uniforms.worldSize, computeWorldSizeAtZoom(state.map.getZoom()))
 
       gl2.disable(gl2.DEPTH_TEST)
@@ -368,6 +387,7 @@ export function createScalarRuntime(
       state.gl = undefined
       state.available = false
       state.hasFrame = false
+      state.renderMode = 'colormap'
       state.scalarTexture = null
       state.scalarTextureUpper = null
       state.scalarFrameLower = null
@@ -402,6 +422,26 @@ function deleteUnusedScalarTexture(
   gl.deleteTexture(texture)
 }
 
+export function getScalarFrameRenderMode(frame: ScalarFrameData): ScalarRenderMode {
+  return frame.cloudLayers ? 'cloud_layers' : 'colormap'
+}
+
+function createFrameTexture(
+  gl: WebGL2RenderingContext,
+  frame: ScalarFrameData,
+  renderMode: ScalarRenderMode,
+): WebGLTexture | null {
+  if (renderMode === 'cloud_layers') {
+    return createCloudLayerTexture(gl, frame)
+  }
+  return createScalarTexture(
+    gl,
+    frame.grid.nx,
+    frame.grid.ny,
+    frame.values,
+  )
+}
+
 function createScalarTexture(
   gl: WebGL2RenderingContext,
   nx: number,
@@ -422,6 +462,76 @@ function createScalarTexture(
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
+}
+
+function createCloudLayerTexture(
+  gl: WebGL2RenderingContext,
+  frame: ScalarFrameData,
+): WebGLTexture | null {
+  const texture = gl.createTexture()
+  if (!texture) return null
+
+  const cellCount = frame.grid.nx * frame.grid.ny
+  const data = createCloudLayerTextureData(frame.cloudLayers, cellCount)
+
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, frame.grid.nx, frame.grid.ny, 0, gl.RGBA, gl.FLOAT, data)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+
+  return texture
+}
+
+export function createCloudLayerTextureData(
+  cloudLayers: CloudLayerFrameValues | undefined,
+  cellCount: number,
+): Float32Array {
+  if (!cloudLayers) {
+    throw new Error('Cloud layer frame is missing component data')
+  }
+  for (const component of ['low', 'medium', 'high'] as const) {
+    if (cloudLayers[component].length !== cellCount) {
+      throw new Error(
+        `Unexpected cloud layer component size for ${component}: ` +
+        `got=${cloudLayers[component].length} expected=${cellCount}`
+      )
+    }
+  }
+
+  const out = new Float32Array(cellCount * 4)
+  for (let idx = 0; idx < cellCount; idx += 1) {
+    const low = cloudLayers.low[idx]
+    const medium = cloudLayers.medium[idx]
+    const high = cloudLayers.high[idx]
+    const lowValid = Number.isFinite(low)
+    const mediumValid = Number.isFinite(medium)
+    const highValid = Number.isFinite(high)
+    const offset = idx * 4
+    out[offset] = lowValid ? low : 0
+    out[offset + 1] = mediumValid ? medium : 0
+    out[offset + 2] = highValid ? high : 0
+    out[offset + 3] = lowValid || mediumValid || highValid ? 1 : 0
+  }
+
+  return out
+}
+
+function validateCloudLayerFrame(frame: ScalarFrameData, expectedCellCount: number): void {
+  if (!frame.cloudLayers) {
+    throw new Error('Cloud layer frame is missing component data')
+  }
+  for (const component of ['low', 'medium', 'high'] as const) {
+    if (frame.cloudLayers[component].length !== expectedCellCount) {
+      throw new Error(
+        `Unexpected cloud layer component size for ${component}: ` +
+        `got=${frame.cloudLayers[component].length} expected=${expectedCellCount}`
+      )
+    }
+  }
 }
 
 function createColormapTexture(

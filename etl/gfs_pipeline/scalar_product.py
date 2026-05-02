@@ -12,7 +12,10 @@ from . import gdal_ops
 from .config import ExecutionContext
 from .contracts import ArtifactPaths, WorkItem
 from .scalar_encoding import (
+    SCALAR_CLOUD_LAYER_COMPONENTS,
+    SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH,
     SCALAR_DECODE_FORMULA,
+    SCALAR_FORMAT_I8_LINEAR_COMPONENTS,
     SCALAR_FORMAT_I8_TEMP_C_PIECEWISE,
     SCALAR_SOURCE_TRANSFORM_IDENTITY,
     SCALAR_SOURCE_TRANSFORM_KG_M2_S_TO_MM_HR,
@@ -90,6 +93,81 @@ def _apply_scalar_source_transform(value: float, *, source_transform: str) -> fl
     if source_transform == SCALAR_SOURCE_TRANSFORM_KG_M2_S_TO_MM_HR:
         return value * 3600.0
     raise SystemExit(f"Unsupported scalar source transform: {source_transform!r}")
+
+
+def _parse_component_scalar_encoding(
+    *,
+    layer_key: str,
+    scalar_encoding: Mapping[str, Any],
+) -> tuple[list[str], str]:
+    components_raw = scalar_encoding.get("components")
+    if not isinstance(components_raw, list):
+        raise SystemExit(f"Layer {layer_key} scalar_encoding.components must be a list")
+    components = [
+        value.strip()
+        for value in components_raw
+        if isinstance(value, str) and value.strip()
+    ]
+    if components != list(SCALAR_CLOUD_LAYER_COMPONENTS):
+        raise SystemExit(
+            f"Layer {layer_key} scalar_encoding.components must be "
+            f"{list(SCALAR_CLOUD_LAYER_COMPONENTS)!r}"
+        )
+
+    component_count = scalar_encoding.get("component_count")
+    if component_count != len(components):
+        raise SystemExit(
+            f"Layer {layer_key} scalar_encoding.component_count must equal "
+            f"{len(components)}"
+        )
+
+    component_order = scalar_encoding.get("component_order")
+    if component_order != SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH:
+        raise SystemExit(
+            f"Layer {layer_key} scalar_encoding.component_order must be "
+            f"{SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH!r}"
+        )
+
+    return components, str(component_order)
+
+
+def _parse_component_grib_matches(
+    *,
+    layer_key: str,
+    layer: Mapping[str, Any],
+    components: list[str],
+) -> dict[str, dict[str, str]]:
+    raw = layer.get("component_grib_matches")
+    if not isinstance(raw, Mapping):
+        raise SystemExit(f"Layer {layer_key} must define component_grib_matches")
+
+    matches: dict[str, dict[str, str]] = {}
+    expected = set(components)
+    actual = {str(key) for key in raw.keys()}
+    if actual != expected:
+        raise SystemExit(
+            f"Layer {layer_key} component_grib_matches must define exactly "
+            f"{components!r}, got {sorted(actual)!r}"
+        )
+
+    for component in components:
+        component_match = raw.get(component)
+        if not isinstance(component_match, Mapping) or not component_match:
+            raise SystemExit(
+                f"Layer {layer_key} component_grib_matches.{component} "
+                "must be a non-empty object"
+            )
+        normalized: dict[str, str] = {}
+        for key, value in component_match.items():
+            if not isinstance(key, str) or not key.strip() or not isinstance(value, str) or not value.strip():
+                raise SystemExit(
+                    f"Layer {layer_key} component_grib_matches.{component} "
+                    "must map non-empty strings to non-empty strings"
+                )
+            normalized[key.strip()] = value.strip()
+        matches[component] = normalized
+
+    return matches
 
 
 def encode_temp_c_piecewise_i8_value(value: float, *, nodata: int) -> int:
@@ -261,13 +339,127 @@ def run_scalar_item_in_workdir(
     units = str(layer.get("units", "")).strip()
     parameter = str(layer.get("parameter", "")).strip()
     level = str(layer.get("level", "")).strip()
-    grib_match = layer.get("grib_match")
-    if not isinstance(grib_match, Mapping):
-        raise SystemExit(f"Layer {layer_key} must define grib_match")
 
     min_stored, max_stored = scalar_storage_bounds(dtype)
     if nodata < min_stored or nodata > max_stored:
         raise SystemExit(f"Layer {layer_key} scalar_encoding.nodata out of {dtype} range: {nodata!r}")
+
+    grid = _grid_meta_from_grib(grib_path=grib_path, run=run)
+    nx = int(grid["nx"])
+    ny = int(grid["ny"])
+    expected_source_bytes = nx * ny * 4
+
+    if scalar_format == SCALAR_FORMAT_I8_LINEAR_COMPONENTS:
+        if scale != 5.0:
+            raise SystemExit(
+                f"Layer {layer_key} scalar_encoding.scale must be 5 "
+                f"for format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        if offset != 0.0:
+            raise SystemExit(
+                f"Layer {layer_key} scalar_encoding.offset must be 0 "
+                f"for format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        components, component_order = _parse_component_scalar_encoding(
+            layer_key=layer_key,
+            scalar_encoding=scalar_encoding,
+        )
+        component_matches = _parse_component_grib_matches(
+            layer_key=layer_key,
+            layer=layer,
+            components=components,
+        )
+        component_payloads: list[bytes] = []
+        component_band_indices: dict[str, int] = {}
+        component_band_metadata: dict[str, dict[str, str]] = {}
+        component_source_byte_orders: dict[str, str] = {}
+
+        for component in components:
+            grib_band_idx, grib_band_md = gdal_ops.find_grib_band_by_metadata(
+                grib_path,
+                component_matches[component],
+                run=run,
+            )
+            source_f32_bytes, component_source_byte_order = extract_float32_band_bytes(
+                grib_path=grib_path,
+                band_idx=grib_band_idx,
+                workdir_path=workdir / f"{layer_key}.{component}.scalar.f32.bin",
+                run=run,
+            )
+            if len(source_f32_bytes) != expected_source_bytes:
+                raise SystemExit(
+                    f"Unexpected scalar component source byte length for {layer_key}.{component}: "
+                    f"got={len(source_f32_bytes)} expected={expected_source_bytes}"
+                )
+
+            component_payloads.append(
+                encode_scalar_f32_to_payload(
+                    source_f32_bytes=source_f32_bytes,
+                    source_byte_order=component_source_byte_order,
+                    target_dtype=dtype,
+                    target_byte_order=byte_order,
+                    target_format=scalar_format,
+                    scale=scale,
+                    offset=offset,
+                    nodata=nodata,
+                    source_transform=source_transform,
+                )
+            )
+            component_band_indices[component] = grib_band_idx
+            component_band_metadata[component] = {str(k): str(v) for k, v in grib_band_md.items()}
+            component_source_byte_orders[component] = component_source_byte_order
+
+        payload = b"".join(component_payloads)
+        ap = ArtifactPaths(ctx.artifact_root_uri)
+        payload_uri = ap.output_scalar_payload_uri(item, dtype=dtype)
+        store.write_bytes(uri=payload_uri, data=payload)
+        digest = hashlib.sha256(payload).hexdigest()
+
+        result = {
+            "payload_uri": payload_uri,
+            "byte_length": len(payload),
+            "sha256": digest,
+            "format": scalar_format,
+            "dtype": dtype,
+            "byte_order": byte_order,
+            "encoding_id": encoding_id,
+            "nodata": nodata,
+            "source_transform": source_transform,
+            "source_byte_orders": component_source_byte_orders,
+            "units": units,
+            "parameter": parameter,
+            "level": level,
+            "valid_min": valid_min,
+            "valid_max": valid_max,
+            "components": components,
+            "component_count": len(components),
+            "component_order": component_order,
+            "component_grib_matches": component_matches,
+            "component_band_indices": component_band_indices,
+            "component_band_metadata": component_band_metadata,
+            "grid": {
+                "crs": "EPSG:4326",
+                "nx": nx,
+                "ny": ny,
+                "lon0": float(grid["lon0"]),
+                "lat0": float(grid["lat0"]),
+                "dx": float(grid["dx"]),
+                "dy": float(grid["dy"]),
+                "origin": "cell_center",
+                "layout": "row_major",
+                "x_wrap": "repeat",
+                "y_mode": "clamp",
+            },
+        }
+        if is_linear_scalar_format(scalar_format):
+            result["decode_formula"] = SCALAR_DECODE_FORMULA
+            result["scale"] = scale
+            result["offset"] = offset
+        return result
+
+    grib_match = layer.get("grib_match")
+    if not isinstance(grib_match, Mapping):
+        raise SystemExit(f"Layer {layer_key} must define grib_match")
 
     grib_band_idx, grib_band_md = gdal_ops.find_grib_band_by_metadata(
         grib_path,
@@ -281,10 +473,6 @@ def run_scalar_item_in_workdir(
         run=run,
     )
 
-    grid = _grid_meta_from_grib(grib_path=grib_path, run=run)
-    nx = int(grid["nx"])
-    ny = int(grid["ny"])
-    expected_source_bytes = nx * ny * 4
     if len(source_f32_bytes) != expected_source_bytes:
         raise SystemExit(
             f"Unexpected scalar source byte length for {layer_key}: "

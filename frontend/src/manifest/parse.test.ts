@@ -112,6 +112,66 @@ describe('parseCycleManifest', () => {
     expect(() => parseCycleManifest(payload)).toThrow('expected -128')
   })
 
+  it('accepts packed cloud layer scalar component encodings', () => {
+    const baseManifest = createCycleManifestPayloadFixture()
+    const payload = createCycleManifestPayloadFixture({
+      encodings: {
+        ...(baseManifest.encodings as Record<string, unknown>),
+        e0: {
+          format: 'scalar-i8-linear-components-v1',
+          dtype: 'int8',
+          byte_order: 'none',
+          nodata: -128,
+          scale: 5,
+          offset: 0,
+          decode_formula: 'value = stored * scale + offset',
+          components: ['low', 'medium', 'high'],
+          component_count: 3,
+          component_order: 'low_medium_high',
+        },
+      },
+    })
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.encodings.e0).toEqual({
+      format: 'scalar-i8-linear-components-v1',
+      dtype: 'int8',
+      byte_order: 'none',
+      nodata: -128,
+      scale: 5,
+      offset: 0,
+      decode_formula: 'value = stored * scale + offset',
+      components: ['low', 'medium', 'high'],
+      component_count: 3,
+      component_order: 'low_medium_high',
+    })
+  })
+
+  it('rejects packed cloud layer scalar encodings with the wrong component order', () => {
+    const baseManifest = createCycleManifestPayloadFixture()
+    const payload = createCycleManifestPayloadFixture({
+      encodings: {
+        ...(baseManifest.encodings as Record<string, unknown>),
+        e0: {
+          format: 'scalar-i8-linear-components-v1',
+          dtype: 'int8',
+          byte_order: 'none',
+          nodata: -128,
+          scale: 5,
+          offset: 0,
+          decode_formula: 'value = stored * scale + offset',
+          components: ['low', 'medium', 'high'],
+          component_count: 3,
+          component_order: 'low_medium_high',
+        },
+      },
+    })
+    ;((payload.encodings as Record<string, Record<string, unknown>>).e0).components = ['medium', 'low', 'high']
+
+    expect(() => parseCycleManifest(payload)).toThrow("expected ['low', 'medium', 'high']")
+  })
+
   it('parses explicit scalar variable groups', () => {
     const payload = createCycleManifestPayloadFixture()
     payload.scalar_variable_groups = [

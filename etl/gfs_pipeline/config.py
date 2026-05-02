@@ -14,6 +14,9 @@ from typing import Any, Mapping
 
 from .scalar_encoding import (
     SCALAR_BYTE_ORDERS_BY_DTYPE,
+    SCALAR_CLOUD_LAYER_COMPONENTS,
+    SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH,
+    SCALAR_FORMAT_I8_LINEAR_COMPONENTS,
     SCALAR_SOURCE_TRANSFORMS,
     is_linear_scalar_format,
     scalar_format_for_encoding,
@@ -28,7 +31,6 @@ DEFAULT_SCALAR_VARIABLE_GROUP_LABEL = "Layers"
 REQUIRED_SCALAR_VARIABLE_FIELDS = {
     "parameter",
     "level",
-    "grib_match",
     "units",
     "scale_min",
     "scale_max",
@@ -157,15 +159,6 @@ def _validate_scalar_variable_config(*, layer_key: str, layer_cfg: Mapping[str, 
         if not isinstance(raw, str) or not raw.strip():
             raise SystemExit(f"Layer {layer_key!r} field {str_field!r} must be a non-empty string")
 
-    grib_match = layer_cfg.get("grib_match")
-    if not isinstance(grib_match, Mapping) or not grib_match:
-        raise SystemExit(f"Layer {layer_key!r} field 'grib_match' must be a non-empty object")
-    for k, v in grib_match.items():
-        if not isinstance(k, str) or not k.strip() or not isinstance(v, str) or not v.strip():
-            raise SystemExit(
-                f"Layer {layer_key!r} field 'grib_match' must map non-empty strings to non-empty strings"
-            )
-
     scale_min = layer_cfg.get("scale_min")
     scale_max = layer_cfg.get("scale_max")
     if not isinstance(scale_min, (int, float)) or not math.isfinite(float(scale_min)):
@@ -177,10 +170,63 @@ def _validate_scalar_variable_config(*, layer_key: str, layer_cfg: Mapping[str, 
             f"Layer {layer_key!r} requires scale_min < scale_max, got {scale_min!r} >= {scale_max!r}"
         )
 
-    _validate_scalar_encoding(layer_key=layer_key, layer_cfg=layer_cfg)
+    scalar_format = _validate_scalar_encoding(layer_key=layer_key, layer_cfg=layer_cfg)
+    if scalar_format == SCALAR_FORMAT_I8_LINEAR_COMPONENTS:
+        if "grib_match" in layer_cfg:
+            raise SystemExit(
+                f"Layer {layer_key!r} must use 'component_grib_matches', not 'grib_match', "
+                f"for format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        _validate_component_grib_matches(layer_key=layer_key, layer_cfg=layer_cfg)
+    else:
+        if "component_grib_matches" in layer_cfg:
+            raise SystemExit(
+                f"Layer {layer_key!r} field 'component_grib_matches' is only supported for "
+                f"format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        _validate_grib_match(layer_key=layer_key, layer_cfg=layer_cfg)
 
 
-def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -> None:
+def _validate_grib_match(*, layer_key: str, layer_cfg: Mapping[str, Any]) -> None:
+    grib_match = layer_cfg.get("grib_match")
+    if not isinstance(grib_match, Mapping) or not grib_match:
+        raise SystemExit(f"Layer {layer_key!r} field 'grib_match' must be a non-empty object")
+    for k, v in grib_match.items():
+        if not isinstance(k, str) or not k.strip() or not isinstance(v, str) or not v.strip():
+            raise SystemExit(
+                f"Layer {layer_key!r} field 'grib_match' must map non-empty strings to non-empty strings"
+            )
+
+
+def _validate_component_grib_matches(*, layer_key: str, layer_cfg: Mapping[str, Any]) -> None:
+    matches = layer_cfg.get("component_grib_matches")
+    if not isinstance(matches, Mapping) or not matches:
+        raise SystemExit(f"Layer {layer_key!r} field 'component_grib_matches' must be a non-empty object")
+
+    expected_components = set(SCALAR_CLOUD_LAYER_COMPONENTS)
+    actual_components = {str(component) for component in matches.keys()}
+    if actual_components != expected_components:
+        raise SystemExit(
+            f"Layer {layer_key!r} field 'component_grib_matches' must define exactly "
+            f"{list(SCALAR_CLOUD_LAYER_COMPONENTS)!r}, got {sorted(actual_components)!r}"
+        )
+
+    for component in SCALAR_CLOUD_LAYER_COMPONENTS:
+        component_match = matches.get(component)
+        if not isinstance(component_match, Mapping) or not component_match:
+            raise SystemExit(
+                f"Layer {layer_key!r} field 'component_grib_matches.{component}' "
+                "must be a non-empty object"
+            )
+        for k, v in component_match.items():
+            if not isinstance(k, str) or not k.strip() or not isinstance(v, str) or not v.strip():
+                raise SystemExit(
+                    f"Layer {layer_key!r} field 'component_grib_matches.{component}' "
+                    "must map non-empty strings to non-empty strings"
+                )
+
+
+def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -> str:
     scalar = layer_cfg.get("scalar_encoding")
     if not isinstance(scalar, Mapping):
         raise SystemExit(f"Layer {layer_key!r} missing required object field 'scalar_encoding'")
@@ -246,12 +292,55 @@ def _validate_scalar_encoding(*, layer_key: str, layer_cfg: Mapping[str, Any]) -
             f"for format {scalar_format!r}"
         )
 
+    if scalar_format == SCALAR_FORMAT_I8_LINEAR_COMPONENTS:
+        if float(scale) != 5.0:
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding.scale must be 5 "
+                f"for format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        if float(offset) != 0.0:
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding.offset must be 0 "
+                f"for format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}"
+            )
+        components = scalar.get("components")
+        if list(components or ()) != list(SCALAR_CLOUD_LAYER_COMPONENTS):
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding.components must be "
+                f"{list(SCALAR_CLOUD_LAYER_COMPONENTS)!r}"
+            )
+        component_count = scalar.get("component_count")
+        if component_count != len(SCALAR_CLOUD_LAYER_COMPONENTS):
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding.component_count must be "
+                f"{len(SCALAR_CLOUD_LAYER_COMPONENTS)}"
+            )
+        component_order = scalar.get("component_order")
+        if component_order != SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH:
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding.component_order must be "
+                f"{SCALAR_COMPONENT_ORDER_LOW_MEDIUM_HIGH!r}"
+            )
+    else:
+        unexpected_component_fields = sorted(
+            field
+            for field in ("components", "component_count", "component_order")
+            if field in scalar
+        )
+        if unexpected_component_fields:
+            raise SystemExit(
+                f"Layer {layer_key!r} scalar_encoding component fields are only supported for "
+                f"format {SCALAR_FORMAT_I8_LINEAR_COMPONENTS!r}: {unexpected_component_fields!r}"
+            )
+
     source_transform = layer_cfg.get("scalar_source_transform", "identity")
     if not isinstance(source_transform, str) or source_transform not in ALLOWED_SCALAR_SOURCE_TRANSFORMS:
         raise SystemExit(
             f"Layer {layer_key!r} scalar_source_transform must be one of "
             f"{sorted(ALLOWED_SCALAR_SOURCE_TRANSFORMS)!r}"
         )
+
+    return scalar_format
 
 
 def _default_scalar_variable_groups(workload_variables: tuple[str, ...]) -> tuple[dict[str, Any], ...]:

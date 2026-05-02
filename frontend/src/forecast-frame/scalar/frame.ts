@@ -10,7 +10,7 @@ import { loadFrameWindow } from '../window'
 import type { ForecastFrameSelection } from '../../forecast-time'
 import { resolveFrameSpec } from '../spec'
 import { getScalarStyle } from '../../forecast-metadata/scalar'
-import { decodeScalarPayloadToValues } from './codec'
+import { decodeScalarPayload } from './codec'
 import type { ScalarFrameData, ScalarFrameWindowData } from './types'
 
 const DECODED_SCALAR_FRAME_CACHE_LIMIT = 6
@@ -64,8 +64,19 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   })
   if (signal.aborted) throw createAbortError()
 
-  const values = decodeScalarPayloadToValues(payload, encoding)
   const expectedCellCount = spec.grid.nx * spec.grid.ny
+  if (
+    encoding.format === 'scalar-i8-linear-components-v1' &&
+    payload.byteLength !== expectedCellCount * encoding.component_count
+  ) {
+    throw new Error(
+      `Cloud layer payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
+      `got=${payload.byteLength} expected=${expectedCellCount * encoding.component_count}`
+    )
+  }
+
+  const decoded = decodeScalarPayload(payload, encoding)
+  const { values, cloudLayers } = decoded
   if (values.length !== expectedCellCount) {
     throw new Error(
       `Scalar payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
@@ -80,6 +91,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     grid: spec.grid,
     encoding,
     values,
+    cloudLayers,
     displayRange: catalog.displayRange,
     colortable: catalog.colortable,
   }
@@ -183,6 +195,7 @@ export function canInterpolateScalarFrames(
   if (lower.grid.dx !== upper.grid.dx || lower.grid.dy !== upper.grid.dy) return false
   if (lower.grid.x_wrap !== upper.grid.x_wrap || lower.grid.y_mode !== upper.grid.y_mode) return false
   if (lower.encoding.format !== upper.encoding.format) return false
+  if (Boolean(lower.cloudLayers) !== Boolean(upper.cloudLayers)) return false
   if ('scale' in lower.encoding || 'scale' in upper.encoding) {
     if (!('scale' in lower.encoding) || !('scale' in upper.encoding)) return false
     if (lower.encoding.scale !== upper.encoding.scale || lower.encoding.offset !== upper.encoding.offset) return false
@@ -199,6 +212,13 @@ export function canInterpolateScalarFrames(
       if (lowerStop[partIdx] !== upperStop[partIdx]) return false
     }
   }
+  if (lower.cloudLayers && upper.cloudLayers) {
+    const expectedCellCount = lower.grid.nx * lower.grid.ny
+    for (const component of ['low', 'medium', 'high'] as const) {
+      if (lower.cloudLayers[component].length !== expectedCellCount) return false
+      if (upper.cloudLayers[component].length !== expectedCellCount) return false
+    }
+  }
 
   return true
 }
@@ -210,6 +230,7 @@ function resolveScalarEncoding(
   if (
     encoding.format !== 'scalar-i16-linear-v1' &&
     encoding.format !== 'scalar-i8-linear-v1' &&
+    encoding.format !== 'scalar-i8-linear-components-v1' &&
     encoding.format !== 'scalar-i8-temp-c-piecewise-v1'
   ) {
     throw new Error(`Unsupported scalar format for ${variable}: ${encoding.format}`)

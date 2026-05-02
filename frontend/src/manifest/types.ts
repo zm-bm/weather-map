@@ -51,6 +51,19 @@ export type ScalarInt8EncodingSpec = {
   decode_formula: string
 }
 
+export type ScalarInt8LinearComponentsEncodingSpec = {
+  format: 'scalar-i8-linear-components-v1'
+  dtype: 'int8'
+  byte_order: 'none'
+  nodata: number
+  scale: number
+  offset: number
+  decode_formula: string
+  components: ['low', 'medium', 'high']
+  component_count: 3
+  component_order: 'low_medium_high'
+}
+
 export type ScalarTempCPiecewiseEncodingSpec = {
   format: 'scalar-i8-temp-c-piecewise-v1'
   dtype: 'int8'
@@ -61,6 +74,7 @@ export type ScalarTempCPiecewiseEncodingSpec = {
 export type ScalarEncodingSpec =
   | ScalarInt16EncodingSpec
   | ScalarInt8EncodingSpec
+  | ScalarInt8LinearComponentsEncodingSpec
   | ScalarTempCPiecewiseEncodingSpec
 
 export type VectorEncodingSpec = {

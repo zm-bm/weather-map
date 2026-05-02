@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CycleManifest } from '../../manifest'
 import {
+  decodeCloudLayerPayload,
   decodeScalarPayloadInt16,
   decodeScalarPayloadInt8,
   decodeScalarPayloadToValues,
@@ -70,6 +71,47 @@ describe('scalar payload', () => {
     expect(Number.isNaN(values[6])).toBe(true)
     expect(decodeTemperaturePiecewiseStoredValue(-127)).toBe(-35)
     expect(decodeTemperaturePiecewiseStoredValue(127)).toBe(50)
+  })
+
+  it('decodes packed cloud layer payloads into component arrays and max coverage values', () => {
+    const payload = new Int8Array([
+      0, 1, 20, -128,
+      2, 11, 16, 5,
+      3, 9, 13, 19,
+    ]).buffer
+    const decoded = decodeCloudLayerPayload(payload, {
+      format: 'scalar-i8-linear-components-v1',
+      dtype: 'int8',
+      byte_order: 'none',
+      nodata: -128,
+      scale: 5,
+      offset: 0,
+      decode_formula: 'value = stored * scale + offset',
+      components: ['low', 'medium', 'high'],
+      component_count: 3,
+      component_order: 'low_medium_high',
+    })
+
+    expect(Array.from(decoded.cloudLayers!.low.slice(0, 3))).toEqual([0, 5, 100])
+    expect(Number.isNaN(decoded.cloudLayers!.low[3])).toBe(true)
+    expect(Array.from(decoded.cloudLayers!.medium)).toEqual([10, 55, 80, 25])
+    expect(Array.from(decoded.cloudLayers!.high)).toEqual([15, 45, 65, 95])
+    expect(Array.from(decoded.values)).toEqual([15, 55, 100, 95])
+  })
+
+  it('rejects packed cloud layer payloads whose byte length cannot be split into components', () => {
+    expect(() => decodeCloudLayerPayload(new Int8Array([0, 1, 2, 3]).buffer, {
+      format: 'scalar-i8-linear-components-v1',
+      dtype: 'int8',
+      byte_order: 'none',
+      nodata: -128,
+      scale: 5,
+      offset: 0,
+      decode_formula: 'value = stored * scale + offset',
+      components: ['low', 'medium', 'high'],
+      component_count: 3,
+      component_order: 'low_medium_high',
+    })).toThrow('Invalid cloud layer payload byte length')
   })
 
   it('maps loaded scalar payload into frame data', async () => {
@@ -258,6 +300,98 @@ describe('scalar payload', () => {
     expect(frame.encoding.format).toBe('scalar-i8-temp-c-piecewise-v1')
     expect(Array.from(frame.values)).toEqual([-35, -8, -7.75, 34])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps loaded packed cloud layer payloads into decoded frame data', async () => {
+    const payload = new Int8Array([
+      0, 1, 20, -128,
+      2, 11, 16, 5,
+      3, 9, 13, 19,
+    ]).buffer
+    const fetchMock = stubFetchArrayBufferOnce(payload)
+    const baseManifest = createFrameManifestFixture()
+
+    const frame = await loadScalarFrame({
+      config: createConfigFixture(),
+      manifest: createFrameManifestFixture({
+        encodings: {
+          ...baseManifest.encodings,
+          e0: {
+            format: 'scalar-i8-linear-components-v1',
+            dtype: 'int8',
+            byte_order: 'none',
+            nodata: -128,
+            scale: 5,
+            offset: 0,
+            decode_formula: 'value = stored * scale + offset',
+            components: ['low', 'medium', 'high'],
+            component_count: 3,
+            component_order: 'low_medium_high',
+          },
+        },
+        frames: {
+          '000': {
+            tmp_surface: {
+              path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+              byte_length: 12,
+              sha256: 'x',
+            },
+          },
+        },
+      }),
+      variable: 'tmp_surface',
+      hourToken: '000',
+      signal: createSignalFixture(),
+    })
+
+    expect(frame.encoding.format).toBe('scalar-i8-linear-components-v1')
+    expect(Array.from(frame.values)).toEqual([15, 55, 100, 95])
+    expect(Array.from(frame.cloudLayers?.low.slice(0, 3) ?? [])).toEqual([0, 5, 100])
+    expect(Number.isNaN(frame.cloudLayers?.low[3] ?? Number.NaN)).toBe(true)
+    expect(Array.from(frame.cloudLayers?.medium ?? [])).toEqual([10, 55, 80, 25])
+    expect(Array.from(frame.cloudLayers?.high ?? [])).toEqual([15, 45, 65, 95])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects packed cloud layer payloads with the wrong grid cell count', async () => {
+    const payload = new Int8Array([0, 1, 2]).buffer
+    stubFetchArrayBufferOnce(payload)
+    const baseManifest = createFrameManifestFixture()
+
+    await expect(
+      loadScalarFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          encodings: {
+            ...baseManifest.encodings,
+            e0: {
+              format: 'scalar-i8-linear-components-v1',
+              dtype: 'int8',
+              byte_order: 'none',
+              nodata: -128,
+              scale: 5,
+              offset: 0,
+              decode_formula: 'value = stored * scale + offset',
+              components: ['low', 'medium', 'high'],
+              component_count: 3,
+              component_order: 'low_medium_high',
+            },
+          },
+          frames: {
+            '000': {
+              tmp_surface: {
+                path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+                byte_length: 3,
+                sha256: 'x',
+              },
+            },
+          },
+        }),
+        variable: 'tmp_surface',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Cloud layer payload cell count mismatch')
   })
 
   it('rejects scalar payloads with the wrong decoded cell count', async () => {
