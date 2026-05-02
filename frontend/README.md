@@ -32,8 +32,9 @@ Runtime config is read from Vite env variables:
 - `VITE_DEV_ARTIFACT_PROXY_TARGET` is the Vite proxy target. It defaults to
   `http://localhost:3000`; compose sets it to `http://nginx:3000`.
 
-Glyph PBFs are generated before dev/build by `npm run build:glyphs` from
-`src/assets/glyph-fontstacks.json` into `public/glyphs/`.
+Glyph PBFs are generated manually by `npm run build:glyphs` from
+`src/assets/glyph-fontstacks.json` into `../artifacts/glyphs/`. The command requires
+the local Noto source font.
 
 ## Commands
 

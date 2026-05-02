@@ -150,6 +150,12 @@ artifacts/pmtiles/*
 !artifacts/radio/
 artifacts/radio/*
 !artifacts/radio/playlist.json
+!artifacts/glyphs/
+artifacts/glyphs/*
+!artifacts/glyphs/.gitignore
+
+# Local-only glyph source font.
+frontend/src/assets/fonts/NotoSansMonoCJKjp-Regular-BMP.*
 
 # Local Lambda helper output
 etl/scripts/aws/events/invoke-output.json

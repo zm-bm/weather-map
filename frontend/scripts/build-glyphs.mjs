@@ -7,8 +7,9 @@ import { combine } from '@mapka/font-sdf-composite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
+const repoRoot = path.resolve(projectRoot, '..')
 const manifestPath = path.join(projectRoot, 'src', 'assets', 'glyph-fontstacks.json')
-const outputRoot = path.join(projectRoot, 'public', 'glyphs')
+const outputRoot = path.join(repoRoot, 'artifacts', 'glyphs')
 
 /**
  * @typedef {{ start: number, end: number, step: number }} RangeConfig

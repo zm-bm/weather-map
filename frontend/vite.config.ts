@@ -50,6 +50,10 @@ export default defineConfig({
         target: DEV_ARTIFACT_ORIGIN,
         changeOrigin: true,
       },
+      '/glyphs': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
     },
   },
   resolve: {

@@ -5,8 +5,6 @@
   "type": "module",
   "scripts": {
     "build:glyphs": "node ./scripts/build-glyphs.mjs",
-    "predev": "npm run build:glyphs",
-    "prebuild": "npm run build:glyphs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

@@ -100,7 +100,7 @@ describe('useMapLibre', () => {
 
     expect(options.fadeDuration).toBe(0)
     expect(style).not.toBe(baseStyleJson)
-    expect(style.glyphs).toBe(joinUrl(config.frontendBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
+    expect(style.glyphs).toBe(joinUrl(config.artifactBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
     expect(basemapSource?.url).toBe(config.basemapUrl)
