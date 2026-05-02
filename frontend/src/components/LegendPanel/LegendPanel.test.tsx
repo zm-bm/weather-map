@@ -8,7 +8,7 @@ import {
   createVectorVariableMetaFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
-import ForecastControls from '../ForecastControls'
+import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
@@ -60,7 +60,7 @@ function createLegendSelectionManifest(
 function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
-      <ForecastControls />
+      <ForecastPanel />
       <LegendPanel />
     </>,
     createLegendSelectionManifest(activeScalar)

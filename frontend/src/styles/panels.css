@@ -146,8 +146,9 @@
   --wm-mono-caps-spacing: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
   min-width: 0;
   font-family: var(--wm-font-display);
   font-size: 14px;
@@ -225,10 +226,6 @@
   background: #12204d;
 }
 
-.forecast-controls__level-select {
-  margin-right: auto;
-}
-
 .forecast-controls__model-select,
 .forecast-controls__run {
   min-width: 0;
@@ -236,13 +233,15 @@
   text-overflow: ellipsis;
 }
 
-.forecast-controls__separator {
-  flex: 0 0 auto;
-  color: rgba(255, 240, 212, 0.5);
+.forecast-controls__model-select {
+  max-width: 72px;
 }
 
 .forecast-controls__run {
+  flex: 0 0 auto;
+  min-width: 92px;
   color: rgba(255, 246, 224, 0.92);
+  text-align: right;
 }
 
 .forecast-controls__select {
