@@ -5,7 +5,7 @@ import type {
   SelectMapPlacesOptions,
 } from './types'
 
-const DEFAULT_PLACE_PROBE_LIMIT = 45
+const DEFAULT_PLACE_PROBE_LIMIT = 30
 const PLACE_PROBE_SPREAD_CELL_PX = 220
 const PLACE_PROBE_MIN_SPACING_PX = 90
 const PLACE_PROBE_SPREAD_SLOT_RATIO = 0.33
