@@ -44,6 +44,23 @@ describe('getUnitDisplay', () => {
     expect(formatUnitValue(2.5, getUnitOption(display, 'mm_per_hour'))).toBe('2.50')
   })
 
+  it('maps accumulated precipitation from millimeters to inches', () => {
+    const display = getUnitDisplay({
+      id: 'precip_total_surface',
+      label: 'Accumulated Precipitation',
+      units: 'mm',
+      min: 0,
+      max: 254,
+      colortable: [],
+    })
+
+    expect(canToggleUnitSystem(display)).toBe(true)
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('millimeters')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('inches')
+    expect(getUnitOption(display, 'inches').convert(25.4)).toBe(1)
+    expect(formatUnitValue(1.25, getUnitOption(display, 'inches'))).toBe('1.3')
+  })
+
   it('uses whole-number formatting for percentage values', () => {
     const display = getUnitDisplay({
       id: 'rh_surface',

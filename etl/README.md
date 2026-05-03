@@ -23,7 +23,6 @@ etl/scripts/local/run-cycle.sh --cycle <cycle>
 ```
 
 `<cycle>` is `YYYYMMDDHH`, for example `2026021606`.
-Pass `--model icon` to run the placeholder ICON model.
 
 The wrapper creates `etl/.venv` when the `forecast-etl` command is missing.
 After changing ETL dependencies or tooling, update the local environment with:
@@ -39,9 +38,9 @@ cycle script then checks for GDAL CLI tools and runs:
 etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
 ```
 
-`run-cycle` reads `etl/forecast.etl_config.json`, downloads GFS GRIB files from
-NOMADS into `etl/cache/grib/gfs/<cycle>/`, processes each configured forecast
-hour, and writes artifacts into the repo-level `artifacts/` directory.
+`run-cycle` reads `etl/forecast.etl_config.json`, acquires source GRIB files for
+the selected model, processes each configured forecast hour, and writes
+artifacts into the repo-level `artifacts/` directory.
 
 ## Product Pipeline
 
@@ -49,8 +48,8 @@ The ETL config is product-based:
 
 - `product_catalog` defines shared scalar/vector products and encodings.
 - `models.<model>.workload.products` is the ordered product list for that model.
-- `models.<model>.product_bindings` maps product components to model-specific GRIB metadata.
-- `models.<model>.scalar_variable_groups` is published for the frontend category/measurement UI.
+- `models.<model>.products` maps catalog product components to model-specific GRIB metadata.
+- `models.<model>.layer_groups` groups scalar products for the frontend category/measurement UI.
 
 The implementation follows this path:
 
@@ -86,6 +85,7 @@ Useful entrypoints:
 
 ```bash
 etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
+etl/scripts/local/run-cycle.sh --model icon --cycle <cycle>
 etl/.venv/bin/forecast-etl run-hour --model gfs --cycle <cycle> --fhour <fff> --source-uri <uri>
 etl/.venv/bin/forecast-etl smoke
 ```

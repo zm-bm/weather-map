@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { FORECAST_MODEL_OPTIONS, type ForecastModelId } from '../../forecast-models'
 import { asScalarVariableId } from '../../manifest'
 import {
   createManifestFixture,
@@ -8,6 +9,17 @@ import {
 } from '../../test/fixtures'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import ForecastPanel from './ForecastPanel'
+
+function createForecastPanelProps(overrides: {
+  activeModelId?: ForecastModelId
+  onActiveModelChange?: (modelId: ForecastModelId) => void
+} = {}) {
+  return {
+    activeModelId: overrides.activeModelId ?? 'gfs',
+    modelOptions: FORECAST_MODEL_OPTIONS,
+    onActiveModelChange: overrides.onActiveModelChange ?? vi.fn(),
+  }
+}
 
 function createPanelManifest(scalarVariables: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   return createManifestFixture({
@@ -43,7 +55,7 @@ function createPanelManifest(scalarVariables: ['tmp_surface', 'rh_surface'] | ['
 function renderForecastPanel(scalarVariables: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   return render(
     <ForecastSelectionProvider manifest={createPanelManifest(scalarVariables)}>
-      <ForecastPanel />
+      <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
 }
@@ -91,7 +103,7 @@ function renderInteractiveForecastPanel(
 ) {
   return render(
     <ForecastSelectionProvider manifest={createInteractivePanelManifest(activeScalar, cycle)}>
-      <ForecastPanel />
+      <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
 }
@@ -102,7 +114,7 @@ describe('ForecastPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByLabelText('Measurement')).toHaveValue('tmp_surface')
-    expect(screen.getByLabelText('Forecast model GFS, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/GFSCYCLE APR 11 00Z/)
+    expect(screen.getByLabelText('Forecast model GFS, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/CYCLE APR 11 00Z/)
     expect(screen.getByLabelText('Forecast model')).toHaveValue('gfs')
     expect(screen.getByText('CYCLE APR 11 00Z')).toBeInTheDocument()
     expect(screen.queryByLabelText('Forecast level')).not.toBeInTheDocument()
@@ -111,6 +123,30 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
     expect(screen.queryByText('-- / --')).not.toBeInTheDocument()
     expect(screen.queryByText('Click map')).not.toBeInTheDocument()
+  })
+
+  it('updates the active forecast model from the model selector', () => {
+    const onActiveModelChange = vi.fn()
+
+    render(
+      <ForecastSelectionProvider manifest={createPanelManifest(['tmp_surface', 'rh_surface'])}>
+        <ForecastPanel
+          {...createForecastPanelProps({
+            activeModelId: 'icon',
+            onActiveModelChange,
+          })}
+        />
+      </ForecastSelectionProvider>
+    )
+
+    expect(screen.getByLabelText('Forecast model ICON, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/ICONCYCLE APR 11 00Z/)
+    expect(screen.getByLabelText('Forecast model')).toHaveValue('icon')
+
+    fireEvent.change(screen.getByLabelText('Forecast model'), {
+      target: { value: 'gfs' },
+    })
+
+    expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
   })
 
   it('updates active scalar through category and measurement controls without rendering unit controls', () => {
@@ -176,7 +212,7 @@ describe('ForecastPanel', () => {
           },
         })}
       >
-        <ForecastPanel />
+        <ForecastPanel {...createForecastPanelProps()} />
       </ForecastSelectionProvider>
     )
 

@@ -546,4 +546,23 @@ describe('ForecastPlaceProbes', () => {
     expect(map.removeLayer).toHaveBeenCalledWith(placeProbeLayerIds.layer)
     expect(map.removeSource).toHaveBeenCalledWith(placeProbeLayerIds.source)
   })
+
+  it('tolerates cleanup after MapLibre has already removed its style', () => {
+    const map = createProbeablePlacesMap()
+    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
+
+    const { unmount } = render(<ForecastPlaceProbes mapRef={{ current: map }} mapReadyVersion={1} />)
+    act(flushAnimationFrames)
+
+    map.getLayer.mockImplementation(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'getLayer')")
+    })
+    map.getSource.mockImplementation(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'getSource')")
+    })
+
+    expect(() => unmount()).not.toThrow()
+    expect(map.removeLayer).not.toHaveBeenCalled()
+    expect(map.removeSource).not.toHaveBeenCalled()
+  })
 })

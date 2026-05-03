@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from forecast_etl.config.parse import parse_pipeline_config
 from forecast_etl.tests.product_test_helpers import (
@@ -8,8 +10,9 @@ from forecast_etl.tests.product_test_helpers import (
     _cloud_layers_config,
     _minimal_layer_config,
     _minimal_pipeline_config,
-    _product_binding,
-    _small_grid_meta_fixture,
+    _model_product,
+    _precip_total_config,
+    _wind_product_config,
 )
 
 
@@ -19,60 +22,128 @@ def _gfs(cfg: dict) -> dict:
 
 def _add_model_product(cfg: dict, product_id: str, product_config: dict) -> None:
     cfg["product_catalog"][product_id] = _catalog_product(product_config)
-    _gfs(cfg)["product_bindings"][product_id] = _product_binding(product_config)
+    _gfs(cfg)["products"][product_id] = _model_product(product_config)
 
 
 class ConfigValidationTest(unittest.TestCase):
+    def test_default_config_parses_icon_dwd_v1_products(self) -> None:
+        cfg_path = Path(__file__).resolve().parents[2] / "forecast.etl_config.json"
+        parsed = parse_pipeline_config(json.loads(cfg_path.read_text(encoding="utf-8")))
+        icon = parsed.model("icon")
+
+        expected_products = (
+            "tmp_surface",
+            "gust_surface",
+            "dewpoint_surface",
+            "rh_surface",
+            "prmsl_surface",
+            "tcdc",
+            "cloud_layers",
+            "precip_total_surface",
+            "wind10m_uv",
+        )
+        self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
+        self.assertEqual(icon.workload.forecast_hours, tuple(f"{hour:03d}" for hour in range(1, 25)))
+        self.assertEqual(icon.workload.products, expected_products)
+        self.assertNotIn("aptmp_surface", icon.workload.products)
+
+        groups = {group.id: group for group in icon.layer_groups}
+        self.assertEqual(groups["clouds"].default_product, "tcdc")
+        self.assertEqual(groups["clouds"].products, ("tcdc", "cloud_layers"))
+        self.assertEqual(groups["precipitation"].products, ("precip_total_surface",))
+
     def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = parse_pipeline_config(_minimal_pipeline_config())
         model = parsed.model("gfs")
         self.assertEqual(model.workload.forecast_hours, ("000",))
         self.assertEqual(model.workload.products, ("tmp_surface",))
         self.assertIn("tmp_surface", model.products)
-        self.assertEqual(model.scalar_variable_groups[0].id, "temperature")
-        self.assertEqual(model.scalar_variable_groups[0].default_variable, "tmp_surface")
+        self.assertEqual(model.layer_groups[0].id, "temperature")
+        self.assertEqual(model.layer_groups[0].default_product, "tmp_surface")
 
-    def test_pipeline_config_parses_icon_zero_placeholder_model(self) -> None:
+    def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
         cfg = _minimal_pipeline_config()
-        product_config = _cloud_layers_config()
-        cfg["product_catalog"]["cloud_layers"] = _catalog_product(product_config)
+        precip_config = _precip_total_config()
+        wind_config = _wind_product_config()
+        cfg["product_catalog"]["precip_total_surface"] = _catalog_product(precip_config)
+        cfg["product_catalog"]["wind10m_uv"] = _catalog_product(wind_config)
         cfg["models"]["icon"] = {
             "label": "ICON",
             "source": {
-                "type": "zero_placeholder",
-                "grid_id": "icon_zero_placeholder",
-                "grid": _small_grid_meta_fixture(),
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "regrid_image": "deutscherwetterdienst/regrid:icon",
+                "rate_limit_seconds": 0.0,
             },
             "workload": {
                 "forecast_hours": ["000"],
-                "products": ["cloud_layers"],
+                "products": ["precip_total_surface", "wind10m_uv"],
             },
-            "product_bindings": {
-                "cloud_layers": {
+            "products": {
+                "precip_total_surface": _model_product(precip_config),
+                "wind10m_uv": {
                     "components": [
-                        {"id": "low", "grib_match": {"ZERO_COMPONENT": "cloud_layers.low"}},
-                        {"id": "medium", "grib_match": {"ZERO_COMPONENT": "cloud_layers.medium"}},
-                        {"id": "high", "grib_match": {"ZERO_COMPONENT": "cloud_layers.high"}},
+                        {"id": "u", "grib_match": {"ICON_PARAM": "u_10m"}},
+                        {"id": "v", "grib_match": {"ICON_PARAM": "v_10m"}},
                     ],
                 },
             },
-            "scalar_variable_groups": [
+            "layer_groups": [
                 {
-                    "id": "clouds",
-                    "label": "Clouds",
-                    "default_variable": "cloud_layers",
-                    "variables": ["cloud_layers"],
+                    "id": "precipitation",
+                    "label": "Precipitation",
+                    "kind": "scalar",
+                    "default_product": "precip_total_surface",
+                    "products": ["precip_total_surface"],
                 },
             ],
         }
 
         parsed = parse_pipeline_config(cfg)
         icon = parsed.model("icon")
-        self.assertEqual(icon.label, "ICON")
-        self.assertEqual(icon.source.type, "zero_placeholder")
-        self.assertEqual(icon.source.grid_id, "icon_zero_placeholder")
-        self.assertEqual(icon.workload.products, ("cloud_layers",))
-        self.assertEqual(icon.products["cloud_layers"].components[1].grib_match["ZERO_COMPONENT"], "cloud_layers.medium")
+
+        self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
+        self.assertIsNotNone(icon.source.icon_dwd)
+        assert icon.source.icon_dwd is not None
+        self.assertEqual(icon.source.icon_dwd.regrid_image, "deutscherwetterdienst/regrid:icon")
+        self.assertEqual(icon.workload.products, ("precip_total_surface", "wind10m_uv"))
+        self.assertEqual(icon.products["wind10m_uv"].components[1].grib_match["ICON_PARAM"], "v_10m")
+
+    def test_pipeline_config_rejects_icon_dwd_product_without_icon_param(self) -> None:
+        cfg = _minimal_pipeline_config()
+        cfg["models"]["icon"] = {
+            "label": "ICON",
+            "source": {
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "regrid_image": "deutscherwetterdienst/regrid:icon",
+            },
+            "workload": {
+                "forecast_hours": ["000"],
+                "products": ["tmp_surface"],
+            },
+            "products": {
+                "tmp_surface": {
+                    "components": [
+                        {"id": "value", "grib_match": {"GRIB_ELEMENT": "TMP"}},
+                    ],
+                },
+            },
+            "layer_groups": [
+                {
+                    "id": "temperature",
+                    "label": "Temperature",
+                    "kind": "scalar",
+                    "default_product": "tmp_surface",
+                    "products": ["tmp_surface"],
+                },
+            ],
+        }
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(cfg)
 
     def test_pipeline_config_accepts_explicit_forecast_hours(self) -> None:
         cfg = _minimal_pipeline_config()
@@ -90,6 +161,20 @@ class ConfigValidationTest(unittest.TestCase):
             "workload": {"forecast_hour_start": 0, "forecast_hour_end": 0, "products": ["tmp_surface"]},
             "products": {"tmp_surface": _minimal_layer_config()},
         }
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(bad_cfg)
+
+    def test_pipeline_config_rejects_old_model_products_field_name(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        _gfs(bad_cfg)["product_bindings"] = _gfs(bad_cfg).pop("products")
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(bad_cfg)
+
+    def test_pipeline_config_rejects_old_scalar_variable_group_field(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        _gfs(bad_cfg)["scalar_variable_groups"] = _gfs(bad_cfg).pop("layer_groups")
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
@@ -176,18 +261,20 @@ class ConfigValidationTest(unittest.TestCase):
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["tmp_surface", "cloud_layers"]
-        _gfs(cfg)["scalar_variable_groups"] = [
+        _gfs(cfg)["layer_groups"] = [
             {
                 "id": "temperature",
                 "label": "Temperature",
-                "default_variable": "tmp_surface",
-                "variables": ["tmp_surface"],
+                "kind": "scalar",
+                "default_product": "tmp_surface",
+                "products": ["tmp_surface"],
             },
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "default_variable": "cloud_layers",
-                "variables": ["cloud_layers"],
+                "kind": "scalar",
+                "default_product": "cloud_layers",
+                "products": ["cloud_layers"],
             },
         ]
 
@@ -202,43 +289,45 @@ class ConfigValidationTest(unittest.TestCase):
             "MCDC",
         )
 
-    def test_pipeline_config_rejects_binding_missing_component_match(self) -> None:
+    def test_pipeline_config_rejects_model_product_missing_component_match(self) -> None:
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
-        _gfs(cfg)["scalar_variable_groups"] = [
+        _gfs(cfg)["layer_groups"] = [
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "default_variable": "cloud_layers",
-                "variables": ["cloud_layers"],
+                "kind": "scalar",
+                "default_product": "cloud_layers",
+                "products": ["cloud_layers"],
             },
         ]
-        del _gfs(cfg)["product_bindings"]["cloud_layers"]["components"][1]["grib_match"]
+        del _gfs(cfg)["products"]["cloud_layers"]["components"][1]["grib_match"]
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_binding_with_unknown_component(self) -> None:
+    def test_pipeline_config_rejects_model_product_with_unknown_component(self) -> None:
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
-        _gfs(cfg)["scalar_variable_groups"] = [
+        _gfs(cfg)["layer_groups"] = [
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "default_variable": "cloud_layers",
-                "variables": ["cloud_layers"],
+                "kind": "scalar",
+                "default_product": "cloud_layers",
+                "products": ["cloud_layers"],
             },
         ]
-        _gfs(cfg)["product_bindings"]["cloud_layers"]["components"].append(
+        _gfs(cfg)["products"]["cloud_layers"]["components"].append(
             {"id": "ceiling", "grib_match": {"GRIB_ELEMENT": "CEIL"}}
         )
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_scalar_group_missing_workload_variable(self) -> None:
+    def test_pipeline_config_rejects_layer_group_missing_workload_product(self) -> None:
         cfg = _minimal_pipeline_config()
         rh_config = {**_minimal_layer_config(), "parameter": "rh"}
         _add_model_product(cfg, "rh_surface", rh_config)
@@ -247,29 +336,30 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_scalar_group_default_outside_group(self) -> None:
+    def test_pipeline_config_rejects_layer_group_default_outside_group(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["scalar_variable_groups"][0]["default_variable"] = "rh_surface"
+        _gfs(cfg)["layer_groups"][0]["default_product"] = "rh_surface"
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_scalar_group_unknown_variable(self) -> None:
+    def test_pipeline_config_rejects_layer_group_unknown_product(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["scalar_variable_groups"][0]["variables"] = ["missing_surface"]
-        _gfs(cfg)["scalar_variable_groups"][0]["default_variable"] = "missing_surface"
+        _gfs(cfg)["layer_groups"][0]["products"] = ["missing_surface"]
+        _gfs(cfg)["layer_groups"][0]["default_product"] = "missing_surface"
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_scalar_group_duplicate_variable(self) -> None:
+    def test_pipeline_config_rejects_layer_group_duplicate_product(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["scalar_variable_groups"].append(
+        _gfs(cfg)["layer_groups"].append(
             {
                 "id": "duplicate",
                 "label": "Duplicate",
-                "default_variable": "tmp_surface",
-                "variables": ["tmp_surface"],
+                "kind": "scalar",
+                "default_product": "tmp_surface",
+                "products": ["tmp_surface"],
             }
         )
 

@@ -3,17 +3,24 @@ import { forwardRef } from 'react'
 import { formatCycleRunTimeLabel } from '../../forecast-time'
 import { getScalarMeta } from '../../forecast-metadata/scalar'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
+import {
+  getForecastModelLabel,
+  type ForecastModelId,
+  type ForecastModelOption,
+} from '../../forecast-models'
 import type { CycleManifest, ScalarVariableId } from '../../manifest'
 
 type ScalarVariableGroup = CycleManifest['scalarVariableGroups'][number]
 
+type ForecastPanelProps = {
+  activeModelId: ForecastModelId
+  modelOptions: readonly ForecastModelOption[]
+  onActiveModelChange: (modelId: ForecastModelId) => void
+}
+
 const CATEGORY_BUTTON_LABELS: Record<string, string> = {
   temperature: 'Temp',
   precipitation: 'Precip',
-}
-
-function ignorePlaceholderControlChange() {
-  return undefined
 }
 
 function getActiveScalarGroup(
@@ -32,7 +39,11 @@ function formatModelRunLabel(runTime: string): string {
   return runTime === '--' ? 'CYCLE --' : `CYCLE ${runTime.replace(',', '').toUpperCase()}`
 }
 
-const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
+const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function ForecastPanel({
+  activeModelId,
+  modelOptions,
+  onActiveModelChange,
+}, ref) {
   const {
     cycle,
     scalarVariableGroups,
@@ -43,22 +54,27 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const runTime = formatCycleRunTimeLabel(cycle) ?? '--'
   const runLabel = formatModelRunLabel(runTime)
   const activeScalarGroup = getActiveScalarGroup(scalarVariableGroups, activeScalar)
+  const activeModelLabel = getForecastModelLabel(activeModelId)
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
       <div className="forecast-controls" aria-label="Forecast controls">
         <div
           className="forecast-controls__meta wm-mono-caps"
-          aria-label={`Forecast model GFS, forecast cycle initialized ${runTime}`}
+          aria-label={`Forecast model ${activeModelLabel}, forecast cycle initialized ${runTime}`}
           title={`Forecast cycle initialized ${runTime}`}
         >
           <select
             className="forecast-controls__quiet-select forecast-controls__model-select"
             aria-label="Forecast model"
-            value="gfs"
-            onChange={ignorePlaceholderControlChange}
+            value={activeModelId}
+            onChange={(event) => onActiveModelChange(event.currentTarget.value as ForecastModelId)}
           >
-            <option value="gfs">GFS</option>
+            {modelOptions.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
           </select>
           <span className="forecast-controls__run">{runLabel}</span>
         </div>

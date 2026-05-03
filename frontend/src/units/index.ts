@@ -38,6 +38,11 @@ const PRECIPITATION_VALUE_FORMAT: UnitValueFormat = {
   maximumFractionDigits: 2,
 }
 
+const PRECIPITATION_TOTAL_VALUE_FORMAT: UnitValueFormat = {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+}
+
 export function formatUnitLabel(label: string): string {
   return label
     .replace(/\^2/g, '²')
@@ -202,6 +207,32 @@ const UNIT_RULES: UnitRule[] = [
           casing: 'literal',
           unitSystem: 'imperial',
           valueFormat: PRECIPITATION_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['accumulated precipitation'],
+    display: {
+      defaultOptionId: 'inches',
+      options: [
+        {
+          id: 'millimeters',
+          buttonLabel: 'mm',
+          units: 'mm',
+          convert: (value) => value,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: PRECIPITATION_TOTAL_VALUE_FORMAT,
+        },
+        {
+          id: 'inches',
+          buttonLabel: 'in',
+          units: 'in',
+          convert: (value) => value / 25.4,
+          casing: 'literal',
+          unitSystem: 'imperial',
+          valueFormat: PRECIPITATION_TOTAL_VALUE_FORMAT,
         },
       ],
     },

@@ -6,7 +6,7 @@ import struct
 from typing import Any
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
-from forecast_etl.config.schema import ProductSpec, ScalarVariableGroup
+from forecast_etl.config.schema import LayerGroup, ProductSpec
 from forecast_etl.config.validate import parse_product_spec
 from forecast_etl.encoding.scalar import (
     encode_scalar_f32_to_payload,
@@ -27,18 +27,19 @@ def _product_specs(raw_products: dict[str, dict]) -> dict[str, ProductSpec]:
     }
 
 
-def _scalar_group(
+def _layer_group(
     *,
     group_id: str,
     label: str,
-    default_variable: str,
-    variables: list[str],
-) -> ScalarVariableGroup:
-    return ScalarVariableGroup(
+    default_product: str,
+    products: list[str],
+) -> LayerGroup:
+    return LayerGroup(
         id=group_id,
         label=label,
-        default_variable=default_variable,
-        variables=tuple(variables),
+        kind="scalar",
+        default_product=default_product,
+        products=tuple(products),
     )
 
 
@@ -132,6 +133,29 @@ def _wind_product_config() -> dict:
     }
 
 
+def _precip_total_config() -> dict:
+    return {
+        "kind": "scalar",
+        "parameter": "precip_total",
+        "level": "surface",
+        "units": "mm",
+        "valid_min": 0,
+        "valid_max": 254,
+        "source_transform": "identity",
+        "encoding": {
+            "id": "precip_total_surface_i8_1mm_v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 1,
+            "offset": 127,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
+        ],
+    }
+
+
 def _minimal_pipeline_config() -> dict:
     product = _minimal_layer_config()
     return {
@@ -154,15 +178,16 @@ def _minimal_pipeline_config() -> dict:
                     "forecast_hour_end": 0,
                     "products": ["tmp_surface"],
                 },
-                "product_bindings": {
-                    "tmp_surface": _product_binding(product),
+                "products": {
+                    "tmp_surface": _model_product(product),
                 },
-                "scalar_variable_groups": [
+                "layer_groups": [
                     {
                         "id": "temperature",
                         "label": "Temperature",
-                        "default_variable": "tmp_surface",
-                        "variables": ["tmp_surface"],
+                        "kind": "scalar",
+                        "default_product": "tmp_surface",
+                        "products": ["tmp_surface"],
                     },
                 ],
             },
@@ -177,7 +202,7 @@ def _catalog_product(product_config: dict) -> dict:
     }
 
 
-def _product_binding(product_config: dict) -> dict:
+def _model_product(product_config: dict) -> dict:
     return {
         "components": [
             {

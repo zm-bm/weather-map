@@ -7,49 +7,48 @@ from urllib.parse import urlparse
 
 from ..artifacts.json import read_json
 from ..artifacts.paths import ArtifactPaths
-from ..config.schema import ProductSpec, ScalarVariableGroup
+from ..config.schema import LayerGroup, ProductSpec
 from ..products.metadata import encoding_entry_for_product
 from ..stores.base import UriStore
 from .constants import (
-    DEFAULT_SCALAR_VARIABLE_GROUP_ID,
-    DEFAULT_SCALAR_VARIABLE_GROUP_LABEL,
+    DEFAULT_LAYER_GROUP_ID,
+    DEFAULT_LAYER_GROUP_LABEL,
 )
 
 
-def scalar_variable_groups_for_manifest(
+def layer_groups_for_manifest(
     *,
-    groups: Iterable[ScalarVariableGroup] | None,
-    scalar_variables: tuple[str, ...],
+    groups: Iterable[LayerGroup] | None,
+    scalar_product_ids: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    if not scalar_variables:
+    if not scalar_product_ids:
         return []
     if groups is None:
         return [
             {
-                "id": DEFAULT_SCALAR_VARIABLE_GROUP_ID,
-                "label": DEFAULT_SCALAR_VARIABLE_GROUP_LABEL,
-                "default_variable": scalar_variables[0],
-                "variables": list(scalar_variables),
+                "id": DEFAULT_LAYER_GROUP_ID,
+                "label": DEFAULT_LAYER_GROUP_LABEL,
+                "default_variable": scalar_product_ids[0],
+                "variables": list(scalar_product_ids),
             }
         ]
 
-    scalar_set = set(scalar_variables)
-    seen_variables: set[str] = set()
+    scalar_product_set = set(scalar_product_ids)
+    seen_product_ids: set[str] = set()
     out: list[dict[str, Any]] = []
     for group in groups:
         group_obj = group.to_manifest_dict()
-        variables = group.variables
-        for variable in variables:
-            if variable not in scalar_set:
-                raise SystemExit(f"scalar_variable_groups references unknown scalar variable {variable!r}")
-            if variable in seen_variables:
-                raise SystemExit(f"Scalar variable appears in multiple groups: {variable!r}")
-            seen_variables.add(variable)
+        for product_id in group.products:
+            if product_id not in scalar_product_set:
+                raise SystemExit(f"layer_groups references unknown scalar product {product_id!r}")
+            if product_id in seen_product_ids:
+                raise SystemExit(f"Scalar product appears in multiple layer groups: {product_id!r}")
+            seen_product_ids.add(product_id)
         out.append(group_obj)
 
-    missing_variables = sorted(scalar_set - seen_variables)
-    if missing_variables:
-        raise SystemExit(f"scalar_variable_groups missing scalar variables: {missing_variables!r}")
+    missing_product_ids = sorted(scalar_product_set - seen_product_ids)
+    if missing_product_ids:
+        raise SystemExit(f"layer_groups missing scalar products: {missing_product_ids!r}")
     return out
 
 
@@ -77,7 +76,7 @@ def build_manifest_sections(
     for product_id in product_ids:
         product = products.get(product_id)
         if product is None:
-            raise SystemExit(f"Missing product config for variable {product_id!r}")
+            raise SystemExit(f"Missing product config for product {product_id!r}")
 
         encoding_id, encoding_entry = encoding_entry_for_product(product)
         previous_encoding = encodings.get(encoding_id)
@@ -126,7 +125,7 @@ def build_manifest_sections(
                 first_grid_id = grid_id
             elif first_grid_id != grid_id:
                 raise SystemExit(
-                    f"Grid id mismatch across forecast hours for variable={product_id!r}: "
+                    f"Grid id mismatch across forecast hours for product={product_id!r}: "
                     f"first={first_grid_id!r} current={grid_id!r} marker={marker_uri}"
                 )
 
@@ -137,7 +136,7 @@ def build_manifest_sections(
             }
 
         if first_grid_id is None:
-            raise SystemExit(f"No product metadata found for variable={product_id!r}")
+            raise SystemExit(f"No product metadata found for product={product_id!r}")
 
         variable_meta[product_id] = {
             "kind": product.kind,

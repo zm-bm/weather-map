@@ -6,16 +6,16 @@ import hashlib
 import json
 from typing import Any, Iterable, Mapping
 
-from .constants import FORECAST_BINARY_CONTRACT, MANIFEST_VERSION
+from .constants import FORECAST_BINARY_CONTRACT, MANIFEST_LAYER_GROUPS_KEY, MANIFEST_VERSION
 
 
 def compute_manifest_revision(
     *,
     cycle: str,
     hours: Iterable[str],
-    scalar_variables: Iterable[str],
-    scalar_variable_groups: Iterable[Mapping[str, Any]],
-    vector_variables: Iterable[str],
+    scalar_product_ids: Iterable[str],
+    layer_groups: Iterable[Mapping[str, Any]],
+    vector_product_ids: Iterable[str],
     grids: Mapping[str, Mapping[str, Any]],
     encodings: Mapping[str, Mapping[str, Any]],
     variable_meta: Mapping[str, Mapping[str, Any]],
@@ -26,9 +26,9 @@ def compute_manifest_revision(
         "version": MANIFEST_VERSION,
         "cycle": cycle,
         "forecast_hours": list(hours),
-        "scalar_variables": list(scalar_variables),
-        "scalar_variable_groups": list(scalar_variable_groups),
-        "vector_variables": list(vector_variables),
+        "scalar_variables": list(scalar_product_ids),
+        MANIFEST_LAYER_GROUPS_KEY: list(layer_groups),
+        "vector_variables": list(vector_product_ids),
         "grids": grids,
         "encodings": encodings,
         "variable_meta": variable_meta,

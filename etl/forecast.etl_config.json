@@ -205,6 +205,28 @@
         }
       ]
     },
+    "precip_total_surface": {
+      "kind": "scalar",
+      "parameter": "precip_total",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 254,
+      "units": "mm",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "precip_total_surface_i8_1mm_v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 127,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
     "wind10m_uv": {
       "kind": "vector",
       "label": "10m Wind U/V",
@@ -268,7 +290,7 @@
           "wind10m_uv"
         ]
       },
-      "product_bindings": {
+      "products": {
         "tmp_surface": {
           "components": [
             {
@@ -398,12 +420,13 @@
           ]
         }
       },
-      "scalar_variable_groups": [
+      "layer_groups": [
         {
           "id": "temperature",
           "label": "Temperature",
-          "default_variable": "tmp_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "tmp_surface",
+          "products": [
             "tmp_surface",
             "aptmp_surface"
           ]
@@ -411,8 +434,9 @@
         {
           "id": "moisture",
           "label": "Moisture",
-          "default_variable": "rh_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "rh_surface",
+          "products": [
             "rh_surface",
             "dewpoint_surface"
           ]
@@ -420,24 +444,27 @@
         {
           "id": "wind",
           "label": "Wind",
-          "default_variable": "gust_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "gust_surface",
+          "products": [
             "gust_surface"
           ]
         },
         {
           "id": "precipitation",
           "label": "Precipitation",
-          "default_variable": "prate_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "prate_surface",
+          "products": [
             "prate_surface"
           ]
         },
         {
           "id": "clouds",
           "label": "Clouds",
-          "default_variable": "tcdc",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "tcdc",
+          "products": [
             "tcdc",
             "cloud_layers"
           ]
@@ -445,8 +472,9 @@
         {
           "id": "pressure",
           "label": "Pressure",
-          "default_variable": "prmsl_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "prmsl_surface",
+          "products": [
             "prmsl_surface"
           ]
         }
@@ -455,38 +483,84 @@
     "icon": {
       "label": "ICON",
       "source": {
-        "type": "zero_placeholder",
-        "grid_id": "icon_zero_placeholder",
-        "grid": {
-          "crs": "EPSG:4326",
-          "nx": 4,
-          "ny": 3,
-          "lon0": -180.0,
-          "lat0": 90.0,
-          "dx": 0.25,
-          "dy": -0.25,
-          "origin": "cell_center",
-          "layout": "row_major",
-          "x_wrap": "repeat",
-          "y_mode": "clamp"
-        }
+        "type": "icon_dwd_icosahedral",
+        "grid_id": "icon_global_regridded_0p125",
+        "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+        "regrid_image": "deutscherwetterdienst/regrid:icon",
+        "rate_limit_seconds": 1
       },
       "workload": {
-        "forecast_hour_start": 0,
+        "forecast_hour_start": 1,
         "forecast_hour_end": 24,
         "products": [
           "tmp_surface",
+          "gust_surface",
+          "dewpoint_surface",
+          "rh_surface",
+          "prmsl_surface",
+          "tcdc",
           "cloud_layers",
+          "precip_total_surface",
           "wind10m_uv"
         ]
       },
-      "product_bindings": {
+      "products": {
         "tmp_surface": {
           "components": [
             {
               "id": "value",
               "grib_match": {
-                "ZERO_COMPONENT": "tmp_surface.value"
+                "ICON_PARAM": "t_2m"
+              }
+            }
+          ]
+        },
+        "gust_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "vmax_10m"
+              }
+            }
+          ]
+        },
+        "dewpoint_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "td_2m"
+              }
+            }
+          ]
+        },
+        "rh_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "relhum_2m"
+              }
+            }
+          ]
+        },
+        "prmsl_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "pmsl"
+              }
+            }
+          ]
+        },
+        "tcdc": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "clct"
               }
             }
           ]
@@ -496,19 +570,29 @@
             {
               "id": "low",
               "grib_match": {
-                "ZERO_COMPONENT": "cloud_layers.low"
+                "ICON_PARAM": "clcl"
               }
             },
             {
               "id": "medium",
               "grib_match": {
-                "ZERO_COMPONENT": "cloud_layers.medium"
+                "ICON_PARAM": "clcm"
               }
             },
             {
               "id": "high",
               "grib_match": {
-                "ZERO_COMPONENT": "cloud_layers.high"
+                "ICON_PARAM": "clch"
+              }
+            }
+          ]
+        },
+        "precip_total_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "tot_prec"
               }
             }
           ]
@@ -518,33 +602,73 @@
             {
               "id": "u",
               "grib_match": {
-                "ZERO_COMPONENT": "wind10m_uv.u"
+                "ICON_PARAM": "u_10m"
               }
             },
             {
               "id": "v",
               "grib_match": {
-                "ZERO_COMPONENT": "wind10m_uv.v"
+                "ICON_PARAM": "v_10m"
               }
             }
           ]
         }
       },
-      "scalar_variable_groups": [
+      "layer_groups": [
         {
           "id": "temperature",
           "label": "Temperature",
-          "default_variable": "tmp_surface",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "tmp_surface",
+          "products": [
             "tmp_surface"
+          ]
+        },
+        {
+          "id": "moisture",
+          "label": "Moisture",
+          "kind": "scalar",
+          "default_product": "rh_surface",
+          "products": [
+            "rh_surface",
+            "dewpoint_surface"
+          ]
+        },
+        {
+          "id": "wind",
+          "label": "Wind",
+          "kind": "scalar",
+          "default_product": "gust_surface",
+          "products": [
+            "gust_surface"
+          ]
+        },
+        {
+          "id": "precipitation",
+          "label": "Precipitation",
+          "kind": "scalar",
+          "default_product": "precip_total_surface",
+          "products": [
+            "precip_total_surface"
           ]
         },
         {
           "id": "clouds",
           "label": "Clouds",
-          "default_variable": "cloud_layers",
-          "variables": [
+          "kind": "scalar",
+          "default_product": "tcdc",
+          "products": [
+            "tcdc",
             "cloud_layers"
+          ]
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "kind": "scalar",
+          "default_product": "prmsl_surface",
+          "products": [
+            "prmsl_surface"
           ]
         }
       ]

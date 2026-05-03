@@ -19,6 +19,7 @@ from forecast_etl.tests.product_test_helpers import (
     _cloud_layers_config,
     _minimal_layer_config,
     _pack_f32,
+    _precip_total_config,
     _product_spec,
     _small_grid_meta_fixture,
     _wind_product_config,
@@ -42,48 +43,6 @@ class ArtifactPathContractTest(unittest.TestCase):
 
 
 class ScalarProductContractTest(unittest.TestCase):
-    def test_zero_placeholder_source_writes_zero_scalar_payload(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-zero-product-") as td:
-            out_dir = Path(td) / "out"
-            workdir = Path(td) / "work"
-            workdir.mkdir(parents=True, exist_ok=True)
-
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            ctx = ExecutionContext(
-                model_id="icon",
-                artifact_root_uri=artifact_root_uri,
-                forecast_hours=("000",),
-            )
-            item = WorkItem(
-                model_id="icon",
-                cycle="2026041200",
-                fhour="003",
-                layer="tmp_surface",
-                source_uri="zero://icon",
-            )
-            product = _product_spec("tmp_surface", _minimal_layer_config())
-
-            result = run_product_item_in_workdir(
-                workdir=workdir,
-                ctx=ctx,
-                item=item,
-                product=product,
-                store=make_store(),
-                source=PreparedSource.zero(
-                    uri="zero://icon",
-                    grid=_small_grid_meta_fixture(),
-                    grid_id="icon_zero_placeholder",
-                ),
-                run=_unused_run,
-            ).metadata
-
-            payload_path = out_dir / "fields" / "icon" / "2026041200" / "003" / "tmp_surface.scalar.i16.bin"
-            payload_bytes = gzip.decompress(payload_path.read_bytes())
-            self.assertEqual(payload_bytes, struct.pack("<hhhh", 0, 0, 0, 0))
-            self.assertEqual(result["payload_uri"], f"{artifact_root_uri}/fields/icon/2026041200/003/tmp_surface.scalar.i16.bin")
-            self.assertEqual(result["component_band_metadata"]["value"]["SOURCE"], "zero_placeholder")
-            self.assertEqual(result["grid_id"], "icon_zero_placeholder")
-
     def test_single_band_scalar_product_writes_scalar_payload(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-scalar-product-") as td:
             out_dir = Path(td) / "out"
@@ -322,3 +281,188 @@ class WindProductContractTest(unittest.TestCase):
 
             legacy_meta_path = out_dir / "wind" / "2026041200.wind10m_uv.003.uv.meta.json"
             self.assertFalse(legacy_meta_path.exists())
+
+
+class IconGribCollectionProductTest(unittest.TestCase):
+    def test_precip_total_scalar_uses_icon_param_grib_path_and_encoding(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-precip-product-") as td:
+            out_dir = Path(td) / "out"
+            workdir = Path(td) / "work"
+            workdir.mkdir(parents=True, exist_ok=True)
+            grib_path = Path(td) / "tot_prec.regridded.grib2"
+            grib_path.write_bytes(b"grib")
+
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            ctx = ExecutionContext(
+                model_id="icon",
+                artifact_root_uri=artifact_root_uri,
+                forecast_hours=("000",),
+            )
+            item = WorkItem(
+                model_id="icon",
+                cycle="2026041200",
+                fhour="003",
+                layer="precip_total_surface",
+                source_uri="icon-dwd://icon/2026041200/003",
+            )
+            product = _product_spec("precip_total_surface", _precip_total_config())
+            source = _pack_f32([0.0, 1.0, 254.0, float("nan")], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.products.execute.find_grib_band_by_metadata",
+                    return_value=(1, {"GRIB_ELEMENT": "TOT_PREC"}),
+                ) as find_band,
+                patch(
+                    "forecast_etl.products.execute.extract_float32_band_bytes",
+                    return_value=(source, "little"),
+                ) as extract_band,
+                patch(
+                    "forecast_etl.products.execute.grid_meta_from_grib",
+                    return_value=_small_grid_meta_fixture(),
+                ),
+            ):
+                result = run_product_item_in_workdir(
+                    workdir=workdir,
+                    ctx=ctx,
+                    item=item,
+                    product=product,
+                    store=make_store(),
+                    source=PreparedSource.grib_collection(
+                        uri="icon-dwd://icon/2026041200/003",
+                        grib_paths={"tot_prec": grib_path},
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                ).metadata
+
+            find_band.assert_called_once_with(grib_path, {}, run=_unused_run)
+            self.assertEqual(extract_band.call_args.kwargs["grib_path"], grib_path)
+            payload_path = out_dir / "fields" / "icon" / "2026041200" / "003" / "precip_total_surface.scalar.i8.bin"
+            payload_bytes = gzip.decompress(payload_path.read_bytes())
+            expected_payload = struct.pack("bbbb", -127, -126, 127, -128)
+            self.assertEqual(payload_bytes, expected_payload)
+            self.assertEqual(result["payload_uri"], f"{artifact_root_uri}/fields/icon/2026041200/003/precip_total_surface.scalar.i8.bin")
+            self.assertEqual(result["encoding_id"], "precip_total_surface_i8_1mm_v1")
+            self.assertEqual(result["units"], "mm")
+            self.assertEqual(result["component_grib_matches"]["value"], {"ICON_PARAM": "tot_prec"})
+            self.assertEqual(result["grid_id"], "icon_global_regridded_0p125")
+
+    def test_icon_cloud_layers_use_component_specific_grib_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-cloud-product-") as td:
+            out_dir = Path(td) / "out"
+            workdir = Path(td) / "work"
+            workdir.mkdir(parents=True, exist_ok=True)
+            paths = {
+                "clcl": Path(td) / "clcl.regridded.grib2",
+                "clcm": Path(td) / "clcm.regridded.grib2",
+                "clch": Path(td) / "clch.regridded.grib2",
+            }
+            for path in paths.values():
+                path.write_bytes(b"grib")
+
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            ctx = ExecutionContext(model_id="icon", artifact_root_uri=artifact_root_uri, forecast_hours=("000",))
+            item = WorkItem(
+                model_id="icon",
+                cycle="2026041200",
+                fhour="003",
+                layer="cloud_layers",
+                source_uri="icon-dwd://icon/2026041200/003",
+            )
+            product_config = _cloud_layers_config()
+            product_config["components"][0]["grib_match"] = {"ICON_PARAM": "clcl"}
+            product_config["components"][1]["grib_match"] = {"ICON_PARAM": "clcm"}
+            product_config["components"][2]["grib_match"] = {"ICON_PARAM": "clch"}
+            product = _product_spec("cloud_layers", product_config)
+            component_source = _pack_f32([0.0, 5.0, 10.0, 15.0], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.products.execute.find_grib_band_by_metadata",
+                    side_effect=[(1, {"id": "low"}), (1, {"id": "medium"}), (1, {"id": "high"})],
+                ) as find_band,
+                patch(
+                    "forecast_etl.products.execute.extract_float32_band_bytes",
+                    return_value=(component_source, "little"),
+                ),
+                patch(
+                    "forecast_etl.products.execute.grid_meta_from_grib",
+                    return_value=_small_grid_meta_fixture(),
+                ),
+            ):
+                run_product_item_in_workdir(
+                    workdir=workdir,
+                    ctx=ctx,
+                    item=item,
+                    product=product,
+                    store=make_store(),
+                    source=PreparedSource.grib_collection(
+                        uri="icon-dwd://icon/2026041200/003",
+                        grib_paths=paths,
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                )
+
+        called_paths = [call.args[0] for call in find_band.call_args_list]
+        self.assertEqual(called_paths, [paths["clcl"], paths["clcm"], paths["clch"]])
+
+    def test_icon_wind_uses_u_and_v_grib_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-wind-product-") as td:
+            out_dir = Path(td) / "out"
+            workdir = Path(td) / "work"
+            workdir.mkdir(parents=True, exist_ok=True)
+            paths = {
+                "u_10m": Path(td) / "u_10m.regridded.grib2",
+                "v_10m": Path(td) / "v_10m.regridded.grib2",
+            }
+            for path in paths.values():
+                path.write_bytes(b"grib")
+
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            ctx = ExecutionContext(model_id="icon", artifact_root_uri=artifact_root_uri, forecast_hours=("000",))
+            item = WorkItem(
+                model_id="icon",
+                cycle="2026041200",
+                fhour="003",
+                layer="wind10m_uv",
+                source_uri="icon-dwd://icon/2026041200/003",
+            )
+            product_config = _wind_product_config()
+            product_config["components"][0]["grib_match"] = {"ICON_PARAM": "u_10m"}
+            product_config["components"][1]["grib_match"] = {"ICON_PARAM": "v_10m"}
+            product = _product_spec("wind10m_uv", product_config)
+            u_src = _pack_f32([1.0, 2.0, 3.0, 4.0], byte_order="little")
+            v_src = _pack_f32([-1.0, -2.0, -3.0, -4.0], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.products.execute.find_grib_band_by_metadata",
+                    side_effect=[(1, {"id": "u"}), (1, {"id": "v"})],
+                ) as find_band,
+                patch(
+                    "forecast_etl.products.execute.extract_float32_band_bytes",
+                    side_effect=[(u_src, "little"), (v_src, "little")],
+                ),
+                patch(
+                    "forecast_etl.products.execute.grid_meta_from_grib",
+                    return_value=_small_grid_meta_fixture(),
+                ),
+            ):
+                run_product_item_in_workdir(
+                    workdir=workdir,
+                    ctx=ctx,
+                    item=item,
+                    product=product,
+                    store=make_store(),
+                    source=PreparedSource.grib_collection(
+                        uri="icon-dwd://icon/2026041200/003",
+                        grib_paths=paths,
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                )
+
+        called_paths = [call.args[0] for call in find_band.call_args_list]
+        self.assertEqual(called_paths, [paths["u_10m"], paths["v_10m"]])

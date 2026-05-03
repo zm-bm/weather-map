@@ -61,7 +61,7 @@ function createSyncRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
     lowerHourToken: manifest.forecastHours[0],
     upperHourToken: manifest.forecastHours[0],
     mix: 0,
-    requestKey: `${manifest.cycle}:${manifest.scalarVariables[0]}:${manifest.vectorVariables[0]}:${manifest.forecastHours[0]}:${manifest.forecastHours[0]}:0:0`,
+    requestKey: `${manifest.cycle}:${manifest.revision}:${manifest.scalarVariables[0]}:${manifest.vectorVariables[0]}:${manifest.forecastHours[0]}:${manifest.forecastHours[0]}:0:0`,
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),

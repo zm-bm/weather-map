@@ -9,14 +9,15 @@ from pathlib import Path
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.config.schema import ExecutionContext
+from forecast_etl.manifest.constants import MANIFEST_LAYER_GROUPS_KEY
 from forecast_etl.manifest.publish import run_publish
 from forecast_etl.stores import make_store
 from forecast_etl.tests.product_test_helpers import (
     _cloud_layers_config,
     _grid_meta_fixture,
+    _layer_group,
     _minimal_layer_config,
     _product_specs,
-    _scalar_group,
     _wind_product_config,
     _write_json,
     _write_packed_cloud_scalar_marker,
@@ -99,7 +100,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["contract"], "forecast-binary-v2")
             self.assertEqual(cycle_manifest["scalar_variables"], list(variables))
             self.assertEqual(
-                cycle_manifest["scalar_variable_groups"],
+                cycle_manifest[MANIFEST_LAYER_GROUPS_KEY],
                 [
                     {
                         "id": "layers",
@@ -142,7 +143,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
 
-    def test_publish_revision_includes_scalar_variable_groups(self) -> None:
+    def test_publish_revision_includes_layer_groups(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-groups-") as td:
             out_dir = Path(td) / "out"
             artifact_root_uri = f"file://{out_dir.as_posix()}"
@@ -174,12 +175,12 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                scalar_variable_groups=[
-                    _scalar_group(
+                layer_groups=[
+                    _layer_group(
                         group_id="temperature",
                         label="Temperature",
-                        default_variable="tmp_surface",
-                        variables=["tmp_surface"],
+                        default_product="tmp_surface",
+                        products=["tmp_surface"],
                     ),
                 ],
             )
@@ -191,19 +192,19 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                scalar_variable_groups=[
-                    _scalar_group(
+                layer_groups=[
+                    _layer_group(
                         group_id="layers",
                         label="Layers",
-                        default_variable="tmp_surface",
-                        variables=["tmp_surface"],
+                        default_product="tmp_surface",
+                        products=["tmp_surface"],
                     ),
                 ],
             )
             second_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
 
             self.assertNotEqual(first_manifest["revision"], second_manifest["revision"])
-            self.assertEqual(second_manifest["scalar_variable_groups"][0]["id"], "layers")
+            self.assertEqual(second_manifest[MANIFEST_LAYER_GROUPS_KEY][0]["id"], "layers")
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-temp-piecewise-") as td:
@@ -312,12 +313,12 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                scalar_variable_groups=[
-                    _scalar_group(
+                layer_groups=[
+                    _layer_group(
                         group_id="clouds",
                         label="Clouds",
-                        default_variable="cloud_layers",
-                        variables=["cloud_layers"],
+                        default_product="cloud_layers",
+                        products=["cloud_layers"],
                     ),
                 ],
             )

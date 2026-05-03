@@ -30,22 +30,23 @@ from .schema import (
     PRODUCT_KIND_VECTOR,
     PRODUCT_KINDS,
     SOURCE_TYPE_GFS_NOMADS,
-    SOURCE_TYPE_ZERO_PLACEHOLDER,
+    SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
     SOURCE_TYPES,
     ComponentSpec,
+    IconDwdConfig,
+    LayerGroup,
+    ModelProductSpec,
     ModelSourceConfig,
     NomadsConfig,
-    ProductBindingSpec,
     ProductCatalogSpec,
     ProductSpec,
     ScalarEncodingSpec,
-    ScalarVariableGroup,
     VectorEncodingSpec,
     WorkloadConfig,
 )
 
-DEFAULT_SCALAR_VARIABLE_GROUP_ID = "layers"
-DEFAULT_SCALAR_VARIABLE_GROUP_LABEL = "Layers"
+DEFAULT_LAYER_GROUP_ID = "layers"
+DEFAULT_LAYER_GROUP_LABEL = "Layers"
 REQUIRED_PRODUCT_FIELDS = {
     "kind",
     "parameter",
@@ -94,6 +95,23 @@ def parse_nomads_config(raw: Any) -> NomadsConfig:
     )
 
 
+def parse_icon_dwd_config(raw: Any) -> IconDwdConfig:
+    if not isinstance(raw, Mapping):
+        raise SystemExit("model.source must be an object")
+
+    base_url = _parse_non_empty_string(raw.get("base_url"), field_name="model.source.base_url")
+    regrid_image = _parse_non_empty_string(raw.get("regrid_image"), field_name="model.source.regrid_image")
+    rate_limit = raw.get("rate_limit_seconds", 0.0)
+    if not isinstance(rate_limit, (int, float)) or not math.isfinite(float(rate_limit)):
+        raise SystemExit("model.source.rate_limit_seconds must be a finite number")
+
+    return IconDwdConfig(
+        base_url=base_url.rstrip("/"),
+        regrid_image=regrid_image,
+        rate_limit_seconds=float(rate_limit),
+    )
+
+
 def parse_model_source_config(raw: Any) -> ModelSourceConfig:
     if not isinstance(raw, Mapping):
         raise SystemExit("model.source must be an object")
@@ -106,10 +124,29 @@ def parse_model_source_config(raw: Any) -> ModelSourceConfig:
     if source_type == SOURCE_TYPE_GFS_NOMADS:
         return ModelSourceConfig(type=source_type, grid_id=grid_id, nomads=parse_nomads_config(raw))
 
-    if source_type == SOURCE_TYPE_ZERO_PLACEHOLDER:
-        return ModelSourceConfig(type=source_type, grid_id=grid_id, grid=_parse_grid_config(raw.get("grid")))
+    if source_type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
+        return ModelSourceConfig(type=source_type, grid_id=grid_id, icon_dwd=parse_icon_dwd_config(raw))
 
     raise SystemExit(f"Unsupported model.source.type: {source_type!r}")
+
+
+def validate_model_products_for_source(
+    *,
+    model_id: str,
+    source: ModelSourceConfig,
+    model_products: Mapping[str, ModelProductSpec],
+) -> None:
+    if source.type != SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
+        return
+
+    for product_id, model_product in model_products.items():
+        for component_id, grib_match in model_product.component_grib_matches.items():
+            icon_param = grib_match.get("ICON_PARAM")
+            if not isinstance(icon_param, str) or not icon_param.strip():
+                raise SystemExit(
+                    f"models.{model_id}.products.{product_id}.{component_id} "
+                    "requires grib_match.ICON_PARAM for icon_dwd_icosahedral sources"
+                )
 
 
 def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
@@ -191,27 +228,27 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
     )
 
 
-def parse_product_binding_spec(
+def parse_model_product_spec(
     *,
     product_id: str,
     raw: Any,
     catalog_product: ProductCatalogSpec,
-) -> ProductBindingSpec:
+) -> ModelProductSpec:
     if not isinstance(raw, Mapping):
-        raise SystemExit(f"model product_bindings entry {product_id!r} must be an object")
+        raise SystemExit(f"model products entry {product_id!r} must be an object")
 
     raw_components = raw.get("components")
     if not isinstance(raw_components, list) or not raw_components:
-        raise SystemExit(f"model product_bindings.{product_id}.components must be a non-empty array")
+        raise SystemExit(f"model products.{product_id}.components must be a non-empty array")
 
     matches: dict[str, dict[str, str]] = {}
     for index, raw_component in enumerate(raw_components):
-        field_name = f"product_bindings.{product_id}.components[{index}]"
+        field_name = f"products.{product_id}.components[{index}]"
         if not isinstance(raw_component, Mapping):
             raise SystemExit(f"{field_name} must be an object")
         component_id = _parse_non_empty_string(raw_component.get("id"), field_name=f"{field_name}.id")
         if component_id in matches:
-            raise SystemExit(f"product_bindings.{product_id} contains duplicate component id: {component_id!r}")
+            raise SystemExit(f"products.{product_id} contains duplicate component id: {component_id!r}")
         matches[component_id] = _parse_grib_match(
             product_id=product_id,
             raw_match=raw_component.get("grib_match"),
@@ -222,11 +259,11 @@ def parse_product_binding_spec(
     actual = tuple(matches)
     if actual != expected:
         raise SystemExit(
-            f"product_bindings.{product_id}.components must match product_catalog order "
+            f"products.{product_id}.components must match product_catalog order "
             f"{list(expected)!r}, got {list(actual)!r}"
         )
 
-    return ProductBindingSpec(
+    return ModelProductSpec(
         product_id=product_id,
         component_grib_matches=matches,
     )
@@ -235,12 +272,12 @@ def parse_product_binding_spec(
 def resolve_product_spec(
     *,
     catalog_product: ProductCatalogSpec,
-    binding: ProductBindingSpec,
+    model_product: ModelProductSpec,
 ) -> ProductSpec:
     components = tuple(
         ComponentSpec(
             id=component_id,
-            grib_match=binding.component_grib_matches[component_id],
+            grib_match=model_product.component_grib_matches[component_id],
         )
         for component_id in catalog_product.component_ids
     )
@@ -273,68 +310,72 @@ def validate_workload_products(
             raise SystemExit(f"workload.products references unknown product: {product_id!r}")
 
 
-def parse_scalar_variable_groups(
+def parse_layer_groups(
     raw_value: Any,
     *,
     products: Mapping[str, ProductSpec],
     scalar_product_ids: tuple[str, ...],
-) -> tuple[ScalarVariableGroup, ...]:
+) -> tuple[LayerGroup, ...]:
     if raw_value is None:
-        return _default_scalar_variable_groups(scalar_product_ids)
+        return _default_layer_groups(scalar_product_ids)
     if not scalar_product_ids:
-        raise SystemExit("scalar_variable_groups cannot be provided without scalar products")
+        raise SystemExit("layer_groups cannot be provided without scalar products")
     if not isinstance(raw_value, list) or not raw_value:
-        raise SystemExit("scalar_variable_groups must be a non-empty array when provided")
+        raise SystemExit("layer_groups must be a non-empty array when provided")
 
     scalar_product_set = set(scalar_product_ids)
     seen_group_ids: set[str] = set()
-    seen_variables: set[str] = set()
-    groups: list[ScalarVariableGroup] = []
+    seen_products: set[str] = set()
+    groups: list[LayerGroup] = []
 
     for group_index, raw_group in enumerate(raw_value):
-        field_name = f"scalar_variable_groups[{group_index}]"
+        field_name = f"layer_groups[{group_index}]"
         if not isinstance(raw_group, Mapping):
             raise SystemExit(f"{field_name} must be an object")
 
         group_id = _parse_non_empty_string(raw_group.get("id"), field_name=f"{field_name}.id")
         if group_id in seen_group_ids:
-            raise SystemExit(f"Duplicate scalar variable group id: {group_id!r}")
+            raise SystemExit(f"Duplicate layer group id: {group_id!r}")
         seen_group_ids.add(group_id)
 
         label = _parse_non_empty_string(raw_group.get("label"), field_name=f"{field_name}.label")
-        default_variable = _parse_non_empty_string(
-            raw_group.get("default_variable"),
-            field_name=f"{field_name}.default_variable",
+        kind = _parse_non_empty_string(raw_group.get("kind"), field_name=f"{field_name}.kind")
+        if kind != PRODUCT_KIND_SCALAR:
+            raise SystemExit(f"{field_name}.kind must be {PRODUCT_KIND_SCALAR!r}; only scalar layer groups are supported")
+        default_product = _parse_non_empty_string(
+            raw_group.get("default_product"),
+            field_name=f"{field_name}.default_product",
         )
-        variables = _parse_string_tuple(raw_group.get("variables"), field_name=f"{field_name}.variables")
+        group_products = _parse_string_tuple(raw_group.get("products"), field_name=f"{field_name}.products")
 
-        if default_variable not in variables:
+        if default_product not in group_products:
             raise SystemExit(
-                f"{field_name}.default_variable {default_variable!r} must be included in {field_name}.variables"
+                f"{field_name}.default_product {default_product!r} must be included in {field_name}.products"
             )
 
-        for variable in variables:
-            product = products.get(variable)
+        for product_id in group_products:
+            product = products.get(product_id)
             if product is None or product.kind != PRODUCT_KIND_SCALAR:
-                raise SystemExit(f"{field_name}.variables references unknown scalar product {variable!r}")
-            if variable not in scalar_product_set:
-                raise SystemExit(f"{field_name}.variables references scalar product not in workload.products: {variable!r}")
-            if variable in seen_variables:
-                raise SystemExit(f"Scalar variable appears in multiple groups: {variable!r}")
-            seen_variables.add(variable)
+                raise SystemExit(f"{field_name}.products references unknown scalar product {product_id!r}")
+            if product_id not in scalar_product_set:
+                raise SystemExit(f"{field_name}.products references scalar product not in workload.products: {product_id!r}")
+            if product_id in seen_products:
+                raise SystemExit(f"Scalar product appears in multiple layer groups: {product_id!r}")
+            seen_products.add(product_id)
 
         groups.append(
-            ScalarVariableGroup(
+            LayerGroup(
                 id=group_id,
                 label=label,
-                default_variable=default_variable,
-                variables=variables,
+                kind=kind,
+                default_product=default_product,
+                products=group_products,
             )
         )
 
-    missing_variables = sorted(scalar_product_set - seen_variables)
-    if missing_variables:
-        raise SystemExit(f"scalar_variable_groups missing scalar products: {missing_variables!r}")
+    missing_products = sorted(scalar_product_set - seen_products)
+    if missing_products:
+        raise SystemExit(f"layer_groups missing scalar products: {missing_products!r}")
 
     return tuple(groups)
 
@@ -378,7 +419,7 @@ def _parse_product_component_ids(*, product_id: str, raw_components: Any) -> tup
             raise SystemExit(f"Product {product_id!r} has duplicate component id: {component_id!r}")
         if "grib_match" in raw_component:
             raise SystemExit(
-                f"Product {product_id!r} component GRIB matches belong in model product_bindings, "
+                f"Product {product_id!r} component GRIB matches belong in model products, "
                 f"not product_catalog"
             )
         seen_components.add(component_id)
@@ -575,15 +616,16 @@ def _encoding_id(raw_encoding: Mapping[str, Any], *, product_id: str) -> str:
     return raw.strip()
 
 
-def _default_scalar_variable_groups(scalar_product_ids: tuple[str, ...]) -> tuple[ScalarVariableGroup, ...]:
+def _default_layer_groups(scalar_product_ids: tuple[str, ...]) -> tuple[LayerGroup, ...]:
     if not scalar_product_ids:
         return ()
     return (
-        ScalarVariableGroup(
-            id=DEFAULT_SCALAR_VARIABLE_GROUP_ID,
-            label=DEFAULT_SCALAR_VARIABLE_GROUP_LABEL,
-            default_variable=scalar_product_ids[0],
-            variables=scalar_product_ids,
+        LayerGroup(
+            id=DEFAULT_LAYER_GROUP_ID,
+            label=DEFAULT_LAYER_GROUP_LABEL,
+            kind=PRODUCT_KIND_SCALAR,
+            default_product=scalar_product_ids[0],
+            products=scalar_product_ids,
         ),
     )
 
@@ -670,30 +712,6 @@ def _parse_finite_float(raw_value: Any, *, field_name: str) -> float:
     if not isinstance(raw_value, (int, float)) or not math.isfinite(float(raw_value)):
         raise SystemExit(f"{field_name} must be a finite number")
     return float(raw_value)
-
-
-def _parse_grid_config(raw: Any) -> dict[str, Any]:
-    if not isinstance(raw, Mapping):
-        raise SystemExit("zero_placeholder source requires a grid object")
-    return {
-        "crs": _parse_non_empty_string(raw.get("crs"), field_name="model.source.grid.crs"),
-        "nx": _parse_positive_int(raw.get("nx"), field_name="model.source.grid.nx"),
-        "ny": _parse_positive_int(raw.get("ny"), field_name="model.source.grid.ny"),
-        "lon0": _parse_finite_float(raw.get("lon0"), field_name="model.source.grid.lon0"),
-        "lat0": _parse_finite_float(raw.get("lat0"), field_name="model.source.grid.lat0"),
-        "dx": _parse_finite_float(raw.get("dx"), field_name="model.source.grid.dx"),
-        "dy": _parse_finite_float(raw.get("dy"), field_name="model.source.grid.dy"),
-        "origin": _parse_non_empty_string(raw.get("origin"), field_name="model.source.grid.origin"),
-        "layout": _parse_non_empty_string(raw.get("layout"), field_name="model.source.grid.layout"),
-        "x_wrap": _parse_non_empty_string(raw.get("x_wrap"), field_name="model.source.grid.x_wrap"),
-        "y_mode": _parse_non_empty_string(raw.get("y_mode"), field_name="model.source.grid.y_mode"),
-    }
-
-
-def _parse_positive_int(raw_value: Any, *, field_name: str) -> int:
-    if isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value <= 0:
-        raise SystemExit(f"{field_name} must be a positive integer")
-    return int(raw_value)
 
 
 def _parse_forecast_hour_int(raw_value: Any, *, field_name: str) -> int:

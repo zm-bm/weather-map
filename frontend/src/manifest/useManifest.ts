@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { DEFAULT_FORECAST_MODEL_ID, type ForecastModelId } from '../forecast-models'
 import { fetchCurrentManifest } from './fetch'
 import type { CycleManifest } from './types'
 import { isAbortError, normalizeError } from '../abort'
@@ -11,10 +12,20 @@ export type UseManifestResult = {
   retry: () => void
 }
 
-export function useManifest(): UseManifestResult {
-  const [manifest, setManifest] = useState<CycleManifest | null>(null)
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<Error | null>(null)
+type ManifestRequestState = {
+  modelId: ForecastModelId
+  manifest: CycleManifest | null
+  loading: boolean
+  error: Error | null
+}
+
+export function useManifest(modelId: ForecastModelId = DEFAULT_FORECAST_MODEL_ID): UseManifestResult {
+  const [requestState, setRequestState] = useState<ManifestRequestState>(() => ({
+    modelId,
+    manifest: null,
+    loading: true,
+    error: null,
+  }))
   const [retryToken, setRetryToken] = useState(0)
 
   const retry = useCallback(() => {
@@ -25,23 +36,41 @@ export function useManifest(): UseManifestResult {
     const ac = new AbortController()
 
     const run = async () => {
-      setLoading(true)
-      setError(null)
-      setManifest(null)
+      setRequestState({
+        modelId,
+        manifest: null,
+        loading: true,
+        error: null,
+      })
 
-      setManifest(await fetchCurrentManifest({ signal: ac.signal }))
+      const manifest = await fetchCurrentManifest({ modelId, signal: ac.signal })
+      if (ac.signal.aborted) return
+      setRequestState({
+        modelId,
+        manifest,
+        loading: false,
+        error: null,
+      })
     }
 
     run().catch((err) => {
       if (isAbortError(err)) return
-      setError(normalizeError(err))
-      setManifest(null)
-    }).finally(() => {
-      if (!ac.signal.aborted) setLoading(false)
+      if (ac.signal.aborted) return
+      setRequestState({
+        modelId,
+        manifest: null,
+        loading: false,
+        error: normalizeError(err),
+      })
     })
 
     return () => ac.abort()
-  }, [retryToken])
+  }, [modelId, retryToken])
+
+  const isCurrentModel = requestState.modelId === modelId
+  const manifest = isCurrentModel ? requestState.manifest : null
+  const loading = !isCurrentModel || requestState.loading
+  const error = isCurrentModel ? requestState.error : null
 
   const normalizedError =
     error ??

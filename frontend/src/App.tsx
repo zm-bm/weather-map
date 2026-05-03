@@ -1,11 +1,16 @@
 import './styles/index.css'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import AppStatusHost from './components/AppStatusHost'
 import ForecastShell from './components/ForecastShell/ForecastShell'
 import { useManifest } from './manifest/useManifest'
 import { AppStatusProvider, useAppStatusActions } from './app-status'
+import {
+  DEFAULT_FORECAST_MODEL_ID,
+  FORECAST_MODEL_OPTIONS,
+  getForecastModelLabel,
+} from './forecast-models'
 
 function App() {
   return (
@@ -16,8 +21,10 @@ function App() {
 }
 
 function AppContent() {
-  const { manifest, loading, error, retry } = useManifest()
+  const [activeModelId, setActiveModelId] = useState(DEFAULT_FORECAST_MODEL_ID)
+  const { manifest, loading, error, retry } = useManifest(activeModelId)
   const { setStatus, clearStatus } = useAppStatusActions()
+  const activeModelLabel = getForecastModelLabel(activeModelId)
 
   useEffect(() => {
     if (manifest) {
@@ -30,7 +37,7 @@ function AppContent() {
         mode: 'blocking',
         level: 'loading',
         title: 'Loading Forecast',
-        detail: 'Fetching latest forecast cycle manifest.',
+        detail: `Fetching latest ${activeModelLabel} forecast cycle manifest.`,
       })
       return
     }
@@ -51,13 +58,18 @@ function AppContent() {
       mode: 'blocking',
       level: 'loading',
       title: 'Loading Forecast',
-      detail: 'Waiting for forecast manifest.',
+      detail: `Waiting for ${activeModelLabel} forecast manifest.`,
     })
-  }, [clearStatus, error, loading, manifest, retry, setStatus])
+  }, [activeModelLabel, clearStatus, error, loading, manifest, retry, setStatus])
 
   return (
     <div className="app-root">
-      <ForecastShell manifest={manifest} />
+      <ForecastShell
+        manifest={manifest}
+        activeModelId={activeModelId}
+        modelOptions={FORECAST_MODEL_OPTIONS}
+        onActiveModelChange={setActiveModelId}
+      />
       <AppStatusHost />
     </div>
   )

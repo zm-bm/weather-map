@@ -130,7 +130,7 @@ class AwsIngestTest(unittest.TestCase):
                         "forecast_hours": ["000", "003", "006"],
                         "products": ["tmp_surface", "wind10m_uv"],
                     },
-                    "product_bindings": {
+                    "products": {
                         "tmp_surface": {
                             "components": [
                                 {"id": "value", "grib_match": {"GRIB_ELEMENT": "TMP"}}

@@ -36,4 +36,15 @@ describe('fetchCurrentManifest', () => {
     expect(manifest.contract).toBe('forecast-binary-v2')
     expect(manifest.vectorVariables).toEqual(['wind10m_uv'])
   })
+
+  it('fetches the selected model manifest', async () => {
+    const fetchMock = stubFetchJsonOnce(createCycleManifestPayloadFixture())
+
+    await fetchCurrentManifest({ modelId: 'icon', signal: createSignalFixture() })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/manifests/icon/latest.json',
+      expect.any(Object)
+    )
+  })
 })

@@ -223,6 +223,23 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
       [30, 180, 40, 140],
     ],
   },
+  precip_total_surface: {
+    label: 'Accumulated Precipitation',
+    units: 'mm',
+    displayRange: [0, 254],
+    colortable: [
+      [0, 180, 180, 180],
+      [1, 200, 210, 240],
+      [2, 160, 190, 255],
+      [5, 120, 170, 255],
+      [10, 60, 170, 220],
+      [25, 60, 200, 160],
+      [50, 160, 230, 80],
+      [100, 255, 180, 60],
+      [150, 255, 100, 60],
+      [254, 180, 40, 140],
+    ],
+  },
   [FALLBACK_ENTRY_KEY]: {
     label: 'Unknown Layer',
     units: '',

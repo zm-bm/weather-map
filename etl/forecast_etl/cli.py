@@ -11,9 +11,16 @@ from __future__ import annotations
 import argparse
 import os
 from multiprocessing import Pool
+from traceback import format_exc
 
 from .config.parse import load_pipeline_config
-from .config.schema import ExecutionContext, ModelConfig, PipelineConfig, ProductSpec
+from .config.schema import (
+    SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
+    ExecutionContext,
+    ModelConfig,
+    PipelineConfig,
+    ProductSpec,
+)
 from .manifest.publish import run_publish
 from .sources.gfs_layout import (
     default_artifact_root_uri,
@@ -31,6 +38,10 @@ HourTask = tuple[
     str,
     str | None,
 ]
+
+
+class RunCycleTaskError(RuntimeError):
+    """Pickle-safe wrapper for child process failures."""
 
 
 def _runtime_parser() -> argparse.ArgumentParser:
@@ -88,8 +99,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_run_cycle.add_argument(
         "--procs",
         type=int,
-        default=4,
-        help="Process count (default: 4; use 0 for cpu count)",
+        default=None,
+        help="Process count (default: 4, or 1 for ICON; use 0 for cpu count)",
     )
     ap_run_cycle.add_argument(
         "--no-publish",
@@ -115,7 +126,7 @@ def _publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str) -> 
         model_label=model.label,
         product_ids=model.workload.products,
         products=model.products,
-        scalar_variable_groups=model.scalar_variable_groups,
+        layer_groups=model.layer_groups,
     )
 
 
@@ -185,15 +196,23 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
 
 def _run_cycle_one(payload: HourTask) -> None:
     ctx, model, products, product_ids, cycle, fhour, source_uri = payload
-    run_process_hour(
-        ctx=ctx,
-        model=model,
-        cycle=cycle,
-        fhour=fhour,
-        source_uri=source_uri,
-        product_ids=product_ids,
-        products=products,
-    )
+    try:
+        run_process_hour(
+            ctx=ctx,
+            model=model,
+            cycle=cycle,
+            fhour=fhour,
+            source_uri=source_uri,
+            product_ids=product_ids,
+            products=products,
+        )
+    except KeyboardInterrupt:
+        raise
+    except BaseException as exc:
+        raise RunCycleTaskError(
+            f"Failed processing model={ctx.model_id} cycle={cycle} fhour={fhour}: {exc}\n"
+            f"{format_exc()}"
+        ) from None
 
 
 def _build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: str) -> list[HourTask]:
@@ -217,15 +236,28 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     parse_cycle(cycle)
 
     tasks = _build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle)
-    procs = int(args.procs)
-    with Pool(processes=None if procs <= 0 else procs) as pool:
-        for _ in pool.imap_unordered(_run_cycle_one, tasks):
-            pass
+    procs = int(args.procs) if args.procs is not None else _default_run_cycle_procs(model)
+    try:
+        if procs == 1:
+            for task in tasks:
+                _run_cycle_one(task)
+        else:
+            with Pool(processes=None if procs <= 0 else procs) as pool:
+                for _ in pool.imap_unordered(_run_cycle_one, tasks):
+                    pass
+    except RunCycleTaskError as exc:
+        raise SystemExit(str(exc)) from None
 
     if not args.no_publish:
         _publish_cycle(ctx=ctx, model=model, cycle=cycle)
 
     return 0
+
+
+def _default_run_cycle_procs(model: ModelConfig) -> int:
+    if model.source.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
+        return 1
+    return 4
 
 
 def _cmd_smoke(args: argparse.Namespace) -> int:

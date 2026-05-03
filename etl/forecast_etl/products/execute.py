@@ -22,13 +22,46 @@ from ..sources.grib import (
     find_grib_band_by_metadata,
     grid_meta_from_grib,
 )
-from ..sources.prepared import PREPARED_SOURCE_GRIB, PREPARED_SOURCE_ZERO, PreparedSource
+from ..sources.prepared import (
+    PREPARED_SOURCE_GRIB,
+    PREPARED_SOURCE_GRIB_COLLECTION,
+    PreparedSource,
+)
 from ..stores.base import UriStore
 from .metadata import (
     build_product_marker_metadata,
     component_item_bytes,
 )
 from .model import EncodedComponent, ExtractedBand, ProductResult
+
+ICON_PARAM_MATCH_KEY = "ICON_PARAM"
+
+
+def _band_match_metadata(grib_match: dict[str, str]) -> dict[str, str]:
+    return {key: value for key, value in grib_match.items() if key.startswith("GRIB_")}
+
+
+def _component_grib_path(*, product: ProductSpec, component_id: str, source: PreparedSource, grib_match: dict[str, str]) -> Path:
+    if source.kind == PREPARED_SOURCE_GRIB:
+        if source.path is None:
+            raise SystemExit("Prepared GRIB source missing local path")
+        return source.path
+
+    if source.kind == PREPARED_SOURCE_GRIB_COLLECTION:
+        if source.grib_paths is None:
+            raise SystemExit("Prepared GRIB collection source missing paths")
+        icon_param = grib_match.get(ICON_PARAM_MATCH_KEY, "").strip()
+        if not icon_param:
+            raise SystemExit(f"Product {product.id}.{component_id} requires {ICON_PARAM_MATCH_KEY} for GRIB collection source")
+        grib_path = source.grib_paths.get(icon_param.lower())
+        if grib_path is None:
+            raise SystemExit(
+                f"Prepared GRIB collection missing ICON parameter {icon_param!r} "
+                f"for product {product.id}.{component_id}"
+            )
+        return grib_path
+
+    raise SystemExit(f"Unsupported prepared source kind for GRIB path lookup: {source.kind!r}")
 
 
 def extract_product_band(
@@ -41,28 +74,23 @@ def extract_product_band(
     workdir_path: Path,
     run: RunFn,
 ) -> ExtractedBand:
-    if source.kind == PREPARED_SOURCE_ZERO:
-        source_f32_bytes = b"\x00" * (int(grid["nx"]) * int(grid["ny"]) * 4)
-        return ExtractedBand(
-            component_id=component_id,
-            grib_match=grib_match,
-            source_f32_bytes=source_f32_bytes,
-            source_byte_order="little",
-            band_index=0,
-            band_metadata={"SOURCE": "zero_placeholder", **grib_match},
-            grid=grid,
-        )
-
-    if source.kind != PREPARED_SOURCE_GRIB or source.path is None:
+    if source.kind not in {PREPARED_SOURCE_GRIB, PREPARED_SOURCE_GRIB_COLLECTION}:
         raise SystemExit(f"Unsupported prepared source kind: {source.kind!r}")
 
+    grib_path = _component_grib_path(
+        product=product,
+        component_id=component_id,
+        source=source,
+        grib_match=grib_match,
+    )
+    band_match = _band_match_metadata(grib_match)
     band_idx, band_md = find_grib_band_by_metadata(
-        source.path,
-        grib_match,
+        grib_path,
+        band_match,
         run=run,
     )
     source_f32_bytes, source_byte_order = extract_float32_band_bytes(
-        grib_path=source.path,
+        grib_path=grib_path,
         band_idx=band_idx,
         workdir_path=workdir_path,
         run=run,
@@ -162,10 +190,11 @@ def run_product_item_in_workdir(
         if source.path is None:
             raise SystemExit("Prepared GRIB source missing local path")
         grid = grid_meta_from_grib(grib_path=source.path, run=run)
-    elif source.kind == PREPARED_SOURCE_ZERO:
-        if source.grid is None:
-            raise SystemExit("Prepared zero source missing grid metadata")
-        grid = dict(source.grid)
+    elif source.kind == PREPARED_SOURCE_GRIB_COLLECTION:
+        if source.grib_paths is None or not source.grib_paths:
+            raise SystemExit("Prepared GRIB collection source missing paths")
+        first_path = next(iter(source.grib_paths.values()))
+        grid = grid_meta_from_grib(grib_path=first_path, run=run)
     else:
         raise SystemExit(f"Unsupported prepared source kind: {source.kind!r}")
 

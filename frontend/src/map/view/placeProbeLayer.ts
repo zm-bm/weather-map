@@ -147,12 +147,49 @@ function ensurePlaceProbeLayer(map: MapLibreMap): void {
 }
 
 function removePlaceProbeLayer(map: MapLibreMap): void {
-  if (map.getLayer(placeProbeLayerIds.layer)) {
-    map.removeLayer(placeProbeLayerIds.layer)
+  if (getMapLayerIfStyleAvailable(map, placeProbeLayerIds.layer)) {
+    runMapStyleOperation(map, () => map.removeLayer(placeProbeLayerIds.layer))
   }
-  if (map.getSource(placeProbeLayerIds.source)) {
-    map.removeSource(placeProbeLayerIds.source)
+  if (getMapSourceIfStyleAvailable(map, placeProbeLayerIds.source)) {
+    runMapStyleOperation(map, () => map.removeSource(placeProbeLayerIds.source))
   }
+}
+
+function getMapLayerIfStyleAvailable(map: MapLibreMap, layerId: string): boolean {
+  return runMapStyleOperation(map, () => map.getLayer(layerId) != null) ?? false
+}
+
+function getMapSourceIfStyleAvailable(map: MapLibreMap, sourceId: string): boolean {
+  return runMapStyleOperation(map, () => map.getSource(sourceId) != null) ?? false
+}
+
+function runMapStyleOperation<T>(
+  map: MapLibreMap,
+  operation: () => T,
+): T | null {
+  if (isMapStyleUnavailable(map)) return null
+
+  try {
+    return operation()
+  } catch (error) {
+    if (isMapStyleUnavailableError(error)) return null
+    throw error
+  }
+}
+
+function isMapStyleUnavailable(map: MapLibreMap): boolean {
+  const candidate = map as MapLibreMap & {
+    _removed?: boolean
+    style?: unknown | null
+  }
+  return candidate._removed === true || ('style' in candidate && candidate.style == null)
+}
+
+function isMapStyleUnavailableError(error: unknown): boolean {
+  if (!(error instanceof TypeError)) return false
+  return /Cannot read properties of (undefined|null) \(reading '(getLayer|getSource|removeLayer|removeSource)'\)/.test(
+    error.message,
+  )
 }
 
 function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {

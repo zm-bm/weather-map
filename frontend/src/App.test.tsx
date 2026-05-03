@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ForecastModelId, ForecastModelOption } from './forecast-models'
 import type { CycleManifest } from './manifest'
 import { createFrameManifestFixture } from './test/fixtures'
 import App from './App'
@@ -18,13 +19,22 @@ vi.mock('./manifest/useManifest', () => ({
 vi.mock('./components/ForecastShell/ForecastShell', () => ({
   default: ({
     manifest,
+    activeModelId,
+    modelOptions,
+    onActiveModelChange,
   }: {
     manifest: CycleManifest | null
+    activeModelId: ForecastModelId
+    modelOptions: readonly ForecastModelOption[]
+    onActiveModelChange: (modelId: ForecastModelId) => void
   }) => {
-    mocks.workspaceProps = { manifest }
+    mocks.workspaceProps = { manifest, activeModelId, modelOptions }
     return (
       <div data-testid="forecast-screen">
         {manifest?.cycle ?? 'no-manifest'}
+        <button type="button" onClick={() => onActiveModelChange('icon')}>
+          select-icon
+        </button>
       </div>
     )
   },
@@ -48,8 +58,14 @@ describe('App composition', () => {
 
     expect(screen.getByTestId('forecast-screen')).toHaveTextContent('no-manifest')
     expect(screen.getByText('Loading Forecast')).toBeInTheDocument()
+    expect(mocks.useManifest).toHaveBeenCalledWith('gfs')
     expect(mocks.workspaceProps).toEqual({
       manifest: null,
+      activeModelId: 'gfs',
+      modelOptions: [
+        { id: 'gfs', label: 'GFS' },
+        { id: 'icon', label: 'ICON' },
+      ],
     })
   })
 
@@ -70,7 +86,27 @@ describe('App composition', () => {
     expect(retry).toHaveBeenCalledTimes(1)
     expect(mocks.workspaceProps).toEqual({
       manifest: null,
+      activeModelId: 'gfs',
+      modelOptions: [
+        { id: 'gfs', label: 'GFS' },
+        { id: 'icon', label: 'ICON' },
+      ],
     })
+  })
+
+  it('reloads the manifest when the forecast model changes', () => {
+    mocks.useManifest.mockReturnValue({
+      manifest: null,
+      loading: true,
+      error: null,
+      retry: vi.fn(),
+    })
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'select-icon' }))
+
+    expect(mocks.useManifest).toHaveBeenLastCalledWith('icon')
+    expect(mocks.workspaceProps?.activeModelId).toBe('icon')
   })
 
   it('passes manifest and load state through once available', () => {
@@ -116,6 +152,11 @@ describe('App composition', () => {
     expect(screen.queryByText('Forecast Load Failed')).not.toBeInTheDocument()
     expect(mocks.workspaceProps).toEqual({
       manifest,
+      activeModelId: 'gfs',
+      modelOptions: [
+        { id: 'gfs', label: 'GFS' },
+        { id: 'icon', label: 'ICON' },
+      ],
     })
   })
 })

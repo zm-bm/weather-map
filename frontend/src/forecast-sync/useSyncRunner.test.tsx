@@ -144,7 +144,7 @@ function buildSyncRequest(
     lowerHourToken: frameWindow.lowerHourToken,
     upperHourToken: frameWindow.upperHourToken,
     mix: frameWindow.mix,
-    requestKey: `${syncInput.manifest.cycle}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
+    requestKey: `${syncInput.manifest.cycle}:${syncInput.manifest.revision}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
     sync: syncInput.sync,
   }
 }

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..config.schema import SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ZERO_PLACEHOLDER, ModelConfig
+from ..config.schema import (
+    SOURCE_TYPE_GFS_NOMADS,
+    SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
+    ModelConfig,
+)
 from ..sources.prepared import PreparedSource
 from ..stores.base import UriStore
 from . import gfs, icon
@@ -28,7 +32,7 @@ def acquire_prepared_source(
             workdir=workdir,
             store=store,
         )
-    if model.source.type == SOURCE_TYPE_ZERO_PLACEHOLDER:
+    if model.source.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
         return icon.acquire_prepared_source(
             model=model,
             cycle=cycle,

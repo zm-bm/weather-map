@@ -1,6 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
 import { asScalarVariableId } from '../../manifest'
 import {
   createManifestFixture,
@@ -72,7 +73,11 @@ function createLegendSelectionManifest(
 function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'cloud_layers' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
-      <ForecastPanel />
+      <ForecastPanel
+        activeModelId="gfs"
+        modelOptions={FORECAST_MODEL_OPTIONS}
+        onActiveModelChange={() => undefined}
+      />
       <LegendPanel />
     </>,
     createLegendSelectionManifest(activeScalar)

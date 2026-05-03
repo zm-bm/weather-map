@@ -13,12 +13,13 @@ from .schema import (
     ProductCatalogSpec,
 )
 from .validate import (
+    parse_layer_groups,
+    parse_model_product_spec,
     parse_model_source_config,
-    parse_product_binding_spec,
     parse_product_catalog_spec,
-    parse_scalar_variable_groups,
     parse_workload_config,
     resolve_product_spec,
+    validate_model_products_for_source,
     validate_workload_products,
 )
 
@@ -77,39 +78,49 @@ def _parse_model_config(
     workload = parse_workload_config(raw.get("workload"))
     validate_workload_products(product_ids=workload.products, products=product_catalog)
 
-    bindings_obj = raw.get("product_bindings")
-    if not isinstance(bindings_obj, Mapping):
-        raise SystemExit(f"models.{model_id} missing valid 'product_bindings' object")
+    if "product_bindings" in raw:
+        raise SystemExit(f"models.{model_id}.product_bindings is no longer supported; use models.{model_id}.products")
+    if "scalar_variable_groups" in raw:
+        raise SystemExit(f"models.{model_id}.scalar_variable_groups is no longer supported; use models.{model_id}.layer_groups")
 
-    product_bindings = {}
+    model_products_obj = raw.get("products")
+    if not isinstance(model_products_obj, Mapping):
+        raise SystemExit(f"models.{model_id} missing valid 'products' object")
+
+    model_products = {}
     resolved_products = {}
     for product_id in workload.products:
         catalog_product = product_catalog[product_id]
-        raw_binding = bindings_obj.get(product_id)
-        if raw_binding is None:
-            raise SystemExit(f"models.{model_id}.product_bindings missing product {product_id!r}")
-        binding = parse_product_binding_spec(
+        raw_model_product = model_products_obj.get(product_id)
+        if raw_model_product is None:
+            raise SystemExit(f"models.{model_id}.products missing product {product_id!r}")
+        model_product = parse_model_product_spec(
             product_id=product_id,
-            raw=raw_binding,
+            raw=raw_model_product,
             catalog_product=catalog_product,
         )
-        product_bindings[product_id] = binding
+        model_products[product_id] = model_product
         resolved_products[product_id] = resolve_product_spec(
             catalog_product=catalog_product,
-            binding=binding,
+            model_product=model_product,
         )
 
-    unknown_bindings = sorted(set(str(key) for key in bindings_obj) - set(workload.products))
-    if unknown_bindings:
-        raise SystemExit(f"models.{model_id}.product_bindings contains products not in workload: {unknown_bindings!r}")
+    unknown_model_products = sorted(set(str(key) for key in model_products_obj) - set(workload.products))
+    if unknown_model_products:
+        raise SystemExit(f"models.{model_id}.products contains products not in workload: {unknown_model_products!r}")
+    validate_model_products_for_source(
+        model_id=model_id,
+        source=source,
+        model_products=model_products,
+    )
 
     scalar_product_ids = tuple(
         product_id
         for product_id in workload.products
         if resolved_products[product_id].kind == PRODUCT_KIND_SCALAR
     )
-    scalar_variable_groups = parse_scalar_variable_groups(
-        raw.get("scalar_variable_groups"),
+    layer_groups = parse_layer_groups(
+        raw.get("layer_groups"),
         products=resolved_products,
         scalar_product_ids=scalar_product_ids,
     )
@@ -119,9 +130,9 @@ def _parse_model_config(
         label=label,
         source=source,
         workload=workload,
-        product_bindings=product_bindings,
+        model_products=model_products,
         products=resolved_products,
-        scalar_variable_groups=scalar_variable_groups,
+        layer_groups=layer_groups,
     )
 
 

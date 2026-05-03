@@ -8,11 +8,11 @@ from typing import Iterable, Mapping
 
 from ..artifacts.json import read_json, write_json
 from ..artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths
-from ..config.schema import ExecutionContext, ProductSpec, ScalarVariableGroup
+from ..config.schema import ExecutionContext, LayerGroup, ProductSpec
 from ..stores import make_store
 from ..stores.base import UriStore
-from .build import build_manifest_sections, scalar_variable_groups_for_manifest
-from .constants import FORECAST_BINARY_CONTRACT, MANIFEST_VERSION
+from .build import build_manifest_sections, layer_groups_for_manifest
+from .constants import FORECAST_BINARY_CONTRACT, MANIFEST_LAYER_GROUPS_KEY, MANIFEST_VERSION
 from .revision import compute_manifest_revision
 
 
@@ -30,23 +30,23 @@ def run_publish(
     model_label: str,
     product_ids: Iterable[str],
     products: Mapping[str, ProductSpec],
-    scalar_variable_groups: Iterable[ScalarVariableGroup] | None = None,
+    layer_groups: Iterable[LayerGroup] | None = None,
 ) -> PublishResult:
     fhours = tuple(ctx.forecast_hours or ())
     product_ids = tuple(product_ids)
-    scalar_variables = tuple(
+    scalar_product_ids = tuple(
         product_id
         for product_id in product_ids
         if products[product_id].is_scalar
     )
-    vector_variables = tuple(
+    vector_product_ids = tuple(
         product_id
         for product_id in product_ids
         if products[product_id].is_vector
     )
-    normalized_scalar_variable_groups = scalar_variable_groups_for_manifest(
-        groups=scalar_variable_groups,
-        scalar_variables=scalar_variables,
+    manifest_layer_groups = layer_groups_for_manifest(
+        groups=layer_groups,
+        scalar_product_ids=scalar_product_ids,
     )
 
     if not fhours:
@@ -90,9 +90,9 @@ def run_publish(
     revision = compute_manifest_revision(
         cycle=cycle,
         hours=fhours,
-        scalar_variables=scalar_variables,
-        scalar_variable_groups=normalized_scalar_variable_groups,
-        vector_variables=vector_variables,
+        scalar_product_ids=scalar_product_ids,
+        layer_groups=manifest_layer_groups,
+        vector_product_ids=vector_product_ids,
         grids=grids,
         encodings=encodings,
         variable_meta=variable_meta,
@@ -109,9 +109,9 @@ def run_publish(
         "generated_at": generated_at,
         "revision": revision,
         "forecast_hours": list(fhours),
-        "scalar_variables": list(scalar_variables),
-        "scalar_variable_groups": normalized_scalar_variable_groups,
-        "vector_variables": list(vector_variables),
+        "scalar_variables": list(scalar_product_ids),
+        MANIFEST_LAYER_GROUPS_KEY: manifest_layer_groups,
+        "vector_variables": list(vector_product_ids),
         "grids": grids,
         "encodings": encodings,
         "variable_meta": variable_meta,

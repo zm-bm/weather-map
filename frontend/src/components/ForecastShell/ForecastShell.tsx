@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 
+import type { ForecastModelId, ForecastModelOption } from '../../forecast-models'
 import type { CycleManifest } from '../../manifest'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import { ForecastTimeProvider } from '../../forecast-time'
@@ -11,6 +12,9 @@ import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
   manifest: CycleManifest | null
+  activeModelId: ForecastModelId
+  modelOptions: readonly ForecastModelOption[]
+  onActiveModelChange: (modelId: ForecastModelId) => void
 }
 
 const DEBUG_BASEMAP_ONLY = false
@@ -18,6 +22,9 @@ const MAP_CONTROL_PANEL_GAP_PX = 8
 
 export default function ForecastShell({
   manifest,
+  activeModelId,
+  modelOptions,
+  onActiveModelChange,
 }: ForecastShellProps) {
   const forecastStageRef = useRef<HTMLDivElement | null>(null)
   const forecastPanelRef = useRef<HTMLElement | null>(null)
@@ -74,7 +81,12 @@ export default function ForecastShell({
             {manifest && !DEBUG_BASEMAP_ONLY && (
               <>
                 <MapSyncIndicator />
-                <ForecastPanel ref={forecastPanelRef} />
+                <ForecastPanel
+                  ref={forecastPanelRef}
+                  activeModelId={activeModelId}
+                  modelOptions={modelOptions}
+                  onActiveModelChange={onActiveModelChange}
+                />
                 <div className="forecast-stage__legend">
                   <LegendPanel />
                 </div>

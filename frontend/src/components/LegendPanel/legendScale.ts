@@ -18,8 +18,12 @@ const MM_RATE_MAJOR_TICKS = [0, 1, 3, 7, 15, 30]
 const MM_RATE_MINOR_TICKS = [0.3, 5, 10, 20]
 const IN_RATE_MAJOR_TICKS = [0, 0.03, 0.1, 0.3, 0.7, 1]
 const IN_RATE_MINOR_TICKS = [0.01, 0.05, 0.5]
+const MM_TOTAL_PRECIP_MAJOR_TICKS = [0, 10, 25, 50, 100, 150, 250]
+const MM_TOTAL_PRECIP_MINOR_TICKS = [5, 75, 125, 200]
+const IN_TOTAL_PRECIP_MAJOR_TICKS = [0, 0.5, 1, 2, 4, 6, 10]
+const IN_TOTAL_PRECIP_MINOR_TICKS = [0.25, 3, 8]
 
-type LegendScaleKind = 'percent' | 'pressure' | 'temperature' | 'rate' | 'default'
+type LegendScaleKind = 'percent' | 'pressure' | 'temperature' | 'rate' | 'precipTotal' | 'default'
 
 type LegendTickSet = {
   major: number[]
@@ -132,11 +136,16 @@ function isRateScale(units: string, label: string): boolean {
   return units === 'mm/hr' || units === 'in/hr' || label.includes('precipitation rate')
 }
 
+function isPrecipTotalScale(label: string): boolean {
+  return label.includes('accumulated precipitation')
+}
+
 function getLegendScaleKind(units: string, label: string): LegendScaleKind {
   if (isPercentScale(units, label)) return 'percent'
   if (isPressureScale(units, label)) return 'pressure'
   if (isTemperatureScale(units, label)) return 'temperature'
   if (isRateScale(units, label)) return 'rate'
+  if (isPrecipTotalScale(label)) return 'precipTotal'
   return 'default'
 }
 
@@ -220,6 +229,11 @@ function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, ma
       return {
         major: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MAJOR_TICKS : MM_RATE_MAJOR_TICKS, min, max),
         minor: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MINOR_TICKS : MM_RATE_MINOR_TICKS, min, max),
+      }
+    case 'precipTotal':
+      return {
+        major: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
+        minor: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
       }
     default:
       return null

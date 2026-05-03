@@ -39,7 +39,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
       lowerHourToken: frameWindow.lowerHourToken,
       upperHourToken: frameWindow.upperHourToken,
       mix: frameWindow.mix,
-      requestKey: `${manifest.cycle}:${activeScalar}:${activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
+      requestKey: `${manifest.cycle}:${manifest.revision}:${activeScalar}:${activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
       sync,
     }
   }, [

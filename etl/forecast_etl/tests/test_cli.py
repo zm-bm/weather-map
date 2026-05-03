@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from unittest.mock import patch
 
 from forecast_etl import cli
-from forecast_etl.config.schema import ExecutionContext
+from forecast_etl.config.schema import ExecutionContext, LayerGroup
 
 
 class _FakeWorkload:
@@ -23,6 +23,11 @@ class _FakeNomads:
         self.rate_limit_seconds = rate_limit_seconds
 
 
+class _FakeSource:
+    def __init__(self, *, source_type: str = "gfs_nomads") -> None:
+        self.type = source_type
+
+
 class _FakePipelineConfig:
     def __init__(
         self,
@@ -34,16 +39,18 @@ class _FakePipelineConfig:
         self.workload = _FakeWorkload(forecast_hours=forecast_hours, products=products)
         self.nomads = _FakeNomads(rate_limit_seconds=rate_limit_seconds)
         self.products = {name: {"kind": "scalar"} for name in products}
-        self.scalar_variable_groups = (
-            {
-                "id": "layers",
-                "label": "Layers",
-                "default_variable": products[0],
-                "variables": list(products),
-            },
+        self.layer_groups = (
+            LayerGroup(
+                id="layers",
+                label="Layers",
+                kind="scalar",
+                default_product=products[0],
+                products=products,
+            ),
         ) if products else ()
         self.id = "gfs"
         self.label = "GFS"
+        self.source = _FakeSource()
 
     def model(self, model_id: str) -> "_FakePipelineConfig":
         if model_id != "gfs":
@@ -215,6 +222,37 @@ class CliTest(unittest.TestCase):
 
         self.assertEqual(result, 0)
         run_publish.assert_not_called()
+
+    def test_run_cycle_wraps_worker_errors_with_hour_context(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.cli.run_process_hour", side_effect=ValueError("boom")),
+            patch("forecast_etl.cli.run_publish"),
+            patch("forecast_etl.cli.Pool", _FakePool),
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300"])
+
+        message = str(raised.exception)
+        self.assertIn("Failed processing model=gfs cycle=2026021300 fhour=000", message)
+        self.assertIn("ValueError: boom", message)
+
+    def test_run_cycle_defaults_icon_to_serial_processing(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
+        fake_cfg.source = _FakeSource(source_type="icon_dwd_icosahedral")
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.cli.run_process_hour") as run_process_hour,
+            patch("forecast_etl.cli.Pool") as pool,
+        ):
+            result = cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300", "--no-publish"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(run_process_hour.call_count, 2)
+        pool.assert_not_called()
 
     def test_smoke_prints_hello_world(self) -> None:
         out = io.StringIO()

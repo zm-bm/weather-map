@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 PRODUCT_KIND_SCALAR = "scalar"
 PRODUCT_KIND_VECTOR = "vector"
 PRODUCT_KINDS = {PRODUCT_KIND_SCALAR, PRODUCT_KIND_VECTOR}
 SOURCE_TYPE_GFS_NOMADS = "gfs_nomads"
-SOURCE_TYPE_ZERO_PLACEHOLDER = "zero_placeholder"
-SOURCE_TYPES = {SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ZERO_PLACEHOLDER}
+SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL = "icon_dwd_icosahedral"
+SOURCE_TYPES = {SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL}
 
 
 @dataclass(frozen=True)
@@ -34,11 +33,18 @@ class NomadsConfig:
 
 
 @dataclass(frozen=True)
+class IconDwdConfig:
+    base_url: str
+    regrid_image: str
+    rate_limit_seconds: float
+
+
+@dataclass(frozen=True)
 class ModelSourceConfig:
     type: str
     grid_id: str
     nomads: NomadsConfig | None = None
-    grid: dict[str, Any] | None = None
+    icon_dwd: IconDwdConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -97,7 +103,7 @@ class ProductCatalogSpec:
 
 
 @dataclass(frozen=True)
-class ProductBindingSpec:
+class ModelProductSpec:
     product_id: str
     component_grib_matches: dict[str, dict[str, str]]
 
@@ -130,18 +136,19 @@ class ProductSpec:
 
 
 @dataclass(frozen=True)
-class ScalarVariableGroup:
+class LayerGroup:
     id: str
     label: str
-    default_variable: str
-    variables: tuple[str, ...]
+    kind: str
+    default_product: str
+    products: tuple[str, ...]
 
     def to_manifest_dict(self) -> dict[str, object]:
         return {
             "id": self.id,
             "label": self.label,
-            "default_variable": self.default_variable,
-            "variables": list(self.variables),
+            "default_variable": self.default_product,
+            "variables": list(self.products),
         }
 
 
@@ -151,9 +158,9 @@ class ModelConfig:
     label: str
     source: ModelSourceConfig
     workload: WorkloadConfig
-    product_bindings: dict[str, ProductBindingSpec]
+    model_products: dict[str, ModelProductSpec]
     products: dict[str, ProductSpec]
-    scalar_variable_groups: tuple[ScalarVariableGroup, ...]
+    layer_groups: tuple[LayerGroup, ...]
 
     def to_execution_context(self, artifact_root_uri: str) -> ExecutionContext:
         return ExecutionContext(
