@@ -8,8 +8,8 @@ from forecast_etl.config.parse import parse_pipeline_config
 from forecast_etl.tests.product_test_helpers import (
     _catalog_product,
     _cloud_layers_config,
-    _minimal_layer_config,
     _minimal_pipeline_config,
+    _minimal_product_config,
     _model_product,
     _precip_total_config,
     _wind_product_config,
@@ -46,8 +46,16 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon.workload.forecast_hours, tuple(f"{hour:03d}" for hour in range(1, 25)))
         self.assertEqual(icon.workload.products, expected_products)
         self.assertNotIn("aptmp_surface", icon.workload.products)
+        self.assertEqual(icon.products["tmp_surface"].label, "Temperature")
+        self.assertEqual(icon.products["gust_surface"].label, "Wind Gust")
+        self.assertEqual(icon.products["dewpoint_surface"].label, "Dew Point")
+        self.assertEqual(icon.products["rh_surface"].label, "Relative Humidity")
+        self.assertEqual(icon.products["prmsl_surface"].label, "Pressure")
+        self.assertEqual(icon.products["tcdc"].label, "Total Cloud Cover")
+        self.assertEqual(icon.products["cloud_layers"].label, "Cloud Layers")
+        self.assertEqual(icon.products["precip_total_surface"].label, "Accumulated Precipitation")
 
-        groups = {group.id: group for group in icon.layer_groups}
+        groups = {group.id: group for group in icon.product_groups}
         self.assertEqual(groups["clouds"].default_product, "tcdc")
         self.assertEqual(groups["clouds"].products, ("tcdc", "cloud_layers"))
         self.assertEqual(groups["precipitation"].products, ("precip_total_surface",))
@@ -58,8 +66,8 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(model.workload.forecast_hours, ("000",))
         self.assertEqual(model.workload.products, ("tmp_surface",))
         self.assertIn("tmp_surface", model.products)
-        self.assertEqual(model.layer_groups[0].id, "temperature")
-        self.assertEqual(model.layer_groups[0].default_product, "tmp_surface")
+        self.assertEqual(model.product_groups[0].id, "temperature")
+        self.assertEqual(model.product_groups[0].default_product, "tmp_surface")
 
     def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
         cfg = _minimal_pipeline_config()
@@ -89,7 +97,7 @@ class ConfigValidationTest(unittest.TestCase):
                     ],
                 },
             },
-            "layer_groups": [
+            "product_groups": [
                 {
                     "id": "precipitation",
                     "label": "Precipitation",
@@ -131,7 +139,7 @@ class ConfigValidationTest(unittest.TestCase):
                     ],
                 },
             },
-            "layer_groups": [
+            "product_groups": [
                 {
                     "id": "temperature",
                     "label": "Temperature",
@@ -159,7 +167,7 @@ class ConfigValidationTest(unittest.TestCase):
     def test_pipeline_config_rejects_old_single_model_schema(self) -> None:
         bad_cfg = {
             "workload": {"forecast_hour_start": 0, "forecast_hour_end": 0, "products": ["tmp_surface"]},
-            "products": {"tmp_surface": _minimal_layer_config()},
+            "products": {"tmp_surface": _minimal_product_config()},
         }
 
         with self.assertRaises(SystemExit):
@@ -174,7 +182,14 @@ class ConfigValidationTest(unittest.TestCase):
 
     def test_pipeline_config_rejects_old_scalar_variable_group_field(self) -> None:
         bad_cfg = _minimal_pipeline_config()
-        _gfs(bad_cfg)["scalar_variable_groups"] = _gfs(bad_cfg).pop("layer_groups")
+        _gfs(bad_cfg)["scalar_variable_groups"] = _gfs(bad_cfg).pop("product_groups")
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(bad_cfg)
+
+    def test_pipeline_config_rejects_old_layer_group_field(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        _gfs(bad_cfg)["layer_groups"] = _gfs(bad_cfg).pop("product_groups")
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
@@ -244,7 +259,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg = _minimal_pipeline_config()
         cfg["product_catalog"]["tmp_surface"]["encoding"] = {
             "id": "tmp_surface_i8_temp_c_piecewise_v1",
-            "format": "scalar-i8-temp-c-piecewise-v1",
+            "format": "temp-c-piecewise-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
             "nodata": -128,
@@ -254,14 +269,21 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertEqual(
             parsed.model("gfs").products["tmp_surface"].encoding.format,
-            "scalar-i8-temp-c-piecewise-v1",
+            "temp-c-piecewise-i8-v1",
         )
+
+    def test_pipeline_config_rejects_legacy_encoding_format_names(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        bad_cfg["product_catalog"]["tmp_surface"]["encoding"]["format"] = "scalar-i16-linear-v1"
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(bad_cfg)
 
     def test_pipeline_config_accepts_packed_cloud_component_scalar(self) -> None:
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["tmp_surface", "cloud_layers"]
-        _gfs(cfg)["layer_groups"] = [
+        _gfs(cfg)["product_groups"] = [
             {
                 "id": "temperature",
                 "label": "Temperature",
@@ -282,7 +304,7 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertEqual(
             parsed.model("gfs").products["cloud_layers"].encoding.format,
-            "scalar-i8-linear-components-v1",
+            "linear-i8-v1",
         )
         self.assertEqual(
             parsed.model("gfs").products["cloud_layers"].components[1].grib_match["GRIB_ELEMENT"],
@@ -293,7 +315,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
-        _gfs(cfg)["layer_groups"] = [
+        _gfs(cfg)["product_groups"] = [
             {
                 "id": "clouds",
                 "label": "Clouds",
@@ -311,7 +333,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg = _minimal_pipeline_config()
         _add_model_product(cfg, "cloud_layers", _cloud_layers_config())
         _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
-        _gfs(cfg)["layer_groups"] = [
+        _gfs(cfg)["product_groups"] = [
             {
                 "id": "clouds",
                 "label": "Clouds",
@@ -327,33 +349,33 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_layer_group_missing_workload_product(self) -> None:
+    def test_pipeline_config_rejects_product_group_missing_workload_product(self) -> None:
         cfg = _minimal_pipeline_config()
-        rh_config = {**_minimal_layer_config(), "parameter": "rh"}
+        rh_config = {**_minimal_product_config(), "parameter": "rh"}
         _add_model_product(cfg, "rh_surface", rh_config)
         _gfs(cfg)["workload"]["products"] = ["tmp_surface", "rh_surface"]
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_layer_group_default_outside_group(self) -> None:
+    def test_pipeline_config_rejects_product_group_default_outside_group(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["layer_groups"][0]["default_product"] = "rh_surface"
+        _gfs(cfg)["product_groups"][0]["default_product"] = "rh_surface"
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_layer_group_unknown_product(self) -> None:
+    def test_pipeline_config_rejects_product_group_unknown_product(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["layer_groups"][0]["products"] = ["missing_surface"]
-        _gfs(cfg)["layer_groups"][0]["default_product"] = "missing_surface"
+        _gfs(cfg)["product_groups"][0]["products"] = ["missing_surface"]
+        _gfs(cfg)["product_groups"][0]["default_product"] = "missing_surface"
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_layer_group_duplicate_product(self) -> None:
+    def test_pipeline_config_rejects_product_group_duplicate_product(self) -> None:
         cfg = _minimal_pipeline_config()
-        _gfs(cfg)["layer_groups"].append(
+        _gfs(cfg)["product_groups"].append(
             {
                 "id": "duplicate",
                 "label": "Duplicate",

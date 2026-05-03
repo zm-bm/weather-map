@@ -2,57 +2,55 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
-from ..artifacts.json import read_json
+from ..artifacts.markers import ProductMarkerPayload, ProductSuccessMarker, read_product_success_marker
 from ..artifacts.paths import ArtifactPaths
-from ..config.schema import LayerGroup, ProductSpec
-from ..products.metadata import encoding_entry_for_product
+from ..config.groups import DEFAULT_PRODUCT_GROUP_ID, DEFAULT_PRODUCT_GROUP_LABEL
+from ..config.schema import PRODUCT_KIND_SCALAR, ProductGroup, ProductSpec
+from ..products.metadata import encoding_marker_metadata_for_product
 from ..stores.base import UriStore
 from .constants import (
-    DEFAULT_LAYER_GROUP_ID,
-    DEFAULT_LAYER_GROUP_LABEL,
+    FORECAST_BINARY_CONTRACT,
+    MANIFEST_SCHEMA,
+    MANIFEST_SCHEMA_VERSION,
 )
+from .revision import compute_manifest_revision
 
 
-def layer_groups_for_manifest(
+def product_groups_for_manifest(
     *,
-    groups: Iterable[LayerGroup] | None,
-    scalar_product_ids: tuple[str, ...],
+    product_groups: Iterable[ProductGroup] | None,
+    groupable_product_ids: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    if not scalar_product_ids:
+    if not groupable_product_ids:
         return []
-    if groups is None:
-        return [
-            {
-                "id": DEFAULT_LAYER_GROUP_ID,
-                "label": DEFAULT_LAYER_GROUP_LABEL,
-                "default_variable": scalar_product_ids[0],
-                "variables": list(scalar_product_ids),
-            }
-        ]
-
-    scalar_product_set = set(scalar_product_ids)
-    seen_product_ids: set[str] = set()
-    out: list[dict[str, Any]] = []
-    for group in groups:
-        group_obj = group.to_manifest_dict()
-        for product_id in group.products:
-            if product_id not in scalar_product_set:
-                raise SystemExit(f"layer_groups references unknown scalar product {product_id!r}")
-            if product_id in seen_product_ids:
-                raise SystemExit(f"Scalar product appears in multiple layer groups: {product_id!r}")
-            seen_product_ids.add(product_id)
-        out.append(group_obj)
-
-    missing_product_ids = sorted(scalar_product_set - seen_product_ids)
-    if missing_product_ids:
-        raise SystemExit(f"layer_groups missing scalar products: {missing_product_ids!r}")
-    return out
+    if product_groups is None:
+        product_groups = (
+            ProductGroup(
+                id=DEFAULT_PRODUCT_GROUP_ID,
+                kind=PRODUCT_KIND_SCALAR,
+                label=DEFAULT_PRODUCT_GROUP_LABEL,
+                default_product=groupable_product_ids[0],
+                products=groupable_product_ids,
+            ),
+        )
+    return [_product_group_for_manifest(group) for group in product_groups]
 
 
-def build_manifest_sections(
+def _product_group_for_manifest(group: ProductGroup) -> dict[str, Any]:
+    return {
+        "id": group.id,
+        "kind": group.kind,
+        "label": group.label,
+        "defaultProductId": group.default_product,
+        "productIds": list(group.products),
+    }
+
+
+def build_manifest_products(
     *,
     store: UriStore,
     paths: ArtifactPaths,
@@ -62,139 +60,218 @@ def build_manifest_sections(
     fhours: Iterable[str],
     product_ids: Iterable[str],
     products: Mapping[str, ProductSpec],
-) -> tuple[
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, dict[str, Any]]],
-]:
-    grids: dict[str, dict[str, Any]] = {}
-    encodings: dict[str, dict[str, Any]] = {}
-    variable_meta: dict[str, dict[str, Any]] = {}
-    frames: dict[str, dict[str, dict[str, Any]]] = {str(fhour): {} for fhour in fhours}
+) -> dict[str, dict[str, Any]]:
+    manifest_products: dict[str, dict[str, Any]] = {}
+    fhours = tuple(str(fhour) for fhour in fhours)
 
     for product_id in product_ids:
         product = products.get(product_id)
         if product is None:
             raise SystemExit(f"Missing product config for product {product_id!r}")
 
-        encoding_id, encoding_entry = encoding_entry_for_product(product)
-        previous_encoding = encodings.get(encoding_id)
-        if previous_encoding is None:
-            encodings[encoding_id] = encoding_entry
-        elif previous_encoding != encoding_entry:
-            raise SystemExit(f"Conflicting encoding definitions for encoding_id={encoding_id!r}")
-
+        raw_encoding_entry = encoding_marker_metadata_for_product(product)
+        encoding_id = str(raw_encoding_entry.pop("encoding_id"))
         first_grid_id: str | None = None
+        first_grid: dict[str, Any] | None = None
+        frames: dict[str, dict[str, Any]] = {}
         for fhour in fhours:
             marker_uri = paths.success_marker_uri_parts(
                 model_id=model_id,
                 cycle=cycle,
                 fhour=fhour,
-                layer=product_id,
+                product_id=product_id,
             )
-            marker = read_json(store=store, uri=marker_uri)
-            product_marker = marker.get("product")
-            if not isinstance(product_marker, Mapping):
-                raise SystemExit(f"Success marker missing product payload metadata: {marker_uri}")
+            marker = read_product_success_marker(store=store, uri=marker_uri)
+            _assert_marker_identity(
+                marker=marker,
+                marker_uri=marker_uri,
+                cycle=cycle,
+                fhour=fhour,
+                product_id=product_id,
+            )
+            product_marker = marker.product
 
-            marker_kind = _as_str(marker.get("kind"), field=f"{marker_uri}.kind")
-            if marker_kind != product.kind:
+            if marker.kind != product.kind:
                 raise SystemExit(
                     f"Product kind mismatch in marker {marker_uri}: "
-                    f"marker={marker_kind!r} config={product.kind!r}"
+                    f"marker={marker.kind!r} config={product.kind!r}"
                 )
             _assert_marker_metadata_matches_product(
                 marker_uri=marker_uri,
                 product=product,
                 product_marker=product_marker,
                 encoding_id=encoding_id,
-                encoding_entry=encoding_entry,
+                encoding_entry=raw_encoding_entry,
             )
 
-            payload_uri = _as_str(product_marker.get("payload_uri"), field=f"{marker_uri}.product.payload_uri")
-            byte_length = _as_int(product_marker.get("byte_length"), field=f"{marker_uri}.product.byte_length")
-            sha256 = _as_str(product_marker.get("sha256"), field=f"{marker_uri}.product.sha256")
-            if byte_length <= 0:
-                raise SystemExit(f"Invalid product.byte_length in marker {marker_uri}: {byte_length}")
+            if product_marker.byte_length <= 0:
+                raise SystemExit(f"Invalid product.byte_length in marker {marker_uri}: {product_marker.byte_length}")
 
-            grid_id = _as_str(product_marker.get("grid_id"), field=f"{marker_uri}.product.grid_id")
-            grid = _normalize_grid(product_marker.get("grid"))
-            _register_grid(grids=grids, grid_id=grid_id, grid=grid, context=marker_uri)
+            grid_id = product_marker.grid_id
+            grid = product_marker.grid
             if first_grid_id is None:
                 first_grid_id = grid_id
+                first_grid = grid
             elif first_grid_id != grid_id:
                 raise SystemExit(
                     f"Grid id mismatch across forecast hours for product={product_id!r}: "
                     f"first={first_grid_id!r} current={grid_id!r} marker={marker_uri}"
                 )
+            elif first_grid != grid:
+                raise SystemExit(
+                    f"Grid metadata mismatch across forecast hours for product={product_id!r}: "
+                    f"grid_id={grid_id!r} marker={marker_uri}"
+                )
 
-            frames[str(fhour)][product_id] = {
-                "path": _relative_artifact_path(artifact_root_uri=artifact_root_uri, uri=payload_uri),
-                "byte_length": byte_length,
-                "sha256": sha256,
+            frames[str(fhour)] = {
+                "path": _relative_artifact_path(artifact_root_uri=artifact_root_uri, uri=product_marker.payload_uri),
+                "byteLength": product_marker.byte_length,
+                "sha256": product_marker.sha256,
             }
 
-        if first_grid_id is None:
+        if first_grid_id is None or first_grid is None:
             raise SystemExit(f"No product metadata found for product={product_id!r}")
 
-        variable_meta[product_id] = {
+        manifest_products[product_id] = {
+            "id": product_id,
             "kind": product.kind,
+            "label": product.label or product_id,
             "units": product.units,
             "parameter": product.parameter,
             "level": product.level,
-            "valid_min": product.valid_min,
-            "valid_max": product.valid_max,
-            "grid_id": first_grid_id,
-            "encoding_id": encoding_id,
+            "valueRange": {
+                "min": product.valid_min,
+                "max": product.valid_max,
+            },
+            "grid": {
+                "id": first_grid_id,
+                **_manifest_grid(first_grid),
+            },
+            "encoding": {
+                "id": encoding_id,
+                **_manifest_encoding(raw_encoding_entry),
+            },
+            "frames": frames,
         }
 
-    return grids, encodings, variable_meta, frames
+    return manifest_products
+
+
+def build_cycle_manifest(
+    *,
+    model_id: str,
+    model_label: str,
+    cycle: str,
+    generated_at: str,
+    fhours: Iterable[str],
+    product_groups: Iterable[Mapping[str, Any]],
+    products: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    run = {
+        "cycle": cycle,
+        "generatedAt": generated_at,
+    }
+    manifest_obj = {
+        "schema": MANIFEST_SCHEMA,
+        "schemaVersion": MANIFEST_SCHEMA_VERSION,
+        "payloadContract": FORECAST_BINARY_CONTRACT,
+        "model": {
+            "id": model_id,
+            "label": model_label,
+        },
+        "run": run,
+        "times": _manifest_times(cycle=cycle, fhours=fhours),
+        "groups": list(product_groups),
+        "products": products,
+    }
+    run["revision"] = compute_manifest_revision(manifest_obj)
+    return manifest_obj
+
+
+def _manifest_times(*, cycle: str, fhours: Iterable[str]) -> list[dict[str, object]]:
+    cycle_dt = _parse_cycle(cycle)
+    times: list[dict[str, object]] = []
+    for fhour in fhours:
+        lead_hours = int(fhour)
+        times.append({
+            "id": fhour,
+            "leadHours": lead_hours,
+            "validAt": (cycle_dt + timedelta(hours=lead_hours)).isoformat().replace("+00:00", "Z"),
+        })
+    return times
+
+
+def _parse_cycle(cycle: str) -> datetime:
+    return datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+
+
+def _assert_marker_identity(
+    *,
+    marker: ProductSuccessMarker,
+    marker_uri: str,
+    cycle: str,
+    fhour: str,
+    product_id: str,
+) -> None:
+    for field, marker_value, expected in (
+        ("cycle", marker.cycle, cycle),
+        ("fhour", marker.fhour, fhour),
+        ("product_id", marker.product_id, product_id),
+    ):
+        if marker_value != expected:
+            raise SystemExit(
+                f"Success marker {field} mismatch in marker {marker_uri}: "
+                f"marker={marker_value!r} expected={expected!r}"
+            )
 
 
 def _assert_marker_metadata_matches_product(
     *,
     marker_uri: str,
     product: ProductSpec,
-    product_marker: Mapping[str, Any],
+    product_marker: ProductMarkerPayload,
     encoding_id: str,
     encoding_entry: Mapping[str, Any],
 ) -> None:
-    marker_kind = _as_str(product_marker.get("kind"), field=f"{marker_uri}.product.kind") \
-        if product_marker.get("kind") is not None else product.kind
+    marker_kind = product_marker.kind if product_marker.kind is not None else product.kind
     if marker_kind != product.kind:
         raise SystemExit(
             f"Product kind mismatch in marker {marker_uri}: marker={marker_kind!r} config={product.kind!r}"
         )
 
-    marker_encoding_id = _as_str(product_marker.get("encoding_id"), field=f"{marker_uri}.product.encoding_id")
-    if marker_encoding_id != encoding_id:
+    if product_marker.encoding_id != encoding_id:
         raise SystemExit(
             f"Product encoding_id mismatch in marker {marker_uri}: "
-            f"marker={marker_encoding_id!r} config={encoding_id!r}"
+            f"marker={product_marker.encoding_id!r} config={encoding_id!r}"
         )
 
-    marker_format = _as_str(product_marker.get("format"), field=f"{marker_uri}.product.format")
-    if marker_format != encoding_entry["format"]:
+    if product_marker.format != encoding_entry["format"]:
         raise SystemExit(
             f"Product format mismatch in marker {marker_uri}: "
-            f"marker={marker_format!r} expected={encoding_entry['format']!r}"
+            f"marker={product_marker.format!r} expected={encoding_entry['format']!r}"
         )
 
+    marker_string_fields = {
+        "units": product_marker.units,
+        "parameter": product_marker.parameter,
+        "level": product_marker.level,
+    }
     for field, expected in (
         ("units", product.units),
         ("parameter", product.parameter),
         ("level", product.level),
     ):
-        marker_value = _as_str(product_marker.get(field), field=f"{marker_uri}.product.{field}")
+        marker_value = marker_string_fields[field]
         if marker_value != expected:
             raise SystemExit(
                 f"Product {field} mismatch in marker {marker_uri}: "
                 f"marker={marker_value!r} config={expected!r}"
             )
 
-    for field, expected in (("valid_min", product.valid_min), ("valid_max", product.valid_max)):
-        marker_value = _as_float(product_marker.get(field), field=f"{marker_uri}.product.{field}")
+    for field, marker_value, expected in (
+        ("valid_min", product_marker.valid_min, product.valid_min),
+        ("valid_max", product_marker.valid_max, product.valid_max),
+    ):
         if marker_value != expected:
             raise SystemExit(
                 f"Product {field} mismatch in marker {marker_uri}: "
@@ -202,15 +279,11 @@ def _assert_marker_metadata_matches_product(
             )
 
     if "components" in encoding_entry:
-        marker_component_metadata = {
-            "components": _as_str_list(product_marker.get("components"), field=f"{marker_uri}.product.components"),
-            "component_count": _as_int(product_marker.get("component_count"), field=f"{marker_uri}.product.component_count"),
-            "component_order": _as_str(product_marker.get("component_order"), field=f"{marker_uri}.product.component_order"),
-        }
+        if product_marker.components is None:
+            raise SystemExit(f"Product component metadata missing in marker {marker_uri}")
+        marker_component_metadata = {"components": list(product_marker.components)}
         expected_component_metadata = {
             "components": encoding_entry["components"],
-            "component_count": encoding_entry["component_count"],
-            "component_order": encoding_entry["component_order"],
         }
         if marker_component_metadata != expected_component_metadata:
             raise SystemExit(
@@ -219,38 +292,32 @@ def _assert_marker_metadata_matches_product(
             )
 
 
-def _normalize_grid(raw: Any) -> dict[str, Any]:
-    if not isinstance(raw, Mapping):
-        raise SystemExit(f"grid must be an object, got: {raw!r}")
-
+def _manifest_grid(grid: Mapping[str, Any]) -> dict[str, Any]:
     return {
-        "crs": _as_str(raw.get("crs"), field="grid.crs"),
-        "nx": _as_int(raw.get("nx"), field="grid.nx"),
-        "ny": _as_int(raw.get("ny"), field="grid.ny"),
-        "lon0": _as_float(raw.get("lon0"), field="grid.lon0"),
-        "lat0": _as_float(raw.get("lat0"), field="grid.lat0"),
-        "dx": _as_float(raw.get("dx"), field="grid.dx"),
-        "dy": _as_float(raw.get("dy"), field="grid.dy"),
-        "origin": _as_str(raw.get("origin"), field="grid.origin"),
-        "layout": _as_str(raw.get("layout"), field="grid.layout"),
-        "x_wrap": _as_str(raw.get("x_wrap"), field="grid.x_wrap"),
-        "y_mode": _as_str(raw.get("y_mode"), field="grid.y_mode"),
+        "crs": grid["crs"],
+        "nx": grid["nx"],
+        "ny": grid["ny"],
+        "lon0": grid["lon0"],
+        "lat0": grid["lat0"],
+        "dx": grid["dx"],
+        "dy": grid["dy"],
+        "origin": grid["origin"],
+        "layout": grid["layout"],
+        "xWrap": grid["x_wrap"],
+        "yMode": grid["y_mode"],
     }
 
 
-def _register_grid(
-    *,
-    grids: dict[str, dict[str, Any]],
-    grid_id: str,
-    grid: dict[str, Any],
-    context: str,
-) -> None:
-    previous = grids.get(grid_id)
-    if previous is None:
-        grids[grid_id] = grid
-        return
-    if previous != grid:
-        raise SystemExit(f"Grid mismatch for grid_id={grid_id!r} while processing {context}")
+def _manifest_encoding(encoding: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in encoding.items():
+        if key == "byte_order":
+            out["byteOrder"] = value
+        elif key == "decode_formula":
+            out["decodeFormula"] = value
+        else:
+            out[key] = value
+    return out
 
 
 def _relative_artifact_path(*, artifact_root_uri: str, uri: str) -> str:
@@ -269,27 +336,3 @@ def _relative_artifact_path(*, artifact_root_uri: str, uri: str) -> str:
     if not rel:
         raise SystemExit(f"Payload URI resolved to empty relative path: {uri!r}")
     return rel
-
-
-def _as_str(raw: Any, *, field: str) -> str:
-    if isinstance(raw, str) and raw.strip():
-        return raw.strip()
-    raise SystemExit(f"Invalid or missing string field {field!r}: {raw!r}")
-
-
-def _as_int(raw: Any, *, field: str) -> int:
-    if isinstance(raw, int):
-        return int(raw)
-    raise SystemExit(f"Invalid or missing integer field {field!r}: {raw!r}")
-
-
-def _as_float(raw: Any, *, field: str) -> float:
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    raise SystemExit(f"Invalid or missing numeric field {field!r}: {raw!r}")
-
-
-def _as_str_list(raw: Any, *, field: str) -> list[str]:
-    if not isinstance(raw, list) or not raw:
-        raise SystemExit(f"Invalid or missing string list field {field!r}: {raw!r}")
-    return [_as_str(value, field=f"{field}[{idx}]") for idx, value in enumerate(raw)]

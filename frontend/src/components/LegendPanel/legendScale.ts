@@ -136,16 +136,16 @@ function isRateScale(units: string, label: string): boolean {
   return units === 'mm/hr' || units === 'in/hr' || label.includes('precipitation rate')
 }
 
-function isPrecipTotalScale(label: string): boolean {
-  return label.includes('accumulated precipitation')
+function isPrecipTotalScale(label: string, parameter: string): boolean {
+  return parameter === 'precip_total' || label.includes('accumulated precipitation')
 }
 
-function getLegendScaleKind(units: string, label: string): LegendScaleKind {
+function getLegendScaleKind(units: string, label: string, parameter: string): LegendScaleKind {
   if (isPercentScale(units, label)) return 'percent'
   if (isPressureScale(units, label)) return 'pressure'
   if (isTemperatureScale(units, label)) return 'temperature'
   if (isRateScale(units, label)) return 'rate'
-  if (isPrecipTotalScale(label)) return 'precipTotal'
+  if (isPrecipTotalScale(label, parameter)) return 'precipTotal'
   return 'default'
 }
 
@@ -252,7 +252,8 @@ function getLegendTickValues(meta: ScalarMeta, option: UnitOption): LegendTickSe
 
   const normalizedUnits = option.units.trim()
   const normalizedLabel = meta.label.trim().toLowerCase()
-  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel)
+  const normalizedParameter = meta.parameter.trim().toLowerCase()
+  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter)
   const hardCodedTicks = getHardCodedTicks(scaleKind, normalizedUnits, min, max)
   if (hardCodedTicks && hardCodedTicks.major.length > 0) return hardCodedTicks
 
@@ -270,7 +271,8 @@ export function getLegendTicks(meta: ScalarMeta, option: UnitOption): LegendTick
   const ticks = getLegendTickValues(meta, option)
   const normalizedUnits = option.units.trim()
   const normalizedLabel = meta.label.trim().toLowerCase()
-  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel)
+  const normalizedParameter = meta.parameter.trim().toLowerCase()
+  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter)
   const toLegendPosition = (value: number) => {
     if (scaleKind === 'rate') {
       return getLinearizedRateTickPosition(value, ticks.major, ticks.minor)
@@ -299,7 +301,8 @@ export function toLegendSteppedGradient(meta: ScalarMeta, direction = 'to top'):
   if (orderedStops.length < 2) return toLegendGradient(meta)
   const normalizedUnits = meta.units.trim()
   const normalizedLabel = meta.label.trim().toLowerCase()
-  const useEvenBandSpacing = getLegendScaleKind(normalizedUnits, normalizedLabel) === 'rate'
+  const normalizedParameter = meta.parameter.trim().toLowerCase()
+  const useEvenBandSpacing = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter) === 'rate'
 
   const gradientStops: string[] = []
   const firstColor = orderedStops[0]

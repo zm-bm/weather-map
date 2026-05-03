@@ -2,10 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FORECAST_MODEL_OPTIONS, type ForecastModelId } from '../../forecast-models'
-import { asScalarVariableId } from '../../manifest'
+import { asScalarProductId } from '../../manifest'
 import {
   createManifestFixture,
-  createScalarVariableMetaFixture,
+  createScalarProductFixture,
 } from '../../test/fixtures'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import ForecastPanel from './ForecastPanel'
@@ -21,40 +21,46 @@ function createForecastPanelProps(overrides: {
   }
 }
 
-function createPanelManifest(scalarVariables: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
+function createPanelManifest(
+  scalarProducts: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
+  options: { model?: { id: string, label: string } } = {}
+) {
   return createManifestFixture({
     cycle: '2026041100',
-    scalarVariables,
-    scalarVariableGroups: [
+    model: options.model,
+    scalarProducts,
+    groups: [
       {
         id: 'temperature',
+        kind: 'scalar',
         label: 'Temperature',
-        defaultVariable: asScalarVariableId('tmp_surface'),
-        variables: [asScalarVariableId('tmp_surface')],
+        defaultProduct: asScalarProductId('tmp_surface'),
+        products: [asScalarProductId('tmp_surface')],
       },
       {
         id: 'moisture',
+        kind: 'scalar',
         label: 'Moisture',
-        defaultVariable: asScalarVariableId('rh_surface'),
-        variables: [asScalarVariableId('rh_surface')],
+        defaultProduct: asScalarProductId('rh_surface'),
+        products: [asScalarProductId('rh_surface')],
       },
     ],
-    vectorVariables: ['wind10m_uv'],
-    variableMeta: {
-      tmp_surface: createScalarVariableMetaFixture(),
-      rh_surface: createScalarVariableMetaFixture({
+    vectorProducts: ['wind10m_uv'],
+    products: {
+      tmp_surface: createScalarProductFixture(),
+      rh_surface: createScalarProductFixture({
+        label: 'Relative Humidity',
         units: '%',
         parameter: 'rh',
-        valid_min: 0,
-        valid_max: 100,
+        valueRange: { min: 0, max: 100 },
       }),
     },
   })
 }
 
-function renderForecastPanel(scalarVariables: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
+function renderForecastPanel(scalarProducts: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   return render(
-    <ForecastSelectionProvider manifest={createPanelManifest(scalarVariables)}>
+    <ForecastSelectionProvider manifest={createPanelManifest(scalarProducts)}>
       <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
@@ -66,32 +72,35 @@ function createInteractivePanelManifest(
 ) {
   return createManifestFixture({
     cycle,
-    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
-    scalarVariableGroups: [
+    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
+    groups: [
       {
         id: 'temperature',
+        kind: 'scalar',
         label: 'Temperature',
-        defaultVariable: asScalarVariableId('tmp_surface'),
-        variables: [asScalarVariableId('tmp_surface'), asScalarVariableId('aptmp_surface')],
+        defaultProduct: asScalarProductId('tmp_surface'),
+        products: [asScalarProductId('tmp_surface'), asScalarProductId('aptmp_surface')],
       },
       {
         id: 'pressure',
+        kind: 'scalar',
         label: 'Pressure',
-        defaultVariable: asScalarVariableId('prmsl_surface'),
-        variables: [asScalarVariableId('prmsl_surface')],
+        defaultProduct: asScalarProductId('prmsl_surface'),
+        products: [asScalarProductId('prmsl_surface')],
       },
     ],
-    vectorVariables: ['wind10m_uv', 'gust10m_uv'],
-    variableMeta: {
-      tmp_surface: createScalarVariableMetaFixture(),
-      aptmp_surface: createScalarVariableMetaFixture({
+    vectorProducts: ['wind10m_uv', 'gust10m_uv'],
+    products: {
+      tmp_surface: createScalarProductFixture(),
+      aptmp_surface: createScalarProductFixture({
+        label: 'Apparent Temperature',
         parameter: 'aptmp',
       }),
-      prmsl_surface: createScalarVariableMetaFixture({
+      prmsl_surface: createScalarProductFixture({
+        label: 'Pressure',
         units: 'Pa',
         parameter: 'pressure',
-        valid_min: 98000,
-        valid_max: 103500,
+        valueRange: { min: 98000, max: 103500 },
       }),
     },
   })
@@ -129,7 +138,11 @@ describe('ForecastPanel', () => {
     const onActiveModelChange = vi.fn()
 
     render(
-      <ForecastSelectionProvider manifest={createPanelManifest(['tmp_surface', 'rh_surface'])}>
+      <ForecastSelectionProvider
+        manifest={createPanelManifest(['tmp_surface', 'rh_surface'], {
+          model: { id: 'icon', label: 'ICON' },
+        })}
+      >
         <ForecastPanel
           {...createForecastPanelProps({
             activeModelId: 'icon',
@@ -154,8 +167,12 @@ describe('ForecastPanel', () => {
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveTextContent('Temp')
+    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveTextContent('Temperature')
     expect(measurement.value).toBe('tmp_surface')
+    expect(screen.getByRole('option', { name: 'Temperature' })).toHaveValue('tmp_surface')
+    expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('aptmp_surface')
+    expect(screen.queryByRole('option', { name: 'tmp_surface' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'aptmp_surface' })).not.toBeInTheDocument()
 
     fireEvent.change(measurement, {
       target: { value: 'aptmp_surface' },
@@ -186,28 +203,29 @@ describe('ForecastPanel', () => {
       <ForecastSelectionProvider
         manifest={createManifestFixture({
           cycle: '2026041118',
-          scalarVariables: ['tcdc', 'cloud_layers'],
-          scalarVariableGroups: [
+          scalarProducts: ['tcdc', 'cloud_layers'],
+          groups: [
             {
               id: 'clouds',
+              kind: 'scalar',
               label: 'Clouds',
-              defaultVariable: asScalarVariableId('tcdc'),
-              variables: [asScalarVariableId('tcdc'), asScalarVariableId('cloud_layers')],
+              defaultProduct: asScalarProductId('tcdc'),
+              products: [asScalarProductId('tcdc'), asScalarProductId('cloud_layers')],
             },
           ],
-          vectorVariables: ['wind10m_uv'],
-          variableMeta: {
-            tcdc: createScalarVariableMetaFixture({
+          vectorProducts: ['wind10m_uv'],
+          products: {
+            tcdc: createScalarProductFixture({
+              label: 'Total Cloud Cover',
               units: '%',
               parameter: 'tcdc',
-              valid_min: 0,
-              valid_max: 100,
+              valueRange: { min: 0, max: 100 },
             }),
-            cloud_layers: createScalarVariableMetaFixture({
+            cloud_layers: createScalarProductFixture({
+              label: 'Cloud Layers',
               units: '%',
               parameter: 'cloud_layers',
-              valid_min: 0,
-              valid_max: 100,
+              valueRange: { min: 0, max: 100 },
             }),
           },
         })}

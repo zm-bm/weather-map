@@ -4,8 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TransportControls from './TransportControls'
 
 const mocks = vi.hoisted(() => ({
-  cycle: '2026040900',
-  forecastHours: ['000', '003', '006'],
+  createTimes: (hours: string[]) => hours.map((id) => ({
+    id,
+    validAt: new Date(Date.UTC(2026, 3, 9, Number.parseInt(id, 10))).toISOString(),
+  })),
+  times: [] as Array<{ id: string, validAt: string }>,
   isPlaying: false,
   togglePlay: vi.fn(),
 }))
@@ -15,8 +18,7 @@ vi.mock('../../forecast-time', async (importOriginal) => {
   return {
     ...actual,
     useForecastTimeContext: () => ({
-      cycle: mocks.cycle,
-      forecastHours: mocks.forecastHours,
+      times: mocks.times,
       state: {
         appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
         targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
@@ -42,8 +44,7 @@ vi.mock('../../forecast-time', async (importOriginal) => {
 describe('TransportControls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.cycle = '2026040900'
-    mocks.forecastHours = ['000', '003', '006']
+    mocks.times = mocks.createTimes(['000', '003', '006'])
     mocks.isPlaying = false
   })
 
@@ -92,7 +93,7 @@ describe('TransportControls', () => {
 
   it('renders pause state and disables playback when timeline has one frame', () => {
     mocks.isPlaying = true
-    mocks.forecastHours = ['000']
+    mocks.times = mocks.createTimes(['000'])
 
     render(<TransportControls />)
 

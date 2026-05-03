@@ -1,7 +1,7 @@
 """Artifact identity and deterministic artifact naming.
 
 This module defines:
-- WorkItem: unit of execution identity (model + cycle + forecast hour + optional layer)
+- WorkItem: unit of execution identity (model + cycle + forecast hour + optional product_id)
 - ArtifactPaths: deterministic URI builder for artifacts (no I/O)
 
 URIs are expected to use either:
@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from ..encoding.scalar import scalar_payload_suffix_for_dtype
+from ..encoding.codecs import payload_suffix_for_dtype
 from ..sources.gfs_layout import join_uri
 
 
@@ -34,15 +34,15 @@ class WorkItem:
     """Work identity.
 
     Notes:
-    - `layer` is optional here so the contract can represent either
-      per-(cycle,fhour) items or per-(cycle,fhour,layer) items.
+    - `product_id` is optional here so the contract can represent either
+      per-(cycle,fhour) items or per-(cycle,fhour,product_id) items.
     """
 
     cycle: str  # YYYYMMDDHH
     fhour: str  # FFF
     source_uri: str
     model_id: str
-    layer: Optional[str] = None
+    product_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         _ = _safe_segment(self.model_id)
@@ -52,8 +52,8 @@ class WorkItem:
             raise ValueError(f"fhour must be FFF (3 digits), got: {self.fhour!r}")
         if not str(self.source_uri).strip():
             raise ValueError("source_uri must be non-empty")
-        if self.layer is not None:
-            _ = _safe_segment(self.layer)  # validate layer segment
+        if self.product_id is not None:
+            _ = _safe_segment(self.product_id)  # validate product segment
 
 
 SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
@@ -65,46 +65,52 @@ class ArtifactPaths:
 
     artifact_root_uri: str
 
-    def _model_cycle_fhour_layer_parts(self, item: WorkItem) -> tuple[str, str, str, str]:
+    def _model_cycle_fhour_product_parts(self, item: WorkItem) -> tuple[str, str, str, str]:
         model_id = _safe_segment(item.model_id)
         cycle = _safe_segment(item.cycle)
         fhour = _safe_segment(item.fhour)
-        if item.layer is None:
-            raise ValueError("layer is required for layer artifact paths")
-        layer = _safe_segment(item.layer)
-        return model_id, cycle, fhour, layer
+        if item.product_id is None:
+            raise ValueError("product_id is required for product artifact paths")
+        product_id = _safe_segment(item.product_id)
+        return model_id, cycle, fhour, product_id
 
     def success_marker_uri(self, item: WorkItem) -> str:
-        """Success marker URI: {root}/status/{model}/{cycle}/{layer}/{fhour}._SUCCESS.json"""
-        model_id, cycle, fhour, layer = self._model_cycle_fhour_layer_parts(item)
-        path = ["status", model_id, cycle, layer, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
+        """Success marker URI: {root}/status/{model}/{cycle}/{product}/{fhour}._SUCCESS.json"""
+        model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
+        path = ["status", model_id, cycle, product_id, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
         return join_uri(self.artifact_root_uri, path)
 
     def output_vector_payload_uri(self, item: WorkItem) -> str:
-        """Vector payload URI: {root}/fields/{model}/{cycle}/{fhour}/{layer}.vector.i8.bin"""
-        model_id, cycle, fhour, layer = self._model_cycle_fhour_layer_parts(item)
-        path = ["fields", model_id, cycle, fhour, f"{layer}.vector.i8.bin"]
+        """Vector payload URI: {root}/fields/{model}/{cycle}/{fhour}/{product}.vector.i8.bin"""
+        model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
+        path = ["fields", model_id, cycle, fhour, f"{product_id}.vector.i8.bin"]
         return join_uri(self.artifact_root_uri, path)
 
     def output_scalar_payload_uri(self, item: WorkItem, *, dtype: str = "int16") -> str:
-        """Scalar payload URI: {root}/fields/{model}/{cycle}/{fhour}/{layer}.scalar.<dtype>.bin"""
-        model_id, cycle, fhour, layer = self._model_cycle_fhour_layer_parts(item)
-        path = ["fields", model_id, cycle, fhour, f"{layer}.scalar.{scalar_payload_suffix_for_dtype(dtype)}.bin"]
+        """Scalar payload URI: {root}/fields/{model}/{cycle}/{fhour}/{product}.scalar.<dtype>.bin"""
+        model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
+        path = [
+            "fields",
+            model_id,
+            cycle,
+            fhour,
+            f"{product_id}.scalar.{payload_suffix_for_dtype(dtype)}.bin",
+        ]
         return join_uri(self.artifact_root_uri, path)
 
     def logs_uri(self, item: WorkItem) -> str:
-        """Log file URI for given WorkItem: {root}/logs/{model}/{cycle}/{layer}/{fhour}.log"""
-        model_id, cycle, fhour, layer = self._model_cycle_fhour_layer_parts(item)
-        path = ["logs", model_id, cycle, layer, f"{fhour}.log"]
+        """Log file URI for given WorkItem: {root}/logs/{model}/{cycle}/{product}/{fhour}.log"""
+        model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
+        path = ["logs", model_id, cycle, product_id, f"{fhour}.log"]
         return join_uri(self.artifact_root_uri, path)
 
-    def success_marker_uri_parts(self, *, model_id: str, cycle: str, fhour: str, layer: str) -> str:
-        """Success marker URI for given parts: {root}/status/{model}/{cycle}/{layer}/{fhour}._SUCCESS.json"""
+    def success_marker_uri_parts(self, *, model_id: str, cycle: str, fhour: str, product_id: str) -> str:
+        """Success marker URI for given parts: {root}/status/{model}/{cycle}/{product}/{fhour}._SUCCESS.json"""
         model_id = _safe_segment(model_id)
         cycle = _safe_segment(cycle)
         fhour = _safe_segment(fhour)
-        layer = _safe_segment(layer)
-        path = ["status", model_id, cycle, layer, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
+        product_id = _safe_segment(product_id)
+        path = ["status", model_id, cycle, product_id, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
         return join_uri(self.artifact_root_uri, path)
 
     def status_prefix_uri(self, *, model_id: str, cycle: str) -> str:

@@ -50,8 +50,8 @@ describe('loadForecastFrames', () => {
   it('loads scalar and vector frame windows through their domain loaders', async () => {
     const config = createConfigFixture()
     const manifest = createManifestFixture({
-      scalarVariables: ['rh_surface'],
-      vectorVariables: ['gust10m_uv'],
+      scalarProducts: ['rh_surface'],
+      vectorProducts: ['gust10m_uv'],
     })
     const signal = createSignalFixture()
     const previousScalarWindow = { lower: { variableId: 'previous-scalar' } } as never
@@ -69,8 +69,8 @@ describe('loadForecastFrames', () => {
     await expect(loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
+      activeScalar: manifest.scalarProducts[0]!,
+      activeVector: manifest.vectorProducts[0]!,
       previousWindows,
       selectedValidTimeMs: 123,
       lowerHourToken: '000',
@@ -121,8 +121,8 @@ describe('prefetchForecastFrames', () => {
     await prefetchForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
+      activeScalar: manifest.scalarProducts[0]!,
+      activeVector: manifest.vectorProducts[0]!,
       lowerHourToken: '0',
       upperHourToken: '3',
       aheadHourCount: 2,
@@ -167,8 +167,8 @@ describe('prefetchForecastFrames', () => {
     const prefetch = prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
+      activeScalar: manifest.scalarProducts[0]!,
+      activeVector: manifest.vectorProducts[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,
@@ -209,8 +209,8 @@ describe('prefetchForecastFrames', () => {
     await expect(prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
+      activeScalar: manifest.scalarProducts[0]!,
+      activeVector: manifest.vectorProducts[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,

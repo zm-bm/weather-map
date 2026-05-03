@@ -6,6 +6,7 @@ import json
 from typing import Any, Mapping
 
 from ..stores import make_store
+from .groups import parse_product_groups
 from .schema import (
     PRODUCT_KIND_SCALAR,
     ModelConfig,
@@ -13,7 +14,6 @@ from .schema import (
     ProductCatalogSpec,
 )
 from .validate import (
-    parse_layer_groups,
     parse_model_product_spec,
     parse_model_source_config,
     parse_product_catalog_spec,
@@ -81,7 +81,9 @@ def _parse_model_config(
     if "product_bindings" in raw:
         raise SystemExit(f"models.{model_id}.product_bindings is no longer supported; use models.{model_id}.products")
     if "scalar_variable_groups" in raw:
-        raise SystemExit(f"models.{model_id}.scalar_variable_groups is no longer supported; use models.{model_id}.layer_groups")
+        raise SystemExit(f"models.{model_id}.scalar_variable_groups is no longer supported; use models.{model_id}.product_groups")
+    if "layer_groups" in raw:
+        raise SystemExit(f"models.{model_id}.layer_groups is no longer supported; use models.{model_id}.product_groups")
 
     model_products_obj = raw.get("products")
     if not isinstance(model_products_obj, Mapping):
@@ -114,15 +116,15 @@ def _parse_model_config(
         model_products=model_products,
     )
 
-    scalar_product_ids = tuple(
+    groupable_product_ids = tuple(
         product_id
         for product_id in workload.products
         if resolved_products[product_id].kind == PRODUCT_KIND_SCALAR
     )
-    layer_groups = parse_layer_groups(
-        raw.get("layer_groups"),
+    product_groups = parse_product_groups(
+        raw.get("product_groups"),
         products=resolved_products,
-        scalar_product_ids=scalar_product_ids,
+        groupable_product_ids=groupable_product_ids,
     )
 
     return ModelConfig(
@@ -132,7 +134,7 @@ def _parse_model_config(
         workload=workload,
         model_products=model_products,
         products=resolved_products,
-        layer_groups=layer_groups,
+        product_groups=product_groups,
     )
 
 

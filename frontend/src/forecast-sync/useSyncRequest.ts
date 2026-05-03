@@ -25,8 +25,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
     }
 
     const frameWindow = resolveForecastFrameWindow(
-      manifest.cycle,
-      manifest.forecastHours,
+      manifest.times,
       timelineState.targetTimeMs
     )
     const minuteOffset = frameWindowMinuteOffset(frameWindow)
@@ -39,7 +38,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
       lowerHourToken: frameWindow.lowerHourToken,
       upperHourToken: frameWindow.upperHourToken,
       mix: frameWindow.mix,
-      requestKey: `${manifest.cycle}:${manifest.revision}:${activeScalar}:${activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
+      requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${activeScalar}:${activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
       sync,
     }
   }, [

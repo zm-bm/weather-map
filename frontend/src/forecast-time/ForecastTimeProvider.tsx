@@ -20,7 +20,7 @@ import {
 } from './state'
 import { ForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 
-const EMPTY_FORECAST_HOURS: string[] = []
+const EMPTY_TIMES: CycleManifest['times'] = []
 
 export default function ForecastTimeProvider({
   manifest,
@@ -29,10 +29,9 @@ export default function ForecastTimeProvider({
   manifest: CycleManifest | null
   children: ReactNode
 }) {
-  const cycle = manifest?.cycle ?? null
-  const forecastHours = manifest?.forecastHours ?? EMPTY_FORECAST_HOURS
-  const forecastHourCount = forecastHours.length
-  const initialTimeMs = initialForecastValidTimeMs(cycle, forecastHours)
+  const times = manifest?.times ?? EMPTY_TIMES
+  const forecastHourCount = times.length
+  const initialTimeMs = initialForecastValidTimeMs(times)
 
   const [state, dispatch] = useReducer(
     reduceForecastTimeState,
@@ -43,40 +42,38 @@ export default function ForecastTimeProvider({
   const requestTime = useCallback((targetTimeMs: number) => {
     dispatch({
       type: 'requestTime',
-      timeMs: clampForecastValidTimeMs(cycle, forecastHours, targetTimeMs),
+      timeMs: clampForecastValidTimeMs(times, targetTimeMs),
     })
-  }, [cycle, forecastHours])
+  }, [times])
 
   const queueTime = useCallback((targetTimeMs: number) => {
     dispatch({
       type: 'queueTime',
-      timeMs: clampForecastValidTimeMs(cycle, forecastHours, targetTimeMs),
+      timeMs: clampForecastValidTimeMs(times, targetTimeMs),
     })
-  }, [cycle, forecastHours])
+  }, [times])
 
   const requestNext = useCallback(() => {
     const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
     queueTime(
       stepForecastValidTimeMs(
-        cycle,
-        forecastHours,
+        times,
         referenceTimeMs,
         1
       )
     )
-  }, [cycle, forecastHours, queueTime, state.pendingTimeMs, state.targetTimeMs])
+  }, [times, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const requestPrev = useCallback(() => {
     const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
     queueTime(
       stepForecastValidTimeMs(
-        cycle,
-        forecastHours,
+        times,
         referenceTimeMs,
         -1
       )
     )
-  }, [cycle, forecastHours, queueTime, state.pendingTimeMs, state.targetTimeMs])
+  }, [times, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const togglePlay = useCallback(() => {
     if (forecastHourCount <= 1) return
@@ -86,17 +83,17 @@ export default function ForecastTimeProvider({
   const onRequestStart = useCallback((timeMs: number) => {
     dispatch({
       type: 'requestStart',
-      timeMs: clampForecastValidTimeMs(cycle, forecastHours, timeMs),
+      timeMs: clampForecastValidTimeMs(times, timeMs),
     })
-  }, [cycle, forecastHours])
+  }, [times])
 
   const onRequestApplied = useCallback((timeMs: number) => {
     dispatch({
       type: 'requestApplied',
-      timeMs: clampForecastValidTimeMs(cycle, forecastHours, timeMs),
+      timeMs: clampForecastValidTimeMs(times, timeMs),
       nowMs: Date.now(),
     })
-  }, [cycle, forecastHours])
+  }, [times])
 
   const onRequestError = useCallback(() => {
     dispatch({ type: 'requestError' })
@@ -115,8 +112,7 @@ export default function ForecastTimeProvider({
     const fromVersion = state.version
     const fromTimeMs = state.appliedTimeMs
     const timeMs = stepForecastValidTimeMs(
-      cycle,
-      forecastHours,
+      times,
       fromTimeMs,
       DEFAULT_PLAY_STEP_COUNT
     )
@@ -132,8 +128,7 @@ export default function ForecastTimeProvider({
 
     return () => window.clearTimeout(timerId)
   }, [
-    cycle,
-    forecastHours,
+    times,
     forecastHourCount,
     state.appliedTimeMs,
     state.isInFlight,
@@ -143,8 +138,7 @@ export default function ForecastTimeProvider({
   ])
 
   const value = useMemo<ForecastTimeContextValue>(() => ({
-    cycle,
-    forecastHours,
+    times,
     state: {
       appliedTimeMs: state.appliedTimeMs,
       targetTimeMs: state.targetTimeMs,
@@ -160,8 +154,7 @@ export default function ForecastTimeProvider({
     },
     sync,
   }), [
-    cycle,
-    forecastHours,
+    times,
     requestTime,
     requestNext,
     requestPrev,

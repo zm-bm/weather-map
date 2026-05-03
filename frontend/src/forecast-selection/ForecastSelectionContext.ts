@@ -2,39 +2,33 @@ import { createContext, useContext } from 'react'
 
 import type {
   CycleManifest,
-  ScalarVariableId,
-  VectorVariableId,
+  ScalarProductId,
+  VectorProductId,
 } from '../manifest'
 import type { UnitSystem } from '../units'
 
 type ForecastSelectionContextLoadedValue = {
   manifest: CycleManifest
-  cycle: string
-  scalarVariables: CycleManifest['scalarVariables']
-  scalarVariableGroups: CycleManifest['scalarVariableGroups']
-  vectorVariables: CycleManifest['vectorVariables']
-  variableMeta: CycleManifest['variableMeta']
-  activeScalar: ScalarVariableId
-  activeVector: VectorVariableId
+  groups: CycleManifest['groups']
+  products: CycleManifest['products']
+  activeScalar: ScalarProductId | null
+  activeVector: VectorProductId | null
   unitSystem: UnitSystem
-  setActiveScalar: (value: ScalarVariableId) => void
-  setActiveVector: (value: VectorVariableId) => void
+  setActiveScalar: (value: ScalarProductId) => void
+  setActiveVector: (value: VectorProductId) => void
   setUnitSystem: (value: UnitSystem) => void
   toggleUnitSystem: () => void
 }
 
 type ForecastSelectionContextUnloadedValue = {
   manifest: null
-  cycle: string | null
-  scalarVariables: []
-  scalarVariableGroups: []
-  vectorVariables: []
-  variableMeta: CycleManifest['variableMeta'] | null
+  groups: []
+  products: null
   activeScalar: null
   activeVector: null
   unitSystem: UnitSystem
-  setActiveScalar: (value: ScalarVariableId) => void
-  setActiveVector: (value: VectorVariableId) => void
+  setActiveScalar: (value: ScalarProductId) => void
+  setActiveVector: (value: VectorProductId) => void
   setUnitSystem: (value: UnitSystem) => void
   toggleUnitSystem: () => void
 }

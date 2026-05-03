@@ -4,28 +4,117 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
-PREPARED_SOURCE_GRIB = "grib"
-PREPARED_SOURCE_GRIB_COLLECTION = "grib_collection"
+DEFAULT_GRIB_COLLECTION_SELECTOR_KEY = "ICON_PARAM"
+
+
+class PreparedSource:
+    uri: str
+    grid_id: str
+
+    @staticmethod
+    def grib(*, uri: str, path: Path, grid_id: str) -> "PreparedSource":
+        return SingleGribPreparedSource(uri=uri, path=path, grid_id=grid_id)
+
+    @staticmethod
+    def grib_collection(
+        *,
+        uri: str,
+        grib_paths: Mapping[str, Path],
+        grid_id: str,
+        selector_key: str = DEFAULT_GRIB_COLLECTION_SELECTOR_KEY,
+    ) -> "PreparedSource":
+        return GribCollectionPreparedSource(
+            uri=uri,
+            grib_paths=dict(grib_paths),
+            grid_id=grid_id,
+            selector_key=selector_key,
+        )
+
+    def reference_grib_path(self) -> Path:
+        raise NotImplementedError
+
+    def component_grib_path(
+        self,
+        *,
+        product_id: str,
+        component_id: str,
+        grib_match: Mapping[str, str],
+    ) -> Path:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
-class PreparedSource:
-    kind: str
+class SingleGribPreparedSource(PreparedSource):
     uri: str
+    path: Path
     grid_id: str
-    path: Path | None = None
-    grib_paths: dict[str, Path] | None = None
 
-    @classmethod
-    def grib(cls, *, uri: str, path: Path, grid_id: str) -> "PreparedSource":
-        return cls(kind=PREPARED_SOURCE_GRIB, uri=uri, grid_id=grid_id, path=path)
+    def reference_grib_path(self) -> Path:
+        return self.path
 
-    @classmethod
-    def grib_collection(cls, *, uri: str, grib_paths: dict[str, Path], grid_id: str) -> "PreparedSource":
-        return cls(
-            kind=PREPARED_SOURCE_GRIB_COLLECTION,
-            uri=uri,
-            grid_id=grid_id,
-            grib_paths=dict(grib_paths),
-        )
+    def component_grib_path(
+        self,
+        *,
+        product_id: str,
+        component_id: str,
+        grib_match: Mapping[str, str],
+    ) -> Path:
+        del product_id, component_id, grib_match
+        return self.path
+
+
+@dataclass(frozen=True)
+class GribCollectionPreparedSource(PreparedSource):
+    uri: str
+    grib_paths: dict[str, Path]
+    grid_id: str
+    selector_key: str = DEFAULT_GRIB_COLLECTION_SELECTOR_KEY
+
+    def __post_init__(self) -> None:
+        selector_key = self.selector_key.strip()
+        if not selector_key:
+            raise SystemExit("Prepared GRIB collection selector_key must be non-empty")
+
+        normalized_paths: dict[str, Path] = {}
+        for key, path in self.grib_paths.items():
+            normalized_key = str(key).strip().lower()
+            if not normalized_key:
+                raise SystemExit("Prepared GRIB collection contains an empty selector value")
+            if normalized_key in normalized_paths:
+                raise SystemExit(f"Prepared GRIB collection contains duplicate selector value: {key!r}")
+            normalized_paths[normalized_key] = path
+
+        if not normalized_paths:
+            raise SystemExit("Prepared GRIB collection source requires at least one GRIB path")
+
+        object.__setattr__(self, "selector_key", selector_key)
+        object.__setattr__(self, "grib_paths", normalized_paths)
+
+    def reference_grib_path(self) -> Path:
+        return next(iter(self.grib_paths.values()))
+
+    def component_grib_path(
+        self,
+        *,
+        product_id: str,
+        component_id: str,
+        grib_match: Mapping[str, str],
+    ) -> Path:
+        raw_selector = grib_match.get(self.selector_key)
+        selector_value = raw_selector.strip() if isinstance(raw_selector, str) else ""
+        if not selector_value:
+            raise SystemExit(
+                f"Product {product_id}.{component_id} requires {self.selector_key} "
+                "for GRIB collection source"
+            )
+
+        selector = selector_value.lower()
+        grib_path = self.grib_paths.get(selector)
+        if grib_path is None:
+            raise SystemExit(
+                f"Prepared GRIB collection missing {self.selector_key} {selector_value!r} "
+                f"for product {product_id}.{component_id}"
+            )
+        return grib_path

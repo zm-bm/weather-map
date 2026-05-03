@@ -53,15 +53,16 @@ function createStartupState(overrides: Partial<StartupState> = {}): StartupState
 
 function createSyncRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
   const manifest = overrides.manifest ?? createManifestFixture()
+  const hourToken = manifest.times[0].id
   return {
     manifest,
-    activeScalar: manifest.scalarVariables[0],
-    activeVector: manifest.vectorVariables[0],
+    activeScalar: manifest.scalarProducts[0]!,
+    activeVector: manifest.vectorProducts[0]!,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: manifest.forecastHours[0],
-    upperHourToken: manifest.forecastHours[0],
+    lowerHourToken: hourToken,
+    upperHourToken: hourToken,
     mix: 0,
-    requestKey: `${manifest.cycle}:${manifest.revision}:${manifest.scalarVariables[0]}:${manifest.vectorVariables[0]}:${manifest.forecastHours[0]}:${manifest.forecastHours[0]}:0:0`,
+    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${manifest.scalarProducts[0]!}:${manifest.vectorProducts[0]!}:${hourToken}:${hourToken}:0:0`,
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),

@@ -4,8 +4,8 @@ import { vi } from 'vitest'
 
 import type { CycleManifest } from '../../manifest'
 import {
-  asScalarVariableId,
-  asVectorVariableId,
+  asScalarProductId,
+  asVectorProductId,
 } from '../../manifest'
 import {
   ForecastSelectionProvider,
@@ -36,28 +36,22 @@ export function createForecastSelectionContextValue(
     manifest == null
       ? {
           manifest: null,
-          cycle: null,
-          scalarVariables: [],
-          scalarVariableGroups: [],
-          vectorVariables: [],
-          variableMeta: null,
+          groups: [],
+          products: null,
           activeScalar: null,
           activeVector: null,
           ...shared,
         }
       : {
           manifest,
-          cycle: manifest.cycle,
-          scalarVariables: manifest.scalarVariables,
-          scalarVariableGroups: manifest.scalarVariableGroups,
-          vectorVariables: manifest.vectorVariables,
-          variableMeta: manifest.variableMeta,
+          groups: manifest.groups,
+          products: manifest.products,
           activeScalar: options.activeScalar
-            ? asScalarVariableId(options.activeScalar)
-            : manifest.scalarVariables[0],
+            ? asScalarProductId(options.activeScalar)
+            : manifest.scalarProducts[0] ?? null,
           activeVector: options.activeVector
-            ? asVectorVariableId(options.activeVector)
-            : manifest.vectorVariables[0],
+            ? asVectorProductId(options.activeVector)
+            : manifest.vectorProducts[0] ?? null,
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue

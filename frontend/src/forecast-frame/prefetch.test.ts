@@ -4,6 +4,8 @@ import {
   createConfigFixture,
   createFrameManifestFixture,
   createFrameRefFixture,
+  createScalarProductFixture,
+  createVectorProductFixture,
   FIXTURE_SCALAR_ID,
   FIXTURE_VECTOR_ID,
 } from '../test/fixtures'
@@ -20,15 +22,21 @@ describe('prefetchFramePayloads', () => {
   it('warms frame payloads through the shared loader cache', async () => {
     const manifest = createFrameManifestFixture({
       forecastHours: ['000'],
-      frames: {
-        '000': {
-          [FIXTURE_SCALAR_ID]: createFrameRefFixture({
-            path: 'fields/2026041312/000/tmp_surface.scalar.i16.bin',
-          }),
-          [FIXTURE_VECTOR_ID]: createFrameRefFixture({
-            path: 'fields/2026041312/000/wind10m_uv.vector.i8.bin',
-          }),
-        },
+      products: {
+        [FIXTURE_SCALAR_ID]: createScalarProductFixture({
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041312/000/tmp_surface.scalar.i16.bin',
+            }),
+          },
+        }),
+        [FIXTURE_VECTOR_ID]: createVectorProductFixture({
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041312/000/wind10m_uv.vector.i8.bin',
+            }),
+          },
+        }),
       },
     })
     const fetchMock = stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)

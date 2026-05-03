@@ -1,1 +1,1 @@
-"""Encoding contracts and byte conversion helpers."""
+"""Forecast payload encoding contracts and numeric byte conversion helpers."""

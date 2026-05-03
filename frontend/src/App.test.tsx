@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ForecastModelId, ForecastModelOption } from './forecast-models'
 import type { CycleManifest } from './manifest'
-import { createFrameManifestFixture } from './test/fixtures'
+import { createFrameManifestFixture, createScalarProductFixture } from './test/fixtures'
 import App from './App'
 
 const mocks = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ vi.mock('./components/ForecastShell/ForecastShell', () => ({
     mocks.workspaceProps = { manifest, activeModelId, modelOptions }
     return (
       <div data-testid="forecast-screen">
-        {manifest?.cycle ?? 'no-manifest'}
+        {manifest?.run.cycle ?? 'no-manifest'}
         <button type="button" onClick={() => onActiveModelChange('icon')}>
           select-icon
         </button>
@@ -113,28 +113,15 @@ describe('App composition', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
       generatedAt: '2026-04-09T00:00:00Z',
-      scalarVariables: ['rh_2m'],
+      scalarProducts: ['rh_2m'],
       forecastHours: ['003'],
-      frames: {
-        '003': {
-          rh_2m: {
-            path: 'fields/2026040900/003/rh_2m.scalar.i16.bin',
-            byte_length: 8,
-            sha256: 'b',
-          },
-        },
-      },
-      variableMeta: {
-        rh_2m: {
-          kind: 'scalar',
+      products: {
+        rh_2m: createScalarProductFixture({
           units: '%',
           parameter: 'rh',
           level: '2m_above_ground',
-          valid_min: 0,
-          valid_max: 100,
-          grid_id: 'g0',
-          encoding_id: 'e0',
-        },
+          valueRange: { min: 0, max: 100 },
+        }),
       },
     })
 

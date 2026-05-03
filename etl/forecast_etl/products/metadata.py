@@ -5,65 +5,28 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from ..config.schema import ProductSpec, ScalarEncodingSpec, VectorEncodingSpec
-from ..encoding.scalar import (
-    SCALAR_DECODE_FORMULA,
-    SCALAR_FORMAT_I8_LINEAR_COMPONENTS,
-    is_linear_scalar_format,
-)
-from ..encoding.wind import WIND_DECODE_FORMULA
+from ..config.schema import ProductSpec
+from ..encoding.codecs import LINEAR_DECODE_FORMULA, is_linear_encoding_format
 from .model import EncodedComponent
-
-
-def component_item_bytes(dtype: str) -> int:
-    if dtype == "int8":
-        return 1
-    if dtype == "int16":
-        return 2
-    raise SystemExit(f"Unsupported product dtype: {dtype!r}")
-
-
-def encoding_entry_for_product(product: ProductSpec) -> tuple[str, dict[str, Any]]:
-    metadata = encoding_marker_metadata_for_product(product)
-    encoding_id = str(metadata.pop("encoding_id"))
-    return encoding_id, metadata
 
 
 def encoding_marker_metadata_for_product(product: ProductSpec) -> dict[str, Any]:
     encoding = product.encoding
-    if isinstance(encoding, ScalarEncodingSpec):
-        metadata: dict[str, Any] = {
-            "format": encoding.format,
-            "dtype": encoding.dtype,
-            "byte_order": encoding.byte_order,
-            "encoding_id": encoding.id,
-            "nodata": encoding.nodata,
-        }
-        if is_linear_scalar_format(encoding.format):
-            metadata["scale"] = encoding.scale
-            metadata["offset"] = encoding.offset
-            metadata["decode_formula"] = SCALAR_DECODE_FORMULA
-        if encoding.format == SCALAR_FORMAT_I8_LINEAR_COMPONENTS:
-            metadata["components"] = list(product.component_ids)
-            metadata["component_count"] = len(product.components)
-            metadata["component_order"] = encoding.component_order
-        return metadata
-
-    if isinstance(encoding, VectorEncodingSpec):
-        return {
-            "format": encoding.format,
-            "dtype": encoding.dtype,
-            "byte_order": encoding.byte_order,
-            "encoding_id": encoding.id,
-            "scale": encoding.scale,
-            "offset": encoding.offset,
-            "decode_formula": WIND_DECODE_FORMULA,
-            "components": list(product.component_ids),
-            "component_count": len(product.components),
-            "component_order": encoding.component_order,
-        }
-
-    raise SystemExit(f"Unsupported product encoding for {product.id!r}")
+    metadata: dict[str, Any] = {
+        "format": encoding.format,
+        "dtype": encoding.dtype,
+        "byte_order": encoding.byte_order,
+        "encoding_id": encoding.id,
+    }
+    if encoding.nodata is not None:
+        metadata["nodata"] = encoding.nodata
+    if is_linear_encoding_format(encoding.format):
+        metadata["scale"] = encoding.scale
+        metadata["offset"] = encoding.offset
+        metadata["decode_formula"] = LINEAR_DECODE_FORMULA
+    if len(product.components) > 1:
+        metadata["components"] = list(product.component_ids)
+    return metadata
 
 
 def build_product_marker_metadata(

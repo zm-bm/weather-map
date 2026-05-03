@@ -2,15 +2,14 @@ import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect } from 'react'
 
-import { createManifestFixture } from '../test/fixtures'
+import { createManifestFixture, type ManifestFixtureOverrides } from '../test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
-import { validTimeMs } from './time'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
 function createTimelineManifest(
-  overrides: Partial<Pick<ReturnType<typeof createManifestFixture>, 'cycle' | 'generatedAt' | 'forecastHours'>> = {}
+  overrides: ManifestFixtureOverrides = {}
 ) {
   return createManifestFixture({
     cycle: '2026040900',
@@ -21,7 +20,13 @@ function createTimelineManifest(
 
 function forecastTimeProviderKey(manifest: ReturnType<typeof createManifestFixture> | null): string {
   if (manifest == null) return 'forecast-time:none'
-  return `forecast-time:${manifest.cycle}:${manifest.forecastHours.join(',')}`
+  return `forecast-time:${manifest.run.cycle}:${manifest.times.map((time) => `${time.id}:${time.validAt}`).join(',')}`
+}
+
+function validTimeFor(manifest: ReturnType<typeof createManifestFixture>, hourId: string): number {
+  const time = manifest.times.find((entry) => entry.id === hourId)
+  if (!time) throw new Error(`Missing fixture time ${hourId}`)
+  return Date.parse(time.validAt)
 }
 
 function renderForecastTimeProvider(initialManifest: ReturnType<typeof createManifestFixture> | null) {
@@ -35,8 +40,7 @@ function renderForecastTimeProvider(initialManifest: ReturnType<typeof createMan
 
     return (
       <div>
-        <div data-testid="cycle">{context.cycle ?? 'none'}</div>
-        <div data-testid="hours">{context.forecastHours.join(',')}</div>
+        <div data-testid="times">{context.times.map((time) => time.id).join(',')}</div>
       </div>
     )
   }
@@ -78,21 +82,19 @@ describe('ForecastTimeProvider', () => {
   it('provides empty manifest defaults when manifest is unavailable', () => {
     const { getContext } = renderForecastTimeProvider(null)
 
-    expect(screen.getByTestId('cycle')).toHaveTextContent('none')
-    expect(screen.getByTestId('hours')).toHaveTextContent('')
+    expect(screen.getByTestId('times')).toHaveTextContent('')
     expect(getContext().state.targetTimeMs).toBe(0)
     expect(typeof getContext().sync.onRequestStart).toBe('function')
     expect(typeof getContext().sync.onRequestApplied).toBe('function')
     expect(typeof getContext().sync.onRequestError).toBe('function')
   })
 
-  it('forwards manifest cycle and forecast hours to context value', () => {
+  it('forwards manifest times to context value', () => {
     const manifest = createTimelineManifest()
 
     renderForecastTimeProvider(manifest)
 
-    expect(screen.getByTestId('cycle')).toHaveTextContent('2026040900')
-    expect(screen.getByTestId('hours')).toHaveTextContent('000,003,006')
+    expect(screen.getByTestId('times')).toHaveTextContent('000,003,006')
   })
 
   it('starts at the current time snapped to the 10-minute timeline grid', () => {
@@ -107,8 +109,8 @@ describe('ForecastTimeProvider', () => {
 
   it('replaces in-flight requests so direct timeline seeks win', () => {
     const manifest = createTimelineManifest()
-    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
-    const validAt0600 = validTimeMs(manifest.cycle, '006') ?? 0
+    const validAt0300 = validTimeFor(manifest, '003')
+    const validAt0600 = validTimeFor(manifest, '006')
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -131,7 +133,7 @@ describe('ForecastTimeProvider', () => {
     const manifest = createTimelineManifest({
       generatedAt: '2026-04-09T00:00:00Z',
     })
-    const validAt0600 = validTimeMs(manifest.cycle, '006') ?? 0
+    const validAt0600 = validTimeFor(manifest, '006')
     const { getContext, rerenderManifest } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -148,7 +150,7 @@ describe('ForecastTimeProvider', () => {
 
     rerenderManifest(nextManifest)
 
-    const resetValidTimeMs = validTimeMs(nextManifest.cycle, '000') ?? 0
+    const resetValidTimeMs = validTimeFor(nextManifest, '000')
     expect(getContext().state.appliedTimeMs).toBe(resetValidTimeMs)
     expect(getContext().state.targetTimeMs).toBe(resetValidTimeMs)
     expect(getContext().state.pendingTimeMs).toBeNull()
@@ -170,7 +172,7 @@ describe('ForecastTimeProvider', () => {
 
   it('steps next from the latest desired 10-minute slot while in flight', () => {
     const manifest = createTimelineManifest()
-    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
+    const validAt0300 = validTimeFor(manifest, '003')
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -191,8 +193,8 @@ describe('ForecastTimeProvider', () => {
 
   it('clamps out-of-range frame callback times into the forecast window', () => {
     const manifest = createTimelineManifest()
-    const validAtStart = validTimeMs(manifest.cycle, '000') ?? 0
-    const validAtEnd = validTimeMs(manifest.cycle, '006') ?? 0
+    const validAtStart = validTimeFor(manifest, '000')
+    const validAtEnd = validTimeFor(manifest, '006')
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -211,7 +213,7 @@ describe('ForecastTimeProvider', () => {
 
   it('advances autoplay by ten forecast minutes after each apply', () => {
     const manifest = createTimelineManifest()
-    const validAt0000 = validTimeMs(manifest.cycle, '000') ?? 0
+    const validAt0000 = validTimeFor(manifest, '000')
     const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
     const validAt0020 = Date.UTC(2026, 3, 9, 0, 20)
     const { getContext } = renderForecastTimeProvider(manifest)
@@ -254,7 +256,7 @@ describe('ForecastTimeProvider', () => {
 
   it('lets a manual seek win over a scheduled playback tick', () => {
     const manifest = createTimelineManifest()
-    const validAt0300 = validTimeMs(manifest.cycle, '003') ?? 0
+    const validAt0300 = validTimeFor(manifest, '003')
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -273,7 +275,7 @@ describe('ForecastTimeProvider', () => {
 
   it('keeps playback ticking after a same-time seek', () => {
     const manifest = createTimelineManifest()
-    const validAt0000 = validTimeMs(manifest.cycle, '000') ?? 0
+    const validAt0000 = validTimeFor(manifest, '000')
     const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
     const { getContext } = renderForecastTimeProvider(manifest)
 

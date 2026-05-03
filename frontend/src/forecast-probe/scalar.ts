@@ -45,8 +45,8 @@ export type ScalarProbeSampler = {
   lat0: number
   dx: number
   dy: number
-  xWrap: ScalarFrameData['grid']['x_wrap']
-  yMode: ScalarFrameData['grid']['y_mode']
+  xWrap: ScalarFrameData['grid']['xWrap']
+  yMode: ScalarFrameData['grid']['yMode']
   cells: [
     ScalarProbeSampleCell,
     ScalarProbeSampleCell,
@@ -64,12 +64,12 @@ export function probeScalarFrame(
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
   if (values.length !== nx * ny) return null
 
-  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.x_wrap === 'repeat')
+  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.xWrap === 'repeat')
   const gridY = clamp((coords.lat - lat0) / dy, 0, ny - 1)
 
   const x0 = Math.floor(gridX)
   const y0 = Math.floor(gridY)
-  const x1 = grid.x_wrap === 'repeat'
+  const x1 = grid.xWrap === 'repeat'
     ? wrapIndex(x0 + 1, nx)
     : Math.min(x0 + 1, nx - 1)
   const y1 = Math.min(y0 + 1, ny - 1)
@@ -111,12 +111,12 @@ export function createScalarProbeSampler(
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
   if (values.length !== nx * ny) return null
 
-  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.x_wrap === 'repeat')
+  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.xWrap === 'repeat')
   const gridY = clamp((coords.lat - lat0) / dy, 0, ny - 1)
 
   const x0 = Math.floor(gridX)
   const y0 = Math.floor(gridY)
-  const x1 = grid.x_wrap === 'repeat'
+  const x1 = grid.xWrap === 'repeat'
     ? wrapIndex(x0 + 1, nx)
     : Math.min(x0 + 1, nx - 1)
   const y1 = Math.min(y0 + 1, ny - 1)
@@ -133,8 +133,8 @@ export function createScalarProbeSampler(
     lat0,
     dx,
     dy,
-    xWrap: grid.x_wrap,
-    yMode: grid.y_mode,
+    xWrap: grid.xWrap,
+    yMode: grid.yMode,
     cells: [
       { index: (y0 * nx) + x0, weight: (1 - tx) * (1 - ty) },
       { index: (y0 * nx) + x1, weight: tx * (1 - ty) },
@@ -154,8 +154,8 @@ export function isScalarProbeSamplerCompatible(
     frame.grid.lat0 === sampler.lat0 &&
     frame.grid.dx === sampler.dx &&
     frame.grid.dy === sampler.dy &&
-    frame.grid.x_wrap === sampler.xWrap &&
-    frame.grid.y_mode === sampler.yMode &&
+    frame.grid.xWrap === sampler.xWrap &&
+    frame.grid.yMode === sampler.yMode &&
     frame.values.length === sampler.nx * sampler.ny
 }
 

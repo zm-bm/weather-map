@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CycleManifest } from '../manifest/types'
+import type { ScalarEncodingSpec, ScalarProductSpec } from '../manifest/types'
 import { createFrameManifestFixture } from '../test/fixtures'
 import { resolveFrameSpec } from './spec'
 
@@ -11,78 +11,39 @@ describe('resolveFrameSpec', () => {
     const scalarSpec = resolveFrameSpec(BASE_MANIFEST, '000', 'tmp_surface', 'scalar')
     const vectorSpec = resolveFrameSpec(BASE_MANIFEST, '000', 'wind10m_uv', 'vector')
 
-    expect(scalarSpec.variableMeta.kind).toBe('scalar')
-    expect(scalarSpec.encoding.format).toBe('scalar-i16-linear-v1')
-    expect(vectorSpec.variableMeta.kind).toBe('vector')
-    expect(vectorSpec.encoding.format).toBe('uv-i8-q0p5-v1')
+    expect(scalarSpec.variable.kind).toBe('scalar')
+    expect(scalarSpec.variable.encoding.format).toBe('linear-i16-v1')
+    expect(vectorSpec.variable.kind).toBe('vector')
+    expect(vectorSpec.variable.encoding.format).toBe('linear-i8-v1')
   })
 
-  it('fails on missing frame, metadata, encoding, and grid references', () => {
+  it('fails on missing frame and metadata', () => {
+    const missingFrameManifest = createFrameManifestFixture({ forecastHours: ['000'] })
+    missingFrameManifest.products.tmp_surface = {
+      ...missingFrameManifest.products.tmp_surface,
+      frames: {},
+    }
+
     expect(() =>
       resolveFrameSpec(
-        createFrameManifestFixture({ forecastHours: ['000'], frames: {} }),
+        missingFrameManifest,
         '000',
         'tmp_surface',
         'scalar'
       )
     ).toThrow('No scalar frame ref')
 
+    const missingVariableManifest = createFrameManifestFixture({ forecastHours: ['000'] })
+    delete missingVariableManifest.products.tmp_surface
+
     expect(() =>
       resolveFrameSpec(
-        createFrameManifestFixture({ forecastHours: ['000'], variableMeta: {} }),
+        missingVariableManifest,
         '000',
         'tmp_surface',
         'scalar'
       )
     ).toThrow('No scalar variable metadata')
-
-    expect(() =>
-      resolveFrameSpec(
-        createFrameManifestFixture({
-          forecastHours: ['000'],
-          variableMeta: {
-            tmp_surface: {
-              kind: 'scalar',
-              units: 'C',
-              parameter: 'tmp',
-              level: 'surface',
-              valid_min: -45,
-              valid_max: 50,
-              grid_id: 'g0',
-              encoding_id: 'missing',
-            },
-            wind10m_uv: BASE_MANIFEST.variableMeta.wind10m_uv,
-          },
-        }),
-        '000',
-        'tmp_surface',
-        'scalar'
-      )
-    ).toThrow('No scalar encoding missing')
-
-    expect(() =>
-      resolveFrameSpec(
-        createFrameManifestFixture({
-          forecastHours: ['000'],
-          variableMeta: {
-            tmp_surface: {
-              kind: 'scalar',
-              units: 'C',
-              parameter: 'tmp',
-              level: 'surface',
-              valid_min: -45,
-              valid_max: 50,
-              grid_id: 'missing',
-              encoding_id: 'e0',
-            },
-            wind10m_uv: BASE_MANIFEST.variableMeta.wind10m_uv,
-          },
-        }),
-        '000',
-        'tmp_surface',
-        'scalar'
-      )
-    ).toThrow('No scalar grid missing')
   })
 
   it('fails on domain kind mismatch', () => {
@@ -96,19 +57,17 @@ describe('resolveFrameSpec', () => {
   })
 
   it('returns the raw manifest encoding for domain-specific validation later', () => {
-    const manifest = createFrameManifestFixture({
-      forecastHours: ['000'],
-      encodings: {
-        ...BASE_MANIFEST.encodings,
-        e0: {
-          ...BASE_MANIFEST.encodings.e0,
-          format: 'bad-format',
-        } as unknown as CycleManifest['encodings'][string],
-      },
-    })
+    const manifest = createFrameManifestFixture({ forecastHours: ['000'] })
+    manifest.products.tmp_surface = {
+      ...manifest.products.tmp_surface,
+      encoding: {
+        ...manifest.products.tmp_surface.encoding,
+        format: 'bad-format',
+      } as unknown as ScalarEncodingSpec,
+    } as ScalarProductSpec
 
     const spec = resolveFrameSpec(manifest, '000', 'tmp_surface', 'scalar')
 
-    expect(spec.encoding.format).toBe('bad-format')
+    expect(spec.variable.encoding.format).toBe('bad-format')
   })
 })

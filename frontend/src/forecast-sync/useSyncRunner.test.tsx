@@ -4,14 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CycleManifest,
-  ScalarVariableId,
-  VectorVariableId,
+  ScalarProductId,
+  VectorProductId,
 } from '../manifest'
 import type { ForecastTimeSyncBridge } from '../forecast-time'
 import {
   frameWindowMinuteOffset,
   resolveForecastFrameWindow,
-  validTimeMs,
 } from '../forecast-time'
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
 import type { SyncRequest } from './types'
@@ -52,8 +51,8 @@ vi.mock('../forecast-probe', () => ({
 
 type SyncInput = {
   manifest: CycleManifest
-  activeScalar: ScalarVariableId
-  activeVector: VectorVariableId
+  activeScalar: ScalarProductId
+  activeVector: VectorProductId
   targetTimeMs: number
   sync: ForecastTimeSyncBridge
 }
@@ -91,13 +90,19 @@ function createSyncCallbacks(): ForecastTimeSyncBridge {
   }
 }
 
+function validTimeFor(manifest: CycleManifest, hourId: string): number {
+  const time = manifest.times.find((entry) => entry.id === hourId)
+  if (!time) throw new Error(`Missing fixture time ${hourId}`)
+  return Date.parse(time.validAt)
+}
+
 function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
   const manifest = overrides.manifest ?? createManifestFixture()
   return {
     manifest,
-    activeScalar: manifest.scalarVariables[0],
-    activeVector: manifest.vectorVariables[0],
-    targetTimeMs: validTimeMs(manifest.cycle, manifest.forecastHours[0] ?? '000') ?? 0,
+    activeScalar: manifest.scalarProducts[0]!,
+    activeVector: manifest.vectorProducts[0]!,
+    targetTimeMs: validTimeFor(manifest, manifest.times[0]?.id ?? '000'),
     sync: createSyncCallbacks(),
     ...overrides,
   }
@@ -130,8 +135,7 @@ function buildSyncRequest(
 ): SyncRequest | null {
   if (!syncInput) return null
   const frameWindow = resolveForecastFrameWindow(
-    syncInput.manifest.cycle,
-    syncInput.manifest.forecastHours,
+    syncInput.manifest.times,
     syncInput.targetTimeMs
   )
   const minuteOffset = frameWindowMinuteOffset(frameWindow)
@@ -144,7 +148,7 @@ function buildSyncRequest(
     lowerHourToken: frameWindow.lowerHourToken,
     upperHourToken: frameWindow.upperHourToken,
     mix: frameWindow.mix,
-    requestKey: `${syncInput.manifest.cycle}:${syncInput.manifest.revision}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
+    requestKey: `${syncInput.manifest.run.cycle}:${syncInput.manifest.run.revision}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
     sync: syncInput.sync,
   }
 }
@@ -322,10 +326,10 @@ describe('useSyncRunner + useStartupState', () => {
       ...args,
       syncInput: {
         ...(args.syncInput as SyncInput),
-        targetTimeMs: validTimeMs(
-          (args.syncInput as SyncInput).manifest.cycle,
-          (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
-        ) ?? 0,
+        targetTimeMs: validTimeFor(
+          (args.syncInput as SyncInput).manifest,
+          (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
+        ),
       },
     })
 
@@ -453,10 +457,10 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('ready')
     })
 
-    const nextValidTimeMs = validTimeMs(
-      (args.syncInput as SyncInput).manifest.cycle,
-      (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
-    ) ?? 0
+    const nextValidTimeMs = validTimeFor(
+      (args.syncInput as SyncInput).manifest,
+      (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
+    )
 
     rerender({
       ...args,
@@ -475,14 +479,14 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('forwards active scalar and active vector to frame loading', async () => {
     const manifest = createManifestFixture({
-      scalarVariables: ['rh_surface'],
-      vectorVariables: ['gust10m_uv'],
+      scalarProducts: ['rh_surface'],
+      vectorProducts: ['gust10m_uv'],
     })
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
-        activeScalar: manifest.scalarVariables[0],
-        activeVector: manifest.vectorVariables[0],
+        activeScalar: manifest.scalarProducts[0]!,
+        activeVector: manifest.vectorProducts[0]!,
       }),
     })
 
@@ -567,10 +571,10 @@ describe('useSyncRunner + useStartupState', () => {
       ...args,
       syncInput: {
         ...syncInput,
-        targetTimeMs: validTimeMs(
-          syncInput.manifest.cycle,
-          syncInput.manifest.forecastHours[1] ?? '000'
-        ) ?? 0,
+        targetTimeMs: validTimeFor(
+          syncInput.manifest,
+          syncInput.manifest.times[1]?.id ?? '000'
+        ),
       },
     })
 
@@ -640,10 +644,10 @@ describe('useSyncRunner + useStartupState', () => {
       return request.promise
     })
 
-    const nextValidTimeMs = validTimeMs(
-      (args.syncInput as SyncInput).manifest.cycle,
-      (args.syncInput as SyncInput).manifest.forecastHours[1] ?? '000'
-    ) ?? 0
+    const nextValidTimeMs = validTimeFor(
+      (args.syncInput as SyncInput).manifest,
+      (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
+    )
 
     rerender({
       ...args,

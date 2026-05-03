@@ -28,7 +28,7 @@ export async function prefetchFramePayloads(
         config: args.config,
         manifest: args.manifest,
         frameRef: spec.frameRef,
-        grid: spec.grid,
+        grid: spec.variable.grid,
         hourToken,
         variableId: args.variableId,
         frameKind: args.frameKind,

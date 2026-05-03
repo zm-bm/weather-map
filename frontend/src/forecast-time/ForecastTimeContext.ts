@@ -5,10 +5,10 @@ import type {
   ForecastTimeSyncBridge,
   ForecastTimeViewState,
 } from './types'
+import type { ForecastTimelineTime } from './time'
 
 export type ForecastTimeContextValue = {
-  cycle: string | null
-  forecastHours: string[]
+  times: ForecastTimelineTime[]
   state: ForecastTimeViewState
   controls: ForecastTimeControls
   sync: ForecastTimeSyncBridge

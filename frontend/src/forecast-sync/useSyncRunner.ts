@@ -202,7 +202,7 @@ function createForecastFrameKey(
   manifest: SyncRequest['manifest'],
   variable: SyncRequest['activeScalar'] | SyncRequest['activeVector']
 ): string {
-  return `${manifest.cycle}:${manifest.revision}:${variable}`
+  return `${manifest.run.cycle}:${manifest.run.revision}:${variable}`
 }
 
 function createRunnerMachine(): RunnerMachine {

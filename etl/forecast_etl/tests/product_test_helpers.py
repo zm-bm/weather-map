@@ -6,13 +6,14 @@ import struct
 from typing import Any
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
-from forecast_etl.config.schema import LayerGroup, ProductSpec
+from forecast_etl.config.schema import ProductGroup, ProductSpec
 from forecast_etl.config.validate import parse_product_spec
-from forecast_etl.encoding.scalar import (
-    encode_scalar_f32_to_payload,
-    is_linear_scalar_format,
-    scalar_format_for_encoding,
+from forecast_etl.encoding.codecs import (
+    encode_component_payload,
+    encoding_format_for_spec,
+    is_linear_encoding_format,
 )
+from forecast_etl.products.transforms import source_value_transform
 from forecast_etl.stores import make_store
 
 
@@ -27,14 +28,14 @@ def _product_specs(raw_products: dict[str, dict]) -> dict[str, ProductSpec]:
     }
 
 
-def _layer_group(
+def _product_group(
     *,
     group_id: str,
     label: str,
     default_product: str,
     products: list[str],
-) -> LayerGroup:
-    return LayerGroup(
+) -> ProductGroup:
+    return ProductGroup(
         id=group_id,
         label=label,
         kind="scalar",
@@ -53,7 +54,7 @@ def _pack_f32(values: list[float], *, byte_order: str) -> bytes:
     return b"".join(struct.pack(f"{prefix}f", float(value)) for value in values)
 
 
-def _minimal_layer_config() -> dict:
+def _minimal_product_config() -> dict:
     return {
         "kind": "scalar",
         "parameter": "tmp",
@@ -64,6 +65,7 @@ def _minimal_layer_config() -> dict:
         "source_transform": "identity",
         "encoding": {
             "id": "tmp_surface_i16_v1",
+            "format": "linear-i16-v1",
             "dtype": "int16",
             "byte_order": "little",
             "scale": 0.01,
@@ -93,13 +95,12 @@ def _cloud_layers_config() -> dict:
         "source_transform": "identity",
         "encoding": {
             "id": "cloud_layers_i8_5pct_components_v1",
-            "format": "scalar-i8-linear-components-v1",
+            "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
             "scale": 5,
             "offset": 0,
             "nodata": -128,
-            "component_order": "low_medium_high",
         },
         "components": [
             {"id": "low", "grib_match": {"GRIB_ELEMENT": "LCDC"}},
@@ -119,12 +120,11 @@ def _wind_product_config() -> dict:
         "valid_max": 63.5,
         "encoding": {
             "id": "wind10m_uv_vector_i8_v1",
-            "format": "uv-i8-q0p5-v1",
+            "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
             "scale": 0.5,
             "offset": 0.0,
-            "component_order": "u_then_v",
         },
         "components": [
             {"id": "u", "grib_match": {"GRIB_ELEMENT": "UGRD"}},
@@ -144,6 +144,7 @@ def _precip_total_config() -> dict:
         "source_transform": "identity",
         "encoding": {
             "id": "precip_total_surface_i8_1mm_v1",
+            "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
             "scale": 1,
@@ -157,7 +158,7 @@ def _precip_total_config() -> dict:
 
 
 def _minimal_pipeline_config() -> dict:
-    product = _minimal_layer_config()
+    product = _minimal_product_config()
     return {
         "version": 2,
         "product_catalog": {
@@ -181,7 +182,7 @@ def _minimal_pipeline_config() -> dict:
                 "products": {
                     "tmp_surface": _model_product(product),
                 },
-                "layer_groups": [
+                "product_groups": [
                     {
                         "id": "temperature",
                         "label": "Temperature",
@@ -259,23 +260,23 @@ def _write_scalar_marker(
 ) -> None:
     encoding = product_config["encoding"]
     dtype = str(encoding["dtype"])
-    scalar_format = scalar_format_for_encoding(
+    encoding_format = encoding_format_for_spec(
         dtype=dtype,
         explicit_format=encoding.get("format"),
     )
-    payload = encode_scalar_f32_to_payload(
+    payload = encode_component_payload(
         source_f32_bytes=_pack_f32(source_values, byte_order="little"),
         source_byte_order="little",
         target_dtype=dtype,
         target_byte_order=str(encoding["byte_order"]),
-        target_format=scalar_format,
-        scale=float(encoding["scale"]) if is_linear_scalar_format(scalar_format) else None,
-        offset=float(encoding["offset"]) if is_linear_scalar_format(scalar_format) else None,
+        target_format=encoding_format,
+        scale=float(encoding["scale"]) if is_linear_encoding_format(encoding_format) else None,
+        offset=float(encoding["offset"]) if is_linear_encoding_format(encoding_format) else None,
         nodata=int(encoding["nodata"]),
-        source_transform=str(product_config.get("source_transform", "identity")),
+        value_transform=source_value_transform(str(product_config.get("source_transform", "identity"))),
     )
     payload_sha = hashlib.sha256(payload).hexdigest()
-    item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+    item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
     payload_uri = ap.output_scalar_payload_uri(
         item=item,
         dtype=dtype,
@@ -286,7 +287,7 @@ def _write_scalar_marker(
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": payload_sha,
-        "format": scalar_format,
+        "format": encoding_format,
         "dtype": dtype,
         "byte_order": str(encoding["byte_order"]),
         "encoding_id": str(encoding["id"]),
@@ -300,24 +301,24 @@ def _write_scalar_marker(
         "grid_id": "gfs_0p25_global",
         "grid": grid_meta,
     }
-    if is_linear_scalar_format(scalar_format):
+    if is_linear_encoding_format(encoding_format):
         product_marker["scale"] = float(encoding["scale"])
         product_marker["offset"] = float(encoding["offset"])
         product_marker["decode_formula"] = "value = stored * scale + offset"
 
     _write_json(
-        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable),
+        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable),
         {
             "cycle": cycle,
             "fhour": fhour,
-            "layer": variable,
+            "product_id": variable,
             "kind": "scalar",
             "product": product_marker,
         },
     )
 
 
-def _write_packed_cloud_scalar_marker(
+def _write_cloud_layers_marker(
     *,
     store,
     ap: ArtifactPaths,
@@ -330,7 +331,7 @@ def _write_packed_cloud_scalar_marker(
 ) -> None:
     encoding = product_config["encoding"]
     dtype = str(encoding["dtype"])
-    scalar_format = scalar_format_for_encoding(
+    encoding_format = encoding_format_for_spec(
         dtype=dtype,
         explicit_format=encoding.get("format"),
     )
@@ -338,21 +339,21 @@ def _write_packed_cloud_scalar_marker(
     components = [str(component["id"]) for component in product_config["components"]]
     for component in components:
         component_payloads.append(
-            encode_scalar_f32_to_payload(
+            encode_component_payload(
                 source_f32_bytes=_pack_f32(source_values_by_component[component], byte_order="little"),
                 source_byte_order="little",
                 target_dtype=dtype,
                 target_byte_order=str(encoding["byte_order"]),
-                target_format=scalar_format,
+                target_format=encoding_format,
                 scale=float(encoding["scale"]),
                 offset=float(encoding["offset"]),
                 nodata=int(encoding["nodata"]),
-                source_transform=str(product_config.get("source_transform", "identity")),
+                value_transform=source_value_transform(str(product_config.get("source_transform", "identity"))),
             )
         )
     payload = b"".join(component_payloads)
     payload_sha = hashlib.sha256(payload).hexdigest()
-    item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+    item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
     payload_uri = ap.output_scalar_payload_uri(item=item, dtype=dtype)
     store.write_bytes(uri=payload_uri, data=payload)
     product_marker = {
@@ -360,7 +361,7 @@ def _write_packed_cloud_scalar_marker(
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": payload_sha,
-        "format": scalar_format,
+        "format": encoding_format,
         "dtype": dtype,
         "byte_order": str(encoding["byte_order"]),
         "encoding_id": str(encoding["id"]),
@@ -369,8 +370,6 @@ def _write_packed_cloud_scalar_marker(
         "offset": float(encoding["offset"]),
         "decode_formula": "value = stored * scale + offset",
         "components": components,
-        "component_count": len(components),
-        "component_order": str(encoding["component_order"]),
         "source_transform": str(product_config.get("source_transform", "identity")),
         "units": str(product_config["units"]),
         "parameter": str(product_config["parameter"]),
@@ -382,11 +381,11 @@ def _write_packed_cloud_scalar_marker(
     }
 
     _write_json(
-        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable),
+        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable),
         {
             "cycle": cycle,
             "fhour": fhour,
-            "layer": variable,
+            "product_id": variable,
             "kind": "scalar",
             "product": product_marker,
         },
@@ -408,30 +407,28 @@ def _write_vector_marker(
     payload = u_bytes + v_bytes
     payload_sha = hashlib.sha256(payload).hexdigest()
     payload_uri = ap.output_vector_payload_uri(
-        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
     )
     store.write_bytes(uri=payload_uri, data=payload)
     _write_json(
-        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable),
+        ap.success_marker_uri_parts(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable),
         {
             "cycle": cycle,
             "fhour": fhour,
-            "layer": variable,
+            "product_id": variable,
             "kind": "vector",
             "product": {
                 "kind": "vector",
                 "payload_uri": payload_uri,
                 "byte_length": len(payload),
                 "sha256": payload_sha,
-                "format": "uv-i8-q0p5-v1",
+                "format": "linear-i8-v1",
                 "dtype": "int8",
                 "byte_order": "none",
                 "scale": 0.5,
                 "offset": 0.0,
                 "decode_formula": "value = stored * scale + offset",
                 "components": ["u", "v"],
-                "component_count": 2,
-                "component_order": "u_then_v",
                 "encoding_id": "wind10m_uv_vector_i8_v1",
                 "units": "m/s",
                 "parameter": "wind_uv",

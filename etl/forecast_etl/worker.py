@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Iterable, Mapping
 
 from .artifacts.json import write_json
 from .artifacts.paths import ArtifactPaths, WorkItem
@@ -15,39 +15,10 @@ from .products.execute import run_product_item_in_workdir
 from .stores import make_store
 
 
-def _write_success_marker(*, ctx: ExecutionContext, item: WorkItem, store, payload: Mapping[str, Any]) -> None:
+def _write_success_marker(*, ctx: ExecutionContext, item: WorkItem, store, payload: Mapping[str, object]) -> None:
     ap = ArtifactPaths(ctx.artifact_root_uri)
     success_uri = ap.success_marker_uri(item)
     write_json(store=store, uri=success_uri, obj=dict(payload), indent=None)
-
-
-def _run_product_item(
-    *,
-    ctx: ExecutionContext,
-    item: WorkItem,
-    product: ProductSpec,
-    store,
-    workdir: Path,
-    source,
-    run,
-) -> dict[str, Any]:
-    result = run_product_item_in_workdir(
-        workdir=workdir,
-        ctx=ctx,
-        item=item,
-        product=product,
-        store=store,
-        source=source,
-        run=run,
-    )
-    return {
-        "model": item.model_id,
-        "cycle": item.cycle,
-        "fhour": item.fhour,
-        "layer": item.layer,
-        "kind": result.kind,
-        "product": result.metadata,
-    }
 
 
 def run_process_hour(
@@ -92,17 +63,25 @@ def run_process_hour(
                 cycle=cycle,
                 fhour=fhour,
                 source_uri=source.uri,
-                layer=str(product_id),
+                product_id=str(product_id),
             )
-            success_payload = _run_product_item(
+            product_metadata = run_product_item_in_workdir(
+                workdir=workdir,
                 ctx=ctx,
                 item=item,
                 product=product,
                 store=store,
-                workdir=workdir,
                 source=source,
                 run=run,
             )
+            success_payload = {
+                "model": item.model_id,
+                "cycle": item.cycle,
+                "fhour": item.fhour,
+                "product_id": item.product_id,
+                "kind": product_metadata["kind"],
+                "product": product_metadata,
+            }
             _write_success_marker(ctx=ctx, item=item, store=store, payload=success_payload)
             product_done += 1
             kind = str(success_payload.get("kind", "unknown"))

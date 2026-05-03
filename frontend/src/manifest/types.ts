@@ -1,23 +1,42 @@
 export type LayerColortableStop = [number, number, number, number] | [number, number, number]
 
-export const MANIFEST_VERSION = 4
-export const MANIFEST_CONTRACT = 'forecast-binary-v2'
+export const MANIFEST_SCHEMA = 'weather-map.cycle-manifest'
+export const MANIFEST_SCHEMA_VERSION = 2
+export const MANIFEST_PAYLOAD_CONTRACT = 'forecast-binary-v2'
 
 type Brand<T, B extends string> = T & { readonly __brand: B }
 
 export type NonEmptyArray<T> = [T, ...T[]]
-export type ScalarVariableId = Brand<string, 'ScalarVariableId'>
-export type VectorVariableId = Brand<string, 'VectorVariableId'>
+export type ScalarProductId = Brand<string, 'ScalarProductId'>
+export type VectorProductId = Brand<string, 'VectorProductId'>
 
-export function asScalarVariableId(value: string): ScalarVariableId {
-  return value as ScalarVariableId
+export function asScalarProductId(value: string): ScalarProductId {
+  return value as ScalarProductId
 }
 
-export function asVectorVariableId(value: string): VectorVariableId {
-  return value as VectorVariableId
+export function asVectorProductId(value: string): VectorProductId {
+  return value as VectorProductId
+}
+
+export type ForecastModelSpec = {
+  id: string
+  label: string
+}
+
+export type ForecastRunSpec = {
+  cycle: string
+  generatedAt: string
+  revision: string
+}
+
+export type ForecastTimeSpec = {
+  id: string
+  leadHours: number
+  validAt: string
 }
 
 export type ScalarGridSpec = {
+  id: string
   crs: string
   nx: number
   ny: number
@@ -27,119 +46,124 @@ export type ScalarGridSpec = {
   dy: number
   origin: 'cell_center'
   layout: 'row_major'
-  x_wrap: 'repeat' | 'none'
-  y_mode: 'clamp'
+  xWrap: 'repeat' | 'none'
+  yMode: 'clamp'
 }
 
-export type ScalarInt16EncodingSpec = {
-  format: 'scalar-i16-linear-v1'
+export type ScalarLinearInt16EncodingSpec = {
+  id: string
+  format: 'linear-i16-v1'
   dtype: 'int16'
-  byte_order: 'little' | 'big'
+  byteOrder: 'little' | 'big'
   nodata: number
   scale: number
   offset: number
-  decode_formula: string
+  decodeFormula: string
 }
 
-export type ScalarInt8EncodingSpec = {
-  format: 'scalar-i8-linear-v1'
+export type ScalarLinearInt8EncodingSpec = {
+  id: string
+  format: 'linear-i8-v1'
   dtype: 'int8'
-  byte_order: 'none'
+  byteOrder: 'none'
   nodata: number
   scale: number
   offset: number
-  decode_formula: string
+  decodeFormula: string
 }
 
-export type ScalarInt8LinearComponentsEncodingSpec = {
-  format: 'scalar-i8-linear-components-v1'
+export type ScalarCloudLayerEncodingSpec = {
+  id: string
+  format: 'linear-i8-v1'
   dtype: 'int8'
-  byte_order: 'none'
+  byteOrder: 'none'
   nodata: number
   scale: number
   offset: number
-  decode_formula: string
+  decodeFormula: string
   components: ['low', 'medium', 'high']
-  component_count: 3
-  component_order: 'low_medium_high'
 }
 
 export type ScalarTempCPiecewiseEncodingSpec = {
-  format: 'scalar-i8-temp-c-piecewise-v1'
+  id: string
+  format: 'temp-c-piecewise-i8-v1'
   dtype: 'int8'
-  byte_order: 'none'
+  byteOrder: 'none'
   nodata: number
 }
 
 export type ScalarEncodingSpec =
-  | ScalarInt16EncodingSpec
-  | ScalarInt8EncodingSpec
-  | ScalarInt8LinearComponentsEncodingSpec
+  | ScalarLinearInt16EncodingSpec
+  | ScalarLinearInt8EncodingSpec
+  | ScalarCloudLayerEncodingSpec
   | ScalarTempCPiecewiseEncodingSpec
 
 export type VectorEncodingSpec = {
-  format: 'uv-i8-q0p5-v1'
+  id: string
+  format: 'linear-i8-v1'
   dtype: 'int8'
-  byte_order: 'none'
+  byteOrder: 'none'
   scale: number
   offset: number
-  decode_formula: string
+  decodeFormula: string
   components: ['u', 'v']
-  component_count: 2
-  component_order: 'u_then_v'
 }
 
 export type ManifestEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
 
-export type ScalarVariableSpec = {
-  kind: 'scalar'
-  units: string
-  parameter: string
-  level: string
-  valid_min: number
-  valid_max: number
-  grid_id: string
-  encoding_id: string
-}
-
-export type VectorVariableSpec = {
-  kind: 'vector'
-  units: string
-  parameter: string
-  level: string
-  valid_min: number
-  valid_max: number
-  grid_id: string
-  encoding_id: string
-}
-
-export type ManifestVariableSpec = ScalarVariableSpec | VectorVariableSpec
-
-export type ScalarVariableGroupSpec = {
-  id: string
-  label: string
-  defaultVariable: ScalarVariableId
-  variables: NonEmptyArray<ScalarVariableId>
+export type ValueRangeSpec = {
+  min: number
+  max: number
 }
 
 export type FramePayloadRef = {
   path: string
-  byte_length: number
+  byteLength: number
   sha256: string
 }
 
+export type ManifestProductBaseSpec = {
+  id: string
+  label: string
+  units: string
+  parameter: string
+  level: string
+  valueRange: ValueRangeSpec
+  grid: ScalarGridSpec
+  encoding: ManifestEncodingSpec
+  frames: Record<string, FramePayloadRef>
+}
+
+export type ScalarProductSpec = ManifestProductBaseSpec & {
+  kind: 'scalar'
+  encoding: ScalarEncodingSpec
+}
+
+export type VectorProductSpec = ManifestProductBaseSpec & {
+  kind: 'vector'
+  encoding: VectorEncodingSpec
+}
+
+export type ManifestProductSpec = ScalarProductSpec | VectorProductSpec
+
+export type ScalarProductGroupSpec = {
+  id: string
+  kind: 'scalar'
+  label: string
+  defaultProduct: ScalarProductId
+  products: NonEmptyArray<ScalarProductId>
+}
+
 export type CycleManifest = {
-  version: typeof MANIFEST_VERSION
-  contract: typeof MANIFEST_CONTRACT
-  cycle: string
-  generatedAt: string
-  revision: string
-  forecastHours: string[]
-  scalarVariables: NonEmptyArray<ScalarVariableId>
-  scalarVariableGroups: NonEmptyArray<ScalarVariableGroupSpec>
-  vectorVariables: NonEmptyArray<VectorVariableId>
-  grids: Record<string, ScalarGridSpec>
-  encodings: Record<string, ManifestEncodingSpec>
-  variableMeta: Record<string, ManifestVariableSpec>
-  frames: Record<string, Record<string, FramePayloadRef>>
+  schema: typeof MANIFEST_SCHEMA
+  schemaVersion: typeof MANIFEST_SCHEMA_VERSION
+  payloadContract: typeof MANIFEST_PAYLOAD_CONTRACT
+  model: ForecastModelSpec
+  run: ForecastRunSpec
+  times: ForecastTimeSpec[]
+  groups: ScalarProductGroupSpec[]
+  products: Record<string, ManifestProductSpec>
+
+  scalarProducts: ScalarProductId[]
+  vectorProducts: VectorProductId[]
 }

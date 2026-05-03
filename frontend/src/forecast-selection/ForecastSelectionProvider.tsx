@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import type {
   CycleManifest,
-  ScalarVariableId,
-  VectorVariableId,
+  ScalarProductId,
+  VectorProductId,
 } from '../manifest'
 import type { UnitSystem } from '../units'
 import {
@@ -11,10 +11,30 @@ import {
   type ForecastSelectionContextValue,
 } from './ForecastSelectionContext'
 
-const EMPTY_SCALAR_VARIABLES: [] = []
-const EMPTY_SCALAR_VARIABLE_GROUPS: [] = []
-const EMPTY_VECTOR_VARIABLES: [] = []
-const NO_VARIABLE_META: null = null
+const EMPTY_GROUPS: [] = []
+
+function findScalarGroupId(
+  groups: readonly CycleManifest['groups'][number][],
+  productId: ScalarProductId | null
+): string | null {
+  if (productId == null) return null
+  return groups.find((group) => group.products.includes(productId))?.id ?? null
+}
+
+function defaultScalarForGroupId(
+  groups: readonly CycleManifest['groups'][number][],
+  groupId: string | null
+): ScalarProductId | null {
+  if (groupId == null) return null
+  return groups.find((group) => group.id === groupId)?.defaultProduct ?? null
+}
+
+function resolveFallbackScalar(
+  groups: readonly CycleManifest['groups'][number][],
+  scalarProducts: CycleManifest['scalarProducts']
+): ScalarProductId | null {
+  return groups[0]?.defaultProduct ?? scalarProducts[0] ?? null
+}
 
 export default function ForecastSelectionProvider({
   manifest,
@@ -24,28 +44,39 @@ export default function ForecastSelectionProvider({
   children: ReactNode
 }) {
   const [selection, setSelection] = useState<{
+    modelId: string | null
     cycle: string | null
-    activeScalar: ScalarVariableId | null
-    activeVector: VectorVariableId | null
+    activeScalar: ScalarProductId | null
+    activeScalarGroupId: string | null
+    activeVector: VectorProductId | null
   }>(() => ({
-    cycle: manifest?.cycle ?? null,
-    activeScalar: manifest?.scalarVariables[0] ?? null,
-    activeVector: manifest?.vectorVariables[0] ?? null,
+    modelId: manifest?.model.id ?? null,
+    cycle: manifest?.run.cycle ?? null,
+    activeScalar: manifest?.scalarProducts[0] ?? null,
+    activeScalarGroupId: findScalarGroupId(
+      manifest?.groups ?? EMPTY_GROUPS,
+      manifest?.scalarProducts[0] ?? null
+    ),
+    activeVector: manifest?.vectorProducts[0] ?? null,
   }))
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
-  const setActiveScalar = useCallback((value: ScalarVariableId) => {
+  const setActiveScalar = useCallback((value: ScalarProductId) => {
     setSelection((current) => ({
+      modelId: current.modelId,
       cycle: current.cycle,
       activeScalar: value,
+      activeScalarGroupId: current.activeScalarGroupId,
       activeVector: current.activeVector,
     }))
   }, [])
 
-  const setActiveVector = useCallback((value: VectorVariableId) => {
+  const setActiveVector = useCallback((value: VectorProductId) => {
     setSelection((current) => ({
+      modelId: current.modelId,
       cycle: current.cycle,
       activeScalar: current.activeScalar,
+      activeScalarGroupId: current.activeScalarGroupId,
       activeVector: value,
     }))
   }, [])
@@ -58,11 +89,8 @@ export default function ForecastSelectionProvider({
     if (!manifest) {
       return {
         manifest: null,
-        cycle: null,
-        scalarVariables: EMPTY_SCALAR_VARIABLES,
-        scalarVariableGroups: EMPTY_SCALAR_VARIABLE_GROUPS,
-        vectorVariables: EMPTY_VECTOR_VARIABLES,
-        variableMeta: NO_VARIABLE_META,
+        groups: EMPTY_GROUPS,
+        products: null,
         activeScalar: null,
         activeVector: null,
         unitSystem,
@@ -73,52 +101,66 @@ export default function ForecastSelectionProvider({
       }
     }
 
-    const cycle = manifest.cycle
-    const scalarVariables = manifest.scalarVariables
-    const scalarVariableGroups = manifest.scalarVariableGroups
-    const vectorVariables = manifest.vectorVariables
+    const cycle = manifest.run.cycle
+    const modelId = manifest.model.id
+    const scalarProducts = manifest.scalarProducts
+    const groups = manifest.groups
+    const vectorProducts = manifest.vectorProducts
+    const sameModel = selection.modelId === modelId
+    const sameCycle = selection.cycle === cycle
+
     const activeScalar =
-      selection.cycle === cycle
+      ((sameModel && sameCycle) || !sameModel)
       && selection.activeScalar != null
-      && scalarVariables.includes(selection.activeScalar)
+      && scalarProducts.includes(selection.activeScalar)
         ? selection.activeScalar
-        : scalarVariables[0]
+        : (
+            (!sameModel || sameCycle)
+              ? defaultScalarForGroupId(groups, selection.activeScalarGroupId)
+              : null
+          ) ?? resolveFallbackScalar(groups, scalarProducts)
     const activeVector =
-      selection.cycle === cycle
+      sameCycle
       && selection.activeVector != null
-      && vectorVariables.includes(selection.activeVector)
+      && vectorProducts.includes(selection.activeVector)
         ? selection.activeVector
-        : vectorVariables[0]
+        : vectorProducts[0] ?? null
 
     return {
       manifest,
-      cycle,
-      scalarVariables,
-      scalarVariableGroups,
-      vectorVariables,
-      variableMeta: manifest.variableMeta,
+      groups,
+      products: manifest.products,
       activeScalar,
       activeVector,
       unitSystem,
       setActiveScalar: (nextScalar) => {
         setSelection((current) => ({
+          modelId,
           cycle,
           activeScalar: nextScalar,
+          activeScalarGroupId: findScalarGroupId(groups, nextScalar),
           activeVector:
-            current.cycle === cycle && current.activeVector != null
+            current.cycle === cycle
+            && current.activeVector != null
+            && vectorProducts.includes(current.activeVector)
               ? current.activeVector
-              : vectorVariables[0],
+              : vectorProducts[0] ?? null,
         }))
       },
       setActiveVector: (nextVector) => {
         setSelection((current) => ({
+          modelId,
           cycle,
           activeScalar:
             current.cycle === cycle
             && current.activeScalar != null
-            && scalarVariables.includes(current.activeScalar)
+            && scalarProducts.includes(current.activeScalar)
               ? current.activeScalar
-              : scalarVariables[0],
+              : resolveFallbackScalar(groups, scalarProducts),
+          activeScalarGroupId:
+            current.cycle === cycle
+              ? current.activeScalarGroupId
+              : findScalarGroupId(groups, resolveFallbackScalar(groups, scalarProducts)),
           activeVector: nextVector,
         }))
       },
@@ -128,8 +170,10 @@ export default function ForecastSelectionProvider({
   }, [
     manifest,
     selection.activeScalar,
+    selection.activeScalarGroupId,
     selection.activeVector,
     selection.cycle,
+    selection.modelId,
     setActiveScalar,
     setActiveVector,
     toggleUnitSystem,

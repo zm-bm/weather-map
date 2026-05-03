@@ -8,12 +8,10 @@ from typing import Iterable, Mapping
 
 from ..artifacts.json import read_json, write_json
 from ..artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths
-from ..config.schema import ExecutionContext, LayerGroup, ProductSpec
+from ..config.schema import PRODUCT_KIND_SCALAR, ExecutionContext, ProductGroup, ProductSpec
 from ..stores import make_store
 from ..stores.base import UriStore
-from .build import build_manifest_sections, layer_groups_for_manifest
-from .constants import FORECAST_BINARY_CONTRACT, MANIFEST_LAYER_GROUPS_KEY, MANIFEST_VERSION
-from .revision import compute_manifest_revision
+from .build import build_cycle_manifest, build_manifest_products, product_groups_for_manifest
 
 
 @dataclass(frozen=True)
@@ -30,23 +28,18 @@ def run_publish(
     model_label: str,
     product_ids: Iterable[str],
     products: Mapping[str, ProductSpec],
-    layer_groups: Iterable[LayerGroup] | None = None,
+    product_groups: Iterable[ProductGroup] | None = None,
 ) -> PublishResult:
     fhours = tuple(ctx.forecast_hours or ())
     product_ids = tuple(product_ids)
-    scalar_product_ids = tuple(
+    groupable_product_ids = tuple(
         product_id
         for product_id in product_ids
-        if products[product_id].is_scalar
+        if products[product_id].kind == PRODUCT_KIND_SCALAR
     )
-    vector_product_ids = tuple(
-        product_id
-        for product_id in product_ids
-        if products[product_id].is_vector
-    )
-    manifest_layer_groups = layer_groups_for_manifest(
-        groups=layer_groups,
-        scalar_product_ids=scalar_product_ids,
+    manifest_product_groups = product_groups_for_manifest(
+        product_groups=product_groups,
+        groupable_product_ids=groupable_product_ids,
     )
 
     if not fhours:
@@ -75,7 +68,7 @@ def run_publish(
             print(f"... and {len(missing) - 10} more")
         return PublishResult(ready=False, already_published=False, missing_markers=tuple(missing))
 
-    grids, encodings, variable_meta, frames = build_manifest_sections(
+    manifest_products = build_manifest_products(
         store=store,
         paths=paths,
         artifact_root_uri=ctx.artifact_root_uri,
@@ -87,37 +80,18 @@ def run_publish(
     )
 
     generated_at = _utc_now_iso()
-    revision = compute_manifest_revision(
+    manifest_obj = build_cycle_manifest(
+        model_id=ctx.model_id,
+        model_label=model_label,
         cycle=cycle,
-        hours=fhours,
-        scalar_product_ids=scalar_product_ids,
-        layer_groups=manifest_layer_groups,
-        vector_product_ids=vector_product_ids,
-        grids=grids,
-        encodings=encodings,
-        variable_meta=variable_meta,
-        frames=frames,
+        generated_at=generated_at,
+        fhours=fhours,
+        product_groups=manifest_product_groups,
+        products=manifest_products,
     )
+    revision = str(manifest_obj["run"]["revision"])
 
     cycle_manifest_uri = paths.manifest_cycle_uri(model_id=ctx.model_id, cycle=cycle)
-    manifest_obj = {
-        "version": MANIFEST_VERSION,
-        "contract": FORECAST_BINARY_CONTRACT,
-        "model": ctx.model_id,
-        "model_label": model_label,
-        "cycle": cycle,
-        "generated_at": generated_at,
-        "revision": revision,
-        "forecast_hours": list(fhours),
-        "scalar_variables": list(scalar_product_ids),
-        MANIFEST_LAYER_GROUPS_KEY: manifest_layer_groups,
-        "vector_variables": list(vector_product_ids),
-        "grids": grids,
-        "encodings": encodings,
-        "variable_meta": variable_meta,
-        "frames": frames,
-    }
-
     published_uri = paths.published_marker_uri(model_id=ctx.model_id, cycle=cycle)
     already_published = _is_already_published(
         store=store,
@@ -170,7 +144,7 @@ def _missing_success_markers(
     prefix = paths.status_prefix_uri(model_id=model_id, cycle=cycle)
     existing = {uri for uri in store.list_prefix(prefix_uri=prefix) if uri.endswith(SUCCESS_MARKER_SUFFIX)}
     expected = {
-        paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, layer=product_id)
+        paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, product_id=product_id)
         for product_id in product_ids
         for fhour in fhours
     }
@@ -235,7 +209,8 @@ def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | No
         print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
         return None
 
-    cycle_raw = latest.get("cycle")
+    run = latest.get("run")
+    cycle_raw = run.get("cycle") if isinstance(run, dict) else None
     if isinstance(cycle_raw, str) and cycle_raw.strip():
         return cycle_raw.strip()
     return None

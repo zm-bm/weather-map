@@ -9,24 +9,67 @@ from pathlib import Path
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.config.schema import ExecutionContext
-from forecast_etl.manifest.constants import MANIFEST_LAYER_GROUPS_KEY
+from forecast_etl.manifest.build import build_cycle_manifest
+from forecast_etl.manifest.constants import (
+    FORECAST_BINARY_CONTRACT,
+    MANIFEST_SCHEMA,
+    MANIFEST_SCHEMA_VERSION,
+)
 from forecast_etl.manifest.publish import run_publish
+from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.stores import make_store
 from forecast_etl.tests.product_test_helpers import (
     _cloud_layers_config,
     _grid_meta_fixture,
-    _layer_group,
-    _minimal_layer_config,
+    _minimal_product_config,
+    _product_group,
     _product_specs,
     _wind_product_config,
+    _write_cloud_layers_marker,
     _write_json,
-    _write_packed_cloud_scalar_marker,
     _write_scalar_marker,
     _write_vector_marker,
 )
 
 
-class PublishScalarManifestTest(unittest.TestCase):
+class PublishManifestTest(unittest.TestCase):
+    def test_manifest_revision_is_computed_from_manifest_object(self) -> None:
+        manifest = build_cycle_manifest(
+            model_id="gfs",
+            model_label="GFS",
+            cycle="2026041100",
+            generated_at="2026-04-11T01:00:00+00:00",
+            fhours=("000",),
+            product_groups=[
+                {
+                    "id": "products",
+                    "kind": "scalar",
+                    "label": "Products",
+                    "defaultProductId": "tmp_surface",
+                    "productIds": ["tmp_surface"],
+                }
+            ],
+            products={
+                "tmp_surface": {
+                    "id": "tmp_surface",
+                    "kind": "scalar",
+                    "label": "Temperature",
+                }
+            },
+        )
+
+        revision = manifest["run"]["revision"]
+        self.assertEqual(compute_manifest_revision(manifest), revision)
+
+        generated_changed = json.loads(json.dumps(manifest))
+        generated_changed["run"]["generatedAt"] = "2026-04-11T02:00:00+00:00"
+        generated_changed["run"]["revision"] = "ignored"
+        self.assertEqual(compute_manifest_revision(generated_changed), revision)
+
+        product_changed = json.loads(json.dumps(manifest))
+        product_changed["products"]["tmp_surface"]["label"] = "Updated temperature"
+        self.assertNotEqual(compute_manifest_revision(product_changed), revision)
+
     def test_publish_writes_scalar_manifest_and_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-scalar-") as td:
             out_dir = Path(td) / "out"
@@ -42,9 +85,9 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
 
             products_cfg = {
-                "tmp_surface": _minimal_layer_config(),
+                "tmp_surface": _minimal_product_config(),
                 "rh_surface": {
-                    **_minimal_layer_config(),
+                    **_minimal_product_config(),
                     "level": "surface",
                     "parameter": "rh",
                     "units": "%",
@@ -52,6 +95,7 @@ class PublishScalarManifestTest(unittest.TestCase):
                     "valid_max": 100.0,
                     "encoding": {
                         "id": "rh_surface_i16_v1",
+                        "format": "linear-i16-v1",
                         "dtype": "int16",
                         "byte_order": "little",
                         "scale": 0.01,
@@ -96,41 +140,67 @@ class PublishScalarManifestTest(unittest.TestCase):
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
             latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
 
-            self.assertEqual(cycle_manifest["version"], 4)
-            self.assertEqual(cycle_manifest["contract"], "forecast-binary-v2")
-            self.assertEqual(cycle_manifest["scalar_variables"], list(variables))
+            self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
+            self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
+            self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
+            self.assertEqual(cycle_manifest["model"], {"id": "gfs", "label": "GFS"})
+            self.assertEqual(cycle_manifest["run"]["cycle"], cycle)
+            self.assertIn("generatedAt", cycle_manifest["run"])
+            self.assertIn("revision", cycle_manifest["run"])
             self.assertEqual(
-                cycle_manifest[MANIFEST_LAYER_GROUPS_KEY],
+                cycle_manifest["times"],
+                [
+                    {"id": "000", "leadHours": 0, "validAt": "2026-04-11T00:00:00Z"},
+                    {"id": "003", "leadHours": 3, "validAt": "2026-04-11T03:00:00Z"},
+                ],
+            )
+            self.assertEqual(
+                cycle_manifest["groups"],
                 [
                     {
-                        "id": "layers",
-                        "label": "Layers",
-                        "default_variable": "tmp_surface",
-                        "variables": list(variables),
+                        "id": "products",
+                        "kind": "scalar",
+                        "label": "Products",
+                        "defaultProductId": "tmp_surface",
+                        "productIds": list(variables),
                     },
                 ],
             )
-            self.assertEqual(cycle_manifest["vector_variables"], [])
-            self.assertIn("frames", cycle_manifest)
+            self.assertNotIn("version", cycle_manifest)
+            self.assertNotIn("contract", cycle_manifest)
+            self.assertNotIn("scalar_variables", cycle_manifest)
+            self.assertNotIn("vector_variables", cycle_manifest)
+            self.assertNotIn("frames", cycle_manifest)
+            self.assertNotIn("encodings", cycle_manifest)
+            self.assertNotIn("grids", cycle_manifest)
+            self.assertNotIn("variable_meta", cycle_manifest)
+            self.assertNotIn("variables", cycle_manifest)
+            self.assertEqual(set(cycle_manifest["products"].keys()), set(variables))
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["kind"], "scalar")
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["valueRange"], {"min": -45.0, "max": 50.0})
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["id"], "gfs_0p25_global")
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["xWrap"], "repeat")
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["yMode"], "clamp")
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["encoding"]["byteOrder"], "little")
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["tmp_surface"]["path"],
+                cycle_manifest["products"]["tmp_surface"]["frames"]["000"]["path"],
                 f"fields/gfs/{cycle}/000/tmp_surface.scalar.i16.bin",
             )
             self.assertEqual(
-                cycle_manifest["frames"]["003"]["rh_surface"]["path"],
+                cycle_manifest["products"]["rh_surface"]["frames"]["003"]["path"],
                 f"fields/gfs/{cycle}/003/rh_surface.scalar.i16.bin",
             )
             self.assertEqual(latest_manifest, cycle_manifest)
 
             for fhour in fhours:
                 for variable in variables:
-                    frame = cycle_manifest["frames"][fhour][variable]
-                    self.assertEqual(frame["byte_length"], int(grid_meta["nx"]) * int(grid_meta["ny"]) * 2)
+                    frame = cycle_manifest["products"][variable]["frames"][fhour]
+                    self.assertEqual(frame["byteLength"], int(grid_meta["nx"]) * int(grid_meta["ny"]) * 2)
                     payload_uri = ap.output_scalar_payload_uri(
-                        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, layer=variable, source_uri="file:///dev/null")
+                        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
                     )
                     payload_bytes = gzip.decompress(store.read_bytes(uri=payload_uri))
-                    self.assertEqual(len(payload_bytes), frame["byte_length"])
+                    self.assertEqual(len(payload_bytes), frame["byteLength"])
                     self.assertEqual(hashlib.sha256(payload_bytes).hexdigest(), frame["sha256"])
 
             result_second = run_publish(
@@ -143,7 +213,64 @@ class PublishScalarManifestTest(unittest.TestCase):
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
 
-    def test_publish_revision_includes_layer_groups(self) -> None:
+    def test_publish_rejects_marker_identity_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="weather-map-publish-marker-identity-") as td:
+            out_dir = Path(td) / "out"
+            artifact_root_uri = f"file://{out_dir.as_posix()}"
+            cycle = "2026041100"
+            fhour = "000"
+            product_id = "tmp_surface"
+            products_cfg = {
+                product_id: _minimal_product_config(),
+            }
+
+            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=(fhour,))
+            ap = ArtifactPaths(artifact_root_uri)
+            store = make_store()
+            grid_meta = _grid_meta_fixture()
+            _write_scalar_marker(
+                store=store,
+                ap=ap,
+                cycle=cycle,
+                fhour=fhour,
+                variable=product_id,
+                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                product_config=products_cfg[product_id],
+                grid_meta=grid_meta,
+            )
+
+            marker_uri = ap.success_marker_uri_parts(
+                model_id="gfs",
+                cycle=cycle,
+                fhour=fhour,
+                product_id=product_id,
+            )
+            valid_marker = json.loads(store.read_bytes(uri=marker_uri).decode("utf-8"))
+
+            for field, invalid_value in (
+                ("cycle", "2026041200"),
+                ("fhour", "003"),
+                ("product_id", "other_product"),
+            ):
+                invalid_marker = json.loads(json.dumps(valid_marker))
+                invalid_marker[field] = invalid_value
+                _write_json(marker_uri, invalid_marker)
+
+                with self.subTest(field=field), self.assertRaisesRegex(
+                    SystemExit,
+                    rf"Success marker {field} mismatch",
+                ):
+                    run_publish(
+                        model_label="GFS",
+                        ctx=ctx,
+                        cycle=cycle,
+                        product_ids=(product_id,),
+                        products=_product_specs(products_cfg),
+                    )
+
+            _write_json(marker_uri, valid_marker)
+
+    def test_publish_revision_includes_product_groups(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-groups-") as td:
             out_dir = Path(td) / "out"
             artifact_root_uri = f"file://{out_dir.as_posix()}"
@@ -151,7 +278,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             fhours = ("000",)
             variables = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_layer_config(),
+                "tmp_surface": _minimal_product_config(),
             }
 
             ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
@@ -175,8 +302,8 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                layer_groups=[
-                    _layer_group(
+                product_groups=[
+                    _product_group(
                         group_id="temperature",
                         label="Temperature",
                         default_product="tmp_surface",
@@ -192,10 +319,10 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                layer_groups=[
-                    _layer_group(
-                        group_id="layers",
-                        label="Layers",
+                product_groups=[
+                    _product_group(
+                        group_id="alternate",
+                        label="Alternate",
                         default_product="tmp_surface",
                         products=["tmp_surface"],
                     ),
@@ -203,8 +330,8 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
             second_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
 
-            self.assertNotEqual(first_manifest["revision"], second_manifest["revision"])
-            self.assertEqual(second_manifest[MANIFEST_LAYER_GROUPS_KEY][0]["id"], "layers")
+            self.assertNotEqual(first_manifest["run"]["revision"], second_manifest["run"]["revision"])
+            self.assertEqual(second_manifest["groups"][0]["id"], "alternate")
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-temp-piecewise-") as td:
@@ -215,7 +342,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             variables = ("tmp_surface",)
             products_cfg = {
                 "tmp_surface": {
-                    **_minimal_layer_config(),
+                    **_minimal_product_config(),
                     "parameter": "tmp",
                     "level": "surface",
                     "units": "C",
@@ -224,7 +351,7 @@ class PublishScalarManifestTest(unittest.TestCase):
                     "source_transform": "identity",
                     "encoding": {
                         "id": "tmp_surface_i8_temp_c_piecewise_v1",
-                        "format": "scalar-i8-temp-c-piecewise-v1",
+                        "format": "temp-c-piecewise-i8-v1",
                         "dtype": "int8",
                         "byte_order": "none",
                         "nodata": -128,
@@ -257,22 +384,24 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             self.assertTrue(result.ready)
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
-            encoding = cycle_manifest["encodings"]["tmp_surface_i8_temp_c_piecewise_v1"]
+            product = cycle_manifest["products"]["tmp_surface"]
+            encoding = product["encoding"]
             self.assertEqual(
                 encoding,
                 {
-                    "format": "scalar-i8-temp-c-piecewise-v1",
+                    "id": "tmp_surface_i8_temp_c_piecewise_v1",
+                    "format": "temp-c-piecewise-i8-v1",
                     "dtype": "int8",
-                    "byte_order": "none",
+                    "byteOrder": "none",
                     "nodata": -128,
                 },
             )
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["tmp_surface"]["path"],
+                product["frames"]["000"]["path"],
                 f"fields/gfs/{cycle}/000/tmp_surface.scalar.i8.bin",
             )
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["tmp_surface"]["byte_length"],
+                product["frames"]["000"]["byteLength"],
                 int(grid_meta["nx"]) * int(grid_meta["ny"]),
             )
 
@@ -292,7 +421,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             store = make_store()
             grid_meta = _grid_meta_fixture()
             cell_count = int(grid_meta["nx"]) * int(grid_meta["ny"])
-            _write_packed_cloud_scalar_marker(
+            _write_cloud_layers_marker(
                 store=store,
                 ap=ap,
                 cycle=cycle,
@@ -313,8 +442,8 @@ class PublishScalarManifestTest(unittest.TestCase):
                 cycle=cycle,
                 product_ids=variables,
                 products=_product_specs(products_cfg),
-                layer_groups=[
-                    _layer_group(
+                product_groups=[
+                    _product_group(
                         group_id="clouds",
                         label="Clouds",
                         default_product="cloud_layers",
@@ -325,29 +454,29 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             self.assertTrue(result.ready)
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
-            encoding = cycle_manifest["encodings"]["cloud_layers_i8_5pct_components_v1"]
+            product = cycle_manifest["products"]["cloud_layers"]
+            encoding = product["encoding"]
             self.assertEqual(
                 encoding,
                 {
-                    "format": "scalar-i8-linear-components-v1",
+                    "id": "cloud_layers_i8_5pct_components_v1",
+                    "format": "linear-i8-v1",
                     "dtype": "int8",
-                    "byte_order": "none",
+                    "byteOrder": "none",
                     "nodata": -128,
                     "scale": 5.0,
                     "offset": 0.0,
-                    "decode_formula": "value = stored * scale + offset",
+                    "decodeFormula": "value = stored * scale + offset",
                     "components": ["low", "medium", "high"],
-                    "component_count": 3,
-                    "component_order": "low_medium_high",
                 },
             )
-            self.assertEqual(cycle_manifest["variable_meta"]["cloud_layers"]["kind"], "scalar")
+            self.assertEqual(product["kind"], "scalar")
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["cloud_layers"]["path"],
+                product["frames"]["000"]["path"],
                 f"fields/gfs/{cycle}/000/cloud_layers.scalar.i8.bin",
             )
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["cloud_layers"]["byte_length"],
+                product["frames"]["000"]["byteLength"],
                 cell_count * 3,
             )
 
@@ -360,7 +489,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             cycle_new = "2026041200"
             scalar_variables = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_layer_config(),
+                "tmp_surface": _minimal_product_config(),
             }
 
             ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
@@ -402,7 +531,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             old_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle_old)).decode("utf-8"))
             new_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle_new)).decode("utf-8"))
             self.assertEqual(latest_manifest, new_cycle_manifest)
-            self.assertNotEqual(latest_manifest["cycle"], old_cycle_manifest["cycle"])
+            self.assertNotEqual(latest_manifest["run"]["cycle"], old_cycle_manifest["run"]["cycle"])
 
     def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
         with tempfile.TemporaryDirectory(prefix="weather-map-publish-refresh-") as td:
@@ -412,7 +541,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             fhours = ("000",)
             scalar_variables = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_layer_config(),
+                "tmp_surface": _minimal_product_config(),
             }
 
             ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
@@ -503,11 +632,12 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
             latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
-            self.assertEqual(cycle_manifest["scalar_variables"], [])
-            self.assertEqual(cycle_manifest["vector_variables"], ["wind10m_uv"])
+            self.assertEqual(cycle_manifest["groups"], [])
+            self.assertEqual(list(cycle_manifest["products"].keys()), ["wind10m_uv"])
+            self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["kind"], "vector")
             self.assertEqual(latest_manifest, cycle_manifest)
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["wind10m_uv"]["path"],
+                cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],
                 f"fields/gfs/{cycle}/000/wind10m_uv.vector.i8.bin",
             )
 
@@ -527,7 +657,7 @@ class PublishScalarManifestTest(unittest.TestCase):
             )
 
             products_cfg = {
-                "tmp_surface": _minimal_layer_config(),
+                "tmp_surface": _minimal_product_config(),
             }
 
             ap = ArtifactPaths(artifact_root_uri)
@@ -566,19 +696,19 @@ class PublishScalarManifestTest(unittest.TestCase):
 
             cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
             latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
-            self.assertEqual(cycle_manifest["version"], 4)
-            self.assertEqual(cycle_manifest["contract"], "forecast-binary-v2")
-            self.assertEqual(cycle_manifest["scalar_variables"], ["tmp_surface"])
-            self.assertEqual(cycle_manifest["vector_variables"], ["wind10m_uv"])
+            self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
+            self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
+            self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
+            self.assertEqual(cycle_manifest["groups"][0]["productIds"], ["tmp_surface"])
+            self.assertEqual(list(cycle_manifest["products"].keys()), ["tmp_surface", "wind10m_uv"])
             self.assertEqual(
-                cycle_manifest["frames"]["000"]["wind10m_uv"]["path"],
+                cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],
                 f"fields/gfs/{cycle}/000/wind10m_uv.vector.i8.bin",
             )
-            self.assertIn("wind10m_uv_vector_i8_v1", cycle_manifest["encodings"])
             self.assertEqual(
-                cycle_manifest["encodings"]["wind10m_uv_vector_i8_v1"]["component_count"],
-                2,
+                cycle_manifest["products"]["wind10m_uv"]["encoding"]["components"],
+                ["u", "v"],
             )
-            self.assertEqual(cycle_manifest["variable_meta"]["tmp_surface"]["kind"], "scalar")
-            self.assertEqual(cycle_manifest["variable_meta"]["wind10m_uv"]["kind"], "vector")
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["kind"], "scalar")
+            self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["kind"], "vector")
             self.assertEqual(latest_manifest, cycle_manifest)

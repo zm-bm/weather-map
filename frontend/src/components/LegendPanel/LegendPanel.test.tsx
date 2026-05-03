@@ -2,11 +2,11 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
-import { asScalarVariableId } from '../../manifest'
+import { asScalarProductId } from '../../manifest'
 import {
   createManifestFixture,
-  createScalarVariableMetaFixture,
-  createVectorVariableMetaFixture,
+  createScalarProductFixture,
+  createVectorProductFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
@@ -17,55 +17,61 @@ function createLegendSelectionManifest(
 ) {
   return createManifestFixture({
     cycle: '2026041100',
-    scalarVariables: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'cloud_layers'])),
-    scalarVariableGroups: [
+    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'cloud_layers'])),
+    groups: [
       {
         id: 'temperature',
+        kind: 'scalar',
         label: 'Temperature',
-        defaultVariable: asScalarVariableId('tmp_surface'),
-        variables: [asScalarVariableId('tmp_surface')],
+        defaultProduct: asScalarProductId('tmp_surface'),
+        products: [asScalarProductId('tmp_surface')],
       },
       {
         id: 'precipitation',
+        kind: 'scalar',
         label: 'Precipitation',
-        defaultVariable: asScalarVariableId('prate_surface'),
-        variables: [asScalarVariableId('prate_surface')],
+        defaultProduct: asScalarProductId('prate_surface'),
+        products: [asScalarProductId('prate_surface')],
       },
       {
         id: 'pressure',
+        kind: 'scalar',
         label: 'Pressure',
-        defaultVariable: asScalarVariableId('prmsl_surface'),
-        variables: [asScalarVariableId('prmsl_surface')],
+        defaultProduct: asScalarProductId('prmsl_surface'),
+        products: [asScalarProductId('prmsl_surface')],
       },
       {
         id: 'clouds',
+        kind: 'scalar',
         label: 'Clouds',
-        defaultVariable: asScalarVariableId('cloud_layers'),
-        variables: [asScalarVariableId('cloud_layers')],
+        defaultProduct: asScalarProductId('cloud_layers'),
+        products: [asScalarProductId('cloud_layers')],
       },
     ],
-    vectorVariables: ['wind10m_uv'],
-    variableMeta: {
-      tmp_surface: createScalarVariableMetaFixture(),
-      prmsl_surface: createScalarVariableMetaFixture({
+    vectorProducts: ['wind10m_uv'],
+    products: {
+      tmp_surface: createScalarProductFixture({
+        label: 'Temperature',
+      }),
+      prmsl_surface: createScalarProductFixture({
+        label: 'Pressure',
         units: 'Pa',
         parameter: 'pressure',
-        valid_min: 98000,
-        valid_max: 103500,
+        valueRange: { min: 98000, max: 103500 },
       }),
-      prate_surface: createScalarVariableMetaFixture({
+      prate_surface: createScalarProductFixture({
+        label: 'Precipitation Rate',
         units: 'mm/hr',
         parameter: 'prate',
-        valid_min: 0,
-        valid_max: 30,
+        valueRange: { min: 0, max: 30 },
       }),
-      cloud_layers: createScalarVariableMetaFixture({
+      cloud_layers: createScalarProductFixture({
+        label: 'Cloud Layers',
         units: '%',
         parameter: 'cloud_layers',
-        valid_min: 0,
-        valid_max: 100,
+        valueRange: { min: 0, max: 100 },
       }),
-      wind10m_uv: createVectorVariableMetaFixture(),
+      wind10m_uv: createVectorProductFixture(),
     },
   })
 }

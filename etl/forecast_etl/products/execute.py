@@ -8,60 +8,26 @@ from typing import Any
 from ..artifacts.paths import ArtifactPaths, WorkItem
 from ..config.schema import (
     PRODUCT_KIND_SCALAR,
-    PRODUCT_KIND_VECTOR,
     ExecutionContext,
     ProductSpec,
-    ScalarEncodingSpec,
-    VectorEncodingSpec,
 )
-from ..encoding.scalar import encode_scalar_f32_to_payload
-from ..encoding.wind import WIND_FORMAT, quantize_f32_to_i8_q0p5
+from ..encoding.codecs import encode_component_payload
+from ..encoding.numeric import int_item_bytes
 from ..proc import RunFn
 from ..sources.grib import (
     extract_float32_band_bytes,
     find_grib_band_by_metadata,
     grid_meta_from_grib,
 )
-from ..sources.prepared import (
-    PREPARED_SOURCE_GRIB,
-    PREPARED_SOURCE_GRIB_COLLECTION,
-    PreparedSource,
-)
+from ..sources.prepared import PreparedSource
 from ..stores.base import UriStore
-from .metadata import (
-    build_product_marker_metadata,
-    component_item_bytes,
-)
-from .model import EncodedComponent, ExtractedBand, ProductResult
-
-ICON_PARAM_MATCH_KEY = "ICON_PARAM"
+from .metadata import build_product_marker_metadata
+from .model import EncodedComponent, ExtractedBand
+from .transforms import source_value_transform
 
 
 def _band_match_metadata(grib_match: dict[str, str]) -> dict[str, str]:
     return {key: value for key, value in grib_match.items() if key.startswith("GRIB_")}
-
-
-def _component_grib_path(*, product: ProductSpec, component_id: str, source: PreparedSource, grib_match: dict[str, str]) -> Path:
-    if source.kind == PREPARED_SOURCE_GRIB:
-        if source.path is None:
-            raise SystemExit("Prepared GRIB source missing local path")
-        return source.path
-
-    if source.kind == PREPARED_SOURCE_GRIB_COLLECTION:
-        if source.grib_paths is None:
-            raise SystemExit("Prepared GRIB collection source missing paths")
-        icon_param = grib_match.get(ICON_PARAM_MATCH_KEY, "").strip()
-        if not icon_param:
-            raise SystemExit(f"Product {product.id}.{component_id} requires {ICON_PARAM_MATCH_KEY} for GRIB collection source")
-        grib_path = source.grib_paths.get(icon_param.lower())
-        if grib_path is None:
-            raise SystemExit(
-                f"Prepared GRIB collection missing ICON parameter {icon_param!r} "
-                f"for product {product.id}.{component_id}"
-            )
-        return grib_path
-
-    raise SystemExit(f"Unsupported prepared source kind for GRIB path lookup: {source.kind!r}")
 
 
 def extract_product_band(
@@ -74,13 +40,9 @@ def extract_product_band(
     workdir_path: Path,
     run: RunFn,
 ) -> ExtractedBand:
-    if source.kind not in {PREPARED_SOURCE_GRIB, PREPARED_SOURCE_GRIB_COLLECTION}:
-        raise SystemExit(f"Unsupported prepared source kind: {source.kind!r}")
-
-    grib_path = _component_grib_path(
-        product=product,
+    grib_path = source.component_grib_path(
+        product_id=product.id,
         component_id=component_id,
-        source=source,
         grib_match=grib_match,
     )
     band_match = _band_match_metadata(grib_match)
@@ -110,38 +72,6 @@ def extract_product_band(
         source_byte_order=source_byte_order,
         band_index=band_idx,
         band_metadata={str(k): str(v) for k, v in band_md.items()},
-        grid=grid,
-    )
-
-
-def _encode_scalar_component(*, product: ProductSpec, band: ExtractedBand) -> bytes:
-    encoding = product.encoding
-    if not isinstance(encoding, ScalarEncodingSpec):
-        raise SystemExit(f"Product {product.id} is not configured with scalar encoding")
-
-    return encode_scalar_f32_to_payload(
-        source_f32_bytes=band.source_f32_bytes,
-        source_byte_order=band.source_byte_order,
-        target_dtype=encoding.dtype,
-        target_byte_order=encoding.byte_order,
-        target_format=encoding.format,
-        scale=encoding.scale,
-        offset=encoding.offset,
-        nodata=encoding.nodata,
-        source_transform=product.source_transform,
-    )
-
-
-def _encode_vector_component(*, product: ProductSpec, band: ExtractedBand) -> bytes:
-    encoding = product.encoding
-    if not isinstance(encoding, VectorEncodingSpec):
-        raise SystemExit(f"Product {product.id} is not configured with vector encoding")
-    if encoding.format != WIND_FORMAT:
-        raise SystemExit(f"Product {product.id} has unsupported vector encoding format: {encoding.format!r}")
-
-    return quantize_f32_to_i8_q0p5(
-        band.source_f32_bytes,
-        byte_order=band.source_byte_order,
     )
 
 
@@ -151,12 +81,19 @@ def _encode_product_component(
     expected_component_bytes: int,
     band: ExtractedBand,
 ) -> EncodedComponent:
-    if product.kind == PRODUCT_KIND_SCALAR:
-        payload_bytes = _encode_scalar_component(product=product, band=band)
-    elif product.kind == PRODUCT_KIND_VECTOR:
-        payload_bytes = _encode_vector_component(product=product, band=band)
-    else:
-        raise SystemExit(f"Product {product.id} has unsupported kind: {product.kind!r}")
+    encoding = product.encoding
+    transform = source_value_transform(product.source_transform)
+    payload_bytes = encode_component_payload(
+        source_f32_bytes=band.source_f32_bytes,
+        source_byte_order=band.source_byte_order,
+        target_dtype=encoding.dtype,
+        target_byte_order=encoding.byte_order,
+        target_format=encoding.format,
+        scale=encoding.scale,
+        offset=encoding.offset,
+        nodata=encoding.nodata,
+        value_transform=transform,
+    )
 
     if len(payload_bytes) != expected_component_bytes:
         raise SystemExit(
@@ -183,21 +120,10 @@ def run_product_item_in_workdir(
     store: UriStore,
     source: PreparedSource,
     run: RunFn,
-) -> ProductResult:
+) -> dict[str, Any]:
     """Extract, encode, pack, and publish one configured product."""
 
-    if source.kind == PREPARED_SOURCE_GRIB:
-        if source.path is None:
-            raise SystemExit("Prepared GRIB source missing local path")
-        grid = grid_meta_from_grib(grib_path=source.path, run=run)
-    elif source.kind == PREPARED_SOURCE_GRIB_COLLECTION:
-        if source.grib_paths is None or not source.grib_paths:
-            raise SystemExit("Prepared GRIB collection source missing paths")
-        first_path = next(iter(source.grib_paths.values()))
-        grid = grid_meta_from_grib(grib_path=first_path, run=run)
-    else:
-        raise SystemExit(f"Unsupported prepared source kind: {source.kind!r}")
-
+    grid = grid_meta_from_grib(grib_path=source.reference_grib_path(), run=run)
     extracted_components = [
         extract_product_band(
             product=product,
@@ -211,7 +137,7 @@ def run_product_item_in_workdir(
         for component in product.components
     ]
 
-    expected_component_bytes = int(grid["nx"]) * int(grid["ny"]) * component_item_bytes(product.encoding.dtype)
+    expected_component_bytes = int(grid["nx"]) * int(grid["ny"]) * _component_item_bytes(product.encoding.dtype)
     encoded_components = [
         _encode_product_component(
             product=product,
@@ -229,7 +155,7 @@ def run_product_item_in_workdir(
         payload_uri = paths.output_vector_payload_uri(item)
     store.write_bytes(uri=payload_uri, data=payload)
 
-    metadata = build_product_marker_metadata(
+    return build_product_marker_metadata(
         product=product,
         payload_uri=payload_uri,
         payload=payload,
@@ -237,4 +163,10 @@ def run_product_item_in_workdir(
         grid_id=source.grid_id,
         grid=grid,
     )
-    return ProductResult(kind=product.kind, metadata=metadata)
+
+
+def _component_item_bytes(dtype: str) -> int:
+    try:
+        return int_item_bytes(dtype)
+    except ValueError as exc:
+        raise SystemExit(f"Unsupported product dtype: {dtype!r}") from exc

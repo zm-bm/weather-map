@@ -37,8 +37,8 @@ const mocks = vi.hoisted(() => {
     lat0: 1,
     dx: 1,
     dy: -1,
-    x_wrap: 'repeat',
-    y_mode: 'clamp',
+    xWrap: 'repeat',
+    yMode: 'clamp',
   }
 
   return {

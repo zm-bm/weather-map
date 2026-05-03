@@ -97,7 +97,7 @@ function getScalarFrameGridKey(frame: ScalarFrameData): string {
     grid.lat0,
     grid.dx,
     grid.dy,
-    grid.x_wrap,
-    grid.y_mode,
+    grid.xWrap,
+    grid.yMode,
   ].join(':')
 }

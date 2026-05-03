@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createForecastSelectionContextValue,
   createManifestFixture,
-  createScalarVariableMetaFixture,
+  createScalarProductFixture,
 } from '../test/fixtures'
 import { formatForecastProbeValue, useForecastProbeValueFormatter } from './display'
 
@@ -22,27 +22,29 @@ vi.mock('../forecast-selection', async (importOriginal) => {
 
 const manifest = createManifestFixture({
   cycle: '2026041100',
-  scalarVariables: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
-  vectorVariables: ['wind10m_uv'],
-  variableMeta: {
-    tmp_surface: createScalarVariableMetaFixture(),
-    rh_surface: createScalarVariableMetaFixture({
+  scalarProducts: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
+  vectorProducts: ['wind10m_uv'],
+  products: {
+    tmp_surface: createScalarProductFixture({
+      label: 'Temperature',
+    }),
+    rh_surface: createScalarProductFixture({
+      label: 'Relative Humidity',
       units: '%',
       parameter: 'rh',
-      valid_min: 0,
-      valid_max: 100,
+      valueRange: { min: 0, max: 100 },
     }),
-    prmsl_surface: createScalarVariableMetaFixture({
+    prmsl_surface: createScalarProductFixture({
+      label: 'Pressure',
       units: 'Pa',
       parameter: 'prmsl',
-      valid_min: 98_000,
-      valid_max: 103_500,
+      valueRange: { min: 98_000, max: 103_500 },
     }),
-    prate_surface: createScalarVariableMetaFixture({
+    prate_surface: createScalarProductFixture({
+      label: 'Precipitation Rate',
       units: 'mm/hr',
       parameter: 'prate',
-      valid_min: 0,
-      valid_max: 30,
+      valueRange: { min: 0, max: 30 },
     }),
   },
 })

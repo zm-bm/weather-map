@@ -54,29 +54,14 @@ class ComponentSpec:
 
 
 @dataclass(frozen=True)
-class ScalarEncodingSpec:
+class EncodingSpec:
     id: str
     format: str
     dtype: str
     byte_order: str
-    nodata: int
     scale: float | None = None
     offset: float | None = None
-    component_order: str | None = None
-
-
-@dataclass(frozen=True)
-class VectorEncodingSpec:
-    id: str
-    format: str
-    dtype: str
-    byte_order: str
-    scale: float
-    offset: float
-    component_order: str
-
-
-ProductEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
+    nodata: int | None = None
 
 
 @dataclass(frozen=True)
@@ -89,17 +74,9 @@ class ProductCatalogSpec:
     valid_min: float
     valid_max: float
     source_transform: str
-    encoding: ProductEncodingSpec
+    encoding: EncodingSpec
     component_ids: tuple[str, ...]
     label: str | None = None
-
-    @property
-    def is_scalar(self) -> bool:
-        return self.kind == PRODUCT_KIND_SCALAR
-
-    @property
-    def is_vector(self) -> bool:
-        return self.kind == PRODUCT_KIND_VECTOR
 
 
 @dataclass(frozen=True)
@@ -118,7 +95,7 @@ class ProductSpec:
     valid_min: float
     valid_max: float
     source_transform: str
-    encoding: ProductEncodingSpec
+    encoding: EncodingSpec
     components: tuple[ComponentSpec, ...]
     label: str | None = None
 
@@ -126,30 +103,14 @@ class ProductSpec:
     def component_ids(self) -> tuple[str, ...]:
         return tuple(component.id for component in self.components)
 
-    @property
-    def is_scalar(self) -> bool:
-        return self.kind == PRODUCT_KIND_SCALAR
-
-    @property
-    def is_vector(self) -> bool:
-        return self.kind == PRODUCT_KIND_VECTOR
-
 
 @dataclass(frozen=True)
-class LayerGroup:
+class ProductGroup:
     id: str
     label: str
     kind: str
     default_product: str
     products: tuple[str, ...]
-
-    def to_manifest_dict(self) -> dict[str, object]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "default_variable": self.default_product,
-            "variables": list(self.products),
-        }
 
 
 @dataclass(frozen=True)
@@ -160,7 +121,7 @@ class ModelConfig:
     workload: WorkloadConfig
     model_products: dict[str, ModelProductSpec]
     products: dict[str, ProductSpec]
-    layer_groups: tuple[LayerGroup, ...]
+    product_groups: tuple[ProductGroup, ...]
 
     def to_execution_context(self, artifact_root_uri: str) -> ExecutionContext:
         return ExecutionContext(

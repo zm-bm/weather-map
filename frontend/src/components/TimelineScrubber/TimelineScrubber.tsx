@@ -117,8 +117,7 @@ function createTimelineScaleTicks(bounds: TimelineBounds | null): TimelineScaleT
 
 export default function TimelineScrubber() {
   const {
-    cycle,
-    forecastHours,
+    times,
     state: forecastTimeState,
     controls: forecastTimeControls,
   } = useForecastTimeContext()
@@ -129,23 +128,23 @@ export default function TimelineScrubber() {
   } = forecastTimeState
   const { requestTime } = forecastTimeControls
 
-  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const bounds = forecastTimeBounds(times)
   const totalMinutes = bounds?.totalMinutes ?? 0
   const requestedTimeMs = pendingTimeMs ?? targetTimeMs
-  const requestedMinuteOffset = minuteOffsetForValidTime(cycle, forecastHours, requestedTimeMs)
-  const timelineControlsDisabled = forecastHours.length <= 1 || bounds == null
+  const requestedMinuteOffset = minuteOffsetForValidTime(times, requestedTimeMs)
+  const timelineControlsDisabled = times.length <= 1 || bounds == null
   const [sliderDraftMinuteOffset, setSliderDraftMinuteOffset] = useState<number | null>(null)
   const sliderMinuteOffsetValue = sliderDraftMinuteOffset ?? requestedMinuteOffset
 
   const selectedTimeMs = bounds == null
     ? appliedTimeMs
-    : validTimeMsForMinuteOffset(cycle, forecastHours, sliderMinuteOffsetValue)
+    : validTimeMsForMinuteOffset(times, sliderMinuteOffsetValue)
   const selectedTimeLabel = formatValidTimeLabel(selectedTimeMs) ?? 'Now'
   const scaleTicks = createTimelineScaleTicks(bounds)
 
   const commitSliderTime = (minuteOffset: number) => {
     if (timelineControlsDisabled) return
-    requestTime(validTimeMsForMinuteOffset(cycle, forecastHours, minuteOffset))
+    requestTime(validTimeMsForMinuteOffset(times, minuteOffset))
   }
 
   const sliderMinuteOffset = (event: Pick<ChangeEvent<HTMLInputElement>, 'currentTarget'>) => (

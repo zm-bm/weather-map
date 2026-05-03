@@ -5,8 +5,11 @@ import { formatValidTimeLabel } from '../../forecast-time'
 import TimelineScrubber from './TimelineScrubber'
 
 const mocks = vi.hoisted(() => ({
-  cycle: '2026040900',
-  forecastHours: ['000', '003', '006'],
+  createTimes: (hours: string[]) => hours.map((id) => ({
+    id,
+    validAt: new Date(Date.UTC(2026, 3, 9, Number.parseInt(id, 10))).toISOString(),
+  })),
+  times: [] as Array<{ id: string, validAt: string }>,
   requestTime: vi.fn(),
   togglePlay: vi.fn(),
   timelineState: {
@@ -23,8 +26,7 @@ vi.mock('../../forecast-time', async (importOriginal) => {
   return {
     ...actual,
     useForecastTimeContext: () => ({
-      cycle: mocks.cycle,
-      forecastHours: mocks.forecastHours,
+      times: mocks.times,
       state: mocks.timelineState,
       controls: {
         requestNext: vi.fn(),
@@ -44,8 +46,7 @@ vi.mock('../../forecast-time', async (importOriginal) => {
 describe('TimelineScrubber', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.cycle = '2026040900'
-    mocks.forecastHours = ['000', '003', '006']
+    mocks.times = mocks.createTimes(['000', '003', '006'])
     mocks.timelineState = {
       appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
       targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
@@ -176,7 +177,7 @@ describe('TimelineScrubber', () => {
   })
 
   it('renders labeled major day ticks and minor six-hour scale ticks', () => {
-    mocks.forecastHours = ['000', '006', '012', '018', '024', '030', '036', '042', '048']
+    mocks.times = mocks.createTimes(['000', '006', '012', '018', '024', '030', '036', '042', '048'])
 
     const { container } = render(<TimelineScrubber />)
     const majorTicks = container.querySelectorAll('.timeline-scrubber__scale-tick--major')

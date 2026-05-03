@@ -6,7 +6,7 @@ export type DecodedScalarPayload = {
   cloudLayers?: CloudLayerFrameValues
 }
 
-type ScalarCloudLayerEncodingSpec = Extract<ScalarEncodingSpec, { format: 'scalar-i8-linear-components-v1' }>
+type ScalarCloudLayerEncodingSpec = Extract<ScalarEncodingSpec, { components: ['low', 'medium', 'high'] }>
 
 export function decodeScalarPayloadToValues(
   payload: ArrayBuffer,
@@ -19,17 +19,17 @@ export function decodeScalarPayload(
   payload: ArrayBuffer,
   encoding: ScalarEncodingSpec
 ): DecodedScalarPayload {
-  if (encoding.format === 'scalar-i8-temp-c-piecewise-v1') {
+  if (encoding.format === 'temp-c-piecewise-i8-v1') {
     return { values: decodeTemperaturePiecewisePayload(payload, encoding.nodata) }
   }
-  if (encoding.format === 'scalar-i8-linear-v1') {
-    return { values: decodeLinearValues(decodeScalarPayloadInt8(payload, encoding.byte_order), encoding) }
-  }
-  if (encoding.format === 'scalar-i16-linear-v1') {
-    return { values: decodeLinearValues(decodeScalarPayloadInt16(payload, encoding.byte_order), encoding) }
-  }
-  if (encoding.format === 'scalar-i8-linear-components-v1') {
+  if (encoding.format === 'linear-i8-v1' && 'components' in encoding) {
     return decodeCloudLayerPayload(payload, encoding)
+  }
+  if (encoding.format === 'linear-i8-v1') {
+    return { values: decodeLinearValues(decodeScalarPayloadInt8(payload, encoding.byteOrder), encoding) }
+  }
+  if (encoding.format === 'linear-i16-v1') {
+    return { values: decodeLinearValues(decodeScalarPayloadInt16(payload, encoding.byteOrder), encoding) }
   }
   throw new Error(
     `Unsupported scalar format for decoding: ${(encoding as unknown as { format?: string }).format ?? 'unknown'}`
@@ -38,7 +38,7 @@ export function decodeScalarPayload(
 
 export function decodeScalarPayloadInt8(
   payload: ArrayBuffer,
-  byteOrder: Extract<ScalarEncodingSpec, { dtype: 'int8' }>['byte_order']
+  byteOrder: Extract<ScalarEncodingSpec, { dtype: 'int8' }>['byteOrder']
 ): Int8Array {
   if (byteOrder !== 'none') {
     throw new Error(`Unsupported scalar byte order: ${byteOrder}`)
@@ -48,7 +48,7 @@ export function decodeScalarPayloadInt8(
 
 export function decodeScalarPayloadInt16(
   payload: ArrayBuffer,
-  byteOrder: Extract<ScalarEncodingSpec, { dtype: 'int16' }>['byte_order']
+  byteOrder: Extract<ScalarEncodingSpec, { dtype: 'int16' }>['byteOrder']
 ): Int16Array {
   if (payload.byteLength % 2 !== 0) {
     throw new Error(`Invalid int16 scalar payload byte length: ${payload.byteLength}`)
@@ -87,7 +87,7 @@ function decodeTemperaturePiecewisePayload(payload: ArrayBuffer, nodata: number)
 
 function decodeLinearValues(
   raw: Int16Array | Int8Array,
-  encoding: Extract<ScalarEncodingSpec, { format: 'scalar-i16-linear-v1' | 'scalar-i8-linear-v1' }>
+  encoding: Extract<ScalarEncodingSpec, { format: 'linear-i16-v1' | 'linear-i8-v1' }>
 ): Float32Array {
   const out = new Float32Array(raw.length)
   for (let i = 0; i < raw.length; i += 1) {
@@ -103,14 +103,15 @@ export function decodeCloudLayerPayload(
   payload: ArrayBuffer,
   encoding: ScalarCloudLayerEncodingSpec
 ): DecodedScalarPayload {
-  const raw = decodeScalarPayloadInt8(payload, encoding.byte_order)
-  if (raw.length % encoding.component_count !== 0) {
+  const raw = decodeScalarPayloadInt8(payload, encoding.byteOrder)
+  const componentCount = encoding.components.length
+  if (raw.length % componentCount !== 0) {
     throw new Error(
-      `Invalid cloud layer payload byte length: ${raw.length}; expected a multiple of ${encoding.component_count}`
+      `Invalid cloud layer payload byte length: ${raw.length}; expected a multiple of ${componentCount}`
     )
   }
 
-  const componentCellCount = raw.length / encoding.component_count
+  const componentCellCount = raw.length / componentCount
   const low = decodeCloudLayerComponent(raw, 0, componentCellCount, encoding)
   const medium = decodeCloudLayerComponent(raw, componentCellCount, componentCellCount, encoding)
   const high = decodeCloudLayerComponent(raw, componentCellCount * 2, componentCellCount, encoding)

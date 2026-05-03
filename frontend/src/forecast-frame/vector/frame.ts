@@ -9,7 +9,6 @@ import { loadFrameWindow } from '../window'
 import type { ForecastFrameSelection } from '../../forecast-time'
 import { resolveFrameSpec } from '../spec'
 import {
-  VECTOR_COMPONENT_ORDER,
   VECTOR_COMPONENTS,
   VECTOR_DECODE_FORMULA,
   VECTOR_PAYLOAD_FORMAT,
@@ -39,12 +38,13 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
   const { config, manifest, hourToken, variable, signal } = args
   const normalizedHourToken = normalizeFrameHourToken(hourToken)
   const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'vector')
-  const encoding = resolveVectorEncoding(variable, spec.encoding)
+  const encoding = resolveVectorEncoding(variable, spec.variable.encoding)
+  const grid = spec.variable.grid
   const { payload, hourToken: loadedHourToken } = await loadFramePayload({
     config,
     manifest,
     frameRef: spec.frameRef,
-    grid: spec.grid,
+    grid,
     hourToken: normalizedHourToken,
     variableId: variable,
     frameKind: 'vector',
@@ -52,7 +52,7 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
     verifyPayloadSha256: config.verifyPayloadSha256,
   })
 
-  const componentBytes = spec.grid.nx * spec.grid.ny
+  const componentBytes = grid.nx * grid.ny
   const u = new Int8Array(payload, 0, componentBytes)
   const v = new Int8Array(payload, componentBytes, componentBytes)
 
@@ -63,27 +63,24 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
       kind: 'vector',
       variableId: variable,
       hourToken: loadedHourToken,
-      units: spec.variableMeta.units,
-      parameter: spec.variableMeta.parameter,
-      level: spec.variableMeta.level,
-      valid_min: spec.variableMeta.valid_min,
-      valid_max: spec.variableMeta.valid_max,
+      units: spec.variable.units,
+      parameter: spec.variable.parameter,
+      level: spec.variable.level,
+      valueRange: spec.variable.valueRange,
       format: VECTOR_PAYLOAD_FORMAT,
       dtype: 'int8',
-      byte_order: 'none',
+      byteOrder: 'none',
       scale: encoding.scale,
       offset: encoding.offset,
-      decode_formula: VECTOR_DECODE_FORMULA,
+      decodeFormula: VECTOR_DECODE_FORMULA,
       components: [VECTOR_COMPONENTS[0], VECTOR_COMPONENTS[1]],
-      component_count: 2,
-      component_order: VECTOR_COMPONENT_ORDER,
-      grid_id: spec.variableMeta.grid_id,
-      nx: spec.grid.nx,
-      ny: spec.grid.ny,
-      lon0: spec.grid.lon0,
-      lat0: spec.grid.lat0,
-      dx: spec.grid.dx,
-      dy: spec.grid.dy,
+      gridId: grid.id,
+      nx: grid.nx,
+      ny: grid.ny,
+      lon0: grid.lon0,
+      lat0: grid.lat0,
+      dx: grid.dx,
+      dy: grid.dy,
     },
   }
 }
@@ -123,11 +120,11 @@ export function canInterpolateVectorFrames(
     lower.metadata.level === upper.metadata.level &&
     lower.metadata.format === upper.metadata.format &&
     lower.metadata.dtype === upper.metadata.dtype &&
-    lower.metadata.byte_order === upper.metadata.byte_order &&
+    lower.metadata.byteOrder === upper.metadata.byteOrder &&
     lower.metadata.scale === upper.metadata.scale &&
     lower.metadata.offset === upper.metadata.offset &&
-    lower.metadata.decode_formula === upper.metadata.decode_formula &&
-    lower.metadata.grid_id === upper.metadata.grid_id &&
+    lower.metadata.decodeFormula === upper.metadata.decodeFormula &&
+    lower.metadata.gridId === upper.metadata.gridId &&
     lower.metadata.nx === upper.metadata.nx &&
     lower.metadata.ny === upper.metadata.ny &&
     lower.metadata.lon0 === upper.metadata.lon0 &&
@@ -144,38 +141,42 @@ function resolveVectorEncoding(
   if (encoding.format !== VECTOR_PAYLOAD_FORMAT) {
     throw new Error(`Unsupported vector format for ${variable}: ${encoding.format}`)
   }
-  if (!('components' in encoding) || !('component_count' in encoding) || !('component_order' in encoding)) {
-    throw new Error(`Vector encoding for ${variable} is missing component metadata`)
-  }
   assertVectorEncoding(variable, encoding)
   return encoding
 }
 
-function assertVectorEncoding(variable: string, encoding: VectorEncodingSpec) {
-  if (encoding.dtype !== 'int8') {
-    throw new Error(`Unsupported vector dtype for ${variable}: ${encoding.dtype}`)
+function assertVectorEncoding(
+  variable: string,
+  encoding: ManifestEncodingSpec
+): asserts encoding is VectorEncodingSpec {
+  const rawEncoding = encoding as {
+    components?: unknown
+    dtype?: unknown
+    byteOrder?: unknown
+    decodeFormula?: unknown
+    scale?: unknown
+    offset?: unknown
   }
-  if (encoding.byte_order !== 'none') {
-    throw new Error(`Unsupported vector byte order for ${variable}: ${encoding.byte_order}`)
+  if (!Array.isArray(rawEncoding.components)) {
+    throw new Error(`Vector encoding for ${variable} is missing component metadata`)
   }
-  if (encoding.component_order !== VECTOR_COMPONENT_ORDER) {
-    throw new Error(`Unsupported vector component order for ${variable}: ${encoding.component_order}`)
+  if (rawEncoding.dtype !== 'int8') {
+    throw new Error(`Unsupported vector dtype for ${variable}: ${rawEncoding.dtype}`)
   }
-  if (encoding.component_count !== 2) {
-    throw new Error(`Unsupported vector component count for ${variable}: ${encoding.component_count}`)
+  if (rawEncoding.byteOrder !== 'none') {
+    throw new Error(`Unsupported vector byte order for ${variable}: ${rawEncoding.byteOrder}`)
   }
   if (
-    !Array.isArray(encoding.components) ||
-    encoding.components.length !== 2 ||
-    encoding.components[0] !== VECTOR_COMPONENTS[0] ||
-    encoding.components[1] !== VECTOR_COMPONENTS[1]
+    rawEncoding.components.length !== 2 ||
+    rawEncoding.components[0] !== VECTOR_COMPONENTS[0] ||
+    rawEncoding.components[1] !== VECTOR_COMPONENTS[1]
   ) {
-    throw new Error(`Unsupported vector components for ${variable}: ${JSON.stringify(encoding.components)}`)
+    throw new Error(`Unsupported vector components for ${variable}: ${JSON.stringify(rawEncoding.components)}`)
   }
-  if (encoding.decode_formula !== VECTOR_DECODE_FORMULA) {
-    throw new Error(`Unsupported vector decode formula for ${variable}: ${encoding.decode_formula}`)
+  if (rawEncoding.decodeFormula !== VECTOR_DECODE_FORMULA) {
+    throw new Error(`Unsupported vector decode formula for ${variable}: ${rawEncoding.decodeFormula}`)
   }
-  if (encoding.scale !== 0.5 || encoding.offset !== 0) {
-    throw new Error(`Unsupported vector decode params for ${variable}: scale=${encoding.scale} offset=${encoding.offset}`)
+  if (rawEncoding.scale !== 0.5 || rawEncoding.offset !== 0) {
+    throw new Error(`Unsupported vector decode params for ${variable}: scale=${rawEncoding.scale} offset=${rawEncoding.offset}`)
   }
 }

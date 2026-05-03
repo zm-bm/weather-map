@@ -12,8 +12,10 @@ vi.mock('../../forecast-time', async (importOriginal) => {
   return {
     ...actual,
     useForecastTimeContext: () => ({
-      cycle: '2026040900',
-      forecastHours: ['000', '003'],
+      times: [
+        { id: '000', validAt: '2026-04-09T00:00:00.000Z' },
+        { id: '003', validAt: '2026-04-09T03:00:00.000Z' },
+      ],
       state: {
         appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
         targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),

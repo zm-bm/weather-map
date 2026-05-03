@@ -25,6 +25,7 @@ export type UnitDisplay = {
 type UnitRule = {
   units?: string[]
   labelIncludes?: string[]
+  parameters?: string[]
   display: UnitDisplay
 }
 
@@ -98,6 +99,7 @@ export function canToggleUnitSystem(display: UnitDisplay): boolean {
 const UNIT_RULES: UnitRule[] = [
   {
     labelIncludes: ['temperature', 'dew point'],
+    parameters: ['tmp', 'aptmp', 'dpt'],
     display: {
       defaultOptionId: 'fahrenheit',
       options: [
@@ -122,6 +124,7 @@ const UNIT_RULES: UnitRule[] = [
   },
   {
     labelIncludes: ['wind gust'],
+    parameters: ['gust'],
     display: {
       defaultOptionId: 'miles_per_hour',
       options: [
@@ -170,7 +173,9 @@ const UNIT_RULES: UnitRule[] = [
     },
   },
   {
+    units: ['pa', 'hpa'],
     labelIncludes: ['pressure'],
+    parameters: ['prmsl', 'pressure'],
     display: {
       defaultOptionId: 'hectopascal',
       options: [
@@ -187,6 +192,7 @@ const UNIT_RULES: UnitRule[] = [
   },
   {
     labelIncludes: ['precipitation rate'],
+    parameters: ['prate'],
     display: {
       defaultOptionId: 'in_per_hour',
       options: [
@@ -213,6 +219,7 @@ const UNIT_RULES: UnitRule[] = [
   },
   {
     labelIncludes: ['accumulated precipitation'],
+    parameters: ['precip_total'],
     display: {
       defaultOptionId: 'inches',
       options: [
@@ -241,23 +248,26 @@ const UNIT_RULES: UnitRule[] = [
 
 export function getUnitDisplay(meta: ScalarMeta): UnitDisplay {
   const normalizedLabel = meta.label.toLowerCase()
-  const normalizedUnits = meta.units.trim()
+  const rawUnits = meta.units.trim()
+  const normalizedUnits = rawUnits.toLowerCase()
+  const normalizedParameter = meta.parameter.trim().toLowerCase()
 
   const matchedRule = UNIT_RULES.find((rule) => {
     const unitsMatch = rule.units?.includes(normalizedUnits) ?? false
     const labelMatch = rule.labelIncludes?.some((fragment) => normalizedLabel.includes(fragment)) ?? false
-    return unitsMatch || labelMatch
+    const parameterMatch = rule.parameters?.includes(normalizedParameter) ?? false
+    return unitsMatch || labelMatch || parameterMatch
   })
 
   if (matchedRule) return matchedRule.display
 
   return {
-    defaultOptionId: normalizedUnits || 'default',
+    defaultOptionId: rawUnits || 'default',
     options: [
       {
-        id: normalizedUnits || 'default',
-        buttonLabel: normalizedUnits || '--',
-        units: normalizedUnits || '--',
+        id: rawUnits || 'default',
+        buttonLabel: rawUnits || '--',
+        units: rawUnits || '--',
         convert: (value) => value,
       },
     ],

@@ -3,6 +3,7 @@
   "product_catalog": {
     "tmp_surface": {
       "kind": "scalar",
+      "label": "Temperature",
       "parameter": "tmp",
       "level": "surface",
       "valid_min": -35,
@@ -11,7 +12,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "tmp_surface_i8_temp_c_piecewise_v1",
-        "format": "scalar-i8-temp-c-piecewise-v1",
+        "format": "temp-c-piecewise-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "nodata": -128
@@ -24,6 +25,7 @@
     },
     "aptmp_surface": {
       "kind": "scalar",
+      "label": "Apparent Temperature",
       "parameter": "aptmp",
       "level": "surface",
       "valid_min": -35,
@@ -32,7 +34,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "tmp_surface_i8_temp_c_piecewise_v1",
-        "format": "scalar-i8-temp-c-piecewise-v1",
+        "format": "temp-c-piecewise-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "nodata": -128
@@ -45,6 +47,7 @@
     },
     "rh_surface": {
       "kind": "scalar",
+      "label": "Relative Humidity",
       "parameter": "rh",
       "level": "surface",
       "valid_min": 0,
@@ -53,6 +56,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "rh_surface_i8_1pct_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 1,
@@ -67,6 +71,7 @@
     },
     "gust_surface": {
       "kind": "scalar",
+      "label": "Wind Gust",
       "parameter": "gust",
       "level": "surface",
       "valid_min": 0,
@@ -75,6 +80,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "gust_surface_i8_1ms_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
@@ -89,6 +95,7 @@
     },
     "dewpoint_surface": {
       "kind": "scalar",
+      "label": "Dew Point",
       "parameter": "dpt",
       "level": "surface",
       "valid_min": -60,
@@ -97,6 +104,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "dewpoint_surface_i8_0p5c_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
@@ -111,6 +119,7 @@
     },
     "prmsl_surface": {
       "kind": "scalar",
+      "label": "Pressure",
       "parameter": "prmsl",
       "level": "surface",
       "valid_min": 98000,
@@ -119,6 +128,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "prmsl_surface_i8_25pa_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 25,
@@ -133,6 +143,7 @@
     },
     "tcdc": {
       "kind": "scalar",
+      "label": "Total Cloud Cover",
       "parameter": "tcdc",
       "level": "entire atmosphere",
       "valid_min": 0,
@@ -141,6 +152,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "tcdc_i8_0p5pct_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 1,
@@ -155,6 +167,7 @@
     },
     "cloud_layers": {
       "kind": "scalar",
+      "label": "Cloud Layers",
       "parameter": "cloud_layers",
       "level": "low/medium/high cloud layers",
       "valid_min": 0,
@@ -163,13 +176,12 @@
       "source_transform": "identity",
       "encoding": {
         "id": "cloud_layers_i8_5pct_components_v1",
-        "format": "scalar-i8-linear-components-v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 5,
         "offset": 0,
-        "nodata": -128,
-        "component_order": "low_medium_high"
+        "nodata": -128
       },
       "components": [
         {
@@ -185,6 +197,7 @@
     },
     "prate_surface": {
       "kind": "scalar",
+      "label": "Precipitation Rate",
       "parameter": "prate",
       "level": "surface",
       "valid_min": 0,
@@ -193,6 +206,7 @@
       "source_transform": "kg_m2_s_to_mm_hr",
       "encoding": {
         "id": "prate_surface_i8_0p15mmhr_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.15,
@@ -207,6 +221,7 @@
     },
     "precip_total_surface": {
       "kind": "scalar",
+      "label": "Accumulated Precipitation",
       "parameter": "precip_total",
       "level": "surface",
       "valid_min": 0,
@@ -215,6 +230,7 @@
       "source_transform": "identity",
       "encoding": {
         "id": "precip_total_surface_i8_1mm_v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 1,
@@ -237,12 +253,11 @@
       "valid_max": 63.5,
       "encoding": {
         "id": "wind10m_uv_vector_i8_v1",
-        "format": "uv-i8-q0p5-v1",
+        "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
-        "offset": 0,
-        "component_order": "u_then_v"
+        "offset": 0
       },
       "components": [
         {
@@ -420,7 +435,7 @@
           ]
         }
       },
-      "layer_groups": [
+      "product_groups": [
         {
           "id": "temperature",
           "label": "Temperature",
@@ -614,7 +629,7 @@
           ]
         }
       },
-      "layer_groups": [
+      "product_groups": [
         {
           "id": "temperature",
           "label": "Temperature",

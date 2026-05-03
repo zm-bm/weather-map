@@ -12,8 +12,9 @@ import {
 function createPrecipMeta(units: string): ScalarMeta {
   return {
     id: 'prate_surface',
-    label: 'Precipitation Rate',
+    label: 'prate_surface',
     units,
+    parameter: 'prate',
     min: 0,
     max: 30,
     colortable: [],
@@ -47,8 +48,9 @@ describe('getUnitDisplay', () => {
   it('maps accumulated precipitation from millimeters to inches', () => {
     const display = getUnitDisplay({
       id: 'precip_total_surface',
-      label: 'Accumulated Precipitation',
+      label: 'precip_total_surface',
       units: 'mm',
+      parameter: 'precip_total',
       min: 0,
       max: 254,
       colortable: [],
@@ -64,8 +66,9 @@ describe('getUnitDisplay', () => {
   it('uses whole-number formatting for percentage values', () => {
     const display = getUnitDisplay({
       id: 'rh_surface',
-      label: 'Relative Humidity',
+      label: 'rh_surface',
       units: '%',
+      parameter: 'rh',
       min: 0,
       max: 100,
       colortable: [],
@@ -77,8 +80,9 @@ describe('getUnitDisplay', () => {
   it('treats dew point as a temperature unit', () => {
     const display = getUnitDisplay({
       id: 'dewpoint_surface',
-      label: 'Dew Point',
+      label: 'dewpoint_surface',
       units: 'C',
+      parameter: 'dpt',
       min: -60,
       max: 40,
       colortable: [],
@@ -91,8 +95,9 @@ describe('getUnitDisplay', () => {
   it('maps wind gust from meters per second to speed display units', () => {
     const display = getUnitDisplay({
       id: 'gust_surface',
-      label: 'Wind Gust',
+      label: 'gust_surface',
       units: 'm/s',
+      parameter: 'gust',
       min: 0,
       max: 60,
       colortable: [],
@@ -102,5 +107,30 @@ describe('getUnitDisplay', () => {
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers_per_hour')
     expect(getUnitOptionForSystem(display, 'imperial').id).toBe('miles_per_hour')
     expect(getUnitOption(display, 'kilometers_per_hour').convert(10)).toBe(36)
+  })
+
+  it('matches raw manifest product labels through parameter metadata', () => {
+    const temperature = getUnitDisplay({
+      id: 'tmp_surface',
+      label: 'tmp_surface',
+      units: 'C',
+      parameter: 'tmp',
+      min: -35,
+      max: 50,
+      colortable: [],
+    })
+    const pressure = getUnitDisplay({
+      id: 'prmsl_surface',
+      label: 'prmsl_surface',
+      units: 'Pa',
+      parameter: 'prmsl',
+      min: 98000,
+      max: 103500,
+      colortable: [],
+    })
+
+    expect(getUnitOptionForSystem(temperature, 'imperial').id).toBe('fahrenheit')
+    expect(getUnitOption(pressure).id).toBe('hectopascal')
+    expect(getUnitOption(pressure).convert(101_325)).toBe(1013.25)
   })
 })

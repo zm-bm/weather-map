@@ -10,7 +10,7 @@ This document defines preferred domain terms and module ownership boundaries for
 - `hourToken` or `leadHour`: forecast offset token from cycle (`000`, `003`, ...), used for manifest frame and payload keys.
 - `validTimeMs`: minute-resolved selected forecast time in UTC epoch milliseconds; primary timeline state value.
 - `frame window`: the lower/upper forecast-hour pair plus interpolation mix used to represent a continuous selected time.
-- `frame`: concrete render target formed by `{ cycle, hourToken }`.
+- `frame`: concrete render target formed by `{ run.cycle, hourToken }`.
 - `scalar`: gridded scalar fields such as temperature, humidity, pressure, and precipitation rate.
 - `vector`: vector field (`u/v`) and particle visualization pipeline.
 - `variable`: selected meteorological field; prefer this over generic `layer` in UI/domain code.
@@ -40,7 +40,7 @@ payload loading, and layer application.
 
 - `forecast-selection/*`: active scalar/vector choice and per-variable unit option state derived from the loaded manifest. Keep product selection concerns here, separate from time selection.
 
-- `forecast-time/*`: valid-time selection, playback state, cycle forecast-hour bounds, and formatting helpers. This layer should not know about scalar/vector payload decoding or MapLibre runtime details.
+- `forecast-time/*`: valid-time selection, playback state, manifest time bounds, and formatting helpers. This layer should not know about scalar/vector payload decoding or MapLibre runtime details.
 
 - `manifest/*`: fetch, parse, validate, and expose forecast manifests. This is the source of typed manifest contracts used by selection, frame loading, and UI metadata.
 
@@ -52,7 +52,7 @@ payload loading, and layer application.
 
 - `forecast-layers/*`: forecast renderer adapters, controllers, shaders, and renderer-specific options. This module should install MapLibre custom layers and apply already-loaded frame windows only; frame loading and probe behavior live elsewhere.
 
-- `forecast-metadata/*`: static metadata helpers for forecast products when the manifest does not carry all UI metadata directly.
+- `forecast-metadata/*`: static style helpers for forecast products, such as color tables and special legend affordances. Labels, units, and value ranges come from the manifest.
 
 - `map/*`: MapLibre host platform, style construction, viewport persistence, map controls, and base map interactions. Keep forecast product logic out of this layer.
 

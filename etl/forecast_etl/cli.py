@@ -10,38 +10,15 @@ from __future__ import annotations
 
 import argparse
 import os
-from multiprocessing import Pool
-from traceback import format_exc
 
 from .config.parse import load_pipeline_config
-from .config.schema import (
-    SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
-    ExecutionContext,
-    ModelConfig,
-    PipelineConfig,
-    ProductSpec,
-)
-from .manifest.publish import run_publish
+from .config.schema import PipelineConfig
+from .pipeline.run import run_cycle, run_hour
 from .sources.gfs_layout import (
     default_artifact_root_uri,
     default_pipeline_config_uri,
     parse_cycle,
 )
-from .worker import run_process_hour
-
-HourTask = tuple[
-    ExecutionContext,
-    ModelConfig,
-    dict[str, ProductSpec],
-    tuple[str, ...],
-    str,
-    str,
-    str | None,
-]
-
-
-class RunCycleTaskError(RuntimeError):
-    """Pickle-safe wrapper for child process failures."""
 
 
 def _runtime_parser() -> argparse.ArgumentParser:
@@ -119,17 +96,6 @@ def _load_cfg(args: argparse.Namespace) -> PipelineConfig:
     return load_pipeline_config(args.pipeline_config_uri)
 
 
-def _publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str) -> None:
-    run_publish(
-        ctx=ctx,
-        cycle=cycle,
-        model_label=model.label,
-        product_ids=model.workload.products,
-        products=model.products,
-        layer_groups=model.layer_groups,
-    )
-
-
 def _require_str(
     value: str | None,
     *,
@@ -144,28 +110,6 @@ def _require_str(
 
 def _require_model_id(args: argparse.Namespace) -> str:
     return _require_str(args.model, env_name="MODEL", cli_flag="--model")
-
-
-def _run_hour(
-    *,
-    model: ModelConfig,
-    ctx: ExecutionContext,
-    cycle: str,
-    fhour: str,
-    source_uri: str | None,
-    publish: bool,
-) -> None:
-    run_process_hour(
-        ctx=ctx,
-        model=model,
-        cycle=cycle,
-        fhour=fhour,
-        source_uri=source_uri,
-        product_ids=model.workload.products,
-        products=model.products,
-    )
-    if publish:
-        _publish_cycle(ctx=ctx, model=model, cycle=cycle)
 
 
 def _cmd_run_hour(args: argparse.Namespace) -> int:
@@ -183,7 +127,7 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
     )
     source_uri = source_uri.strip() if isinstance(source_uri, str) and source_uri.strip() else None
 
-    _run_hour(
+    run_hour(
         model=model,
         ctx=ctx,
         cycle=cycle,
@@ -194,39 +138,6 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_cycle_one(payload: HourTask) -> None:
-    ctx, model, products, product_ids, cycle, fhour, source_uri = payload
-    try:
-        run_process_hour(
-            ctx=ctx,
-            model=model,
-            cycle=cycle,
-            fhour=fhour,
-            source_uri=source_uri,
-            product_ids=product_ids,
-            products=products,
-        )
-    except KeyboardInterrupt:
-        raise
-    except BaseException as exc:
-        raise RunCycleTaskError(
-            f"Failed processing model={ctx.model_id} cycle={cycle} fhour={fhour}: {exc}\n"
-            f"{format_exc()}"
-        ) from None
-
-
-def _build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: str) -> list[HourTask]:
-    parse_cycle(cycle)
-    fhours = model.workload.forecast_hours
-    product_ids = tuple(model.workload.products or ())
-    tasks: list[HourTask] = []
-
-    for fhour in fhours:
-        tasks.append((ctx, model, model.products, product_ids, cycle, fhour, None))
-
-    return tasks
-
-
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
     """Fan out model forecast-hour workers locally, and publish once by default."""
     cfg = _load_cfg(args)
@@ -235,29 +146,8 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     cycle = str(args.cycle)
     parse_cycle(cycle)
 
-    tasks = _build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle)
-    procs = int(args.procs) if args.procs is not None else _default_run_cycle_procs(model)
-    try:
-        if procs == 1:
-            for task in tasks:
-                _run_cycle_one(task)
-        else:
-            with Pool(processes=None if procs <= 0 else procs) as pool:
-                for _ in pool.imap_unordered(_run_cycle_one, tasks):
-                    pass
-    except RunCycleTaskError as exc:
-        raise SystemExit(str(exc)) from None
-
-    if not args.no_publish:
-        _publish_cycle(ctx=ctx, model=model, cycle=cycle)
-
+    run_cycle(model=model, ctx=ctx, cycle=cycle, procs=args.procs, publish=not args.no_publish)
     return 0
-
-
-def _default_run_cycle_procs(model: ModelConfig) -> int:
-    if model.source.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
-        return 1
-    return 4
 
 
 def _cmd_smoke(args: argparse.Namespace) -> int:

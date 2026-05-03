@@ -1,12 +1,13 @@
 import type {
   LayerColortableStop,
-  ManifestVariableSpec,
+  ManifestProductSpec,
 } from '../manifest'
 
 export type ScalarMeta = {
   id: string
   label: string
   units: string
+  parameter: string
   min: number
   max: number
   colortable: LayerColortableStop[]
@@ -14,10 +15,7 @@ export type ScalarMeta = {
   cloudLayerSwatches?: CloudLayerLegendSwatch[]
 }
 
-type ScalarCatalogEntry = {
-  label: string
-  units: string
-  displayRange: [number, number]
+type ScalarStyleEntry = {
   colortable: LayerColortableStop[]
   legendKind?: 'cloud_layers'
   cloudLayerSwatches?: CloudLayerLegendSwatch[]
@@ -30,8 +28,6 @@ export type CloudLayerLegendSwatch = {
 }
 
 const FALLBACK_ENTRY_KEY = '__fallback__'
-
-const TEMPERATURE_DISPLAY_RANGE: [number, number] = [-35, 50]
 
 const TEMPERATURE_COLORTABLE: LayerColortableStop[] = [
   [50, 61, 2, 22],
@@ -71,23 +67,14 @@ const TEMPERATURE_COLORTABLE: LayerColortableStop[] = [
   [-45.0, 203, 219, 244],
 ]
 
-const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
+const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
   tmp_surface: {
-    label: 'Temperature',
-    units: 'C',
-    displayRange: TEMPERATURE_DISPLAY_RANGE,
     colortable: TEMPERATURE_COLORTABLE,
   },
   aptmp_surface: {
-    label: 'Apparent Temperature',
-    units: 'C',
-    displayRange: TEMPERATURE_DISPLAY_RANGE,
     colortable: TEMPERATURE_COLORTABLE,
   },
   rh_surface: {
-    label: 'Relative Humidity',
-    units: '%',
-    displayRange: [0, 100],
     colortable: [
       [0, 218, 192, 146],
       [10, 232, 214, 171],
@@ -103,9 +90,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   gust_surface: {
-    label: 'Wind Gust',
-    units: 'm/s',
-    displayRange: [0, 60],
     colortable: [
       [0, 200, 210, 215],
       [4, 148, 199, 213],
@@ -121,9 +105,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   dewpoint_surface: {
-    label: 'Dew Point',
-    units: 'C',
-    displayRange: [-60, 40],
     colortable: [
       [-60, 98, 81, 140],
       [-45, 95, 112, 182],
@@ -141,9 +122,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   tcdc: {
-    label: 'Total Cloud Cover',
-    units: '%',
-    displayRange: [0, 100],
     colortable: [
       [0, 180, 180, 180],
       [5, 170, 185, 200],
@@ -161,9 +139,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   cloud_layers: {
-    label: 'Cloud Layers',
-    units: '%',
-    displayRange: [0, 100],
     legendKind: 'cloud_layers',
     cloudLayerSwatches: [
       { id: 'low', label: 'Low', color: 'rgb(110 105 89)' },
@@ -179,9 +154,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   prmsl_surface: {
-    label: 'Pressure',
-    units: 'Pa',
-    displayRange: [98000, 103500],
     colortable: [
       [98000, 70, 155, 225],
       [98400, 82, 182, 230],
@@ -203,9 +175,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   prate_surface: {
-    label: 'Precipitation Rate',
-    units: 'mm/hr',
-    displayRange: [0, 30],
     colortable: [
       [0, 180, 180, 180],
       [0.15, 200, 210, 240],
@@ -224,9 +193,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   precip_total_surface: {
-    label: 'Accumulated Precipitation',
-    units: 'mm',
-    displayRange: [0, 254],
     colortable: [
       [0, 180, 180, 180],
       [1, 200, 210, 240],
@@ -241,9 +207,6 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
     ],
   },
   [FALLBACK_ENTRY_KEY]: {
-    label: 'Unknown Layer',
-    units: '',
-    displayRange: [0, 1],
     colortable: [
       [0, 46, 68, 96],
       [0.5, 112, 139, 168],
@@ -254,10 +217,10 @@ const SCALAR_CATALOG: Record<string, ScalarCatalogEntry> = {
 
 export function getScalarMeta(
   variableId: string,
-  metaById?: Record<string, ManifestVariableSpec> | null,
+  metaById?: Record<string, ManifestProductSpec> | null,
 ): ScalarMeta {
   const sourceMeta = metaById?.[variableId]
-  const catalog = SCALAR_CATALOG[variableId] ?? SCALAR_CATALOG[FALLBACK_ENTRY_KEY]!
+  const style = SCALAR_STYLES[variableId] ?? SCALAR_STYLES[FALLBACK_ENTRY_KEY]!
 
   if (!sourceMeta) {
     throw new Error(`Missing layer metadata for ${variableId}`)
@@ -265,16 +228,17 @@ export function getScalarMeta(
 
   return {
     id: variableId,
-    label: catalog.label,
-    units: catalog.units || sourceMeta.units,
-    min: catalog.displayRange[0],
-    max: catalog.displayRange[1],
-    colortable: catalog.colortable,
-    legendKind: catalog.legendKind,
-    cloudLayerSwatches: catalog.cloudLayerSwatches,
+    label: sourceMeta.label,
+    units: sourceMeta.units,
+    parameter: sourceMeta.parameter,
+    min: sourceMeta.valueRange.min,
+    max: sourceMeta.valueRange.max,
+    colortable: style.colortable,
+    legendKind: style.legendKind,
+    cloudLayerSwatches: style.cloudLayerSwatches,
   }
 }
 
-export function getScalarStyle(variableId: string): ScalarCatalogEntry {
-  return SCALAR_CATALOG[variableId] ?? SCALAR_CATALOG[FALLBACK_ENTRY_KEY]!
+export function getScalarStyle(variableId: string): ScalarStyleEntry {
+  return SCALAR_STYLES[variableId] ?? SCALAR_STYLES[FALLBACK_ENTRY_KEY]!
 }

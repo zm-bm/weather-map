@@ -2,8 +2,8 @@ import type { WeatherMapConfig } from '../config'
 import type { ForecastFrameSelection } from '../forecast-time'
 import type {
   CycleManifest,
-  ScalarVariableId,
-  VectorVariableId,
+  ScalarProductId,
+  VectorProductId,
 } from '../manifest'
 import {
   loadScalarFrameWindow,
@@ -31,8 +31,8 @@ export type PreviousForecastFrameWindows = {
 export type LoadForecastFramesArgs = ForecastFrameSelection & {
   config: WeatherMapConfig
   manifest: CycleManifest
-  activeScalar: ScalarVariableId
-  activeVector: VectorVariableId
+  activeScalar: ScalarProductId
+  activeVector: VectorProductId
   previousWindows?: PreviousForecastFrameWindows
   signal: AbortSignal
 }
@@ -46,8 +46,8 @@ type ForecastFramePrefetchTask = {
 export type PrefetchForecastFramesArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
-  activeScalar: ScalarVariableId
-  activeVector: VectorVariableId
+  activeScalar: ScalarProductId
+  activeVector: VectorProductId
   lowerHourToken: string
   upperHourToken: string
   aheadHourCount: number
@@ -123,9 +123,9 @@ function nextHourTokensAfterUpper(
   upperHourToken: string,
   count: number
 ): string[] {
-  if (manifest.forecastHours.length === 0 || count <= 0) return []
+  if (manifest.times.length === 0 || count <= 0) return []
 
-  const normalizedHours = manifest.forecastHours.map(normalizeFrameHourToken)
+  const normalizedHours = manifest.times.map((time) => normalizeFrameHourToken(time.id))
   const normalizedUpper = normalizeFrameHourToken(upperHourToken)
   const upperIndex = normalizedHours.indexOf(normalizedUpper)
   const startIndex = upperIndex < 0 ? -1 : upperIndex

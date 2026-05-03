@@ -49,7 +49,7 @@ The ETL config is product-based:
 - `product_catalog` defines shared scalar/vector products and encodings.
 - `models.<model>.workload.products` is the ordered product list for that model.
 - `models.<model>.products` maps catalog product components to model-specific GRIB metadata.
-- `models.<model>.layer_groups` groups scalar products for the frontend category/measurement UI.
+- `models.<model>.product_groups` groups products for frontend category/selection UI.
 
 The implementation follows this path:
 
@@ -68,9 +68,9 @@ Local and production artifacts use the same object layout:
 
 - `manifests/<model>/latest.json`
 - `manifests/<model>/<cycle>.json`
-- `fields/<model>/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
-- `fields/<model>/<cycle>/<fhour>/<layer>.vector.i8.bin`
-- `status/<model>/<cycle>/<layer>/<fhour>._SUCCESS.json`
+- `fields/<model>/<cycle>/<fhour>/<product>.scalar.<dtype>.bin`
+- `fields/<model>/<cycle>/<fhour>/<product>.vector.i8.bin`
+- `status/<model>/<cycle>/<product>/<fhour>._SUCCESS.json`
 - `status/<model>/<cycle>/_PUBLISHED.json`
 - `pmtiles/<name>.pmtiles`
 - `radio/<track>.mp3`

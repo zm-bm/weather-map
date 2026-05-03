@@ -6,12 +6,12 @@ import type { CycleManifest } from '../../manifest'
 import {
   ForecastTimeProvider,
   type ForecastTimeContextValue,
-  validTimeMs,
 } from '../../forecast-time'
+import type { ForecastTimelineTime } from '../../forecast-time'
+import { createForecastTimesFixture } from './manifest'
 
 type ForecastTimeContextOptions = Partial<{
-  cycle: string | null
-  forecastHours: string[]
+  times: ForecastTimelineTime[]
   state: Partial<ForecastTimeContextValue['state']>
   controls: Partial<ForecastTimeContextValue['controls']>
 }>
@@ -20,13 +20,11 @@ export function createForecastTimeContextValue(
   manifest: CycleManifest | null,
   options: ForecastTimeContextOptions = {}
 ): ForecastTimeContextValue {
-  const cycle = options.cycle ?? manifest?.cycle ?? '2026041312'
-  const forecastHours = options.forecastHours ?? manifest?.forecastHours ?? ['000', '003']
-  const defaultValidTimeMs = validTimeMs(cycle, forecastHours[0] ?? '000') ?? 0
+  const times = options.times ?? manifest?.times ?? createForecastTimesFixture()
+  const defaultValidTimeMs = Date.parse(times[0]?.validAt ?? '2026-04-13T12:00:00Z')
 
   return {
-    cycle,
-    forecastHours,
+    times,
     state: {
       appliedTimeMs: defaultValidTimeMs,
       targetTimeMs: defaultValidTimeMs,

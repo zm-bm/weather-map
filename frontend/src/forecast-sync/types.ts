@@ -1,4 +1,4 @@
-import type { CycleManifest, ScalarVariableId, VectorVariableId } from '../manifest'
+import type { CycleManifest, ScalarProductId, VectorProductId } from '../manifest'
 import type { ForecastFrameSelection } from '../forecast-time'
 import type { ForecastTimeSyncBridge } from '../forecast-time'
 
@@ -22,8 +22,8 @@ export type StartupState = {
 
 export type SyncRequest = ForecastFrameSelection & {
   manifest: CycleManifest
-  activeScalar: ScalarVariableId
-  activeVector: VectorVariableId
+  activeScalar: ScalarProductId
+  activeVector: VectorProductId
   requestKey: string
   sync: ForecastTimeSyncBridge
 }

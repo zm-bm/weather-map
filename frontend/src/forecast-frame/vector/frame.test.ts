@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from '../../manifest'
+import type { VectorEncodingSpec } from '../../manifest'
 import { loadVectorFrame } from './frame'
 import {
   createConfigFixture,
   createFrameManifestFixture,
   createSignalFixture,
+  createVectorProductFixture,
   createVectorPayloadFixture,
 } from '../../test/fixtures'
 import { stubFetchArrayBufferOnce } from '../../test/fetch'
@@ -32,22 +33,22 @@ describe('vector payload', () => {
     expect(Array.from(frame.v)).toEqual([-5, 6, -7, 8])
     expect(frame.metadata.kind).toBe('vector')
     expect(frame.metadata.hourToken).toBe('000')
-    expect(frame.metadata.component_count).toBe(2)
   })
 
   it('rejects invalid vector encodings locally', async () => {
-    const baseManifest = createFrameManifestFixture()
+    const baseEncoding = createVectorProductFixture().encoding
 
     await expect(
       loadVectorFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            wind10m_uv_vector_i8_v1: {
-              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
-              dtype: 'int16',
-            } as unknown as CycleManifest['encodings'][string],
+          products: {
+            wind10m_uv: createVectorProductFixture({
+              encoding: {
+                ...baseEncoding,
+                dtype: 'int16',
+              } as unknown as VectorEncodingSpec,
+            }),
           },
         }),
         variable: 'wind10m_uv',
@@ -60,12 +61,13 @@ describe('vector payload', () => {
       loadVectorFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            wind10m_uv_vector_i8_v1: {
-              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
-              components: ['v', 'u'],
-            } as unknown as CycleManifest['encodings'][string],
+          products: {
+            wind10m_uv: createVectorProductFixture({
+              encoding: {
+                ...baseEncoding,
+                components: ['v', 'u'],
+              } as unknown as VectorEncodingSpec,
+            }),
           },
         }),
         variable: 'wind10m_uv',
@@ -78,12 +80,13 @@ describe('vector payload', () => {
       loadVectorFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            wind10m_uv_vector_i8_v1: {
-              ...baseManifest.encodings.wind10m_uv_vector_i8_v1,
-              scale: 1,
-            } as unknown as CycleManifest['encodings'][string],
+          products: {
+            wind10m_uv: createVectorProductFixture({
+              encoding: {
+                ...baseEncoding,
+                scale: 1,
+              } as unknown as VectorEncodingSpec,
+            }),
           },
         }),
         variable: 'wind10m_uv',

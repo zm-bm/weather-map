@@ -13,11 +13,10 @@ from forecast_etl.config.parse import parse_pipeline_config
 from forecast_etl.config.schema import IconDwdConfig, ModelConfig, ModelSourceConfig, WorkloadConfig
 from forecast_etl.models import acquire_prepared_source
 from forecast_etl.models.icon import icon_dwd_filename, icon_dwd_url
-from forecast_etl.sources.prepared import PREPARED_SOURCE_GRIB
 from forecast_etl.stores import make_store
 from forecast_etl.tests.product_test_helpers import (
-    _minimal_layer_config,
     _minimal_pipeline_config,
+    _minimal_product_config,
     _product_spec,
 )
 
@@ -41,12 +40,17 @@ class ModelSourceAdapterTest(unittest.TestCase):
                 store=make_store(),
             )
 
-            self.assertEqual(source.kind, PREPARED_SOURCE_GRIB)
-            self.assertEqual(source.path, workdir / "input.grib2")
             self.assertEqual(source.grid_id, "gfs_0p25_global")
-            self.assertIsNotNone(source.path)
-            assert source.path is not None
-            self.assertEqual(source.path.read_bytes(), b"grib")
+            self.assertEqual(source.reference_grib_path(), workdir / "input.grib2")
+            self.assertEqual(
+                source.component_grib_path(
+                    product_id="tmp_surface",
+                    component_id="value",
+                    grib_match={"GRIB_ELEMENT": "TMP"},
+                ),
+                workdir / "input.grib2",
+            )
+            self.assertEqual(source.reference_grib_path().read_bytes(), b"grib")
 
     def test_icon_dwd_url_uses_cycle_hour_parameter_folder_and_uppercase_filename(self) -> None:
         self.assertEqual(
@@ -93,7 +97,7 @@ class ModelSourceAdapterTest(unittest.TestCase):
         self.assertEqual(calls[0][-1], "deutscherwetterdienst/regrid:icon")
 
     def test_icon_adapter_reuses_cached_regridded_files(self) -> None:
-        product_config = _minimal_layer_config()
+        product_config = _minimal_product_config()
         product_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
         product = _product_spec("tmp_surface", product_config)
         model = ModelConfig(
@@ -111,7 +115,7 @@ class ModelSourceAdapterTest(unittest.TestCase):
             workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
             model_products={},
             products={"tmp_surface": product},
-            layer_groups=(),
+            product_groups=(),
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-source-") as td:
@@ -137,9 +141,16 @@ class ModelSourceAdapterTest(unittest.TestCase):
                     store=make_store(),
                 )
 
-        self.assertEqual(source.kind, "grib_collection")
         self.assertEqual(source.grid_id, "icon_global_regridded_0p125")
-        self.assertEqual(source.grib_paths, {"t_2m": regridded_path})
+        self.assertEqual(source.reference_grib_path(), regridded_path)
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="tmp_surface",
+                component_id="value",
+                grib_match={"ICON_PARAM": "T_2M"},
+            ),
+            regridded_path,
+        )
 
     def test_icon_regrid_requires_docker(self) -> None:
         from forecast_etl.models import icon

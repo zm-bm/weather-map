@@ -10,9 +10,9 @@ import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrame
 import { loadFramePayload, normalizeFrameHourToken } from './loader'
 
 const BASE_MANIFEST = createFrameManifestFixture({ forecastHours: ['000'] })
-const SCALAR_FRAME_REF = BASE_MANIFEST.frames['000']!.tmp_surface!
-const VECTOR_FRAME_REF = BASE_MANIFEST.frames['000']!.wind10m_uv!
-const GRID = BASE_MANIFEST.grids.g0!
+const SCALAR_FRAME_REF = BASE_MANIFEST.products.tmp_surface.frames['000']!
+const VECTOR_FRAME_REF = BASE_MANIFEST.products.wind10m_uv.frames['000']!
+const GRID = BASE_MANIFEST.products.tmp_surface.grid
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -184,7 +184,7 @@ describe('loadFramePayload', () => {
         manifest: BASE_MANIFEST,
         frameRef: {
           ...SCALAR_FRAME_REF,
-          byte_length: 6,
+          byteLength: 6,
         },
         grid: GRID,
         hourToken: '000',

@@ -20,12 +20,11 @@ function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {
 
 function TransportControls() {
   const {
-    cycle,
-    forecastHours,
+    times,
     state: { isPlaying },
     controls: { togglePlay },
   } = useForecastTimeContext()
-  const transportDisabled = forecastHours.length <= 1 || forecastTimeBounds(cycle, forecastHours) == null
+  const transportDisabled = times.length <= 1 || forecastTimeBounds(times) == null
   const playButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {

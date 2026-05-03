@@ -48,7 +48,7 @@ export async function loadFramePayload(
     variableId: args.variableId,
     hourToken,
     actualByteLength: payload.byteLength,
-    expectedFrameByteLength: args.frameRef.byte_length,
+    expectedFrameByteLength: args.frameRef.byteLength,
     grid: args.grid,
   })
 

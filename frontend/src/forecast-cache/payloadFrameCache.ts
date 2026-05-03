@@ -16,19 +16,19 @@ const payloadFrameCache = createPayloadCache({
 })
 
 export function payloadFrameCacheKey(
-  manifest: Pick<CycleManifest, 'revision'>,
-  frameRef: Pick<FramePayloadRef, 'path' | 'sha256' | 'byte_length'>
+  manifest: Pick<CycleManifest, 'run'>,
+  frameRef: Pick<FramePayloadRef, 'path' | 'sha256' | 'byteLength'>
 ): string {
   return [
-    manifest.revision,
+    manifest.run.revision,
     frameRef.path,
     frameRef.sha256.toLowerCase(),
-    String(frameRef.byte_length),
+    String(frameRef.byteLength),
   ].join(':')
 }
 
 export async function ensurePayloadFrameCacheScope(
-  manifest: Pick<CycleManifest, 'cycle' | 'revision'>
+  manifest: Pick<CycleManifest, 'run'>
 ): Promise<void> {
   await payloadFrameCache.activateScope(payloadFrameScopeKey(manifest))
 }
@@ -40,7 +40,7 @@ export async function readCachedPayloadFrame(
 }
 
 export async function writeCachedPayloadFrame(args: {
-  manifest: Pick<CycleManifest, 'cycle' | 'revision'>
+  manifest: Pick<CycleManifest, 'run'>
   key: string
   payload: ArrayBuffer
 }): Promise<void> {
@@ -67,7 +67,7 @@ export function __setPayloadFrameCacheLimitsForTests(limits: {
 }
 
 function payloadFrameScopeKey(
-  manifest: Pick<CycleManifest, 'cycle' | 'revision'>
+  manifest: Pick<CycleManifest, 'run'>
 ): string {
-  return `${manifest.cycle}:${manifest.revision}`
+  return `${manifest.run.cycle}:${manifest.run.revision}`
 }

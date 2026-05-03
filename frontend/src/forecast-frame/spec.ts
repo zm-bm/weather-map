@@ -1,24 +1,21 @@
 import type {
   CycleManifest,
   FramePayloadRef,
-  ManifestEncodingSpec,
-  ScalarGridSpec,
-  ScalarVariableSpec,
-  VectorVariableSpec,
+  ManifestProductSpec,
+  ScalarProductSpec,
+  VectorProductSpec,
 } from '../manifest/types'
 
 export type FrameKind = 'scalar' | 'vector'
 
 type FrameVariableMetaMap = {
-  scalar: ScalarVariableSpec
-  vector: VectorVariableSpec
+  scalar: ScalarProductSpec
+  vector: VectorProductSpec
 }
 
 export type ResolvedFrameSpec<D extends FrameKind> = {
   frameRef: FramePayloadRef
-  variableMeta: FrameVariableMetaMap[D]
-  encoding: ManifestEncodingSpec
-  grid: ScalarGridSpec
+  variable: FrameVariableMetaMap[D]
 }
 
 export function resolveFrameSpec<D extends FrameKind>(
@@ -27,62 +24,36 @@ export function resolveFrameSpec<D extends FrameKind>(
   variable: string,
   domain: D
 ): ResolvedFrameSpec<D> {
-  const frameRef = resolveFrameRef(manifest, hourToken, variable, domain)
-  const variableMeta = resolveVariableMeta(manifest, variable, domain)
-  const encoding = resolveManifestEncoding(manifest, variableMeta.encoding_id, variable, domain)
-  const grid = resolveGrid(manifest, variableMeta.grid_id, variable, domain)
-  return { frameRef, variableMeta, encoding, grid }
+  const resolvedVariable = resolveVariable(manifest, variable, domain)
+  const frameRef = resolveFrameRef(resolvedVariable, hourToken, variable, domain)
+  return { frameRef, variable: resolvedVariable }
 }
 
 function resolveFrameRef(
-  manifest: CycleManifest,
+  resolvedVariable: ManifestProductSpec,
   hourToken: string,
   variable: string,
   domain: FrameKind
 ): FramePayloadRef {
   return requiredValue(
-    manifest.frames[hourToken]?.[variable],
+    resolvedVariable.frames[hourToken],
     `No ${domain} frame ref for variable=${variable} hour=${hourToken}`
   )
 }
 
-function resolveVariableMeta<D extends FrameKind>(
+function resolveVariable<D extends FrameKind>(
   manifest: CycleManifest,
   variable: string,
   domain: D
 ): FrameVariableMetaMap[D] {
-  const variableMeta = requiredValue(
-    manifest.variableMeta[variable],
+  const resolvedVariable = requiredValue(
+    manifest.products[variable],
     `No ${domain} variable metadata for ${variable}`
   )
-  if (variableMeta.kind !== domain) {
-    throw new Error(`Variable ${variable} is not ${domain} (got ${variableMeta.kind})`)
+  if (resolvedVariable.kind !== domain) {
+    throw new Error(`Variable ${variable} is not ${domain} (got ${resolvedVariable.kind})`)
   }
-  return variableMeta as FrameVariableMetaMap[D]
-}
-
-function resolveManifestEncoding(
-  manifest: CycleManifest,
-  encodingId: string,
-  variable: string,
-  domain: FrameKind
-): ManifestEncodingSpec {
-  return requiredValue(
-    manifest.encodings[encodingId],
-    `No ${domain} encoding ${encodingId} for ${variable}`
-  )
-}
-
-function resolveGrid(
-  manifest: CycleManifest,
-  gridId: string,
-  variable: string,
-  domain: FrameKind
-): ScalarGridSpec {
-  return requiredValue(
-    manifest.grids[gridId],
-    `No ${domain} grid ${gridId} for ${variable}`
-  )
+  return resolvedVariable as FrameVariableMetaMap[D]
 }
 
 function requiredValue<T>(value: T | undefined, message: string): T {

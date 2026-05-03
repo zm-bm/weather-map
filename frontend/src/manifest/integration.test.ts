@@ -59,8 +59,8 @@ describe('manifest + frame loading end-to-end', () => {
     const frames = await loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarVariables[0],
-      activeVector: manifest.vectorVariables[0],
+      activeScalar: manifest.scalarProducts[0]!,
+      activeVector: manifest.vectorProducts[0]!,
       selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
       lowerHourToken: '000',
       upperHourToken: '000',
@@ -68,7 +68,7 @@ describe('manifest + frame loading end-to-end', () => {
       signal,
     })
 
-    expect(manifest.cycle).toBe('2026041312')
+    expect(manifest.run.cycle).toBe('2026041312')
     expect(Array.from(frames.scalar.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(Array.from(frames.vector.lower.u)).toEqual([5, 6, 7, 8])
     expect(Array.from(frames.vector.lower.v)).toEqual([-1, -2, -3, -4])

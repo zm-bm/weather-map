@@ -1,7 +1,10 @@
+import type { ForecastTimeSpec } from '../manifest'
+
 export const MINUTE_MS = 60 * 1000
 export const FORECAST_TIME_STEP_MINUTES = 10
 export const FORECAST_TIME_STEP_MS = FORECAST_TIME_STEP_MINUTES * MINUTE_MS
-const HOUR_MS = 60 * MINUTE_MS
+
+export type ForecastTimelineTime = Pick<ForecastTimeSpec, 'id' | 'validAt'>
 
 export type ForecastFrameSelection = {
   selectedValidTimeMs: number
@@ -15,37 +18,13 @@ export type ForecastFrameWindow = ForecastFrameSelection & {
   upperValidTimeMs: number
 }
 
-export function cycleMs(cycle: string | null | undefined): number | null {
-  if (!cycle || !/^\d{10}$/.test(cycle)) return null
-
-  const year = Number.parseInt(cycle.slice(0, 4), 10)
-  const month = Number.parseInt(cycle.slice(4, 6), 10) - 1
-  const day = Number.parseInt(cycle.slice(6, 8), 10)
-  const hour = Number.parseInt(cycle.slice(8, 10), 10)
-
-  return Date.UTC(year, month, day, hour)
+function forecastTimeMs(time: ForecastTimelineTime): number | null {
+  const epochMs = Date.parse(time.validAt)
+  return Number.isFinite(epochMs) ? epochMs : null
 }
 
-export function hourOffsetMs(forecastHour: string): number {
-  const hours = Number.parseInt(forecastHour, 10)
-  if (!Number.isFinite(hours)) return 0
-  return Math.max(0, hours) * HOUR_MS
-}
-
-export function validTimeMs(
-  cycle: string | null | undefined,
-  forecastHour: string
-): number | null {
-  const cycleEpochMs = cycleMs(cycle)
-  if (cycleEpochMs == null) return null
-  return cycleEpochMs + hourOffsetMs(forecastHour)
-}
-
-export function forecastValidTimeMsList(
-  cycle: string | null | undefined,
-  forecastHours: string[]
-): number[] {
-  return forecastHours.map((forecastHour) => validTimeMs(cycle, forecastHour) ?? 0)
+export function forecastValidTimeMsList(times: ForecastTimelineTime[]): number[] {
+  return times.map((time) => forecastTimeMs(time) ?? 0)
 }
 
 export function normalizeMinuteMs(validTimeMsValue: number): number {
@@ -70,11 +49,10 @@ function normalizeStepCount(stepCount: number): number {
 }
 
 export function forecastTimeBounds(
-  cycle: string | null | undefined,
-  forecastHours: string[]
+  times: ForecastTimelineTime[]
 ): { startValidTimeMs: number; endValidTimeMs: number; totalMinutes: number } | null {
-  if (forecastHours.length === 0) return null
-  const validTimes = forecastValidTimeMsList(cycle, forecastHours)
+  if (times.length === 0) return null
+  const validTimes = forecastValidTimeMsList(times)
   const startValidTimeMs = validTimes[0]
   const endValidTimeMs = validTimes[validTimes.length - 1]
   if (!Number.isFinite(startValidTimeMs) || !Number.isFinite(endValidTimeMs)) return null
@@ -87,11 +65,10 @@ export function forecastTimeBounds(
 }
 
 export function clampForecastValidTimeMs(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   value: number
 ): number {
-  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const bounds = forecastTimeBounds(times)
   if (!bounds) return 0
 
   const normalized = normalizeMinuteMs(value)
@@ -101,21 +78,19 @@ export function clampForecastValidTimeMs(
 }
 
 export function initialForecastValidTimeMs(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   nowMs = Date.now()
 ): number {
-  return clampForecastValidTimeMs(cycle, forecastHours, nowMs)
+  return clampForecastValidTimeMs(times, nowMs)
 }
 
 export function minuteOffsetForValidTime(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   validTimeMsValue: number
 ): number {
-  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const bounds = forecastTimeBounds(times)
   if (!bounds) return 0
-  const clampedValidTimeMs = clampForecastValidTimeMs(cycle, forecastHours, validTimeMsValue)
+  const clampedValidTimeMs = clampForecastValidTimeMs(times, validTimeMsValue)
   return normalizeMinuteOffset(
     Math.round((clampedValidTimeMs - bounds.startValidTimeMs) / MINUTE_MS),
     bounds.totalMinutes
@@ -123,11 +98,10 @@ export function minuteOffsetForValidTime(
 }
 
 export function validTimeMsForMinuteOffset(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   minuteOffset: number
 ): number {
-  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const bounds = forecastTimeBounds(times)
   if (!bounds) return 0
 
   const normalizedMinutes = normalizeMinuteOffset(minuteOffset, bounds.totalMinutes)
@@ -135,18 +109,17 @@ export function validTimeMsForMinuteOffset(
 }
 
 export function stepForecastValidTimeMs(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   currentValidTimeMs: number,
   stepCount: number
 ): number {
-  const bounds = forecastTimeBounds(cycle, forecastHours)
+  const bounds = forecastTimeBounds(times)
   if (!bounds) return 0
 
   const steps = Math.floor(bounds.totalMinutes / FORECAST_TIME_STEP_MINUTES) + 1
   if (steps <= 1) return bounds.startValidTimeMs
 
-  const currentOffset = minuteOffsetForValidTime(cycle, forecastHours, currentValidTimeMs)
+  const currentOffset = minuteOffsetForValidTime(times, currentValidTimeMs)
   const currentStep = Math.floor(currentOffset / FORECAST_TIME_STEP_MINUTES)
   const nextStep = ((currentStep + normalizeStepCount(stepCount)) % steps + steps) % steps
   return bounds.startValidTimeMs + (nextStep * FORECAST_TIME_STEP_MS)
@@ -162,12 +135,11 @@ export function frameWindowMinuteOffset(
 }
 
 export function resolveForecastFrameWindow(
-  cycle: string | null | undefined,
-  forecastHours: string[],
+  times: ForecastTimelineTime[],
   selectedValidTimeMs: number
 ): ForecastFrameWindow {
-  const clampedValidTimeMs = clampForecastValidTimeMs(cycle, forecastHours, selectedValidTimeMs)
-  if (forecastHours.length === 0) {
+  const clampedValidTimeMs = clampForecastValidTimeMs(times, selectedValidTimeMs)
+  if (times.length === 0) {
     return {
       selectedValidTimeMs: clampedValidTimeMs,
       lowerHourToken: '000',
@@ -178,12 +150,12 @@ export function resolveForecastFrameWindow(
     }
   }
 
-  const validTimes = forecastValidTimeMsList(cycle, forecastHours)
+  const validTimes = forecastValidTimeMsList(times)
   const firstValidTimeMs = validTimes[0] ?? clampedValidTimeMs
   const lastValidTimeMs = validTimes[validTimes.length - 1] ?? clampedValidTimeMs
 
   if (clampedValidTimeMs <= firstValidTimeMs) {
-    const hourToken = forecastHours[0] ?? '000'
+    const hourToken = times[0]?.id ?? '000'
     return {
       selectedValidTimeMs: firstValidTimeMs,
       lowerHourToken: hourToken,
@@ -194,11 +166,11 @@ export function resolveForecastFrameWindow(
     }
   }
 
-  for (let idx = 0; idx < forecastHours.length - 1; idx += 1) {
+  for (let idx = 0; idx < times.length - 1; idx += 1) {
     const lowerValidTimeMs = validTimes[idx] ?? clampedValidTimeMs
     const upperValidTimeMs = validTimes[idx + 1] ?? lowerValidTimeMs
-    const lowerHourToken = forecastHours[idx] ?? '000'
-    const upperHourToken = forecastHours[idx + 1] ?? lowerHourToken
+    const lowerHourToken = times[idx]?.id ?? '000'
+    const upperHourToken = times[idx + 1]?.id ?? lowerHourToken
 
     if (clampedValidTimeMs === lowerValidTimeMs) {
       return {
@@ -235,7 +207,7 @@ export function resolveForecastFrameWindow(
     }
   }
 
-  const lastHourToken = forecastHours[forecastHours.length - 1] ?? '000'
+  const lastHourToken = times[times.length - 1]?.id ?? '000'
   return {
     selectedValidTimeMs: lastValidTimeMs,
     lowerHourToken: lastHourToken,

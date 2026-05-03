@@ -4,13 +4,12 @@ import { formatCycleRunTimeLabel } from '../../forecast-time'
 import { getScalarMeta } from '../../forecast-metadata/scalar'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
-  getForecastModelLabel,
   type ForecastModelId,
   type ForecastModelOption,
 } from '../../forecast-models'
-import type { CycleManifest, ScalarVariableId } from '../../manifest'
+import type { CycleManifest, ScalarProductId } from '../../manifest'
 
-type ScalarVariableGroup = CycleManifest['scalarVariableGroups'][number]
+type ScalarProductGroup = CycleManifest['groups'][number]
 
 type ForecastPanelProps = {
   activeModelId: ForecastModelId
@@ -18,21 +17,13 @@ type ForecastPanelProps = {
   onActiveModelChange: (modelId: ForecastModelId) => void
 }
 
-const CATEGORY_BUTTON_LABELS: Record<string, string> = {
-  temperature: 'Temp',
-  precipitation: 'Precip',
-}
-
 function getActiveScalarGroup(
-  scalarVariableGroups: CycleManifest['scalarVariableGroups'],
-  activeScalar: ScalarVariableId
-): ScalarVariableGroup {
-  return scalarVariableGroups.find((group) => group.variables.includes(activeScalar))
-    ?? scalarVariableGroups[0]
-}
-
-function formatCategoryButtonLabel(group: ScalarVariableGroup): string {
-  return CATEGORY_BUTTON_LABELS[group.id] ?? group.label
+  groups: CycleManifest['groups'],
+  activeScalar: ScalarProductId | null
+): ScalarProductGroup | null {
+  if (activeScalar == null) return groups[0] ?? null
+  return groups.find((group) => group.products.includes(activeScalar))
+    ?? groups[0]
 }
 
 function formatModelRunLabel(runTime: string): string {
@@ -45,16 +36,16 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
   onActiveModelChange,
 }, ref) {
   const {
-    cycle,
-    scalarVariableGroups,
+    manifest,
+    groups,
     activeScalar,
-    variableMeta,
+    products,
     setActiveScalar,
   } = useLoadedForecastSelectionContext()
-  const runTime = formatCycleRunTimeLabel(cycle) ?? '--'
+  const runTime = formatCycleRunTimeLabel(manifest.run.cycle) ?? '--'
   const runLabel = formatModelRunLabel(runTime)
-  const activeScalarGroup = getActiveScalarGroup(scalarVariableGroups, activeScalar)
-  const activeModelLabel = getForecastModelLabel(activeModelId)
+  const activeScalarGroup = getActiveScalarGroup(groups, activeScalar)
+  const activeModelLabel = manifest.model.label
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -79,45 +70,49 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
           <span className="forecast-controls__run">{runLabel}</span>
         </div>
 
-        <div
-          className={
-            scalarVariableGroups.length === 1
-              ? 'forecast-controls__category-tabs forecast-controls__category-tabs--single'
-              : 'forecast-controls__category-tabs'
-          }
-          aria-label="Category"
-        >
-          {scalarVariableGroups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className="forecast-controls__category-tab wm-mono-caps"
-              aria-label={group.label}
-              aria-pressed={group.id === activeScalarGroup.id}
-              title={group.label}
-              onClick={() => setActiveScalar(group.defaultVariable)}
+        {activeScalarGroup ? (
+          <>
+            <div
+              className={
+                groups.length === 1
+                  ? 'forecast-controls__category-tabs forecast-controls__category-tabs--single'
+                  : 'forecast-controls__category-tabs'
+              }
+              aria-label="Category"
             >
-              {formatCategoryButtonLabel(group)}
-            </button>
-          ))}
-        </div>
+              {groups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className="forecast-controls__category-tab wm-mono-caps"
+                  aria-label={group.label}
+                  aria-pressed={group.id === activeScalarGroup.id}
+                  title={group.label}
+                  onClick={() => setActiveScalar(group.defaultProduct)}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
 
-        <select
-          className="forecast-controls__select forecast-controls__measurement-select"
-          aria-label="Measurement"
-          value={activeScalar}
-          onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarVariableId)}
-        >
-          {activeScalarGroup.variables.map((variableId) => {
-            const meta = getScalarMeta(variableId, variableMeta)
+            <select
+              className="forecast-controls__select forecast-controls__measurement-select"
+              aria-label="Measurement"
+              value={activeScalar ?? ''}
+              onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarProductId)}
+            >
+              {activeScalarGroup.products.map((productId) => {
+                const meta = getScalarMeta(productId, products)
 
-            return (
-              <option key={variableId} value={variableId}>
-                {meta.label}
-              </option>
-            )
-          })}
-        </select>
+                return (
+                  <option key={productId} value={productId}>
+                    {meta.label}
+                  </option>
+                )
+              })}
+            </select>
+          </>
+        ) : null}
       </div>
     </section>
   )

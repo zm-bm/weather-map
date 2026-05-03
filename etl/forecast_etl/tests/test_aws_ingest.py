@@ -89,6 +89,7 @@ class AwsIngestTest(unittest.TestCase):
                     "source_transform": "identity",
                     "encoding": {
                         "id": "tmp_surface_i16_v1",
+                        "format": "linear-i16-v1",
                         "dtype": "int16",
                         "byte_order": "little",
                         "scale": 0.01,
@@ -106,12 +107,11 @@ class AwsIngestTest(unittest.TestCase):
                     "valid_max": 63.5,
                     "encoding": {
                         "id": "wind10m_uv_vector_i8_v1",
-                        "format": "uv-i8-q0p5-v1",
+                        "format": "linear-i8-v1",
                         "dtype": "int8",
                         "byte_order": "none",
                         "scale": 0.5,
                         "offset": 0.0,
-                        "component_order": "u_then_v",
                     },
                     "components": [{"id": "u"}, {"id": "v"}],
                 },

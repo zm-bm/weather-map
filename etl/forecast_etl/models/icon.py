@@ -177,6 +177,7 @@ def _acquire_icon_dwd_source(
         uri=f"icon-dwd://{model.id}/{cycle}/{fhour}",
         grib_paths=grib_paths,
         grid_id=model.source.grid_id,
+        selector_key=ICON_PARAM_MATCH_KEY,
     )
 
 

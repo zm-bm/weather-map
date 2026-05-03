@@ -50,12 +50,13 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   if (cachedFrame) return cachedFrame
 
   const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'scalar')
-  const encoding = resolveScalarEncoding(variable, spec.encoding)
+  const encoding = resolveScalarEncoding(variable, spec.variable.encoding)
+  const grid = spec.variable.grid
   const { payload } = await loadFramePayload({
     config,
     manifest,
     frameRef: spec.frameRef,
-    grid: spec.grid,
+    grid,
     hourToken: normalizedHourToken,
     variableId: variable,
     frameKind: 'scalar',
@@ -64,14 +65,14 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   })
   if (signal.aborted) throw createAbortError()
 
-  const expectedCellCount = spec.grid.nx * spec.grid.ny
+  const expectedCellCount = grid.nx * grid.ny
   if (
-    encoding.format === 'scalar-i8-linear-components-v1' &&
-    payload.byteLength !== expectedCellCount * encoding.component_count
+    'components' in encoding &&
+    payload.byteLength !== expectedCellCount * encoding.components.length
   ) {
     throw new Error(
       `Cloud layer payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
-      `got=${payload.byteLength} expected=${expectedCellCount * encoding.component_count}`
+      `got=${payload.byteLength} expected=${expectedCellCount * encoding.components.length}`
     )
   }
 
@@ -83,17 +84,17 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
       `got=${values.length} expected=${expectedCellCount}`
     )
   }
-  const catalog = getScalarStyle(variable)
+  const style = getScalarStyle(variable)
 
   const frame = {
     hourToken: normalizedHourToken,
     variableId: variable,
-    grid: spec.grid,
+    grid,
     encoding,
     values,
     cloudLayers,
-    displayRange: catalog.displayRange,
-    colortable: catalog.colortable,
+    displayRange: [spec.variable.valueRange.min, spec.variable.valueRange.max] as [number, number],
+    colortable: style.colortable,
   }
   setDecodedScalarFrame(cacheKey, frame)
 
@@ -145,7 +146,7 @@ export function decodedScalarFrameCacheKey(
   variable: string,
   hourToken: string
 ): string {
-  return `${manifest.cycle}:${manifest.revision}:${variable}:${normalizeFrameHourToken(hourToken)}`
+  return `${manifest.run.cycle}:${manifest.run.revision}:${variable}:${normalizeFrameHourToken(hourToken)}`
 }
 
 function getDecodedScalarFrame(cacheKey: string): ScalarFrameData | null {
@@ -193,7 +194,7 @@ export function canInterpolateScalarFrames(
   if (lower.grid.nx !== upper.grid.nx || lower.grid.ny !== upper.grid.ny) return false
   if (lower.grid.lon0 !== upper.grid.lon0 || lower.grid.lat0 !== upper.grid.lat0) return false
   if (lower.grid.dx !== upper.grid.dx || lower.grid.dy !== upper.grid.dy) return false
-  if (lower.grid.x_wrap !== upper.grid.x_wrap || lower.grid.y_mode !== upper.grid.y_mode) return false
+  if (lower.grid.xWrap !== upper.grid.xWrap || lower.grid.yMode !== upper.grid.yMode) return false
   if (lower.encoding.format !== upper.encoding.format) return false
   if (Boolean(lower.cloudLayers) !== Boolean(upper.cloudLayers)) return false
   if ('scale' in lower.encoding || 'scale' in upper.encoding) {
@@ -227,13 +228,13 @@ function resolveScalarEncoding(
   variable: string,
   encoding: ManifestEncodingSpec
 ): ScalarEncodingSpec {
+  const encodingFormat = (encoding as { format?: string }).format
   if (
-    encoding.format !== 'scalar-i16-linear-v1' &&
-    encoding.format !== 'scalar-i8-linear-v1' &&
-    encoding.format !== 'scalar-i8-linear-components-v1' &&
-    encoding.format !== 'scalar-i8-temp-c-piecewise-v1'
+    encodingFormat !== 'linear-i16-v1' &&
+    encodingFormat !== 'linear-i8-v1' &&
+    encodingFormat !== 'temp-c-piecewise-i8-v1'
   ) {
-    throw new Error(`Unsupported scalar format for ${variable}: ${encoding.format}`)
+    throw new Error(`Unsupported scalar format for ${variable}: ${encodingFormat}`)
   }
   if (!('nodata' in encoding)) {
     throw new Error(`Scalar encoding for ${variable} is missing nodata`)

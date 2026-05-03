@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from '../../manifest'
+import type { ScalarEncodingSpec } from '../../manifest'
 import {
   decodeCloudLayerPayload,
   decodeScalarPayloadInt16,
@@ -13,6 +13,8 @@ import {
   createConfigFixture,
   createFrameRefFixture,
   createFrameManifestFixture,
+  createGridFixture,
+  createScalarProductFixture,
   createScalarPayloadFixture,
   createSignalFixture,
 } from '../../test/fixtures'
@@ -45,13 +47,14 @@ describe('scalar payload', () => {
   it('decodes linear scalar payloads into values before rendering', () => {
     const payload = new Int8Array([-100, 0, 100, -128]).buffer
     const values = decodeScalarPayloadToValues(payload, {
-      format: 'scalar-i8-linear-v1',
+      id: 'e0',
+      format: 'linear-i8-v1',
       dtype: 'int8',
-      byte_order: 'none',
+      byteOrder: 'none',
       nodata: -128,
       scale: 0.5,
       offset: 50,
-      decode_formula: 'value = stored * scale + offset',
+      decodeFormula: 'value = stored * scale + offset',
     })
 
     expect(Array.from(values.slice(0, 3))).toEqual([0, 50, 100])
@@ -61,9 +64,10 @@ describe('scalar payload', () => {
   it('decodes temperature piecewise payloads into Celsius values', () => {
     const payload = new Int8Array([-127, -73, -72, 95, 96, 127, -128]).buffer
     const values = decodeScalarPayloadToValues(payload, {
-      format: 'scalar-i8-temp-c-piecewise-v1',
+      id: 'e0',
+      format: 'temp-c-piecewise-i8-v1',
       dtype: 'int8',
-      byte_order: 'none',
+      byteOrder: 'none',
       nodata: -128,
     })
 
@@ -80,16 +84,15 @@ describe('scalar payload', () => {
       3, 9, 13, 19,
     ]).buffer
     const decoded = decodeCloudLayerPayload(payload, {
-      format: 'scalar-i8-linear-components-v1',
+      id: 'e0',
+      format: 'linear-i8-v1',
       dtype: 'int8',
-      byte_order: 'none',
+      byteOrder: 'none',
       nodata: -128,
       scale: 5,
       offset: 0,
-      decode_formula: 'value = stored * scale + offset',
+      decodeFormula: 'value = stored * scale + offset',
       components: ['low', 'medium', 'high'],
-      component_count: 3,
-      component_order: 'low_medium_high',
     })
 
     expect(Array.from(decoded.cloudLayers!.low.slice(0, 3))).toEqual([0, 5, 100])
@@ -101,16 +104,15 @@ describe('scalar payload', () => {
 
   it('rejects packed cloud layer payloads whose byte length cannot be split into components', () => {
     expect(() => decodeCloudLayerPayload(new Int8Array([0, 1, 2, 3]).buffer, {
-      format: 'scalar-i8-linear-components-v1',
+      id: 'e0',
+      format: 'linear-i8-v1',
       dtype: 'int8',
-      byte_order: 'none',
+      byteOrder: 'none',
       nodata: -128,
       scale: 5,
       offset: 0,
-      decode_formula: 'value = stored * scale + offset',
+      decodeFormula: 'value = stored * scale + offset',
       components: ['low', 'medium', 'high'],
-      component_count: 3,
-      component_order: 'low_medium_high',
     })).toThrow('Invalid cloud layer payload byte length')
   })
 
@@ -123,29 +125,29 @@ describe('scalar payload', () => {
       manifest: createFrameManifestFixture({
         cycle: '2026041100',
         generatedAt: '2026-04-11T00:00:00Z',
-        grids: {
-          g0: {
-            crs: 'EPSG:4326',
-            nx: 2,
-            ny: 2,
+        products: {
+          tmp_surface: createScalarProductFixture({
+            grid: createGridFixture({
+              crs: 'EPSG:4326',
+              nx: 2,
+              ny: 2,
             lon0: 0,
             lat0: 0,
             dx: 1,
             dy: -1,
             origin: 'cell_center',
-            layout: 'row_major',
-            x_wrap: 'repeat',
-            y_mode: 'clamp',
-          },
-        },
-        frames: {
-          '000': {
-            tmp_surface: {
-              path: 'fields/2026041100/000/tmp_surface.scalar.i16.bin',
-              byte_length: 8,
-              sha256: 'x',
+              layout: 'row_major',
+              xWrap: 'repeat',
+              yMode: 'clamp',
+            }),
+            frames: {
+              '000': createFrameRefFixture({
+                path: 'fields/2026041100/000/tmp_surface.scalar.i16.bin',
+                byteLength: 8,
+                sha256: 'x',
+              }),
             },
-          },
+          }),
         },
       }),
       variable: 'tmp_surface',
@@ -186,19 +188,22 @@ describe('scalar payload', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const hourTokens = ['000', '001', '002', '003', '004', '005', '006']
-    const baseManifest = createFrameManifestFixture()
     const manifest = createFrameManifestFixture({
+      cycle: '2026041100',
       forecastHours: hourTokens,
-      frames: Object.fromEntries(hourTokens.map((hourToken) => [
-        hourToken,
-        {
-          tmp_surface: createFrameRefFixture({
-            path: `fields/2026041100/${hourToken}/tmp_surface.scalar.i16.bin`,
-            sha256: `sha-${hourToken}`,
-          }),
-        },
-      ])),
-      variableMeta: baseManifest.variableMeta,
+      products: {
+        tmp_surface: createScalarProductFixture({
+          cycle: '2026041100',
+          forecastHours: hourTokens,
+          frames: Object.fromEntries(hourTokens.map((hourToken) => [
+            hourToken,
+            createFrameRefFixture({
+              path: `fields/2026041100/${hourToken}/tmp_surface.scalar.i16.bin`,
+              sha256: `sha-${hourToken}`,
+            }),
+          ])),
+        }),
+      },
     })
 
     const loadedFrames = []
@@ -227,31 +232,30 @@ describe('scalar payload', () => {
   it('maps loaded int8 scalar payloads into frame data', async () => {
     const payload = new Int8Array([-100, 0, 100, -128]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const baseManifest = createFrameManifestFixture()
 
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
       manifest: createFrameManifestFixture({
-        encodings: {
-          ...baseManifest.encodings,
-          e0: {
-            format: 'scalar-i8-linear-v1',
-            dtype: 'int8',
-            byte_order: 'none',
-            nodata: -128,
-            scale: 0.5,
-            offset: 50,
-            decode_formula: 'value = stored * scale + offset',
-          },
-        },
-        frames: {
-          '000': {
-            tmp_surface: {
-              path: 'fields/2026041100/000/tmp_surface.temp-piecewise.scalar.i8.bin',
-              byte_length: 4,
-              sha256: 'x',
+        products: {
+          tmp_surface: createScalarProductFixture({
+            encoding: {
+              id: 'e0',
+              format: 'linear-i8-v1',
+              dtype: 'int8',
+              byteOrder: 'none',
+              nodata: -128,
+              scale: 0.5,
+              offset: 50,
+              decodeFormula: 'value = stored * scale + offset',
             },
-          },
+            frames: {
+              '000': createFrameRefFixture({
+                path: 'fields/2026041100/000/tmp_surface.temp-piecewise.scalar.i8.bin',
+                byteLength: 4,
+                sha256: 'x',
+              }),
+            },
+          }),
         },
       }),
       variable: 'tmp_surface',
@@ -259,7 +263,7 @@ describe('scalar payload', () => {
       signal: createSignalFixture(),
     })
 
-    expect(frame.encoding.format).toBe('scalar-i8-linear-v1')
+    expect(frame.encoding.format).toBe('linear-i8-v1')
     expect(Array.from(frame.values.slice(0, 3))).toEqual([0, 50, 100])
     expect(Number.isNaN(frame.values[3])).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -268,28 +272,27 @@ describe('scalar payload', () => {
   it('maps loaded temperature piecewise payloads into decoded frame data', async () => {
     const payload = new Int8Array([-127, -73, -72, 95]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const baseManifest = createFrameManifestFixture()
 
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
       manifest: createFrameManifestFixture({
-        encodings: {
-          ...baseManifest.encodings,
-          e0: {
-            format: 'scalar-i8-temp-c-piecewise-v1',
-            dtype: 'int8',
-            byte_order: 'none',
-            nodata: -128,
-          },
-        },
-        frames: {
-          '000': {
-            tmp_surface: {
-              path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
-              byte_length: 4,
-              sha256: 'x',
+        products: {
+          tmp_surface: createScalarProductFixture({
+            encoding: {
+              id: 'e0',
+              format: 'temp-c-piecewise-i8-v1',
+              dtype: 'int8',
+              byteOrder: 'none',
+              nodata: -128,
             },
-          },
+            frames: {
+              '000': createFrameRefFixture({
+                path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
+                byteLength: 4,
+                sha256: 'x',
+              }),
+            },
+          }),
         },
       }),
       variable: 'tmp_surface',
@@ -297,7 +300,7 @@ describe('scalar payload', () => {
       signal: createSignalFixture(),
     })
 
-    expect(frame.encoding.format).toBe('scalar-i8-temp-c-piecewise-v1')
+    expect(frame.encoding.format).toBe('temp-c-piecewise-i8-v1')
     expect(Array.from(frame.values)).toEqual([-35, -8, -7.75, 34])
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -309,34 +312,31 @@ describe('scalar payload', () => {
       3, 9, 13, 19,
     ]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const baseManifest = createFrameManifestFixture()
 
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
       manifest: createFrameManifestFixture({
-        encodings: {
-          ...baseManifest.encodings,
-          e0: {
-            format: 'scalar-i8-linear-components-v1',
-            dtype: 'int8',
-            byte_order: 'none',
-            nodata: -128,
-            scale: 5,
-            offset: 0,
-            decode_formula: 'value = stored * scale + offset',
-            components: ['low', 'medium', 'high'],
-            component_count: 3,
-            component_order: 'low_medium_high',
-          },
-        },
-        frames: {
-          '000': {
-            tmp_surface: {
-              path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
-              byte_length: 12,
-              sha256: 'x',
+        products: {
+          tmp_surface: createScalarProductFixture({
+            encoding: {
+              id: 'e0',
+              format: 'linear-i8-v1',
+              dtype: 'int8',
+              byteOrder: 'none',
+              nodata: -128,
+              scale: 5,
+              offset: 0,
+              decodeFormula: 'value = stored * scale + offset',
+              components: ['low', 'medium', 'high'],
             },
-          },
+            frames: {
+              '000': createFrameRefFixture({
+                path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+                byteLength: 12,
+                sha256: 'x',
+              }),
+            },
+          }),
         },
       }),
       variable: 'tmp_surface',
@@ -344,7 +344,7 @@ describe('scalar payload', () => {
       signal: createSignalFixture(),
     })
 
-    expect(frame.encoding.format).toBe('scalar-i8-linear-components-v1')
+    expect(frame.encoding.format).toBe('linear-i8-v1')
     expect(Array.from(frame.values)).toEqual([15, 55, 100, 95])
     expect(Array.from(frame.cloudLayers?.low.slice(0, 3) ?? [])).toEqual([0, 5, 100])
     expect(Number.isNaN(frame.cloudLayers?.low[3] ?? Number.NaN)).toBe(true)
@@ -356,35 +356,32 @@ describe('scalar payload', () => {
   it('rejects packed cloud layer payloads with the wrong grid cell count', async () => {
     const payload = new Int8Array([0, 1, 2]).buffer
     stubFetchArrayBufferOnce(payload)
-    const baseManifest = createFrameManifestFixture()
 
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            e0: {
-              format: 'scalar-i8-linear-components-v1',
-              dtype: 'int8',
-              byte_order: 'none',
-              nodata: -128,
-              scale: 5,
-              offset: 0,
-              decode_formula: 'value = stored * scale + offset',
-              components: ['low', 'medium', 'high'],
-              component_count: 3,
-              component_order: 'low_medium_high',
-            },
-          },
-          frames: {
-            '000': {
-              tmp_surface: {
-                path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
-                byte_length: 3,
-                sha256: 'x',
+          products: {
+            tmp_surface: createScalarProductFixture({
+              encoding: {
+                id: 'e0',
+                format: 'linear-i8-v1',
+                dtype: 'int8',
+                byteOrder: 'none',
+                nodata: -128,
+                scale: 5,
+                offset: 0,
+                decodeFormula: 'value = stored * scale + offset',
+                components: ['low', 'medium', 'high'],
               },
-            },
+              frames: {
+                '000': createFrameRefFixture({
+                  path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+                  byteLength: 3,
+                  sha256: 'x',
+                }),
+              },
+            }),
           },
         }),
         variable: 'tmp_surface',
@@ -397,32 +394,31 @@ describe('scalar payload', () => {
   it('rejects scalar payloads with the wrong decoded cell count', async () => {
     const payload = new Int8Array([1, 2, 3]).buffer
     stubFetchArrayBufferOnce(payload)
-    const baseManifest = createFrameManifestFixture()
 
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            e0: {
-              format: 'scalar-i8-linear-v1',
-              dtype: 'int8',
-              byte_order: 'none',
-              nodata: -128,
-              scale: 0.5,
-              offset: 50,
-              decode_formula: 'value = stored * scale + offset',
-            },
-          },
-          frames: {
-            '000': {
-              tmp_surface: {
-                path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
-                byte_length: 3,
-                sha256: 'x',
+          products: {
+            tmp_surface: createScalarProductFixture({
+              encoding: {
+                id: 'e0',
+                format: 'linear-i8-v1',
+                dtype: 'int8',
+                byteOrder: 'none',
+                nodata: -128,
+                scale: 0.5,
+                offset: 50,
+                decodeFormula: 'value = stored * scale + offset',
               },
-            },
+              frames: {
+                '000': createFrameRefFixture({
+                  path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
+                  byteLength: 3,
+                  sha256: 'x',
+                }),
+              },
+            }),
           },
         }),
         variable: 'tmp_surface',
@@ -433,18 +429,17 @@ describe('scalar payload', () => {
   })
 
   it('rejects unsupported scalar encodings locally', async () => {
-    const baseManifest = createFrameManifestFixture()
-
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            e0: {
-              ...baseManifest.encodings.e0,
-              format: 'bad-format',
-            } as unknown as CycleManifest['encodings'][string],
+          products: {
+            tmp_surface: createScalarProductFixture({
+              encoding: {
+                id: 'e0',
+                format: 'bad-format',
+              } as unknown as ScalarEncodingSpec,
+            }),
           },
         }),
         variable: 'tmp_surface',
@@ -457,16 +452,18 @@ describe('scalar payload', () => {
       loadScalarFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
-          encodings: {
-            ...baseManifest.encodings,
-            e0: {
-              format: 'scalar-i16-linear-v1',
-              dtype: 'int16',
-              byte_order: 'little',
-              scale: 0.01,
-              offset: 0,
-              decode_formula: 'value = stored * scale + offset',
-            } as unknown as CycleManifest['encodings'][string],
+          products: {
+            tmp_surface: createScalarProductFixture({
+              encoding: {
+                id: 'e0',
+                format: 'linear-i16-v1',
+                dtype: 'int16',
+                byteOrder: 'little',
+                scale: 0.01,
+                offset: 0,
+                decodeFormula: 'value = stored * scale + offset',
+              } as unknown as ScalarEncodingSpec,
+            }),
           },
         }),
         variable: 'tmp_surface',

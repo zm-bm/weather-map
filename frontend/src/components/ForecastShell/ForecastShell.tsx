@@ -65,11 +65,11 @@ export default function ForecastShell({
     }
   }, [manifest])
 
-  // Remount forecast time state whenever cycle/hour list changes so initial index
+  // Remount forecast time state whenever the manifest timeline changes so initial index
   // is computed from the new manifest synchronously during mount.
   const forecastTimeProviderKey = manifest == null
     ? 'forecast-time:none'
-    : `forecast-time:${manifest.cycle}:${manifest.forecastHours.join(',')}`
+    : `forecast-time:${manifest.run.cycle}:${manifest.times.map((time) => `${time.id}:${time.validAt}`).join(',')}`
 
   return (
     <main className="forecast-screen">

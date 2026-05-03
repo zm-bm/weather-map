@@ -10,14 +10,14 @@ from unittest.mock import patch
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.config.schema import ExecutionContext
-from forecast_etl.encoding.wind import quantize_f32_to_i8_q0p5
+from forecast_etl.encoding.codecs import FORMAT_LINEAR_I8, encode_component_payload
 from forecast_etl.proc import RunResult
 from forecast_etl.products.execute import run_product_item_in_workdir
 from forecast_etl.sources.prepared import PreparedSource
 from forecast_etl.stores import make_store
 from forecast_etl.tests.product_test_helpers import (
     _cloud_layers_config,
-    _minimal_layer_config,
+    _minimal_product_config,
     _pack_f32,
     _precip_total_config,
     _product_spec,
@@ -34,7 +34,7 @@ class ArtifactPathContractTest(unittest.TestCase):
     def test_wind_payload_is_co_located_with_weather_payloads(self) -> None:
         ap = ArtifactPaths("file:///tmp/weather-map-artifacts")
         uri = ap.output_vector_payload_uri(
-            WorkItem(model_id="gfs", cycle="2026041200", fhour="003", layer="wind10m_uv", source_uri="file:///dev/null")
+            WorkItem(model_id="gfs", cycle="2026041200", fhour="003", product_id="wind10m_uv", source_uri="file:///dev/null")
         )
         self.assertEqual(
             uri,
@@ -61,10 +61,10 @@ class ScalarProductContractTest(unittest.TestCase):
                 model_id="gfs",
                 cycle="2026041200",
                 fhour="003",
-                layer="tmp_surface",
+                product_id="tmp_surface",
                 source_uri="file:///dev/null",
             )
-            product = _product_spec("tmp_surface", _minimal_layer_config())
+            product = _product_spec("tmp_surface", _minimal_product_config())
             source = _pack_f32([0.0, 1.0, 2.0, float("nan")], byte_order="little")
 
             with (
@@ -93,7 +93,7 @@ class ScalarProductContractTest(unittest.TestCase):
                         grid_id="gfs_0p25_global",
                     ),
                     run=_unused_run,
-                ).metadata
+                )
 
             ap = ArtifactPaths(artifact_root_uri)
             payload_uri = ap.output_scalar_payload_uri(item, dtype="int16")
@@ -131,7 +131,7 @@ class ScalarProductContractTest(unittest.TestCase):
                 model_id="gfs",
                 cycle="2026041200",
                 fhour="003",
-                layer="cloud_layers",
+                product_id="cloud_layers",
                 source_uri="file:///dev/null",
             )
             product = _product_spec("cloud_layers", _cloud_layers_config())
@@ -174,7 +174,7 @@ class ScalarProductContractTest(unittest.TestCase):
                         grid_id="gfs_0p25_global",
                     ),
                     run=_unused_run,
-                ).metadata
+                )
 
             ap = ArtifactPaths(artifact_root_uri)
             payload_uri = ap.output_scalar_payload_uri(item, dtype="int8")
@@ -191,11 +191,11 @@ class ScalarProductContractTest(unittest.TestCase):
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(result["byte_length"], len(expected_payload))
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
-            self.assertEqual(result["format"], "scalar-i8-linear-components-v1")
+            self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["dtype"], "int8")
             self.assertEqual(result["components"], ["low", "medium", "high"])
-            self.assertEqual(result["component_count"], 3)
-            self.assertEqual(result["component_order"], "low_medium_high")
+            self.assertNotIn("component_count", result)
+            self.assertNotIn("component_order", result)
             self.assertEqual(result["component_grib_matches"]["low"], {"GRIB_ELEMENT": "LCDC"})
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
@@ -220,7 +220,7 @@ class WindProductContractTest(unittest.TestCase):
                 model_id="gfs",
                 cycle="2026041200",
                 fhour="003",
-                layer="wind10m_uv",
+                product_id="wind10m_uv",
                 source_uri="file:///dev/null",
             )
             product = _product_spec("wind10m_uv", _wind_product_config())
@@ -254,7 +254,7 @@ class WindProductContractTest(unittest.TestCase):
                         grid_id="gfs_0p25_global",
                     ),
                     run=_unused_run,
-                ).metadata
+                )
 
             ap = ArtifactPaths(artifact_root_uri)
             payload_uri = ap.output_vector_payload_uri(item)
@@ -263,17 +263,33 @@ class WindProductContractTest(unittest.TestCase):
             self.assertTrue(payload_path.exists())
 
             payload_bytes = gzip.decompress(payload_path.read_bytes())
-            expected_u = quantize_f32_to_i8_q0p5(u_src, byte_order="little")
-            expected_v = quantize_f32_to_i8_q0p5(v_src, byte_order="little")
+            expected_u = encode_component_payload(
+                source_f32_bytes=u_src,
+                source_byte_order="little",
+                target_dtype="int8",
+                target_byte_order="none",
+                target_format=FORMAT_LINEAR_I8,
+                scale=0.5,
+                offset=0.0,
+            )
+            expected_v = encode_component_payload(
+                source_f32_bytes=v_src,
+                source_byte_order="little",
+                target_dtype="int8",
+                target_byte_order="none",
+                target_format=FORMAT_LINEAR_I8,
+                scale=0.5,
+                offset=0.0,
+            )
             expected_payload = expected_u + expected_v
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(result["byte_length"], len(expected_payload))
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
-            self.assertEqual(result["format"], "uv-i8-q0p5-v1")
+            self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["dtype"], "int8")
             self.assertEqual(result["components"], ["u", "v"])
-            self.assertEqual(result["component_count"], 2)
-            self.assertEqual(result["component_order"], "u_then_v")
+            self.assertNotIn("component_count", result)
+            self.assertNotIn("component_order", result)
             self.assertEqual(result["encoding_id"], "wind10m_uv_vector_i8_v1")
             self.assertEqual(result["grid_id"], "gfs_0p25_global")
             self.assertEqual(result["grid"]["lon0"], -180.0)
@@ -302,7 +318,7 @@ class IconGribCollectionProductTest(unittest.TestCase):
                 model_id="icon",
                 cycle="2026041200",
                 fhour="003",
-                layer="precip_total_surface",
+                product_id="precip_total_surface",
                 source_uri="icon-dwd://icon/2026041200/003",
             )
             product = _product_spec("precip_total_surface", _precip_total_config())
@@ -334,7 +350,7 @@ class IconGribCollectionProductTest(unittest.TestCase):
                         grid_id="icon_global_regridded_0p125",
                     ),
                     run=_unused_run,
-                ).metadata
+                )
 
             find_band.assert_called_once_with(grib_path, {}, run=_unused_run)
             self.assertEqual(extract_band.call_args.kwargs["grib_path"], grib_path)
@@ -367,7 +383,7 @@ class IconGribCollectionProductTest(unittest.TestCase):
                 model_id="icon",
                 cycle="2026041200",
                 fhour="003",
-                layer="cloud_layers",
+                product_id="cloud_layers",
                 source_uri="icon-dwd://icon/2026041200/003",
             )
             product_config = _cloud_layers_config()
@@ -426,7 +442,7 @@ class IconGribCollectionProductTest(unittest.TestCase):
                 model_id="icon",
                 cycle="2026041200",
                 fhour="003",
-                layer="wind10m_uv",
+                product_id="wind10m_uv",
                 source_uri="icon-dwd://icon/2026041200/003",
             )
             product_config = _wind_product_config()

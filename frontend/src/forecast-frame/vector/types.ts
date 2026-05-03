@@ -1,7 +1,6 @@
 import type { LoadedFrameWindow } from '../window'
 
-export const VECTOR_PAYLOAD_FORMAT = 'uv-i8-q0p5-v1'
-export const VECTOR_COMPONENT_ORDER = 'u_then_v'
+export const VECTOR_PAYLOAD_FORMAT = 'linear-i8-v1'
 export const VECTOR_DECODE_FORMULA = 'value = stored * scale + offset'
 export const VECTOR_COMPONENTS = ['u', 'v'] as const
 
@@ -12,18 +11,18 @@ export type VectorFrameMetadata = {
   units: string
   parameter: string
   level: string
-  valid_min: number
-  valid_max: number
+  valueRange: {
+    min: number
+    max: number
+  }
   format: typeof VECTOR_PAYLOAD_FORMAT
   dtype: 'int8'
-  byte_order: 'none'
+  byteOrder: 'none'
   scale: number
   offset: number
-  decode_formula: string
+  decodeFormula: string
   components: ['u', 'v']
-  component_count: 2
-  component_order: typeof VECTOR_COMPONENT_ORDER
-  grid_id: string
+  gridId: string
   nx: number
   ny: number
   lon0: number
