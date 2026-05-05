@@ -100,8 +100,8 @@ function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
   const manifest = overrides.manifest ?? createManifestFixture()
   return {
     manifest,
-    activeScalar: manifest.scalarProducts[0]!,
-    activeVector: manifest.vectorProducts[0]!,
+    activeScalar: manifest.productsByLayerId.scalar[0]!,
+    activeVector: manifest.productsByLayerId.vector[0]!,
     targetTimeMs: validTimeFor(manifest, manifest.times[0]?.id ?? '000'),
     sync: createSyncCallbacks(),
     ...overrides,
@@ -485,8 +485,8 @@ describe('useSyncRunner + useStartupState', () => {
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
-        activeScalar: manifest.scalarProducts[0]!,
-        activeVector: manifest.vectorProducts[0]!,
+        activeScalar: manifest.productsByLayerId.scalar[0]!,
+        activeVector: manifest.productsByLayerId.vector[0]!,
       }),
     })
 

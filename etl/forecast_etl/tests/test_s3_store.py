@@ -89,12 +89,12 @@ class S3StoreTests(unittest.TestCase):
         payload = b"\x00\x01\x02\x03" * 256
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            src = Path(tmpdir) / "wind10m_uv.vector.i8.bin"
+            src = Path(tmpdir) / "wind10m_uv.field.i8.bin"
             src.write_bytes(payload)
 
             with patch.object(S3Store, "_client", return_value=client):
                 store.put_file(
-                    uri="s3://example-bucket/fields/2026042700/006/wind10m_uv.vector.i8.bin",
+                    uri="s3://example-bucket/fields/2026042700/006/wind10m_uv.field.i8.bin",
                     src=src,
                 )
 

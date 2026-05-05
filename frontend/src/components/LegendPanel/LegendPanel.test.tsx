@@ -21,28 +21,28 @@ function createLegendSelectionManifest(
     groups: [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProduct: asScalarProductId('tmp_surface'),
         products: [asScalarProductId('tmp_surface')],
       },
       {
         id: 'precipitation',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Precipitation',
         defaultProduct: asScalarProductId('prate_surface'),
         products: [asScalarProductId('prate_surface')],
       },
       {
         id: 'pressure',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Pressure',
         defaultProduct: asScalarProductId('prmsl_surface'),
         products: [asScalarProductId('prmsl_surface')],
       },
       {
         id: 'clouds',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Clouds',
         defaultProduct: asScalarProductId('cloud_layers'),
         products: [asScalarProductId('cloud_layers')],

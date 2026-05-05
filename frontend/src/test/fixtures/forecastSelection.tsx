@@ -48,10 +48,10 @@ export function createForecastSelectionContextValue(
           products: manifest.products,
           activeScalar: options.activeScalar
             ? asScalarProductId(options.activeScalar)
-            : manifest.scalarProducts[0] ?? null,
+            : manifest.productsByLayerId.scalar?.[0] ?? null,
           activeVector: options.activeVector
             ? asVectorProductId(options.activeVector)
-            : manifest.vectorProducts[0] ?? null,
+            : manifest.productsByLayerId.vector?.[0] ?? null,
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue

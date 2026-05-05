@@ -33,12 +33,13 @@ def _unused_run(*_args: object, **_kwargs: object) -> RunResult:
 class ArtifactPathContractTest(unittest.TestCase):
     def test_wind_payload_is_co_located_with_weather_payloads(self) -> None:
         ap = ArtifactPaths("file:///tmp/weather-map-artifacts")
-        uri = ap.output_vector_payload_uri(
-            WorkItem(model_id="gfs", cycle="2026041200", fhour="003", product_id="wind10m_uv", source_uri="file:///dev/null")
+        uri = ap.output_field_payload_uri(
+            WorkItem(model_id="gfs", cycle="2026041200", fhour="003", product_id="wind10m_uv", source_uri="file:///dev/null"),
+            dtype="int8",
         )
         self.assertEqual(
             uri,
-            "file:///tmp/weather-map-artifacts/fields/gfs/2026041200/003/wind10m_uv.vector.i8.bin",
+            "file:///tmp/weather-map-artifacts/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
         )
 
 
@@ -96,8 +97,8 @@ class ScalarProductContractTest(unittest.TestCase):
                 )
 
             ap = ArtifactPaths(artifact_root_uri)
-            payload_uri = ap.output_scalar_payload_uri(item, dtype="int16")
-            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "tmp_surface.scalar.i16.bin"
+            payload_uri = ap.output_field_payload_uri(item, dtype="int16")
+            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "tmp_surface.field.i16.bin"
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
@@ -106,7 +107,7 @@ class ScalarProductContractTest(unittest.TestCase):
                 payload_bytes,
                 struct.pack("<hhhh", 0, 100, 200, -32768),
             )
-            self.assertEqual(result["kind"], "scalar")
+            self.assertNotIn("kind", result)
             self.assertEqual(result["byte_length"], len(payload_bytes))
             self.assertEqual(result["sha256"], hashlib.sha256(payload_bytes).hexdigest())
             self.assertEqual(result["component_grib_matches"]["value"], {"GRIB_ELEMENT": "TMP", "GRIB_SHORT_NAME": "2-HTGL"})
@@ -177,8 +178,8 @@ class ScalarProductContractTest(unittest.TestCase):
                 )
 
             ap = ArtifactPaths(artifact_root_uri)
-            payload_uri = ap.output_scalar_payload_uri(item, dtype="int8")
-            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "cloud_layers.scalar.i8.bin"
+            payload_uri = ap.output_field_payload_uri(item, dtype="int8")
+            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "cloud_layers.field.i8.bin"
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
@@ -257,8 +258,8 @@ class WindProductContractTest(unittest.TestCase):
                 )
 
             ap = ArtifactPaths(artifact_root_uri)
-            payload_uri = ap.output_vector_payload_uri(item)
-            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "wind10m_uv.vector.i8.bin"
+            payload_uri = ap.output_field_payload_uri(item, dtype="int8")
+            payload_path = out_dir / "fields" / "gfs" / "2026041200" / "003" / "wind10m_uv.field.i8.bin"
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
@@ -354,11 +355,11 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             find_band.assert_called_once_with(grib_path, {}, run=_unused_run)
             self.assertEqual(extract_band.call_args.kwargs["grib_path"], grib_path)
-            payload_path = out_dir / "fields" / "icon" / "2026041200" / "003" / "precip_total_surface.scalar.i8.bin"
+            payload_path = out_dir / "fields" / "icon" / "2026041200" / "003" / "precip_total_surface.field.i8.bin"
             payload_bytes = gzip.decompress(payload_path.read_bytes())
             expected_payload = struct.pack("bbbb", -127, -126, 127, -128)
             self.assertEqual(payload_bytes, expected_payload)
-            self.assertEqual(result["payload_uri"], f"{artifact_root_uri}/fields/icon/2026041200/003/precip_total_surface.scalar.i8.bin")
+            self.assertEqual(result["payload_uri"], f"{artifact_root_uri}/fields/icon/2026041200/003/precip_total_surface.field.i8.bin")
             self.assertEqual(result["encoding_id"], "precip_total_surface_i8_1mm_v1")
             self.assertEqual(result["units"], "mm")
             self.assertEqual(result["component_grib_matches"]["value"], {"ICON_PARAM": "tot_prec"})

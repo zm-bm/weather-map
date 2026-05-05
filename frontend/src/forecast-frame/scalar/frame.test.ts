@@ -92,8 +92,7 @@ describe('scalar payload', () => {
       scale: 5,
       offset: 0,
       decodeFormula: 'value = stored * scale + offset',
-      components: ['low', 'medium', 'high'],
-    })
+    }, ['low', 'medium', 'high'])
 
     expect(Array.from(decoded.cloudLayers!.low.slice(0, 3))).toEqual([0, 5, 100])
     expect(Number.isNaN(decoded.cloudLayers!.low[3])).toBe(true)
@@ -112,8 +111,7 @@ describe('scalar payload', () => {
       scale: 5,
       offset: 0,
       decodeFormula: 'value = stored * scale + offset',
-      components: ['low', 'medium', 'high'],
-    })).toThrow('Invalid cloud layer payload byte length')
+    }, ['low', 'medium', 'high'])).toThrow('Invalid cloud layer payload byte length')
   })
 
   it('maps loaded scalar payload into frame data', async () => {
@@ -142,7 +140,7 @@ describe('scalar payload', () => {
             }),
             frames: {
               '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.scalar.i16.bin',
+                path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
                 byteLength: 8,
                 sha256: 'x',
               }),
@@ -156,6 +154,7 @@ describe('scalar payload', () => {
     })
 
     expect(frame.variableId).toBe('tmp_surface')
+    expect(frame.paletteId).toBe('temperature.air.c.v1')
     expect(frame.grid.nx).toBe(2)
     expect(Array.from(frame.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -198,7 +197,7 @@ describe('scalar payload', () => {
           frames: Object.fromEntries(hourTokens.map((hourToken) => [
             hourToken,
             createFrameRefFixture({
-              path: `fields/2026041100/${hourToken}/tmp_surface.scalar.i16.bin`,
+              path: `fields/2026041100/${hourToken}/tmp_surface.field.i16.bin`,
               sha256: `sha-${hourToken}`,
             }),
           ])),
@@ -250,7 +249,7 @@ describe('scalar payload', () => {
             },
             frames: {
               '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.temp-piecewise.scalar.i8.bin',
+                path: 'fields/2026041100/000/tmp_surface.temp-piecewise.field.i8.bin',
                 byteLength: 4,
                 sha256: 'x',
               }),
@@ -287,7 +286,7 @@ describe('scalar payload', () => {
             },
             frames: {
               '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
+                path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
                 byteLength: 4,
                 sha256: 'x',
               }),
@@ -318,6 +317,11 @@ describe('scalar payload', () => {
       manifest: createFrameManifestFixture({
         products: {
           tmp_surface: createScalarProductFixture({
+            components: ['low', 'medium', 'high'],
+            style: {
+              layerId: 'scalar',
+              paletteId: 'cloud.layers.percent.v1',
+            },
             encoding: {
               id: 'e0',
               format: 'linear-i8-v1',
@@ -327,11 +331,10 @@ describe('scalar payload', () => {
               scale: 5,
               offset: 0,
               decodeFormula: 'value = stored * scale + offset',
-              components: ['low', 'medium', 'high'],
             },
             frames: {
               '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+                path: 'fields/2026041100/000/cloud_layers.field.i8.bin',
                 byteLength: 12,
                 sha256: 'x',
               }),
@@ -363,6 +366,11 @@ describe('scalar payload', () => {
         manifest: createFrameManifestFixture({
           products: {
             tmp_surface: createScalarProductFixture({
+              components: ['low', 'medium', 'high'],
+              style: {
+                layerId: 'scalar',
+                paletteId: 'cloud.layers.percent.v1',
+              },
               encoding: {
                 id: 'e0',
                 format: 'linear-i8-v1',
@@ -372,11 +380,10 @@ describe('scalar payload', () => {
                 scale: 5,
                 offset: 0,
                 decodeFormula: 'value = stored * scale + offset',
-                components: ['low', 'medium', 'high'],
               },
               frames: {
                 '000': createFrameRefFixture({
-                  path: 'fields/2026041100/000/cloud_layers.scalar.i8.bin',
+                  path: 'fields/2026041100/000/cloud_layers.field.i8.bin',
                   byteLength: 3,
                   sha256: 'x',
                 }),
@@ -388,10 +395,10 @@ describe('scalar payload', () => {
         hourToken: '000',
         signal: createSignalFixture(),
       })
-    ).rejects.toThrow('Cloud layer payload cell count mismatch')
+    ).rejects.toThrow('Scalar payload byte length mismatch')
   })
 
-  it('rejects scalar payloads with the wrong decoded cell count', async () => {
+  it('rejects scalar payloads with the wrong byte length', async () => {
     const payload = new Int8Array([1, 2, 3]).buffer
     stubFetchArrayBufferOnce(payload)
 
@@ -413,7 +420,7 @@ describe('scalar payload', () => {
               },
               frames: {
                 '000': createFrameRefFixture({
-                  path: 'fields/2026041100/000/tmp_surface.scalar.i8.bin',
+                  path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
                   byteLength: 3,
                   sha256: 'x',
                 }),
@@ -425,7 +432,7 @@ describe('scalar payload', () => {
         hourToken: '000',
         signal: createSignalFixture(),
       })
-    ).rejects.toThrow('Scalar payload cell count mismatch')
+    ).rejects.toThrow('Scalar payload byte length mismatch')
   })
 
   it('rejects unsupported scalar encodings locally', async () => {
@@ -471,5 +478,26 @@ describe('scalar payload', () => {
         signal: createSignalFixture(),
       })
     ).rejects.toThrow('Scalar encoding for tmp_surface is missing nodata')
+  })
+
+  it('rejects scalar frame loads for products assigned to another layer', async () => {
+    await expect(
+      loadScalarFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          products: {
+            tmp_surface: createScalarProductFixture({
+              style: {
+                layerId: 'vector',
+                paletteId: 'temperature.air.c.v1',
+              },
+            }),
+          },
+        }),
+        variable: 'tmp_surface',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Variable tmp_surface is not scalar')
   })
 })

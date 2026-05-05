@@ -24,8 +24,6 @@ def encoding_marker_metadata_for_product(product: ProductSpec) -> dict[str, Any]
         metadata["scale"] = encoding.scale
         metadata["offset"] = encoding.offset
         metadata["decode_formula"] = LINEAR_DECODE_FORMULA
-    if len(product.components) > 1:
-        metadata["components"] = list(product.component_ids)
     return metadata
 
 
@@ -56,11 +54,15 @@ def build_product_marker_metadata(
     }
 
     return {
-        "kind": product.kind,
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
         **encoding_marker_metadata_for_product(product),
+        "components": list(product.component_ids),
+        "style": {
+            "layer_id": product.style.layer_id,
+            "palette_id": product.style.palette_id,
+        },
         "units": product.units,
         "parameter": product.parameter,
         "level": product.level,

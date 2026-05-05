@@ -14,7 +14,7 @@ from ..encoding.codecs import (
     required_nodata_for_format,
 )
 from .primitives import parse_finite_float
-from .schema import PRODUCT_KIND_SCALAR, PRODUCT_KIND_VECTOR, EncodingSpec
+from .schema import EncodingSpec
 
 CLOUD_LAYER_COMPONENTS = ("low", "medium", "high")
 VECTOR_COMPONENTS = ("u", "v")
@@ -27,7 +27,7 @@ VECTOR_OFFSET = 0.0
 def parse_encoding(
     *,
     product_id: str,
-    product_kind: str,
+    layer_id: str,
     raw_encoding: Any,
     component_ids: tuple[str, ...],
 ) -> EncodingSpec:
@@ -82,9 +82,7 @@ def parse_encoding(
             )
 
     nodata: int | None = None
-    if product_kind == PRODUCT_KIND_SCALAR:
-        if "nodata" not in raw_encoding:
-            raise SystemExit(f"Product {product_id!r} scalar encoding missing required field 'nodata'")
+    if "nodata" in raw_encoding:
         nodata_raw = raw_encoding.get("nodata")
         min_stored, max_stored = encoding_storage_bounds(str(dtype))
         if not isinstance(nodata_raw, int) or nodata_raw < min_stored or nodata_raw > max_stored:
@@ -93,8 +91,8 @@ def parse_encoding(
                 f"({min_stored}..{max_stored})"
             )
         nodata = int(nodata_raw)
-    elif "nodata" in raw_encoding:
-        raise SystemExit(f"Product {product_id!r} vector encoding must not define nodata")
+    elif layer_id == "scalar":
+        raise SystemExit(f"Product {product_id!r} scalar layer encoding missing required field 'nodata'")
 
     required_nodata = required_nodata_for_format(encoding_format)
     if required_nodata is not None and nodata != required_nodata:
@@ -105,7 +103,6 @@ def parse_encoding(
 
     _validate_component_encoding_contract(
         product_id=product_id,
-        product_kind=product_kind,
         encoding_format=encoding_format,
         dtype=str(dtype),
         byte_order=str(byte_order),
@@ -130,7 +127,6 @@ def parse_encoding(
 def _validate_component_encoding_contract(
     *,
     product_id: str,
-    product_kind: str,
     encoding_format: str,
     dtype: str,
     byte_order: str,
@@ -149,9 +145,7 @@ def _validate_component_encoding_contract(
             f"not encoding: {unexpected_component_fields!r}"
         )
 
-    if product_kind == PRODUCT_KIND_VECTOR:
-        if component_ids != VECTOR_COMPONENTS:
-            raise SystemExit(f"Product {product_id!r} vector components must be ['u', 'v']")
+    if component_ids == VECTOR_COMPONENTS:
         expected = {
             "format": FORMAT_LINEAR_I8,
             "dtype": VECTOR_DTYPE,
@@ -172,6 +166,8 @@ def _validate_component_encoding_contract(
                     f"Product {product_id!r} encoding.{field} must be {expected_value!r}, "
                     f"got {actual[field]!r}"
                 )
+        if nodata is not None:
+            raise SystemExit(f"Product {product_id!r} u/v vector encoding must not define nodata")
         return
 
     if component_ids == CLOUD_LAYER_COMPONENTS:
@@ -201,7 +197,7 @@ def _validate_component_encoding_contract(
 
     if len(component_ids) != 1:
         raise SystemExit(
-            f"Product {product_id!r} scalar products with multiple components must use "
+            f"Product {product_id!r} products with multiple components must use "
             f"{list(CLOUD_LAYER_COMPONENTS)!r}"
         )
 

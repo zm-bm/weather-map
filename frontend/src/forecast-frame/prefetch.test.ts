@@ -26,14 +26,14 @@ describe('prefetchFramePayloads', () => {
         [FIXTURE_SCALAR_ID]: createScalarProductFixture({
           frames: {
             '000': createFrameRefFixture({
-              path: 'fields/2026041312/000/tmp_surface.scalar.i16.bin',
+              path: 'fields/2026041312/000/tmp_surface.field.i16.bin',
             }),
           },
         }),
         [FIXTURE_VECTOR_ID]: createVectorProductFixture({
           frames: {
             '000': createFrameRefFixture({
-              path: 'fields/2026041312/000/wind10m_uv.vector.i8.bin',
+              path: 'fields/2026041312/000/wind10m_uv.field.i8.bin',
             }),
           },
         }),

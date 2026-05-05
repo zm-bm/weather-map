@@ -14,6 +14,7 @@ export type CloudLayerFrameValues = {
 export type ScalarFrameData = {
   hourToken: string
   variableId: string
+  paletteId: string
   grid: ScalarGridSpec
   encoding: ScalarEncodingSpec
   values: Float32Array

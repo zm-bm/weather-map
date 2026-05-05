@@ -6,11 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..artifacts.paths import ArtifactPaths, WorkItem
-from ..config.schema import (
-    PRODUCT_KIND_SCALAR,
-    ExecutionContext,
-    ProductSpec,
-)
+from ..config.schema import ExecutionContext, ProductSpec
 from ..encoding.codecs import encode_component_payload
 from ..encoding.numeric import int_item_bytes
 from ..proc import RunFn
@@ -149,10 +145,7 @@ def run_product_item_in_workdir(
 
     payload = b"".join(component.payload_bytes for component in encoded_components)
     paths = ArtifactPaths(ctx.artifact_root_uri)
-    if product.kind == PRODUCT_KIND_SCALAR:
-        payload_uri = paths.output_scalar_payload_uri(item, dtype=product.encoding.dtype)
-    else:
-        payload_uri = paths.output_vector_payload_uri(item)
+    payload_uri = paths.output_field_payload_uri(item, dtype=product.encoding.dtype)
     store.write_bytes(uri=payload_uri, data=payload)
 
     return build_product_marker_metadata(

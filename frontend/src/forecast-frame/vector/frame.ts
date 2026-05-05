@@ -39,6 +39,7 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
   const normalizedHourToken = normalizeFrameHourToken(hourToken)
   const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'vector')
   const encoding = resolveVectorEncoding(variable, spec.variable.encoding)
+  assertVectorComponents(variable, spec.variable.components)
   const grid = spec.variable.grid
   const { payload, hourToken: loadedHourToken } = await loadFramePayload({
     config,
@@ -150,15 +151,11 @@ function assertVectorEncoding(
   encoding: ManifestEncodingSpec
 ): asserts encoding is VectorEncodingSpec {
   const rawEncoding = encoding as {
-    components?: unknown
     dtype?: unknown
     byteOrder?: unknown
     decodeFormula?: unknown
     scale?: unknown
     offset?: unknown
-  }
-  if (!Array.isArray(rawEncoding.components)) {
-    throw new Error(`Vector encoding for ${variable} is missing component metadata`)
   }
   if (rawEncoding.dtype !== 'int8') {
     throw new Error(`Unsupported vector dtype for ${variable}: ${rawEncoding.dtype}`)
@@ -166,17 +163,23 @@ function assertVectorEncoding(
   if (rawEncoding.byteOrder !== 'none') {
     throw new Error(`Unsupported vector byte order for ${variable}: ${rawEncoding.byteOrder}`)
   }
-  if (
-    rawEncoding.components.length !== 2 ||
-    rawEncoding.components[0] !== VECTOR_COMPONENTS[0] ||
-    rawEncoding.components[1] !== VECTOR_COMPONENTS[1]
-  ) {
-    throw new Error(`Unsupported vector components for ${variable}: ${JSON.stringify(rawEncoding.components)}`)
-  }
   if (rawEncoding.decodeFormula !== VECTOR_DECODE_FORMULA) {
     throw new Error(`Unsupported vector decode formula for ${variable}: ${rawEncoding.decodeFormula}`)
   }
   if (rawEncoding.scale !== 0.5 || rawEncoding.offset !== 0) {
     throw new Error(`Unsupported vector decode params for ${variable}: scale=${rawEncoding.scale} offset=${rawEncoding.offset}`)
+  }
+}
+
+function assertVectorComponents(
+  variable: string,
+  components: readonly string[]
+): asserts components is readonly ['u', 'v'] {
+  if (
+    components.length !== 2 ||
+    components[0] !== VECTOR_COMPONENTS[0] ||
+    components[1] !== VECTOR_COMPONENTS[1]
+  ) {
+    throw new Error(`Unsupported vector components for ${variable}: ${JSON.stringify(components)}`)
   }
 }

@@ -63,10 +63,7 @@ describe('vector payload', () => {
         manifest: createFrameManifestFixture({
           products: {
             wind10m_uv: createVectorProductFixture({
-              encoding: {
-                ...baseEncoding,
-                components: ['v', 'u'],
-              } as unknown as VectorEncodingSpec,
+              components: ['v', 'u'],
             }),
           },
         }),
@@ -94,5 +91,26 @@ describe('vector payload', () => {
         signal: createSignalFixture(),
       })
     ).rejects.toThrow('Unsupported vector decode params')
+  })
+
+  it('rejects vector frame loads for products assigned to another layer', async () => {
+    await expect(
+      loadVectorFrame({
+        config: createConfigFixture(),
+        manifest: createFrameManifestFixture({
+          products: {
+            wind10m_uv: createVectorProductFixture({
+              style: {
+                layerId: 'scalar',
+                paletteId: 'wind.vector.mps.v1',
+              },
+            }),
+          },
+        }),
+        variable: 'wind10m_uv',
+        hourToken: '000',
+        signal: createSignalFixture(),
+      })
+    ).rejects.toThrow('Variable wind10m_uv is not vector')
   })
 })

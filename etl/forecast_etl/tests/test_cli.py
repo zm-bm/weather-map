@@ -38,12 +38,20 @@ class _FakePipelineConfig:
     ) -> None:
         self.workload = _FakeWorkload(forecast_hours=forecast_hours, products=products)
         self.nomads = _FakeNomads(rate_limit_seconds=rate_limit_seconds)
-        self.products = {name: {"kind": "scalar"} for name in products}
+        self.products = {
+            name: {
+                "style": {
+                    "layer_id": "scalar",
+                    "palette_id": "temperature.air.c.v1",
+                },
+            }
+            for name in products
+        }
         self.product_groups = (
             ProductGroup(
                 id="products",
                 label="Products",
-                kind="scalar",
+                layer_id="scalar",
                 default_product=products[0],
                 products=products,
             ),
@@ -131,7 +139,10 @@ class CliTest(unittest.TestCase):
             "s3://noaa-gfs-bdp-pds/gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003",
         )
         self.assertEqual(run_process_hour.call_args.kwargs["product_ids"], ("tmp_surface",))
-        self.assertEqual(run_process_hour.call_args.kwargs["products"], {"tmp_surface": {"kind": "scalar"}})
+        self.assertEqual(
+            run_process_hour.call_args.kwargs["products"],
+            {"tmp_surface": {"style": {"layer_id": "scalar", "palette_id": "temperature.air.c.v1"}}},
+        )
         run_publish.assert_called_once()
 
     def test_run_hour_no_publish_skips_publish(self) -> None:

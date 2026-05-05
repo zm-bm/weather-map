@@ -8,8 +8,6 @@ from ..products.transforms import SOURCE_TRANSFORM_IDENTITY, SOURCE_TRANSFORMS
 from .encoding import parse_encoding
 from .primitives import parse_finite_float, parse_non_empty_string, parse_unique_string_tuple
 from .schema import (
-    PRODUCT_KIND_VECTOR,
-    PRODUCT_KINDS,
     SOURCE_TYPE_GFS_NOMADS,
     SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
     SOURCE_TYPES,
@@ -20,11 +18,11 @@ from .schema import (
     NomadsConfig,
     ProductCatalogSpec,
     ProductSpec,
+    ProductStyleSpec,
     WorkloadConfig,
 )
 
 REQUIRED_PRODUCT_FIELDS = {
-    "kind",
     "parameter",
     "level",
     "units",
@@ -32,6 +30,7 @@ REQUIRED_PRODUCT_FIELDS = {
     "valid_max",
     "encoding",
     "components",
+    "style",
 }
 
 
@@ -138,7 +137,6 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
     )
     return ProductCatalogSpec(
         id=parsed.id,
-        kind=parsed.kind,
         parameter=parsed.parameter,
         level=parsed.level,
         units=parsed.units,
@@ -147,6 +145,7 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
         source_transform=parsed.source_transform,
         encoding=parsed.encoding,
         component_ids=component_ids,
+        style=parsed.style,
         label=parsed.label,
     )
 
@@ -154,16 +153,12 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
 def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
     if not isinstance(raw, Mapping):
         raise SystemExit(f"pipeline_config product {product_id!r} must be an object")
+    if "kind" in raw:
+        raise SystemExit(f"Product {product_id!r} field 'kind' is no longer supported; use style.layer_id")
 
     missing_fields = sorted(field for field in REQUIRED_PRODUCT_FIELDS if field not in raw)
     if missing_fields:
         raise SystemExit(f"Product {product_id!r} missing required fields: {missing_fields!r}")
-
-    kind = raw.get("kind")
-    if kind not in PRODUCT_KINDS:
-        raise SystemExit(
-            f"Product {product_id!r} field 'kind' must be one of {sorted(PRODUCT_KINDS)!r}, got: {kind!r}"
-        )
 
     parameter = parse_non_empty_string(raw.get("parameter"), field_name=f"{product_id}.parameter")
     level = parse_non_empty_string(raw.get("level"), field_name=f"{product_id}.level")
@@ -177,10 +172,11 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
 
     components = _parse_product_components(product_id=product_id, raw_components=raw.get("components"))
     component_ids = tuple(component.id for component in components)
-    source_transform = _parse_source_transform(product_id=product_id, product_kind=str(kind), raw=raw)
+    style = parse_product_style(raw.get("style"), field_name=f"{product_id}.style")
+    source_transform = _parse_source_transform(product_id=product_id, raw=raw)
     encoding = parse_encoding(
         product_id=product_id,
-        product_kind=str(kind),
+        layer_id=style.layer_id,
         raw_encoding=raw.get("encoding"),
         component_ids=component_ids,
     )
@@ -190,7 +186,6 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
 
     return ProductSpec(
         id=product_id,
-        kind=str(kind),
         parameter=parameter,
         level=level,
         units=units,
@@ -199,7 +194,17 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
         source_transform=source_transform,
         encoding=encoding,
         components=components,
+        style=style,
         label=label,
+    )
+
+
+def parse_product_style(raw: Any, *, field_name: str) -> ProductStyleSpec:
+    if not isinstance(raw, Mapping):
+        raise SystemExit(f"{field_name} must be an object")
+    return ProductStyleSpec(
+        layer_id=parse_non_empty_string(raw.get("layer_id"), field_name=f"{field_name}.layer_id"),
+        palette_id=parse_non_empty_string(raw.get("palette_id"), field_name=f"{field_name}.palette_id"),
     )
 
 
@@ -258,7 +263,6 @@ def resolve_product_spec(
     )
     return ProductSpec(
         id=catalog_product.id,
-        kind=catalog_product.kind,
         parameter=catalog_product.parameter,
         level=catalog_product.level,
         units=catalog_product.units,
@@ -267,6 +271,7 @@ def resolve_product_spec(
         source_transform=catalog_product.source_transform,
         encoding=catalog_product.encoding,
         components=components,
+        style=catalog_product.style,
         label=catalog_product.label,
     )
 
@@ -346,13 +351,8 @@ def _parse_grib_match(*, product_id: str, raw_match: Any, field_name: str) -> di
     return grib_match
 
 
-def _parse_source_transform(*, product_id: str, product_kind: str, raw: Mapping[str, Any]) -> str:
+def _parse_source_transform(*, product_id: str, raw: Mapping[str, Any]) -> str:
     source_transform = raw.get("source_transform", SOURCE_TRANSFORM_IDENTITY)
-    if product_kind == PRODUCT_KIND_VECTOR:
-        if source_transform != SOURCE_TRANSFORM_IDENTITY:
-            raise SystemExit(f"Product {product_id!r} vector source_transform must be 'identity'")
-        return SOURCE_TRANSFORM_IDENTITY
-
     if not isinstance(source_transform, str) or source_transform not in SOURCE_TRANSFORMS:
         raise SystemExit(
             f"Product {product_id!r} source_transform must be one of "

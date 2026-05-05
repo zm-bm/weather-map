@@ -20,8 +20,8 @@ function createRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
 
   return {
     manifest,
-    activeScalar: manifest.scalarProducts[0]!,
-    activeVector: manifest.vectorProducts[0]!,
+    activeScalar: manifest.productsByLayerId.scalar[0]!,
+    activeVector: manifest.productsByLayerId.vector[0]!,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 15),
     lowerHourToken: '000',
     upperHourToken: '003',

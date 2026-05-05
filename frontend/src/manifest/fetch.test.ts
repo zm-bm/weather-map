@@ -32,9 +32,9 @@ describe('fetchCurrentManifest', () => {
       'http://localhost:3000/manifests/gfs/latest.json',
       expect.any(Object)
     )
-    expect(manifest.schemaVersion).toBe(2)
+    expect(manifest.schemaVersion).toBe(3)
     expect(manifest.payloadContract).toBe('forecast-binary-v2')
-    expect(manifest.vectorProducts).toEqual(['wind10m_uv'])
+    expect(manifest.productsByLayerId.vector).toEqual(['wind10m_uv'])
   })
 
   it('fetches the selected model manifest', async () => {

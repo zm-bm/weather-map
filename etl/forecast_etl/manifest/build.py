@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from ..artifacts.markers import ProductMarkerPayload, ProductSuccessMarker, read_product_success_marker
 from ..artifacts.paths import ArtifactPaths
 from ..config.groups import DEFAULT_PRODUCT_GROUP_ID, DEFAULT_PRODUCT_GROUP_LABEL
-from ..config.schema import PRODUCT_KIND_SCALAR, ProductGroup, ProductSpec
+from ..config.schema import ProductGroup, ProductSpec
 from ..products.metadata import encoding_marker_metadata_for_product
 from ..stores.base import UriStore
 from .constants import (
@@ -23,18 +23,18 @@ from .revision import compute_manifest_revision
 def product_groups_for_manifest(
     *,
     product_groups: Iterable[ProductGroup] | None,
-    groupable_product_ids: tuple[str, ...],
+    grouped_product_ids: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    if not groupable_product_ids:
+    if not grouped_product_ids:
         return []
     if product_groups is None:
         product_groups = (
             ProductGroup(
                 id=DEFAULT_PRODUCT_GROUP_ID,
-                kind=PRODUCT_KIND_SCALAR,
+                layer_id="scalar",
                 label=DEFAULT_PRODUCT_GROUP_LABEL,
-                default_product=groupable_product_ids[0],
-                products=groupable_product_ids,
+                default_product=grouped_product_ids[0],
+                products=grouped_product_ids,
             ),
         )
     return [_product_group_for_manifest(group) for group in product_groups]
@@ -43,7 +43,7 @@ def product_groups_for_manifest(
 def _product_group_for_manifest(group: ProductGroup) -> dict[str, Any]:
     return {
         "id": group.id,
-        "kind": group.kind,
+        "layerId": group.layer_id,
         "label": group.label,
         "defaultProductId": group.default_product,
         "productIds": list(group.products),
@@ -91,11 +91,6 @@ def build_manifest_products(
             )
             product_marker = marker.product
 
-            if marker.kind != product.kind:
-                raise SystemExit(
-                    f"Product kind mismatch in marker {marker_uri}: "
-                    f"marker={marker.kind!r} config={product.kind!r}"
-                )
             _assert_marker_metadata_matches_product(
                 marker_uri=marker_uri,
                 product=product,
@@ -134,11 +129,15 @@ def build_manifest_products(
 
         manifest_products[product_id] = {
             "id": product_id,
-            "kind": product.kind,
             "label": product.label or product_id,
             "units": product.units,
             "parameter": product.parameter,
             "level": product.level,
+            "components": list(product.component_ids),
+            "style": {
+                "layerId": product.style.layer_id,
+                "paletteId": product.style.palette_id,
+            },
             "valueRange": {
                 "min": product.valid_min,
                 "max": product.valid_max,
@@ -233,12 +232,6 @@ def _assert_marker_metadata_matches_product(
     encoding_id: str,
     encoding_entry: Mapping[str, Any],
 ) -> None:
-    marker_kind = product_marker.kind if product_marker.kind is not None else product.kind
-    if marker_kind != product.kind:
-        raise SystemExit(
-            f"Product kind mismatch in marker {marker_uri}: marker={marker_kind!r} config={product.kind!r}"
-        )
-
     if product_marker.encoding_id != encoding_id:
         raise SystemExit(
             f"Product encoding_id mismatch in marker {marker_uri}: "
@@ -278,18 +271,21 @@ def _assert_marker_metadata_matches_product(
                 f"marker={marker_value!r} config={expected!r}"
             )
 
-    if "components" in encoding_entry:
-        if product_marker.components is None:
-            raise SystemExit(f"Product component metadata missing in marker {marker_uri}")
-        marker_component_metadata = {"components": list(product_marker.components)}
-        expected_component_metadata = {
-            "components": encoding_entry["components"],
-        }
-        if marker_component_metadata != expected_component_metadata:
-            raise SystemExit(
-                f"Product component metadata mismatch in marker {marker_uri}: "
-                f"marker={marker_component_metadata!r} config={expected_component_metadata!r}"
-            )
+    if tuple(product_marker.components) != product.component_ids:
+        raise SystemExit(
+            f"Product component metadata mismatch in marker {marker_uri}: "
+            f"marker={list(product_marker.components)!r} config={list(product.component_ids)!r}"
+        )
+
+    expected_style = {
+        "layer_id": product.style.layer_id,
+        "palette_id": product.style.palette_id,
+    }
+    if product_marker.style != expected_style:
+        raise SystemExit(
+            f"Product style metadata mismatch in marker {marker_uri}: "
+            f"marker={product_marker.style!r} config={expected_style!r}"
+        )
 
 
 def _manifest_grid(grid: Mapping[str, Any]) -> dict[str, Any]:

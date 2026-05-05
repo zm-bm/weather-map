@@ -8,8 +8,7 @@ Typical contents:
 
 - `manifests/<model>/latest.json`
 - `manifests/<model>/<cycle>.json`
-- `fields/<model>/<cycle>/<fhour>/<layer>.scalar.<dtype>.bin`
-- `fields/<model>/<cycle>/<fhour>/<layer>.vector.i8.bin`
+- `fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin`
 - `pmtiles/<name>.pmtiles`
 - `radio/playlist.json`
 - `radio/<track>.mp3`

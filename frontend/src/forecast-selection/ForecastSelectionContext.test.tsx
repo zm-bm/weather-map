@@ -140,14 +140,14 @@ describe('ForecastSelectionContext', () => {
       groups: [
         {
           id: 'temperature',
-          kind: 'scalar',
+          layerId: 'scalar',
           label: 'Temperature',
           defaultProduct: asScalarProductId('tmp_surface'),
           products: [asScalarProductId('tmp_surface')],
         },
         {
           id: 'precipitation',
-          kind: 'scalar',
+          layerId: 'scalar',
           label: 'Precipitation',
           defaultProduct: asScalarProductId('prate_surface'),
           products: [asScalarProductId('prate_surface')],
@@ -171,14 +171,14 @@ describe('ForecastSelectionContext', () => {
       groups: [
         {
           id: 'temperature',
-          kind: 'scalar',
+          layerId: 'scalar',
           label: 'Temperature',
           defaultProduct: asScalarProductId('tmp_surface'),
           products: [asScalarProductId('tmp_surface')],
         },
         {
           id: 'precipitation',
-          kind: 'scalar',
+          layerId: 'scalar',
           label: 'Precipitation',
           defaultProduct: asScalarProductId('precip_total_surface'),
           products: [asScalarProductId('precip_total_surface')],

@@ -17,7 +17,7 @@ function tmpProduct(payload: Record<string, unknown>): Record<string, unknown> {
 }
 
 describe('parseCycleManifest', () => {
-  it('accepts the V2 product-centric manifest shape and derives app-facing product lists', () => {
+  it('accepts the V3 layer-driven manifest shape and derives products by layer', () => {
     const payload = createCycleManifestPayloadFixture()
 
     const manifest = parseCycleManifest(payload)
@@ -27,14 +27,24 @@ describe('parseCycleManifest', () => {
     expect(manifest.payloadContract).toBe(MANIFEST_PAYLOAD_CONTRACT)
     expect(manifest.run.cycle).toBe('2026041312')
     expect(manifest.times.map((time) => time.id)).toEqual(['000'])
-    expect(manifest.scalarProducts).toEqual(['tmp_surface'])
-    expect(manifest.vectorProducts).toEqual(['wind10m_uv'])
+    expect(manifest.productsByLayerId.scalar).toEqual(['tmp_surface'])
+    expect(manifest.productsByLayerId.vector).toEqual(['wind10m_uv'])
+    expect(manifest.productStyleBindings.tmp_surface).toEqual({
+      productId: 'tmp_surface',
+      layerId: 'scalar',
+      paletteId: 'temperature.air.c.v1',
+    })
+    expect(manifest.products.tmp_surface.components).toEqual(['value'])
+    expect(manifest.products.tmp_surface.style).toEqual({
+      layerId: 'scalar',
+      paletteId: 'temperature.air.c.v1',
+    })
     expect(manifest.products.tmp_surface.grid.xWrap).toBe('repeat')
     expect(manifest.products.tmp_surface.encoding.byteOrder).toBe('little')
     expect(manifest.products.tmp_surface.frames['000']!.byteLength).toBe(8)
   })
 
-  it('rejects old manifests without the V2 schema marker', () => {
+  it('rejects old manifests without the V3 schema marker', () => {
     const payload = {
       version: 4,
       contract: 'forecast-binary-v2',
@@ -44,6 +54,11 @@ describe('parseCycleManifest', () => {
     }
 
     expect(() => parseCycleManifest(payload)).toThrow('Invalid manifest field schema: expected string')
+
+    const v2Payload = createCycleManifestPayloadFixture()
+    v2Payload.schemaVersion = 2
+
+    expect(() => parseCycleManifest(v2Payload)).toThrow('Invalid manifest field schemaVersion: expected 3')
   })
 
   it('accepts scalar-only and vector-only manifests but rejects empty product sets', () => {
@@ -51,16 +66,16 @@ describe('parseCycleManifest', () => {
     delete products(scalarOnlyPayload).wind10m_uv
 
     const scalarOnlyManifest = parseCycleManifest(scalarOnlyPayload)
-    expect(scalarOnlyManifest.scalarProducts).toEqual(['tmp_surface'])
-    expect(scalarOnlyManifest.vectorProducts).toEqual([])
+    expect(scalarOnlyManifest.productsByLayerId.scalar).toEqual(['tmp_surface'])
+    expect(scalarOnlyManifest.productsByLayerId.vector).toBeUndefined()
 
     const vectorOnlyPayload = createCycleManifestPayloadFixture()
     delete products(vectorOnlyPayload).tmp_surface
     vectorOnlyPayload.groups = []
 
     const vectorOnlyManifest = parseCycleManifest(vectorOnlyPayload)
-    expect(vectorOnlyManifest.scalarProducts).toEqual([])
-    expect(vectorOnlyManifest.vectorProducts).toEqual(['wind10m_uv'])
+    expect(vectorOnlyManifest.productsByLayerId.scalar).toBeUndefined()
+    expect(vectorOnlyManifest.productsByLayerId.vector).toEqual(['wind10m_uv'])
     expect(vectorOnlyManifest.groups).toEqual([])
 
     const emptyPayload = createCycleManifestPayloadFixture()
@@ -72,19 +87,26 @@ describe('parseCycleManifest', () => {
     )
   })
 
-  it('rejects scalar/vector kind and encoding mismatches', () => {
-    const scalarWithVectorEncoding = createCycleManifestPayloadFixture()
-    tmpProduct(scalarWithVectorEncoding).encoding = products(scalarWithVectorEncoding).wind10m_uv.encoding
+  it('rejects products missing required components or style', () => {
+    const missingComponents = createCycleManifestPayloadFixture()
+    delete tmpProduct(missingComponents).components
 
-    expect(() => parseCycleManifest(scalarWithVectorEncoding)).toThrow(
-      'Invalid manifest field products.tmp_surface.encoding.nodata: expected finite number'
+    expect(() => parseCycleManifest(missingComponents)).toThrow(
+      'Invalid manifest field products.tmp_surface.components: expected non-empty string[]'
     )
 
-    const vectorWithScalarEncoding = createCycleManifestPayloadFixture()
-    products(vectorWithScalarEncoding).wind10m_uv.encoding = tmpProduct(vectorWithScalarEncoding).encoding
+    const missingStyle = createCycleManifestPayloadFixture()
+    delete tmpProduct(missingStyle).style
 
-    expect(() => parseCycleManifest(vectorWithScalarEncoding)).toThrow(
-      'Invalid manifest field products.wind10m_uv.encoding.format: expected linear-i8-v1'
+    expect(() => parseCycleManifest(missingStyle)).toThrow(
+      'Invalid manifest field products.tmp_surface.style: expected object'
+    )
+
+    const missingLayerId = createCycleManifestPayloadFixture()
+    ;(tmpProduct(missingLayerId).style as Record<string, unknown>).layerId = ''
+
+    expect(() => parseCycleManifest(missingLayerId)).toThrow(
+      'Invalid manifest field products.tmp_surface.style.layerId: expected non-empty string'
     )
   })
 
@@ -145,8 +167,13 @@ describe('parseCycleManifest', () => {
     expect(() => parseCycleManifest(payload)).toThrow('expected -128')
   })
 
-  it('accepts packed cloud layer scalar component encodings', () => {
+  it('accepts packed cloud layer scalar products with product-level components', () => {
     const payload = createCycleManifestPayloadFixture()
+    tmpProduct(payload).components = ['low', 'medium', 'high']
+    tmpProduct(payload).style = {
+      layerId: 'scalar',
+      paletteId: 'cloud.layers.percent.v1',
+    }
     tmpProduct(payload).encoding = {
       id: 'e0',
       format: 'linear-i8-v1',
@@ -156,11 +183,11 @@ describe('parseCycleManifest', () => {
       scale: 5,
       offset: 0,
       decodeFormula: 'value = stored * scale + offset',
-      components: ['low', 'medium', 'high'],
     }
 
     const manifest = parseCycleManifest(payload)
 
+    expect(manifest.products.tmp_surface.components).toEqual(['low', 'medium', 'high'])
     expect(manifest.products.tmp_surface.encoding).toEqual({
       id: 'e0',
       format: 'linear-i8-v1',
@@ -170,25 +197,16 @@ describe('parseCycleManifest', () => {
       scale: 5,
       offset: 0,
       decodeFormula: 'value = stored * scale + offset',
-      components: ['low', 'medium', 'high'],
     })
   })
 
-  it('rejects packed cloud layer scalar encodings with the wrong component order', () => {
+  it('preserves packed product component order as payload layout', () => {
     const payload = createCycleManifestPayloadFixture()
-    tmpProduct(payload).encoding = {
-      id: 'e0',
-      format: 'linear-i8-v1',
-      dtype: 'int8',
-      byteOrder: 'none',
-      nodata: -128,
-      scale: 5,
-      offset: 0,
-      decodeFormula: 'value = stored * scale + offset',
-      components: ['medium', 'low', 'high'],
-    }
+    tmpProduct(payload).components = ['medium', 'low', 'high']
 
-    expect(() => parseCycleManifest(payload)).toThrow("expected ['low', 'medium', 'high']")
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.products.tmp_surface.components).toEqual(['medium', 'low', 'high'])
   })
 
   it('parses explicit scalar product groups', () => {
@@ -196,7 +214,7 @@ describe('parseCycleManifest', () => {
     payload.groups = [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProductId: 'tmp_surface',
         productIds: ['tmp_surface'],
@@ -208,7 +226,7 @@ describe('parseCycleManifest', () => {
     expect(manifest.groups).toEqual([
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProduct: 'tmp_surface',
         products: ['tmp_surface'],
@@ -223,7 +241,7 @@ describe('parseCycleManifest', () => {
     payload.groups = [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProductId: 'tmp_surface',
         productIds: ['tmp_surface'],
@@ -238,7 +256,7 @@ describe('parseCycleManifest', () => {
     payload.groups = [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProductId: 'rh_surface',
         productIds: ['tmp_surface'],
@@ -255,7 +273,7 @@ describe('parseCycleManifest', () => {
     unknownPayload.groups = [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProductId: 'missing_surface',
         productIds: ['missing_surface'],
@@ -263,21 +281,21 @@ describe('parseCycleManifest', () => {
     ]
 
     expect(() => parseCycleManifest(unknownPayload)).toThrow(
-      'references unknown scalar product missing_surface'
+      'references product missing_surface outside layer scalar'
     )
 
     const duplicatePayload = createCycleManifestPayloadFixture()
     duplicatePayload.groups = [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProductId: 'tmp_surface',
         productIds: ['tmp_surface'],
       },
       {
         id: 'more-temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'More Temperature',
         defaultProductId: 'tmp_surface',
         productIds: ['tmp_surface'],
@@ -285,7 +303,7 @@ describe('parseCycleManifest', () => {
     ]
 
     expect(() => parseCycleManifest(duplicatePayload)).toThrow(
-      'Manifest groups assigns scalar product tmp_surface to multiple groups'
+      'Manifest groups assigns product tmp_surface to multiple scalar groups'
     )
   })
 })

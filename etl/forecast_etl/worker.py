@@ -52,7 +52,6 @@ def run_process_hour(
         )
 
         product_done = 0
-        kind_counts: dict[str, int] = {}
         for product_id in product_ids:
             product = products.get(product_id)
             if product is None:
@@ -79,17 +78,13 @@ def run_process_hour(
                 "cycle": item.cycle,
                 "fhour": item.fhour,
                 "product_id": item.product_id,
-                "kind": product_metadata["kind"],
                 "product": product_metadata,
             }
             _write_success_marker(ctx=ctx, item=item, store=store, payload=success_payload)
             product_done += 1
-            kind = str(success_payload.get("kind", "unknown"))
-            kind_counts[kind] = kind_counts.get(kind, 0) + 1
 
     print(
         f"Done. Published fhour bundle cycle={cycle} fhour={fhour}: "
-        f"model={ctx.model_id} products={product_done} "
-        f"scalar={kind_counts.get('scalar', 0)} vector={kind_counts.get('vector', 0)}",
+        f"model={ctx.model_id} products={product_done}",
         flush=True,
     )

@@ -4,6 +4,8 @@ import type {
   FramePayloadRef,
   ManifestProductSpec,
   NonEmptyArray,
+  ProductId,
+  ProductStyleBinding,
   ScalarEncodingSpec,
   ScalarGridSpec,
   ScalarProductGroupSpec,
@@ -14,6 +16,7 @@ import type {
   VectorProductSpec,
 } from '../../manifest/types'
 import {
+  asProductId,
   asScalarProductId,
   asVectorProductId,
   MANIFEST_PAYLOAD_CONTRACT,
@@ -43,7 +46,7 @@ export type ManifestFixtureOverrides =
   }
 
 export type ScalarProductFixtureOverrides =
-  Partial<Omit<ScalarProductSpec, 'kind' | 'frames'>> & {
+  Partial<Omit<ScalarProductSpec, 'frames'>> & {
     cycle?: string
     forecastHours?: string[]
     times?: ForecastTimeSpec[]
@@ -51,7 +54,7 @@ export type ScalarProductFixtureOverrides =
   }
 
 export type VectorProductFixtureOverrides =
-  Partial<Omit<VectorProductSpec, 'kind' | 'frames'>> & {
+  Partial<Omit<VectorProductSpec, 'frames'>> & {
     cycle?: string
     forecastHours?: string[]
     times?: ForecastTimeSpec[]
@@ -128,18 +131,17 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
     scale: 0.5,
     offset: 0,
     decodeFormula: 'value = stored * scale + offset',
-    components: ['u', 'v'],
     ...overrides,
   }
 }
 
 function createFramePath(
   productId: string,
-  domain: 'scalar' | 'vector',
+  dtype: ManifestProductSpec['encoding']['dtype'],
   cycle = FIXTURE_CYCLE,
   hourToken = FIXTURE_HOUR_TOKEN
 ): string {
-  const extension = domain === 'scalar' ? 'scalar.i16.bin' : 'vector.i8.bin'
+  const extension = dtype === 'int16' ? 'field.i16.bin' : 'field.i8.bin'
   return `fields/${cycle}/${hourToken}/${productId}.${extension}`
 }
 
@@ -153,8 +155,7 @@ export function createFrameRefFixture(overrides: Partial<FramePayloadRef> = {}):
 }
 
 function createProductFrames(
-  productId: string,
-  domain: 'scalar' | 'vector',
+  product: Pick<ManifestProductSpec, 'id' | 'encoding'>,
   times: ForecastTimeSpec[],
   cycle: string,
   overrides: Record<string, FramePayloadRef> = {}
@@ -163,7 +164,7 @@ function createProductFrames(
     times.map((time) => [
       time.id,
       overrides[time.id] ?? createFrameRefFixture({
-        path: createFramePath(productId, domain, cycle, time.id),
+        path: createFramePath(product.id, product.encoding.dtype, cycle, time.id),
       }),
     ])
   )
@@ -176,20 +177,51 @@ export function createScalarProductFixture(
   const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_SCALAR_ID
 
-  return {
+  const product: Omit<ScalarProductSpec, 'frames'> = {
     id,
-    kind: 'scalar',
     label: overrides.label ?? 'Temperature',
     units: overrides.units ?? 'C',
     parameter: overrides.parameter ?? 'tmp',
     level: overrides.level ?? 'surface',
+    components: overrides.components ?? ['value'],
+    style: overrides.style ?? {
+      layerId: 'scalar',
+      paletteId: defaultScalarPaletteId(String(id)),
+    },
     valueRange: overrides.valueRange ?? {
       min: -45,
       max: 50,
     },
     grid: overrides.grid ?? createGridFixture(),
     encoding: overrides.encoding ?? createScalarEncodingFixture(),
-    frames: overrides.frames ?? createProductFrames(id, 'scalar', times, cycle),
+  }
+
+  return {
+    ...product,
+    frames: overrides.frames ?? createProductFrames(product, times, cycle),
+  }
+}
+
+function defaultScalarPaletteId(productId: string): string {
+  switch (productId) {
+    case 'rh_surface':
+      return 'moisture.relative_humidity.percent.v1'
+    case 'gust_surface':
+      return 'wind.gust.mps.v1'
+    case 'dewpoint_surface':
+      return 'temperature.dewpoint.c.v1'
+    case 'prmsl_surface':
+      return 'pressure.msl.pa.v1'
+    case 'tcdc':
+      return 'cloud.cover.percent.v1'
+    case 'cloud_layers':
+      return 'cloud.layers.percent.v1'
+    case 'prate_surface':
+      return 'precip.rate.mm_hr.v1'
+    case 'precip_total_surface':
+      return 'precip.total.mm.v1'
+    default:
+      return 'temperature.air.c.v1'
   }
 }
 
@@ -200,20 +232,28 @@ export function createVectorProductFixture(
   const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_VECTOR_ID
 
-  return {
+  const product: Omit<VectorProductSpec, 'frames'> = {
     id,
-    kind: 'vector',
     label: overrides.label ?? '10m Wind U/V',
     units: overrides.units ?? 'm/s',
     parameter: overrides.parameter ?? 'vector',
     level: overrides.level ?? '10m_above_ground',
+    components: overrides.components ?? ['u', 'v'],
+    style: overrides.style ?? {
+      layerId: 'vector',
+      paletteId: 'wind.vector.mps.v1',
+    },
     valueRange: overrides.valueRange ?? {
       min: -64,
       max: 63.5,
     },
     grid: overrides.grid ?? createGridFixture(),
     encoding: overrides.encoding ?? createVectorEncodingFixture(),
-    frames: overrides.frames ?? createProductFrames(id, 'vector', times, cycle),
+  }
+
+  return {
+    ...product,
+    frames: overrides.frames ?? createProductFrames(product, times, cycle),
   }
 }
 
@@ -223,19 +263,19 @@ function createDefaultScalarProductGroups(
   if (scalarProducts.length === 0) return []
   return [{
     id: 'layers',
-    kind: 'scalar',
+    layerId: 'scalar',
     label: 'Layers',
     defaultProduct: scalarProducts[0]!,
-    products: scalarProducts as NonEmptyArray<ScalarProductId>,
+    products: scalarProducts as NonEmptyArray<ProductId>,
   }]
 }
 
-function productIdsByKind(
+function productIdsByLayerId(
   products: Record<string, ManifestProductSpec> | undefined,
-  kind: 'scalar' | 'vector'
+  layerId: string
 ): string[] {
   return Object.values(products ?? {})
-    .filter((product) => product.kind === kind)
+    .filter((product) => product.style.layerId === layerId)
     .map((product) => product.id)
 }
 
@@ -244,7 +284,7 @@ function completeProductFrames(
   times: ForecastTimeSpec[],
   cycle: string
 ): ManifestProductSpec {
-  const frames = createProductFrames(product.id, product.kind, times, cycle, product.frames)
+  const frames = createProductFrames(product, times, cycle, product.frames)
   return {
     ...product,
     frames,
@@ -262,7 +302,7 @@ function createProducts(args: {
 
   for (const productId of args.scalarProducts) {
     const override = args.overrides?.[productId]
-    const product = override ? { ...override, id: productId } : createScalarProductFixture({
+    const product = override ? retargetProductOverride(override, productId) : createScalarProductFixture({
       id: productId,
       times: args.times,
       cycle: args.cycle,
@@ -272,7 +312,7 @@ function createProducts(args: {
 
   for (const productId of args.vectorProducts) {
     const override = args.overrides?.[productId]
-    const product = override ? { ...override, id: productId } : createVectorProductFixture({
+    const product = override ? retargetProductOverride(override, productId) : createVectorProductFixture({
       id: productId,
       times: args.times,
       cycle: args.cycle,
@@ -281,6 +321,32 @@ function createProducts(args: {
   }
 
   return products
+}
+
+function retargetProductOverride(
+  product: ManifestProductSpec,
+  productId: ProductId
+): ManifestProductSpec {
+  const previousId = String(product.id)
+  const nextProduct = {
+    ...product,
+    id: productId,
+  }
+
+  if (
+    product.style.layerId === 'scalar' &&
+    product.style.paletteId === defaultScalarPaletteId(previousId)
+  ) {
+    return {
+      ...nextProduct,
+      style: {
+        ...product.style,
+        paletteId: defaultScalarPaletteId(String(productId)),
+      },
+    }
+  }
+
+  return nextProduct
 }
 
 export function createManifestFixture(
@@ -293,8 +359,8 @@ export function createManifestFixture(
     overrides.forecastHours ?? DEFAULT_FORECAST_HOURS,
     cycle
   )
-  const scalarProductIds = overrides.scalarProducts ?? productIdsByKind(overrides.products, 'scalar')
-  const vectorProductIds = overrides.vectorProducts ?? productIdsByKind(overrides.products, 'vector')
+  const scalarProductIds = overrides.scalarProducts ?? productIdsByLayerId(overrides.products, 'scalar')
+  const vectorProductIds = overrides.vectorProducts ?? productIdsByLayerId(overrides.products, 'vector')
   const defaultScalarProductIds = (
     overrides.scalarProducts === undefined
     && overrides.products === undefined
@@ -327,6 +393,8 @@ export function createManifestFixture(
     times,
     cycle,
   })
+  const productsByLayerId = deriveProductsByLayerId(products)
+  const productStyleBindings = deriveProductStyleBindings(products)
 
   return {
     schema: MANIFEST_SCHEMA,
@@ -341,8 +409,8 @@ export function createManifestFixture(
     times,
     groups: overrides.groups ?? createDefaultScalarProductGroups(scalarProducts),
     products,
-    scalarProducts,
-    vectorProducts,
+    productsByLayerId,
+    productStyleBindings,
   }
 }
 
@@ -367,7 +435,7 @@ function toCycleManifestPayload(
     times: manifest.times,
     groups: manifest.groups.map((group) => ({
       id: group.id,
-      kind: group.kind,
+      layerId: group.layerId,
       label: group.label,
       defaultProductId: group.defaultProduct,
       productIds: [...group.products],
@@ -380,4 +448,32 @@ export function createCycleManifestPayloadFixture(
   overrides: ManifestFixtureOverrides = {}
 ): Record<string, unknown> {
   return toCycleManifestPayload(createFrameManifestFixture(overrides))
+}
+
+function deriveProductsByLayerId(
+  products: Record<string, ManifestProductSpec>
+): Record<string, NonEmptyArray<ProductId>> {
+  const byLayer: Record<string, ProductId[]> = {}
+  for (const product of Object.values(products)) {
+    byLayer[product.style.layerId] ??= []
+    byLayer[product.style.layerId].push(asProductId(product.id))
+  }
+  return Object.fromEntries(
+    Object.entries(byLayer).map(([layerId, ids]) => [layerId, ids as NonEmptyArray<ProductId>])
+  )
+}
+
+function deriveProductStyleBindings(
+  products: Record<string, ManifestProductSpec>
+): Record<string, ProductStyleBinding> {
+  return Object.fromEntries(
+    Object.values(products).map((product) => [
+      product.id,
+      {
+        productId: asProductId(product.id),
+        layerId: product.style.layerId,
+        paletteId: product.style.paletteId,
+      },
+    ])
+  )
 }

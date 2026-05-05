@@ -14,10 +14,8 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                 "cycle": "2026041200",
                 "fhour": "003",
                 "product_id": "wind10m_uv",
-                "kind": "vector",
                 "product": {
-                    "kind": "vector",
-                    "payload_uri": "file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.vector.i8.bin",
+                    "payload_uri": "file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
                     "byte_length": 24,
                     "sha256": "abc123",
                     "format": "linear-i8-v1",
@@ -30,16 +28,20 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                     "grid_id": "gfs_0p25_global",
                     "grid": grid,
                     "components": ["u", "v"],
+                    "style": {
+                        "layer_id": "vector",
+                        "palette_id": "wind.vector.mps.v1",
+                    },
                 },
             },
             uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
         )
 
-        self.assertEqual(marker.kind, "vector")
         self.assertEqual(marker.product_id, "wind10m_uv")
         self.assertEqual(marker.product.byte_length, 24)
         self.assertEqual(marker.product.valid_min, -64.0)
         self.assertEqual(marker.product.components, ("u", "v"))
+        self.assertEqual(marker.product.style["layer_id"], "vector")
         self.assertEqual(marker.product.grid["nx"], grid["nx"])
 
     def test_parse_product_success_marker_requires_product_payload(self) -> None:
@@ -49,7 +51,6 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                     "cycle": "2026041200",
                     "fhour": "003",
                     "product_id": "tmp_surface",
-                    "kind": "scalar",
                 },
                 uri="file:///tmp/out/status/gfs/2026041200/tmp_surface/003._SUCCESS.json",
             )

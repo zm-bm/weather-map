@@ -17,6 +17,7 @@ function createPrecipMeta(units: string): ScalarMeta {
     parameter: 'prate',
     min: 0,
     max: 30,
+    paletteId: 'precip.rate.mm_hr.v1',
     colortable: [],
   }
 }
@@ -53,6 +54,7 @@ describe('getUnitDisplay', () => {
       parameter: 'precip_total',
       min: 0,
       max: 254,
+      paletteId: 'precip.total.mm.v1',
       colortable: [],
     })
 
@@ -71,6 +73,7 @@ describe('getUnitDisplay', () => {
       parameter: 'rh',
       min: 0,
       max: 100,
+      paletteId: 'moisture.relative_humidity.percent.v1',
       colortable: [],
     })
 
@@ -85,6 +88,7 @@ describe('getUnitDisplay', () => {
       parameter: 'dpt',
       min: -60,
       max: 40,
+      paletteId: 'temperature.dewpoint.c.v1',
       colortable: [],
     })
 
@@ -100,6 +104,7 @@ describe('getUnitDisplay', () => {
       parameter: 'gust',
       min: 0,
       max: 60,
+      paletteId: 'wind.gust.mps.v1',
       colortable: [],
     })
 
@@ -117,6 +122,7 @@ describe('getUnitDisplay', () => {
       parameter: 'tmp',
       min: -35,
       max: 50,
+      paletteId: 'temperature.air.c.v1',
       colortable: [],
     })
     const pressure = getUnitDisplay({
@@ -126,6 +132,7 @@ describe('getUnitDisplay', () => {
       parameter: 'prmsl',
       min: 98000,
       max: 103500,
+      paletteId: 'pressure.msl.pa.v1',
       colortable: [],
     })
 

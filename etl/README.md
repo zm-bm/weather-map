@@ -59,7 +59,7 @@ GRIB band -> encoded component -> product payload -> manifest
 
 - `forecast_etl/sources/` finds GRIB bands, extracts Float32 component bytes, and reads grid metadata.
 - `forecast_etl/encoding/` defines encoding contracts and encodes component bytes.
-- `forecast_etl/products/` packs encoded components and writes `.scalar.*.bin` / `.vector.i8.bin` payloads.
+- `forecast_etl/products/` packs encoded components and writes `.field.<dtype>.bin` payloads.
 - `forecast_etl/manifest/` reads product success markers and emits frontend-compatible manifests.
 
 ## Artifact Layout
@@ -68,8 +68,7 @@ Local and production artifacts use the same object layout:
 
 - `manifests/<model>/latest.json`
 - `manifests/<model>/<cycle>.json`
-- `fields/<model>/<cycle>/<fhour>/<product>.scalar.<dtype>.bin`
-- `fields/<model>/<cycle>/<fhour>/<product>.vector.i8.bin`
+- `fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin`
 - `status/<model>/<cycle>/<product>/<fhour>._SUCCESS.json`
 - `status/<model>/<cycle>/_PUBLISHED.json`
 - `pmtiles/<name>.pmtiles`

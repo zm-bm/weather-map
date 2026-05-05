@@ -66,7 +66,11 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(model.workload.forecast_hours, ("000",))
         self.assertEqual(model.workload.products, ("tmp_surface",))
         self.assertIn("tmp_surface", model.products)
+        self.assertEqual(model.products["tmp_surface"].component_ids, ("value",))
+        self.assertEqual(model.products["tmp_surface"].style.layer_id, "scalar")
+        self.assertEqual(model.products["tmp_surface"].style.palette_id, "temperature.air.c.v1")
         self.assertEqual(model.product_groups[0].id, "temperature")
+        self.assertEqual(model.product_groups[0].layer_id, "scalar")
         self.assertEqual(model.product_groups[0].default_product, "tmp_surface")
 
     def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
@@ -101,7 +105,7 @@ class ConfigValidationTest(unittest.TestCase):
                 {
                     "id": "precipitation",
                     "label": "Precipitation",
-                    "kind": "scalar",
+                    "layer_id": "scalar",
                     "default_product": "precip_total_surface",
                     "products": ["precip_total_surface"],
                 },
@@ -143,7 +147,7 @@ class ConfigValidationTest(unittest.TestCase):
                 {
                     "id": "temperature",
                     "label": "Temperature",
-                    "kind": "scalar",
+                    "layer_id": "scalar",
                     "default_product": "tmp_surface",
                     "products": ["tmp_surface"],
                 },
@@ -230,6 +234,32 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
 
+    def test_pipeline_config_requires_product_components_and_style(self) -> None:
+        missing_components = _minimal_pipeline_config()
+        del missing_components["product_catalog"]["tmp_surface"]["components"]
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(missing_components)
+
+        missing_style = _minimal_pipeline_config()
+        del missing_style["product_catalog"]["tmp_surface"]["style"]
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(missing_style)
+
+        empty_palette = _minimal_pipeline_config()
+        empty_palette["product_catalog"]["tmp_surface"]["style"]["palette_id"] = ""
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(empty_palette)
+
+    def test_pipeline_config_rejects_legacy_product_kind(self) -> None:
+        bad_cfg = _minimal_pipeline_config()
+        bad_cfg["product_catalog"]["tmp_surface"]["kind"] = "scalar"
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(bad_cfg)
+
     def test_pipeline_config_rejects_grib_match_in_product_catalog(self) -> None:
         bad_cfg = _minimal_pipeline_config()
         bad_cfg["product_catalog"]["tmp_surface"]["components"][0]["grib_match"] = {"GRIB_ELEMENT": "TMP"}
@@ -287,14 +317,14 @@ class ConfigValidationTest(unittest.TestCase):
             {
                 "id": "temperature",
                 "label": "Temperature",
-                "kind": "scalar",
+                "layer_id": "scalar",
                 "default_product": "tmp_surface",
                 "products": ["tmp_surface"],
             },
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "kind": "scalar",
+                "layer_id": "scalar",
                 "default_product": "cloud_layers",
                 "products": ["cloud_layers"],
             },
@@ -319,7 +349,7 @@ class ConfigValidationTest(unittest.TestCase):
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "kind": "scalar",
+                "layer_id": "scalar",
                 "default_product": "cloud_layers",
                 "products": ["cloud_layers"],
             },
@@ -337,7 +367,7 @@ class ConfigValidationTest(unittest.TestCase):
             {
                 "id": "clouds",
                 "label": "Clouds",
-                "kind": "scalar",
+                "layer_id": "scalar",
                 "default_product": "cloud_layers",
                 "products": ["cloud_layers"],
             },
@@ -373,13 +403,26 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
+    def test_pipeline_config_rejects_product_group_invalid_or_mismatched_layer_id(self) -> None:
+        empty_layer = _minimal_pipeline_config()
+        _gfs(empty_layer)["product_groups"][0]["layer_id"] = ""
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(empty_layer)
+
+        mismatched_layer = _minimal_pipeline_config()
+        _gfs(mismatched_layer)["product_groups"][0]["layer_id"] = "vector"
+
+        with self.assertRaises(SystemExit):
+            parse_pipeline_config(mismatched_layer)
+
     def test_pipeline_config_rejects_product_group_duplicate_product(self) -> None:
         cfg = _minimal_pipeline_config()
         _gfs(cfg)["product_groups"].append(
             {
                 "id": "duplicate",
                 "label": "Duplicate",
-                "kind": "scalar",
+                "layer_id": "scalar",
                 "default_product": "tmp_surface",
                 "products": ["tmp_surface"],
             }

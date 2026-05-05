@@ -7,12 +7,7 @@ from typing import Any, Mapping
 
 from ..stores import make_store
 from .groups import parse_product_groups
-from .schema import (
-    PRODUCT_KIND_SCALAR,
-    ModelConfig,
-    PipelineConfig,
-    ProductCatalogSpec,
-)
+from .schema import ModelConfig, PipelineConfig, ProductCatalogSpec
 from .validate import (
     parse_model_product_spec,
     parse_model_source_config,
@@ -116,15 +111,15 @@ def _parse_model_config(
         model_products=model_products,
     )
 
-    groupable_product_ids = tuple(
+    grouped_product_ids = tuple(
         product_id
         for product_id in workload.products
-        if resolved_products[product_id].kind == PRODUCT_KIND_SCALAR
+        if resolved_products[product_id].style.layer_id == "scalar"
     )
     product_groups = parse_product_groups(
         raw.get("product_groups"),
         products=resolved_products,
-        groupable_product_ids=groupable_product_ids,
+        grouped_product_ids=grouped_product_ids,
     )
 
     return ModelConfig(

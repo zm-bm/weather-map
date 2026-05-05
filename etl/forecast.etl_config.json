@@ -2,7 +2,6 @@
   "version": 2,
   "product_catalog": {
     "tmp_surface": {
-      "kind": "scalar",
       "label": "Temperature",
       "parameter": "tmp",
       "level": "surface",
@@ -10,6 +9,10 @@
       "valid_max": 50,
       "units": "C",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "temperature.air.c.v1"
+      },
       "encoding": {
         "id": "tmp_surface_i8_temp_c_piecewise_v1",
         "format": "temp-c-piecewise-i8-v1",
@@ -24,7 +27,6 @@
       ]
     },
     "aptmp_surface": {
-      "kind": "scalar",
       "label": "Apparent Temperature",
       "parameter": "aptmp",
       "level": "surface",
@@ -32,6 +34,10 @@
       "valid_max": 50,
       "units": "C",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "temperature.air.c.v1"
+      },
       "encoding": {
         "id": "tmp_surface_i8_temp_c_piecewise_v1",
         "format": "temp-c-piecewise-i8-v1",
@@ -46,7 +52,6 @@
       ]
     },
     "rh_surface": {
-      "kind": "scalar",
       "label": "Relative Humidity",
       "parameter": "rh",
       "level": "surface",
@@ -54,6 +59,10 @@
       "valid_max": 100,
       "units": "%",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "moisture.relative_humidity.percent.v1"
+      },
       "encoding": {
         "id": "rh_surface_i8_1pct_v1",
         "format": "linear-i8-v1",
@@ -70,7 +79,6 @@
       ]
     },
     "gust_surface": {
-      "kind": "scalar",
       "label": "Wind Gust",
       "parameter": "gust",
       "level": "surface",
@@ -78,6 +86,10 @@
       "valid_max": 60,
       "units": "m/s",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "wind.gust.mps.v1"
+      },
       "encoding": {
         "id": "gust_surface_i8_1ms_v1",
         "format": "linear-i8-v1",
@@ -94,7 +106,6 @@
       ]
     },
     "dewpoint_surface": {
-      "kind": "scalar",
       "label": "Dew Point",
       "parameter": "dpt",
       "level": "surface",
@@ -102,6 +113,10 @@
       "valid_max": 40,
       "units": "C",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "temperature.dewpoint.c.v1"
+      },
       "encoding": {
         "id": "dewpoint_surface_i8_0p5c_v1",
         "format": "linear-i8-v1",
@@ -118,7 +133,6 @@
       ]
     },
     "prmsl_surface": {
-      "kind": "scalar",
       "label": "Pressure",
       "parameter": "prmsl",
       "level": "surface",
@@ -126,6 +140,10 @@
       "valid_max": 103500,
       "units": "Pa",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "pressure.msl.pa.v1"
+      },
       "encoding": {
         "id": "prmsl_surface_i8_25pa_v1",
         "format": "linear-i8-v1",
@@ -142,7 +160,6 @@
       ]
     },
     "tcdc": {
-      "kind": "scalar",
       "label": "Total Cloud Cover",
       "parameter": "tcdc",
       "level": "entire atmosphere",
@@ -150,6 +167,10 @@
       "valid_max": 100,
       "units": "%",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "cloud.cover.percent.v1"
+      },
       "encoding": {
         "id": "tcdc_i8_0p5pct_v1",
         "format": "linear-i8-v1",
@@ -166,7 +187,6 @@
       ]
     },
     "cloud_layers": {
-      "kind": "scalar",
       "label": "Cloud Layers",
       "parameter": "cloud_layers",
       "level": "low/medium/high cloud layers",
@@ -174,6 +194,10 @@
       "valid_max": 100,
       "units": "%",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "cloud.layers.percent.v1"
+      },
       "encoding": {
         "id": "cloud_layers_i8_5pct_components_v1",
         "format": "linear-i8-v1",
@@ -196,7 +220,6 @@
       ]
     },
     "prate_surface": {
-      "kind": "scalar",
       "label": "Precipitation Rate",
       "parameter": "prate",
       "level": "surface",
@@ -204,6 +227,10 @@
       "valid_max": 30,
       "units": "mm/hr",
       "source_transform": "kg_m2_s_to_mm_hr",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "precip.rate.mm_hr.v1"
+      },
       "encoding": {
         "id": "prate_surface_i8_0p15mmhr_v1",
         "format": "linear-i8-v1",
@@ -220,7 +247,6 @@
       ]
     },
     "precip_total_surface": {
-      "kind": "scalar",
       "label": "Accumulated Precipitation",
       "parameter": "precip_total",
       "level": "surface",
@@ -228,6 +254,10 @@
       "valid_max": 254,
       "units": "mm",
       "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "precip.total.mm.v1"
+      },
       "encoding": {
         "id": "precip_total_surface_i8_1mm_v1",
         "format": "linear-i8-v1",
@@ -244,13 +274,17 @@
       ]
     },
     "wind10m_uv": {
-      "kind": "vector",
       "label": "10m Wind U/V",
       "units": "m/s",
       "parameter": "wind_uv",
       "level": "10m_above_ground",
       "valid_min": -64,
       "valid_max": 63.5,
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "vector",
+        "palette_id": "wind.vector.mps.v1"
+      },
       "encoding": {
         "id": "wind10m_uv_vector_i8_v1",
         "format": "linear-i8-v1",
@@ -439,7 +473,7 @@
         {
           "id": "temperature",
           "label": "Temperature",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "tmp_surface",
           "products": [
             "tmp_surface",
@@ -449,7 +483,7 @@
         {
           "id": "moisture",
           "label": "Moisture",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "rh_surface",
           "products": [
             "rh_surface",
@@ -459,7 +493,7 @@
         {
           "id": "wind",
           "label": "Wind",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "gust_surface",
           "products": [
             "gust_surface"
@@ -468,7 +502,7 @@
         {
           "id": "precipitation",
           "label": "Precipitation",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "prate_surface",
           "products": [
             "prate_surface"
@@ -477,7 +511,7 @@
         {
           "id": "clouds",
           "label": "Clouds",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "tcdc",
           "products": [
             "tcdc",
@@ -487,7 +521,7 @@
         {
           "id": "pressure",
           "label": "Pressure",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "prmsl_surface",
           "products": [
             "prmsl_surface"
@@ -633,7 +667,7 @@
         {
           "id": "temperature",
           "label": "Temperature",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "tmp_surface",
           "products": [
             "tmp_surface"
@@ -642,7 +676,7 @@
         {
           "id": "moisture",
           "label": "Moisture",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "rh_surface",
           "products": [
             "rh_surface",
@@ -652,7 +686,7 @@
         {
           "id": "wind",
           "label": "Wind",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "gust_surface",
           "products": [
             "gust_surface"
@@ -661,7 +695,7 @@
         {
           "id": "precipitation",
           "label": "Precipitation",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "precip_total_surface",
           "products": [
             "precip_total_surface"
@@ -670,7 +704,7 @@
         {
           "id": "clouds",
           "label": "Clouds",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "tcdc",
           "products": [
             "tcdc",
@@ -680,7 +714,7 @@
         {
           "id": "pressure",
           "label": "Pressure",
-          "kind": "scalar",
+          "layer_id": "scalar",
           "default_product": "prmsl_surface",
           "products": [
             "prmsl_surface"

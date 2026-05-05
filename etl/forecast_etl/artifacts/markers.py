@@ -11,7 +11,6 @@ from .json import read_json
 
 @dataclass(frozen=True)
 class ProductMarkerPayload:
-    kind: str | None
     payload_uri: str
     byte_length: int
     sha256: str
@@ -24,13 +23,13 @@ class ProductMarkerPayload:
     valid_max: float
     grid_id: str
     grid: dict[str, Any]
-    components: tuple[str, ...] | None = None
+    components: tuple[str, ...]
+    style: dict[str, str]
 
 
 @dataclass(frozen=True)
 class ProductSuccessMarker:
     uri: str
-    kind: str
     product: ProductMarkerPayload
     cycle: str | None = None
     fhour: str | None = None
@@ -51,7 +50,6 @@ def parse_product_success_marker(raw: Mapping[str, Any], *, uri: str) -> Product
 
     return ProductSuccessMarker(
         uri=uri,
-        kind=_as_str(raw.get("kind"), field=f"{uri}.kind"),
         cycle=_optional_str(raw.get("cycle"), field=f"{uri}.cycle"),
         fhour=_optional_str(raw.get("fhour"), field=f"{uri}.fhour"),
         product_id=_optional_str(raw.get("product_id"), field=f"{uri}.product_id"),
@@ -60,12 +58,7 @@ def parse_product_success_marker(raw: Mapping[str, Any], *, uri: str) -> Product
 
 
 def _parse_product_marker_payload(raw: Mapping[str, Any], *, uri: str) -> ProductMarkerPayload:
-    components = None
-    if raw.get("components") is not None:
-        components = tuple(_as_str_list(raw.get("components"), field=f"{uri}.product.components"))
-
     return ProductMarkerPayload(
-        kind=_optional_str(raw.get("kind"), field=f"{uri}.product.kind"),
         payload_uri=_as_str(raw.get("payload_uri"), field=f"{uri}.product.payload_uri"),
         byte_length=_as_int(raw.get("byte_length"), field=f"{uri}.product.byte_length"),
         sha256=_as_str(raw.get("sha256"), field=f"{uri}.product.sha256"),
@@ -78,8 +71,18 @@ def _parse_product_marker_payload(raw: Mapping[str, Any], *, uri: str) -> Produc
         valid_max=_as_float(raw.get("valid_max"), field=f"{uri}.product.valid_max"),
         grid_id=_as_str(raw.get("grid_id"), field=f"{uri}.product.grid_id"),
         grid=_normalize_grid(raw.get("grid"), field=f"{uri}.product.grid"),
-        components=components,
+        components=tuple(_as_str_list(raw.get("components"), field=f"{uri}.product.components")),
+        style=_normalize_style(raw.get("style"), field=f"{uri}.product.style"),
     )
+
+
+def _normalize_style(raw: Any, *, field: str) -> dict[str, str]:
+    if not isinstance(raw, Mapping):
+        raise SystemExit(f"{field} must be an object, got: {raw!r}")
+    return {
+        "layer_id": _as_str(raw.get("layer_id"), field=f"{field}.layer_id"),
+        "palette_id": _as_str(raw.get("palette_id"), field=f"{field}.palette_id"),
+    }
 
 
 def _normalize_grid(raw: Any, *, field: str) -> dict[str, Any]:

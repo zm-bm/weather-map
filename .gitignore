@@ -144,16 +144,14 @@ vite.config.ts.timestamp-*
 # Codex
 .codex
 
-# Local forecast artifact root used in development
-artifacts/*
-!artifacts/README.md
-!artifacts/pmtiles/
+# Local forecast artifact roots used in development
+artifacts/fields/
+artifacts/manifests/
+artifacts/status/
 artifacts/pmtiles/*
 !artifacts/pmtiles/.gitignore
-!artifacts/radio/
 artifacts/radio/*
 !artifacts/radio/playlist.json
-!artifacts/glyphs/
 artifacts/glyphs/*
 !artifacts/glyphs/.gitignore
 

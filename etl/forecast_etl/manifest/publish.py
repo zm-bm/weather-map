@@ -8,7 +8,7 @@ from typing import Iterable, Mapping
 
 from ..artifacts.json import read_json, write_json
 from ..artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths
-from ..config.schema import PRODUCT_KIND_SCALAR, ExecutionContext, ProductGroup, ProductSpec
+from ..config.schema import ExecutionContext, ProductGroup, ProductSpec
 from ..stores import make_store
 from ..stores.base import UriStore
 from .build import build_cycle_manifest, build_manifest_products, product_groups_for_manifest
@@ -32,14 +32,14 @@ def run_publish(
 ) -> PublishResult:
     fhours = tuple(ctx.forecast_hours or ())
     product_ids = tuple(product_ids)
-    groupable_product_ids = tuple(
+    grouped_product_ids = tuple(
         product_id
         for product_id in product_ids
-        if products[product_id].kind == PRODUCT_KIND_SCALAR
+        if products[product_id].style.layer_id == "scalar"
     )
     manifest_product_groups = product_groups_for_manifest(
         product_groups=product_groups,
-        groupable_product_ids=groupable_product_ids,
+        grouped_product_ids=grouped_product_ids,
     )
 
     if not fhours:

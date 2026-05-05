@@ -56,13 +56,13 @@ function createSyncRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
   const hourToken = manifest.times[0].id
   return {
     manifest,
-    activeScalar: manifest.scalarProducts[0]!,
-    activeVector: manifest.vectorProducts[0]!,
+    activeScalar: manifest.productsByLayerId.scalar[0]!,
+    activeVector: manifest.productsByLayerId.vector[0]!,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
     lowerHourToken: hourToken,
     upperHourToken: hourToken,
     mix: 0,
-    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${manifest.scalarProducts[0]!}:${manifest.vectorProducts[0]!}:${hourToken}:${hourToken}:0:0`,
+    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${manifest.productsByLayerId.scalar[0]!}:${manifest.productsByLayerId.vector[0]!}:${hourToken}:${hourToken}:0:0`,
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),

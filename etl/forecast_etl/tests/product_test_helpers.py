@@ -38,7 +38,7 @@ def _product_group(
     return ProductGroup(
         id=group_id,
         label=label,
-        kind="scalar",
+        layer_id="scalar",
         default_product=default_product,
         products=tuple(products),
     )
@@ -56,12 +56,15 @@ def _pack_f32(values: list[float], *, byte_order: str) -> bytes:
 
 def _minimal_product_config() -> dict:
     return {
-        "kind": "scalar",
         "parameter": "tmp",
         "level": "surface",
         "units": "C",
         "valid_min": -45,
         "valid_max": 50,
+        "style": {
+            "layer_id": "scalar",
+            "palette_id": "temperature.air.c.v1",
+        },
         "source_transform": "identity",
         "encoding": {
             "id": "tmp_surface_i16_v1",
@@ -86,12 +89,15 @@ def _minimal_product_config() -> dict:
 
 def _cloud_layers_config() -> dict:
     return {
-        "kind": "scalar",
         "parameter": "cloud_layers",
         "level": "low/medium/high cloud layers",
         "units": "%",
         "valid_min": 0,
         "valid_max": 100,
+        "style": {
+            "layer_id": "scalar",
+            "palette_id": "cloud.layers.percent.v1",
+        },
         "source_transform": "identity",
         "encoding": {
             "id": "cloud_layers_i8_5pct_components_v1",
@@ -112,12 +118,15 @@ def _cloud_layers_config() -> dict:
 
 def _wind_product_config() -> dict:
     return {
-        "kind": "vector",
         "parameter": "wind_uv",
         "level": "10m_above_ground",
         "units": "m/s",
         "valid_min": -64.0,
         "valid_max": 63.5,
+        "style": {
+            "layer_id": "vector",
+            "palette_id": "wind.vector.mps.v1",
+        },
         "encoding": {
             "id": "wind10m_uv_vector_i8_v1",
             "format": "linear-i8-v1",
@@ -135,12 +144,15 @@ def _wind_product_config() -> dict:
 
 def _precip_total_config() -> dict:
     return {
-        "kind": "scalar",
         "parameter": "precip_total",
         "level": "surface",
         "units": "mm",
         "valid_min": 0,
         "valid_max": 254,
+        "style": {
+            "layer_id": "scalar",
+            "palette_id": "precip.total.mm.v1",
+        },
         "source_transform": "identity",
         "encoding": {
             "id": "precip_total_surface_i8_1mm_v1",
@@ -186,7 +198,7 @@ def _minimal_pipeline_config() -> dict:
                     {
                         "id": "temperature",
                         "label": "Temperature",
-                        "kind": "scalar",
+                        "layer_id": "scalar",
                         "default_product": "tmp_surface",
                         "products": ["tmp_surface"],
                     },
@@ -277,13 +289,12 @@ def _write_scalar_marker(
     )
     payload_sha = hashlib.sha256(payload).hexdigest()
     item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
-    payload_uri = ap.output_scalar_payload_uri(
+    payload_uri = ap.output_field_payload_uri(
         item=item,
         dtype=dtype,
     )
     store.write_bytes(uri=payload_uri, data=payload)
     product_marker = {
-        "kind": "scalar",
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": payload_sha,
@@ -298,6 +309,11 @@ def _write_scalar_marker(
         "level": str(product_config["level"]),
         "valid_min": float(product_config["valid_min"]),
         "valid_max": float(product_config["valid_max"]),
+        "components": [str(component["id"]) for component in product_config["components"]],
+        "style": {
+            "layer_id": str(product_config["style"]["layer_id"]),
+            "palette_id": str(product_config["style"]["palette_id"]),
+        },
         "grid_id": "gfs_0p25_global",
         "grid": grid_meta,
     }
@@ -312,7 +328,6 @@ def _write_scalar_marker(
             "cycle": cycle,
             "fhour": fhour,
             "product_id": variable,
-            "kind": "scalar",
             "product": product_marker,
         },
     )
@@ -354,10 +369,9 @@ def _write_cloud_layers_marker(
     payload = b"".join(component_payloads)
     payload_sha = hashlib.sha256(payload).hexdigest()
     item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
-    payload_uri = ap.output_scalar_payload_uri(item=item, dtype=dtype)
+    payload_uri = ap.output_field_payload_uri(item=item, dtype=dtype)
     store.write_bytes(uri=payload_uri, data=payload)
     product_marker = {
-        "kind": "scalar",
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": payload_sha,
@@ -376,6 +390,10 @@ def _write_cloud_layers_marker(
         "level": str(product_config["level"]),
         "valid_min": float(product_config["valid_min"]),
         "valid_max": float(product_config["valid_max"]),
+        "style": {
+            "layer_id": str(product_config["style"]["layer_id"]),
+            "palette_id": str(product_config["style"]["palette_id"]),
+        },
         "grid_id": "gfs_0p25_global",
         "grid": grid_meta,
     }
@@ -386,7 +404,6 @@ def _write_cloud_layers_marker(
             "cycle": cycle,
             "fhour": fhour,
             "product_id": variable,
-            "kind": "scalar",
             "product": product_marker,
         },
     )
@@ -406,8 +423,9 @@ def _write_vector_marker(
     v_bytes = bytes(((i + 7) % 128) for i in range(component_bytes))
     payload = u_bytes + v_bytes
     payload_sha = hashlib.sha256(payload).hexdigest()
-    payload_uri = ap.output_vector_payload_uri(
-        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null")
+    payload_uri = ap.output_field_payload_uri(
+        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null"),
+        dtype="int8",
     )
     store.write_bytes(uri=payload_uri, data=payload)
     _write_json(
@@ -416,9 +434,7 @@ def _write_vector_marker(
             "cycle": cycle,
             "fhour": fhour,
             "product_id": variable,
-            "kind": "vector",
             "product": {
-                "kind": "vector",
                 "payload_uri": payload_uri,
                 "byte_length": len(payload),
                 "sha256": payload_sha,
@@ -435,6 +451,10 @@ def _write_vector_marker(
                 "level": "10m_above_ground",
                 "valid_min": -64.0,
                 "valid_max": 63.5,
+                "style": {
+                    "layer_id": "vector",
+                    "palette_id": "wind.vector.mps.v1",
+                },
                 "grid_id": "gfs_0p25_global",
                 "grid": grid_meta,
             },

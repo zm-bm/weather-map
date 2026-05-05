@@ -69,8 +69,8 @@ describe('loadForecastFrames', () => {
     await expect(loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarProducts[0]!,
-      activeVector: manifest.vectorProducts[0]!,
+      activeScalar: manifest.productsByLayerId.scalar[0]!,
+      activeVector: manifest.productsByLayerId.vector[0]!,
       previousWindows,
       selectedValidTimeMs: 123,
       lowerHourToken: '000',
@@ -121,8 +121,8 @@ describe('prefetchForecastFrames', () => {
     await prefetchForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarProducts[0]!,
-      activeVector: manifest.vectorProducts[0]!,
+      activeScalar: manifest.productsByLayerId.scalar[0]!,
+      activeVector: manifest.productsByLayerId.vector[0]!,
       lowerHourToken: '0',
       upperHourToken: '3',
       aheadHourCount: 2,
@@ -167,8 +167,8 @@ describe('prefetchForecastFrames', () => {
     const prefetch = prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.scalarProducts[0]!,
-      activeVector: manifest.vectorProducts[0]!,
+      activeScalar: manifest.productsByLayerId.scalar[0]!,
+      activeVector: manifest.productsByLayerId.vector[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,
@@ -209,8 +209,8 @@ describe('prefetchForecastFrames', () => {
     await expect(prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.scalarProducts[0]!,
-      activeVector: manifest.vectorProducts[0]!,
+      activeScalar: manifest.productsByLayerId.scalar[0]!,
+      activeVector: manifest.productsByLayerId.vector[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,

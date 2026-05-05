@@ -14,6 +14,7 @@ function createFrame(values: number[]): ScalarFrameData {
   return {
     hourToken: '000',
     variableId: 'tmp_surface',
+    paletteId: 'temperature.air.c.v1',
     grid: {
       id: 'g0',
       crs: 'EPSG:4326',

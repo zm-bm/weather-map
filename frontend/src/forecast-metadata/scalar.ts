@@ -10,6 +10,7 @@ export type ScalarMeta = {
   parameter: string
   min: number
   max: number
+  paletteId: string
   colortable: LayerColortableStop[]
   legendKind?: 'cloud_layers'
   cloudLayerSwatches?: CloudLayerLegendSwatch[]
@@ -26,8 +27,6 @@ export type CloudLayerLegendSwatch = {
   label: string
   color: string
 }
-
-const FALLBACK_ENTRY_KEY = '__fallback__'
 
 const TEMPERATURE_COLORTABLE: LayerColortableStop[] = [
   [50, 61, 2, 22],
@@ -67,14 +66,11 @@ const TEMPERATURE_COLORTABLE: LayerColortableStop[] = [
   [-45.0, 203, 219, 244],
 ]
 
-const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
-  tmp_surface: {
+const SCALAR_PALETTES: Record<string, ScalarStyleEntry> = {
+  'temperature.air.c.v1': {
     colortable: TEMPERATURE_COLORTABLE,
   },
-  aptmp_surface: {
-    colortable: TEMPERATURE_COLORTABLE,
-  },
-  rh_surface: {
+  'moisture.relative_humidity.percent.v1': {
     colortable: [
       [0, 218, 192, 146],
       [10, 232, 214, 171],
@@ -89,7 +85,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [100, 19, 72, 140],
     ],
   },
-  gust_surface: {
+  'wind.gust.mps.v1': {
     colortable: [
       [0, 200, 210, 215],
       [4, 148, 199, 213],
@@ -104,7 +100,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [60, 110, 42, 150],
     ],
   },
-  dewpoint_surface: {
+  'temperature.dewpoint.c.v1': {
     colortable: [
       [-60, 98, 81, 140],
       [-45, 95, 112, 182],
@@ -121,7 +117,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [40, 94, 53, 126],
     ],
   },
-  tcdc: {
+  'cloud.cover.percent.v1': {
     colortable: [
       [0, 180, 180, 180],
       [5, 170, 185, 200],
@@ -138,7 +134,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [100, 60, 120, 170],
     ],
   },
-  cloud_layers: {
+  'cloud.layers.percent.v1': {
     legendKind: 'cloud_layers',
     cloudLayerSwatches: [
       { id: 'low', label: 'Low', color: 'rgb(110 105 89)' },
@@ -153,7 +149,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [100, 60, 120, 170],
     ],
   },
-  prmsl_surface: {
+  'pressure.msl.pa.v1': {
     colortable: [
       [98000, 70, 155, 225],
       [98400, 82, 182, 230],
@@ -174,7 +170,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [103500, 188, 88, 66],
     ],
   },
-  prate_surface: {
+  'precip.rate.mm_hr.v1': {
     colortable: [
       [0, 180, 180, 180],
       [0.15, 200, 210, 240],
@@ -192,7 +188,7 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [30, 180, 40, 140],
     ],
   },
-  precip_total_surface: {
+  'precip.total.mm.v1': {
     colortable: [
       [0, 180, 180, 180],
       [1, 200, 210, 240],
@@ -206,13 +202,6 @@ const SCALAR_STYLES: Record<string, ScalarStyleEntry> = {
       [254, 180, 40, 140],
     ],
   },
-  [FALLBACK_ENTRY_KEY]: {
-    colortable: [
-      [0, 46, 68, 96],
-      [0.5, 112, 139, 168],
-      [1, 219, 228, 238],
-    ],
-  },
 }
 
 export function getScalarMeta(
@@ -220,11 +209,15 @@ export function getScalarMeta(
   metaById?: Record<string, ManifestProductSpec> | null,
 ): ScalarMeta {
   const sourceMeta = metaById?.[variableId]
-  const style = SCALAR_STYLES[variableId] ?? SCALAR_STYLES[FALLBACK_ENTRY_KEY]!
 
   if (!sourceMeta) {
     throw new Error(`Missing layer metadata for ${variableId}`)
   }
+  if (sourceMeta.style.layerId !== 'scalar') {
+    throw new Error(`Layer metadata for ${variableId} is not scalar (got ${sourceMeta.style.layerId})`)
+  }
+
+  const style = getScalarStyle(sourceMeta)
 
   return {
     id: variableId,
@@ -233,12 +226,21 @@ export function getScalarMeta(
     parameter: sourceMeta.parameter,
     min: sourceMeta.valueRange.min,
     max: sourceMeta.valueRange.max,
+    paletteId: sourceMeta.style.paletteId,
     colortable: style.colortable,
     legendKind: style.legendKind,
     cloudLayerSwatches: style.cloudLayerSwatches,
   }
 }
 
-export function getScalarStyle(variableId: string): ScalarStyleEntry {
-  return SCALAR_STYLES[variableId] ?? SCALAR_STYLES[FALLBACK_ENTRY_KEY]!
+export function getScalarStyle(product: ManifestProductSpec): ScalarStyleEntry {
+  return getScalarStyleByPaletteId(product.style.paletteId)
+}
+
+export function getScalarStyleByPaletteId(paletteId: string): ScalarStyleEntry {
+  const style = SCALAR_PALETTES[paletteId]
+  if (!style) {
+    throw new Error(`Unknown scalar paletteId: ${paletteId}`)
+  }
+  return style
 }

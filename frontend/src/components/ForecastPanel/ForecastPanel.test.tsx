@@ -32,14 +32,14 @@ function createPanelManifest(
     groups: [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProduct: asScalarProductId('tmp_surface'),
         products: [asScalarProductId('tmp_surface')],
       },
       {
         id: 'moisture',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Moisture',
         defaultProduct: asScalarProductId('rh_surface'),
         products: [asScalarProductId('rh_surface')],
@@ -76,14 +76,14 @@ function createInteractivePanelManifest(
     groups: [
       {
         id: 'temperature',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Temperature',
         defaultProduct: asScalarProductId('tmp_surface'),
         products: [asScalarProductId('tmp_surface'), asScalarProductId('aptmp_surface')],
       },
       {
         id: 'pressure',
-        kind: 'scalar',
+        layerId: 'scalar',
         label: 'Pressure',
         defaultProduct: asScalarProductId('prmsl_surface'),
         products: [asScalarProductId('prmsl_surface')],
@@ -207,7 +207,7 @@ describe('ForecastPanel', () => {
           groups: [
             {
               id: 'clouds',
-              kind: 'scalar',
+              layerId: 'scalar',
               label: 'Clouds',
               defaultProduct: asScalarProductId('tcdc'),
               products: [asScalarProductId('tcdc'), asScalarProductId('cloud_layers')],

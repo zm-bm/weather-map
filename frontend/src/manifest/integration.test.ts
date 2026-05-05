@@ -37,11 +37,11 @@ describe('manifest + frame loading end-to-end', () => {
         return createFetchJsonResponse(createCycleManifestPayloadFixture())
       }
 
-      if (url.endsWith('/tmp_surface.scalar.i16.bin')) {
+      if (url.endsWith('/tmp_surface.field.i16.bin')) {
         return createFetchArrayBufferResponse(scalarPayload)
       }
 
-      if (url.endsWith('/wind10m_uv.vector.i8.bin')) {
+      if (url.endsWith('/wind10m_uv.field.i8.bin')) {
         return createFetchArrayBufferResponse(vectorPayload)
       }
 
@@ -59,8 +59,8 @@ describe('manifest + frame loading end-to-end', () => {
     const frames = await loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.scalarProducts[0]!,
-      activeVector: manifest.vectorProducts[0]!,
+      activeScalar: manifest.productsByLayerId.scalar[0]!,
+      activeVector: manifest.productsByLayerId.vector[0]!,
       selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
       lowerHourToken: '000',
       upperHourToken: '000',

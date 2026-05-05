@@ -39,8 +39,8 @@ class LocalFSStoreTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
-            src = tmp_path / "wind10m_uv.vector.i8.bin"
-            dst = tmp_path / "fields" / "2026042700" / "006" / "wind10m_uv.vector.i8.bin"
+            src = tmp_path / "wind10m_uv.field.i8.bin"
+            dst = tmp_path / "fields" / "2026042700" / "006" / "wind10m_uv.field.i8.bin"
             src.write_bytes(payload)
 
             store.put_file(uri=dst.as_uri(), src=src)

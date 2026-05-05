@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-PRODUCT_KIND_SCALAR = "scalar"
-PRODUCT_KIND_VECTOR = "vector"
-PRODUCT_KINDS = {PRODUCT_KIND_SCALAR, PRODUCT_KIND_VECTOR}
 SOURCE_TYPE_GFS_NOMADS = "gfs_nomads"
 SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL = "icon_dwd_icosahedral"
 SOURCE_TYPES = {SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL}
@@ -65,9 +62,14 @@ class EncodingSpec:
 
 
 @dataclass(frozen=True)
+class ProductStyleSpec:
+    layer_id: str
+    palette_id: str
+
+
+@dataclass(frozen=True)
 class ProductCatalogSpec:
     id: str
-    kind: str
     parameter: str
     level: str
     units: str
@@ -76,6 +78,7 @@ class ProductCatalogSpec:
     source_transform: str
     encoding: EncodingSpec
     component_ids: tuple[str, ...]
+    style: ProductStyleSpec
     label: str | None = None
 
 
@@ -88,7 +91,6 @@ class ModelProductSpec:
 @dataclass(frozen=True)
 class ProductSpec:
     id: str
-    kind: str
     parameter: str
     level: str
     units: str
@@ -97,6 +99,7 @@ class ProductSpec:
     source_transform: str
     encoding: EncodingSpec
     components: tuple[ComponentSpec, ...]
+    style: ProductStyleSpec
     label: str | None = None
 
     @property
@@ -108,7 +111,7 @@ class ProductSpec:
 class ProductGroup:
     id: str
     label: str
-    kind: str
+    layer_id: str
     default_product: str
     products: tuple[str, ...]
 

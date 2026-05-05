@@ -80,12 +80,15 @@ class AwsIngestTest(unittest.TestCase):
             "version": 2,
             "product_catalog": {
                 "tmp_surface": {
-                    "kind": "scalar",
                     "parameter": "tmp",
                     "level": "surface",
                     "units": "C",
                     "valid_min": -45,
                     "valid_max": 50,
+                    "style": {
+                        "layer_id": "scalar",
+                        "palette_id": "temperature.air.c.v1",
+                    },
                     "source_transform": "identity",
                     "encoding": {
                         "id": "tmp_surface_i16_v1",
@@ -99,12 +102,15 @@ class AwsIngestTest(unittest.TestCase):
                     "components": [{"id": "value"}],
                 },
                 "wind10m_uv": {
-                    "kind": "vector",
                     "parameter": "wind_uv",
                     "level": "10m_above_ground",
                     "units": "m/s",
                     "valid_min": -64.0,
                     "valid_max": 63.5,
+                    "style": {
+                        "layer_id": "vector",
+                        "palette_id": "wind.vector.mps.v1",
+                    },
                     "encoding": {
                         "id": "wind10m_uv_vector_i8_v1",
                         "format": "linear-i8-v1",

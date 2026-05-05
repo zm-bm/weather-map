@@ -11,9 +11,9 @@ describe('resolveFrameSpec', () => {
     const scalarSpec = resolveFrameSpec(BASE_MANIFEST, '000', 'tmp_surface', 'scalar')
     const vectorSpec = resolveFrameSpec(BASE_MANIFEST, '000', 'wind10m_uv', 'vector')
 
-    expect(scalarSpec.variable.kind).toBe('scalar')
+    expect(scalarSpec.variable.style.layerId).toBe('scalar')
     expect(scalarSpec.variable.encoding.format).toBe('linear-i16-v1')
-    expect(vectorSpec.variable.kind).toBe('vector')
+    expect(vectorSpec.variable.style.layerId).toBe('vector')
     expect(vectorSpec.variable.encoding.format).toBe('linear-i8-v1')
   })
 
@@ -46,7 +46,7 @@ describe('resolveFrameSpec', () => {
     ).toThrow('No scalar variable metadata')
   })
 
-  it('fails on domain kind mismatch', () => {
+  it('fails on domain layer mismatch', () => {
     expect(() =>
       resolveFrameSpec(BASE_MANIFEST, '000', 'wind10m_uv', 'scalar')
     ).toThrow('is not scalar')

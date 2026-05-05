@@ -6,29 +6,36 @@ export type DecodedScalarPayload = {
   cloudLayers?: CloudLayerFrameValues
 }
 
-type ScalarCloudLayerEncodingSpec = Extract<ScalarEncodingSpec, { components: ['low', 'medium', 'high'] }>
+type ScalarCloudLayerEncodingSpec = Extract<ScalarEncodingSpec, { format: 'linear-i8-v1', dtype: 'int8' }>
+type ScalarPayloadComponents = readonly string[]
 
 export function decodeScalarPayloadToValues(
   payload: ArrayBuffer,
-  encoding: ScalarEncodingSpec
+  encoding: ScalarEncodingSpec,
+  components: ScalarPayloadComponents = ['value']
 ): Float32Array {
-  return decodeScalarPayload(payload, encoding).values
+  return decodeScalarPayload(payload, encoding, components).values
 }
 
 export function decodeScalarPayload(
   payload: ArrayBuffer,
-  encoding: ScalarEncodingSpec
+  encoding: ScalarEncodingSpec,
+  components: ScalarPayloadComponents
 ): DecodedScalarPayload {
+  const isSingleValue = components.length === 1
   if (encoding.format === 'temp-c-piecewise-i8-v1') {
+    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
     return { values: decodeTemperaturePiecewisePayload(payload, encoding.nodata) }
   }
-  if (encoding.format === 'linear-i8-v1' && 'components' in encoding) {
-    return decodeCloudLayerPayload(payload, encoding)
+  if (encoding.format === 'linear-i8-v1' && isCloudLayerComponents(components)) {
+    return decodeCloudLayerPayload(payload, encoding, components)
   }
   if (encoding.format === 'linear-i8-v1') {
+    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
     return { values: decodeLinearValues(decodeScalarPayloadInt8(payload, encoding.byteOrder), encoding) }
   }
   if (encoding.format === 'linear-i16-v1') {
+    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
     return { values: decodeLinearValues(decodeScalarPayloadInt16(payload, encoding.byteOrder), encoding) }
   }
   throw new Error(
@@ -101,10 +108,11 @@ function decodeLinearValues(
 
 export function decodeCloudLayerPayload(
   payload: ArrayBuffer,
-  encoding: ScalarCloudLayerEncodingSpec
+  encoding: ScalarCloudLayerEncodingSpec,
+  components: readonly ['low', 'medium', 'high']
 ): DecodedScalarPayload {
   const raw = decodeScalarPayloadInt8(payload, encoding.byteOrder)
-  const componentCount = encoding.components.length
+  const componentCount = components.length
   if (raw.length % componentCount !== 0) {
     throw new Error(
       `Invalid cloud layer payload byte length: ${raw.length}; expected a multiple of ${componentCount}`
@@ -139,6 +147,17 @@ export function decodeCloudLayerPayload(
       high,
     },
   }
+}
+
+function isCloudLayerComponents(
+  components: ScalarPayloadComponents
+): components is readonly ['low', 'medium', 'high'] {
+  return (
+    components.length === 3 &&
+    components[0] === 'low' &&
+    components[1] === 'medium' &&
+    components[2] === 'high'
+  )
 }
 
 function decodeCloudLayerComponent(

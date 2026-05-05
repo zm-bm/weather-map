@@ -1,6 +1,5 @@
 import {
-  asScalarProductId,
-  asVectorProductId,
+  asProductId,
   MANIFEST_PAYLOAD_CONTRACT,
   MANIFEST_SCHEMA,
   MANIFEST_SCHEMA_VERSION,
@@ -11,10 +10,12 @@ import {
   type FramePayloadRef,
   type ManifestProductSpec,
   type NonEmptyArray,
+  type ProductGroupSpec,
+  type ProductId,
+  type ProductStyleBinding,
+  type ProductStyleSpec,
   type ScalarGridSpec,
   type ScalarEncodingSpec,
-  type ScalarProductGroupSpec,
-  type ScalarProductId,
   type VectorEncodingSpec,
 } from './types'
 
@@ -25,6 +26,12 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function asString(v: unknown, field: string): string {
   if (typeof v === 'string') return v
   throw new Error(`Invalid manifest field ${field}: expected string`)
+}
+
+function asNonEmptyString(v: unknown, field: string): string {
+  const value = asString(v, field).trim()
+  if (value.length > 0) return value
+  throw new Error(`Invalid manifest field ${field}: expected non-empty string`)
 }
 
 function asFiniteNumber(v: unknown, field: string): number {
@@ -139,7 +146,7 @@ function parseScalarEncoding(raw: unknown, field: string): ScalarEncodingSpec {
   }
 
   if (format === 'linear-i8-v1') {
-    const base = {
+    return {
       id,
       format: 'linear-i8-v1' as const,
       dtype: asLiteralString(raw.dtype, `${field}.dtype`, 'int8'),
@@ -149,16 +156,6 @@ function parseScalarEncoding(raw: unknown, field: string): ScalarEncodingSpec {
       offset: asFiniteNumber(raw.offset, `${field}.offset`),
       decodeFormula: asString(raw.decodeFormula, `${field}.decodeFormula`),
     }
-    if ('components' in raw) {
-      return {
-        ...base,
-        nodata: asLiteralNumber(raw.nodata, `${field}.nodata`, -128),
-        scale: asLiteralNumber(raw.scale, `${field}.scale`, 5),
-        offset: asLiteralNumber(raw.offset, `${field}.offset`, 0),
-        components: parseCloudLayerComponents(raw.components, `${field}.components`),
-      }
-    }
-    return base
   }
 
   if (format === 'temp-c-piecewise-i8-v1') {
@@ -187,7 +184,30 @@ function parseVectorEncoding(raw: unknown, field: string): VectorEncodingSpec {
     scale: asFiniteNumber(raw.scale, `${field}.scale`),
     offset: asFiniteNumber(raw.offset, `${field}.offset`),
     decodeFormula: asString(raw.decodeFormula, `${field}.decodeFormula`),
-    components: parseVectorComponents(raw.components, `${field}.components`),
+  }
+}
+
+function parseEncoding(raw: unknown, field: string): ScalarEncodingSpec | VectorEncodingSpec {
+  if (!isRecord(raw)) throw new Error(`Invalid manifest field ${field}: expected object`)
+  return 'nodata' in raw
+    ? parseScalarEncoding(raw, field)
+    : parseVectorEncoding(raw, field)
+}
+
+function parseComponents(raw: unknown, field: string): NonEmptyArray<string> {
+  if (!Array.isArray(raw)) {
+    throw new Error(`Invalid manifest field ${field}: expected non-empty string[]`)
+  }
+  return asNonEmptyArray(raw.map((item, index) => (
+    asNonEmptyString(item, `${field}[${index}]`)
+  )), field)
+}
+
+function parseProductStyle(raw: unknown, field: string): ProductStyleSpec {
+  if (!isRecord(raw)) throw new Error(`Invalid manifest field ${field}: expected object`)
+  return {
+    layerId: asNonEmptyString(raw.layerId, `${field}.layerId`),
+    paletteId: asNonEmptyString(raw.paletteId, `${field}.paletteId`),
   }
 }
 
@@ -225,20 +245,14 @@ function parseProducts(raw: unknown): Record<string, ManifestProductSpec> {
       units: asString(rawProduct.units, `${field}.units`),
       parameter: asString(rawProduct.parameter, `${field}.parameter`),
       level: asString(rawProduct.level, `${field}.level`),
+      components: parseComponents(rawProduct.components, `${field}.components`),
+      style: parseProductStyle(rawProduct.style, `${field}.style`),
       valueRange: parseValueRange(rawProduct.valueRange, `${field}.valueRange`),
       grid: parseGrid(rawProduct.grid, `${field}.grid`),
+      encoding: parseEncoding(rawProduct.encoding, `${field}.encoding`),
       frames: parseFrames(rawProduct.frames, `${field}.frames`),
     }
-    const kind = asString(rawProduct.kind, `${field}.kind`)
-    if (kind === 'scalar') {
-      const encoding = parseScalarEncoding(rawProduct.encoding, `${field}.encoding`)
-      products[productId] = { kind, encoding, ...common }
-    } else if (kind === 'vector') {
-      const encoding = parseVectorEncoding(rawProduct.encoding, `${field}.encoding`)
-      products[productId] = { kind, encoding, ...common }
-    } else {
-      throw new Error(`Invalid manifest product kind at ${field}.kind: ${kind}`)
-    }
+    products[productId] = common
   }
   return products
 }
@@ -251,23 +265,22 @@ function parseValueRange(raw: unknown, field: string) {
   }
 }
 
-type DecodedGroup = Omit<ScalarProductGroupSpec, 'defaultProduct' | 'products'> & {
+type DecodedGroup = Omit<ProductGroupSpec, 'defaultProduct' | 'products'> & {
   defaultProduct: string
   products: NonEmptyArray<string>
 }
 
-function parseGroups(raw: unknown, scalarProducts: string[]): DecodedGroup[] {
+function parseGroups(raw: unknown, productsByLayerId: Record<string, NonEmptyArray<ProductId>>): DecodedGroup[] {
   if (!Array.isArray(raw)) {
     throw new Error('Invalid manifest field groups: expected object[]')
   }
   if (raw.length < 1) {
-    if (scalarProducts.length === 0) return []
+    if (!productsByLayerId.scalar) return []
     throw new Error('Invalid manifest field groups: expected non-empty object[] for scalar products')
   }
 
-  const scalarProductSet = new Set(scalarProducts)
   const groupIds = new Set<string>()
-  const seenProducts = new Set<string>()
+  const seenProductsByLayerId = new Map<string, Set<string>>()
   const groups = raw.map((rawGroup, groupIndex) => {
     const field = `groups[${groupIndex}]`
     if (!isRecord(rawGroup)) throw new Error(`Invalid manifest field ${field}: expected object`)
@@ -276,35 +289,44 @@ function parseGroups(raw: unknown, scalarProducts: string[]): DecodedGroup[] {
     if (groupIds.has(id)) throw new Error(`Manifest groups has duplicate group id ${id}`)
     groupIds.add(id)
 
-    const kind = asLiteralString(rawGroup.kind, `${field}.kind`, 'scalar')
+    const layerId = asNonEmptyString(rawGroup.layerId, `${field}.layerId`)
     const label = asString(rawGroup.label, `${field}.label`)
     const defaultProduct = asString(rawGroup.defaultProductId, `${field}.defaultProductId`)
     const products = asNonEmptyArray(asStringArray(rawGroup.productIds, `${field}.productIds`), `${field}.productIds`)
+    const layerProducts = productsByLayerId[layerId]
+    if (!layerProducts) {
+      throw new Error(`Manifest groups entry ${id} references unknown layerId ${layerId}`)
+    }
+    const layerProductSet = new Set(layerProducts)
+    const seenProducts = seenProductsByLayerId.get(layerId) ?? new Set<string>()
+    seenProductsByLayerId.set(layerId, seenProducts)
 
     if (!products.includes(defaultProduct)) {
       throw new Error(`Manifest groups entry ${id} defaultProductId ${defaultProduct} is not in productIds`)
     }
 
     for (const productId of products) {
-      if (!scalarProductSet.has(productId)) {
-        throw new Error(`Manifest groups entry ${id} references unknown scalar product ${productId}`)
+      if (!layerProductSet.has(asProductId(productId))) {
+        throw new Error(`Manifest groups entry ${id} references product ${productId} outside layer ${layerId}`)
       }
       if (seenProducts.has(productId)) {
-        throw new Error(`Manifest groups assigns scalar product ${productId} to multiple groups`)
+        throw new Error(`Manifest groups assigns product ${productId} to multiple ${layerId} groups`)
       }
       seenProducts.add(productId)
     }
 
     return {
       id,
-      kind,
+      layerId,
       label,
       defaultProduct,
       products,
     }
   })
 
-  const missingProducts = scalarProducts.filter((productId) => !seenProducts.has(productId))
+  const scalarProducts = productsByLayerId.scalar ?? []
+  const scalarSeenProducts = seenProductsByLayerId.get('scalar') ?? new Set<string>()
+  const missingProducts = scalarProducts.filter((productId) => !scalarSeenProducts.has(productId))
   if (missingProducts.length > 0) {
     throw new Error(`Manifest groups missing scalar products: ${missingProducts.join(', ')}`)
   }
@@ -325,18 +347,17 @@ export function parseCycleManifest(raw: unknown): CycleManifest {
   validateTimes(times)
   validateProductFrames(products, times)
 
-  const scalarProducts = Object.values(products).filter((product) => product.kind === 'scalar').map((product) => product.id)
-  const vectorProducts = Object.values(products).filter((product) => product.kind === 'vector').map((product) => product.id)
-  if (scalarProducts.length + vectorProducts.length < 1) {
+  if (Object.keys(products).length < 1) {
     throw new Error('Invalid manifest field products: expected at least one product')
   }
-  const decodedGroups = parseGroups(raw.groups, scalarProducts)
+  const { productsByLayerId, productStyleBindings } = deriveProductStyleData(products)
+  const decodedGroups = parseGroups(raw.groups, productsByLayerId)
   const groups = decodedGroups.map((group) => ({
     id: group.id,
-    kind: group.kind,
+    layerId: group.layerId,
     label: group.label,
-    defaultProduct: asScalarProductId(group.defaultProduct),
-    products: group.products.map(asScalarProductId) as NonEmptyArray<ScalarProductId>,
+    defaultProduct: asProductId(group.defaultProduct),
+    products: group.products.map(asProductId) as NonEmptyArray<ProductId>,
   }))
 
   return {
@@ -348,9 +369,36 @@ export function parseCycleManifest(raw: unknown): CycleManifest {
     times,
     groups,
     products,
-    scalarProducts: scalarProducts.map(asScalarProductId),
-    vectorProducts: vectorProducts.map(asVectorProductId),
+    productsByLayerId,
+    productStyleBindings,
   }
+}
+
+function deriveProductStyleData(products: Record<string, ManifestProductSpec>): {
+  productsByLayerId: Record<string, NonEmptyArray<ProductId>>
+  productStyleBindings: Record<string, ProductStyleBinding>
+} {
+  const layerProductIds: Record<string, ProductId[]> = {}
+  const productStyleBindings: Record<string, ProductStyleBinding> = {}
+
+  for (const product of Object.values(products)) {
+    const productId = asProductId(product.id)
+    const layerId = product.style.layerId
+    layerProductIds[layerId] ??= []
+    layerProductIds[layerId].push(productId)
+    productStyleBindings[product.id] = {
+      productId,
+      layerId,
+      paletteId: product.style.paletteId,
+    }
+  }
+
+  const productsByLayerId: Record<string, NonEmptyArray<ProductId>> = {}
+  for (const [layerId, productIds] of Object.entries(layerProductIds)) {
+    productsByLayerId[layerId] = asNonEmptyArray(productIds, `productsByLayerId.${layerId}`)
+  }
+
+  return { productsByLayerId, productStyleBindings }
 }
 
 function validateTimes(times: ForecastTimeSpec[]): void {
@@ -370,20 +418,4 @@ function validateProductFrames(products: Record<string, ManifestProductSpec>, ti
       }
     }
   }
-}
-
-function parseVectorComponents(raw: unknown, field: string): ['u', 'v'] {
-  const parts = asStringArray(raw, field)
-  if (parts.length !== 2 || parts[0] !== 'u' || parts[1] !== 'v') {
-    throw new Error(`Invalid manifest field ${field}: expected ['u', 'v']`)
-  }
-  return ['u', 'v']
-}
-
-function parseCloudLayerComponents(raw: unknown, field: string): ['low', 'medium', 'high'] {
-  const parts = asStringArray(raw, field)
-  if (parts.length !== 3 || parts[0] !== 'low' || parts[1] !== 'medium' || parts[2] !== 'high') {
-    throw new Error(`Invalid manifest field ${field}: expected ['low', 'medium', 'high']`)
-  }
-  return ['low', 'medium', 'high']
 }

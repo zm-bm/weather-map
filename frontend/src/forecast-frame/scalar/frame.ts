@@ -52,6 +52,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'scalar')
   const encoding = resolveScalarEncoding(variable, spec.variable.encoding)
   const grid = spec.variable.grid
+  const components = spec.variable.components
   const { payload } = await loadFramePayload({
     config,
     manifest,
@@ -66,17 +67,16 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   if (signal.aborted) throw createAbortError()
 
   const expectedCellCount = grid.nx * grid.ny
-  if (
-    'components' in encoding &&
-    payload.byteLength !== expectedCellCount * encoding.components.length
-  ) {
+  const bytesPerStoredValue = encoding.dtype === 'int16' ? 2 : 1
+  const expectedByteLength = expectedCellCount * components.length * bytesPerStoredValue
+  if (payload.byteLength !== expectedByteLength) {
     throw new Error(
-      `Cloud layer payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
-      `got=${payload.byteLength} expected=${expectedCellCount * encoding.components.length}`
+      `Scalar payload byte length mismatch for ${variable} ${normalizedHourToken}: ` +
+      `got=${payload.byteLength} expected=${expectedByteLength}`
     )
   }
 
-  const decoded = decodeScalarPayload(payload, encoding)
+  const decoded = decodeScalarPayload(payload, encoding, components)
   const { values, cloudLayers } = decoded
   if (values.length !== expectedCellCount) {
     throw new Error(
@@ -84,11 +84,12 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
       `got=${values.length} expected=${expectedCellCount}`
     )
   }
-  const style = getScalarStyle(variable)
+  const style = getScalarStyle(spec.variable)
 
   const frame = {
     hourToken: normalizedHourToken,
     variableId: variable,
+    paletteId: spec.variable.style.paletteId,
     grid,
     encoding,
     values,
@@ -191,6 +192,7 @@ export function canInterpolateScalarFrames(
   upper: ScalarFrameData
 ): boolean {
   if (lower.variableId !== upper.variableId) return false
+  if (lower.paletteId !== upper.paletteId) return false
   if (lower.grid.nx !== upper.grid.nx || lower.grid.ny !== upper.grid.ny) return false
   if (lower.grid.lon0 !== upper.grid.lon0 || lower.grid.lat0 !== upper.grid.lat0) return false
   if (lower.grid.dx !== upper.grid.dx || lower.grid.dy !== upper.grid.dy) return false

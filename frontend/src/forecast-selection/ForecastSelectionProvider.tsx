@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import type {
   CycleManifest,
+  ProductId,
   ScalarProductId,
   VectorProductId,
 } from '../manifest'
@@ -12,6 +13,15 @@ import {
 } from './ForecastSelectionContext'
 
 const EMPTY_GROUPS: [] = []
+const EMPTY_PRODUCTS: [] = []
+
+function productsForLayer(manifest: CycleManifest | null, layerId: string): ProductId[] {
+  return manifest?.productsByLayerId[layerId] ?? EMPTY_PRODUCTS
+}
+
+function groupsForLayer(manifest: CycleManifest | null, layerId: string): CycleManifest['groups'] {
+  return manifest?.groups.filter((group) => group.layerId === layerId) ?? EMPTY_GROUPS
+}
 
 function findScalarGroupId(
   groups: readonly CycleManifest['groups'][number][],
@@ -31,7 +41,7 @@ function defaultScalarForGroupId(
 
 function resolveFallbackScalar(
   groups: readonly CycleManifest['groups'][number][],
-  scalarProducts: CycleManifest['scalarProducts']
+  scalarProducts: readonly ScalarProductId[]
 ): ScalarProductId | null {
   return groups[0]?.defaultProduct ?? scalarProducts[0] ?? null
 }
@@ -43,6 +53,9 @@ export default function ForecastSelectionProvider({
   manifest: CycleManifest | null
   children: ReactNode
 }) {
+  const initialScalarProducts = productsForLayer(manifest, 'scalar') as ScalarProductId[]
+  const initialVectorProducts = productsForLayer(manifest, 'vector') as VectorProductId[]
+  const initialScalarGroups = groupsForLayer(manifest, 'scalar')
   const [selection, setSelection] = useState<{
     modelId: string | null
     cycle: string | null
@@ -52,12 +65,12 @@ export default function ForecastSelectionProvider({
   }>(() => ({
     modelId: manifest?.model.id ?? null,
     cycle: manifest?.run.cycle ?? null,
-    activeScalar: manifest?.scalarProducts[0] ?? null,
+    activeScalar: initialScalarProducts[0] ?? null,
     activeScalarGroupId: findScalarGroupId(
-      manifest?.groups ?? EMPTY_GROUPS,
-      manifest?.scalarProducts[0] ?? null
+      initialScalarGroups,
+      initialScalarProducts[0] ?? null
     ),
-    activeVector: manifest?.vectorProducts[0] ?? null,
+    activeVector: initialVectorProducts[0] ?? null,
   }))
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
@@ -103,9 +116,9 @@ export default function ForecastSelectionProvider({
 
     const cycle = manifest.run.cycle
     const modelId = manifest.model.id
-    const scalarProducts = manifest.scalarProducts
-    const groups = manifest.groups
-    const vectorProducts = manifest.vectorProducts
+    const scalarProducts = productsForLayer(manifest, 'scalar') as ScalarProductId[]
+    const groups = groupsForLayer(manifest, 'scalar')
+    const vectorProducts = productsForLayer(manifest, 'vector') as VectorProductId[]
     const sameModel = selection.modelId === modelId
     const sameCycle = selection.cycle === cycle
 

@@ -80,21 +80,15 @@ class ArtifactPaths:
         path = ["status", model_id, cycle, product_id, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
         return join_uri(self.artifact_root_uri, path)
 
-    def output_vector_payload_uri(self, item: WorkItem) -> str:
-        """Vector payload URI: {root}/fields/{model}/{cycle}/{fhour}/{product}.vector.i8.bin"""
-        model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
-        path = ["fields", model_id, cycle, fhour, f"{product_id}.vector.i8.bin"]
-        return join_uri(self.artifact_root_uri, path)
-
-    def output_scalar_payload_uri(self, item: WorkItem, *, dtype: str = "int16") -> str:
-        """Scalar payload URI: {root}/fields/{model}/{cycle}/{fhour}/{product}.scalar.<dtype>.bin"""
+    def output_field_payload_uri(self, item: WorkItem, *, dtype: str) -> str:
+        """Field payload URI: {root}/fields/{model}/{cycle}/{fhour}/{product}.field.<dtype>.bin"""
         model_id, cycle, fhour, product_id = self._model_cycle_fhour_product_parts(item)
         path = [
             "fields",
             model_id,
             cycle,
             fhour,
-            f"{product_id}.scalar.{payload_suffix_for_dtype(dtype)}.bin",
+            f"{product_id}.field.{payload_suffix_for_dtype(dtype)}.bin",
         ]
         return join_uri(self.artifact_root_uri, path)
 

@@ -1,21 +1,26 @@
 export type LayerColortableStop = [number, number, number, number] | [number, number, number]
 
 export const MANIFEST_SCHEMA = 'weather-map.cycle-manifest'
-export const MANIFEST_SCHEMA_VERSION = 2
+export const MANIFEST_SCHEMA_VERSION = 3
 export const MANIFEST_PAYLOAD_CONTRACT = 'forecast-binary-v2'
 
 type Brand<T, B extends string> = T & { readonly __brand: B }
 
 export type NonEmptyArray<T> = [T, ...T[]]
-export type ScalarProductId = Brand<string, 'ScalarProductId'>
-export type VectorProductId = Brand<string, 'VectorProductId'>
+export type ProductId = Brand<string, 'ProductId'>
+export type ScalarProductId = ProductId
+export type VectorProductId = ProductId
 
 export function asScalarProductId(value: string): ScalarProductId {
-  return value as ScalarProductId
+  return value as ProductId
 }
 
 export function asVectorProductId(value: string): VectorProductId {
-  return value as VectorProductId
+  return value as ProductId
+}
+
+export function asProductId(value: string): ProductId {
+  return value as ProductId
 }
 
 export type ForecastModelSpec = {
@@ -81,7 +86,6 @@ export type ScalarCloudLayerEncodingSpec = {
   scale: number
   offset: number
   decodeFormula: string
-  components: ['low', 'medium', 'high']
 }
 
 export type ScalarTempCPiecewiseEncodingSpec = {
@@ -106,7 +110,6 @@ export type VectorEncodingSpec = {
   scale: number
   offset: number
   decodeFormula: string
-  components: ['u', 'v']
 }
 
 export type ManifestEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
@@ -122,37 +125,46 @@ export type FramePayloadRef = {
   sha256: string
 }
 
+export type ProductStyleSpec = {
+  layerId: string
+  paletteId: string
+}
+
+export type ProductStyleBinding = {
+  productId: ProductId
+  layerId: string
+  paletteId: string
+}
+
 export type ManifestProductBaseSpec = {
   id: string
   label: string
   units: string
   parameter: string
   level: string
+  components: NonEmptyArray<string>
+  style: ProductStyleSpec
   valueRange: ValueRangeSpec
   grid: ScalarGridSpec
   encoding: ManifestEncodingSpec
   frames: Record<string, FramePayloadRef>
 }
 
-export type ScalarProductSpec = ManifestProductBaseSpec & {
-  kind: 'scalar'
-  encoding: ScalarEncodingSpec
-}
+export type ScalarProductSpec = ManifestProductBaseSpec & { encoding: ScalarEncodingSpec }
 
-export type VectorProductSpec = ManifestProductBaseSpec & {
-  kind: 'vector'
-  encoding: VectorEncodingSpec
-}
+export type VectorProductSpec = ManifestProductBaseSpec & { encoding: VectorEncodingSpec }
 
-export type ManifestProductSpec = ScalarProductSpec | VectorProductSpec
+export type ManifestProductSpec = ManifestProductBaseSpec
 
-export type ScalarProductGroupSpec = {
+export type ProductGroupSpec = {
   id: string
-  kind: 'scalar'
+  layerId: string
   label: string
-  defaultProduct: ScalarProductId
-  products: NonEmptyArray<ScalarProductId>
+  defaultProduct: ProductId
+  products: NonEmptyArray<ProductId>
 }
+
+export type ScalarProductGroupSpec = ProductGroupSpec
 
 export type CycleManifest = {
   schema: typeof MANIFEST_SCHEMA
@@ -161,9 +173,8 @@ export type CycleManifest = {
   model: ForecastModelSpec
   run: ForecastRunSpec
   times: ForecastTimeSpec[]
-  groups: ScalarProductGroupSpec[]
+  groups: ProductGroupSpec[]
   products: Record<string, ManifestProductSpec>
-
-  scalarProducts: ScalarProductId[]
-  vectorProducts: VectorProductId[]
+  productsByLayerId: Record<string, NonEmptyArray<ProductId>>
+  productStyleBindings: Record<string, ProductStyleBinding>
 }
