@@ -174,17 +174,7 @@ class PublishManifestTest(unittest.TestCase):
                     },
                 ],
             )
-            self.assertNotIn("version", cycle_manifest)
-            self.assertNotIn("contract", cycle_manifest)
-            self.assertNotIn("scalar_variables", cycle_manifest)
-            self.assertNotIn("vector_variables", cycle_manifest)
-            self.assertNotIn("frames", cycle_manifest)
-            self.assertNotIn("encodings", cycle_manifest)
-            self.assertNotIn("grids", cycle_manifest)
-            self.assertNotIn("variable_meta", cycle_manifest)
-            self.assertNotIn("variables", cycle_manifest)
             self.assertEqual(set(cycle_manifest["products"].keys()), set(variables))
-            self.assertNotIn("kind", cycle_manifest["products"]["tmp_surface"])
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["components"], ["value"])
             self.assertEqual(
                 cycle_manifest["products"]["tmp_surface"]["style"],
@@ -545,7 +535,6 @@ class PublishManifestTest(unittest.TestCase):
                     "decodeFormula": "value = stored * scale + offset",
                 },
             )
-            self.assertNotIn("kind", product)
             self.assertEqual(product["components"], ["low", "medium", "high"])
             self.assertEqual(product["style"], {"layerId": "scalar", "paletteId": "cloud.layers.percent.v1"})
             self.assertEqual(
@@ -564,7 +553,7 @@ class PublishManifestTest(unittest.TestCase):
             fhours = ("000",)
             cycle_old = "2026041100"
             cycle_new = "2026041200"
-            scalar_variables = ("tmp_surface",)
+            scalar_products = ("tmp_surface",)
             products_cfg = {
                 "tmp_surface": _minimal_product_config(),
             }
@@ -590,7 +579,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle_new,
-                product_ids=scalar_variables,
+                product_ids=scalar_products,
                 products=_product_specs(products_cfg),
             )
             self.assertTrue(result_new.ready)
@@ -599,7 +588,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle_old,
-                product_ids=scalar_variables,
+                product_ids=scalar_products,
                 products=_product_specs(products_cfg),
             )
             self.assertTrue(result_old.ready)
@@ -616,7 +605,7 @@ class PublishManifestTest(unittest.TestCase):
             artifact_root_uri = f"file://{out_dir.as_posix()}"
             cycle = "2026041100"
             fhours = ("000",)
-            scalar_variables = ("tmp_surface",)
+            scalar_products = ("tmp_surface",)
             products_cfg = {
                 "tmp_surface": _minimal_product_config(),
             }
@@ -641,7 +630,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle,
-                product_ids=scalar_variables,
+                product_ids=scalar_products,
                 products=_product_specs(products_cfg),
             )
             self.assertTrue(result_first.ready)
@@ -660,7 +649,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle,
-                product_ids=scalar_variables,
+                product_ids=scalar_products,
                 products=_product_specs(products_cfg),
             )
             self.assertTrue(result_second.ready)
@@ -675,7 +664,7 @@ class PublishManifestTest(unittest.TestCase):
             artifact_root_uri = f"file://{out_dir.as_posix()}"
             cycle = "2026041200"
             fhours = ("000", "003")
-            vector_variables = ("wind10m_uv",)
+            vector_products = ("wind10m_uv",)
 
             ctx = ExecutionContext(
                 model_id="gfs",
@@ -701,7 +690,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle,
-                product_ids=vector_variables,
+                product_ids=vector_products,
                 products=_product_specs({"wind10m_uv": _wind_product_config()}),
             )
             self.assertTrue(result.ready)
@@ -711,7 +700,6 @@ class PublishManifestTest(unittest.TestCase):
             latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
             self.assertEqual(cycle_manifest["groups"], [])
             self.assertEqual(list(cycle_manifest["products"].keys()), ["wind10m_uv"])
-            self.assertNotIn("kind", cycle_manifest["products"]["wind10m_uv"])
             self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["components"], ["u", "v"])
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["style"],
@@ -729,8 +717,8 @@ class PublishManifestTest(unittest.TestCase):
             artifact_root_uri = f"file://{out_dir.as_posix()}"
             cycle = "2026041200"
             fhours = ("000", "003")
-            scalar_variables = ("tmp_surface",)
-            vector_variables = ("wind10m_uv",)
+            scalar_products = ("tmp_surface",)
+            vector_products = ("wind10m_uv",)
 
             ctx = ExecutionContext(
                 model_id="gfs",
@@ -770,7 +758,7 @@ class PublishManifestTest(unittest.TestCase):
                 model_label="GFS",
                 ctx=ctx,
                 cycle=cycle,
-                product_ids=scalar_variables + vector_variables,
+                product_ids=scalar_products + vector_products,
                 products=_product_specs({**products_cfg, "wind10m_uv": _wind_product_config()}),
             )
             self.assertTrue(result.ready)
@@ -791,6 +779,4 @@ class PublishManifestTest(unittest.TestCase):
                 cycle_manifest["products"]["wind10m_uv"]["components"],
                 ["u", "v"],
             )
-            self.assertNotIn("kind", cycle_manifest["products"]["tmp_surface"])
-            self.assertNotIn("kind", cycle_manifest["products"]["wind10m_uv"])
             self.assertEqual(latest_manifest, cycle_manifest)

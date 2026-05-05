@@ -2,124 +2,117 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from ._types import (
+    ConfigModel,
+    FiniteNumber,
+    NonEmptyStr,
+    NonEmptyStringMap,
+    OptionalNonEmptyStr,
+    UniqueNonEmptyStringTuple,
+)
 
 SOURCE_TYPE_GFS_NOMADS = "gfs_nomads"
 SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL = "icon_dwd_icosahedral"
-SOURCE_TYPES = {SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL}
 
 
-@dataclass(frozen=True)
-class ExecutionContext:
-    model_id: str
-    artifact_root_uri: str
-    forecast_hours: tuple[str, ...]
+class ExecutionContext(ConfigModel):
+    model_id: NonEmptyStr
+    artifact_root_uri: NonEmptyStr
+    forecast_hours: UniqueNonEmptyStringTuple
 
 
-@dataclass(frozen=True)
-class WorkloadConfig:
-    forecast_hours: tuple[str, ...]
-    products: tuple[str, ...]
+class WorkloadConfig(ConfigModel):
+    forecast_hours: UniqueNonEmptyStringTuple
+    products: UniqueNonEmptyStringTuple
 
 
-@dataclass(frozen=True)
-class NomadsConfig:
-    base_url: str
-    vars_levels: dict[str, str]
-    rate_limit_seconds: float
+class NomadsConfig(ConfigModel):
+    base_url: NonEmptyStr
+    vars_levels: dict[NonEmptyStr, NonEmptyStr]
+    rate_limit_seconds: FiniteNumber
 
 
-@dataclass(frozen=True)
-class IconDwdConfig:
-    base_url: str
-    regrid_image: str
-    rate_limit_seconds: float
+class IconDwdConfig(ConfigModel):
+    base_url: NonEmptyStr
+    regrid_image: NonEmptyStr
+    rate_limit_seconds: FiniteNumber
 
 
-@dataclass(frozen=True)
-class ModelSourceConfig:
-    type: str
-    grid_id: str
+class ModelSourceConfig(ConfigModel):
+    type: NonEmptyStr
+    grid_id: NonEmptyStr
     nomads: NomadsConfig | None = None
     icon_dwd: IconDwdConfig | None = None
 
 
-@dataclass(frozen=True)
-class ComponentSpec:
-    id: str
-    grib_match: dict[str, str]
+class ComponentSpec(ConfigModel):
+    id: NonEmptyStr
+    grib_match: NonEmptyStringMap
 
 
-@dataclass(frozen=True)
-class EncodingSpec:
-    id: str
-    format: str
-    dtype: str
-    byte_order: str
-    scale: float | None = None
-    offset: float | None = None
+class EncodingSpec(ConfigModel):
+    id: NonEmptyStr
+    format: NonEmptyStr
+    dtype: NonEmptyStr
+    byte_order: NonEmptyStr
+    scale: FiniteNumber | None = None
+    offset: FiniteNumber | None = None
     nodata: int | None = None
 
 
-@dataclass(frozen=True)
-class ProductStyleSpec:
-    layer_id: str
-    palette_id: str
+class ProductStyleSpec(ConfigModel):
+    layer_id: NonEmptyStr
+    palette_id: NonEmptyStr
 
 
-@dataclass(frozen=True)
-class ProductCatalogSpec:
-    id: str
-    parameter: str
-    level: str
-    units: str
-    valid_min: float
-    valid_max: float
-    source_transform: str
+class ProductCatalogSpec(ConfigModel):
+    id: NonEmptyStr
+    parameter: NonEmptyStr
+    level: NonEmptyStr
+    units: NonEmptyStr
+    valid_min: FiniteNumber
+    valid_max: FiniteNumber
+    source_transform: NonEmptyStr
     encoding: EncodingSpec
-    component_ids: tuple[str, ...]
+    component_ids: UniqueNonEmptyStringTuple
     style: ProductStyleSpec
-    label: str | None = None
+    label: OptionalNonEmptyStr = None
 
 
-@dataclass(frozen=True)
-class ModelProductSpec:
-    product_id: str
-    component_grib_matches: dict[str, dict[str, str]]
+class ModelProductSpec(ConfigModel):
+    product_id: NonEmptyStr
+    component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap]
 
 
-@dataclass(frozen=True)
-class ProductSpec:
-    id: str
-    parameter: str
-    level: str
-    units: str
-    valid_min: float
-    valid_max: float
-    source_transform: str
+class ProductSpec(ConfigModel):
+    id: NonEmptyStr
+    parameter: NonEmptyStr
+    level: NonEmptyStr
+    units: NonEmptyStr
+    valid_min: FiniteNumber
+    valid_max: FiniteNumber
+    source_transform: NonEmptyStr
     encoding: EncodingSpec
     components: tuple[ComponentSpec, ...]
     style: ProductStyleSpec
-    label: str | None = None
+    label: OptionalNonEmptyStr = None
 
     @property
     def component_ids(self) -> tuple[str, ...]:
         return tuple(component.id for component in self.components)
 
 
-@dataclass(frozen=True)
-class ProductGroup:
-    id: str
-    label: str
-    layer_id: str
-    default_product: str
-    products: tuple[str, ...]
+class ProductGroup(ConfigModel):
+    id: NonEmptyStr
+    label: NonEmptyStr
+    layer_id: NonEmptyStr
+    default_product: NonEmptyStr
+    products: UniqueNonEmptyStringTuple
 
 
-@dataclass(frozen=True)
-class ModelConfig:
-    id: str
-    label: str
+class ModelConfig(ConfigModel):
+    id: NonEmptyStr
+    label: NonEmptyStr
     source: ModelSourceConfig
     workload: WorkloadConfig
     model_products: dict[str, ModelProductSpec]
@@ -134,8 +127,7 @@ class ModelConfig:
         )
 
 
-@dataclass(frozen=True)
-class PipelineConfig:
+class PipelineConfig(ConfigModel):
     product_catalog: dict[str, ProductCatalogSpec]
     models: dict[str, ModelConfig]
 

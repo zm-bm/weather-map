@@ -133,7 +133,8 @@ class AwsIngestTest(unittest.TestCase):
                         "rate_limit_seconds": 0.0,
                     },
                     "workload": {
-                        "forecast_hours": ["000", "003", "006"],
+                        "forecast_hour_start": 0,
+                        "forecast_hour_end": 6,
                         "products": ["tmp_surface", "wind10m_uv"],
                     },
                     "products": {
@@ -149,6 +150,15 @@ class AwsIngestTest(unittest.TestCase):
                             ],
                         },
                     },
+                    "product_groups": [
+                        {
+                            "id": "temperature",
+                            "label": "Temperature",
+                            "layer_id": "scalar",
+                            "default_product": "tmp_surface",
+                            "products": ["tmp_surface"],
+                        },
+                    ],
                 },
             },
         }

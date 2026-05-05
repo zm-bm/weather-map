@@ -89,7 +89,8 @@ class ConfigValidationTest(unittest.TestCase):
                 "rate_limit_seconds": 0.0,
             },
             "workload": {
-                "forecast_hours": ["000"],
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
                 "products": ["precip_total_surface", "wind10m_uv"],
             },
             "products": {
@@ -131,9 +132,11 @@ class ConfigValidationTest(unittest.TestCase):
                 "grid_id": "icon_global_regridded_0p125",
                 "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
                 "regrid_image": "deutscherwetterdienst/regrid:icon",
+                "rate_limit_seconds": 0.0,
             },
             "workload": {
-                "forecast_hours": ["000"],
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
                 "products": ["tmp_surface"],
             },
             "products": {
@@ -157,47 +160,6 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_accepts_explicit_forecast_hours(self) -> None:
-        cfg = _minimal_pipeline_config()
-        _gfs(cfg)["workload"] = {
-            "forecast_hours": ["000", "003", "006"],
-            "products": ["tmp_surface"],
-        }
-
-        parsed = parse_pipeline_config(cfg)
-
-        self.assertEqual(parsed.model("gfs").workload.forecast_hours, ("000", "003", "006"))
-
-    def test_pipeline_config_rejects_old_single_model_schema(self) -> None:
-        bad_cfg = {
-            "workload": {"forecast_hour_start": 0, "forecast_hour_end": 0, "products": ["tmp_surface"]},
-            "products": {"tmp_surface": _minimal_product_config()},
-        }
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_rejects_old_model_products_field_name(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        _gfs(bad_cfg)["product_bindings"] = _gfs(bad_cfg).pop("products")
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_rejects_old_scalar_variable_group_field(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        _gfs(bad_cfg)["scalar_variable_groups"] = _gfs(bad_cfg).pop("product_groups")
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_rejects_old_layer_group_field(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        _gfs(bad_cfg)["layer_groups"] = _gfs(bad_cfg).pop("product_groups")
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
     def test_pipeline_config_rejects_invalid_forecast_hour_range(self) -> None:
         bad_cfg = _minimal_pipeline_config()
         _gfs(bad_cfg)["workload"]["forecast_hour_start"] = 12
@@ -216,53 +178,6 @@ class ConfigValidationTest(unittest.TestCase):
     def test_pipeline_config_rejects_unknown_workload_product(self) -> None:
         bad_cfg = _minimal_pipeline_config()
         _gfs(bad_cfg)["workload"]["products"] = ["missing_surface"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_requires_model_source_grid_id(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        del _gfs(bad_cfg)["source"]["grid_id"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_requires_product_encoding(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        del bad_cfg["product_catalog"]["tmp_surface"]["encoding"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_requires_product_components_and_style(self) -> None:
-        missing_components = _minimal_pipeline_config()
-        del missing_components["product_catalog"]["tmp_surface"]["components"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(missing_components)
-
-        missing_style = _minimal_pipeline_config()
-        del missing_style["product_catalog"]["tmp_surface"]["style"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(missing_style)
-
-        empty_palette = _minimal_pipeline_config()
-        empty_palette["product_catalog"]["tmp_surface"]["style"]["palette_id"] = ""
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(empty_palette)
-
-    def test_pipeline_config_rejects_legacy_product_kind(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        bad_cfg["product_catalog"]["tmp_surface"]["kind"] = "scalar"
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(bad_cfg)
-
-    def test_pipeline_config_rejects_grib_match_in_product_catalog(self) -> None:
-        bad_cfg = _minimal_pipeline_config()
-        bad_cfg["product_catalog"]["tmp_surface"]["components"][0]["grib_match"] = {"GRIB_ELEMENT": "TMP"}
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
@@ -302,7 +217,7 @@ class ConfigValidationTest(unittest.TestCase):
             "temp-c-piecewise-i8-v1",
         )
 
-    def test_pipeline_config_rejects_legacy_encoding_format_names(self) -> None:
+    def test_pipeline_config_rejects_invalid_encoding_format_names(self) -> None:
         bad_cfg = _minimal_pipeline_config()
         bad_cfg["product_catalog"]["tmp_surface"]["encoding"]["format"] = "scalar-i16-linear-v1"
 

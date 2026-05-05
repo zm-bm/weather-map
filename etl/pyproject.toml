@@ -8,6 +8,7 @@ version = "0.0.0"
 requires-python = ">=3.10"
 dependencies = [
     "boto3",
+    "pydantic>=2,<3",
 ]
 
 [project.optional-dependencies]

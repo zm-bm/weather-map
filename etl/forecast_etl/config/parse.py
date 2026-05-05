@@ -6,6 +6,8 @@ import json
 from typing import Any, Mapping
 
 from ..stores import make_store
+from ._input import ModelConfigInput, PipelineConfigInput
+from ._types import parse_config_model
 from .groups import parse_product_groups
 from .schema import ModelConfig, PipelineConfig, ProductCatalogSpec
 from .validate import (
@@ -20,40 +22,21 @@ from .validate import (
 
 
 def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
-    if not isinstance(obj, Mapping):
-        raise SystemExit("pipeline_config must be a JSON object")
-
-    version = obj.get("version")
-    if not isinstance(version, int) or version != 2:
-        raise SystemExit("pipeline_config version must be 2")
-    for old_field in ("workload", "nomads", "products", "scalar_variables", "vector_variables"):
-        if old_field in obj:
-            raise SystemExit(
-                "single-model pipeline config fields are no longer supported; "
-                "use product_catalog and models"
-            )
-
-    catalog_obj = obj.get("product_catalog")
-    if not isinstance(catalog_obj, Mapping):
-        raise SystemExit("pipeline_config missing valid 'product_catalog' object")
+    raw = parse_config_model(PipelineConfigInput, obj)
     product_catalog = {
-        str(product_id): parse_product_catalog_spec(product_id=str(product_id), raw=product_cfg)
-        for product_id, product_cfg in catalog_obj.items()
+        product_id: parse_product_catalog_spec(product_id=product_id, raw=product_cfg)
+        for product_id, product_cfg in raw.product_catalog.items()
     }
-
-    models_obj = obj.get("models")
-    if not isinstance(models_obj, Mapping) or not models_obj:
-        raise SystemExit("pipeline_config missing valid non-empty 'models' object")
 
     return PipelineConfig(
         product_catalog=product_catalog,
         models={
-            str(model_id): _parse_model_config(
-                model_id=str(model_id),
+            model_id: _parse_model_config(
+                model_id=model_id,
                 raw=model_cfg,
                 product_catalog=product_catalog,
             )
-            for model_id, model_cfg in models_obj.items()
+            for model_id, model_cfg in raw.models.items()
         },
     )
 
@@ -61,34 +44,18 @@ def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
 def _parse_model_config(
     *,
     model_id: str,
-    raw: Any,
+    raw: ModelConfigInput,
     product_catalog: Mapping[str, ProductCatalogSpec],
 ) -> ModelConfig:
-    if not isinstance(raw, Mapping):
-        raise SystemExit(f"models.{model_id} must be an object")
-
-    label_raw = raw.get("label")
-    label = label_raw.strip() if isinstance(label_raw, str) and label_raw.strip() else model_id.upper()
-    source = parse_model_source_config(raw.get("source"))
-    workload = parse_workload_config(raw.get("workload"))
+    source = parse_model_source_config(raw.source)
+    workload = parse_workload_config(raw.workload)
     validate_workload_products(product_ids=workload.products, products=product_catalog)
-
-    if "product_bindings" in raw:
-        raise SystemExit(f"models.{model_id}.product_bindings is no longer supported; use models.{model_id}.products")
-    if "scalar_variable_groups" in raw:
-        raise SystemExit(f"models.{model_id}.scalar_variable_groups is no longer supported; use models.{model_id}.product_groups")
-    if "layer_groups" in raw:
-        raise SystemExit(f"models.{model_id}.layer_groups is no longer supported; use models.{model_id}.product_groups")
-
-    model_products_obj = raw.get("products")
-    if not isinstance(model_products_obj, Mapping):
-        raise SystemExit(f"models.{model_id} missing valid 'products' object")
 
     model_products = {}
     resolved_products = {}
     for product_id in workload.products:
         catalog_product = product_catalog[product_id]
-        raw_model_product = model_products_obj.get(product_id)
+        raw_model_product = raw.products.get(product_id)
         if raw_model_product is None:
             raise SystemExit(f"models.{model_id}.products missing product {product_id!r}")
         model_product = parse_model_product_spec(
@@ -102,7 +69,7 @@ def _parse_model_config(
             model_product=model_product,
         )
 
-    unknown_model_products = sorted(set(str(key) for key in model_products_obj) - set(workload.products))
+    unknown_model_products = sorted(set(raw.products) - set(workload.products))
     if unknown_model_products:
         raise SystemExit(f"models.{model_id}.products contains products not in workload: {unknown_model_products!r}")
     validate_model_products_for_source(
@@ -117,14 +84,14 @@ def _parse_model_config(
         if resolved_products[product_id].style.layer_id == "scalar"
     )
     product_groups = parse_product_groups(
-        raw.get("product_groups"),
+        raw.product_groups,
         products=resolved_products,
         grouped_product_ids=grouped_product_ids,
     )
 
     return ModelConfig(
         id=model_id,
-        label=label,
+        label=raw.label,
         source=source,
         workload=workload,
         model_products=model_products,

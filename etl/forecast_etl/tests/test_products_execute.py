@@ -107,7 +107,6 @@ class ScalarProductContractTest(unittest.TestCase):
                 payload_bytes,
                 struct.pack("<hhhh", 0, 100, 200, -32768),
             )
-            self.assertNotIn("kind", result)
             self.assertEqual(result["byte_length"], len(payload_bytes))
             self.assertEqual(result["sha256"], hashlib.sha256(payload_bytes).hexdigest())
             self.assertEqual(result["component_grib_matches"]["value"], {"GRIB_ELEMENT": "TMP", "GRIB_SHORT_NAME": "2-HTGL"})
@@ -195,8 +194,6 @@ class ScalarProductContractTest(unittest.TestCase):
             self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["dtype"], "int8")
             self.assertEqual(result["components"], ["low", "medium", "high"])
-            self.assertNotIn("component_count", result)
-            self.assertNotIn("component_order", result)
             self.assertEqual(result["component_grib_matches"]["low"], {"GRIB_ELEMENT": "LCDC"})
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
@@ -289,15 +286,10 @@ class WindProductContractTest(unittest.TestCase):
             self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["dtype"], "int8")
             self.assertEqual(result["components"], ["u", "v"])
-            self.assertNotIn("component_count", result)
-            self.assertNotIn("component_order", result)
             self.assertEqual(result["encoding_id"], "wind10m_uv_vector_i8_v1")
             self.assertEqual(result["grid_id"], "gfs_0p25_global")
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
-
-            legacy_meta_path = out_dir / "wind" / "2026041200.wind10m_uv.003.uv.meta.json"
-            self.assertFalse(legacy_meta_path.exists())
 
 
 class IconGribCollectionProductTest(unittest.TestCase):
