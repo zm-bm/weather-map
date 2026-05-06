@@ -23,6 +23,8 @@ def parse_encoding(
     raw_encoding: Any,
     component_ids: tuple[str, ...],
 ) -> EncodingSpec:
+    """Parse and normalize a product encoding contract from config."""
+
     raw = parse_config_model(EncodingInput, raw_encoding)
     dtype = raw.dtype
     if dtype not in BYTE_ORDERS_BY_DTYPE:

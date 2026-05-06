@@ -22,6 +22,8 @@ Arg = Union[str, Path]
 
 @dataclass(frozen=True)
 class RunResult:
+    """Captured subprocess result used by injectable command runners."""
+
     argv: tuple[str, ...]
     returncode: int
     stdout: str = ""

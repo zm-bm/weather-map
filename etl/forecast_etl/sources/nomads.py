@@ -19,6 +19,8 @@ from .gfs_layout import grib_name, parse_cycle
 
 
 def nomads_url(*, base_url: str, vars_levels: dict[str, str], cycle: str, fhour: str) -> str:
+    """Build a NOMADS filter endpoint URL for one GFS GRIB file."""
+
     cycle_date, cycle_hour = parse_cycle(cycle)
     params = {
         "dir": f"/gfs.{cycle_date}/{cycle_hour}/atmos",

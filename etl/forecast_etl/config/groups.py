@@ -18,6 +18,8 @@ def parse_product_groups(
     products: Mapping[str, ProductSpec],
     grouped_product_ids: tuple[str, ...],
 ) -> tuple[ProductGroup, ...]:
+    """Parse product groups and verify exact coverage of groupable products."""
+
     group_inputs = parse_config_model(ProductGroupsInput, {"groups": raw_value}).groups
     if not grouped_product_ids:
         raise SystemExit("product_groups cannot be provided without groupable products")

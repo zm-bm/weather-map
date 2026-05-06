@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.aws import ingest
+from forecast_etl.tests.fixtures.pipeline import catalog_product, minimal_pipeline_config, model_product
+from forecast_etl.tests.fixtures.products import wind_product_config
 
 
 class _FakeBatchClient:
@@ -76,92 +78,12 @@ class AwsIngestTest(unittest.TestCase):
         self.env_patch.stop()
 
     def test_handler_submits_job_for_current_pipeline_config_schema(self) -> None:
-        payload = {
-            "version": 2,
-            "product_catalog": {
-                "tmp_surface": {
-                    "parameter": "tmp",
-                    "level": "surface",
-                    "units": "C",
-                    "valid_min": -45,
-                    "valid_max": 50,
-                    "style": {
-                        "layer_id": "scalar",
-                        "palette_id": "temperature.air.c.v1",
-                    },
-                    "source_transform": "identity",
-                    "encoding": {
-                        "id": "tmp_surface_i16_v1",
-                        "format": "linear-i16-v1",
-                        "dtype": "int16",
-                        "byte_order": "little",
-                        "scale": 0.01,
-                        "offset": 0.0,
-                        "nodata": -32768,
-                    },
-                    "components": [{"id": "value"}],
-                },
-                "wind10m_uv": {
-                    "parameter": "wind_uv",
-                    "level": "10m_above_ground",
-                    "units": "m/s",
-                    "valid_min": -64.0,
-                    "valid_max": 63.5,
-                    "style": {
-                        "layer_id": "vector",
-                        "palette_id": "wind.vector.mps.v1",
-                    },
-                    "encoding": {
-                        "id": "wind10m_uv_vector_i8_v1",
-                        "format": "linear-i8-v1",
-                        "dtype": "int8",
-                        "byte_order": "none",
-                        "scale": 0.5,
-                        "offset": 0.0,
-                    },
-                    "components": [{"id": "u"}, {"id": "v"}],
-                },
-            },
-            "models": {
-                "gfs": {
-                    "label": "GFS",
-                    "source": {
-                        "type": "gfs_nomads",
-                        "grid_id": "gfs_0p25_global",
-                        "base_url": "https://example.test",
-                        "vars_levels": {},
-                        "rate_limit_seconds": 0.0,
-                    },
-                    "workload": {
-                        "forecast_hour_start": 0,
-                        "forecast_hour_end": 6,
-                        "products": ["tmp_surface", "wind10m_uv"],
-                    },
-                    "products": {
-                        "tmp_surface": {
-                            "components": [
-                                {"id": "value", "grib_match": {"GRIB_ELEMENT": "TMP"}}
-                            ],
-                        },
-                        "wind10m_uv": {
-                            "components": [
-                                {"id": "u", "grib_match": {"GRIB_ELEMENT": "UGRD"}},
-                                {"id": "v", "grib_match": {"GRIB_ELEMENT": "VGRD"}},
-                            ],
-                        },
-                    },
-                    "product_groups": [
-                        {
-                            "id": "temperature",
-                            "label": "Temperature",
-                            "layer_id": "scalar",
-                            "default_product": "tmp_surface",
-                            "products": ["tmp_surface"],
-                        },
-                    ],
-                },
-            },
-        }
+        payload = minimal_pipeline_config()
+        wind_config = wind_product_config()
+        payload["product_catalog"]["wind10m_uv"] = catalog_product(wind_config)
+        payload["models"]["gfs"]["workload"]["forecast_hour_end"] = 6
+        payload["models"]["gfs"]["workload"]["products"] = ["tmp_surface", "wind10m_uv"]
+        payload["models"]["gfs"]["products"]["wind10m_uv"] = model_product(wind_config)
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
             cfg_path = Path(td) / "forecast.etl_config.json"

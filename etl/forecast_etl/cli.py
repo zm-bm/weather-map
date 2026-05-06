@@ -45,6 +45,8 @@ def _runtime_parser() -> argparse.ArgumentParser:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the `forecast-etl` command-line parser."""
+
     ap = argparse.ArgumentParser(description="forecast_etl")
     sub = ap.add_subparsers(dest="cmd", required=True)
     runtime = _runtime_parser()
@@ -157,6 +159,8 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the forecast ETL CLI and return a process exit code."""
+
     ap = build_arg_parser()
     args = ap.parse_args(argv)
     return int(args._handler(args))

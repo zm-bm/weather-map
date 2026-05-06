@@ -1,35 +1,24 @@
 from __future__ import annotations
 
-import gzip
 import hashlib
 import json
-import tempfile
 import unittest
-from pathlib import Path
 
-from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
-from forecast_etl.config.schema import ExecutionContext
 from forecast_etl.manifest.build import build_cycle_manifest
 from forecast_etl.manifest.constants import (
     FORECAST_BINARY_CONTRACT,
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
-from forecast_etl.manifest.publish import run_publish
 from forecast_etl.manifest.revision import compute_manifest_revision
-from forecast_etl.stores import make_store
-from forecast_etl.tests.product_test_helpers import (
-    _cloud_layers_config,
-    _grid_meta_fixture,
-    _minimal_product_config,
-    _product_group,
-    _product_specs,
-    _wind_product_config,
-    _write_cloud_layers_marker,
-    _write_json,
-    _write_scalar_marker,
-    _write_vector_marker,
+from forecast_etl.tests.fixtures.markers import write_json
+from forecast_etl.tests.fixtures.products import (
+    cloud_layers_config,
+    minimal_product_config,
+    product_group,
+    wind_product_config,
 )
+from forecast_etl.tests.fixtures.publish import publish_fixture
 
 
 class PublishManifestTest(unittest.TestCase):
@@ -75,23 +64,12 @@ class PublishManifestTest(unittest.TestCase):
         self.assertNotEqual(compute_manifest_revision(product_changed), revision)
 
     def test_publish_writes_scalar_manifest_and_is_idempotent(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-scalar-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhours = ("000", "003")
+        with publish_fixture(prefix="weather-map-publish-scalar-", fhours=("000", "003")) as fx:
             variables = ("tmp_surface", "rh_surface")
-
-            ctx = ExecutionContext(
-                model_id="gfs",
-                artifact_root_uri=artifact_root_uri,
-                forecast_hours=fhours,
-            )
-
             products_cfg = {
-                "tmp_surface": _minimal_product_config(),
+                "tmp_surface": minimal_product_config(),
                 "rh_surface": {
-                    **_minimal_product_config(),
+                    **minimal_product_config(),
                     "level": "surface",
                     "parameter": "rh",
                     "units": "%",
@@ -113,46 +91,30 @@ class PublishManifestTest(unittest.TestCase):
                 },
             }
 
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-
-            for fhour in fhours:
+            for fhour in fx.fhours:
                 for variable in variables:
-                    source_values = (
-                        [-10.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))]
-                        if variable == "tmp_surface"
-                        else [20.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))]
-                    )
-                    _write_scalar_marker(
-                        store=store,
-                        ap=ap,
-                        cycle=cycle,
+                    fx.write_scalar_marker(
                         fhour=fhour,
-                        variable=variable,
-                        source_values=source_values,
+                        product_id=variable,
+                        base=-10.0 if variable == "tmp_surface" else 20.0,
                         product_config=products_cfg[variable],
-                        grid_meta=grid_meta,
                     )
 
-            result_first = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result_first = fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_first.ready)
             self.assertFalse(result_first.already_published)
 
-            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
-            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
+            cycle_manifest = fx.cycle_manifest()
+            latest_manifest = fx.latest_manifest()
 
             self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
             self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
             self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
             self.assertEqual(cycle_manifest["model"], {"id": "gfs", "label": "GFS"})
-            self.assertEqual(cycle_manifest["run"]["cycle"], cycle)
+            self.assertEqual(cycle_manifest["run"]["cycle"], fx.cycle)
             self.assertIn("generatedAt", cycle_manifest["run"])
             self.assertIn("revision", cycle_manifest["run"])
             self.assertEqual(
@@ -187,69 +149,43 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["encoding"]["byteOrder"], "little")
             self.assertEqual(
                 cycle_manifest["products"]["tmp_surface"]["frames"]["000"]["path"],
-                f"fields/gfs/{cycle}/000/tmp_surface.field.i16.bin",
+                f"fields/gfs/{fx.cycle}/000/tmp_surface.field.i16.bin",
             )
             self.assertEqual(
                 cycle_manifest["products"]["rh_surface"]["frames"]["003"]["path"],
-                f"fields/gfs/{cycle}/003/rh_surface.field.i16.bin",
+                f"fields/gfs/{fx.cycle}/003/rh_surface.field.i16.bin",
             )
             self.assertEqual(latest_manifest, cycle_manifest)
 
-            for fhour in fhours:
+            for fhour in fx.fhours:
                 for variable in variables:
                     frame = cycle_manifest["products"][variable]["frames"][fhour]
-                    self.assertEqual(frame["byteLength"], int(grid_meta["nx"]) * int(grid_meta["ny"]) * 2)
-                    payload_uri = ap.output_field_payload_uri(
-                        item=WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, product_id=variable, source_uri="file:///dev/null"),
-                        dtype="int16",
-                    )
-                    payload_bytes = gzip.decompress(store.read_bytes(uri=payload_uri))
+                    self.assertEqual(frame["byteLength"], fx.cell_count * 2)
+                    payload_bytes = fx.payload_bytes(product_id=variable, fhour=fhour, dtype="int16")
                     self.assertEqual(len(payload_bytes), frame["byteLength"])
                     self.assertEqual(hashlib.sha256(payload_bytes).hexdigest(), frame["sha256"])
 
-            result_second = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result_second = fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
 
     def test_publish_rejects_marker_identity_mismatch(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-marker-identity-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhour = "000"
+        with publish_fixture(prefix="weather-map-publish-marker-identity-") as fx:
             product_id = "tmp_surface"
             products_cfg = {
-                product_id: _minimal_product_config(),
+                product_id: minimal_product_config(),
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=(fhour,))
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour=fhour,
-                variable=product_id,
-                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            fx.write_scalar_marker(
+                product_id=product_id,
                 product_config=products_cfg[product_id],
-                grid_meta=grid_meta,
             )
 
-            marker_uri = ap.success_marker_uri_parts(
-                model_id="gfs",
-                cycle=cycle,
-                fhour=fhour,
-                product_id=product_id,
-            )
-            valid_marker = json.loads(store.read_bytes(uri=marker_uri).decode("utf-8"))
+            marker_uri = fx.marker_uri(product_id)
+            valid_marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
 
             for field, invalid_value in (
                 ("cycle", "2026041200"),
@@ -258,56 +194,36 @@ class PublishManifestTest(unittest.TestCase):
             ):
                 invalid_marker = json.loads(json.dumps(valid_marker))
                 invalid_marker[field] = invalid_value
-                _write_json(marker_uri, invalid_marker)
+                write_json(marker_uri, invalid_marker)
 
                 with self.subTest(field=field), self.assertRaisesRegex(
                     SystemExit,
                     rf"Success marker {field} mismatch",
                 ):
-                    run_publish(
-                        model_label="GFS",
-                        ctx=ctx,
-                        cycle=cycle,
+                    fx.publish(
                         product_ids=(product_id,),
-                        products=_product_specs(products_cfg),
+                        products_cfg=products_cfg,
                     )
 
-            _write_json(marker_uri, valid_marker)
+            write_json(marker_uri, valid_marker)
 
     def test_publish_revision_includes_product_groups(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-groups-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhours = ("000",)
+        with publish_fixture(prefix="weather-map-publish-groups-") as fx:
             variables = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_product_config(),
+                "tmp_surface": minimal_product_config(),
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour="000",
-                variable="tmp_surface",
-                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            fx.write_scalar_marker(
+                product_id="tmp_surface",
                 product_config=products_cfg["tmp_surface"],
-                grid_meta=grid_meta,
             )
 
-            run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
                 product_groups=[
-                    _product_group(
+                    product_group(
                         group_id="temperature",
                         label="Temperature",
                         default_product="tmp_surface",
@@ -315,16 +231,13 @@ class PublishManifestTest(unittest.TestCase):
                     ),
                 ],
             )
-            first_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            first_manifest = fx.cycle_manifest()
 
-            run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
                 product_groups=[
-                    _product_group(
+                    product_group(
                         group_id="alternate",
                         label="Alternate",
                         default_product="tmp_surface",
@@ -332,66 +245,40 @@ class PublishManifestTest(unittest.TestCase):
                     ),
                 ],
             )
-            second_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            second_manifest = fx.cycle_manifest()
 
             self.assertNotEqual(first_manifest["run"]["revision"], second_manifest["run"]["revision"])
             self.assertEqual(second_manifest["groups"][0]["id"], "alternate")
 
     def test_publish_revision_includes_product_style(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-style-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhour = "000"
+        with publish_fixture(prefix="weather-map-publish-style-") as fx:
             product_id = "tmp_surface"
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=(fhour,))
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
 
-            first_cfg = _minimal_product_config()
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour=fhour,
-                variable=product_id,
-                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            first_cfg = minimal_product_config()
+            fx.write_scalar_marker(
+                product_id=product_id,
                 product_config=first_cfg,
-                grid_meta=grid_meta,
             )
-            run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            fx.publish(
                 product_ids=(product_id,),
-                products=_product_specs({product_id: first_cfg}),
+                products_cfg={product_id: first_cfg},
             )
-            first_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            first_manifest = fx.cycle_manifest()
 
-            second_cfg = _minimal_product_config()
+            second_cfg = minimal_product_config()
             second_cfg["style"] = {
                 "layer_id": "scalar",
                 "palette_id": "temperature.air.c.v2",
             }
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour=fhour,
-                variable=product_id,
-                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            fx.write_scalar_marker(
+                product_id=product_id,
                 product_config=second_cfg,
-                grid_meta=grid_meta,
             )
-            run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            fx.publish(
                 product_ids=(product_id,),
-                products=_product_specs({product_id: second_cfg}),
+                products_cfg={product_id: second_cfg},
             )
-            second_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            second_manifest = fx.cycle_manifest()
 
             self.assertNotEqual(first_manifest["run"]["revision"], second_manifest["run"]["revision"])
             self.assertEqual(
@@ -400,15 +287,11 @@ class PublishManifestTest(unittest.TestCase):
             )
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-temp-piecewise-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhours = ("000",)
+        with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
             variables = ("tmp_surface",)
             products_cfg = {
                 "tmp_surface": {
-                    **_minimal_product_config(),
+                    **minimal_product_config(),
                     "parameter": "tmp",
                     "level": "surface",
                     "units": "C",
@@ -425,31 +308,19 @@ class PublishManifestTest(unittest.TestCase):
                 },
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour="000",
-                variable="tmp_surface",
-                source_values=[-35.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            fx.write_scalar_marker(
+                product_id="tmp_surface",
+                values=fx.values(-35.0),
                 product_config=products_cfg["tmp_surface"],
-                grid_meta=grid_meta,
             )
 
-            result = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result = fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
 
             self.assertTrue(result.ready)
-            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            cycle_manifest = fx.cycle_manifest()
             product = cycle_manifest["products"]["tmp_surface"]
             encoding = product["encoding"]
             self.assertEqual(
@@ -464,52 +335,30 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertEqual(
                 product["frames"]["000"]["path"],
-                f"fields/gfs/{cycle}/000/tmp_surface.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/tmp_surface.field.i8.bin",
             )
             self.assertEqual(
                 product["frames"]["000"]["byteLength"],
-                int(grid_meta["nx"]) * int(grid_meta["ny"]),
+                fx.cell_count,
             )
 
     def test_publish_writes_packed_cloud_component_scalar_manifest(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-cloud-components-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhours = ("000",)
+        with publish_fixture(prefix="weather-map-publish-cloud-components-") as fx:
             variables = ("cloud_layers",)
             products_cfg = {
-                "cloud_layers": _cloud_layers_config(),
+                "cloud_layers": cloud_layers_config(),
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-            cell_count = int(grid_meta["nx"]) * int(grid_meta["ny"])
-            _write_cloud_layers_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour="000",
-                variable="cloud_layers",
-                source_values_by_component={
-                    "low": [0.0 for _ in range(cell_count)],
-                    "medium": [50.0 for _ in range(cell_count)],
-                    "high": [100.0 for _ in range(cell_count)],
-                },
+            fx.write_cloud_layers_marker(
+                product_id="cloud_layers",
                 product_config=products_cfg["cloud_layers"],
-                grid_meta=grid_meta,
             )
 
-            result = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result = fx.publish(
                 product_ids=variables,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
                 product_groups=[
-                    _product_group(
+                    product_group(
                         group_id="clouds",
                         label="Clouds",
                         default_product="cloud_layers",
@@ -519,7 +368,7 @@ class PublishManifestTest(unittest.TestCase):
             )
 
             self.assertTrue(result.ready)
-            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
+            cycle_manifest = fx.cycle_manifest()
             product = cycle_manifest["products"]["cloud_layers"]
             encoding = product["encoding"]
             self.assertEqual(
@@ -539,105 +388,71 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(product["style"], {"layerId": "scalar", "paletteId": "cloud.layers.percent.v1"})
             self.assertEqual(
                 product["frames"]["000"]["path"],
-                f"fields/gfs/{cycle}/000/cloud_layers.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/cloud_layers.field.i8.bin",
             )
             self.assertEqual(
                 product["frames"]["000"]["byteLength"],
-                cell_count * 3,
+                fx.cell_count * 3,
             )
 
     def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-monotonic-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            fhours = ("000",)
+        with publish_fixture(prefix="weather-map-publish-monotonic-") as fx:
             cycle_old = "2026041100"
             cycle_new = "2026041200"
             scalar_products = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_product_config(),
+                "tmp_surface": minimal_product_config(),
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-
             for cycle_value, base in ((cycle_new, 10.0), (cycle_old, -10.0)):
-                _write_scalar_marker(
-                    store=store,
-                    ap=ap,
+                fx.write_scalar_marker(
                     cycle=cycle_value,
-                    fhour="000",
-                    variable="tmp_surface",
-                    source_values=[base + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                    product_id="tmp_surface",
+                    base=base,
                     product_config=products_cfg["tmp_surface"],
-                    grid_meta=grid_meta,
                 )
 
-            result_new = run_publish(
-                model_label="GFS",
-                ctx=ctx,
+            result_new = fx.publish(
                 cycle=cycle_new,
                 product_ids=scalar_products,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_new.ready)
 
-            result_old = run_publish(
-                model_label="GFS",
-                ctx=ctx,
+            result_old = fx.publish(
                 cycle=cycle_old,
                 product_ids=scalar_products,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_old.ready)
 
-            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
-            old_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle_old)).decode("utf-8"))
-            new_cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle_new)).decode("utf-8"))
+            latest_manifest = fx.latest_manifest()
+            old_cycle_manifest = fx.cycle_manifest(cycle=cycle_old)
+            new_cycle_manifest = fx.cycle_manifest(cycle=cycle_new)
             self.assertEqual(latest_manifest, new_cycle_manifest)
             self.assertNotEqual(latest_manifest["run"]["cycle"], old_cycle_manifest["run"]["cycle"])
 
     def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-refresh-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041100"
-            fhours = ("000",)
+        with publish_fixture(prefix="weather-map-publish-refresh-") as fx:
             scalar_products = ("tmp_surface",)
             products_cfg = {
-                "tmp_surface": _minimal_product_config(),
+                "tmp_surface": minimal_product_config(),
             }
 
-            ctx = ExecutionContext(model_id="gfs", artifact_root_uri=artifact_root_uri, forecast_hours=fhours)
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-
-            _write_scalar_marker(
-                store=store,
-                ap=ap,
-                cycle=cycle,
-                fhour="000",
-                variable="tmp_surface",
-                source_values=[float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+            fx.write_scalar_marker(
+                product_id="tmp_surface",
                 product_config=products_cfg["tmp_surface"],
-                grid_meta=grid_meta,
             )
 
-            result_first = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result_first = fx.publish(
                 product_ids=scalar_products,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_first.ready)
-            initial_latest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
+            initial_latest = fx.latest_manifest()
 
-            _write_json(
-                ap.manifest_latest_uri(model_id="gfs"),
+            write_json(
+                fx.ap.manifest_latest_uri(model_id="gfs"),
                 {
                     "cycle": "2026041000",
                     "generated_at": "2026-04-10T00:00:00+00:00",
@@ -645,59 +460,31 @@ class PublishManifestTest(unittest.TestCase):
                 },
             )
 
-            result_second = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result_second = fx.publish(
                 product_ids=scalar_products,
-                products=_product_specs(products_cfg),
+                products_cfg=products_cfg,
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
 
-            refreshed_latest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
+            refreshed_latest = fx.latest_manifest()
             self.assertEqual(refreshed_latest, initial_latest)
 
     def test_publish_writes_vector_only_manifest(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-vector-only-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041200"
-            fhours = ("000", "003")
+        with publish_fixture(prefix="weather-map-publish-vector-only-", cycle="2026041200", fhours=("000", "003")) as fx:
             vector_products = ("wind10m_uv",)
 
-            ctx = ExecutionContext(
-                model_id="gfs",
-                artifact_root_uri=artifact_root_uri,
-                forecast_hours=fhours,
-            )
+            fx.write_vector_markers()
 
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-
-            for fhour in fhours:
-                _write_vector_marker(
-                    store=store,
-                    ap=ap,
-                    cycle=cycle,
-                    fhour=fhour,
-                    variable="wind10m_uv",
-                    grid_meta=grid_meta,
-                )
-
-            result = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result = fx.publish(
                 product_ids=vector_products,
-                products=_product_specs({"wind10m_uv": _wind_product_config()}),
+                products_cfg={"wind10m_uv": wind_product_config()},
             )
             self.assertTrue(result.ready)
             self.assertFalse(result.already_published)
 
-            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
-            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
+            cycle_manifest = fx.cycle_manifest()
+            latest_manifest = fx.latest_manifest()
             self.assertEqual(cycle_manifest["groups"], [])
             self.assertEqual(list(cycle_manifest["products"].keys()), ["wind10m_uv"])
             self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["components"], ["u", "v"])
@@ -708,64 +495,35 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(latest_manifest, cycle_manifest)
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],
-                f"fields/gfs/{cycle}/000/wind10m_uv.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/wind10m_uv.field.i8.bin",
             )
 
     def test_publish_includes_wind_frames_and_metadata_without_sidecars(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="weather-map-publish-wind-") as td:
-            out_dir = Path(td) / "out"
-            artifact_root_uri = f"file://{out_dir.as_posix()}"
-            cycle = "2026041200"
-            fhours = ("000", "003")
+        with publish_fixture(prefix="weather-map-publish-wind-", cycle="2026041200", fhours=("000", "003")) as fx:
             scalar_products = ("tmp_surface",)
             vector_products = ("wind10m_uv",)
-
-            ctx = ExecutionContext(
-                model_id="gfs",
-                artifact_root_uri=artifact_root_uri,
-                forecast_hours=fhours,
-            )
-
             products_cfg = {
-                "tmp_surface": _minimal_product_config(),
+                "tmp_surface": minimal_product_config(),
             }
 
-            ap = ArtifactPaths(artifact_root_uri)
-            store = make_store()
-            grid_meta = _grid_meta_fixture()
-
-            for fhour in fhours:
-                _write_scalar_marker(
-                    store=store,
-                    ap=ap,
-                    cycle=cycle,
+            for fhour in fx.fhours:
+                fx.write_scalar_marker(
                     fhour=fhour,
-                    variable="tmp_surface",
-                    source_values=[-10.0 + float(i) for i in range(int(grid_meta["nx"]) * int(grid_meta["ny"]))],
+                    product_id="tmp_surface",
+                    base=-10.0,
                     product_config=products_cfg["tmp_surface"],
-                    grid_meta=grid_meta,
                 )
-                _write_vector_marker(
-                    store=store,
-                    ap=ap,
-                    cycle=cycle,
-                    fhour=fhour,
-                    variable="wind10m_uv",
-                    grid_meta=grid_meta,
-                )
+                fx.write_vector_marker(fhour=fhour)
 
-            result = run_publish(
-                model_label="GFS",
-                ctx=ctx,
-                cycle=cycle,
+            result = fx.publish(
                 product_ids=scalar_products + vector_products,
-                products=_product_specs({**products_cfg, "wind10m_uv": _wind_product_config()}),
+                products_cfg={**products_cfg, "wind10m_uv": wind_product_config()},
             )
             self.assertTrue(result.ready)
             self.assertFalse(result.already_published)
 
-            cycle_manifest = json.loads(store.read_bytes(uri=ap.manifest_cycle_uri(model_id="gfs", cycle=cycle)).decode("utf-8"))
-            latest_manifest = json.loads(store.read_bytes(uri=ap.manifest_latest_uri(model_id="gfs")).decode("utf-8"))
+            cycle_manifest = fx.cycle_manifest()
+            latest_manifest = fx.latest_manifest()
             self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
             self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
             self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
@@ -773,7 +531,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(list(cycle_manifest["products"].keys()), ["tmp_surface", "wind10m_uv"])
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],
-                f"fields/gfs/{cycle}/000/wind10m_uv.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/wind10m_uv.field.i8.bin",
             )
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["components"],

@@ -22,6 +22,8 @@ from .validate import (
 
 
 def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
+    """Parse raw config JSON into a fully resolved `PipelineConfig`."""
+
     raw = parse_config_model(PipelineConfigInput, obj)
     product_catalog = {
         product_id: parse_product_catalog_spec(product_id=product_id, raw=product_cfg)
@@ -47,6 +49,8 @@ def _parse_model_config(
     raw: ModelConfigInput,
     product_catalog: Mapping[str, ProductCatalogSpec],
 ) -> ModelConfig:
+    """Resolve one raw model config against the shared product catalog."""
+
     source = parse_model_source_config(raw.source)
     workload = parse_workload_config(raw.workload)
     validate_workload_products(product_ids=workload.products, products=product_catalog)
@@ -101,6 +105,8 @@ def _parse_model_config(
 
 
 def load_pipeline_config(pipeline_config_uri: str) -> PipelineConfig:
+    """Read and parse pipeline config JSON from a URI-backed store."""
+
     store = make_store()
     raw = store.read_bytes(uri=pipeline_config_uri)
     try:

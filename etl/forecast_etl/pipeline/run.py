@@ -27,10 +27,12 @@ HourTask = tuple[
 
 
 class RunCycleTaskError(RuntimeError):
-    """Pickle-safe wrapper for child process failures."""
+    """Pickle-safe wrapper for child process failures with hour context."""
 
 
 def publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str) -> None:
+    """Publish the manifest for a processed model cycle."""
+
     run_publish(
         ctx=ctx,
         cycle=cycle,
@@ -50,6 +52,8 @@ def run_hour(
     source_uri: str | None,
     publish: bool,
 ) -> None:
+    """Process one forecast hour and optionally publish the cycle."""
+
     run_process_hour(
         ctx=ctx,
         model=model,
@@ -71,6 +75,8 @@ def run_cycle(
     procs: int | None = None,
     publish: bool,
 ) -> None:
+    """Process every configured forecast hour and optionally publish once."""
+
     tasks = build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle)
     process_count = int(procs) if procs is not None else default_run_cycle_procs(model)
     try:
@@ -89,6 +95,8 @@ def run_cycle(
 
 
 def run_cycle_one(payload: HourTask) -> None:
+    """Run one serialized cycle task inside the current process."""
+
     ctx, model, products, product_ids, cycle, fhour, source_uri = payload
     try:
         run_process_hour(
@@ -110,6 +118,8 @@ def run_cycle_one(payload: HourTask) -> None:
 
 
 def build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: str) -> list[HourTask]:
+    """Build pickle-friendly per-hour tasks for local multiprocessing."""
+
     parse_cycle(cycle)
     fhours = model.workload.forecast_hours
     product_ids = tuple(model.workload.products or ())
@@ -122,6 +132,8 @@ def build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: s
 
 
 def default_run_cycle_procs(model: ModelConfig) -> int:
+    """Return the default local process count for a model source type."""
+
     if model.source.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
         return 1
     return 4

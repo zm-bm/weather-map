@@ -18,6 +18,8 @@ def _needs_half_cell_shift(origin: float, step: float) -> bool:
 
 
 def grid_meta_from_grib(*, grib_path: Path, run: gdal.RunFn) -> dict[str, Any]:
+    """Read frontend grid metadata from a GRIB file via GDAL."""
+
     info = gdal.gdalinfo_json(grib_path, run=run)
     size = info.get("size")
     gt = info.get("geoTransform")

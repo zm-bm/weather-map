@@ -23,6 +23,8 @@ def acquire_prepared_source(
     workdir: Path,
     store: UriStore,
 ) -> PreparedSource:
+    """Dispatch source acquisition to the adapter configured for the model."""
+
     if model.source.type == SOURCE_TYPE_GFS_NOMADS:
         return gfs.acquire_prepared_source(
             model=model,

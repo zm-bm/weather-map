@@ -3,12 +3,12 @@ from __future__ import annotations
 import unittest
 
 from forecast_etl.artifacts.markers import parse_product_success_marker
-from forecast_etl.tests.product_test_helpers import _grid_meta_fixture
+from forecast_etl.tests.fixtures.grids import grid_meta_fixture
 
 
 class ProductSuccessMarkerTest(unittest.TestCase):
     def test_parse_product_success_marker_normalizes_product_payload(self) -> None:
-        grid = _grid_meta_fixture()
+        grid = grid_meta_fixture()
         marker = parse_product_success_marker(
             {
                 "cycle": "2026041200",
@@ -17,7 +17,7 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                 "product": {
                     "payload_uri": "file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
                     "byte_length": 24,
-                    "sha256": "abc123",
+                    "sha256": "a" * 64,
                     "format": "linear-i8-v1",
                     "encoding_id": "wind10m_uv_vector_i8_v1",
                     "units": "m/s",
@@ -55,4 +55,5 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                 uri="file:///tmp/out/status/gfs/2026041200/tmp_surface/003._SUCCESS.json",
             )
 
-        self.assertIn("missing product payload metadata", str(raised.exception))
+        self.assertIn("product", str(raised.exception))
+        self.assertIn("Field required", str(raised.exception))

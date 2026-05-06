@@ -30,11 +30,15 @@ from .schema import (
 
 
 def parse_workload_config(raw: Any) -> WorkloadConfig:
+    """Normalize raw workload ranges into explicit forecast-hour ids."""
+
     parsed = parse_config_model(WorkloadInput, raw)
     return WorkloadConfig(forecast_hours=parsed.forecast_hours, products=parsed.products)
 
 
 def parse_model_source_config(raw: Any) -> ModelSourceConfig:
+    """Parse source config and attach the active source-specific settings."""
+
     parsed = parse_config_model(ModelSourceInput, raw)
     if parsed.type == SOURCE_TYPE_GFS_NOMADS:
         return ModelSourceConfig(
@@ -68,6 +72,8 @@ def validate_model_products_for_source(
     source: ModelSourceConfig,
     model_products: Mapping[str, ModelProductSpec],
 ) -> None:
+    """Validate model-product selectors that depend on the source adapter."""
+
     if source.type != SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
         return
 
@@ -82,6 +88,8 @@ def validate_model_products_for_source(
 
 
 def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
+    """Parse one catalog product definition."""
+
     parsed = parse_config_model(CatalogProductInput, raw)
     style = ProductStyleSpec(
         layer_id=parsed.style.layer_id,
@@ -109,6 +117,8 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
 
 
 def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
+    """Parse a fully resolved product spec from test or fixture input."""
+
     parsed = parse_config_model(ProductInput, raw)
     components = _component_specs(parsed.components)
     style = ProductStyleSpec(
@@ -142,6 +152,8 @@ def parse_model_product_spec(
     raw: Any,
     catalog_product: ProductCatalogSpec,
 ) -> ModelProductSpec:
+    """Parse one model product and verify catalog component order."""
+
     parsed = parse_config_model(ModelProductInput, raw)
     matches = parsed.component_grib_matches
 
@@ -164,6 +176,8 @@ def resolve_product_spec(
     catalog_product: ProductCatalogSpec,
     model_product: ModelProductSpec,
 ) -> ProductSpec:
+    """Merge catalog product metadata with model-specific component selectors."""
+
     components = tuple(
         ComponentSpec(
             id=component_id,
@@ -191,6 +205,8 @@ def validate_workload_products(
     product_ids: tuple[str, ...],
     products: Mapping[str, object],
 ) -> None:
+    """Ensure every workload product exists in the product catalog."""
+
     for product_id in product_ids:
         if product_id not in products:
             raise SystemExit(f"workload.products references unknown product: {product_id!r}")

@@ -19,16 +19,22 @@ ICON_PARAM_MATCH_KEY = "ICON_PARAM"
 
 
 def icon_dwd_filename(*, cycle: str, fhour: str, icon_param: str) -> str:
+    """Return the DWD ICON GRIB2.bz2 filename for one parameter."""
+
     return f"icon_global_icosahedral_single-level_{cycle}_{fhour}_{icon_param.upper()}.grib2.bz2"
 
 
 def icon_dwd_url(*, base_url: str, cycle: str, fhour: str, icon_param: str) -> str:
+    """Return the DWD ICON download URL for one cycle/hour/parameter."""
+
     _, cycle_hour = parse_cycle(cycle)
     filename = icon_dwd_filename(cycle=cycle, fhour=fhour, icon_param=icon_param)
     return f"{base_url.rstrip('/')}/{cycle_hour}/{icon_param.lower()}/{filename}"
 
 
 def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
+    """Return the unique ICON parameters required by the model workload."""
+
     params: set[str] = set()
     for product_id in model.workload.products:
         product = model.products.get(product_id)
@@ -122,6 +128,8 @@ def _prepare_icon_param(
     fhour: str,
     icon_param: str,
 ) -> tuple[Path, bool]:
+    """Download, decompress, and regrid one ICON parameter if needed."""
+
     if model.source.icon_dwd is None:
         raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
 
@@ -155,6 +163,8 @@ def _acquire_icon_dwd_source(
     fhour: str,
     source_uri_override: str | None,
 ) -> PreparedSource:
+    """Acquire the prepared GRIB collection for one ICON cycle/hour."""
+
     if model.source.type != SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL or model.source.icon_dwd is None:
         raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
     if source_uri_override is not None and source_uri_override.strip():
@@ -190,6 +200,8 @@ def acquire_prepared_source(
     workdir: Path,
     store: UriStore,
 ) -> PreparedSource:
+    """Acquire a prepared source for an ICON DWD model."""
+
     del workdir, store
     if model.source.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
         return _acquire_icon_dwd_source(

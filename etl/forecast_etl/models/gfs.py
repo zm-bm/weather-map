@@ -21,6 +21,8 @@ def acquire_prepared_source(
     workdir: Path,
     store: UriStore,
 ) -> PreparedSource:
+    """Acquire a single local GRIB source for one GFS cycle/hour."""
+
     if model.source.type != SOURCE_TYPE_GFS_NOMADS or model.source.nomads is None:
         raise SystemExit(f"Model {model.id!r} is not configured for GFS NOMADS acquisition")
 

@@ -82,7 +82,7 @@ _STORE_SINGLETON: UriStore | None = None
 
 
 def make_store() -> UriStore:
-    """Return the default URI store (cached singleton)."""
+    """Return the cached default store router for file, S3, and HTTP URIs."""
 
     global _STORE_SINGLETON
     if _STORE_SINGLETON is None:

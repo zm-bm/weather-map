@@ -19,6 +19,8 @@ from ..sources.gfs_layout import join_uri
 
 
 def _safe_segment(value: str) -> str:
+    """Validate one URI path segment used in deterministic artifact paths."""
+
     v = value.strip()
     if not v:
         raise ValueError("Empty path segment")
@@ -31,12 +33,7 @@ def _safe_segment(value: str) -> str:
 
 @dataclass(frozen=True)
 class WorkItem:
-    """Work identity.
-
-    Notes:
-    - `product_id` is optional here so the contract can represent either
-      per-(cycle,fhour) items or per-(cycle,fhour,product_id) items.
-    """
+    """Execution identity for one cycle, forecast hour, and optional product."""
 
     cycle: str  # YYYYMMDDHH
     fhour: str  # FFF
@@ -61,7 +58,7 @@ SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
 
 @dataclass(frozen=True)
 class ArtifactPaths:
-    """Deterministic artifact URI builder."""
+    """Deterministic URI builder for ETL fields, markers, logs, and manifests."""
 
     artifact_root_uri: str
 

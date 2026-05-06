@@ -17,6 +17,8 @@ from .base import UriStore
 
 @dataclass(frozen=True)
 class HttpStore(UriStore):
+    """Read-only URI store implementation for HTTP and HTTPS inputs."""
+
     name: str = "http"
 
     def _check_scheme(self, uri: str) -> None:

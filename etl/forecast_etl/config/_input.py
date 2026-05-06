@@ -20,12 +20,16 @@ from .schema import SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL
 
 
 class PipelineConfigInput(ConfigModel):
+    """Raw top-level `etl_config.json` shape."""
+
     version: Literal[2]
     product_catalog: dict[NonEmptyStr, Any] = Field(min_length=1)
     models: dict[NonEmptyStr, "ModelConfigInput"] = Field(min_length=1)
 
 
 class ModelConfigInput(ConfigModel):
+    """Raw model config before catalog products are resolved."""
+
     label: NonEmptyStr
     source: dict[str, Any]
     workload: dict[str, Any]
@@ -34,6 +38,8 @@ class ModelConfigInput(ConfigModel):
 
 
 class WorkloadInput(ConfigModel):
+    """Raw workload range, normalized to concrete forecast-hour ids."""
+
     forecast_hour_start: ForecastHourInt
     forecast_hour_end: ForecastHourInt
     products: UniqueNonEmptyStringTuple
@@ -50,6 +56,8 @@ class WorkloadInput(ConfigModel):
 
 
 class ModelSourceInput(ConfigModel):
+    """Flattened raw source config for supported acquisition adapters."""
+
     type: Literal["gfs_nomads", "icon_dwd_icosahedral"]
     grid_id: NonEmptyStr
     base_url: NonEmptyStr
@@ -78,6 +86,8 @@ class ProductStyleInput(ConfigModel):
 
 
 class ProductBaseInput(ConfigModel):
+    """Raw product fields shared by catalog and resolved product fixtures."""
+
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
@@ -107,6 +117,8 @@ class ProductComponentInput(ConfigModel):
 
 
 class CatalogProductInput(ProductBaseInput):
+    """Raw catalog product with component identities only."""
+
     components: tuple[CatalogComponentInput, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -120,6 +132,8 @@ class CatalogProductInput(ProductBaseInput):
 
 
 class ProductInput(ProductBaseInput):
+    """Raw fully-resolved product used by product fixture helpers."""
+
     components: tuple[ProductComponentInput, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -129,6 +143,8 @@ class ProductInput(ProductBaseInput):
 
 
 class ModelProductInput(ConfigModel):
+    """Raw model product component-to-GRIB selector mapping."""
+
     components: tuple[ProductComponentInput, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -142,6 +158,8 @@ class ModelProductInput(ConfigModel):
 
 
 class EncodingInput(ConfigModel):
+    """Raw encoding object from product config."""
+
     id: NonEmptyStr
     format: NonEmptyStr
     dtype: NonEmptyStr
@@ -152,6 +170,8 @@ class EncodingInput(ConfigModel):
 
 
 class ProductGroupInput(ConfigModel):
+    """Raw frontend product group config."""
+
     id: NonEmptyStr
     label: NonEmptyStr
     layer_id: NonEmptyStr
@@ -166,6 +186,8 @@ class ProductGroupInput(ConfigModel):
 
 
 class ProductGroupsInput(ConfigModel):
+    """Wrapper that validates product group collection-level constraints."""
+
     groups: tuple[ProductGroupInput, ...] = Field(min_length=1)
 
     @model_validator(mode="after")

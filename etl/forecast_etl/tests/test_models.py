@@ -14,16 +14,13 @@ from forecast_etl.config.schema import IconDwdConfig, ModelConfig, ModelSourceCo
 from forecast_etl.models import acquire_prepared_source
 from forecast_etl.models.icon import icon_dwd_filename, icon_dwd_url
 from forecast_etl.stores import make_store
-from forecast_etl.tests.product_test_helpers import (
-    _minimal_pipeline_config,
-    _minimal_product_config,
-    _product_spec,
-)
+from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
+from forecast_etl.tests.fixtures.products import minimal_product_config, product_spec
 
 
 class ModelSourceAdapterTest(unittest.TestCase):
     def test_gfs_adapter_uses_source_uri_override(self) -> None:
-        model = parse_pipeline_config(_minimal_pipeline_config()).model("gfs")
+        model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
         with tempfile.TemporaryDirectory(prefix="weather-map-gfs-source-") as td:
             tmp = Path(td)
             source_path = tmp / "source.grib2"
@@ -97,9 +94,9 @@ class ModelSourceAdapterTest(unittest.TestCase):
         self.assertEqual(calls[0][-1], "deutscherwetterdienst/regrid:icon")
 
     def test_icon_adapter_reuses_cached_regridded_files(self) -> None:
-        product_config = _minimal_product_config()
+        product_config = minimal_product_config()
         product_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
-        product = _product_spec("tmp_surface", product_config)
+        product = product_spec("tmp_surface", product_config)
         model = ModelConfig(
             id="icon",
             label="ICON",

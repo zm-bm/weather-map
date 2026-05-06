@@ -10,11 +10,15 @@ DEFAULT_GRIB_COLLECTION_SELECTOR_KEY = "ICON_PARAM"
 
 
 class PreparedSource:
+    """Source object consumed by product extraction after acquisition."""
+
     uri: str
     grid_id: str
 
     @staticmethod
     def grib(*, uri: str, path: Path, grid_id: str) -> "PreparedSource":
+        """Create a prepared source backed by one GRIB file."""
+
         return SingleGribPreparedSource(uri=uri, path=path, grid_id=grid_id)
 
     @staticmethod
@@ -25,6 +29,8 @@ class PreparedSource:
         grid_id: str,
         selector_key: str = DEFAULT_GRIB_COLLECTION_SELECTOR_KEY,
     ) -> "PreparedSource":
+        """Create a prepared source backed by selector-keyed GRIB files."""
+
         return GribCollectionPreparedSource(
             uri=uri,
             grib_paths=dict(grib_paths),
@@ -33,6 +39,8 @@ class PreparedSource:
         )
 
     def reference_grib_path(self) -> Path:
+        """Return a representative GRIB path for grid metadata reads."""
+
         raise NotImplementedError
 
     def component_grib_path(
@@ -42,11 +50,15 @@ class PreparedSource:
         component_id: str,
         grib_match: Mapping[str, str],
     ) -> Path:
+        """Return the GRIB path that should supply one product component."""
+
         raise NotImplementedError
 
 
 @dataclass(frozen=True)
 class SingleGribPreparedSource(PreparedSource):
+    """Prepared source where every component reads from the same GRIB file."""
+
     uri: str
     path: Path
     grid_id: str
@@ -67,6 +79,8 @@ class SingleGribPreparedSource(PreparedSource):
 
 @dataclass(frozen=True)
 class GribCollectionPreparedSource(PreparedSource):
+    """Prepared source that selects component GRIB files by metadata value."""
+
     uri: str
     grib_paths: dict[str, Path]
     grid_id: str

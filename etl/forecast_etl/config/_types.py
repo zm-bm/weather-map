@@ -8,6 +8,8 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 
 
 class ConfigModel(BaseModel):
+    """Strict immutable Pydantic base for resolved and raw config objects."""
+
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
@@ -23,6 +25,8 @@ NonEmptyStringMap = Annotated[dict[NonEmptyStr, NonEmptyStr], Field(min_length=1
 
 
 def unique_string_tuple(values: tuple[str, ...]) -> tuple[str, ...]:
+    """Reject duplicate strings while preserving tuple order."""
+
     seen: set[str] = set()
     for value in values:
         if value in seen:
@@ -41,6 +45,8 @@ ConfigModelT = TypeVar("ConfigModelT", bound=BaseModel)
 
 
 def parse_config_model(model_type: type[ConfigModelT], raw: object) -> ConfigModelT:
+    """Validate config input and present Pydantic errors as SystemExit."""
+
     try:
         return model_type.model_validate(raw)
     except ValidationError as exc:

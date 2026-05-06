@@ -16,6 +16,8 @@ from .stores import make_store
 
 
 def _write_success_marker(*, ctx: ExecutionContext, item: WorkItem, store, payload: Mapping[str, object]) -> None:
+    """Write the per-product success marker for a completed work item."""
+
     ap = ArtifactPaths(ctx.artifact_root_uri)
     success_uri = ap.success_marker_uri(item)
     write_json(store=store, uri=success_uri, obj=dict(payload), indent=None)
@@ -32,6 +34,7 @@ def run_process_hour(
     products: Mapping[str, ProductSpec],
 ) -> None:
     """Run all configured products for one (cycle, fhour)."""
+
     product_ids = tuple(product_ids or ())
 
     if not product_ids:
@@ -74,7 +77,6 @@ def run_process_hour(
                 run=run,
             )
             success_payload = {
-                "model": item.model_id,
                 "cycle": item.cycle,
                 "fhour": item.fhour,
                 "product_id": item.product_id,

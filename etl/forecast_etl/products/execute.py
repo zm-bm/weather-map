@@ -18,7 +18,7 @@ from ..sources.grib import (
 from ..sources.prepared import PreparedSource
 from ..stores.base import UriStore
 from .metadata import build_product_marker_metadata
-from .model import EncodedComponent, ExtractedBand
+from .model import ExtractedBand
 from .transforms import source_value_transform
 
 
@@ -36,13 +36,15 @@ def extract_product_band(
     workdir_path: Path,
     run: RunFn,
 ) -> ExtractedBand:
+    """Find and extract one configured GRIB component as Float32 bytes."""
+
     grib_path = source.component_grib_path(
         product_id=product.id,
         component_id=component_id,
         grib_match=grib_match,
     )
     band_match = _band_match_metadata(grib_match)
-    band_idx, band_md = find_grib_band_by_metadata(
+    band_idx, _ = find_grib_band_by_metadata(
         grib_path,
         band_match,
         run=run,
@@ -63,11 +65,8 @@ def extract_product_band(
 
     return ExtractedBand(
         component_id=component_id,
-        grib_match=grib_match,
         source_f32_bytes=source_f32_bytes,
         source_byte_order=source_byte_order,
-        band_index=band_idx,
-        band_metadata={str(k): str(v) for k, v in band_md.items()},
     )
 
 
@@ -76,7 +75,9 @@ def _encode_product_component(
     product: ProductSpec,
     expected_component_bytes: int,
     band: ExtractedBand,
-) -> EncodedComponent:
+) -> bytes:
+    """Encode one extracted component and verify its byte length."""
+
     encoding = product.encoding
     transform = source_value_transform(product.source_transform)
     payload_bytes = encode_component_payload(
@@ -97,14 +98,7 @@ def _encode_product_component(
             f"got={len(payload_bytes)} expected={expected_component_bytes}"
         )
 
-    return EncodedComponent(
-        component_id=band.component_id,
-        payload_bytes=payload_bytes,
-        source_byte_order=band.source_byte_order,
-        band_index=band.band_index,
-        band_metadata=band.band_metadata,
-        grib_match=band.grib_match,
-    )
+    return payload_bytes
 
 
 def run_product_item_in_workdir(
@@ -117,7 +111,7 @@ def run_product_item_in_workdir(
     source: PreparedSource,
     run: RunFn,
 ) -> dict[str, Any]:
-    """Extract, encode, pack, and publish one configured product."""
+    """Extract, encode, pack, publish, and describe one configured product."""
 
     grid = grid_meta_from_grib(grib_path=source.reference_grib_path(), run=run)
     extracted_components = [
@@ -143,7 +137,7 @@ def run_product_item_in_workdir(
         for band in extracted_components
     ]
 
-    payload = b"".join(component.payload_bytes for component in encoded_components)
+    payload = b"".join(encoded_components)
     paths = ArtifactPaths(ctx.artifact_root_uri)
     payload_uri = paths.output_field_payload_uri(item, dtype=product.encoding.dtype)
     store.write_bytes(uri=payload_uri, data=payload)
@@ -152,7 +146,6 @@ def run_product_item_in_workdir(
         product=product,
         payload_uri=payload_uri,
         payload=payload,
-        encoded_components=encoded_components,
         grid_id=source.grid_id,
         grid=grid,
     )

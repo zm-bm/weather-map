@@ -1,171 +1,196 @@
-# ETL
+# Forecast ETL
 
-This directory owns the forecast artifact pipeline used by local development
-and production.
+This directory contains the forecast artifact pipeline used by local
+development and production Batch workers.
 
-`weather-map` is the source of truth for ETL application code:
+Core files:
 
-- `forecast_etl/cli.py` runs local and Batch worker commands.
-- `forecast_etl/aws/ingest.py` is the canonical production Lambda handler.
-- `forecast.etl_config.json` is the dev/default pipeline config.
-- `scripts/local/` contains local development helpers.
-- `scripts/release/` builds production release artifacts.
+- `forecast.etl_config.json`: default ETL config for local runs.
+- `forecast_etl/`: Python package for config parsing, source acquisition,
+  product encoding, marker writing, and manifest publishing.
+- `scripts/local/`: local bootstrap and cycle-refresh scripts.
+- `scripts/release/`: production Lambda/container build helpers.
+- `Dockerfile`: worker image entrypoint for AWS Batch.
 
-Production deployment, production config, and AWS operator scripts live outside
-this repo in the private infra checkout, under `stacks/weather-etl/`.
+Production deployment config and operator scripts live in the private infra
+checkout under `stacks/weather-etl/`.
 
-## Local Refresh
+## Local Setup
 
-Run a full local cycle from the repo root:
-
-```bash
-etl/scripts/local/run-cycle.sh --cycle <cycle>
-```
-
-`<cycle>` is `YYYYMMDDHH`, for example `2026021606`.
-
-The wrapper creates `etl/.venv` when the `forecast-etl` command is missing.
-After changing ETL dependencies or tooling, update the local environment with:
+Bootstrap the ETL virtual environment from the repo root:
 
 ```bash
 etl/scripts/local/bootstrap.sh
 ```
 
-That installs the ETL package from `etl/pyproject.toml` in editable mode. The
-cycle script then checks for GDAL CLI tools and runs:
+This creates `etl/.venv` if needed and installs `etl/pyproject.toml` in editable
+mode with dev tools.
+
+Local cycle runs require GDAL CLI tools on `PATH`:
 
 ```bash
-etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
+gdalinfo
+gdal_translate
+gdalwarp
 ```
 
-`run-cycle` reads `etl/forecast.etl_config.json`, acquires source GRIB files for
-the selected model, processes each configured forecast hour, and writes
-artifacts into the repo-level `artifacts/` directory.
+ICON local runs also require Docker for the configured regridding image.
 
-## Product Pipeline
+## Local Run
 
-The ETL config is product-based:
-
-- `product_catalog` defines shared scalar/vector products and encodings.
-- `models.<model>.workload.products` is the ordered product list for that model.
-- `models.<model>.products` maps catalog product components to model-specific GRIB metadata.
-- `models.<model>.product_groups` groups products for frontend category/selection UI.
-
-The implementation follows this path:
-
-```text
-GRIB band -> encoded component -> product payload -> manifest
-```
-
-- `forecast_etl/sources/` finds GRIB bands, extracts Float32 component bytes, and reads grid metadata.
-- `forecast_etl/encoding/` defines encoding contracts and encodes component bytes.
-- `forecast_etl/products/` packs encoded components and writes `.field.<dtype>.bin` payloads.
-- `forecast_etl/manifest/` reads product success markers and emits frontend-compatible manifests.
-
-## Artifact Layout
-
-Local and production artifacts use the same object layout:
-
-- `manifests/<model>/latest.json`
-- `manifests/<model>/<cycle>.json`
-- `fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin`
-- `status/<model>/<cycle>/<product>/<fhour>._SUCCESS.json`
-- `status/<model>/<cycle>/_PUBLISHED.json`
-- `pmtiles/<name>.pmtiles`
-- `radio/<track>.mp3`
-
-In local development, `compose.yml` mounts `artifacts/` into nginx, which serves
-`/manifests/*`, `/fields/*`, `/pmtiles/*`, and `/radio/*` on
-`http://localhost:3000`.
-
-## CLI Commands
-
-Useful entrypoints:
+Run one complete model cycle:
 
 ```bash
-etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <cycle>
-etl/scripts/local/run-cycle.sh --model icon --cycle <cycle>
-etl/.venv/bin/forecast-etl run-hour --model gfs --cycle <cycle> --fhour <fff> --source-uri <uri>
+etl/scripts/local/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
+```
+
+Examples:
+
+```bash
+etl/scripts/local/run-cycle.sh --cycle 2026021606
+etl/scripts/local/run-cycle.sh --model icon --cycle 2026021606 --procs 1
+```
+
+The wrapper bootstraps the venv if needed, validates host prerequisites, and
+runs:
+
+```bash
+etl/.venv/bin/forecast-etl run-cycle --model <model> --cycle <cycle>
+```
+
+By default local artifacts are written under the repo-level `artifacts/`
+directory. The local dev stack serves those artifacts from nginx.
+
+## CLI
+
+Useful commands:
+
+```bash
+etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <YYYYMMDDHH>
+etl/.venv/bin/forecast-etl run-hour --model gfs --cycle <YYYYMMDDHH> --fhour <FFF> --source-uri <uri>
 etl/.venv/bin/forecast-etl smoke
 ```
 
-`run-hour` also accepts production Batch inputs from environment variables:
+Common runtime inputs:
 
-- `MODEL`
-- `CYCLE`
-- `FHOUR`
-- `GRIB_SOURCE_URI`
-- `ARTIFACT_ROOT_URI`
-- `PIPELINE_CONFIG_URI`
+- `--pipeline-config-uri`: config URI, defaults to `etl/forecast.etl_config.json`.
+- `--artifact-root-uri`: artifact root URI, defaults to repo `artifacts/`.
+- `--model`: configured model id, for example `gfs` or `icon`.
+- `--cycle`: forecast cycle as `YYYYMMDDHH`.
+- `--fhour`: forecast hour as `FFF`.
+- `--source-uri`: optional source GRIB URI for `run-hour`.
 
-`run-hour` publishes by default after processing the hour. Publishing is based on
-success markers, so repeated publish attempts are idempotent.
+Batch workers can provide the same values through:
 
-## Production Release
+```text
+PIPELINE_CONFIG_URI
+ARTIFACT_ROOT_URI
+MODEL
+CYCLE
+FHOUR
+GRIB_SOURCE_URI
+```
+
+`run-hour` publishes after processing the hour unless `--no-publish` is set.
+Publishing is marker-based and idempotent for the same manifest revision.
+
+## Pipeline Shape
+
+The ETL config is product-based:
+
+- `product_catalog` defines shared product metadata, components, styles, and
+  encodings.
+- `models.<model>.source` defines source acquisition settings.
+- `models.<model>.workload` defines forecast hours and product order.
+- `models.<model>.products` maps product components to model-specific GRIB
+  metadata.
+- `models.<model>.product_groups` defines frontend product groupings.
+
+Runtime flow:
+
+```text
+model source -> prepared GRIB source -> product payloads -> success markers -> cycle manifest
+```
+
+Package responsibilities:
+
+- `config/`: strict `etl_config.json` parsing and resolved config models.
+- `models/`: model-specific source acquisition adapters.
+- `sources/`: GDAL, GRIB, NOMADS, and prepared-source helpers.
+- `encoding/`: binary payload encoding contracts.
+- `products/`: component extraction, encoding, payload writing, marker metadata.
+- `artifacts/`: artifact paths, JSON helpers, and success marker contracts.
+- `manifest/`: success marker validation, manifest assembly, publish logic.
+- `pipeline/`: run-hour and run-cycle orchestration.
+- `aws/`: Lambda ingest entrypoint.
+
+## Artifacts
+
+The ETL writes this object layout under the artifact root:
+
+```text
+fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin
+status/<model>/<cycle>/<product>/<fhour>._SUCCESS.json
+status/<model>/<cycle>/_PUBLISHED.json
+manifests/<model>/<cycle>.json
+manifests/<model>/latest.json
+```
+
+Field payloads are raw packed binary arrays. Success markers are the publish
+contract between product execution and manifest assembly. Cycle manifests are
+the frontend-facing index over grids, encodings, products, frames, and times.
+
+## Production
 
 Production flow:
 
 1. NOAA publishes a GFS object notification.
-2. SNS invokes `weather-etl-ingest-gfs`.
-3. Lambda filters the object key using the production config in S3.
-4. Lambda submits one AWS Batch job for each accepted `(cycle, fhour)`.
-5. Batch runs the ETL image command `run-hour` and writes artifacts to S3.
+2. SNS invokes the ingest Lambda.
+3. Lambda filters the S3 key using the configured workload.
+4. Lambda submits an AWS Batch `run-hour` job for accepted objects.
+5. Batch writes field payloads, success markers, and manifests to S3.
 
-Before planning or applying the production `weather-etl` stack, rebuild the
-Lambda zip artifact from this repo:
+Build the ingest Lambda zip:
 
 ```bash
 etl/scripts/release/build-ingest-lambda-zip.sh
 ```
 
-The Terraform stack consumes the generated artifact at:
+The generated artifact is:
 
 ```text
 etl/dist/gfs-ingest-lambda.zip
 ```
 
-Build and push the worker container image with:
+Build and push the worker image:
 
 ```bash
 etl/scripts/release/build-push-etl.sh
 ```
 
-Production smoke and manual Batch helpers live with the Terraform stack:
-
-```bash
-stacks/weather-etl/ops/submit-smoke.sh
-stacks/weather-etl/ops/submit-worker-job.sh
-stacks/weather-etl/ops/invoke-lambda-test.sh
-```
+Production smoke and manual Batch helpers are kept with the Terraform stack in
+`stacks/weather-etl/ops/`.
 
 ## Testing
 
-Bootstrap the local environment first if `etl/.venv` does not exist:
+Run all ETL tests:
 
 ```bash
-etl/scripts/local/bootstrap.sh
+etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests
 ```
 
-Run ETL tests from the repo root:
+Run static checks:
 
 ```bash
-etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests -p 'test_*.py'
+cd etl
+.venv/bin/ruff check forecast_etl
+.venv/bin/pyright
 ```
 
-Run ETL linting from the repo root:
+Targeted examples:
 
 ```bash
-etl/.venv/bin/ruff check etl/forecast_etl
-```
-
-Run ETL type checking from the repo root:
-
-```bash
-etl/.venv/bin/pyright -p etl
-```
-
-Run only the production ingest tests:
-
-```bash
-etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests -p 'test_aws_ingest.py'
+etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_config_parse
+etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_manifest_publish
+etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_products_execute
 ```

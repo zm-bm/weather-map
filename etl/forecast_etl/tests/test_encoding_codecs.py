@@ -9,12 +9,12 @@ from forecast_etl.encoding.codecs import (
     FORMAT_TEMP_C_PIECEWISE_I8,
     encode_component_payload,
 )
-from forecast_etl.tests.product_test_helpers import _pack_f32
+from forecast_etl.tests.fixtures.grids import pack_f32
 
 
 class ComponentPayloadTest(unittest.TestCase):
     def test_encode_component_payload_identity_transform_and_target_byte_order(self) -> None:
-        source = _pack_f32([0.0, 1.0, 2.0], byte_order="little")
+        source = pack_f32([0.0, 1.0, 2.0], byte_order="little")
         payload = encode_component_payload(
             source_f32_bytes=source,
             source_byte_order="little",
@@ -30,7 +30,7 @@ class ComponentPayloadTest(unittest.TestCase):
         self.assertEqual(len(payload), 3 * 2)
 
     def test_encode_component_payload_maps_invalid_and_reserves_nodata(self) -> None:
-        source = _pack_f32([float("nan"), float("inf"), float("-inf"), -40000.0, 40000.0, -32768.0], byte_order="little")
+        source = pack_f32([float("nan"), float("inf"), float("-inf"), -40000.0, 40000.0, -32768.0], byte_order="little")
         payload = encode_component_payload(
             source_f32_bytes=source,
             source_byte_order="little",
@@ -48,7 +48,7 @@ class ComponentPayloadTest(unittest.TestCase):
         self.assertEqual(values[5], -32767)
 
         high_nodata_payload = encode_component_payload(
-            source_f32_bytes=_pack_f32([40000.0], byte_order="little"),
+            source_f32_bytes=pack_f32([40000.0], byte_order="little"),
             source_byte_order="little",
             target_dtype="int16",
             target_byte_order="little",
@@ -62,7 +62,7 @@ class ComponentPayloadTest(unittest.TestCase):
 
     def test_encode_component_payload_supports_int8_linear_encoding(self) -> None:
         payload = encode_component_payload(
-            source_f32_bytes=_pack_f32([0.0, 50.0, 100.0, float("nan")], byte_order="little"),
+            source_f32_bytes=pack_f32([0.0, 50.0, 100.0, float("nan")], byte_order="little"),
             source_byte_order="little",
             target_dtype="int8",
             target_byte_order="none",
@@ -76,7 +76,7 @@ class ComponentPayloadTest(unittest.TestCase):
 
     def test_encode_component_payload_preserves_zero_when_nodata_is_absent(self) -> None:
         payload = encode_component_payload(
-            source_f32_bytes=_pack_f32([float("nan"), 0.0, 1.0], byte_order="little"),
+            source_f32_bytes=pack_f32([float("nan"), 0.0, 1.0], byte_order="little"),
             source_byte_order="little",
             target_dtype="int8",
             target_byte_order="none",
@@ -90,7 +90,7 @@ class ComponentPayloadTest(unittest.TestCase):
 
     def test_encode_component_payload_applies_value_transform(self) -> None:
         payload = encode_component_payload(
-            source_f32_bytes=_pack_f32([0.0, 0.001, 0.008333333, float("nan")], byte_order="little"),
+            source_f32_bytes=pack_f32([0.0, 0.001, 0.008333333, float("nan")], byte_order="little"),
             source_byte_order="little",
             target_dtype="int8",
             target_byte_order="none",
@@ -105,7 +105,7 @@ class ComponentPayloadTest(unittest.TestCase):
 
     def test_encode_component_payload_supports_temperature_piecewise_encoding(self) -> None:
         payload = encode_component_payload(
-            source_f32_bytes=_pack_f32(
+            source_f32_bytes=pack_f32(
                 [-100.0, -35.0, -8.0, -7.75, 34.0, 34.5, 50.0, 100.0, float("nan")],
                 byte_order="little",
             ),

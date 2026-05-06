@@ -16,6 +16,8 @@ from .build import build_cycle_manifest, build_manifest_products, product_groups
 
 @dataclass(frozen=True)
 class PublishResult:
+    """Outcome of a publish attempt for one model cycle."""
+
     ready: bool
     already_published: bool
     missing_markers: tuple[str, ...] = ()
@@ -30,6 +32,8 @@ def run_publish(
     products: Mapping[str, ProductSpec],
     product_groups: Iterable[ProductGroup] | None = None,
 ) -> PublishResult:
+    """Publish a cycle manifest when all requested success markers exist."""
+
     fhours = tuple(ctx.forecast_hours or ())
     product_ids = tuple(product_ids)
     grouped_product_ids = tuple(
@@ -141,6 +145,8 @@ def _missing_success_markers(
     fhours: Iterable[str],
     product_ids: Iterable[str],
 ) -> list[str]:
+    """Return expected product success markers that are not present in storage."""
+
     prefix = paths.status_prefix_uri(model_id=model_id, cycle=cycle)
     existing = {uri for uri in store.list_prefix(prefix_uri=prefix) if uri.endswith(SUCCESS_MARKER_SUFFIX)}
     expected = {
@@ -159,6 +165,8 @@ def _is_already_published(
     revision: str,
     cycle: str,
 ) -> bool:
+    """Return whether the published marker matches the new manifest revision."""
+
     if not store.exists(uri=published_uri):
         return False
 
@@ -186,6 +194,8 @@ def _maybe_promote_latest(
     cycle: str,
     manifest_obj: dict,
 ) -> None:
+    """Promote the cycle manifest to latest unless latest is a newer cycle."""
+
     latest_manifest_uri = paths.manifest_latest_uri(model_id=model_id)
     current_latest_cycle = _read_latest_cycle(store=store, latest_manifest_uri=latest_manifest_uri)
     if current_latest_cycle is None or cycle >= current_latest_cycle:
@@ -200,6 +210,8 @@ def _maybe_promote_latest(
 
 
 def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | None:
+    """Read the current latest manifest cycle, if available and parseable."""
+
     if not store.exists(uri=latest_manifest_uri):
         return None
 

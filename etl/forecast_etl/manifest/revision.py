@@ -9,6 +9,8 @@ from typing import Any, Mapping
 
 
 def compute_manifest_revision(manifest_obj: Mapping[str, Any]) -> str:
+    """Compute the stable revision hash for a manifest object."""
+
     basis = _revision_basis(manifest_obj)
     digest = hashlib.sha256(json.dumps(basis, sort_keys=True).encode("utf-8")).hexdigest()
     return digest[:16]

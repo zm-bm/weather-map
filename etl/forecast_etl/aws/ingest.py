@@ -1,3 +1,5 @@
+"""AWS Lambda ingest handler for converting GFS notifications to Batch jobs."""
+
 from __future__ import annotations
 
 import hashlib
@@ -60,6 +62,8 @@ def _parse_json(value: Any) -> Any:
 
 
 def _extract_s3_objects(payload: Any) -> list[tuple[str, str]]:
+    """Extract S3 bucket/key pairs from supported notification payloads."""
+
     payload = _parse_json(payload)
     out: list[tuple[str, str]] = []
 
@@ -84,6 +88,8 @@ def _extract_s3_objects(payload: Any) -> list[tuple[str, str]]:
 
 
 def _extract_from_event(event: dict[str, Any]) -> list[tuple[str, str]]:
+    """Extract S3 object references from an SNS-wrapped Lambda event."""
+
     objects: list[tuple[str, str]] = []
     for rec in event.get("Records", []):
         if not isinstance(rec, dict):
@@ -106,6 +112,8 @@ def _submit_job(
     filters: dict[str, Any],
     pipeline_config_uri: str,
 ) -> int:
+    """Submit one Batch worker job when the S3 key matches workload filters."""
+
     matched = KEY_RE.match(key)
     if not matched:
         print(f"skip key (filter): {key}")
@@ -155,6 +163,8 @@ def _submit_job(
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Lambda entrypoint for filtering GFS notifications into Batch jobs."""
+
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()

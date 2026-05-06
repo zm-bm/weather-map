@@ -15,6 +15,8 @@ SourceValueTransform = Callable[[float], float]
 
 
 def normalize_source_transform(raw: Any, *, field_name: str) -> str:
+    """Normalize a source transform id from config input."""
+
     if raw is None:
         return SOURCE_TRANSFORM_IDENTITY
     if isinstance(raw, str):
@@ -25,6 +27,8 @@ def normalize_source_transform(raw: Any, *, field_name: str) -> str:
 
 
 def source_value_transform(source_transform: str) -> SourceValueTransform:
+    """Return the scalar value transform used before payload encoding."""
+
     normalized = normalize_source_transform(source_transform, field_name="source_transform")
     if normalized == SOURCE_TRANSFORM_IDENTITY:
         return _identity

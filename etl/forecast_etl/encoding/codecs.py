@@ -45,6 +45,8 @@ PAYLOAD_SUFFIX_BY_DTYPE = {
 
 
 def encoding_format_for_spec(*, dtype: str, explicit_format: str | None = None) -> str:
+    """Resolve and validate the concrete encoding format for a dtype."""
+
     if explicit_format is None or explicit_format == "":
         try:
             return FORMAT_BY_DTYPE[dtype]
@@ -61,14 +63,20 @@ def encoding_format_for_spec(*, dtype: str, explicit_format: str | None = None) 
 
 
 def is_linear_encoding_format(encoding_format: str) -> bool:
+    """Return whether an encoding format uses scale/offset decoding."""
+
     return encoding_format in LINEAR_FORMATS
 
 
 def required_nodata_for_format(encoding_format: str) -> int | None:
+    """Return the required nodata sentinel for a format, if fixed."""
+
     return REQUIRED_NODATA_BY_FORMAT.get(encoding_format)
 
 
 def encoding_storage_bounds(dtype: str) -> tuple[int, int]:
+    """Return inclusive integer storage bounds for an encoding dtype."""
+
     try:
         return int_storage_bounds(dtype)
     except ValueError as exc:
@@ -76,6 +84,8 @@ def encoding_storage_bounds(dtype: str) -> tuple[int, int]:
 
 
 def payload_suffix_for_dtype(dtype: str) -> str:
+    """Return the artifact filename dtype suffix for a payload dtype."""
+
     try:
         return PAYLOAD_SUFFIX_BY_DTYPE[dtype]
     except KeyError as exc:
@@ -83,6 +93,8 @@ def payload_suffix_for_dtype(dtype: str) -> str:
 
 
 def encode_temp_c_piecewise_i8_value(value: float, *, nodata: int) -> int:
+    """Encode Celsius temperature into the piecewise int8 storage scale."""
+
     if not math.isfinite(value):
         return nodata
 

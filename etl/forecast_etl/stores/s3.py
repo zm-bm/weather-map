@@ -18,6 +18,8 @@ from .base import UriStore
 
 @dataclass(frozen=True)
 class S3Store(UriStore):
+    """URI store implementation for S3 objects."""
+
     name: str = "s3"
 
     def _parse_s3_uri(self, uri: str) -> tuple[str, str]:

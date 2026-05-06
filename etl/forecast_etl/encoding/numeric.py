@@ -16,6 +16,8 @@ INT_ITEM_BYTES_BY_DTYPE = {
 }
 
 def iter_float32_values(data: bytes, *, byte_order: str) -> Iterator[float]:
+    """Iterate packed float32 values using the declared byte order."""
+
     if len(data) % 4 != 0:
         raise SystemExit(f"Invalid float32 byte length: {len(data)}")
     if byte_order not in FLOAT32_BYTE_ORDERS:
@@ -27,6 +29,8 @@ def iter_float32_values(data: bytes, *, byte_order: str) -> Iterator[float]:
 
 
 def int_storage_bounds(dtype: str) -> tuple[int, int]:
+    """Return inclusive storage bounds for a supported integer dtype."""
+
     try:
         return INT_STORAGE_BOUNDS_BY_DTYPE[dtype]
     except KeyError as exc:
@@ -34,6 +38,8 @@ def int_storage_bounds(dtype: str) -> tuple[int, int]:
 
 
 def int_item_bytes(dtype: str) -> int:
+    """Return bytes per item for a supported integer dtype."""
+
     try:
         return INT_ITEM_BYTES_BY_DTYPE[dtype]
     except KeyError as exc:
@@ -41,6 +47,8 @@ def int_item_bytes(dtype: str) -> int:
 
 
 def signed_int_pack_format(*, dtype: str, byte_order: str) -> str:
+    """Return a `struct` format for packing signed integer payload values."""
+
     if dtype == "int8":
         if byte_order != "none":
             raise SystemExit(f"Unsupported byte order for int8: {byte_order!r}")
@@ -53,6 +61,8 @@ def signed_int_pack_format(*, dtype: str, byte_order: str) -> str:
 
 
 def clamp_int(value: int, *, bounds: tuple[int, int]) -> int:
+    """Clamp an integer to inclusive storage bounds."""
+
     min_value, max_value = bounds
     if value < min_value:
         return min_value

@@ -19,6 +19,8 @@ from .base import UriStore
 
 @dataclass(frozen=True)
 class LocalFSStore(UriStore):
+    """URI store implementation for local `file://` artifacts."""
+
     name: str = "local-fs"
 
     def read_bytes(self, *, uri: str) -> bytes:
