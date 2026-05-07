@@ -40,9 +40,14 @@ state, remain in the sibling shared infra repo.
 ### 1) S3
 
 - `weather-etl-artifacts-prod-<account>`
-  - Stores MBTiles, status/success markers, and manifests.
+  - Stores static glyphs, PMTiles, radio files, ETL field payloads,
+    status/success markers, and manifests.
 - `weather-etl-config-prod-<account>`
   - Stores shared ETL pipeline config read by Lambda and Batch.
+
+Terraform owns the buckets. Static objects under `glyphs/`, `pmtiles/`, and
+`radio/` are uploaded separately by
+`infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
 
 ### 2) SNS subscription + Lambda
 

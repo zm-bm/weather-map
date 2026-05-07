@@ -12,8 +12,9 @@ project.
 - `config/forecast.etl_config.json`: prod runtime config uploaded by the weather
   ETL Terraform stack.
 - `scripts/weather-etl/release`: production build and publish helpers for the
-  weather ETL Lambda and Batch worker image. A `deploy.sh` entrypoint can be
-  added here later when the release flow is ready to apply Terraform.
+  weather ETL Lambda, Batch worker image, and static artifact assets. A
+  `deploy.sh` entrypoint can be added here later when the release flow is ready
+  to apply Terraform.
 - `scripts/weather-etl/ops`: production smoke, manual Batch, and Lambda
   invocation helpers.
 
@@ -64,6 +65,19 @@ infra/config/forecast.etl_config.json
 If that config changes, run the Terraform plan/apply flow above so the config
 bucket receives the updated object.
 
+Terraform creates the artifact bucket, but static frontend support assets are
+uploaded with a release script instead of Terraform state.
+
+Upload local generated assets from `artifacts/glyphs/`, `artifacts/pmtiles/`,
+and `artifacts/radio/`:
+
+```bash
+AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 infra/scripts/weather-etl/release/upload-static-artifacts.sh
+```
+
+The upload script reads `artifacts_bucket_name` from Terraform output by
+default. It copies matching files and does not delete extra S3 objects.
+
 ### Release Worker Image
 
 The ECR repository is Terraform-managed as `weather-etl-worker`. On a fresh
@@ -74,7 +88,8 @@ First-deploy order:
 
 1. Build the Lambda artifact.
 2. Apply Terraform.
-3. Build and push the worker image.
+3. Upload static artifacts.
+4. Build and push the worker image.
 
 Build and push the Batch worker image:
 

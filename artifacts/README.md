@@ -21,7 +21,8 @@ How it is used:
 - nginx serves `/manifests/*`, `/fields/*`, `/pmtiles/*`, and `/radio/*` directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
 - if `VITE_BASEMAP_FILENAME` is set, the frontend derives the basemap URL from `/pmtiles/<filename>`.
-- frontend-owned static assets such as `glyphs/` are served separately from the frontend origin.
+- `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
+  bucket with `infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
 
 Generated contents under this directory are ignored by git.
 
