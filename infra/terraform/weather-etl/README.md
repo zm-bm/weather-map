@@ -49,6 +49,18 @@ Terraform owns the buckets. Static objects under `glyphs/`, `pmtiles/`, and
 `radio/` are uploaded separately by
 `infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
 
+Artifact bucket lifecycle rules expire generated ETL objects while preserving
+static assets:
+
+- `fields/`, `status/`, and `logs/` current objects expire after 14 days.
+- `manifests/` current objects expire after 45 days.
+- Noncurrent versions under those prefixes expire after 7 days.
+- `glyphs/`, `pmtiles/`, and `radio/` have no lifecycle expiration rule.
+
+The `manifests/` rule includes `manifests/<model>/latest.json`; if ETL is
+dormant for more than 45 days, the latest manifest can expire too. S3 lifecycle
+processing is asynchronous and applies to existing and future matching objects.
+
 ### 2) SNS subscription + Lambda
 
 - Subscribe Lambda to NOAA SNS topic.
