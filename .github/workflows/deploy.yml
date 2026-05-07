@@ -13,6 +13,9 @@ env:
   AWS_REGION: us-east-1
   S3_BUCKET: weather-map-bucket
   CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+  FRONTEND_HTML_CACHE_CONTROL: public, max-age=60, s-maxage=300, must-revalidate
+  FRONTEND_ASSET_CACHE_CONTROL: public, max-age=31536000, immutable
+  FRONTEND_PUBLIC_CACHE_CONTROL: public, max-age=86400, s-maxage=604800
 
 jobs:
   build-and-deploy:
@@ -51,6 +54,24 @@ jobs:
           aws s3 sync dist/ "s3://${S3_BUCKET}" --delete \
             --exclude ".gitignore" \
             --exclude "*/.gitignore"
+        working-directory: ./frontend
+
+      - name: Apply cache headers
+        run: |
+          aws s3 cp dist/index.html "s3://${S3_BUCKET}/index.html" \
+            --cache-control "${FRONTEND_HTML_CACHE_CONTROL}" \
+            --content-type "text/html"
+
+          aws s3 cp dist/assets/ "s3://${S3_BUCKET}/assets/" \
+            --recursive \
+            --cache-control "${FRONTEND_ASSET_CACHE_CONTROL}"
+
+          aws s3 cp dist/ "s3://${S3_BUCKET}" \
+            --recursive \
+            --exclude "*" \
+            --include "cc/*" \
+            --include "sunny.svg" \
+            --cache-control "${FRONTEND_PUBLIC_CACHE_CONTROL}"
         working-directory: ./frontend
 
       - name: Invalidate CloudFront

@@ -11,9 +11,22 @@ AWS_REGION="${AWS_REGION:-us-east-1}"
 DRY_RUN="${DRY_RUN:-false}"
 ALLOW_EMPTY="${ALLOW_EMPTY:-false}"
 
-GLYPH_CACHE_CONTROL="${GLYPH_CACHE_CONTROL:-public, max-age=86400}"
-PMTILES_CACHE_CONTROL="${PMTILES_CACHE_CONTROL:-public, max-age=60}"
-RADIO_CACHE_CONTROL="${RADIO_CACHE_CONTROL:-public, max-age=60}"
+DEFAULT_RADIO_PLAYLIST_CACHE_CONTROL="public, max-age=60, s-maxage=300, stale-while-revalidate=60"
+DEFAULT_RADIO_AUDIO_CACHE_CONTROL="public, max-age=86400, s-maxage=604800"
+
+GLYPH_CACHE_CONTROL="${GLYPH_CACHE_CONTROL:-public, max-age=604800, s-maxage=2592000}"
+PMTILES_CACHE_CONTROL="${PMTILES_CACHE_CONTROL:-public, max-age=86400, s-maxage=604800}"
+RADIO_CACHE_CONTROL="${RADIO_CACHE_CONTROL:-}"
+RADIO_PLAYLIST_CACHE_CONTROL="${RADIO_PLAYLIST_CACHE_CONTROL:-}"
+RADIO_AUDIO_CACHE_CONTROL="${RADIO_AUDIO_CACHE_CONTROL:-}"
+
+if [[ -z "$RADIO_PLAYLIST_CACHE_CONTROL" ]]; then
+  RADIO_PLAYLIST_CACHE_CONTROL="${RADIO_CACHE_CONTROL:-$DEFAULT_RADIO_PLAYLIST_CACHE_CONTROL}"
+fi
+
+if [[ -z "$RADIO_AUDIO_CACHE_CONTROL" ]]; then
+  RADIO_AUDIO_CACHE_CONTROL="${RADIO_CACHE_CONTROL:-$DEFAULT_RADIO_AUDIO_CACHE_CONTROL}"
+fi
 
 usage() {
   cat <<'EOF'
@@ -38,7 +51,11 @@ Options:
 
 Environment defaults:
   ARTIFACTS_BUCKET, ARTIFACT_ROOT, STACK_DIR, AWS_REGION, DRY_RUN, ALLOW_EMPTY,
-  GLYPH_CACHE_CONTROL, PMTILES_CACHE_CONTROL, RADIO_CACHE_CONTROL.
+  GLYPH_CACHE_CONTROL, PMTILES_CACHE_CONTROL, RADIO_PLAYLIST_CACHE_CONTROL,
+  RADIO_AUDIO_CACHE_CONTROL.
+
+  RADIO_CACHE_CONTROL is a legacy fallback used for both radio groups when the
+  more specific radio cache variables are unset.
 EOF
 }
 
@@ -190,9 +207,15 @@ echo "  region:        $AWS_REGION"
 echo "  dry_run:       $DRY_RUN"
 
 upload_group "glyph PBFs" "$ARTIFACT_ROOT/glyphs" "glyphs" "*.pbf" "application/x-protobuf" "$GLYPH_CACHE_CONTROL"
-upload_group "PMTiles" "$ARTIFACT_ROOT/pmtiles" "pmtiles" "*.pmtiles" "application/octet-stream" "$PMTILES_CACHE_CONTROL"
-upload_group "radio playlist JSON" "$ARTIFACT_ROOT/radio" "radio" "*.json" "application/json" "$RADIO_CACHE_CONTROL"
-upload_group "radio MP3s" "$ARTIFACT_ROOT/radio" "radio" "*.mp3" "audio/mpeg" "$RADIO_CACHE_CONTROL"
+upload_group \
+  "PMTiles" "$ARTIFACT_ROOT/pmtiles" "pmtiles" "*.pmtiles" \
+  "application/octet-stream" "$PMTILES_CACHE_CONTROL"
+upload_group \
+  "radio playlist JSON" "$ARTIFACT_ROOT/radio" "radio" "*.json" \
+  "application/json" "$RADIO_PLAYLIST_CACHE_CONTROL"
+upload_group \
+  "radio MP3s" "$ARTIFACT_ROOT/radio" "radio" "*.mp3" \
+  "audio/mpeg" "$RADIO_AUDIO_CACHE_CONTROL"
 
 echo
 echo "Done."

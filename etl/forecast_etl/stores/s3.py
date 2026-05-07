@@ -15,6 +15,10 @@ from botocore.exceptions import ClientError  # type: ignore
 from .artifact_encoding import encode_artifact_body, is_gzip_encoded_artifact_key
 from .base import UriStore
 
+LATEST_MANIFEST_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=60"
+FORECAST_ARTIFACT_CACHE_CONTROL = "public, max-age=3600, s-maxage=21600, stale-while-revalidate=300"
+INTERNAL_ARTIFACT_CACHE_CONTROL = "private, no-store"
+
 
 @dataclass(frozen=True)
 class S3Store(UriStore):
@@ -47,8 +51,26 @@ class S3Store(UriStore):
     def _is_gzip_encoded_artifact(self, *, key: str) -> bool:
         return is_gzip_encoded_artifact_key(key=key)
 
+    def _guess_cache_control(self, *, key: str) -> str | None:
+        segments = [segment for segment in key.lower().split("/") if segment]
+        segment_set = set(segments)
+
+        if "status" in segment_set or "logs" in segment_set:
+            return INTERNAL_ARTIFACT_CACHE_CONTROL
+        if "fields" in segment_set:
+            return FORECAST_ARTIFACT_CACHE_CONTROL
+        if "manifests" in segment_set:
+            if segments[-1:] == ["latest.json"]:
+                return LATEST_MANIFEST_CACHE_CONTROL
+            if segments[-1].endswith(".json"):
+                return FORECAST_ARTIFACT_CACHE_CONTROL
+        return None
+
     def _put_extra_args(self, *, key: str) -> dict[str, str]:
         extra_args = {"ContentType": self._guess_content_type(key=key)}
+        cache_control = self._guess_cache_control(key=key)
+        if cache_control is not None:
+            extra_args["CacheControl"] = cache_control
         if self._is_gzip_encoded_artifact(key=key):
             extra_args["ContentEncoding"] = "gzip"
         return extra_args

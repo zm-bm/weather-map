@@ -78,6 +78,21 @@ AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 infra/scripts/weather-etl/release/upload
 The upload script reads `artifacts_bucket_name` from Terraform output by
 default. It copies matching files and does not delete extra S3 objects.
 
+### Artifact Cache Policy
+
+- Frontend deploy:
+  - `index.html`: `public, max-age=60, s-maxage=300, must-revalidate`
+  - `assets/*`: `public, max-age=31536000, immutable`
+  - `cc/*` and `sunny.svg`: `public, max-age=86400, s-maxage=604800`
+- ETL writes:
+  - `manifests/*/latest.json`: `public, max-age=60, s-maxage=300, stale-while-revalidate=60`
+  - cycle manifests and `fields/*`: `public, max-age=3600, s-maxage=21600, stale-while-revalidate=300`
+  - `status/*` and `logs/*`: `private, no-store`
+- Static artifact upload:
+  - `glyphs/*`: `public, max-age=604800, s-maxage=2592000`
+  - `pmtiles/*` and radio MP3s: `public, max-age=86400, s-maxage=604800`
+  - radio playlist JSON: `public, max-age=60, s-maxage=300, stale-while-revalidate=60`
+
 ### Release Worker Image
 
 The ECR repository is Terraform-managed as `weather-etl-worker`. On a fresh
