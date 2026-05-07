@@ -1,26 +1,22 @@
 # Forecast ETL
 
 This directory contains the forecast artifact pipeline used by local
-development and production Batch workers.
+development and the production worker image.
 
 Core files:
 
 - `forecast.etl_config.json`: default ETL config for local runs.
 - `forecast_etl/`: Python package for config parsing, source acquisition,
   product encoding, marker writing, and manifest publishing.
-- `scripts/local/`: local bootstrap and cycle-refresh scripts.
-- `scripts/release/`: production Lambda/container build helpers.
-- `Dockerfile`: worker image entrypoint for AWS Batch.
-
-Production deployment config and operator scripts live in the private infra
-checkout under `stacks/weather-etl/`.
+- `scripts/`: local bootstrap and cycle-refresh scripts.
+- `Dockerfile`: worker image entrypoint used by production Batch.
 
 ## Local Setup
 
 Bootstrap the ETL virtual environment from the repo root:
 
 ```bash
-etl/scripts/local/bootstrap.sh
+etl/scripts/bootstrap.sh
 ```
 
 This creates `etl/.venv` if needed and installs `etl/pyproject.toml` in editable
@@ -41,14 +37,14 @@ ICON local runs also require Docker for the configured regridding image.
 Run one complete model cycle:
 
 ```bash
-etl/scripts/local/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 ```
 
 Examples:
 
 ```bash
-etl/scripts/local/run-cycle.sh --cycle 2026021606
-etl/scripts/local/run-cycle.sh --model icon --cycle 2026021606 --procs 1
+etl/scripts/run-cycle.sh --cycle 2026021606
+etl/scripts/run-cycle.sh --model icon --cycle 2026021606 --procs 1
 ```
 
 The wrapper bootstraps the venv if needed, validates host prerequisites, and
@@ -139,37 +135,6 @@ manifests/<model>/latest.json
 Field payloads are raw packed binary arrays. Success markers are the publish
 contract between product execution and manifest assembly. Cycle manifests are
 the frontend-facing index over grids, encodings, products, frames, and times.
-
-## Production
-
-Production flow:
-
-1. NOAA publishes a GFS object notification.
-2. SNS invokes the ingest Lambda.
-3. Lambda filters the S3 key using the configured workload.
-4. Lambda submits an AWS Batch `run-hour` job for accepted objects.
-5. Batch writes field payloads, success markers, and manifests to S3.
-
-Build the ingest Lambda zip:
-
-```bash
-etl/scripts/release/build-ingest-lambda-zip.sh
-```
-
-The generated artifact is:
-
-```text
-etl/dist/gfs-ingest-lambda.zip
-```
-
-Build and push the worker image:
-
-```bash
-etl/scripts/release/build-push-etl.sh
-```
-
-Production smoke and manual Batch helpers are kept with the Terraform stack in
-`stacks/weather-etl/ops/`.
 
 ## Testing
 

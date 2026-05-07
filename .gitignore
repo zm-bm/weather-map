@@ -160,3 +160,19 @@ frontend/src/assets/fonts/NotoSansMonoCJKjp-Regular-BMP.*
 
 # Local Lambda helper output
 etl/scripts/aws/events/invoke-output.json
+
+# Terraform local working files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# Local infrastructure operation output
+infra/**/events/invoke-output.json

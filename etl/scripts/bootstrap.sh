@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ETL_DIR="$ROOT/etl"
 VENV_DIR="$ETL_DIR/.venv"
 HOST_PYTHON_BIN="${ETL_BOOTSTRAP_PYTHON:-python3}"

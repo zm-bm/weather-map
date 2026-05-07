@@ -8,10 +8,10 @@ nginx artifact server for development.
 ## Layout
 
 - `frontend/` is the React/Vite MapLibre app.
-- `etl/` owns forecast artifact generation and release helpers.
+- `etl/` owns forecast artifact generation and local ETL helpers.
+- `infra/` owns project infrastructure, production ETL config, and production
+  release/operator scripts.
 - `artifacts/` is the local artifact root served by nginx in development.
-- A private infra checkout owns production ETL deployment, production config,
-  and AWS operator scripts under `stacks/weather-etl/`.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ That runs:
 Refresh local forecast artifacts with a forecast cycle:
 
 ```bash
-etl/scripts/local/run-cycle.sh --cycle <cycle>
+etl/scripts/run-cycle.sh --cycle <cycle>
 ```
 
 ## Configuration
@@ -67,5 +67,6 @@ npm run build
 
 - [frontend/README.md](frontend/README.md): frontend development, configuration, and commands.
 - [frontend/src/README.md](frontend/src/README.md): frontend module boundaries and domain naming.
-- [etl/README.md](etl/README.md): ETL local runs, publishing, production release, and checks.
+- [etl/README.md](etl/README.md): ETL code, local runs, artifact layout, and checks.
+- [infra/README.md](infra/README.md): project infrastructure layout, prod config, and release/operator scripts.
 - [artifacts/README.md](artifacts/README.md): local artifact root layout.

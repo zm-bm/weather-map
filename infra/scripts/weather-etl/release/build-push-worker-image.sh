@@ -2,13 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
-ECR_REPOSITORY="${ECR_REPOSITORY:-gfs-worker}"
+ECR_REPOSITORY="${ECR_REPOSITORY:-weather-etl-worker}"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 PUSH_IMAGE="${PUSH_IMAGE:-true}"
-CREATE_REPO_IF_MISSING="${CREATE_REPO_IF_MISSING:-true}"
+CREATE_REPO_IF_MISSING="${CREATE_REPO_IF_MISSING:-false}"
 
 require_cmd() {
   local cmd="$1"
@@ -39,6 +39,10 @@ if [[ "$CREATE_REPO_IF_MISSING" == "true" ]]; then
       --image-scanning-configuration scanOnPush=true \
       --region "$AWS_REGION" >/dev/null
   fi
+elif ! aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>&1; then
+  echo "ECR repository not found: ${ECR_REPOSITORY}" >&2
+  echo "Run Terraform apply first so the Terraform-managed repository exists." >&2
+  exit 1
 fi
 
 echo "Building ETL image from etl/Dockerfile"

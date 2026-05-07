@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/local/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>]
 
 Description:
 	Refreshes the local forecast artifacts for the provided cycle and publishes
@@ -102,7 +102,7 @@ if [[ -n "$PROCS" ]] && ! [[ "$PROCS" =~ ^[0-9]+$ ]]; then
 	exit 1
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ETL_DIR="$ROOT/etl"
 VENV_DIR="$ETL_DIR/.venv"
 ARTIFACT_ROOT_URI="file://$ROOT/artifacts"
@@ -121,7 +121,7 @@ check_host_prereqs() {
 
 	if [[ "$missing_gdal" -ne 0 ]]; then
 		echo >&2
-		echo "Install GDAL CLI tools first, then rerun etl/scripts/local/run-cycle.sh." >&2
+		echo "Install GDAL CLI tools first, then rerun etl/scripts/run-cycle.sh." >&2
 		echo "Example (Debian/Ubuntu): sudo apt-get install gdal-bin" >&2
 		exit 1
 	fi
@@ -134,7 +134,7 @@ check_host_prereqs() {
 
 bootstrap_if_needed() {
 	if [[ ! -x "$FORECAST_ETL_BIN" ]]; then
-		"$ETL_DIR/scripts/local/bootstrap.sh"
+		"$ETL_DIR/scripts/bootstrap.sh"
 	fi
 }
 
