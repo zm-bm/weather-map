@@ -32,11 +32,9 @@ declared directly in `main.tf`.
 
 ## Logging
 
-CloudFront access logging, Athena, Glue, and dashboard resources intentionally
-remain in the shared static-sites stack for now. That keeps this migration to
-only the site module instance. The shared stack should read this stack's
-`sites.weather_map.distribution_id` and `sites.weather_map.distribution_arn`
-outputs when `weather_map` is removed from its local `sites` map.
+CloudFront access logging, Athena, Glue, and dashboard resources are owned by
+this stack as root resources. They intentionally remain project-specific for
+now instead of being generalized into the reusable static-site module.
 
 ## Migration Notes
 
@@ -51,9 +49,8 @@ The module state was moved from the shared `static-sites/prod.tfstate` state to
 this root's `weather-map/site.tfstate` state under the new `module.static_site`
 address.
 
-The old shared stack no longer owns the `weather_map` site module instance.
-`logging.tf` remains in the shared stack until logging is moved into the
-reusable static-site module or otherwise migrated.
+The old shared stack no longer owns the `weather_map` site module instance or
+its CloudFront logging resources.
 
 ## Outputs
 

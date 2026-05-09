@@ -51,6 +51,6 @@ module "static_site" {
   tags = {
     Env       = "prod"
     ManagedBy = "terraform"
-    Stack     = "static-sites"
+    Stack     = "weather-map-site"
   }
 }
