@@ -7,8 +7,8 @@ project.
 
 - `terraform/weather-etl`: project-owned AWS Batch, Lambda, ECR, and S3
   resources for the forecast ETL.
-- `terraform/static-site`: project-owned static site and CloudFront
-  infrastructure. This has not been migrated from the shared infra repo yet.
+- `terraform/site`: project-owned static site and CloudFront
+  infrastructure for `weather.zmbm.dev`.
 - `config/forecast.etl_config.json`: prod runtime config uploaded by the weather
   ETL Terraform stack.
 - `scripts/weather-etl/release`: production build and publish helpers for the
@@ -25,7 +25,7 @@ infra repo:
 - reusable modules: S3 bucket, static site, and similar building blocks
 
 Terraform stacks that need shared modules should reference them through Git
-module sources pinned to release tags.
+module sources pinned to release tags or commit SHAs.
 
 ## Weather ETL
 
@@ -132,7 +132,11 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
 
 ## Transition notes
 
-After this migration, run weather ETL Terraform commands from
-`terraform/weather-etl`. The previous `stacks/weather-etl` copy should be
-removed from the shared infra repo after this project-owned stack is committed
-and accepted as the source of truth.
+After this migration, run weather-map Terraform commands from this repo:
+
+- `terraform/weather-etl`
+- `terraform/site`
+
+The previous shared-stack copies should be updated in the shared infra repo
+after each project-owned stack is committed, its state is moved, and it is
+accepted as the source of truth.
