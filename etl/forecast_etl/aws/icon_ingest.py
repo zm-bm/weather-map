@@ -190,12 +190,12 @@ def _try_acquire_lease(*, ddb, table_name: str, cycle: str, fhour: str, now_epoc
             TableName=table_name,
             Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, fhour=fhour))},
             UpdateExpression=(
-                "SET #state = :processing, cycle = :cycle, fhour = :fhour, "
+                "SET #state = :processing, #cycle = :cycle, fhour = :fhour, "
                 "lastCheckedAt = :now, leaseUntil = :lease_until, #ttl = :ttl, "
                 "attempt = if_not_exists(attempt, :zero) + :one"
             ),
             ConditionExpression="attribute_not_exists(pk) OR leaseUntil < :now OR #state = :complete",
-            ExpressionAttributeNames={"#state": "state", "#ttl": "ttl"},
+            ExpressionAttributeNames={"#cycle": "cycle", "#state": "state", "#ttl": "ttl"},
             ExpressionAttributeValues={
                 ":processing": _dynamo_s("processing"),
                 ":cycle": _dynamo_s(cycle),
@@ -236,9 +236,9 @@ def _mark_complete(*, ddb, table_name: str, cycle: str, fhour: str, now_epoch: i
         TableName=table_name,
         Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, fhour=fhour))},
         UpdateExpression=(
-            "SET #state = :complete, cycle = :cycle, fhour = :fhour, completedAt = :now, #ttl = :ttl"
+            "SET #state = :complete, #cycle = :cycle, fhour = :fhour, completedAt = :now, #ttl = :ttl"
         ),
-        ExpressionAttributeNames={"#state": "state", "#ttl": "ttl"},
+        ExpressionAttributeNames={"#cycle": "cycle", "#state": "state", "#ttl": "ttl"},
         ExpressionAttributeValues={
             ":complete": _dynamo_s("complete"),
             ":cycle": _dynamo_s(cycle),

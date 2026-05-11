@@ -219,6 +219,9 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(env["FHOUR"], "001")
         self.assertEqual(env["PIPELINE_CONFIG_URI"], "file:///tmp/config.json")
         self.assertNotIn("GRIB_SOURCE_URI", env)
+        lease_update = self.ddb.updates[0]
+        self.assertIn("#cycle = :cycle", lease_update["UpdateExpression"])
+        self.assertEqual(lease_update["ExpressionAttributeNames"]["#cycle"], "cycle")
 
     def test_active_lease_blocks_duplicate_submit(self) -> None:
         self.ddb.items["icon#2026051112#001"] = {"leaseUntil": 2000000000, "attempt": 1}
@@ -255,6 +258,9 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(result["submitted"], 0)
         self.assertEqual(result["completed"], 1)
         self.assertEqual(self.ddb.items["icon#2026051112#001"]["state"], "complete")
+        complete_update = self.ddb.updates[0]
+        self.assertIn("#cycle = :cycle", complete_update["UpdateExpression"])
+        self.assertEqual(complete_update["ExpressionAttributeNames"]["#cycle"], "cycle")
 
     def test_complete_cycle_attempts_publish(self) -> None:
         paths = ArtifactPaths("s3://artifacts")
