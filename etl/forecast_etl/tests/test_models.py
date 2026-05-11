@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import bz2
 import io
+import os
 import tempfile
 import unittest
 import urllib.error
@@ -16,6 +17,19 @@ from forecast_etl.models.icon import icon_dwd_filename, icon_dwd_url
 from forecast_etl.stores import make_store
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.products import minimal_product_config, product_spec
+
+
+class _FakeHttpResponse(io.BytesIO):
+    def __init__(self, payload: bytes, *, status: int = 200) -> None:
+        super().__init__(payload)
+        self.status = status
+        self.headers = {"Content-Length": str(len(payload))}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
 
 class ModelSourceAdapterTest(unittest.TestCase):
@@ -68,30 +82,39 @@ class ModelSourceAdapterTest(unittest.TestCase):
             tmp = Path(td)
             input_path = tmp / "input.grib2"
             output_path = tmp / "output.grib2"
+            description_path = tmp / "icon_description.txt"
+            weights_path = tmp / "icon_weights.nc"
             input_path.write_bytes(b"grib")
+            description_path.write_text("gridtype = lonlat\n", encoding="utf-8")
+            weights_path.write_bytes(b"weights")
             calls = []
 
             def fake_run(argv):
                 calls.append(tuple(str(part) for part in argv))
-                output_path.write_bytes(b"regridded")
+                Path(argv[-1]).write_bytes(b"regridded")
 
             with (
-                patch("forecast_etl.models.icon.shutil.which", return_value="/usr/bin/docker"),
+                patch("forecast_etl.models.icon.shutil.which", return_value="/usr/bin/cdo"),
                 patch("forecast_etl.models.icon.make_runner", return_value=fake_run),
             ):
                 regridded = icon._regrid_if_needed(
                     input_path=input_path,
                     output_path=output_path,
-                    regrid_image="deutscherwetterdienst/regrid:icon",
+                    description_file=description_path,
+                    weights_file=weights_path,
                 )
+            output_bytes = output_path.read_bytes()
 
         self.assertTrue(regridded)
-        self.assertEqual(calls[0][0], "/usr/bin/docker")
-        self.assertIn("--volume", calls[0])
-        self.assertIn(f"{tmp.resolve().as_posix()}:/work", calls[0])
-        self.assertIn("INPUT_FILE=/work/input.grib2", calls[0])
-        self.assertIn("OUTPUT_FILE=/work/output.grib2", calls[0])
-        self.assertEqual(calls[0][-1], "deutscherwetterdienst/regrid:icon")
+        self.assertEqual(calls[0][0], "/usr/bin/cdo")
+        self.assertEqual(calls[0][1:3], ("-f", "grb2"))
+        self.assertEqual(
+            calls[0][3],
+            f"remap,{description_path.as_posix()},{weights_path.as_posix()}",
+        )
+        self.assertEqual(calls[0][4], input_path.as_posix())
+        self.assertEqual(calls[0][5], output_path.with_suffix(output_path.suffix + ".tmp").as_posix())
+        self.assertEqual(output_bytes, b"regridded")
 
     def test_icon_adapter_reuses_cached_regridded_files(self) -> None:
         product_config = minimal_product_config()
@@ -105,7 +128,6 @@ class ModelSourceAdapterTest(unittest.TestCase):
                 grid_id="icon_global_regridded_0p125",
                 icon_dwd=IconDwdConfig(
                     base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
-                    regrid_image="deutscherwetterdienst/regrid:icon",
                     rate_limit_seconds=0.0,
                 ),
             ),
@@ -126,6 +148,7 @@ class ModelSourceAdapterTest(unittest.TestCase):
             regridded_path.write_bytes(b"regridded")
 
             with (
+                patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
                 patch("forecast_etl.models.icon.default_etl_dir", return_value=tmp),
                 patch("forecast_etl.models.icon.make_runner", side_effect=AssertionError("regrid should be cached")),
             ):
@@ -149,7 +172,7 @@ class ModelSourceAdapterTest(unittest.TestCase):
             regridded_path,
         )
 
-    def test_icon_regrid_requires_docker(self) -> None:
+    def test_icon_regrid_requires_cdo(self) -> None:
         from forecast_etl.models import icon
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-regrid-missing-") as td:
@@ -158,14 +181,34 @@ class ModelSourceAdapterTest(unittest.TestCase):
             input_path.write_bytes(b"grib")
 
             with patch("forecast_etl.models.icon.shutil.which", return_value=None):
-                with self.assertRaises(SystemExit):
+                with self.assertRaises(SystemExit) as raised:
                     icon._regrid_if_needed(
                         input_path=input_path,
                         output_path=output_path,
-                        regrid_image="deutscherwetterdienst/regrid:icon",
                     )
 
-    def test_icon_download_http_error_is_plain_system_exit(self) -> None:
+        self.assertIn("requires cdo", str(raised.exception))
+
+    def test_icon_regrid_requires_description_and_weights_files(self) -> None:
+        from forecast_etl.models import icon
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-regrid-assets-") as td:
+            tmp = Path(td)
+            input_path = tmp / "input.grib2"
+            output_path = tmp / "output.grib2"
+            input_path.write_bytes(b"grib")
+            with patch("forecast_etl.models.icon.shutil.which", return_value="/usr/bin/cdo"):
+                with self.assertRaises(SystemExit) as raised:
+                    icon._regrid_if_needed(
+                        input_path=input_path,
+                        output_path=output_path,
+                        description_file=tmp / "missing-description.txt",
+                        weights_file=tmp / "missing-weights.nc",
+                    )
+
+        self.assertIn("description file not found", str(raised.exception))
+
+    def test_icon_download_http_404_is_retryable_until_wait_expires(self) -> None:
         from forecast_etl.models import icon
 
         error = urllib.error.HTTPError(
@@ -178,11 +221,109 @@ class ModelSourceAdapterTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-download-error-") as td:
             out_path = Path(td) / "icon.grib2.bz2"
-            with patch("forecast_etl.models.icon.urllib.request.urlopen", side_effect=error):
+            with (
+                patch.dict(os.environ, {"ICON_SOURCE_WAIT_SECONDS": "0", "ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
+                patch("forecast_etl.models.icon.urllib.request.urlopen", side_effect=error),
+            ):
                 with self.assertRaises(SystemExit) as raised:
                     icon._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
 
-        self.assertEqual(
-            str(raised.exception),
-            "ICON DWD download failed: HTTP 404 Not Found for https://example.test/icon.grib2.bz2",
+        self.assertIn("ICON DWD source not ready after waiting", str(raised.exception))
+        self.assertIn("HTTP 404 Not Found", str(raised.exception))
+
+    def test_icon_download_retries_then_succeeds(self) -> None:
+        from forecast_etl.models import icon
+
+        error = urllib.error.HTTPError(
+            url="https://example.test/icon.grib2.bz2",
+            code=404,
+            msg="Not Found",
+            hdrs=Message(),
+            fp=io.BytesIO(b"missing"),
         )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-download-retry-") as td:
+            out_path = Path(td) / "icon.grib2.bz2"
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "ICON_SOURCE_WAIT_SECONDS": "1",
+                        "ICON_SOURCE_MIN_BYTES": "1",
+                        "ICON_SOURCE_RETRY_BASE_SECONDS": "0",
+                    },
+                    clear=False,
+                ),
+                patch("forecast_etl.models.icon.time.sleep"),
+                patch(
+                    "forecast_etl.models.icon.urllib.request.urlopen",
+                    side_effect=[error, _FakeHttpResponse(b"payload")],
+                ),
+            ):
+                downloaded = icon._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
+            output_bytes = out_path.read_bytes()
+
+        self.assertTrue(downloaded)
+        self.assertEqual(output_bytes, b"payload")
+
+    def test_icon_prepare_cleans_bad_bz2_and_retries(self) -> None:
+        from forecast_etl.models import icon
+
+        product_config = minimal_product_config()
+        product_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
+        product = product_spec("tmp_surface", product_config)
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=ModelSourceConfig(
+                type="icon_dwd_icosahedral",
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
+            model_products={},
+            products={"tmp_surface": product},
+            product_groups=(),
+        )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-bad-bz2-") as td:
+            tmp = Path(td)
+
+            def fake_regrid(*, output_path: Path, **kwargs) -> bool:
+                output_path.write_bytes(b"regridded")
+                return True
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "ICON_SOURCE_WAIT_SECONDS": "1",
+                        "ICON_SOURCE_MIN_BYTES": "1",
+                        "ICON_SOURCE_RETRY_BASE_SECONDS": "0",
+                    },
+                    clear=False,
+                ),
+                patch("forecast_etl.models.icon.default_etl_dir", return_value=tmp),
+                patch("forecast_etl.models.icon.time.sleep"),
+                patch("forecast_etl.models.icon._regrid_if_needed", side_effect=fake_regrid),
+                patch(
+                    "forecast_etl.models.icon.urllib.request.urlopen",
+                    side_effect=[
+                        _FakeHttpResponse(b"not-bzip2"),
+                        _FakeHttpResponse(bz2.compress(b"grib")),
+                    ],
+                ),
+            ):
+                regridded_path, downloaded = icon._prepare_icon_param(
+                    model=model,
+                    cycle="2026042800",
+                    fhour="000",
+                    icon_param="t_2m",
+                )
+                output_bytes = regridded_path.read_bytes()
+
+        self.assertTrue(downloaded)
+        self.assertEqual(output_bytes, b"regridded")

@@ -265,6 +265,42 @@ class CliTest(unittest.TestCase):
         self.assertEqual(run_process_hour.call_count, 2)
         pool.assert_not_called()
 
+    def test_list_forecast_hours_prints_configured_hours(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003", "006"))
+        out = io.StringIO()
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            redirect_stdout(out),
+        ):
+            result = cli.main(["list-forecast-hours", "--model", "gfs"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(out.getvalue(), "000\n003\n006\n")
+
+    def test_list_forecast_hours_uses_model_env_fallback(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("012",))
+        out = io.StringIO()
+
+        with (
+            patch.dict(os.environ, {"MODEL": "gfs"}, clear=False),
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            redirect_stdout(out),
+        ):
+            result = cli.main(["list-forecast-hours"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(out.getvalue(), "012\n")
+
+    def test_list_forecast_hours_rejects_unknown_model(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
+
+        with patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg):
+            with self.assertRaises(SystemExit) as raised:
+                cli.main(["list-forecast-hours", "--model", "icon"])
+
+        self.assertIn("Unknown model 'icon'", str(raised.exception))
+
     def test_smoke_prints_hello_world(self) -> None:
         out = io.StringIO()
         with redirect_stdout(out):

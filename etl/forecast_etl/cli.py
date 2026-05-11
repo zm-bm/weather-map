@@ -3,6 +3,7 @@
 Subcommands:
 - run-hour: run all configured products for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
+- list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
 """
 
@@ -88,6 +89,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     ap_run_cycle.set_defaults(_handler=_cmd_run_cycle)
 
+    ap_list_fhours = sub.add_parser(
+        "list-forecast-hours",
+        help="Print configured forecast hours for one model",
+        parents=[runtime],
+    )
+    ap_list_fhours.set_defaults(_handler=_cmd_list_forecast_hours)
+
     ap_smoke = sub.add_parser("smoke", help="Print a trivial health-check message and exit")
     ap_smoke.set_defaults(_handler=_cmd_smoke)
 
@@ -149,6 +157,15 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     parse_cycle(cycle)
 
     run_cycle(model=model, ctx=ctx, cycle=cycle, procs=args.procs, publish=not args.no_publish)
+    return 0
+
+
+def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
+    """Print one configured forecast-hour id per line."""
+    cfg = _load_cfg(args)
+    model = cfg.model(_require_model_id(args))
+    for fhour in model.workload.forecast_hours:
+        print(fhour)
     return 0
 
 

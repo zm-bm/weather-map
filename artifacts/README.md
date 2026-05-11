@@ -16,11 +16,10 @@ Typical contents:
 
 How it is used:
 
-- `etl/scripts/local/run-cycle.sh` writes ETL outputs here.
+- `etl/scripts/run-cycle.sh` writes local ETL outputs here.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
 - nginx serves `/manifests/*`, `/fields/*`, `/pmtiles/*`, and `/radio/*` directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
-- if `VITE_BASEMAP_FILENAME` is set, the frontend derives the basemap URL from `/pmtiles/<filename>`.
 - `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
   bucket with `infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
 

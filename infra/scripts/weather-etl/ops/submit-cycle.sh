@@ -20,12 +20,12 @@ Options:
   --model <model>                 Forecast model id. Default: gfs.
   --fhours <hours>                Forecast-hour override, e.g. "000 001 006" or "000,001,006".
   --config-file <path>            Config to read. Default: infra/config/forecast.etl_config.json.
-  --source-bucket <bucket>        NOAA source bucket. Default: noaa-gfs-bdp-pds.
+  --source-bucket <bucket>        NOAA GFS source bucket. Default: noaa-gfs-bdp-pds.
   --job-name-prefix <prefix>      Batch job name prefix. Default: weather-etl-manual.
   --submit-delay-seconds <n>      Delay between submissions. Default: 0.
   --dry-run                       Print jobs without submitting.
   --skip-config-check             Skip local-vs-S3 config md5 check.
-  --allow-non-synoptic-cycle      Allow GFS cycles outside 00/06/12/18.
+  --allow-non-synoptic-cycle      Allow cycles outside 00/06/12/18.
   -h, --help                      Show this help and exit.
 
 Environment defaults:
@@ -180,11 +180,13 @@ if [[ ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
   exit 1
 fi
 
-if [[ "$MODEL" != "gfs" ]]; then
-  echo "Error: prod manual submit currently supports --model gfs only; got: $MODEL" >&2
-  echo "ICON needs a model-specific trigger/source submitter before it can run in AWS Batch." >&2
-  exit 1
-fi
+case "$MODEL" in
+  gfs|icon) ;;
+  *)
+    echo "Error: prod manual submit supports --model gfs or --model icon; got: $MODEL" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! "$SUBMIT_DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   echo "Error: --submit-delay-seconds must be a non-negative number." >&2
@@ -203,7 +205,7 @@ if [[ "$ALLOW_NON_SYNOPTIC_CYCLE" != "true" ]]; then
   case "$CYCLE_HOUR" in
     00|06|12|18) ;;
     *)
-      echo "Error: GFS cycle hour must be one of 00, 06, 12, 18; got: $CYCLE_HOUR" >&2
+      echo "Error: cycle hour must be one of 00, 06, 12, 18; got: $CYCLE_HOUR" >&2
       echo "Use --allow-non-synoptic-cycle to override." >&2
       exit 1
       ;;
@@ -213,7 +215,11 @@ fi
 cd "$STACK_DIR"
 
 QUEUE="$(terraform output -raw batch_job_queue_name)"
-JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
+if [[ "$MODEL" == "icon" ]]; then
+  JOB_DEFINITION="$(terraform output -raw icon_batch_job_definition_arn)"
+else
+  JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
+fi
 PIPELINE_CONFIG_URI="$(terraform output -raw pipeline_config_uri)"
 
 if [[ "$SKIP_CONFIG_CHECK" != "true" ]]; then
@@ -333,7 +339,9 @@ echo "  pipeline_config_uri: $PIPELINE_CONFIG_URI"
 echo "  queue:               $QUEUE"
 echo "  job_definition:      $JOB_DEFINITION"
 echo "  model:               $MODEL"
-echo "  source_bucket:       $SOURCE_BUCKET"
+if [[ "$MODEL" == "gfs" ]]; then
+  echo "  source_bucket:       $SOURCE_BUCKET"
+fi
 echo "  cycle:               $CYCLE"
 echo "  forecast_hours:      ${#FORECAST_HOURS[@]}"
 echo "  dry_run:             $DRY_RUN"
@@ -341,8 +349,12 @@ echo
 
 SUBMITTED=0
 for FHOUR in "${FORECAST_HOURS[@]}"; do
-  SOURCE_KEY="gfs.${CYCLE_DATE}/${CYCLE_HOUR}/atmos/gfs.t${CYCLE_HOUR}z.pgrb2.0p25.f${FHOUR}"
-  GRIB_SOURCE_URI="s3://${SOURCE_BUCKET}/${SOURCE_KEY}"
+  if [[ "$MODEL" == "gfs" ]]; then
+    SOURCE_KEY="gfs.${CYCLE_DATE}/${CYCLE_HOUR}/atmos/gfs.t${CYCLE_HOUR}z.pgrb2.0p25.f${FHOUR}"
+    GRIB_SOURCE_URI="s3://${SOURCE_BUCKET}/${SOURCE_KEY}"
+  else
+    GRIB_SOURCE_URI=""
+  fi
   JOB_NAME="${JOB_NAME_PREFIX}-${MODEL}-${CYCLE}-${FHOUR}-$(date +%s)"
   JOB_NAME="${JOB_NAME:0:128}"
 
@@ -352,19 +364,23 @@ import json
 import sys
 
 model, cycle, fhour, source_uri, pipeline_config_uri = sys.argv[1:]
-print(json.dumps({
-    "environment": [
+environment = [
         {"name": "MODEL", "value": model},
         {"name": "CYCLE", "value": cycle},
         {"name": "FHOUR", "value": fhour},
-        {"name": "GRIB_SOURCE_URI", "value": source_uri},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
-    ]
-}, separators=(",", ":")))
+]
+if source_uri:
+    environment.append({"name": "GRIB_SOURCE_URI", "value": source_uri})
+print(json.dumps({"environment": environment}, separators=(",", ":")))
 PY
   )"
 
-  echo "fhour=$FHOUR source=$GRIB_SOURCE_URI"
+  if [[ "$MODEL" == "gfs" ]]; then
+    echo "fhour=$FHOUR source=$GRIB_SOURCE_URI"
+  else
+    echo "fhour=$FHOUR source=icon-dwd"
+  fi
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "  dry-run job_name=$JOB_NAME"
   else

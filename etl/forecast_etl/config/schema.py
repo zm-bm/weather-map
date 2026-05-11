@@ -42,7 +42,6 @@ class IconDwdConfig(ConfigModel):
     """ICON DWD acquisition and regridding settings."""
 
     base_url: NonEmptyStr
-    regrid_image: NonEmptyStr
     rate_limit_seconds: FiniteNumber
 
 

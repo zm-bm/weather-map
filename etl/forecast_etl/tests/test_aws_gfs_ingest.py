@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from forecast_etl.aws import ingest
+from forecast_etl.aws import gfs_ingest
 from forecast_etl.tests.fixtures.pipeline import catalog_product, minimal_pipeline_config, model_product
 from forecast_etl.tests.fixtures.products import wind_product_config
 
@@ -60,9 +60,9 @@ def _sns_event(key: str) -> dict:
     }
 
 
-class AwsIngestTest(unittest.TestCase):
+class AwsGfsIngestTest(unittest.TestCase):
     def setUp(self) -> None:
-        ingest._FILTERS_CACHE_BY_URI.clear()
+        gfs_ingest._FILTERS_CACHE_BY_URI.clear()
         self.batch = _FakeBatchClient()
         self.env_patch = patch.dict(
             os.environ,
@@ -90,9 +90,9 @@ class AwsIngestTest(unittest.TestCase):
             cfg_path.write_text(json.dumps(payload), encoding="utf-8")
             with (
                 patch.dict(os.environ, {"PIPELINE_CONFIG_URI": f"file://{cfg_path.as_posix()}"}, clear=False),
-                patch("forecast_etl.aws.ingest.boto3.client", return_value=self.batch),
+                patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
             ):
-                result = ingest.handler(
+                result = gfs_ingest.handler(
                     _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003"),
                     None,
                 )
@@ -118,10 +118,10 @@ class AwsIngestTest(unittest.TestCase):
             products=("tmp_surface",),
         )
         with (
-            patch("forecast_etl.aws.ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
         ):
-            result = ingest.handler(
+            result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f006"),
                 None,
             )
@@ -135,10 +135,10 @@ class AwsIngestTest(unittest.TestCase):
             products=(),
         )
         with (
-            patch("forecast_etl.aws.ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
         ):
-            result = ingest.handler(
+            result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f000"),
                 None,
             )
@@ -152,10 +152,10 @@ class AwsIngestTest(unittest.TestCase):
             products=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
         ):
-            result = ingest.handler(
+            result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/03/atmos/gfs.t03z.pgrb2.0p25.f000"),
                 None,
             )
@@ -169,10 +169,10 @@ class AwsIngestTest(unittest.TestCase):
             products=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
         ):
-            result = ingest.handler(
+            result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/not-a-match.grib2"),
                 None,
             )

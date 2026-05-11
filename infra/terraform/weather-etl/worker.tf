@@ -49,7 +49,7 @@ resource "aws_batch_compute_environment" "etl" {
 
   compute_resources {
     type               = "FARGATE_SPOT"
-    max_vcpus          = 8
+    max_vcpus          = 16
     subnets            = data.terraform_remote_state.network.outputs.public_subnet_ids
     security_group_ids = [aws_security_group.batch_tasks.id]
   }
@@ -118,6 +118,56 @@ resource "aws_batch_job_definition" "worker" {
 
   tags = merge(local.tags, {
     Name = "weather-etl-worker"
+  })
+
+  depends_on = [aws_s3_object.forecast_config]
+}
+
+resource "aws_batch_job_definition" "worker_icon" {
+  name = "weather-etl-worker-icon"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image            = "${aws_ecr_repository.worker.repository_url}:latest"
+    executionRoleArn = aws_iam_role.batch_task_execution.arn
+    jobRoleArn       = aws_iam_role.batch_job.arn
+    resourceRequirements = [
+      { type = "VCPU", value = "1" },
+      { type = "MEMORY", value = "8192" }
+    ]
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+    environment = [
+      { name = "ARTIFACT_ROOT_URI", value = "s3://${local.artifacts_bucket_name}" },
+      { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
+      { name = "AWS_DEFAULT_REGION", value = var.aws_region },
+      { name = "ICON_SOURCE_WAIT_SECONDS", value = "2700" },
+      { name = "ICON_REGRID_DESCRIPTION_FILE", value = "/opt/dwd-regrid/descriptions/icon/icon_description.txt" },
+      { name = "ICON_REGRID_WEIGHTS_FILE", value = "/opt/dwd-regrid/weights/icon/icon_weights.nc" }
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.batch.name
+        awslogs-region        = var.aws_region
+        awslogs-stream-prefix = "worker-icon"
+      }
+    }
+  })
+
+  retry_strategy {
+    attempts = 3
+  }
+
+  timeout {
+    attempt_duration_seconds = 14400
+  }
+
+  tags = merge(local.tags, {
+    Name = "weather-etl-worker-icon"
   })
 
   depends_on = [aws_s3_object.forecast_config]

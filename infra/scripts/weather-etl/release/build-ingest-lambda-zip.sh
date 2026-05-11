@@ -5,9 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 ETL_DIR="$REPO_ROOT/etl"
 DIST_DIR="${DIST_DIR:-$ETL_DIR/dist}"
-OUTPUT_ZIP="${OUTPUT_ZIP:-$DIST_DIR/gfs-ingest-lambda.zip}"
+OUTPUT_ZIP="${OUTPUT_ZIP:-$DIST_DIR/weather-etl-ingest-lambda.zip}"
 PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 LAMBDA_PYTHON_VERSION="3.12"
+ZIP_BASENAME="$(basename "$OUTPUT_ZIP")"
 
 require_cmd() {
   local cmd="$1"
@@ -31,7 +32,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 STAGE_DIR="$TMP_DIR/stage"
-TMP_ZIP="$TMP_DIR/gfs-ingest-lambda.zip"
+TMP_ZIP="$TMP_DIR/$ZIP_BASENAME"
 BUILD_VENV="$TMP_DIR/venv"
 BUILD_PYTHON="$BUILD_VENV/bin/python"
 BUILD_SRC="$TMP_DIR/src"

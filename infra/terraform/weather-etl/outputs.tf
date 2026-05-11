@@ -22,10 +22,22 @@ output "batch_job_definition_arn" {
   value = aws_batch_job_definition.worker.arn
 }
 
+output "icon_batch_job_definition_arn" {
+  value = aws_batch_job_definition.worker_icon.arn
+}
+
 output "ingest_lambda_name" {
   value = aws_lambda_function.ingest.function_name
 }
 
 output "ingest_lambda_arn" {
   value = aws_lambda_function.ingest.arn
+}
+
+output "icon_ingest_lambda_name" {
+  value = aws_lambda_function.ingest_icon.function_name
+}
+
+output "icon_ingest_lambda_arn" {
+  value = aws_lambda_function.ingest_icon.arn
 }

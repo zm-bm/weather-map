@@ -1,142 +1,47 @@
-# Weather Map infrastructure
+# Weather Map Infrastructure
 
-This directory contains infrastructure that is owned by the weather-map
-project.
+This directory contains infrastructure owned by the weather-map project.
 
 ## Layout
 
-- `terraform/weather-etl`: project-owned AWS Batch, Lambda, ECR, and S3
-  resources for the forecast ETL.
-- `terraform/site`: project-owned static site and CloudFront
-  infrastructure for `weather.zmbm.dev`.
-- `config/forecast.etl_config.json`: prod runtime config uploaded by the weather
-  ETL Terraform stack.
-- `scripts/weather-etl/release`: production build and publish helpers for the
-  weather ETL Lambda, Batch worker image, and static artifact assets. A
-  `deploy.sh` entrypoint can be added here later when the release flow is ready
-  to apply Terraform.
-- `scripts/weather-etl/ops`: production smoke, manual Batch, and Lambda
-  invocation helpers.
+- `terraform/weather-etl`: production forecast ETL stack for GFS and ICON.
+- `terraform/site`: static site and CloudFront infrastructure for
+  `weather.zmbm.dev`.
+- `config/forecast.etl_config.json`: production ETL runtime config uploaded by
+  the weather-etl stack.
+- `scripts/weather-etl/release`: production build and upload helpers.
+- `scripts/weather-etl/ops`: production smoke and manual ETL job helpers.
 
-Shared account foundations and reusable modules stay in the sibling shared
-infra repo:
-
-- account foundations: DNS, certificates, network, GitHub OIDC, shared edge
-- reusable modules: S3 bucket, static site, and similar building blocks
-
-Terraform stacks that need shared modules should reference them through Git
-module sources pinned to release tags or commit SHAs.
+Shared account foundations such as DNS, certificates, network, and reusable
+Terraform modules stay in the sibling shared infra repo.
 
 ## Weather ETL
 
-Production flow:
-
-1. NOAA publishes a GFS object notification.
-2. SNS invokes the ingest Lambda.
-3. Lambda filters the S3 key using the configured workload from
-   `infra/config/forecast.etl_config.json`.
-4. Lambda submits an AWS Batch `run-hour` job for accepted objects.
-5. Batch writes field payloads, success markers, and manifests to S3.
-
-### Update Infra
-
-Run weather ETL Terraform from its stack directory:
-
-```bash
-cd infra/terraform/weather-etl
-AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 terraform init
-AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 terraform plan -no-color
-AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 terraform apply
-```
-
-Before planning or applying Lambda changes, build the Lambda artifact from the
-repo root:
+Build the shared ingest Lambda zip before applying Lambda changes:
 
 ```bash
 infra/scripts/weather-etl/release/build-ingest-lambda-zip.sh
 ```
 
-Terraform uploads the prod pipeline config from:
-
-```text
-infra/config/forecast.etl_config.json
-```
-
-If that config changes, run the Terraform plan/apply flow above so the config
-bucket receives the updated object.
-
-Terraform creates the artifact bucket, but static frontend support assets are
-uploaded with a release script instead of Terraform state.
-
-Upload local generated assets from `artifacts/glyphs/`, `artifacts/pmtiles/`,
-and `artifacts/radio/`:
-
-```bash
-AWS_PROFILE=admin AWS_SDK_LOAD_CONFIG=1 infra/scripts/weather-etl/release/upload-static-artifacts.sh
-```
-
-The upload script reads `artifacts_bucket_name` from Terraform output by
-default. It copies matching files and does not delete extra S3 objects.
-
-### Artifact Cache Policy
-
-- Frontend deploy:
-  - `index.html`: `public, max-age=60, s-maxage=300, must-revalidate`
-  - `assets/*`: `public, max-age=31536000, immutable`
-  - `cc/*` and `sunny.svg`: `public, max-age=86400, s-maxage=604800`
-- ETL writes:
-  - `manifests/*/latest.json`: `public, max-age=60, s-maxage=300, stale-while-revalidate=60`
-  - cycle manifests and `fields/*`: `public, max-age=3600, s-maxage=21600, stale-while-revalidate=300`
-  - `status/*` and `logs/*`: `private, no-store`
-- Static artifact upload:
-  - `glyphs/*`: `public, max-age=604800, s-maxage=2592000`
-  - `pmtiles/*` and radio MP3s: `public, max-age=86400, s-maxage=604800`
-  - radio playlist JSON: `public, max-age=60, s-maxage=300, stale-while-revalidate=60`
-
-### Release Worker Image
-
-The ECR repository is Terraform-managed as `weather-etl-worker`. On a fresh
-deploy, apply Terraform once before pushing the worker image so the repository
-exists.
-
-First-deploy order:
-
-1. Build the Lambda artifact.
-2. Apply Terraform.
-3. Upload static artifacts.
-4. Build and push the worker image.
-
-Build and push the Batch worker image:
+Push the Batch worker image after code or dependency changes in `etl/`:
 
 ```bash
 infra/scripts/weather-etl/release/build-push-worker-image.sh
 ```
 
-The script defaults `IMAGE_TAG` to the current Git short SHA and also pushes
-`latest`.
-
-### Operate Prod ETL
-
-Production smoke and manual Batch helpers live under:
-
-```text
-infra/scripts/weather-etl/ops/
-```
-
-Useful commands:
+Upload static artifact assets from `artifacts/glyphs/`, `artifacts/pmtiles/`,
+and `artifacts/radio/`:
 
 ```bash
-infra/scripts/weather-etl/ops/submit-smoke.sh
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
+infra/scripts/weather-etl/release/upload-static-artifacts.sh
 ```
 
-## Transition notes
+Manual production cycle submits:
 
-After this migration, run weather-map Terraform commands from this repo:
+```bash
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
+```
 
-- `terraform/weather-etl`
-- `terraform/site`
-
-The previous shared-stack copies should be updated in the shared infra repo
-after each project-owned stack is committed, its state is moved, and it is
-accepted as the source of truth.
+See [terraform/weather-etl/README.md](terraform/weather-etl/README.md) for the
+GFS/ICON production architecture and operational details.

@@ -1,128 +1,61 @@
 # Forecast ETL
 
-This directory contains the forecast artifact pipeline used by local
-development and the production worker image.
+Forecast artifact pipeline shared by local development and production Batch.
 
-Core files:
+## Key Files
 
-- `forecast.etl_config.json`: default ETL config for local runs.
-- `forecast_etl/`: Python package for config parsing, source acquisition,
-  product encoding, marker writing, and manifest publishing.
-- `scripts/`: local bootstrap and cycle-refresh scripts.
-- `Dockerfile`: worker image entrypoint used by production Batch.
+- `forecast.etl_config.json`: default local pipeline config.
+- `forecast_etl/`: ETL package.
+- `Dockerfile`: worker image used by local runs and AWS Batch.
+- `scripts/run-cycle.sh`: local cycle runner.
+- `scripts/bootstrap.sh`: optional venv setup for tests and direct CLI work.
 
-## Local Setup
+## Local Runs
 
-Bootstrap the ETL virtual environment from the repo root:
-
-```bash
-etl/scripts/bootstrap.sh
-```
-
-This creates `etl/.venv` if needed and installs `etl/pyproject.toml` in editable
-mode with dev tools.
-
-Local cycle runs require GDAL CLI tools on `PATH`:
-
-```bash
-gdalinfo
-gdal_translate
-gdalwarp
-```
-
-ICON local runs also require Docker for the configured regridding image.
-
-## Local Run
-
-Run one complete model cycle:
+Local cycle runs go through the worker container. The host only needs Docker;
+GDAL, CDO, eccodes, and ICON regrid assets live in the image.
 
 ```bash
 etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
 ```
 
-Examples:
+The script builds `weather-map-forecast-etl:local`, resolves configured
+forecast hours inside that image, then runs one `forecast-etl run-hour`
+container per forecast hour.
+
+Local outputs are written under the repo-level `artifacts/` directory.
+Downloads and prepared GRIB files are cached under `etl/cache/`.
+
+## Direct CLI
+
+Use the venv only when you want to run the package directly for development or
+tests:
 
 ```bash
-etl/scripts/run-cycle.sh --cycle 2026021606
-etl/scripts/run-cycle.sh --model icon --cycle 2026021606 --procs 1
+etl/scripts/bootstrap.sh
+etl/.venv/bin/forecast-etl list-forecast-hours --model <model>
 ```
 
-The wrapper bootstraps the venv if needed, validates host prerequisites, and
-runs:
-
-```bash
-etl/.venv/bin/forecast-etl run-cycle --model <model> --cycle <cycle>
-```
-
-By default local artifacts are written under the repo-level `artifacts/`
-directory. The local dev stack serves those artifacts from nginx.
-
-## CLI
-
-Useful commands:
-
-```bash
-etl/.venv/bin/forecast-etl run-cycle --model gfs --cycle <YYYYMMDDHH>
-etl/.venv/bin/forecast-etl run-hour --model gfs --cycle <YYYYMMDDHH> --fhour <FFF> --source-uri <uri>
-etl/.venv/bin/forecast-etl smoke
-```
-
-Common runtime inputs:
-
-- `--pipeline-config-uri`: config URI, defaults to `etl/forecast.etl_config.json`.
-- `--artifact-root-uri`: artifact root URI, defaults to repo `artifacts/`.
-- `--model`: configured model id, for example `gfs` or `icon`.
-- `--cycle`: forecast cycle as `YYYYMMDDHH`.
-- `--fhour`: forecast hour as `FFF`.
-- `--source-uri`: optional source GRIB URI for `run-hour`.
-
-Batch workers can provide the same values through:
-
-```text
-PIPELINE_CONFIG_URI
-ARTIFACT_ROOT_URI
-MODEL
-CYCLE
-FHOUR
-GRIB_SOURCE_URI
-```
-
-`run-hour` publishes after processing the hour unless `--no-publish` is set.
-Publishing is marker-based and idempotent for the same manifest revision.
+Normal local cycle execution should use `scripts/run-cycle.sh`, not the host
+CLI.
 
 ## Pipeline Shape
 
-The ETL config is product-based:
+The config is model-aware:
 
-- `product_catalog` defines shared product metadata, components, styles, and
-  encodings.
-- `models.<model>.source` defines source acquisition settings.
-- `models.<model>.workload` defines forecast hours and product order.
-- `models.<model>.products` maps product components to model-specific GRIB
-  metadata.
-- `models.<model>.product_groups` defines frontend product groupings.
+- `models.gfs` reads NOAA GFS data.
+- `models.icon` reads DWD ICON data and regrids it inside the worker image.
+- `models.<model>.workload` controls forecast hours and products.
 
-Runtime flow:
+Each `run-hour` writes product payloads and success markers. Publishing is
+marker-based and idempotent.
 
 ```text
-model source -> prepared GRIB source -> product payloads -> success markers -> cycle manifest
+source files -> prepared GRIB -> product payloads -> success markers -> cycle manifest
 ```
 
-Package responsibilities:
-
-- `config/`: strict `etl_config.json` parsing and resolved config models.
-- `models/`: model-specific source acquisition adapters.
-- `sources/`: GDAL, GRIB, NOMADS, and prepared-source helpers.
-- `encoding/`: binary payload encoding contracts.
-- `products/`: component extraction, encoding, payload writing, marker metadata.
-- `artifacts/`: artifact paths, JSON helpers, and success marker contracts.
-- `manifest/`: success marker validation, manifest assembly, publish logic.
-- `pipeline/`: run-hour and run-cycle orchestration.
-- `aws/`: Lambda ingest entrypoint.
-
 ## Artifacts
-
-The ETL writes this object layout under the artifact root:
 
 ```text
 fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin
@@ -132,30 +65,11 @@ manifests/<model>/<cycle>.json
 manifests/<model>/latest.json
 ```
 
-Field payloads are raw packed binary arrays. Success markers are the publish
-contract between product execution and manifest assembly. Cycle manifests are
-the frontend-facing index over grids, encodings, products, frames, and times.
-
-## Testing
-
-Run all ETL tests:
+## Checks
 
 ```bash
 etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests
-```
-
-Run static checks:
-
-```bash
 cd etl
 .venv/bin/ruff check forecast_etl
 .venv/bin/pyright
-```
-
-Targeted examples:
-
-```bash
-etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_config_parse
-etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_manifest_publish
-etl/.venv/bin/python -m unittest etl.forecast_etl.tests.test_products_execute
 ```

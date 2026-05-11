@@ -16,8 +16,7 @@ nginx artifact server for development.
 ## Prerequisites
 
 - Docker with `docker compose`
-- `python3` with `venv` support for local ETL runs
-- GDAL CLI tools for local ETL runs (`gdalinfo`, `gdal_translate`, `gdalwarp`)
+- `python3` with `venv` support for ETL tests and development tooling
 - Optional: `pmtiles` CLI if you want to extract a smaller local basemap archive
 
 ## Development
@@ -36,7 +35,8 @@ That runs:
 Refresh local forecast artifacts with a forecast cycle:
 
 ```bash
-etl/scripts/run-cycle.sh --cycle <cycle>
+etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
 ```
 
 ## Configuration

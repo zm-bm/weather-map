@@ -4,23 +4,48 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>] [--dry-run]
 
 Description:
-	Refreshes the local forecast artifacts for the provided cycle and publishes
-	manifests directly into artifacts/ for the local dev stack to serve.
+	Refreshes local forecast artifacts by running the same ETL worker container
+	used by production Batch. The script runs one local container per configured
+	forecast hour and publishes manifests directly into artifacts/.
 
 Options:
 	--cycle <cycle>  Forecast cycle string (example: 2026021600)
 	--model <model>  Forecast model id (default: gfs)
-	--procs <n>  Process count passed to forecast-etl run-cycle (default: 4, or 1 for ICON)
+	--procs <n>  Maximum concurrent local worker containers (default: 1)
+	--dry-run  Build the worker image, resolve hours inside it, and print run-hour commands
 	-h, --help  Show this help and exit
+
+Environment:
+	LOCAL_ETL_IMAGE  Local worker image tag (default: weather-map-forecast-etl:local)
 EOF
+}
+
+require_value() {
+	local flag="$1"
+	local value="${2:-}"
+	if [[ -z "$value" || "$value" == -* ]]; then
+		echo "Error: $flag requires a value." >&2
+		usage >&2
+		exit 1
+	fi
+}
+
+print_command() {
+	local prefix="$1"
+	shift
+	printf '%s' "$prefix"
+	printf ' %q' "$@"
+	printf '\n'
 }
 
 CYCLE=""
 MODEL="gfs"
-PROCS=""
+PROCS="1"
+DRY_RUN="${DRY_RUN:-false}"
+LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-forecast-etl:local}"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -29,57 +54,37 @@ while [[ $# -gt 0 ]]; do
 			exit 0
 			;;
 		--cycle)
-			if [[ $# -lt 2 || "${2:-}" == -* ]]; then
-				echo "Error: --cycle requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "$1" "${2:-}"
 			CYCLE="$2"
 			shift 2
 			;;
 		--cycle=*)
 			CYCLE="${1#*=}"
-			if [[ -z "$CYCLE" ]]; then
-				echo "Error: --cycle requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "--cycle" "$CYCLE"
 			shift
 			;;
 		--model)
-			if [[ $# -lt 2 || "${2:-}" == -* ]]; then
-				echo "Error: --model requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "$1" "${2:-}"
 			MODEL="$2"
 			shift 2
 			;;
 		--model=*)
 			MODEL="${1#*=}"
-			if [[ -z "$MODEL" ]]; then
-				echo "Error: --model requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "--model" "$MODEL"
 			shift
 			;;
 		--procs)
-			if [[ $# -lt 2 || "${2:-}" == -* ]]; then
-				echo "Error: --procs requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "$1" "${2:-}"
 			PROCS="$2"
 			shift 2
 			;;
 		--procs=*)
 			PROCS="${1#*=}"
-			if [[ -z "$PROCS" ]]; then
-				echo "Error: --procs requires a value." >&2
-				usage >&2
-				exit 1
-			fi
+			require_value "--procs" "$PROCS"
+			shift
+			;;
+		--dry-run)
+			DRY_RUN="true"
 			shift
 			;;
 		*)
@@ -96,56 +101,154 @@ if [[ -z "$CYCLE" ]]; then
 	exit 1
 fi
 
-if [[ -n "$PROCS" ]] && ! [[ "$PROCS" =~ ^[0-9]+$ ]]; then
+if [[ ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
+	echo "Error: --cycle must be YYYYMMDDHH, got: $CYCLE" >&2
+	exit 1
+fi
+
+if [[ ! "$PROCS" =~ ^[0-9]+$ ]]; then
 	echo "Error: --procs must be a non-negative integer." >&2
 	usage >&2
+	exit 1
+fi
+if [[ "$PROCS" -eq 0 ]]; then
+	echo "Error: --procs must be at least 1 for containerized local runs." >&2
 	exit 1
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ETL_DIR="$ROOT/etl"
-VENV_DIR="$ETL_DIR/.venv"
-ARTIFACT_ROOT_URI="file://$ROOT/artifacts"
-FORECAST_ETL_BIN="$VENV_DIR/bin/forecast-etl"
-mkdir -p "$ROOT/artifacts"
+CONFIG_FILE="$ETL_DIR/forecast.etl_config.json"
+ARTIFACTS_DIR="$ROOT/artifacts"
+CACHE_DIR="$ETL_DIR/cache"
 
-check_host_prereqs() {
-	local missing_gdal=0
-	local cmd
-	for cmd in gdalinfo gdal_translate gdalwarp; do
-		if ! command -v "$cmd" >/dev/null 2>&1; then
-			echo "Missing GDAL tool on PATH: $cmd" >&2
-			missing_gdal=1
+mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+	echo "Config file not found: $CONFIG_FILE" >&2
+	exit 1
+fi
+
+require_docker() {
+	if ! command -v docker >/dev/null 2>&1; then
+		echo "Missing Docker on PATH; local ETL runs use the Batch worker container." >&2
+		exit 1
+	fi
+}
+
+resolve_forecast_hours_with_worker() {
+	docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
+		--model "$MODEL" \
+		--pipeline-config-uri file:///app/etl/forecast.etl_config.json
+}
+
+docker_build_cmd=(
+	docker build
+	-f "$ETL_DIR/Dockerfile"
+	-t "$LOCAL_ETL_IMAGE"
+	"$ETL_DIR"
+)
+
+worker_cmd_for_hour() {
+	local fhour="$1"
+	local cmd=(
+		docker run --rm
+		--user "$(id -u):$(id -g)"
+		--volume "$ARTIFACTS_DIR:/artifacts"
+		--volume "$CACHE_DIR:/app/etl/cache"
+		--env "ARTIFACT_ROOT_URI=file:///artifacts"
+		--env "PIPELINE_CONFIG_URI=file:///app/etl/forecast.etl_config.json"
+		--env "FORECAST_ETL_DIR=/app/etl"
+		--env "PYTHONDONTWRITEBYTECODE=1"
+		--env "MODEL=$MODEL"
+		--env "CYCLE=$CYCLE"
+		--env "FHOUR=$fhour"
+	)
+
+	local optional_env
+	for optional_env in \
+		ICON_SOURCE_WAIT_SECONDS \
+		ICON_SOURCE_MIN_BYTES \
+		ICON_SOURCE_RETRY_BASE_SECONDS \
+		ICON_SOURCE_RETRY_MAX_SECONDS; do
+		if [[ -n "${!optional_env:-}" ]]; then
+			cmd+=(--env "$optional_env=${!optional_env}")
 		fi
 	done
 
-	if [[ "$missing_gdal" -ne 0 ]]; then
-		echo >&2
-		echo "Install GDAL CLI tools first, then rerun etl/scripts/run-cycle.sh." >&2
-		echo "Example (Debian/Ubuntu): sudo apt-get install gdal-bin" >&2
-		exit 1
-	fi
+	cmd+=("$LOCAL_ETL_IMAGE" run-hour)
+	printf '%s\0' "${cmd[@]}"
+}
 
-	if [[ "$MODEL" == "icon" ]] && ! command -v docker >/dev/null 2>&1; then
-		echo "Missing Docker on PATH; ICON local runs need Docker for deutscherwetterdienst/regrid:icon." >&2
-		exit 1
+run_worker_hour() {
+	local fhour="$1"
+	local cmd=()
+	while IFS= read -r -d '' item; do
+		cmd+=("$item")
+	done < <(worker_cmd_for_hour "$fhour")
+
+	echo "Running local worker container: model=$MODEL cycle=$CYCLE fhour=$fhour"
+	if [[ "$DRY_RUN" == "true" ]]; then
+		print_command "dry-run:" "${cmd[@]}"
+	else
+		"${cmd[@]}"
 	fi
 }
 
-bootstrap_if_needed() {
-	if [[ ! -x "$FORECAST_ETL_BIN" ]]; then
-		"$ETL_DIR/scripts/bootstrap.sh"
-	fi
-}
+require_docker
 
-check_host_prereqs
-bootstrap_if_needed
+echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
+"${docker_build_cmd[@]}"
+mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker)
 
-echo "Running local pipeline for model $MODEL cycle $CYCLE"
-CMD=("$FORECAST_ETL_BIN" run-cycle --model "$MODEL" --cycle "$CYCLE" --artifact-root-uri "$ARTIFACT_ROOT_URI")
-if [[ -n "$PROCS" ]]; then
-	CMD+=(--procs "$PROCS")
+if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
+	echo "No forecast hours resolved from config." >&2
+	exit 1
 fi
-"${CMD[@]}"
 
-echo "Artifacts are ready in artifacts/ and are served directly by the local dev stack."
+echo "Running local containerized pipeline"
+echo "  model:          $MODEL"
+echo "  cycle:          $CYCLE"
+echo "  image:          $LOCAL_ETL_IMAGE"
+echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
+echo "  procs:          $PROCS"
+echo "  artifacts:      $ARTIFACTS_DIR"
+echo "  cache:          $CACHE_DIR"
+echo "  dry_run:        $DRY_RUN"
+
+if [[ "$DRY_RUN" == "true" || "$PROCS" -eq 1 ]]; then
+	for FHOUR in "${FORECAST_HOURS[@]}"; do
+		run_worker_hour "$FHOUR"
+	done
+else
+	ACTIVE_JOBS=0
+	FAILURES=0
+	for FHOUR in "${FORECAST_HOURS[@]}"; do
+		run_worker_hour "$FHOUR" &
+		ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
+		if [[ "$ACTIVE_JOBS" -ge "$PROCS" ]]; then
+			if ! wait -n; then
+				FAILURES=1
+			fi
+			ACTIVE_JOBS=$((ACTIVE_JOBS - 1))
+		fi
+	done
+
+	while [[ "$ACTIVE_JOBS" -gt 0 ]]; do
+		if ! wait -n; then
+			FAILURES=1
+		fi
+		ACTIVE_JOBS=$((ACTIVE_JOBS - 1))
+	done
+
+	if [[ "$FAILURES" -ne 0 ]]; then
+		echo "One or more local worker containers failed." >&2
+		exit 1
+	fi
+fi
+
+if [[ "$DRY_RUN" == "true" ]]; then
+	echo "Dry run complete."
+else
+	echo "Artifacts are ready in artifacts/ and are served directly by the local dev stack."
+fi

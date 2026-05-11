@@ -1,172 +1,100 @@
-# Weather ETL infrastructure
+# Weather ETL Stack
 
-This stack runs the shared forecast ETL platform plus the GFS SNS ingest
-trigger.
+Production forecast ETL infrastructure for GFS and ICON.
 
-Core idea:
+## Flow
 
-- Subscribe a Lambda to NOAA GFS SNS notifications.
-- Filter incoming object events to only files this pipeline should process.
-- Submit AWS Batch jobs that run worker + publish logic from the ETL container.
+GFS is event-driven:
 
-## Source data
+1. NOAA publishes a GFS object notification to SNS.
+2. `weather-etl-ingest-gfs` filters the object key against the shared ETL
+   config.
+3. The Lambda submits one Batch `run-hour` job for the accepted `(cycle, fhour)`.
+4. The worker reads the NOAA S3 object, writes artifacts, and attempts publish.
 
-Data source details are documented here:
+ICON is polled:
 
-- https://registry.opendata.aws/noaa-gfs-bdp-pds/
+1. EventBridge invokes `weather-etl-ingest-icon` every 10 minutes.
+2. The Lambda checks only the latest `00/06/12/18 UTC` DWD ICON cycle
+   (`ICON_POLL_CYCLE_COUNT=1`).
+3. It waits for sentinel `f000` files, verifies required files for each
+   configured forecast hour, and uses DynamoDB leases to avoid duplicate
+   submissions.
+4. Batch workers download ICON files from DWD, decompress, regrid with direct
+   CDO, write artifacts, and attempt publish.
 
-That source publishes SNS notifications for new objects. The pipeline subscribes a Lambda to that topic and decides which objects to process.
+Both models use the same worker image and the same shared pipeline config.
 
-The contents of the GFS files and their naming conventions are documented here:
+## Source Data
 
-- https://www.nco.ncep.noaa.gov/pmb/products/gfs/
-- https://www.nco.ncep.noaa.gov/pmb/products/gfs/gfs.t00z.pgrb2.0p25.f000.shtml
+- GFS: `s3://noaa-gfs-bdp-pds`
+  - https://registry.opendata.aws/noaa-gfs-bdp-pds/
+  - https://www.nco.ncep.noaa.gov/pmb/products/gfs/
+- ICON global: DWD Open Data
+  - https://opendata.dwd.de/weather/nwp/icon/grib/
 
-## High-level flow
+## Config
 
-1. NOAA publishes a new GFS object and emits an SNS notification.
-2. SNS invokes an ingest Lambda in this account.
-3. Lambda parses the message and applies filters (forecast hour, suffix, path pattern, etc.).
-4. If accepted, Lambda submits an AWS Batch job.
-5. Batch container runs `forecast-etl run-hour`.
-6. `run-hour` processes the accepted `(cycle, fhour)` and publishes the cycle when all expected raster + wind outputs are present.
+Terraform uploads the production ETL config and passes the same URI to Lambda
+and Batch:
 
-## Resource layout
+```text
+PIPELINE_CONFIG_URI=s3://<config-bucket>/weather-etl/pipeline_config.json
+```
 
-This stack is project-owned by `weather-map` and currently declares its AWS
-resources directly. Shared account foundations, such as the network remote
-state, remain in the sibling shared infra repo.
+Forecast hours and product lists come from `models.<model>.workload` in that
+config. Changes to `infra/config/forecast.etl_config.json` are deployed through
+this stack so the S3 config object is updated.
 
-### 1) S3
+## Deploy
 
-- `weather-etl-artifacts-prod-<account>`
-  - Stores static glyphs, PMTiles, radio files, ETL field payloads,
-    status/success markers, and manifests.
-- `weather-etl-config-prod-<account>`
-  - Stores shared ETL pipeline config read by Lambda and Batch.
+From the repo root, build the shared Lambda artifact before deploying Lambda
+code changes:
 
-Terraform owns the buckets. Static objects under `glyphs/`, `pmtiles/`, and
-`radio/` are uploaded separately by
-`infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
+```bash
+infra/scripts/weather-etl/release/build-ingest-lambda-zip.sh
+```
 
-Artifact bucket lifecycle rules expire generated ETL objects while preserving
-static assets:
+From the repo root, push the worker image after ETL code or dependency changes:
 
-- `fields/`, `status/`, and `logs/` current objects expire after 14 days.
-- `manifests/` current objects expire after 45 days.
-- Noncurrent versions under those prefixes expire after 7 days.
-- `glyphs/`, `pmtiles/`, and `radio/` have no lifecycle expiration rule.
+```bash
+infra/scripts/weather-etl/release/build-push-worker-image.sh
+```
 
-The `manifests/` rule includes `manifests/<model>/latest.json`; if ETL is
-dormant for more than 45 days, the latest manifest can expire too. S3 lifecycle
-processing is asynchronous and applies to existing and future matching objects.
+The Lambda artifact is shared by both ingest Lambdas:
 
-### 2) SNS subscription + Lambda
+```text
+etl/dist/weather-etl-ingest-lambda.zip
+```
 
-- Subscribe Lambda to NOAA SNS topic.
-- Lambda responsibilities:
-  - Decode SNS payload.
-  - Extract object key and metadata.
-  - Apply allow/deny filters.
-  - Derive `cycle`, `fhour`, and source URI.
-  - Submit Batch job only when event matches processing rules.
+The worker image contains GDAL, CDO, eccodes tools, and ICON regrid assets.
 
-### 3) AWS Batch
+## Operations
 
-- Managed compute environment (Spot, scale-to-zero).
-- Job queue + job definition for ETL worker container image.
-- Each submitted job should include cycle/fhour/source URI inputs.
+From the repo root, manually submit a production cycle:
 
-The compute environment uses Fargate Spot and a bounded `max_vcpus` so it can
-scale down when no jobs are running.
+```bash
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
+```
 
-### 4) ECR
+Enable or disable ICON polling:
 
-- Repository for ETL container built from weather-map/etl.
-- `weather-etl-worker`
+```bash
+aws events enable-rule --name weather-etl-ingest-icon-poll
+aws events disable-rule --name weather-etl-ingest-icon-poll
+```
 
-### 5) State / idempotency (optional but recommended)
+Useful live logs:
 
-Use DynamoDB for dedupe and observability, for example:
+```bash
+aws logs tail /aws/lambda/weather-etl-ingest-icon --since 2h --follow
+aws logs tail /aws/batch/weather-etl --since 2h --follow
+```
 
-- processed event ids (SNS message id or object key + etag)
-- job submission ledger
-- optional per-cycle counters
+Batch queue spot check:
 
-Note: publish marker files in artifacts already provide cycle completion idempotency.
-
-## Batch job command pattern
-
-The container default command is `run-hour`. Each accepted event provides
-`CYCLE`, `FHOUR`, and `GRIB_SOURCE_URI` through Batch environment overrides.
-
-`run-hour` publishes by default. Publishing is idempotent and success-marker
-based, so running it at the end of every job is acceptable.
-
-## Filtering guidance (important)
-
-Keep Lambda filtering strict to avoid wasted compute:
-
-- Accept only GFS paths you actually process.
-- Accept only desired forecast hours.
-- Accept only supported file suffixes.
-- Optionally gate by cycle cadence.
-
-Treat unknown key formats as no-op with structured logs.
-
-## Config-driven Lambda filters
-
-Lambda can use the same pipeline config JSON as Batch to decide:
-
-- allowed `forecast_hours`
-- configured `workload.products`
-
-### How it works
-
-- Terraform uploads `infra/config/forecast.etl_config.json` to the config bucket.
-- Lambda and Batch both receive the same `PIPELINE_CONFIG_URI = s3://...` value from Terraform.
-- Lambda hardcodes allowed cycles to `00,06,12,18` and uses `workload.forecast_hours` from that shared config for filtering.
-- Lambda submits one job per accepted GRIB key; `run-hour` uses the same shared config to process all raster layers and all wind artifacts.
-
-Canonical Lambda application code is built into a zip artifact by this repo's
-`etl` package. This stack owns deployment and consumes that artifact via
-`var.ingest_lambda_zip_path`.
-
-Before running `terraform plan` or `terraform apply` for this stack, build or
-refresh that artifact from the weather-map repo root:
-
-- `infra/scripts/weather-etl/release/build-ingest-lambda-zip.sh`
-
-Operator scripts live in `infra/scripts/weather-etl/ops` and run Terraform
-output commands against this stack internally.
-
-## IAM baseline
-
-### Lambda role
-
-- `batch:SubmitJob`
-- read access to config/state (if used)
-- CloudWatch Logs write
-
-### Batch job role
-
-- read source GRIB objects
-- write artifacts bucket outputs and status markers
-- CloudWatch Logs write
-
-Scope policies to exact buckets/prefixes where possible.
-
-## Reliability and operations
-
-Recommended minimum controls:
-
-- Lambda DLQ (or on-failure destination).
-- Batch retry strategy.
-- CloudWatch alarms on Lambda errors and Batch failures.
-- Structured logs with cycle/fhour fields.
-
-## Notes / deferred decisions
-
-- Exact key filter rules for accepted GFS objects.
-- Whether to use DynamoDB dedupe now or rely on idempotent publish first.
-- Capacity tuning (instance families, vCPU caps, retries).
+```bash
+aws batch list-jobs --job-queue weather-etl --job-status RUNNING
+aws batch list-jobs --job-queue weather-etl --job-status FAILED
+```

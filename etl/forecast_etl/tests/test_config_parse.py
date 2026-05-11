@@ -83,7 +83,6 @@ class ConfigValidationTest(unittest.TestCase):
                 "type": "icon_dwd_icosahedral",
                 "grid_id": "icon_global_regridded_0p125",
                 "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
-                "regrid_image": "deutscherwetterdienst/regrid:icon",
                 "rate_limit_seconds": 0.0,
             },
             "workload": {
@@ -116,8 +115,6 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
         self.assertIsNotNone(icon.source.icon_dwd)
-        assert icon.source.icon_dwd is not None
-        self.assertEqual(icon.source.icon_dwd.regrid_image, "deutscherwetterdienst/regrid:icon")
         self.assertEqual(icon.workload.products, ("precip_total_surface", "wind10m_uv"))
         self.assertEqual(icon.products["wind10m_uv"].components[1].grib_match["ICON_PARAM"], "v_10m")
 
@@ -129,7 +126,6 @@ class ConfigValidationTest(unittest.TestCase):
                 "type": "icon_dwd_icosahedral",
                 "grid_id": "icon_global_regridded_0p125",
                 "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
-                "regrid_image": "deutscherwetterdienst/regrid:icon",
                 "rate_limit_seconds": 0.0,
             },
             "workload": {
@@ -165,6 +161,15 @@ class ConfigValidationTest(unittest.TestCase):
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
+
+    def test_pipeline_config_rejects_regrid_image_source_field(self) -> None:
+        bad_cfg = minimal_pipeline_config()
+        _gfs(bad_cfg)["source"]["regrid_image"] = "deutscherwetterdienst/regrid:icon"
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(bad_cfg)
+
+        self.assertIn("regrid_image", str(raised.exception))
 
     def test_pipeline_config_rejects_duplicate_workload_product(self) -> None:
         bad_cfg = minimal_pipeline_config()

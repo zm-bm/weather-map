@@ -535,7 +535,6 @@
         "type": "icon_dwd_icosahedral",
         "grid_id": "icon_global_regridded_0p125",
         "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
-        "regrid_image": "deutscherwetterdienst/regrid:icon",
         "rate_limit_seconds": 1
       },
       "workload": {

@@ -11,7 +11,7 @@ variable "gfs_sns_topic_arn" {
 variable "ingest_lambda_zip_path" {
   type        = string
   default     = null
-  description = "Optional override for the built ingest Lambda zip. Defaults to the repo-local etl/dist/gfs-ingest-lambda.zip."
+  description = "Optional override for the built ingest Lambda zip. Defaults to the repo-local etl/dist/weather-etl-ingest-lambda.zip."
 }
 
 locals {
@@ -37,7 +37,7 @@ locals {
 }
 
 locals {
-  ingest_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../../etl/dist/gfs-ingest-lambda.zip")
+  ingest_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../../etl/dist/weather-etl-ingest-lambda.zip")
   gfs_sns_topic_arn      = var.gfs_sns_topic_arn
 }
 

@@ -62,7 +62,6 @@ class ModelSourceInput(ConfigModel):
     grid_id: NonEmptyStr
     base_url: NonEmptyStr
     vars_levels: dict[NonEmptyStr, NonEmptyStr] | None = None
-    regrid_image: NonEmptyStr | None = None
     rate_limit_seconds: FiniteNumber
 
     @model_validator(mode="after")
@@ -70,11 +69,7 @@ class ModelSourceInput(ConfigModel):
         if self.type == SOURCE_TYPE_GFS_NOMADS:
             if self.vars_levels is None:
                 raise ValueError("gfs_nomads sources require vars_levels")
-            if self.regrid_image is not None:
-                raise ValueError("gfs_nomads sources do not accept regrid_image")
         elif self.type == SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
-            if self.regrid_image is None:
-                raise ValueError("icon_dwd_icosahedral sources require regrid_image")
             if self.vars_levels is not None:
                 raise ValueError("icon_dwd_icosahedral sources do not accept vars_levels")
         return self

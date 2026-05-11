@@ -2,7 +2,7 @@ resource "aws_lambda_function" "ingest" {
   function_name    = "weather-etl-ingest-gfs"
   role             = aws_iam_role.ingest_lambda.arn
   runtime          = "python3.12"
-  handler          = "forecast_etl.aws.ingest.handler"
+  handler          = "forecast_etl.aws.gfs_ingest.handler"
   filename         = local.ingest_lambda_zip_path
   source_code_hash = filebase64sha256(local.ingest_lambda_zip_path)
   timeout          = 30

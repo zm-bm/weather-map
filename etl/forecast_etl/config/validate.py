@@ -51,16 +51,11 @@ def parse_model_source_config(raw: Any) -> ModelSourceConfig:
             ),
         )
 
-    regrid_image = parsed.regrid_image
-    if regrid_image is None:
-        raise AssertionError("icon_dwd_icosahedral source was validated without regrid_image")
-
     return ModelSourceConfig(
         type=parsed.type,
         grid_id=parsed.grid_id,
         icon_dwd=IconDwdConfig(
             base_url=parsed.base_url.rstrip("/"),
-            regrid_image=regrid_image,
             rate_limit_seconds=parsed.rate_limit_seconds,
         ),
     )
