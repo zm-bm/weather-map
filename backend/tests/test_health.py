@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from forecast_etl.config.parse import parse_pipeline_config
+from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.cycles import cycle_datetime
 from forecast_etl.tests.fixtures.artifacts import artifact_fixture
 from weather_map_backend.health import build_health
@@ -18,12 +18,14 @@ def test_health_reports_fresh_complete_expected_cycle(tmp_path: Path) -> None:
     for model_id, model in cfg.models.items():
         cycle = "2026051112"
         artifacts.write_manifest(model_id=model_id, cycle=cycle, generated_at=cycle_datetime(cycle) + timedelta(hours=1))
-        artifacts.write_complete_status(
+        _write_status_markers(
+            artifacts,
             model_id=model_id,
             cycle=cycle,
             products=model.workload.products,
             fhours=model.workload.forecast_hours,
             modified=NOW,
+            published=True,
         )
 
     health = build_health(_settings(tmp_path), now=NOW)
@@ -41,7 +43,8 @@ def test_health_reports_building_when_expected_cycle_has_recent_progress(tmp_pat
             cycle="2026051106",
             generated_at=cycle_datetime("2026051106") + timedelta(hours=1),
         )
-        artifacts.write_status_markers(
+        _write_status_markers(
+            artifacts,
             model_id=model_id,
             cycle="2026051112",
             products=model.workload.products,
@@ -65,7 +68,8 @@ def test_health_reports_stalled_when_partial_progress_is_old(tmp_path: Path) -> 
             cycle="2026051106",
             generated_at=cycle_datetime("2026051106") + timedelta(hours=1),
         )
-        artifacts.write_status_markers(
+        _write_status_markers(
+            artifacts,
             model_id=model_id,
             cycle="2026051112",
             products=model.workload.products,
@@ -86,7 +90,8 @@ def test_health_reports_incomplete_when_latest_manifest_is_missing_markers(tmp_p
     for model_id, model in cfg.models.items():
         cycle = "2026051112"
         artifacts.write_manifest(model_id=model_id, cycle=cycle, generated_at=cycle_datetime(cycle) + timedelta(hours=1))
-        artifacts.write_status_markers(
+        _write_status_markers(
+            artifacts,
             model_id=model_id,
             cycle=cycle,
             products=model.workload.products,
@@ -137,6 +142,37 @@ def _repo_config():
 
     path = Path(__file__).resolve().parents[2] / "infra" / "config" / "forecast.etl_config.json"
     return parse_pipeline_config(json.loads(path.read_text(encoding="utf-8")))
+
+
+def _write_status_markers(
+    artifacts,
+    *,
+    model_id: str,
+    cycle: str,
+    products: tuple[str, ...],
+    fhours: tuple[str, ...],
+    modified: datetime,
+    count: int | None = None,
+    published: bool = False,
+) -> None:
+    marker_ids = [(product_id, fhour) for product_id in products for fhour in fhours]
+    if count is not None:
+        marker_ids = marker_ids[:count]
+    for product_id, fhour in marker_ids:
+        artifacts.write_success_marker(
+            model_id=model_id,
+            cycle=cycle,
+            product_id=product_id,
+            fhour=fhour,
+            modified=modified,
+        )
+    if published:
+        artifacts.write_published_marker(
+            model_id=model_id,
+            cycle=cycle,
+            generated_at=cycle_datetime(cycle) + timedelta(hours=1),
+            modified=modified,
+        )
 
 
 def _settings(root: Path) -> Settings:
