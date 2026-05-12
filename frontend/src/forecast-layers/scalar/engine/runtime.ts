@@ -6,6 +6,7 @@ import {
   SCALAR_VERTEX_SHADER_SOURCE,
 } from './shaders'
 import {
+  BANDED_COLORMAP_LUT_SIZE,
   SCALAR_ACTIVE_OPACITY,
   COLORMAP_LUT_SIZE,
   WORLD_WRAP_COPY_OFFSETS,
@@ -544,11 +545,14 @@ function createColormapTexture(
   const texture = gl.createTexture()
   if (!texture) return null
 
-  const lut = buildColormapLut(colortable, displayRange, COLORMAP_LUT_SIZE, colorSamplingMode)
+  const lutSize = colorSamplingMode === 'banded'
+    ? BANDED_COLORMAP_LUT_SIZE
+    : COLORMAP_LUT_SIZE
+  const lut = buildColormapLut(colortable, displayRange, lutSize, colorSamplingMode)
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-  // Interpolated mode blends texels; banded mode snaps to nearest texel.
+  // Interpolated mode blends texels; banded mode uses threshold colors from exact texels.
   if (colorSamplingMode === 'banded') {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -558,7 +562,7 @@ function createColormapTexture(
   }
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, COLORMAP_LUT_SIZE, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lutSize, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut)
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
@@ -575,7 +579,7 @@ function createColormapKey(
   })
 }
 
-function buildColormapLut(
+export function buildColormapLut(
   colortable: LayerColortableStop[],
   displayRange: [number, number],
   size: number,
@@ -595,9 +599,9 @@ function buildColormapLut(
 
   for (let idx = 0; idx < size; idx += 1) {
     const value = rangeMin + (span * idx) / Math.max(1, size - 1)
-    // Interpolated mode blends stops; banded mode snaps to the nearest stop.
+    // Interpolated mode blends stops; banded mode treats stops as lower-bound thresholds.
     const color = colorSamplingMode === 'banded'
-      ? sampleColortableNearest(stops, value)
+      ? sampleColortableThreshold(stops, value)
       : sampleColortable(stops, value)
     const offset = idx * 4
     lut[offset] = color[0]
@@ -661,25 +665,21 @@ function sampleColortable(stops: NormalizedColortableStop[], value: number): [nu
   return [last[1], last[2], last[3]]
 }
 
-function sampleColortableNearest(stops: NormalizedColortableStop[], value: number): [number, number, number] {
-  // Nearest-stop lookup for banded mode.
+function sampleColortableThreshold(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+  // Lower-bound threshold lookup for banded mode.
   if (stops.length === 1) {
     return [stops[0][1], stops[0][2], stops[0][3]]
   }
 
-  let nearest = stops[0]
-  let bestDistance = Math.abs(value - nearest[0])
+  let selected = stops[0]
 
   for (let i = 1; i < stops.length; i += 1) {
     const candidate = stops[i]
-    const distance = Math.abs(value - candidate[0])
-    if (distance < bestDistance) {
-      nearest = candidate
-      bestDistance = distance
-    }
+    if (value < candidate[0]) break
+    selected = candidate
   }
 
-  return [nearest[1], nearest[2], nearest[3]]
+  return [selected[1], selected[2], selected[3]]
 }
 
 function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram | null {
