@@ -74,11 +74,12 @@ def read_model_artifact_snapshot(
     )
     expected_deadline = cycle_datetime(expected_cycle) + timedelta(hours=publish_lag.hours)
 
-    candidate_cycles = set(latest_synoptic_cycles(now=now, count=status_cycle_count))
-    candidate_cycles.update(info.cycle for info in manifest_infos)
-    if latest_published_cycle:
-        candidate_cycles.add(latest_published_cycle)
-    candidate_cycles.add(expected_cycle)
+    candidate_cycles = status_candidate_cycles(
+        now=now,
+        expected_cycle=expected_cycle,
+        latest_published_cycle=latest_published_cycle,
+        status_cycle_count=status_cycle_count,
+    )
 
     manifest_cycles = {info.cycle for info in manifest_infos}
     if latest_published_cycle:
@@ -151,6 +152,24 @@ def latest_cycle_with_artifacts(
         if progress.found_markers > 0 or progress.published or progress.manifest_present
     ]
     return max(observed_cycles) if observed_cycles else latest_published_cycle
+
+
+def status_candidate_cycles(
+    *,
+    now: datetime,
+    expected_cycle: str,
+    latest_published_cycle: str | None,
+    status_cycle_count: int,
+) -> set[str]:
+    """Return cycles whose status markers are worth listing for health snapshots."""
+
+    cycles = {expected_cycle}
+    cycles.update(
+        cycle for cycle in latest_synoptic_cycles(now=now, count=status_cycle_count) if cycle >= expected_cycle
+    )
+    if latest_published_cycle is not None and latest_published_cycle >= expected_cycle:
+        cycles.add(latest_published_cycle)
+    return cycles
 
 
 def select_target_cycle(

@@ -65,6 +65,6 @@ def load_settings() -> Settings:
         publish_grace_cushion_hours=_float_env("HEALTH_PUBLISH_GRACE_CUSHION_HOURS", 1.0),
         publish_grace_min_hours=_float_env("HEALTH_PUBLISH_GRACE_MIN_HOURS", 3.0),
         publish_grace_max_hours=_float_env("HEALTH_PUBLISH_GRACE_MAX_HOURS", 12.0),
-        history_cycle_count=max(1, _int_env("HEALTH_HISTORY_CYCLE_COUNT", 16)),
-        status_cycle_count=max(1, _int_env("HEALTH_STATUS_CYCLE_COUNT", 16)),
+        history_cycle_count=max(1, _int_env("HEALTH_HISTORY_CYCLE_COUNT", 4)),
+        status_cycle_count=max(1, _int_env("HEALTH_STATUS_CYCLE_COUNT", 4)),
     )

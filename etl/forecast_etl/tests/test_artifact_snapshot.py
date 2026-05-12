@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from forecast_etl.artifacts.snapshot import (
     PublishLagPolicy,
@@ -10,9 +10,11 @@ from forecast_etl.artifacts.snapshot import (
     select_target_cycle,
 )
 from forecast_etl.config.load import parse_pipeline_config
+from forecast_etl.cycles import cycle_datetime
 from forecast_etl.manifest.inspect import ManifestInfo
 from forecast_etl.tests.fixtures.artifacts import temp_artifact_fixture
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
+from forecast_etl.tests.fixtures.stores import CountingStore
 
 NOW = datetime(2026, 5, 11, 18, 30, tzinfo=timezone.utc)
 
@@ -87,6 +89,38 @@ class ArtifactSnapshotTest(unittest.TestCase):
         self.assertTrue(snapshot.progress.published)
         self.assertTrue(snapshot.progress.manifest_present)
         self.assertEqual(snapshot.publish_lag.source, "recent-history")
+
+    def test_read_model_artifact_snapshot_does_not_scan_old_manifest_status_cycles(self) -> None:
+        with temp_artifact_fixture() as artifacts:
+            model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
+            for cycle in ("2026051100", "2026051106"):
+                artifacts.write_manifest(
+                    model_id=model.id,
+                    cycle=cycle,
+                    generated_at=cycle_datetime(cycle) + timedelta(hours=1),
+                    latest=False,
+                )
+            artifacts.write_manifest(
+                model_id=model.id,
+                cycle="2026051112",
+                generated_at=datetime(2026, 5, 11, 13, tzinfo=timezone.utc),
+            )
+            store = CountingStore(artifacts.store)
+
+            read_model_artifact_snapshot(
+                store=store,
+                paths=artifacts.paths,
+                model=model,
+                now=NOW,
+                history_cycle_count=4,
+                status_cycle_count=4,
+                publish_lag_policy=_policy(),
+            )
+
+        status_prefixes = [prefix for prefix in store.list_object_prefixes if "/status/" in prefix]
+        self.assertIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051112"), status_prefixes)
+        self.assertNotIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051100"), status_prefixes)
+        self.assertNotIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051106"), status_prefixes)
 
 
 def _policy() -> PublishLagPolicy:

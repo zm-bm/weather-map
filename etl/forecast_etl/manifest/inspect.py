@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
-from ..storage.base import UriStore
+from ..storage.base import UriObject, UriStore
 from ..validation import NonEmptyStr
 
 
@@ -138,13 +139,23 @@ def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str,
     ]
     cycle_objects.sort(key=lambda item: item[0], reverse=True)
 
-    infos: list[ManifestInfo] = []
-    for fallback_cycle, obj in cycle_objects[:limit]:
+    selected = cycle_objects[:limit]
+    if not selected:
+        return []
+
+    def read_info(item: tuple[str, UriObject]) -> ManifestInfo | None:
+        fallback_cycle, obj = item
         try:
             manifest = artifacts.read_json_uri(obj.uri)
         except Exception:
-            continue
-        info = manifest_info_from_obj(manifest, fallback_cycle=fallback_cycle)
+            return None
+        return manifest_info_from_obj(manifest, fallback_cycle=fallback_cycle)
+
+    max_workers = min(8, len(selected))
+    infos: list[ManifestInfo] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = executor.map(read_info, selected)
+    for info in results:
         if info is not None:
             infos.append(info)
     return infos
