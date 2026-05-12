@@ -15,6 +15,7 @@ from forecast_etl.tests.fixtures.pipeline import (
 from forecast_etl.tests.fixtures.products import (
     cloud_layers_config,
     minimal_product_config,
+    precip_rate_config,
     precip_total_config,
     wind_product_config,
 )
@@ -38,9 +39,11 @@ class ConfigValidationTest(unittest.TestCase):
             "prmsl_surface",
             "tcdc",
             "cloud_layers",
+            "prate_surface",
             "precip_total_surface",
             "wind10m_uv",
         )
+        gfs = parsed.model("gfs")
         self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
         self.assertEqual(icon.workload.forecast_hours, tuple(f"{hour:03d}" for hour in range(1, 25)))
         self.assertEqual(icon.workload.products, expected_products)
@@ -52,12 +55,30 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon.products["prmsl_surface"].label, "Pressure")
         self.assertEqual(icon.products["tcdc"].label, "Total Cloud Cover")
         self.assertEqual(icon.products["cloud_layers"].label, "Cloud Layers")
+        self.assertEqual(icon.products["prate_surface"].label, "Precipitation Rate")
         self.assertEqual(icon.products["precip_total_surface"].label, "Accumulated Precipitation")
+        icon_prate_temporal = icon.products["prate_surface"].temporal
+        icon_prate_derivation = icon.products["prate_surface"].derivation
+        gfs_prate_temporal = gfs.products["prate_surface"].temporal
+        assert icon_prate_temporal is not None
+        assert icon_prate_derivation is not None
+        assert gfs_prate_temporal is not None
+        self.assertEqual(icon_prate_temporal.kind, "average_rate")
+        self.assertEqual(icon_prate_temporal.source_interval_hours, 1)
+        self.assertEqual(icon_prate_derivation.type, "icon_tot_prec_delta_rate")
+        self.assertEqual(
+            gfs.products["prate_surface"].components[0].grib_match["GRIB_PDS_PDTN"],
+            "0",
+        )
+        self.assertEqual(gfs_prate_temporal.kind, "instantaneous_rate")
 
         groups = {group.id: group for group in icon.product_groups}
+        self.assertNotIn("moisture", groups)
+        self.assertEqual(groups["temperature"].products, ("tmp_surface", "dewpoint_surface", "rh_surface"))
         self.assertEqual(groups["clouds"].default_product, "tcdc")
         self.assertEqual(groups["clouds"].products, ("tcdc", "cloud_layers"))
-        self.assertEqual(groups["precipitation"].products, ("precip_total_surface",))
+        self.assertEqual(groups["precipitation"].default_product, "prate_surface")
+        self.assertEqual(groups["precipitation"].products, ("prate_surface", "precip_total_surface"))
 
     def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = parse_pipeline_config(minimal_pipeline_config())
@@ -75,7 +96,9 @@ class ConfigValidationTest(unittest.TestCase):
     def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
         cfg = minimal_pipeline_config()
         precip_config = precip_total_config()
+        prate_config = precip_rate_config()
         wind_config = wind_product_config()
+        cfg["product_catalog"]["prate_surface"] = catalog_product(prate_config)
         cfg["product_catalog"]["precip_total_surface"] = catalog_product(precip_config)
         cfg["product_catalog"]["wind10m_uv"] = catalog_product(wind_config)
         cfg["models"]["icon"] = {
@@ -89,9 +112,10 @@ class ConfigValidationTest(unittest.TestCase):
             "workload": {
                 "forecast_hour_start": 0,
                 "forecast_hour_end": 0,
-                "products": ["precip_total_surface", "wind10m_uv"],
+                "products": ["prate_surface", "precip_total_surface", "wind10m_uv"],
             },
             "products": {
+                "prate_surface": model_product(prate_config),
                 "precip_total_surface": model_product(precip_config),
                 "wind10m_uv": {
                     "components": [
@@ -105,8 +129,8 @@ class ConfigValidationTest(unittest.TestCase):
                     "id": "precipitation",
                     "label": "Precipitation",
                     "layer_id": "scalar",
-                    "default_product": "precip_total_surface",
-                    "products": ["precip_total_surface"],
+                    "default_product": "prate_surface",
+                    "products": ["prate_surface", "precip_total_surface"],
                 },
             ],
         }
@@ -116,8 +140,48 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
         self.assertIsInstance(icon.source, IconDwdSourceConfig)
-        self.assertEqual(icon.workload.products, ("precip_total_surface", "wind10m_uv"))
+        self.assertEqual(icon.workload.products, ("prate_surface", "precip_total_surface", "wind10m_uv"))
         self.assertEqual(icon.products["wind10m_uv"].components[1].grib_match["ICON_PARAM"], "v_10m")
+        icon_prate_temporal = icon.products["prate_surface"].temporal
+        assert icon_prate_temporal is not None
+        self.assertEqual(icon_prate_temporal.kind, "average_rate")
+
+    def test_pipeline_config_rejects_icon_derived_rate_with_non_hourly_interval(self) -> None:
+        cfg = minimal_pipeline_config()
+        prate_config = precip_rate_config()
+        cfg["product_catalog"]["prate_surface"] = catalog_product(prate_config)
+        cfg["models"]["icon"] = {
+            "label": "ICON",
+            "source": {
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "rate_limit_seconds": 0.0,
+            },
+            "workload": {
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
+                "products": ["prate_surface"],
+            },
+            "products": {
+                "prate_surface": model_product(prate_config),
+            },
+            "product_groups": [
+                {
+                    "id": "precipitation",
+                    "label": "Precipitation",
+                    "layer_id": "scalar",
+                    "default_product": "prate_surface",
+                    "products": ["prate_surface"],
+                },
+            ],
+        }
+        cfg["models"]["icon"]["products"]["prate_surface"]["temporal"]["source_interval_hours"] = 3
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(cfg)
+
+        self.assertIn("source_interval_hours=1", str(raised.exception))
 
     def test_pipeline_config_rejects_icon_dwd_product_without_icon_param(self) -> None:
         cfg = minimal_pipeline_config()

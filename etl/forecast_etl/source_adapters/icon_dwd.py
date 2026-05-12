@@ -8,12 +8,12 @@ import time
 from pathlib import Path
 
 from ..config.resolved import IconDwdSourceConfig, ModelConfig
+from ..derivations import ICON_PARAM_MATCH_KEY, previous_icon_param_key
 from ..proc import RunFn, make_runner
 from ..storage.base import UriStore
 from ..uris import default_etl_dir
 from .base import PreparedSource
 from .icon_dwd_source import (
-    ICON_PARAM_MATCH_KEY,
     IconSourceNotReady,
     _decompress_bz2_if_needed,
     _download_if_needed,
@@ -21,7 +21,9 @@ from .icon_dwd_source import (
     _retry_sleep_seconds,
     icon_dwd_filename,
     icon_dwd_url,
+    previous_icon_fhour,
     required_icon_params,
+    required_previous_icon_params,
 )
 
 DEFAULT_ICON_REGRID_DESCRIPTION_FILE = "/opt/dwd-regrid/descriptions/icon/icon_description.txt"
@@ -163,6 +165,20 @@ def _acquire_icon_dwd_source(
         grib_paths[icon_param] = grib_path
         if downloaded and rate_limit_seconds > 0:
             time.sleep(rate_limit_seconds)
+
+    previous_fhour = previous_icon_fhour(fhour)
+    if previous_fhour is not None:
+        for icon_param in required_previous_icon_params(model):
+            grib_path, downloaded = _prepare_icon_param(
+                model=model,
+                cycle=cycle,
+                fhour=previous_fhour,
+                icon_param=icon_param,
+                run=run,
+            )
+            grib_paths[previous_icon_param_key(icon_param)] = grib_path
+            if downloaded and rate_limit_seconds > 0:
+                time.sleep(rate_limit_seconds)
 
     return PreparedSource.grib_collection(
         uri=f"icon-dwd://{model.id}/{cycle}/{fhour}",

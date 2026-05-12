@@ -12,11 +12,12 @@ from unittest.mock import patch
 
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig, ModelConfig, WorkloadConfig
+from forecast_etl.derivations import previous_icon_param_key
 from forecast_etl.source_adapters import acquire_prepared_source, icon_dwd
 from forecast_etl.source_adapters.icon_dwd import icon_dwd_filename, icon_dwd_url
 from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
-from forecast_etl.tests.fixtures.products import minimal_product_config, product_spec
+from forecast_etl.tests.fixtures.products import minimal_product_config, precip_rate_config, product_spec
 
 
 class _FakeHttpResponse(io.BytesIO):
@@ -30,6 +31,17 @@ class _FakeHttpResponse(io.BytesIO):
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
+def _write_cached_icon_param(root: Path, *, cycle: str, fhour: str, icon_param: str) -> Path:
+    cache_dir = root / "cache" / "grib" / "icon" / cycle / fhour
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    filename = icon_dwd_filename(cycle=cycle, fhour=fhour, icon_param=icon_param)
+    (cache_dir / filename).write_bytes(bz2.compress(b"grib"))
+    (cache_dir / filename.removesuffix(".bz2")).write_bytes(b"grib")
+    regridded_path = cache_dir / f"{icon_param}.regridded.grib2"
+    regridded_path.write_bytes(b"regridded")
+    return regridded_path
 
 
 class SourceAdapterTest(unittest.TestCase):
@@ -170,6 +182,111 @@ class SourceAdapterTest(unittest.TestCase):
             ),
             regridded_path,
         )
+
+    def test_icon_adapter_prepares_previous_tot_prec_for_derived_rate_after_first_hour(self) -> None:
+        product = product_spec("prate_surface", precip_rate_config())
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=IconDwdSourceConfig(
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(forecast_hours=("003",), products=("prate_surface",)),
+            model_products={},
+            products={"prate_surface": product},
+            product_groups=(),
+        )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-source-") as td:
+            tmp = Path(td)
+            current_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="tot_prec")
+            previous_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param="tot_prec")
+
+            with (
+                patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
+                patch("forecast_etl.source_adapters.icon_dwd.default_etl_dir", return_value=tmp),
+                patch("forecast_etl.source_adapters.icon_dwd.make_runner", side_effect=AssertionError("regrid should be cached")),
+            ):
+                source = acquire_prepared_source(
+                    model=model,
+                    cycle="2026042800",
+                    fhour="003",
+                    source_uri_override=None,
+                    workdir=tmp / "work",
+                    store=make_store(),
+                )
+
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="prate_surface",
+                component_id="value",
+                grib_match={"ICON_PARAM": "tot_prec"},
+            ),
+            current_path,
+        )
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="prate_surface",
+                component_id="value",
+                grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
+            ),
+            previous_path,
+        )
+
+    def test_icon_adapter_uses_zero_baseline_for_first_derived_rate_hour(self) -> None:
+        product = product_spec("prate_surface", precip_rate_config())
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=IconDwdSourceConfig(
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(forecast_hours=("001",), products=("prate_surface",)),
+            model_products={},
+            products={"prate_surface": product},
+            product_groups=(),
+        )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-first-source-") as td:
+            tmp = Path(td)
+            current_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="001", icon_param="tot_prec")
+
+            with (
+                patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
+                patch("forecast_etl.source_adapters.icon_dwd.default_etl_dir", return_value=tmp),
+                patch("forecast_etl.source_adapters.icon_dwd.make_runner", side_effect=AssertionError("regrid should be cached")),
+            ):
+                source = acquire_prepared_source(
+                    model=model,
+                    cycle="2026042800",
+                    fhour="001",
+                    source_uri_override=None,
+                    workdir=tmp / "work",
+                    store=make_store(),
+                )
+
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="prate_surface",
+                component_id="value",
+                grib_match={"ICON_PARAM": "tot_prec"},
+            ),
+            current_path,
+        )
+        with self.assertRaises(SystemExit):
+            source.component_grib_path(
+                product_id="prate_surface",
+                component_id="value",
+                grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
+            )
 
     def test_icon_regrid_requires_cdo(self) -> None:
         from forecast_etl.source_adapters import icon_dwd as icon

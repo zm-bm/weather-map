@@ -8,7 +8,7 @@ from unittest.mock import patch
 from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.commands.run_hour import run_process_hour
 from forecast_etl.config.load import parse_pipeline_config
-from forecast_etl.extract.product_bands import ExtractedBand
+from forecast_etl.extract.types import ExtractedBand
 from forecast_etl.proc import RunResult
 from forecast_etl.runtime import ExecutionContext
 from forecast_etl.source_adapters.base import PreparedSource

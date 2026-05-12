@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config.resolved import ProductSpec
-from ..extract.product_bands import ExtractedBand
+from ..extract.types import ExtractedBand
 from .codecs import encode_component_payload
 from .numeric import int_item_bytes
 from .transforms import source_value_transform

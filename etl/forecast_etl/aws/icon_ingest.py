@@ -18,7 +18,12 @@ from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..cycles import latest_synoptic_cycles
 from ..manifest.publish import run_publish
 from ..runtime import execution_context_for_model
-from ..source_adapters.icon_dwd import icon_dwd_url, required_icon_params
+from ..source_adapters.icon_dwd import (
+    icon_dwd_url,
+    previous_icon_fhour,
+    required_icon_params,
+    required_previous_icon_params,
+)
 from ..storage.base import UriStore
 from ..storage.routing import make_store
 
@@ -310,6 +315,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         cycle_count=_positive_int_env("ICON_POLL_CYCLE_COUNT", DEFAULT_POLL_CYCLE_COUNT),
     )
     required_params = required_icon_params(model)
+    previous_required_params = required_previous_icon_params(model)
     sentinel_params = _sentinel_params()
     min_bytes = _int_env("ICON_READY_MIN_BYTES", DEFAULT_READY_MIN_BYTES)
 
@@ -338,6 +344,20 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 continue
 
             if not _params_ready(model=model, cycle=cycle, fhour=fhour, params=required_params, min_bytes=min_bytes):
+                pending += 1
+                continue
+            previous_fhour = previous_icon_fhour(fhour)
+            if (
+                previous_fhour is not None
+                and previous_required_params
+                and not _params_ready(
+                    model=model,
+                    cycle=cycle,
+                    fhour=previous_fhour,
+                    params=previous_required_params,
+                    min_bytes=min_bytes,
+                )
+            ):
                 pending += 1
                 continue
 

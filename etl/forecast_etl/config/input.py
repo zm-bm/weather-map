@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, StrictInt, model_validator
 
+from ..derivations import DERIVATION_ICON_TOT_PREC_DELTA_RATE
 from ..encoding.transforms import SOURCE_TRANSFORM_IDENTITY, SOURCE_TRANSFORMS
 from ._types import (
     ConfigModel,
@@ -125,6 +126,22 @@ class ProductComponentInput(ConfigModel):
     grib_match: NonEmptyStringMap
 
 
+class ProductTemporalInput(ConfigModel):
+    kind: Literal["instantaneous_rate", "average_rate", "accumulation"]
+    source_interval_hours: FiniteNumber | None = None
+
+    @model_validator(mode="after")
+    def _validate_interval(self) -> "ProductTemporalInput":
+        if self.source_interval_hours is not None and self.source_interval_hours <= 0:
+            raise ValueError("source_interval_hours must be positive when provided")
+        return self
+
+
+class ProductDerivationInput(ConfigModel):
+    type: Literal["icon_tot_prec_delta_rate"] = DERIVATION_ICON_TOT_PREC_DELTA_RATE
+    first_hour_previous: Literal["zero"] = "zero"
+
+
 class CatalogProductInput(ProductBaseInput):
     """Raw catalog product with component identities only."""
 
@@ -144,6 +161,8 @@ class ProductInput(ProductBaseInput):
     """Raw fully-resolved product used by product fixture helpers."""
 
     components: tuple[ProductComponentInput, ...] = Field(min_length=1)
+    temporal: ProductTemporalInput | None = None
+    derivation: ProductDerivationInput | None = None
 
     @model_validator(mode="after")
     def _validate_components(self) -> "ProductInput":
@@ -155,6 +174,8 @@ class ModelProductInput(ConfigModel):
     """Raw model product component-to-GRIB selector mapping."""
 
     components: tuple[ProductComponentInput, ...] = Field(min_length=1)
+    temporal: ProductTemporalInput | None = None
+    derivation: ProductDerivationInput | None = None
 
     @model_validator(mode="after")
     def _validate_components(self) -> "ModelProductInput":

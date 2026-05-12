@@ -445,10 +445,14 @@
               "id": "value",
               "grib_match": {
                 "GRIB_ELEMENT": "PRATE",
-                "GRIB_SHORT_NAME": "0-SFC"
+                "GRIB_SHORT_NAME": "0-SFC",
+                "GRIB_PDS_PDTN": "0"
               }
             }
-          ]
+          ],
+          "temporal": {
+            "kind": "instantaneous_rate"
+          }
         },
         "wind10m_uv": {
           "components": [
@@ -477,17 +481,9 @@
           "default_product": "tmp_surface",
           "products": [
             "tmp_surface",
-            "aptmp_surface"
-          ]
-        },
-        {
-          "id": "moisture",
-          "label": "Moisture",
-          "layer_id": "scalar",
-          "default_product": "rh_surface",
-          "products": [
-            "rh_surface",
-            "dewpoint_surface"
+            "aptmp_surface",
+            "dewpoint_surface",
+            "rh_surface"
           ]
         },
         {
@@ -548,6 +544,7 @@
           "prmsl_surface",
           "tcdc",
           "cloud_layers",
+          "prate_surface",
           "precip_total_surface",
           "wind10m_uv"
         ]
@@ -635,6 +632,24 @@
             }
           ]
         },
+        "prate_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "tot_prec"
+              }
+            }
+          ],
+          "temporal": {
+            "kind": "average_rate",
+            "source_interval_hours": 1
+          },
+          "derivation": {
+            "type": "icon_tot_prec_delta_rate",
+            "first_hour_previous": "zero"
+          }
+        },
         "precip_total_surface": {
           "components": [
             {
@@ -669,17 +684,9 @@
           "layer_id": "scalar",
           "default_product": "tmp_surface",
           "products": [
-            "tmp_surface"
-          ]
-        },
-        {
-          "id": "moisture",
-          "label": "Moisture",
-          "layer_id": "scalar",
-          "default_product": "rh_surface",
-          "products": [
-            "rh_surface",
-            "dewpoint_surface"
+            "tmp_surface",
+            "dewpoint_surface",
+            "rh_surface"
           ]
         },
         {
@@ -695,8 +702,9 @@
           "id": "precipitation",
           "label": "Precipitation",
           "layer_id": "scalar",
-          "default_product": "precip_total_surface",
+          "default_product": "prate_surface",
           "products": [
+            "prate_surface",
             "precip_total_surface"
           ]
         },

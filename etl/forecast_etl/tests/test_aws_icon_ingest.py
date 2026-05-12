@@ -18,6 +18,12 @@ class _FakeComponent:
 @dataclass(frozen=True)
 class _FakeProduct:
     components: tuple[_FakeComponent, ...]
+    derivation: object | None = None
+
+
+@dataclass(frozen=True)
+class _FakeDerivation:
+    type: str
 
 
 @dataclass(frozen=True)
@@ -182,6 +188,32 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(result["submitted"], 0)
         self.assertEqual(result["pending"], 1)
         self.assertEqual(self.batch.submissions, [])
+
+    def test_derived_rate_waits_for_previous_hour_source(self) -> None:
+        self.model = _FakeModel(
+            workload=_FakeWorkload(forecast_hours=("003",), products=("prate_surface",)),
+            products={
+                "prate_surface": _FakeProduct(
+                    components=(_FakeComponent({"ICON_PARAM": "tot_prec"}),),
+                    derivation=_FakeDerivation(
+                        type="icon_tot_prec_delta_rate",
+                    ),
+                )
+            },
+        )
+        checked_urls: list[str] = []
+
+        def ready(url, min_bytes):
+            checked_urls.append(url)
+            return "_002_" not in url
+
+        result = self._run(ready=ready)
+
+        self.assertEqual(result["submitted"], 0)
+        self.assertEqual(result["pending"], 1)
+        self.assertEqual(self.batch.submissions, [])
+        self.assertTrue(any("_003_TOT_PREC" in url for url in checked_urls))
+        self.assertTrue(any("_002_TOT_PREC" in url for url in checked_urls))
 
     def test_ready_hour_submits_icon_batch_job(self) -> None:
         result = self._run(ready=lambda url, min_bytes: True)

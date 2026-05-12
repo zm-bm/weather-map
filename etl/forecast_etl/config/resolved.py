@@ -110,11 +110,27 @@ class ProductCatalogSpec(ConfigModel):
     label: OptionalNonEmptyStr = None
 
 
+class ProductTemporalSpec(ConfigModel):
+    """Temporal semantics for a resolved model product."""
+
+    kind: NonEmptyStr
+    source_interval_hours: FiniteNumber | None = None
+
+
+class ProductDerivationSpec(ConfigModel):
+    """Source derivation contract for a resolved model product."""
+
+    type: NonEmptyStr
+    first_hour_previous: NonEmptyStr
+
+
 class ModelProductSpec(ConfigModel):
     """Model-specific GRIB selectors for a catalog product."""
 
     product_id: NonEmptyStr
     component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap]
+    temporal: ProductTemporalSpec | None = None
+    derivation: ProductDerivationSpec | None = None
 
 
 class ProductSpec(ConfigModel):
@@ -131,6 +147,8 @@ class ProductSpec(ConfigModel):
     components: tuple[ComponentSpec, ...]
     style: ProductStyleSpec
     label: OptionalNonEmptyStr = None
+    temporal: ProductTemporalSpec | None = None
+    derivation: ProductDerivationSpec | None = None
 
     @property
     def component_ids(self) -> tuple[str, ...]:

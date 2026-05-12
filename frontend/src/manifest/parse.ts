@@ -14,10 +14,13 @@ import {
   type ProductId,
   type ProductStyleBinding,
   type ProductStyleSpec,
+  type ProductTemporalKind,
   type ScalarGridSpec,
   type ScalarEncodingSpec,
   type VectorEncodingSpec,
 } from './types'
+
+const PRODUCT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v != null && typeof v === 'object' && !Array.isArray(v)
@@ -239,7 +242,7 @@ function parseProducts(raw: unknown): Record<string, ManifestProductSpec> {
     if (id !== productId) {
       throw new Error(`Manifest product key ${productId} does not match id ${id}`)
     }
-    const common = {
+    const common: ManifestProductSpec = {
       id,
       label: asString(rawProduct.label, `${field}.label`),
       units: asString(rawProduct.units, `${field}.units`),
@@ -251,6 +254,20 @@ function parseProducts(raw: unknown): Record<string, ManifestProductSpec> {
       grid: parseGrid(rawProduct.grid, `${field}.grid`),
       encoding: parseEncoding(rawProduct.encoding, `${field}.encoding`),
       frames: parseFrames(rawProduct.frames, `${field}.frames`),
+    }
+    if (rawProduct.temporalKind != null) {
+      common.temporalKind = asOneOfStrings(
+        rawProduct.temporalKind,
+        `${field}.temporalKind`,
+        PRODUCT_TEMPORAL_KINDS
+      ) as ProductTemporalKind
+    }
+    if (rawProduct.sourceIntervalHours != null) {
+      const sourceIntervalHours = asFiniteNumber(rawProduct.sourceIntervalHours, `${field}.sourceIntervalHours`)
+      if (sourceIntervalHours <= 0) {
+        throw new Error(`Invalid manifest field ${field}.sourceIntervalHours: expected positive number`)
+      }
+      common.sourceIntervalHours = sourceIntervalHours
     }
     products[productId] = common
   }

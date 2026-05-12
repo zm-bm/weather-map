@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from forecast_etl.artifacts.health import ModelArtifactHealth
+from forecast_etl.artifacts.health import ArtifactHealthStatus, ModelArtifactHealth
 from forecast_etl.artifacts.snapshot import PublishLagEstimate
 from forecast_etl.artifacts.status import CycleProgress
 from weather_map_backend import health as health_module
@@ -105,7 +105,12 @@ def _config(*model_ids: str) -> _Config:
     return _Config(models={model_id: _Model(id=model_id, label=model_id.upper()) for model_id in model_ids})
 
 
-def _artifact_health(*, status: str, reason: str, progress: CycleProgress | None) -> ModelArtifactHealth:
+def _artifact_health(
+    *,
+    status: ArtifactHealthStatus,
+    reason: str,
+    progress: CycleProgress | None,
+) -> ModelArtifactHealth:
     return ModelArtifactHealth(
         status=status,
         reason=reason,

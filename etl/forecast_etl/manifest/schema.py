@@ -104,6 +104,14 @@ class ManifestProduct(FrozenAliasModel):
     grid: ManifestGrid
     encoding: ManifestEncoding
     frames: dict[NonEmptyStr, ManifestFrame] = Field(min_length=1)
+    temporal_kind: NonEmptyStr | None = Field(default=None, alias="temporalKind")
+    source_interval_hours: FiniteNumber | None = Field(default=None, alias="sourceIntervalHours")
+
+    @model_validator(mode="after")
+    def _valid_temporal_interval(self) -> "ManifestProduct":
+        if self.source_interval_hours is not None and self.source_interval_hours <= 0:
+            raise ValueError("sourceIntervalHours must be positive when provided")
+        return self
 
 
 class ManifestTime(FrozenAliasModel):

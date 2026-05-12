@@ -84,27 +84,32 @@ def build_manifest_products(
             product_id=product_id,
             product=product,
         )
+        product_entry: dict[str, Any] = {
+            "id": product_id,
+            "label": product.label or product_id,
+            "units": product.units,
+            "parameter": product.parameter,
+            "level": product.level,
+            "components": product.component_ids,
+            "style": {
+                "layerId": product.style.layer_id,
+                "paletteId": product.style.palette_id,
+            },
+            "valueRange": {
+                "min": product.valid_min,
+                "max": product.valid_max,
+            },
+            "grid": marker_inputs.grid,
+            "encoding": marker_inputs.encoding,
+            "frames": marker_inputs.frames,
+        }
+        if product.temporal is not None:
+            product_entry["temporalKind"] = product.temporal.kind
+            if product.temporal.source_interval_hours is not None:
+                product_entry["sourceIntervalHours"] = product.temporal.source_interval_hours
         manifest_products[product_id] = validated_dict(
             ManifestProduct,
-            {
-                "id": product_id,
-                "label": product.label or product_id,
-                "units": product.units,
-                "parameter": product.parameter,
-                "level": product.level,
-                "components": product.component_ids,
-                "style": {
-                    "layerId": product.style.layer_id,
-                    "paletteId": product.style.palette_id,
-                },
-                "valueRange": {
-                    "min": product.valid_min,
-                    "max": product.valid_max,
-                },
-                "grid": marker_inputs.grid,
-                "encoding": marker_inputs.encoding,
-                "frames": marker_inputs.frames,
-            },
+            product_entry,
             by_alias=True,
         )
 

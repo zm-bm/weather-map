@@ -8,7 +8,7 @@ Forecast artifact pipeline shared by local development and production Batch.
 - `forecast_etl/`: ETL package.
 - `Dockerfile`: worker image used by local runs and AWS Batch.
 - `scripts/run-cycle.sh`: local cycle runner.
-- `scripts/bootstrap.sh`: optional venv setup for tests and direct CLI work.
+- `scripts/bootstrap.sh`: optional repo-root venv setup for tests and direct CLI work.
 
 ## Local Runs
 
@@ -34,7 +34,7 @@ tests:
 
 ```bash
 etl/scripts/bootstrap.sh
-etl/.venv/bin/forecast-etl list-forecast-hours --model <model>
+.venv/bin/forecast-etl list-forecast-hours --model <model>
 ```
 
 Normal local cycle execution should use `scripts/run-cycle.sh`, not the host
@@ -68,8 +68,7 @@ manifests/<model>/latest.json
 ## Checks
 
 ```bash
-etl/.venv/bin/python -m unittest discover -s etl/forecast_etl/tests
+.venv/bin/python -m unittest discover -s etl/forecast_etl/tests
 cd etl
-.venv/bin/ruff check forecast_etl
-.venv/bin/pyright
+../.venv/bin/ruff check forecast_etl
 ```

@@ -13,7 +13,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pyright>=1.1.390",
     "ruff>=0.8.0",
 ]
 
@@ -42,15 +41,3 @@ select = [
     "F",
     "I",
 ]
-
-[tool.pyright]
-include = ["forecast_etl"]
-exclude = [
-    ".venv",
-    "cache",
-    "dist",
-]
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.10"
-typeCheckingMode = "basic"

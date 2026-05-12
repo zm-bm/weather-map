@@ -15,6 +15,7 @@ from forecast_etl.tests.fixtures.markers import write_json
 from forecast_etl.tests.fixtures.products import (
     cloud_layers_config,
     minimal_product_config,
+    precip_rate_config,
     product_group,
     wind_product_config,
 )
@@ -171,6 +172,35 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
+
+    def test_publish_includes_product_temporal_metadata(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-temporal-") as fx:
+            products_cfg = {
+                "prate_surface": precip_rate_config(),
+            }
+            fx.write_scalar_marker(
+                product_id="prate_surface",
+                values=[0.0 for _ in range(fx.cell_count)],
+                product_config=products_cfg["prate_surface"],
+            )
+
+            result = fx.publish(
+                product_ids=("prate_surface",),
+                products_cfg=products_cfg,
+                product_groups=[
+                    product_group(
+                        group_id="precipitation",
+                        label="Precipitation",
+                        default_product="prate_surface",
+                        products=["prate_surface"],
+                    ),
+                ],
+            )
+
+            self.assertTrue(result.ready)
+            product = fx.cycle_manifest()["products"]["prate_surface"]
+            self.assertEqual(product["temporalKind"], "average_rate")
+            self.assertEqual(product["sourceIntervalHours"], 1.0)
 
     def test_publish_rejects_marker_identity_mismatch(self) -> None:
         with publish_fixture(prefix="weather-map-publish-marker-identity-") as fx:

@@ -80,6 +80,7 @@ class ProductRunFixture:
             source=source,
             workdir=self.workdir,
             run=run,
+            fhour=self.fhour,
         )
         payload = encode_product_payload(product=product, grid=grid, bands=bands)
         payload_uri = artifacts.write_field_payload(item=item, dtype=product.encoding.dtype, payload=payload)

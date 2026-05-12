@@ -144,3 +144,38 @@ def precip_total_config() -> dict:
             {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
         ],
     }
+
+
+def precip_rate_config() -> dict:
+    return {
+        "parameter": "prate",
+        "level": "surface",
+        "units": "mm/hr",
+        "valid_min": 0,
+        "valid_max": 30,
+        "style": {
+            "layer_id": "scalar",
+            "palette_id": "precip.rate.mm_hr.v1",
+        },
+        "source_transform": "kg_m2_s_to_mm_hr",
+        "encoding": {
+            "id": "prate_surface_i8_0p15mmhr_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 0.15,
+            "offset": 19.05,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
+        ],
+        "temporal": {
+            "kind": "average_rate",
+            "source_interval_hours": 1,
+        },
+        "derivation": {
+            "type": "icon_tot_prec_delta_rate",
+            "first_hour_previous": "zero",
+        },
+    }

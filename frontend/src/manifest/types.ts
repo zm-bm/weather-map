@@ -136,6 +136,8 @@ export type ProductStyleBinding = {
   paletteId: string
 }
 
+export type ProductTemporalKind = 'instantaneous_rate' | 'average_rate' | 'accumulation'
+
 export type ManifestProductBaseSpec = {
   id: string
   label: string
@@ -148,6 +150,8 @@ export type ManifestProductBaseSpec = {
   grid: ScalarGridSpec
   encoding: ManifestEncodingSpec
   frames: Record<string, FramePayloadRef>
+  temporalKind?: ProductTemporalKind
+  sourceIntervalHours?: number
 }
 
 export type ScalarProductSpec = ManifestProductBaseSpec & { encoding: ScalarEncodingSpec }

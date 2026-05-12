@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from ..derivations import DERIVATION_ICON_TOT_PREC_DELTA_RATE, ICON_PARAM_MATCH_KEY
 from ._types import parse_config_model
 from .encoding import parse_encoding
 from .input import (
@@ -25,8 +26,10 @@ from .resolved import (
     ModelSourceConfig,
     NomadsConfig,
     ProductCatalogSpec,
+    ProductDerivationSpec,
     ProductSpec,
     ProductStyleSpec,
+    ProductTemporalSpec,
     WorkloadConfig,
 )
 
@@ -72,17 +75,44 @@ def validate_model_products_for_source(
 ) -> None:
     """Validate model-product selectors that depend on the source adapter."""
 
+    for product_id, model_product in model_products.items():
+        if model_product.derivation is not None and not isinstance(source, IconDwdSourceConfig):
+            raise SystemExit(
+                f"models.{model_id}.products.{product_id} uses derivation "
+                f"{model_product.derivation.type!r}, which is only supported for icon_dwd_icosahedral sources"
+            )
+
     if not isinstance(source, IconDwdSourceConfig):
         return
 
     for product_id, model_product in model_products.items():
         for component_id, grib_match in model_product.component_grib_matches.items():
-            icon_param = grib_match.get("ICON_PARAM")
+            icon_param = grib_match.get(ICON_PARAM_MATCH_KEY)
             if not isinstance(icon_param, str) or not icon_param.strip():
                 raise SystemExit(
                     f"models.{model_id}.products.{product_id}.{component_id} "
-                    "requires grib_match.ICON_PARAM for icon_dwd_icosahedral sources"
+                    f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
                 )
+
+        derivation = model_product.derivation
+        if derivation is None:
+            continue
+        if derivation.type != DERIVATION_ICON_TOT_PREC_DELTA_RATE:
+            raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+        if len(model_product.component_grib_matches) != 1:
+            raise SystemExit(f"ICON derivation {derivation.type!r} requires exactly one component for {product_id}")
+        if model_product.temporal is None:
+            raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {product_id}")
+        if model_product.temporal.kind != "average_rate":
+            raise SystemExit(
+                f"ICON derivation {derivation.type!r} requires temporal.kind='average_rate' for {product_id}"
+            )
+        if model_product.temporal.source_interval_hours != 1:
+            raise SystemExit(
+                f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {product_id}"
+            )
+        if derivation.first_hour_previous != "zero":
+            raise SystemExit(f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}")
 
 
 def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
@@ -141,6 +171,8 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
         components=components,
         style=style,
         label=parsed.label,
+        temporal=_temporal_spec(parsed.temporal),
+        derivation=_derivation_spec(parsed.derivation),
     )
 
 
@@ -166,6 +198,8 @@ def parse_model_product_spec(
     return ModelProductSpec(
         product_id=product_id,
         component_grib_matches=matches,
+        temporal=_temporal_spec(parsed.temporal),
+        derivation=_derivation_spec(parsed.derivation),
     )
 
 
@@ -195,6 +229,8 @@ def resolve_product_spec(
         components=components,
         style=catalog_product.style,
         label=catalog_product.label,
+        temporal=model_product.temporal,
+        derivation=model_product.derivation,
     )
 
 
@@ -214,4 +250,22 @@ def _component_specs(raw_components: tuple[ProductComponentInput, ...]) -> tuple
     return tuple(
         ComponentSpec(id=component.id, grib_match=dict(component.grib_match))
         for component in raw_components
+    )
+
+
+def _temporal_spec(raw: object | None) -> ProductTemporalSpec | None:
+    if raw is None:
+        return None
+    return ProductTemporalSpec(
+        kind=getattr(raw, "kind"),
+        source_interval_hours=getattr(raw, "source_interval_hours"),
+    )
+
+
+def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
+    if raw is None:
+        return None
+    return ProductDerivationSpec(
+        type=getattr(raw, "type"),
+        first_hour_previous=getattr(raw, "first_hour_previous"),
     )

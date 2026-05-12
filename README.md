@@ -16,10 +16,16 @@ nginx artifact server for development.
 ## Prerequisites
 
 - Docker with `docker compose`
-- `python3` with `venv` support for ETL tests and development tooling
+- `python3` with `venv` support for Python tests and development tooling
 - Optional: `pmtiles` CLI if you want to extract a smaller local basemap archive
 
 ## Development
+
+Set up the shared Python development environment with:
+
+```bash
+etl/scripts/bootstrap.sh
+```
 
 Start the dev stack with:
 
@@ -61,6 +67,16 @@ Run from `frontend/`:
 ```bash
 npm run test:run
 npm run build
+```
+
+## Python Checks
+
+Run from the repo root after `etl/scripts/bootstrap.sh`:
+
+```bash
+.venv/bin/python -m unittest discover -s etl/forecast_etl/tests
+cd etl && ../.venv/bin/ruff check forecast_etl
+cd ../backend && ../.venv/bin/python -m pytest && ../.venv/bin/ruff check weather_map_backend tests
 ```
 
 ## Docs

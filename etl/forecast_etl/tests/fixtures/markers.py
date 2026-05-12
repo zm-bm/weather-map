@@ -7,7 +7,7 @@ from forecast_etl.artifacts.markers_schema import build_product_marker_payload
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.encoding.product_payload import encode_product_payload
-from forecast_etl.extract.product_bands import ExtractedBand
+from forecast_etl.extract.types import ExtractedBand
 from forecast_etl.storage.routing import make_store
 
 from .grids import pack_f32

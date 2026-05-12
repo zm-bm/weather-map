@@ -20,6 +20,7 @@ Options:
 
 Environment:
 	LOCAL_ETL_IMAGE  Local worker image tag (default: weather-map-forecast-etl:local)
+	ETL_WORKER_STAGGER_SECONDS  Delay between parallel worker starts (default: 5)
 EOF
 }
 
@@ -46,6 +47,7 @@ MODEL="gfs"
 PROCS="1"
 DRY_RUN="${DRY_RUN:-false}"
 LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-forecast-etl:local}"
+ETL_WORKER_STAGGER_SECONDS="${ETL_WORKER_STAGGER_SECONDS:-5}"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -115,6 +117,10 @@ if [[ "$PROCS" -eq 0 ]]; then
 	echo "Error: --procs must be at least 1 for containerized local runs." >&2
 	exit 1
 fi
+if [[ ! "$ETL_WORKER_STAGGER_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+	echo "Error: ETL_WORKER_STAGGER_SECONDS must be a non-negative number." >&2
+	exit 1
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ETL_DIR="$ROOT/etl"
@@ -144,6 +150,7 @@ resolve_forecast_hours_with_worker() {
 
 docker_build_cmd=(
 	docker build
+	--network=host
 	-f "$ETL_DIR/Dockerfile"
 	-t "$LOCAL_ETL_IMAGE"
 	"$ETL_DIR"
@@ -212,6 +219,7 @@ echo "  cycle:          $CYCLE"
 echo "  image:          $LOCAL_ETL_IMAGE"
 echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
 echo "  procs:          $PROCS"
+echo "  start_stagger:  ${ETL_WORKER_STAGGER_SECONDS}s"
 echo "  artifacts:      $ARTIFACTS_DIR"
 echo "  cache:          $CACHE_DIR"
 echo "  dry_run:        $DRY_RUN"
@@ -223,8 +231,13 @@ if [[ "$DRY_RUN" == "true" || "$PROCS" -eq 1 ]]; then
 else
 	ACTIVE_JOBS=0
 	FAILURES=0
+	STARTED_JOBS=0
 	for FHOUR in "${FORECAST_HOURS[@]}"; do
+		if [[ "$STARTED_JOBS" -gt 0 && "$ETL_WORKER_STAGGER_SECONDS" != "0" ]]; then
+			sleep "$ETL_WORKER_STAGGER_SECONDS"
+		fi
 		run_worker_hour "$FHOUR" &
+		STARTED_JOBS=$((STARTED_JOBS + 1))
 		ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
 		if [[ "$ACTIVE_JOBS" -ge "$PROCS" ]]; then
 			if ! wait -n; then

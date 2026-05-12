@@ -13,8 +13,12 @@ from pathlib import Path
 
 from ..config.resolved import ModelConfig
 from ..cycles import parse_cycle
+from ..derivations import (
+    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    icon_param_from_grib_match,
+    single_component_icon_param,
+)
 
-ICON_PARAM_MATCH_KEY = "ICON_PARAM"
 DEFAULT_ICON_SOURCE_WAIT_SECONDS = 2700.0
 DEFAULT_ICON_RETRY_BASE_SECONDS = 10.0
 DEFAULT_ICON_RETRY_MAX_SECONDS = 120.0
@@ -49,11 +53,43 @@ def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
         if product is None:
             raise SystemExit(f"Unknown ICON workload product: {product_id}")
         for component in product.components:
-            icon_param = component.grib_match.get(ICON_PARAM_MATCH_KEY, "").strip().lower()
-            if not icon_param:
-                raise SystemExit(f"ICON product {product.id}.{component.id} missing {ICON_PARAM_MATCH_KEY}")
-            params.add(icon_param)
+            params.add(
+                icon_param_from_grib_match(
+                    product_id=product_id,
+                    component_id=getattr(component, "id", None),
+                    grib_match=component.grib_match,
+                )
+            )
     return tuple(sorted(params))
+
+
+def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
+    """Return ICON parameters needed from the previous forecast hour."""
+
+    params: set[str] = set()
+    for product_id in model.workload.products:
+        product = model.products.get(product_id)
+        if product is None:
+            raise SystemExit(f"Unknown ICON workload product: {product_id}")
+        derivation = getattr(product, "derivation", None)
+        if derivation is None:
+            continue
+        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
+            params.add(single_component_icon_param(product_id=product_id, components=product.components))
+            continue
+        raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+    return tuple(sorted(params))
+
+
+def previous_icon_fhour(fhour: str) -> str | None:
+    """Return the previous forecast-hour id, or None for zero-baseline hours."""
+
+    if len(fhour) != 3 or not fhour.isdigit():
+        raise SystemExit(f"ICON forecast hour must be a 3-digit string, got {fhour!r}")
+    hour = int(fhour)
+    if hour <= 1:
+        return None
+    return f"{hour - 1:03d}"
 
 
 def _float_env(name: str, default: float) -> float:

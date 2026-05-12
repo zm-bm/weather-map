@@ -73,6 +73,7 @@ def run_process_hour(
                 source=source,
                 workdir=workdir,
                 run=run,
+                fhour=fhour,
             )
             payload = encode_product_payload(product=product, grid=grid, bands=bands)
             payload_uri = artifacts.write_field_payload(item=item, dtype=product.encoding.dtype, payload=payload)

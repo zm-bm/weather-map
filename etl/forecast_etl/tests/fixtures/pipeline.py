@@ -55,13 +55,17 @@ def add_model_product(
 
 def catalog_product(product_config: dict) -> dict:
     return {
-        **{key: value for key, value in product_config.items() if key != "components"},
+        **{
+            key: value
+            for key, value in product_config.items()
+            if key not in {"components", "temporal", "derivation"}
+        },
         "components": [{"id": component["id"]} for component in product_config["components"]],
     }
 
 
 def model_product(product_config: dict) -> dict:
-    return {
+    model_cfg = {
         "components": [
             {
                 "id": component["id"],
@@ -70,3 +74,8 @@ def model_product(product_config: dict) -> dict:
             for component in product_config["components"]
         ],
     }
+    if "temporal" in product_config:
+        model_cfg["temporal"] = product_config["temporal"]
+    if "derivation" in product_config:
+        model_cfg["derivation"] = product_config["derivation"]
+    return model_cfg

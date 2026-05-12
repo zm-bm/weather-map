@@ -141,6 +141,7 @@ vite.config.ts.timestamp-*
 
 # Python packaging artifacts
 *.egg-info/
+.venv/
 
 # Codex
 .codex

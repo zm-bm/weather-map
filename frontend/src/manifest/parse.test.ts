@@ -44,6 +44,17 @@ describe('parseCycleManifest', () => {
     expect(manifest.products.tmp_surface.frames['000']!.byteLength).toBe(8)
   })
 
+  it('accepts optional product temporal metadata', () => {
+    const payload = createCycleManifestPayloadFixture()
+    tmpProduct(payload).temporalKind = 'average_rate'
+    tmpProduct(payload).sourceIntervalHours = 1
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.products.tmp_surface.temporalKind).toBe('average_rate')
+    expect(manifest.products.tmp_surface.sourceIntervalHours).toBe(1)
+  })
+
   it('rejects old manifests without the V3 schema marker', () => {
     const payload = {
       version: 4,

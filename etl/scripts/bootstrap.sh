@@ -2,8 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BACKEND_DIR="$ROOT/backend"
 ETL_DIR="$ROOT/etl"
-VENV_DIR="$ETL_DIR/.venv"
+VENV_DIR="$ROOT/.venv"
 HOST_PYTHON_BIN="${ETL_BOOTSTRAP_PYTHON:-python3}"
 VENV_PYTHON_BIN="$VENV_DIR/bin/python"
 
@@ -13,10 +14,10 @@ if ! command -v "$HOST_PYTHON_BIN" >/dev/null 2>&1; then
 fi
 
 if [[ ! -x "$VENV_PYTHON_BIN" ]]; then
-	echo "Creating ETL virtual environment: $VENV_DIR"
+	echo "Creating Python virtual environment: $VENV_DIR"
 	"$HOST_PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
-echo "Installing forecast_etl in editable mode"
+echo "Installing Python packages in editable mode"
 "$VENV_PYTHON_BIN" -m pip install --upgrade pip "setuptools>=64"
-"$VENV_PYTHON_BIN" -m pip install --no-build-isolation -e "$ETL_DIR[dev]"
+"$VENV_PYTHON_BIN" -m pip install --no-build-isolation -e "$ETL_DIR[dev]" -e "$BACKEND_DIR[dev]"

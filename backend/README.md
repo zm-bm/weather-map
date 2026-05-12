@@ -13,10 +13,10 @@ service.
 Run directly from the repo root:
 
 ```bash
-python -m pip install -e etl -e backend[dev]
+etl/scripts/bootstrap.sh
 ARTIFACT_ROOT_URI="file://$(pwd)/artifacts" \
 PIPELINE_CONFIG_URI="file://$(pwd)/infra/config/forecast.etl_config.json" \
-uvicorn weather_map_backend.app:app --reload
+.venv/bin/uvicorn weather_map_backend.app:app --reload
 ```
 
 Build the Lambda artifact:

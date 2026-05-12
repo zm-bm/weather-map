@@ -5,7 +5,8 @@ WORKDIR /app
 COPY etl /app/etl
 COPY backend /app/backend
 
-RUN pip install --no-cache-dir -e /app/etl -e /app/backend
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=64" \
+    && pip install --no-cache-dir --no-build-isolation -e /app/etl -e /app/backend
 
 WORKDIR /app/backend
 
