@@ -42,6 +42,17 @@ def minimal_pipeline_config() -> dict:
     }
 
 
+def add_model_product(
+    cfg: dict,
+    *,
+    model_id: str,
+    product_id: str,
+    product_config: dict,
+) -> None:
+    cfg["product_catalog"][product_id] = catalog_product(product_config)
+    cfg["models"][model_id]["products"][product_id] = model_product(product_config)
+
+
 def catalog_product(product_config: dict) -> dict:
     return {
         **{key: value for key, value in product_config.items() if key != "components"},

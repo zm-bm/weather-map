@@ -12,13 +12,15 @@ from typing import Any, Iterable
 import boto3  # type: ignore
 
 from ..artifacts.paths import ArtifactPaths
-from ..config.parse import load_pipeline_config
-from ..config.schema import ModelConfig
+from ..artifacts.repository import ArtifactRepository
+from ..config.load import load_pipeline_config
+from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..cycles import latest_synoptic_cycles
 from ..manifest.publish import run_publish
-from ..sources.icon_dwd import icon_dwd_url, required_icon_params
-from ..stores import make_store
-from ..stores.base import UriStore
+from ..runtime import execution_context_for_model
+from ..source_adapters.icon_dwd import icon_dwd_url, required_icon_params
+from ..storage.base import UriStore
+from ..storage.routing import make_store
 
 DEFAULT_PIPELINE_CONFIG_URI = "file:///var/task/forecast.etl_config.json"
 DEFAULT_POLL_CYCLE_COUNT = 1
@@ -113,12 +115,13 @@ def _url_ready(url: str, *, min_bytes: int) -> bool:
 
 
 def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterable[str], min_bytes: int) -> bool:
-    if model.source.icon_dwd is None:
+    source = model.source
+    if not isinstance(source, IconDwdSourceConfig):
         raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
 
     for param in params:
         url = icon_dwd_url(
-            base_url=model.source.icon_dwd.base_url,
+            base_url=source.icon_dwd.base_url,
             cycle=cycle,
             fhour=fhour,
             icon_param=param,
@@ -130,8 +133,7 @@ def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterabl
 
 
 def _existing_success_markers(*, store: UriStore, paths: ArtifactPaths, model_id: str, cycle: str) -> set[str]:
-    prefix = paths.status_prefix_uri(model_id=model_id, cycle=cycle)
-    return set(store.list_prefix(prefix_uri=prefix))
+    return ArtifactRepository(store=store, paths=paths).list_success_marker_uris(model_id=model_id, cycle=cycle)
 
 
 def _hour_complete(
@@ -270,8 +272,10 @@ def _submit_job(
     return job_id
 
 
-def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: str) -> bool:
-    ctx = model.to_execution_context(artifact_root_uri)
+def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: str, store: UriStore | None = None) -> bool:
+    ctx = execution_context_for_model(model, artifact_root_uri)
+    resolved_store = store if store is not None else make_store()
+    artifacts = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=artifact_root_uri)
     result = run_publish(
         ctx=ctx,
         cycle=cycle,
@@ -279,6 +283,7 @@ def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: s
         product_ids=model.workload.products,
         products=model.products,
         product_groups=model.product_groups,
+        artifacts=artifacts,
     )
     return result.ready
 
@@ -367,7 +372,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             submitted += 1
 
         if _cycle_complete(paths=paths, existing_markers=existing_markers, model=model, cycle=cycle):
-            if _publish_if_complete(model=model, artifact_root_uri=artifact_root_uri, cycle=cycle):
+            if _publish_if_complete(model=model, artifact_root_uri=artifact_root_uri, cycle=cycle, store=store):
                 published += 1
 
     return {

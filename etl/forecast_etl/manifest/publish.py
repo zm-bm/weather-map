@@ -6,13 +6,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
-from ..artifacts.json import read_json, write_json
-from ..artifacts.names import SUCCESS_MARKER_SUFFIX
-from ..artifacts.paths import ArtifactPaths
-from ..artifacts.published import parse_published_marker, published_marker_dict
-from ..config.schema import ExecutionContext, ProductGroup, ProductSpec
-from ..stores import make_store
-from ..stores.base import UriStore
+from ..artifacts.published_schema import published_marker_dict
+from ..artifacts.repository import ArtifactRepository
+from ..config.resolved import ProductGroup, ProductSpec
+from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_products, product_groups_for_manifest
 from .inspect import manifest_info_from_obj
 
@@ -33,6 +30,7 @@ def run_publish(
     model_label: str,
     product_ids: Iterable[str],
     products: Mapping[str, ProductSpec],
+    artifacts: ArtifactRepository,
     product_groups: Iterable[ProductGroup] | None = None,
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
@@ -57,11 +55,7 @@ def run_publish(
         print("Publish not ready: workload.products is empty")
         return PublishResult(ready=False, already_published=False)
 
-    store = make_store()
-    paths = ArtifactPaths(ctx.artifact_root_uri)
-    missing = _missing_success_markers(
-        store=store,
-        paths=paths,
+    missing = artifacts.missing_success_markers(
         model_id=ctx.model_id,
         cycle=cycle,
         fhours=fhours,
@@ -76,8 +70,7 @@ def run_publish(
         return PublishResult(ready=False, already_published=False, missing_markers=tuple(missing))
 
     manifest_products = build_manifest_products(
-        store=store,
-        paths=paths,
+        artifacts=artifacts,
         model_id=ctx.model_id,
         cycle=cycle,
         fhours=fhours,
@@ -97,35 +90,32 @@ def run_publish(
     )
     revision = str(manifest_obj["run"]["revision"])
 
-    cycle_manifest_uri = paths.manifest_cycle_uri(model_id=ctx.model_id, cycle=cycle)
-    published_uri = paths.published_marker_uri(model_id=ctx.model_id, cycle=cycle)
+    cycle_manifest_uri = artifacts.paths.manifest_cycle_uri(model_id=ctx.model_id, cycle=cycle)
     already_published = _is_already_published(
-        store=store,
-        published_uri=published_uri,
-        cycle_manifest_uri=cycle_manifest_uri,
+        artifacts=artifacts,
+        model_id=ctx.model_id,
         revision=revision,
         cycle=cycle,
     )
 
     manifest_to_publish = manifest_obj
     if already_published:
-        manifest_to_publish = read_json(store=store, uri=cycle_manifest_uri)
+        manifest_to_publish = artifacts.read_cycle_manifest(model_id=ctx.model_id, cycle=cycle)
     else:
-        write_json(store=store, uri=cycle_manifest_uri, obj=manifest_obj)
+        cycle_manifest_uri = artifacts.write_cycle_manifest(model_id=ctx.model_id, cycle=cycle, manifest=manifest_obj)
 
     _maybe_promote_latest(
-        store=store,
-        paths=paths,
+        artifacts=artifacts,
         model_id=ctx.model_id,
         cycle=cycle,
         manifest_obj=manifest_to_publish,
     )
 
     if not already_published:
-        write_json(
-            store=store,
-            uri=published_uri,
-            obj=published_marker_dict(
+        artifacts.write_published_marker(
+            model_id=ctx.model_id,
+            cycle=cycle,
+            marker=published_marker_dict(
                 cycle=cycle,
                 model=ctx.model_id,
                 generated_at=generated_at,
@@ -138,48 +128,27 @@ def run_publish(
     return PublishResult(ready=True, already_published=already_published)
 
 
-def _missing_success_markers(
-    *,
-    store: UriStore,
-    paths: ArtifactPaths,
-    model_id: str,
-    cycle: str,
-    fhours: Iterable[str],
-    product_ids: Iterable[str],
-) -> list[str]:
-    """Return expected product success markers that are not present in storage."""
-
-    prefix = paths.status_prefix_uri(model_id=model_id, cycle=cycle)
-    existing = {uri for uri in store.list_prefix(prefix_uri=prefix) if uri.endswith(SUCCESS_MARKER_SUFFIX)}
-    expected = {
-        paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, product_id=product_id)
-        for product_id in product_ids
-        for fhour in fhours
-    }
-    return sorted(expected - existing)
-
-
 def _is_already_published(
     *,
-    store: UriStore,
-    published_uri: str,
-    cycle_manifest_uri: str,
+    artifacts: ArtifactRepository,
+    model_id: str,
     revision: str,
     cycle: str,
 ) -> bool:
     """Return whether the published marker matches the new manifest revision."""
 
-    if not store.exists(uri=published_uri):
+    published_uri = artifacts.paths.published_marker_uri(model_id=model_id, cycle=cycle)
+    if not artifacts.published_marker_exists(model_id=model_id, cycle=cycle):
         return False
 
     try:
-        previous = parse_published_marker(read_json(store=store, uri=published_uri), uri=published_uri)
+        previous = artifacts.read_published_marker(model_id=model_id, cycle=cycle)
     except (Exception, SystemExit) as exc:
         print(f"Unable to parse existing publish marker {published_uri}; republishing: {exc}")
         return False
 
     previous_revision = previous.revision
-    if previous_revision == revision and store.exists(uri=cycle_manifest_uri):
+    if previous_revision == revision and artifacts.cycle_manifest_exists(model_id=model_id, cycle=cycle):
         print(f"Already published (same revisions): {published_uri}")
         return True
 
@@ -195,18 +164,16 @@ def _is_already_published(
 
 def _maybe_promote_latest(
     *,
-    store: UriStore,
-    paths: ArtifactPaths,
+    artifacts: ArtifactRepository,
     model_id: str,
     cycle: str,
     manifest_obj: dict,
 ) -> None:
     """Promote the cycle manifest to latest unless latest is a newer cycle."""
 
-    latest_manifest_uri = paths.manifest_latest_uri(model_id=model_id)
-    current_latest_cycle = _read_latest_cycle(store=store, latest_manifest_uri=latest_manifest_uri)
+    current_latest_cycle = _read_latest_cycle(artifacts=artifacts, model_id=model_id)
     if current_latest_cycle is None or cycle >= current_latest_cycle:
-        write_json(store=store, uri=latest_manifest_uri, obj=manifest_obj)
+        artifacts.write_latest_manifest(model_id=model_id, manifest=manifest_obj)
         return
 
     print(
@@ -216,14 +183,15 @@ def _maybe_promote_latest(
     )
 
 
-def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | None:
+def _read_latest_cycle(*, artifacts: ArtifactRepository, model_id: str) -> str | None:
     """Read the current latest manifest cycle, if available and parseable."""
 
-    if not store.exists(uri=latest_manifest_uri):
+    latest_manifest_uri = artifacts.paths.manifest_latest_uri(model_id=model_id)
+    if not artifacts.latest_manifest_exists(model_id=model_id):
         return None
 
     try:
-        latest = read_json(store=store, uri=latest_manifest_uri)
+        latest = artifacts.read_latest_manifest(model_id=model_id)
     except Exception as exc:
         print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
         return None

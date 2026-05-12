@@ -52,7 +52,7 @@ Each `run-hour` writes product payloads and success markers. Publishing is
 marker-based and idempotent.
 
 ```text
-source files -> prepared GRIB -> product payloads -> success markers -> cycle manifest
+source adapter -> prepared GRIB -> product payloads -> success markers -> cycle manifest
 ```
 
 ## Artifacts

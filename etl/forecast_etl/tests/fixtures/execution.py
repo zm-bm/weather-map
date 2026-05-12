@@ -8,13 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from forecast_etl.artifacts.paths import WorkItem
-from forecast_etl.config.schema import ExecutionContext
+from forecast_etl.artifacts.markers_schema import build_product_marker_payload
+from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
+from forecast_etl.artifacts.repository import ArtifactRepository
+from forecast_etl.encoding.product_payload import encode_product_payload
+from forecast_etl.extract.grib import grid_meta_from_grib
+from forecast_etl.extract.product_bands import extract_product_bands
 from forecast_etl.proc import RunFn
-from forecast_etl.products.execute import run_product_item_in_workdir
-from forecast_etl.sources.prepared import PreparedSource
-from forecast_etl.stores import make_store
-from forecast_etl.stores.base import UriStore
+from forecast_etl.source_adapters.base import PreparedSource
+from forecast_etl.storage.base import UriStore
+from forecast_etl.storage.routing import make_store
 
 from .products import product_spec
 
@@ -29,7 +32,6 @@ class ProductRunFixture:
     cycle: str
     fhour: str
     source_uri: str
-    ctx: ExecutionContext
     store: UriStore
 
     def grib_path(self, name: str = "input.grib2") -> Path:
@@ -68,19 +70,36 @@ class ProductRunFixture:
         source: PreparedSource,
         run: RunFn,
     ) -> dict[str, Any]:
-        return run_product_item_in_workdir(
-            workdir=self.workdir,
-            ctx=self.ctx,
-            item=self.item(product_id),
-            product=product_spec(product_id, product_config),
-            store=self.store,
+        product = product_spec(product_id, product_config)
+        item = self.item(product_id)
+        artifacts = ArtifactRepository.for_root(store=self.store, artifact_root_uri=self.artifact_root_uri)
+        grid = grid_meta_from_grib(grib_path=source.reference_grib_path(), run=run)
+        bands = extract_product_bands(
+            product=product,
+            grid=grid,
             source=source,
+            workdir=self.workdir,
             run=run,
+        )
+        payload = encode_product_payload(product=product, grid=grid, bands=bands)
+        payload_uri = artifacts.write_field_payload(item=item, dtype=product.encoding.dtype, payload=payload)
+        return build_product_marker_payload(
+            product=product,
+            payload_uri=payload_uri,
+            payload=payload,
+            grid_id=source.grid_id,
+            grid=grid,
         )
 
     def payload_path(self, *, product_id: str, dtype: str) -> Path:
         suffix = "i16" if dtype == "int16" else "i8"
         return self.out_dir / "fields" / self.model_id / self.cycle / self.fhour / f"{product_id}.field.{suffix}.bin"
+
+    def payload_uri(self, *, product_id: str, dtype: str) -> str:
+        return ArtifactPaths(self.artifact_root_uri).output_field_payload_uri(
+            self.item(product_id),
+            dtype=dtype,
+        )
 
     def payload_bytes(self, *, product_id: str, dtype: str) -> bytes:
         return gzip.decompress(self.payload_path(product_id=product_id, dtype=dtype).read_bytes())
@@ -110,10 +129,5 @@ def product_run_fixture(
             cycle=cycle,
             fhour=fhour,
             source_uri=source_uri,
-            ctx=ExecutionContext(
-                model_id=model_id,
-                artifact_root_uri=artifact_root_uri,
-                forecast_hours=("000",),
-            ),
             store=make_store(),
         )

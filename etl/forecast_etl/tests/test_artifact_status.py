@@ -8,8 +8,8 @@ from forecast_etl.artifacts.status import (
     success_marker_id_from_key,
     summarize_cycle_progress,
 )
-from forecast_etl.config.parse import parse_pipeline_config
-from forecast_etl.stores.base import UriObject
+from forecast_etl.config.load import parse_pipeline_config
+from forecast_etl.storage.base import UriObject
 from forecast_etl.tests.fixtures.artifacts import (
     invalid_success_marker_payload,
     success_marker_payload_from_uri,

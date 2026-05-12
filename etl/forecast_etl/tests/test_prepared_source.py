@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forecast_etl.sources.prepared import PreparedSource
+from forecast_etl.source_adapters.base import PreparedSource
 
 
 class PreparedSourceTest(unittest.TestCase):

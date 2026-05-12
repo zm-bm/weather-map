@@ -1,0 +1,89 @@
+"""Storage interfaces.
+
+The ETL pipeline routes all I/O through `UriStore` so the same code can operate
+against local disk, S3, or read-only HTTP sources.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Protocol, runtime_checkable
+
+
+@dataclass(frozen=True)
+class UriObject:
+    """One object listed from a URI store."""
+
+    uri: str
+    last_modified: datetime | None = None
+    size: int | None = None
+
+
+@dataclass(frozen=True)
+class UriWriteMetadata:
+    """Optional object metadata for stores that support HTTP/object headers."""
+
+    content_type: str | None = None
+    cache_control: str | None = None
+    content_encoding: str | None = None
+
+
+class UriStore(Protocol):
+    """Abstract interface for reading/writing URI-addressed objects."""
+
+    name: str
+
+    def read_bytes(self, *, uri: str) -> bytes:
+        """Read an entire object as bytes."""
+        ...
+
+    def write_bytes(self, *, uri: str, data: bytes) -> None:
+        """Write bytes atomically where possible."""
+        ...
+
+    def exists(self, *, uri: str) -> bool:
+        """Return True if the object exists."""
+        ...
+
+    def list_prefix(self, *, prefix_uri: str) -> list[str]:
+        """List object URIs under a prefix URI."""
+        ...
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
+        """List objects and available metadata under a prefix URI."""
+        ...
+
+    def get_to_file(self, *, uri: str, dst: Path) -> None:
+        """Materialize a URI to a local file path."""
+        ...
+
+    def put_file(self, *, uri: str, src: Path) -> None:
+        """Upload/copy a local file to a URI."""
+        ...
+
+
+@runtime_checkable
+class MetadataUriStore(Protocol):
+    """Optional extension for stores that can attach object metadata."""
+
+    def write_bytes_with_metadata(
+        self,
+        *,
+        uri: str,
+        data: bytes,
+        metadata: UriWriteMetadata,
+    ) -> None:
+        """Write bytes with generic object metadata."""
+        ...
+
+    def put_file_with_metadata(
+        self,
+        *,
+        uri: str,
+        src: Path,
+        metadata: UriWriteMetadata,
+    ) -> None:
+        """Upload/copy a local file with generic object metadata."""
+        ...

@@ -7,12 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from ..config.schema import ModelConfig
-from ..stores.base import UriObject, UriStore
-from .json import read_json
-from .markers import parse_product_success_marker
-from .names import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX
-from .paths import ArtifactPaths
+from ..config.resolved import ModelConfig
+from ..storage.base import UriObject, UriStore
+from .markers_schema import parse_product_success_marker
+from .paths import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX, ArtifactPaths
+from .repository import ArtifactRepository
 
 DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT = 5
 DEFAULT_MISSING_SAMPLE_LIMIT = 12
@@ -148,14 +147,15 @@ def read_cycle_progress(
 ) -> CycleProgress:
     """Read and summarize one model cycle's status artifacts."""
 
+    artifacts = ArtifactRepository(store=store, paths=paths)
     return summarize_cycle_progress(
         artifact_root_uri=paths.artifact_root_uri,
         model_id=model.id,
         cycle=cycle,
         product_ids=model.workload.products,
         fhours=model.workload.forecast_hours,
-        objects=store.list_objects(prefix_uri=paths.status_prefix_uri(model_id=model.id, cycle=cycle)),
-        read_json=lambda uri: read_json(store=store, uri=uri),
+        objects=artifacts.list_status_objects(model_id=model.id, cycle=cycle),
+        read_json=artifacts.read_json_uri,
         manifest_present=manifest_present,
         missing_sample_limit=missing_sample_limit,
         marker_validation_sample_limit=marker_validation_sample_limit,

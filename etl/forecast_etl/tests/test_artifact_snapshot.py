@@ -9,7 +9,7 @@ from forecast_etl.artifacts.snapshot import (
     read_model_artifact_snapshot,
     select_target_cycle,
 )
-from forecast_etl.config.parse import parse_pipeline_config
+from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.manifest.inspect import ManifestInfo
 from forecast_etl.tests.fixtures.artifacts import temp_artifact_fixture
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config

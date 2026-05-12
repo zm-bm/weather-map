@@ -8,9 +8,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from ..artifacts.json import read_json
 from ..artifacts.paths import ArtifactPaths
-from ..stores.base import UriStore
+from ..artifacts.repository import ArtifactRepository
+from ..storage.base import UriStore
 from ..validation import NonEmptyStr
 
 
@@ -118,8 +118,9 @@ def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None
 def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id: str) -> ManifestInfo | None:
     """Read the model's latest manifest projection, if present and valid."""
 
+    artifacts = ArtifactRepository(store=store, paths=paths)
     try:
-        return manifest_info_from_obj(read_json(store=store, uri=paths.manifest_latest_uri(model_id=model_id)))
+        return manifest_info_from_obj(artifacts.read_latest_manifest(model_id=model_id))
     except FileNotFoundError:
         return None
 
@@ -127,7 +128,8 @@ def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id
 def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str, limit: int) -> list[ManifestInfo]:
     """Read recent cycle manifest projections newest first."""
 
-    objects = store.list_objects(prefix_uri=paths.manifest_prefix_uri(model_id=model_id))
+    artifacts = ArtifactRepository(store=store, paths=paths)
+    objects = artifacts.list_manifest_objects(model_id=model_id)
     cycle_objects = [
         (cycle, obj)
         for obj in objects
@@ -139,7 +141,7 @@ def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str,
     infos: list[ManifestInfo] = []
     for fallback_cycle, obj in cycle_objects[:limit]:
         try:
-            manifest = read_json(store=store, uri=obj.uri)
+            manifest = artifacts.read_json_uri(obj.uri)
         except Exception:
             continue
         info = manifest_info_from_obj(manifest, fallback_cycle=fallback_cycle)

@@ -10,7 +10,7 @@ from typing import Any
 
 import boto3  # type: ignore
 
-from ..config.parse import load_pipeline_config
+from ..config.load import load_pipeline_config
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
 ALLOWED_CYCLES = {"00", "06", "12", "18"}

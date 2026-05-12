@@ -16,7 +16,9 @@ from typing import Optional
 
 from ..encoding.codecs import payload_suffix_for_dtype
 from ..uris import join_uri
-from .names import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX
+
+SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
+PUBLISHED_MARKER_FILENAME = "_PUBLISHED.json"
 
 
 def _safe_segment(value: str) -> str:

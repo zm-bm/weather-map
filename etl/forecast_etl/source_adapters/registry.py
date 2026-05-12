@@ -1,0 +1,50 @@
+"""Forecast source adapter dispatch."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from ..config.resolved import (
+    GfsNomadsSourceConfig,
+    IconDwdSourceConfig,
+    ModelConfig,
+)
+from ..proc import RunFn
+from ..storage.base import UriStore
+from . import gfs_nomads, icon_dwd
+from .base import PreparedSource
+
+
+def acquire_prepared_source(
+    *,
+    model: ModelConfig,
+    cycle: str,
+    fhour: str,
+    source_uri_override: str | None,
+    workdir: Path,
+    store: UriStore,
+    run: RunFn | None = None,
+) -> PreparedSource:
+    """Dispatch source acquisition to the adapter configured for the model."""
+
+    if isinstance(model.source, GfsNomadsSourceConfig):
+        return gfs_nomads.acquire_prepared_source(
+            model=model,
+            cycle=cycle,
+            fhour=fhour,
+            source_uri_override=source_uri_override,
+            workdir=workdir,
+            store=store,
+            run=run,
+        )
+    if isinstance(model.source, IconDwdSourceConfig):
+        return icon_dwd.acquire_prepared_source(
+            model=model,
+            cycle=cycle,
+            fhour=fhour,
+            source_uri_override=source_uri_override,
+            workdir=workdir,
+            store=store,
+            run=run,
+        )
+    raise SystemExit(f"Unsupported model source type for {model.id!r}: {model.source.type!r}")

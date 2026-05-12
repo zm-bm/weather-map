@@ -1,1 +1,1 @@
-"""Artifact naming and JSON helpers."""
+"""Artifact paths, contracts, and repository I/O boundary."""

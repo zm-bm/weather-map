@@ -1,8 +1,9 @@
 """Forecast ETL pipeline.
 
 This package contains the ETL pipeline implementation used to:
-- download/cache GRIB inputs (see `sources/`)
-- extract product payload artifacts (see `products/`)
+- acquire/cache model inputs (see `source_adapters/`)
+- extract GRIB data with GDAL (see `extract/`)
+- encode product payload artifacts (see `encoding/`)
 - publish manifests/markers for the frontend (see `manifest/`)
 """
 

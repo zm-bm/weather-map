@@ -7,10 +7,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from ..config.schema import ModelConfig
+from ..config.resolved import ModelConfig
 from ..cycles import cycle_datetime, expected_synoptic_cycle, latest_synoptic_cycles
 from ..manifest.inspect import ManifestInfo, list_manifest_infos, read_latest_manifest_info
-from ..stores.base import UriStore
+from ..storage.base import UriStore
 from .paths import ArtifactPaths
 from .status import (
     DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from forecast_etl.artifacts.published import parse_published_marker, published_marker_dict
+from forecast_etl.artifacts.published_schema import parse_published_marker, published_marker_dict
 
 
 class PublishedMarkerTest(unittest.TestCase):

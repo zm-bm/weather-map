@@ -12,10 +12,13 @@ from __future__ import annotations
 import argparse
 import os
 
-from .config.parse import load_pipeline_config
-from .config.schema import PipelineConfig
+from .commands import run_cycle, run_hour
+from .config.load import load_pipeline_config
+from .config.resolved import PipelineConfig
 from .cycles import parse_cycle
-from .pipeline.run import run_cycle, run_hour
+from .runtime import execution_context_for_model
+from .storage.base import UriStore
+from .storage.routing import make_store
 from .uris import (
     default_artifact_root_uri,
     default_pipeline_config_uri,
@@ -102,8 +105,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _load_cfg(args: argparse.Namespace) -> PipelineConfig:
-    return load_pipeline_config(args.pipeline_config_uri)
+def _load_cfg(args: argparse.Namespace, *, store: UriStore | None = None) -> PipelineConfig:
+    return load_pipeline_config(args.pipeline_config_uri, store=store)
 
 
 def _require_str(
@@ -124,9 +127,10 @@ def _require_model_id(args: argparse.Namespace) -> str:
 
 def _cmd_run_hour(args: argparse.Namespace) -> int:
     """Run one hour and publish by default."""
-    cfg = _load_cfg(args)
+    store = make_store()
+    cfg = _load_cfg(args, store=store)
     model = cfg.model(_require_model_id(args))
-    ctx = model.to_execution_context(args.artifact_root_uri)
+    ctx = execution_context_for_model(model, args.artifact_root_uri)
     cycle = _require_str(args.cycle, env_name="CYCLE", cli_flag="--cycle")
     parse_cycle(cycle)
     fhour = _require_str(args.fhour, env_name="FHOUR", cli_flag="--fhour")
@@ -144,25 +148,27 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         fhour=fhour,
         source_uri=source_uri,
         publish=not args.no_publish,
+        store=store,
     )
     return 0
 
 
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
     """Fan out model forecast-hour workers locally, and publish once by default."""
-    cfg = _load_cfg(args)
+    store = make_store()
+    cfg = _load_cfg(args, store=store)
     model = cfg.model(_require_model_id(args))
-    ctx = model.to_execution_context(args.artifact_root_uri)
+    ctx = execution_context_for_model(model, args.artifact_root_uri)
     cycle = str(args.cycle)
     parse_cycle(cycle)
 
-    run_cycle(model=model, ctx=ctx, cycle=cycle, procs=args.procs, publish=not args.no_publish)
+    run_cycle(model=model, ctx=ctx, cycle=cycle, procs=args.procs, publish=not args.no_publish, store=store)
     return 0
 
 
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
     """Print one configured forecast-hour id per line."""
-    cfg = _load_cfg(args)
+    cfg = _load_cfg(args, store=make_store())
     model = cfg.model(_require_model_id(args))
     for fhour in model.workload.forecast_hours:
         print(fhour)

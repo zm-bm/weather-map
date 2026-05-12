@@ -5,25 +5,24 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any, Iterable, Mapping
 
-from ..artifacts.paths import ArtifactPaths
+from ..artifacts.repository import ArtifactRepository
 from ..config.groups import DEFAULT_PRODUCT_GROUP_ID, DEFAULT_PRODUCT_GROUP_LABEL
-from ..config.schema import ProductGroup, ProductSpec
+from ..config.resolved import ProductGroup, ProductSpec
 from ..cycles import cycle_datetime
-from ..stores.base import UriStore
 from ..validation import validated_dict
-from ._markers import product_manifest_inputs_from_markers
-from ._schema import (
-    ManifestProduct,
-    cycle_manifest,
-    manifest_product_group,
-    manifest_time,
-)
 from .constants import (
     FORECAST_BINARY_CONTRACT,
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
+from .marker_inputs import product_manifest_inputs_from_markers
 from .revision import compute_manifest_revision
+from .schema import (
+    ManifestProduct,
+    cycle_manifest,
+    manifest_product_group,
+    manifest_time,
+)
 
 
 def product_groups_for_manifest(
@@ -60,8 +59,7 @@ def _product_group_for_manifest(group: ProductGroup) -> dict[str, Any]:
 
 def build_manifest_products(
     *,
-    store: UriStore,
-    paths: ArtifactPaths,
+    artifacts: ArtifactRepository,
     model_id: str,
     cycle: str,
     fhours: Iterable[str],
@@ -79,8 +77,7 @@ def build_manifest_products(
             raise SystemExit(f"Missing product config for product {product_id!r}")
 
         marker_inputs = product_manifest_inputs_from_markers(
-            store=store,
-            paths=paths,
+            artifacts=artifacts,
             model_id=model_id,
             cycle=cycle,
             fhours=fhours,

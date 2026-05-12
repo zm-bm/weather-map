@@ -4,21 +4,23 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ._input import (
+from ._types import parse_config_model
+from .encoding import parse_encoding
+from .input import (
     CatalogProductInput,
+    GfsNomadsSourceInput,
+    IconDwdSourceInput,
     ModelProductInput,
-    ModelSourceInput,
+    ModelSourceInputEnvelope,
     ProductComponentInput,
     ProductInput,
     WorkloadInput,
 )
-from ._types import parse_config_model
-from .encoding import parse_encoding
-from .schema import (
-    SOURCE_TYPE_GFS_NOMADS,
-    SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL,
+from .resolved import (
     ComponentSpec,
+    GfsNomadsSourceConfig,
     IconDwdConfig,
+    IconDwdSourceConfig,
     ModelProductSpec,
     ModelSourceConfig,
     NomadsConfig,
@@ -39,26 +41,27 @@ def parse_workload_config(raw: Any) -> WorkloadConfig:
 def parse_model_source_config(raw: Any) -> ModelSourceConfig:
     """Parse source config and attach the active source-specific settings."""
 
-    parsed = parse_config_model(ModelSourceInput, raw)
-    if parsed.type == SOURCE_TYPE_GFS_NOMADS:
-        return ModelSourceConfig(
-            type=parsed.type,
+    parsed = parse_config_model(ModelSourceInputEnvelope, {"source": raw}).source
+    if isinstance(parsed, GfsNomadsSourceInput):
+        return GfsNomadsSourceConfig(
             grid_id=parsed.grid_id,
             nomads=NomadsConfig(
                 base_url=parsed.base_url,
-                vars_levels=dict(parsed.vars_levels or {}),
+                vars_levels=dict(parsed.vars_levels),
                 rate_limit_seconds=parsed.rate_limit_seconds,
             ),
         )
 
-    return ModelSourceConfig(
-        type=parsed.type,
-        grid_id=parsed.grid_id,
-        icon_dwd=IconDwdConfig(
-            base_url=parsed.base_url.rstrip("/"),
-            rate_limit_seconds=parsed.rate_limit_seconds,
-        ),
-    )
+    if isinstance(parsed, IconDwdSourceInput):
+        return IconDwdSourceConfig(
+            grid_id=parsed.grid_id,
+            icon_dwd=IconDwdConfig(
+                base_url=parsed.base_url.rstrip("/"),
+                rate_limit_seconds=parsed.rate_limit_seconds,
+            ),
+        )
+
+    raise SystemExit(f"Unsupported source config: {raw!r}")
 
 
 def validate_model_products_for_source(
@@ -69,7 +72,7 @@ def validate_model_products_for_source(
 ) -> None:
     """Validate model-product selectors that depend on the source adapter."""
 
-    if source.type != SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL:
+    if not isinstance(source, IconDwdSourceConfig):
         return
 
     for product_id, model_product in model_products.items():

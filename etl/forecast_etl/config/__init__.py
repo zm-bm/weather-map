@@ -1,1 +1,1 @@
-"""Config schema and parsing package."""
+"""Raw and resolved ETL config parsing package."""

@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-import gzip
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
 from unittest.mock import patch
 
-from forecast_etl.stores.s3 import (
-    FORECAST_ARTIFACT_CACHE_CONTROL,
-    INTERNAL_ARTIFACT_CACHE_CONTROL,
-    LATEST_MANIFEST_CACHE_CONTROL,
-    S3Store,
-)
+from forecast_etl.storage.base import UriWriteMetadata
+from forecast_etl.storage.s3 import S3Store
 
 
 class FakeS3Client:
@@ -31,12 +25,12 @@ class FakeS3Client:
     def put_object(self, **kwargs: object) -> None:
         self.put_object_calls.append(kwargs)
 
-    def upload_fileobj(self, handle, bucket: str, key: str, ExtraArgs: dict[str, str]) -> None:
+    def upload_fileobj(self, handle, bucket: str, key: str, ExtraArgs: dict[str, str] | None = None) -> None:
         self.upload_fileobj_calls.append({
             "bucket": bucket,
             "key": key,
             "body": handle.read(),
-            "ExtraArgs": ExtraArgs,
+            "ExtraArgs": ExtraArgs or {},
         })
 
     def get_paginator(self, name: str):
@@ -70,7 +64,7 @@ class S3StoreTests(unittest.TestCase):
             self.assertEqual(client.bucket, "example-bucket")
             self.assertEqual(client.key, "path/input.grib2")
 
-    def test_write_bytes_gzip_encodes_field_payloads(self) -> None:
+    def test_write_bytes_writes_raw_payloads_without_artifact_headers(self) -> None:
         client = FakeS3Client()
         store = S3Store()
         payload = bytes(range(256)) * 4
@@ -85,54 +79,35 @@ class S3StoreTests(unittest.TestCase):
         call = client.put_object_calls[0]
         self.assertEqual(call["Bucket"], "example-bucket")
         self.assertEqual(call["Key"], "prefix/fields/2026042700/003/tmp_surface.custom.bin")
-        self.assertEqual(call["ContentType"], "application/octet-stream")
-        self.assertEqual(call["CacheControl"], FORECAST_ARTIFACT_CACHE_CONTROL)
-        self.assertEqual(call["ContentEncoding"], "gzip")
-        self.assertEqual(gzip.decompress(cast(bytes, call["Body"])), payload)
-        self.assertNotEqual(call["Body"], payload)
+        self.assertEqual(call["Body"], payload)
+        self.assertNotIn("ContentType", call)
+        self.assertNotIn("CacheControl", call)
+        self.assertNotIn("ContentEncoding", call)
 
-    def test_write_bytes_sets_latest_manifest_cache_control(self) -> None:
+    def test_write_bytes_with_metadata_sets_generic_headers(self) -> None:
         client = FakeS3Client()
         store = S3Store()
         payload = b'{"ok":true}'
 
         with patch.object(S3Store, "_client", return_value=client):
-            store.write_bytes(uri="s3://example-bucket/manifests/gfs/latest.json", data=payload)
+            store.write_bytes_with_metadata(
+                uri="s3://example-bucket/manifests/gfs/latest.json",
+                data=payload,
+                metadata=UriWriteMetadata(
+                    content_type="application/json",
+                    cache_control="public, max-age=60",
+                    content_encoding="gzip",
+                ),
+            )
 
         self.assertEqual(len(client.put_object_calls), 1)
         call = client.put_object_calls[0]
         self.assertEqual(call["Body"], payload)
         self.assertEqual(call["ContentType"], "application/json")
-        self.assertEqual(call["CacheControl"], LATEST_MANIFEST_CACHE_CONTROL)
-        self.assertNotIn("ContentEncoding", call)
+        self.assertEqual(call["CacheControl"], "public, max-age=60")
+        self.assertEqual(call["ContentEncoding"], "gzip")
 
-    def test_write_bytes_sets_cycle_manifest_cache_control(self) -> None:
-        client = FakeS3Client()
-        store = S3Store()
-
-        with patch.object(S3Store, "_client", return_value=client):
-            store.write_bytes(uri="s3://example-bucket/artifacts/manifests/gfs/2026042700.json", data=b"{}")
-
-        call = client.put_object_calls[0]
-        self.assertEqual(call["ContentType"], "application/json")
-        self.assertEqual(call["CacheControl"], FORECAST_ARTIFACT_CACHE_CONTROL)
-
-    def test_write_bytes_sets_internal_artifact_cache_control(self) -> None:
-        for uri in (
-            "s3://example-bucket/status/gfs/2026042700/_PUBLISHED.json",
-            "s3://example-bucket/logs/gfs/2026042700/tmp_surface/003.log",
-        ):
-            with self.subTest(uri=uri):
-                client = FakeS3Client()
-                store = S3Store()
-
-                with patch.object(S3Store, "_client", return_value=client):
-                    store.write_bytes(uri=uri, data=b"{}")
-
-                call = client.put_object_calls[0]
-                self.assertEqual(call["CacheControl"], INTERNAL_ARTIFACT_CACHE_CONTROL)
-
-    def test_put_file_gzip_encodes_field_payloads(self) -> None:
+    def test_put_file_copies_raw_payloads_without_artifact_headers(self) -> None:
         client = FakeS3Client()
         store = S3Store()
         payload = b"\x00\x01\x02\x03" * 256
@@ -147,13 +122,11 @@ class S3StoreTests(unittest.TestCase):
                     src=src,
                 )
 
-        self.assertEqual(len(client.put_object_calls), 1)
-        call = client.put_object_calls[0]
-        self.assertEqual(call["ContentType"], "application/octet-stream")
-        self.assertEqual(call["CacheControl"], FORECAST_ARTIFACT_CACHE_CONTROL)
-        self.assertEqual(call["ContentEncoding"], "gzip")
-        self.assertEqual(gzip.decompress(cast(bytes, call["Body"])), payload)
-        self.assertEqual(client.upload_fileobj_calls, [])
+        self.assertEqual(client.put_object_calls, [])
+        self.assertEqual(len(client.upload_fileobj_calls), 1)
+        call = client.upload_fileobj_calls[0]
+        self.assertEqual(call["body"], payload)
+        self.assertEqual(call["ExtraArgs"], {})
 
     def test_list_objects_returns_s3_metadata(self) -> None:
         modified = datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)

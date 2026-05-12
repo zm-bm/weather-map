@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from forecast_etl.artifacts.paths import ArtifactPaths
 from forecast_etl.aws import icon_ingest
+from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig
 
 
 @dataclass(frozen=True)
@@ -26,20 +27,13 @@ class _FakeWorkload:
 
 
 @dataclass(frozen=True)
-class _FakeIconDwd:
-    base_url: str = "https://example.test/icon"
-
-
-@dataclass(frozen=True)
-class _FakeSource:
-    icon_dwd: _FakeIconDwd = _FakeIconDwd()
-
-
-@dataclass(frozen=True)
 class _FakeModel:
     id: str = "icon"
     label: str = "ICON"
-    source: _FakeSource = _FakeSource()
+    source: IconDwdSourceConfig = IconDwdSourceConfig(
+        grid_id="icon_global_regridded_0p125",
+        icon_dwd=IconDwdConfig(base_url="https://example.test/icon", rate_limit_seconds=0.0),
+    )
     workload: _FakeWorkload = _FakeWorkload(forecast_hours=("001",), products=("tmp_surface",))
     products: dict[str, _FakeProduct] | None = None
     product_groups: tuple = ()

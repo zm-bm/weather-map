@@ -7,25 +7,19 @@ from contextlib import redirect_stdout
 from unittest.mock import patch
 
 from forecast_etl import cli
-from forecast_etl.config.schema import ExecutionContext, ProductGroup
+from forecast_etl.config.resolved import (
+    GfsNomadsSourceConfig,
+    IconDwdConfig,
+    IconDwdSourceConfig,
+    NomadsConfig,
+    ProductGroup,
+)
 
 
 class _FakeWorkload:
     def __init__(self, *, forecast_hours: tuple[str, ...], products: tuple[str, ...]) -> None:
         self.forecast_hours = forecast_hours
         self.products = products
-
-
-class _FakeNomads:
-    def __init__(self, *, rate_limit_seconds: float) -> None:
-        self.base_url = "https://example.test/filter"
-        self.vars_levels = {"all_var": "on"}
-        self.rate_limit_seconds = rate_limit_seconds
-
-
-class _FakeSource:
-    def __init__(self, *, source_type: str = "gfs_nomads") -> None:
-        self.type = source_type
 
 
 class _FakePipelineConfig:
@@ -37,7 +31,15 @@ class _FakePipelineConfig:
         rate_limit_seconds: float = 0.0,
     ) -> None:
         self.workload = _FakeWorkload(forecast_hours=forecast_hours, products=products)
-        self.nomads = _FakeNomads(rate_limit_seconds=rate_limit_seconds)
+        self.source: GfsNomadsSourceConfig | IconDwdSourceConfig = GfsNomadsSourceConfig(
+            grid_id="gfs_0p25",
+            nomads=NomadsConfig(
+                base_url="https://example.test/filter",
+                vars_levels={"all_var": "on"},
+                rate_limit_seconds=rate_limit_seconds,
+            )
+        )
+        self.nomads = self.source.nomads
         self.products = {
             name: {
                 "style": {
@@ -58,19 +60,11 @@ class _FakePipelineConfig:
         ) if products else ()
         self.id = "gfs"
         self.label = "GFS"
-        self.source = _FakeSource()
 
     def model(self, model_id: str) -> "_FakePipelineConfig":
         if model_id != "gfs":
             raise SystemExit(f"Unknown model {model_id!r}")
         return self
-
-    def to_execution_context(self, artifact_root_uri: str) -> ExecutionContext:
-        return ExecutionContext(
-            model_id="gfs",
-            artifact_root_uri=artifact_root_uri,
-            forecast_hours=self.workload.forecast_hours,
-        )
 
 
 class _FakePool:
@@ -114,8 +108,8 @@ class CliTest(unittest.TestCase):
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour") as run_process_hour,
-            patch("forecast_etl.pipeline.run.run_publish") as run_publish,
+            patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
         ):
             result = cli.main(
                 [
@@ -150,8 +144,8 @@ class CliTest(unittest.TestCase):
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour"),
-            patch("forecast_etl.pipeline.run.run_publish") as run_publish,
+            patch("forecast_etl.commands.run_hour.run_process_hour"),
+            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
         ):
             result = cli.main(
                 [
@@ -186,8 +180,8 @@ class CliTest(unittest.TestCase):
                 clear=False,
             ),
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour") as run_process_hour,
-            patch("forecast_etl.pipeline.run.run_publish") as run_publish,
+            patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
         ):
             result = cli.main(["run-hour"])
 
@@ -206,9 +200,9 @@ class CliTest(unittest.TestCase):
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour") as run_process_hour,
-            patch("forecast_etl.pipeline.run.run_publish") as run_publish,
-            patch("forecast_etl.pipeline.run.Pool", _FakePool),
+            patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
+            patch("forecast_etl.commands.run_cycle.Pool", _FakePool),
         ):
             result = cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300"])
 
@@ -225,9 +219,9 @@ class CliTest(unittest.TestCase):
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour"),
-            patch("forecast_etl.pipeline.run.run_publish") as run_publish,
-            patch("forecast_etl.pipeline.run.Pool", _FakePool),
+            patch("forecast_etl.commands.run_cycle.run_process_hour"),
+            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
+            patch("forecast_etl.commands.run_cycle.Pool", _FakePool),
         ):
             result = cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300", "--no-publish"])
 
@@ -239,9 +233,9 @@ class CliTest(unittest.TestCase):
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour", side_effect=ValueError("boom")),
-            patch("forecast_etl.pipeline.run.run_publish"),
-            patch("forecast_etl.pipeline.run.Pool", _FakePool),
+            patch("forecast_etl.commands.run_cycle.run_process_hour", side_effect=ValueError("boom")),
+            patch("forecast_etl.commands.publish_cycle.run_publish"),
+            patch("forecast_etl.commands.run_cycle.Pool", _FakePool),
         ):
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300"])
@@ -252,12 +246,18 @@ class CliTest(unittest.TestCase):
 
     def test_run_cycle_defaults_icon_to_serial_processing(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
-        fake_cfg.source = _FakeSource(source_type="icon_dwd_icosahedral")
+        fake_cfg.source = IconDwdSourceConfig(
+            grid_id="icon_global_regridded_0p125",
+            icon_dwd=IconDwdConfig(
+                base_url="https://example.test/icon",
+                rate_limit_seconds=0.0,
+            ),
+        )
 
         with (
             patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.pipeline.run.run_process_hour") as run_process_hour,
-            patch("forecast_etl.pipeline.run.Pool") as pool,
+            patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.run_cycle.Pool") as pool,
         ):
             result = cli.main(["run-cycle", "--model", "gfs", "--cycle", "2026021300", "--no-publish"])
 
@@ -300,6 +300,7 @@ class CliTest(unittest.TestCase):
                 cli.main(["list-forecast-hours", "--model", "icon"])
 
         self.assertIn("Unknown model 'icon'", str(raised.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

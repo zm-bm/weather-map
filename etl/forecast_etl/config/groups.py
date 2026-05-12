@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ._input import ProductGroupsInput
 from ._types import parse_config_model
-from .schema import ProductGroup, ProductSpec
+from .input import ProductGroupsInput
+from .resolved import ProductGroup, ProductSpec
 
 DEFAULT_PRODUCT_GROUP_ID = "products"
 DEFAULT_PRODUCT_GROUP_LABEL = "Products"

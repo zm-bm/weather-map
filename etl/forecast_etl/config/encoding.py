@@ -11,9 +11,9 @@ from ..encoding.codecs import (
     is_linear_encoding_format,
     required_nodata_for_format,
 )
-from ._input import EncodingInput
 from ._types import parse_config_model
-from .schema import EncodingSpec
+from .input import EncodingInput
+from .resolved import EncodingSpec
 
 
 def parse_encoding(

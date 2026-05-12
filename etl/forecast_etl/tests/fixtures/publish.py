@@ -10,10 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
-from forecast_etl.config.schema import ExecutionContext, ProductGroup
+from forecast_etl.artifacts.repository import ArtifactRepository
+from forecast_etl.config.resolved import ProductGroup
 from forecast_etl.manifest.publish import PublishResult, run_publish
-from forecast_etl.stores import make_store
-from forecast_etl.stores.base import UriStore
+from forecast_etl.runtime import ExecutionContext
+from forecast_etl.storage.base import UriStore
+from forecast_etl.storage.routing import make_store
 
 from .grids import grid_meta_fixture
 from .markers import write_cloud_layers_marker, write_scalar_marker, write_vector_marker
@@ -22,7 +24,6 @@ from .products import cloud_layers_config, minimal_product_config, product_specs
 
 @dataclass(frozen=True)
 class PublishFixture:
-    root_dir: Path
     artifact_root_uri: str
     cycle: str
     fhours: tuple[str, ...]
@@ -32,6 +33,10 @@ class PublishFixture:
     ap: ArtifactPaths
     store: UriStore
     grid_meta: dict[str, Any]
+
+    @property
+    def artifacts(self) -> ArtifactRepository:
+        return ArtifactRepository.for_root(store=self.store, artifact_root_uri=self.artifact_root_uri)
 
     @property
     def cell_count(self) -> int:
@@ -145,6 +150,7 @@ class PublishFixture:
             product_ids=tuple(product_ids),
             products=product_specs(products_cfg),
             product_groups=product_groups,
+            artifacts=self.artifacts,
         )
 
     def cycle_manifest(self, *, cycle: str | None = None) -> dict[str, Any]:
@@ -181,7 +187,6 @@ def publish_fixture(
         root_dir = Path(td) / "out"
         artifact_root_uri = f"file://{root_dir.as_posix()}"
         yield PublishFixture(
-            root_dir=root_dir,
             artifact_root_uri=artifact_root_uri,
             cycle=cycle,
             fhours=fhours,

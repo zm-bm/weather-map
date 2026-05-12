@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from forecast_etl.config.schema import ProductGroup, ProductSpec
+from forecast_etl.config.resolved import ProductGroup, ProductSpec
 from forecast_etl.config.validate import parse_product_spec
 
 

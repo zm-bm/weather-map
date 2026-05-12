@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.aws import gfs_ingest
-from forecast_etl.tests.fixtures.pipeline import catalog_product, minimal_pipeline_config, model_product
+from forecast_etl.tests.fixtures.pipeline import add_model_product, minimal_pipeline_config
 from forecast_etl.tests.fixtures.products import wind_product_config
 
 
@@ -80,10 +80,14 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_submits_job_for_current_pipeline_config_schema(self) -> None:
         payload = minimal_pipeline_config()
         wind_config = wind_product_config()
-        payload["product_catalog"]["wind10m_uv"] = catalog_product(wind_config)
+        add_model_product(
+            payload,
+            model_id="gfs",
+            product_id="wind10m_uv",
+            product_config=wind_config,
+        )
         payload["models"]["gfs"]["workload"]["forecast_hour_end"] = 6
         payload["models"]["gfs"]["workload"]["products"] = ["tmp_surface", "wind10m_uv"]
-        payload["models"]["gfs"]["products"]["wind10m_uv"] = model_product(wind_config)
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
             cfg_path = Path(td) / "forecast.etl_config.json"

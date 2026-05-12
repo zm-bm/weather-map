@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import gzip
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
 
-from forecast_etl.stores.local_fs import LocalFSStore
+from forecast_etl.storage.local import LocalFSStore
 
 
 class LocalFSStoreTests(unittest.TestCase):
-    def test_write_bytes_gzip_encodes_field_payloads(self) -> None:
+    def test_write_bytes_writes_raw_payloads(self) -> None:
         store = LocalFSStore()
         payload = bytes(range(64)) * 8
 
@@ -19,22 +18,9 @@ class LocalFSStoreTests(unittest.TestCase):
 
             store.write_bytes(uri=path.as_uri(), data=payload)
 
-            stored_payload = path.read_bytes()
-            self.assertEqual(gzip.decompress(stored_payload), payload)
-            self.assertNotEqual(stored_payload, payload)
-
-    def test_write_bytes_does_not_gzip_json_artifacts(self) -> None:
-        store = LocalFSStore()
-        payload = b'{"ok":true}'
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / "manifests" / "latest.json"
-
-            store.write_bytes(uri=path.as_uri(), data=payload)
-
             self.assertEqual(path.read_bytes(), payload)
 
-    def test_put_file_gzip_encodes_field_payloads(self) -> None:
+    def test_put_file_copies_raw_payloads(self) -> None:
         store = LocalFSStore()
         payload = b"\x00\x01\x02\x03" * 128
 
@@ -46,9 +32,7 @@ class LocalFSStoreTests(unittest.TestCase):
 
             store.put_file(uri=dst.as_uri(), src=src)
 
-            stored_payload = dst.read_bytes()
-            self.assertEqual(gzip.decompress(stored_payload), payload)
-            self.assertNotEqual(stored_payload, payload)
+            self.assertEqual(dst.read_bytes(), payload)
 
     def test_list_objects_returns_file_metadata(self) -> None:
         store = LocalFSStore()

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from forecast_etl.artifacts.json import write_json
-from forecast_etl.artifacts.names import SUCCESS_MARKER_SUFFIX
-from forecast_etl.artifacts.paths import ArtifactPaths
-from forecast_etl.artifacts.published import published_marker_dict
-from forecast_etl.stores.base import UriStore
-from forecast_etl.stores.local_fs import LocalFSStore
+from forecast_etl.artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths, WorkItem
+from forecast_etl.artifacts.published_schema import published_marker_dict
+from forecast_etl.artifacts.repository import ArtifactRepository
+from forecast_etl.storage.base import UriStore
+from forecast_etl.storage.local import LocalFSStore
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,10 @@ class ArtifactFixture:
     root_dir: Path
     paths: ArtifactPaths
     store: UriStore
+
+    @property
+    def repository(self) -> ArtifactRepository:
+        return ArtifactRepository(store=self.store, paths=self.paths)
 
     def write_manifest(
         self,
@@ -33,10 +37,9 @@ class ArtifactFixture:
         revision: str = "abc123",
     ) -> str:
         manifest = manifest_payload(cycle=cycle, generated_at=generated_at, revision=revision)
-        manifest_uri = self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle)
-        write_json(store=self.store, uri=manifest_uri, obj=manifest)
+        manifest_uri = self.repository.write_cycle_manifest(model_id=model_id, cycle=cycle, manifest=manifest)
         if latest:
-            write_json(store=self.store, uri=self.paths.manifest_latest_uri(model_id=model_id), obj=manifest)
+            self.repository.write_latest_manifest(model_id=model_id, manifest=manifest)
         return manifest_uri
 
     def write_success_marker(
@@ -48,16 +51,15 @@ class ArtifactFixture:
         fhour: str,
         modified: datetime | None = None,
     ) -> str:
-        marker_uri = self.paths.success_marker_uri_parts(
-            model_id=model_id,
-            cycle=cycle,
-            product_id=product_id,
-            fhour=fhour,
-        )
-        write_json(
-            store=self.store,
-            uri=marker_uri,
-            obj=success_marker_payload(cycle=cycle, fhour=fhour, product_id=product_id),
+        marker_uri = self.repository.write_success_marker(
+            item=WorkItem(
+                model_id=model_id,
+                cycle=cycle,
+                product_id=product_id,
+                fhour=fhour,
+                source_uri="file:///dev/null",
+            ),
+            product=product_marker_payload(),
         )
         self.touch(marker_uri, modified)
         return marker_uri
@@ -77,7 +79,12 @@ class ArtifactFixture:
             product_id=product_id,
             fhour=fhour,
         )
-        write_json(store=self.store, uri=marker_uri, obj=invalid_success_marker_payload(cycle=cycle, fhour=fhour))
+        self.store.write_bytes(
+            uri=marker_uri,
+            data=(json.dumps(invalid_success_marker_payload(cycle=cycle, fhour=fhour), sort_keys=True) + "\n").encode(
+                "utf-8"
+            ),
+        )
         self.touch(marker_uri, modified)
         return marker_uri
 
@@ -91,11 +98,10 @@ class ArtifactFixture:
         revision: str = "abc123",
         manifest_uri: str | None = None,
     ) -> str:
-        marker_uri = self.paths.published_marker_uri(model_id=model_id, cycle=cycle)
-        write_json(
-            store=self.store,
-            uri=marker_uri,
-            obj=published_marker_dict(
+        marker_uri = self.repository.write_published_marker(
+            model_id=model_id,
+            cycle=cycle,
+            marker=published_marker_dict(
                 cycle=cycle,
                 model=model_id,
                 generated_at=iso_utc(generated_at),
@@ -105,54 +111,6 @@ class ArtifactFixture:
         )
         self.touch(marker_uri, modified)
         return marker_uri
-
-    def write_status_markers(
-        self,
-        *,
-        model_id: str = "gfs",
-        cycle: str,
-        products: Sequence[str],
-        fhours: Sequence[str],
-        count: int,
-        modified: datetime | None = None,
-        published: bool = False,
-    ) -> None:
-        written = 0
-        for product_id in products:
-            for fhour in fhours:
-                if written >= count:
-                    break
-                self.write_success_marker(
-                    model_id=model_id,
-                    cycle=cycle,
-                    product_id=product_id,
-                    fhour=fhour,
-                    modified=modified,
-                )
-                written += 1
-            if written >= count:
-                break
-        if published:
-            self.write_published_marker(model_id=model_id, cycle=cycle, generated_at=modified or now_utc(), modified=modified)
-
-    def write_complete_status(
-        self,
-        *,
-        model_id: str = "gfs",
-        cycle: str,
-        products: Sequence[str],
-        fhours: Sequence[str],
-        modified: datetime | None = None,
-    ) -> None:
-        self.write_status_markers(
-            model_id=model_id,
-            cycle=cycle,
-            products=products,
-            fhours=fhours,
-            count=len(products) * len(fhours),
-            modified=modified,
-            published=True,
-        )
 
     def touch(self, uri: str, modified: datetime | None) -> None:
         if modified is None:
@@ -192,38 +150,44 @@ def success_marker_payload(
         "cycle": cycle,
         "fhour": fhour,
         "product_id": product_id,
-        "product": {
-            "payload_uri": payload_uri,
-            "byte_length": 1,
-            "sha256": "a" * 64,
-            "format": "linear-i16-v1",
-            "encoding_id": "encoding",
-            "units": "C",
-            "parameter": "parameter",
-            "level": "level",
-            "valid_min": 0,
-            "valid_max": 1,
-            "grid_id": "grid",
-            "grid": {
-                "crs": "EPSG:4326",
-                "nx": 1,
-                "ny": 1,
-                "lon0": 0,
-                "lat0": 0,
-                "dx": 1,
-                "dy": 1,
-                "origin": "cell_center",
-                "layout": "row_major",
-                "x_wrap": "repeat",
-                "y_mode": "clamp",
-            },
-            "components": ["value"],
-            "style": {
-                "layer_id": "scalar",
-                "palette_id": "palette",
-            },
+        "product": product_marker_payload(payload_uri=payload_uri),
+    }
+
+
+def product_marker_payload(*, payload_uri: str = "file:///payload.bin", **overrides: Any) -> dict[str, Any]:
+    payload = {
+        "payload_uri": payload_uri,
+        "byte_length": 1,
+        "sha256": "a" * 64,
+        "format": "linear-i16-v1",
+        "encoding_id": "encoding",
+        "units": "C",
+        "parameter": "parameter",
+        "level": "level",
+        "valid_min": 0,
+        "valid_max": 1,
+        "grid_id": "grid",
+        "grid": {
+            "crs": "EPSG:4326",
+            "nx": 1,
+            "ny": 1,
+            "lon0": 0,
+            "lat0": 0,
+            "dx": 1,
+            "dy": 1,
+            "origin": "cell_center",
+            "layout": "row_major",
+            "x_wrap": "repeat",
+            "y_mode": "clamp",
+        },
+        "components": ["value"],
+        "style": {
+            "layer_id": "scalar",
+            "palette_id": "palette",
         },
     }
+    payload.update(overrides)
+    return payload
 
 
 def success_marker_payload_from_uri(uri: str) -> dict[str, Any]:
@@ -242,7 +206,3 @@ def iso_utc(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
