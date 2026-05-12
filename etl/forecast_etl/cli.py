@@ -14,11 +14,11 @@ import os
 
 from .config.parse import load_pipeline_config
 from .config.schema import PipelineConfig
+from .cycles import parse_cycle
 from .pipeline.run import run_cycle, run_hour
-from .sources.gfs_layout import (
+from .uris import (
     default_artifact_root_uri,
     default_pipeline_config_uri,
-    parse_cycle,
 )
 
 

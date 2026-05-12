@@ -1,4 +1,4 @@
-"""Worker orchestration for product artifact generation."""
+"""Run one forecast hour through source acquisition and product generation."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from .artifacts.json import write_json
-from .artifacts.paths import ArtifactPaths, WorkItem
-from .config.schema import ExecutionContext, ModelConfig, ProductSpec
-from .models import acquire_prepared_source
-from .proc import make_runner
-from .products.execute import run_product_item_in_workdir
-from .stores import make_store
+from ..artifacts.json import write_json
+from ..artifacts.paths import ArtifactPaths, WorkItem
+from ..config.schema import ExecutionContext, ModelConfig, ProductSpec
+from ..models import acquire_prepared_source
+from ..proc import make_runner
+from ..products.execute import run_product_item_in_workdir
+from ..stores import make_store
 
 
 def _write_success_marker(*, ctx: ExecutionContext, item: WorkItem, store, payload: Mapping[str, object]) -> None:

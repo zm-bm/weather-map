@@ -6,10 +6,12 @@ import time
 from pathlib import Path
 
 from ..config.schema import SOURCE_TYPE_GFS_NOMADS, ModelConfig
+from ..cycles import parse_cycle
 from ..sources import nomads
-from ..sources.gfs_layout import default_etl_dir, file_uri, grib_cache_path, parse_cycle
+from ..sources.gfs_layout import grib_cache_path
 from ..sources.prepared import PreparedSource
 from ..stores.base import UriStore
+from ..uris import default_etl_dir, file_uri
 
 
 def acquire_prepared_source(

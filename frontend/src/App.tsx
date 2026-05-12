@@ -1,9 +1,11 @@
 import './styles/index.css'
 
 import { useEffect, useState } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import AppStatusHost from './components/AppStatusHost'
 import ForecastShell from './components/ForecastShell/ForecastShell'
+import HealthPage from './health/HealthPage'
 import { useManifest } from './manifest/useManifest'
 import { AppStatusProvider, useAppStatusActions } from './app-status'
 import {
@@ -13,6 +15,17 @@ import {
 } from './forecast-models'
 
 function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/health/*" element={<HealthPage />} />
+        <Route path="*" element={<ForecastApp />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+function ForecastApp() {
   return (
     <AppStatusProvider>
       <AppContent />

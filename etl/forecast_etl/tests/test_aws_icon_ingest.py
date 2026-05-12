@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import unittest
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 from forecast_etl.artifacts.paths import ArtifactPaths
@@ -154,22 +153,6 @@ class IconIngestTest(unittest.TestCase):
         self.ddb = _FakeDynamoClient()
         self.store = _FakeStore()
         self.model = _FakeModel()
-
-    def test_candidate_cycles_defaults_to_latest_synoptic_cycle(self) -> None:
-        cycles = icon_ingest._candidate_cycles(
-            now=datetime(2026, 5, 11, 13, 14, tzinfo=timezone.utc),
-            cycle_count=1,
-        )
-
-        self.assertEqual(cycles, ("2026051112",))
-
-    def test_candidate_cycles_can_include_previous_synoptic_cycle(self) -> None:
-        cycles = icon_ingest._candidate_cycles(
-            now=datetime(2026, 5, 11, 1, 14, tzinfo=timezone.utc),
-            cycle_count=2,
-        )
-
-        self.assertEqual(cycles, ("2026051100", "2026051018"))
 
     def _run(self, *, ready, publish_result: bool = False) -> dict:
         def fake_client(name: str):

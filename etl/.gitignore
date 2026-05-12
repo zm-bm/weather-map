@@ -1,5 +1,6 @@
 cache/*
 !cache/README.md
+build/
 dist/
 .venv/
 **/__pycache__/

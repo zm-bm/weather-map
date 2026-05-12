@@ -129,7 +129,6 @@ exit 1
         script_text = self.script.read_text(encoding="utf-8")
 
         self.assertIn("list-forecast-hours", script_text)
-        self.assertIn("resolve_forecast_hours_with_worker", script_text)
         self.assertNotIn("import json", script_text)
         self.assertNotIn("python3 -", script_text)
         self.assertNotIn("docker run -i --rm --entrypoint python", script_text)

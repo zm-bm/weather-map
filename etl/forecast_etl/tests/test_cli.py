@@ -301,14 +301,5 @@ class CliTest(unittest.TestCase):
 
         self.assertIn("Unknown model 'icon'", str(raised.exception))
 
-    def test_smoke_prints_hello_world(self) -> None:
-        out = io.StringIO()
-        with redirect_stdout(out):
-            result = cli.main(["smoke"])
-
-        self.assertEqual(result, 0)
-        self.assertEqual(out.getvalue().strip(), "hello world")
-
-
 if __name__ == "__main__":
     unittest.main()

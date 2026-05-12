@@ -6,7 +6,7 @@ import hashlib
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 import boto3  # type: ignore
@@ -14,8 +14,9 @@ import boto3  # type: ignore
 from ..artifacts.paths import ArtifactPaths
 from ..config.parse import load_pipeline_config
 from ..config.schema import ModelConfig
+from ..cycles import latest_synoptic_cycles
 from ..manifest.publish import run_publish
-from ..models.icon import icon_dwd_url, required_icon_params
+from ..sources.icon_dwd import icon_dwd_url, required_icon_params
 from ..stores import make_store
 from ..stores.base import UriStore
 
@@ -25,7 +26,6 @@ DEFAULT_LEASE_SECONDS = 14400
 DEFAULT_STATE_TTL_SECONDS = 14 * 24 * 60 * 60
 DEFAULT_READY_MIN_BYTES = 1024
 MODEL_ID = "icon"
-SYNOPTIC_CYCLE_HOURS = (0, 6, 12, 18)
 DEFAULT_SENTINEL_PARAMS = ("t_2m", "u_10m", "v_10m", "pmsl", "clct")
 RETRYABLE_HTTP_CODES = {403, 404, 408, 409, 425, 429, 500, 502, 503, 504}
 
@@ -83,15 +83,7 @@ def _event_now(event: dict[str, Any]) -> datetime:
 def _candidate_cycles(*, now: datetime, cycle_count: int) -> tuple[str, ...]:
     """Return the latest synoptic cycles newest first."""
 
-    floor_hour = max(hour for hour in SYNOPTIC_CYCLE_HOURS if hour <= now.hour)
-    cursor = now.replace(hour=floor_hour, minute=0, second=0, microsecond=0)
-    cycles: list[str] = []
-
-    for _ in range(cycle_count):
-        cycles.append(cursor.strftime("%Y%m%d%H"))
-        cursor -= timedelta(hours=6)
-
-    return tuple(cycles)
+    return latest_synoptic_cycles(now=now, count=cycle_count)
 
 
 def _url_ready(url: str, *, min_bytes: int) -> bool:

@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlparse
 
-from .base import UriStore
+from ..uris import file_uri
+from .base import UriObject, UriStore
 from .http import HttpStore
 from .local_fs import LocalFSStore
 from .s3 import S3Store
@@ -46,10 +47,10 @@ class RoutingStore(UriStore):
             p = Path(uri).expanduser()
             # Preserve "directory-ish" intent for prefixes
             wants_trailing_slash = uri.endswith(("/", "/."))
-            file_uri = p.resolve().as_uri()
-            if wants_trailing_slash and not file_uri.endswith("/"):
-                file_uri += "/"
-            return store, file_uri
+            normalized_uri = file_uri(p)
+            if wants_trailing_slash and not normalized_uri.endswith("/"):
+                normalized_uri += "/"
+            return store, normalized_uri
 
         return store, uri
 
@@ -68,6 +69,10 @@ class RoutingStore(UriStore):
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
         store, u = self._route(prefix_uri)
         return store.list_prefix(prefix_uri=u)
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
+        store, u = self._route(prefix_uri)
+        return store.list_objects(prefix_uri=u)
 
     def get_to_file(self, *, uri: str, dst: Path) -> None:
         store, u = self._route(uri)

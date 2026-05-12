@@ -15,7 +15,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from .gfs_layout import grib_name, parse_cycle
+from ..cycles import parse_cycle
+from .gfs_layout import grib_name
 
 
 def nomads_url(*, base_url: str, vars_levels: dict[str, str], cycle: str, fhour: str) -> str:

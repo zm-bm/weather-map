@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { Plugin } from 'vite'
 
 const DEV_ARTIFACT_ORIGIN = process.env.VITE_DEV_ARTIFACT_PROXY_TARGET ?? 'http://localhost:3000'
+const DEV_API_ORIGIN = process.env.VITE_DEV_API_PROXY_TARGET ?? 'http://localhost:8000'
 const DEV_ARTIFACT_DELAY_MS = Math.max(
   0,
   Number.parseInt(
@@ -52,6 +53,10 @@ export default defineConfig({
       },
       '/glyphs': {
         target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+      '/api': {
+        target: DEV_API_ORIGIN,
         changeOrigin: true,
       },
     },

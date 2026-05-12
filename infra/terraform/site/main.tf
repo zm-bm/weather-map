@@ -19,6 +19,8 @@ locals {
     default_ttl = 300
     max_ttl     = 86400
   }
+  weather_map_api_app_header_value = "weather-map-api"
+  backend_lambda_zip_path          = abspath("${path.root}/../../../backend/dist/weather-map-backend-lambda.zip")
 }
 
 data "terraform_remote_state" "weather_etl" {
@@ -45,9 +47,13 @@ module "static_site" {
   enabled              = true
   www_redirect_domain  = ""
   response_headers     = {}
-  spa_fallback_enabled = null
+  spa_fallback_enabled = true
   artifact_origin      = local.weather_map_artifact_origin
-  api_proxy            = null
+  api_proxy = {
+    origin_domain    = data.aws_lb.edge.dns_name
+    app_header_value = local.weather_map_api_app_header_value
+    path_pattern     = "/api/*"
+  }
   tags = {
     Env       = "prod"
     ManagedBy = "terraform"

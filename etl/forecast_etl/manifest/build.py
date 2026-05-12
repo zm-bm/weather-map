@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Iterable, Mapping
 
 from ..artifacts.paths import ArtifactPaths
 from ..config.groups import DEFAULT_PRODUCT_GROUP_ID, DEFAULT_PRODUCT_GROUP_LABEL
 from ..config.schema import ProductGroup, ProductSpec
+from ..cycles import cycle_datetime
 from ..stores.base import UriStore
 from ..validation import validated_dict
 from ._markers import product_manifest_inputs_from_markers
@@ -61,7 +62,6 @@ def build_manifest_products(
     *,
     store: UriStore,
     paths: ArtifactPaths,
-    artifact_root_uri: str,
     model_id: str,
     cycle: str,
     fhours: Iterable[str],
@@ -81,7 +81,6 @@ def build_manifest_products(
         marker_inputs = product_manifest_inputs_from_markers(
             store=store,
             paths=paths,
-            artifact_root_uri=artifact_root_uri,
             model_id=model_id,
             cycle=cycle,
             fhours=fhours,
@@ -151,7 +150,7 @@ def build_cycle_manifest(
 def _manifest_times(*, cycle: str, fhours: Iterable[str]) -> list[dict[str, object]]:
     """Build manifest time entries from a cycle and forecast-hour ids."""
 
-    cycle_dt = _parse_cycle(cycle)
+    cycle_dt = cycle_datetime(cycle)
     times: list[dict[str, object]] = []
     for fhour in fhours:
         lead_hours = int(fhour)
@@ -163,7 +162,3 @@ def _manifest_times(*, cycle: str, fhours: Iterable[str]) -> list[dict[str, obje
             )
         )
     return times
-
-
-def _parse_cycle(cycle: str) -> datetime:
-    return datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)

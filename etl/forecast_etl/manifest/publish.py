@@ -7,11 +7,14 @@ from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
 from ..artifacts.json import read_json, write_json
-from ..artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths
+from ..artifacts.names import SUCCESS_MARKER_SUFFIX
+from ..artifacts.paths import ArtifactPaths
+from ..artifacts.published import parse_published_marker, published_marker_dict
 from ..config.schema import ExecutionContext, ProductGroup, ProductSpec
 from ..stores import make_store
 from ..stores.base import UriStore
 from .build import build_cycle_manifest, build_manifest_products, product_groups_for_manifest
+from .inspect import manifest_info_from_obj
 
 
 @dataclass(frozen=True)
@@ -75,7 +78,6 @@ def run_publish(
     manifest_products = build_manifest_products(
         store=store,
         paths=paths,
-        artifact_root_uri=ctx.artifact_root_uri,
         model_id=ctx.model_id,
         cycle=cycle,
         fhours=fhours,
@@ -123,13 +125,13 @@ def run_publish(
         write_json(
             store=store,
             uri=published_uri,
-            obj={
-                "cycle": cycle,
-                "model": ctx.model_id,
-                "generated_at": generated_at,
-                "revision": revision,
-                "manifest_uri": cycle_manifest_uri,
-            },
+            obj=published_marker_dict(
+                cycle=cycle,
+                model=ctx.model_id,
+                generated_at=generated_at,
+                revision=revision,
+                manifest_uri=cycle_manifest_uri,
+            ),
         )
 
     print(f"Published: {cycle_manifest_uri}")
@@ -170,8 +172,13 @@ def _is_already_published(
     if not store.exists(uri=published_uri):
         return False
 
-    previous = read_json(store=store, uri=published_uri)
-    previous_revision = str(previous.get("revision", "")).strip()
+    try:
+        previous = parse_published_marker(read_json(store=store, uri=published_uri), uri=published_uri)
+    except (Exception, SystemExit) as exc:
+        print(f"Unable to parse existing publish marker {published_uri}; republishing: {exc}")
+        return False
+
+    previous_revision = previous.revision
     if previous_revision == revision and store.exists(uri=cycle_manifest_uri):
         print(f"Already published (same revisions): {published_uri}")
         return True
@@ -221,11 +228,8 @@ def _read_latest_cycle(*, store: UriStore, latest_manifest_uri: str) -> str | No
         print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
         return None
 
-    run = latest.get("run")
-    cycle_raw = run.get("cycle") if isinstance(run, dict) else None
-    if isinstance(cycle_raw, str) and cycle_raw.strip():
-        return cycle_raw.strip()
-    return None
+    info = manifest_info_from_obj(latest)
+    return info.cycle if info is not None else None
 
 
 def _utc_now_iso() -> str:

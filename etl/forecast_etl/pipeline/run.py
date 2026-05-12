@@ -11,9 +11,9 @@ from ..config.schema import (
     ModelConfig,
     ProductSpec,
 )
+from ..cycles import parse_cycle
 from ..manifest.publish import run_publish
-from ..sources.gfs_layout import parse_cycle
-from ..worker import run_process_hour
+from .hour import run_process_hour
 
 HourTask = tuple[
     ExecutionContext,

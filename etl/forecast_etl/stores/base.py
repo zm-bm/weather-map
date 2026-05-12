@@ -6,8 +6,19 @@ against local disk, S3, or read-only HTTP sources.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
+
+
+@dataclass(frozen=True)
+class UriObject:
+    """One object listed from a URI store."""
+
+    uri: str
+    last_modified: datetime | None = None
+    size: int | None = None
 
 
 class UriStore(Protocol):
@@ -29,6 +40,10 @@ class UriStore(Protocol):
 
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
         """List object URIs under a prefix URI."""
+        ...
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
+        """List objects and available metadata under a prefix URI."""
         ...
 
     def get_to_file(self, *, uri: str, dst: Path) -> None:

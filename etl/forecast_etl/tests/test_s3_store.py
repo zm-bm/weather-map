@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -20,6 +21,7 @@ class FakeS3Client:
         self.payload = payload
         self.put_object_calls: list[dict[str, object]] = []
         self.upload_fileobj_calls: list[dict[str, object]] = []
+        self.list_pages: list[dict[str, object]] = []
 
     def download_fileobj(self, bucket: str, key: str, handle) -> None:
         self.bucket = bucket
@@ -36,6 +38,20 @@ class FakeS3Client:
             "body": handle.read(),
             "ExtraArgs": ExtraArgs,
         })
+
+    def get_paginator(self, name: str):
+        self.paginator_name = name
+        return _FakePaginator(self.list_pages)
+
+
+class _FakePaginator:
+    def __init__(self, pages: list[dict[str, object]]) -> None:
+        self.pages = pages
+        self.paginate_calls: list[dict[str, object]] = []
+
+    def paginate(self, **kwargs: object):
+        self.paginate_calls.append(kwargs)
+        return self.pages
 
 
 class S3StoreTests(unittest.TestCase):
@@ -138,6 +154,31 @@ class S3StoreTests(unittest.TestCase):
         self.assertEqual(call["ContentEncoding"], "gzip")
         self.assertEqual(gzip.decompress(cast(bytes, call["Body"])), payload)
         self.assertEqual(client.upload_fileobj_calls, [])
+
+    def test_list_objects_returns_s3_metadata(self) -> None:
+        modified = datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)
+        client = FakeS3Client()
+        client.list_pages = [
+            {
+                "Contents": [
+                    {"Key": "status/gfs/2026042700/tmp/000._SUCCESS.json", "LastModified": modified, "Size": 2},
+                    {"Key": "status/gfs/2026042700/_PUBLISHED.json", "LastModified": modified, "Size": 3},
+                ]
+            }
+        ]
+        store = S3Store()
+
+        with patch.object(S3Store, "_client", return_value=client):
+            objects = store.list_objects(prefix_uri="s3://example-bucket/status/gfs/2026042700/")
+
+        self.assertEqual(client.paginator_name, "list_objects_v2")
+        self.assertEqual(
+            [(obj.uri, obj.last_modified, obj.size) for obj in objects],
+            [
+                ("s3://example-bucket/status/gfs/2026042700/_PUBLISHED.json", modified, 3),
+                ("s3://example-bucket/status/gfs/2026042700/tmp/000._SUCCESS.json", modified, 2),
+            ],
+        )
 
 
 if __name__ == "__main__":

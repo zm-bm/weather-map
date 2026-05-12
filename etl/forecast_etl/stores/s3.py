@@ -6,6 +6,7 @@ Supports `s3://bucket/key` URIs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -13,7 +14,7 @@ import boto3  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
 from .artifact_encoding import encode_artifact_body, is_gzip_encoded_artifact_key
-from .base import UriStore
+from .base import UriObject, UriStore
 
 LATEST_MANIFEST_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=60"
 FORECAST_ARTIFACT_CACHE_CONTROL = "public, max-age=3600, s-maxage=21600, stale-while-revalidate=300"
@@ -120,16 +121,25 @@ class S3Store(UriStore):
             raise
 
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
+        return [obj.uri for obj in self.list_objects(prefix_uri=prefix_uri)]
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
         bucket, prefix = self._parse_s3_uri(prefix_uri)
         s3 = self._client()
         paginator = s3.get_paginator("list_objects_v2")
-        items: list[str] = []
+        items: list[UriObject] = []
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             for obj in page.get("Contents", []) or []:
                 key = obj.get("Key")
                 if isinstance(key, str) and key:
-                    items.append(f"s3://{bucket}/{key}")
-        items.sort()
+                    items.append(
+                        UriObject(
+                            uri=f"s3://{bucket}/{key}",
+                            last_modified=_optional_datetime(obj.get("LastModified")),
+                            size=_optional_int(obj.get("Size")),
+                        )
+                    )
+        items.sort(key=lambda item: item.uri)
         return items
 
     def get_to_file(self, *, uri: str, dst: Path) -> None:
@@ -172,3 +182,15 @@ class S3Store(UriStore):
                 key,
                 ExtraArgs=extra_args,
             )
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _optional_int(value: object) -> int | None:
+    return value if isinstance(value, int) else None

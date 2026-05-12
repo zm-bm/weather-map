@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..encoding.codecs import payload_suffix_for_dtype
-from ..sources.gfs_layout import join_uri
+from ..uris import join_uri
+from .names import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX
 
 
 def _safe_segment(value: str) -> str:
@@ -51,9 +52,6 @@ class WorkItem:
             raise ValueError("source_uri must be non-empty")
         if self.product_id is not None:
             _ = _safe_segment(self.product_id)  # validate product segment
-
-
-SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
 
 
 @dataclass(frozen=True)
@@ -111,7 +109,7 @@ class ArtifactPaths:
 
     def published_marker_uri(self, *, model_id: str, cycle: str) -> str:
         """Marker written by publish role when the cycle is published."""
-        path = ["status", _safe_segment(model_id), _safe_segment(cycle), "_PUBLISHED.json"]
+        path = ["status", _safe_segment(model_id), _safe_segment(cycle), PUBLISHED_MARKER_FILENAME]
         return join_uri(self.artifact_root_uri, path)
 
     def manifest_cycle_uri(self, *, model_id: str, cycle: str) -> str:
@@ -119,7 +117,23 @@ class ArtifactPaths:
         path = ["manifests", _safe_segment(model_id), f"{_safe_segment(cycle)}.json"]
         return join_uri(self.artifact_root_uri, path)
 
+    def manifest_prefix_uri(self, *, model_id: str) -> str:
+        """Prefix under which cycle manifests live: {root}/manifests/{model}/"""
+        path = ["manifests", _safe_segment(model_id)]
+        return join_uri(self.artifact_root_uri, path)
+
     def manifest_latest_uri(self, *, model_id: str) -> str:
         """Canonical latest manifest alias: {root}/manifests/{model}/latest.json"""
         path = ["manifests", _safe_segment(model_id), "latest.json"]
         return join_uri(self.artifact_root_uri, path)
+
+    def relative_key(self, uri: str) -> str:
+        """Return an artifact URI relative to the artifact root."""
+
+        root = self.artifact_root_uri.rstrip("/")
+        if uri == root:
+            return ""
+        prefix = f"{root}/"
+        if not uri.startswith(prefix):
+            raise ValueError(f"Artifact URI is not under root: uri={uri!r} root={self.artifact_root_uri!r}")
+        return uri[len(prefix) :]

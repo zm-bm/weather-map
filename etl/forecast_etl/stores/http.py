@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from .base import UriStore
+from .base import UriObject, UriStore
 
 
 @dataclass(frozen=True)
@@ -51,6 +51,9 @@ class HttpStore(UriStore):
 
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
         raise NotImplementedError("HttpStore does not support list_prefix")
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
+        raise NotImplementedError("HttpStore does not support list_objects")
 
     def get_to_file(self, *, uri: str, dst: Path) -> None:
         self._check_scheme(uri)

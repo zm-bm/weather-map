@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
-from ..sources.gfs_layout import path_from_file_uri
+from ..uris import path_from_file_uri
 from .artifact_encoding import encode_artifact_body, is_gzip_encoded_artifact_key
-from .base import UriStore
+from .base import UriObject, UriStore
 
 
 @dataclass(frozen=True)
@@ -38,16 +39,19 @@ class LocalFSStore(UriStore):
         return path_from_file_uri(uri).exists()
 
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
+        return [obj.uri for obj in self.list_objects(prefix_uri=prefix_uri)]
+
+    def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
         prefix_path = path_from_file_uri(prefix_uri)
         if prefix_path.is_file():
-            return [prefix_uri]
+            return [self._object(prefix_path)]
         if not prefix_path.exists():
             return []
-        items: list[str] = []
+        items: list[UriObject] = []
         for p in prefix_path.rglob("*"):
             if p.is_file():
-                items.append(f"file://{p.as_posix()}")
-        items.sort()
+                items.append(self._object(p))
+        items.sort(key=lambda obj: obj.uri)
         return items
 
     def get_to_file(self, *, uri: str, dst: Path) -> None:
@@ -68,3 +72,11 @@ class LocalFSStore(UriStore):
 
         shutil.copyfile(src, tmp)
         tmp.replace(dst)
+
+    def _object(self, path: Path) -> UriObject:
+        stat = path.stat()
+        return UriObject(
+            uri=path.as_uri(),
+            last_modified=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+            size=stat.st_size,
+        )

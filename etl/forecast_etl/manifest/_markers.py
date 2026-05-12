@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib.parse import urlparse
 
 from ..artifacts.markers import ProductMarkerPayload, read_product_success_marker
 from ..artifacts.paths import ArtifactPaths
@@ -27,7 +26,6 @@ def product_manifest_inputs_from_markers(
     *,
     store: UriStore,
     paths: ArtifactPaths,
-    artifact_root_uri: str,
     model_id: str,
     cycle: str,
     fhours: tuple[str, ...],
@@ -90,7 +88,7 @@ def product_manifest_inputs_from_markers(
             )
 
         frames[fhour] = manifest_frame(
-            path=_relative_artifact_path(artifact_root_uri=artifact_root_uri, uri=product_marker.payload_uri),
+            path=_relative_artifact_path(paths=paths, uri=product_marker.payload_uri),
             byte_length=product_marker.byte_length,
             sha256=product_marker.sha256,
         )
@@ -164,21 +162,13 @@ def _assert_fields_match(
             )
 
 
-def _relative_artifact_path(*, artifact_root_uri: str, uri: str) -> str:
+def _relative_artifact_path(*, paths: ArtifactPaths, uri: str) -> str:
     """Return a manifest path for a payload URI under the artifact root."""
 
-    root = urlparse(artifact_root_uri)
-    target = urlparse(uri)
-    if root.scheme != target.scheme or root.netloc != target.netloc:
-        raise SystemExit(f"Cannot derive relative artifact path: root={artifact_root_uri!r} uri={uri!r}")
-
-    root_path = root.path.rstrip("/")
-    target_path = target.path
-    prefix = f"{root_path}/" if root_path else "/"
-    if not target_path.startswith(prefix):
-        raise SystemExit(f"Payload URI is outside artifact root: root={artifact_root_uri!r} uri={uri!r}")
-
-    rel = target_path[len(prefix):]
+    try:
+        rel = paths.relative_key(uri)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
     if not rel:
         raise SystemExit(f"Payload URI resolved to empty relative path: {uri!r}")
     return rel

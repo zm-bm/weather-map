@@ -13,7 +13,8 @@ from unittest.mock import patch
 from forecast_etl.config.parse import parse_pipeline_config
 from forecast_etl.config.schema import IconDwdConfig, ModelConfig, ModelSourceConfig, WorkloadConfig
 from forecast_etl.models import acquire_prepared_source
-from forecast_etl.models.icon import icon_dwd_filename, icon_dwd_url
+from forecast_etl.sources import icon_dwd
+from forecast_etl.sources.icon_dwd import icon_dwd_filename, icon_dwd_url
 from forecast_etl.stores import make_store
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.products import minimal_product_config, product_spec
@@ -209,8 +210,6 @@ class ModelSourceAdapterTest(unittest.TestCase):
         self.assertIn("description file not found", str(raised.exception))
 
     def test_icon_download_http_404_is_retryable_until_wait_expires(self) -> None:
-        from forecast_etl.models import icon
-
         error = urllib.error.HTTPError(
             url="https://example.test/icon.grib2.bz2",
             code=404,
@@ -223,17 +222,15 @@ class ModelSourceAdapterTest(unittest.TestCase):
             out_path = Path(td) / "icon.grib2.bz2"
             with (
                 patch.dict(os.environ, {"ICON_SOURCE_WAIT_SECONDS": "0", "ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
-                patch("forecast_etl.models.icon.urllib.request.urlopen", side_effect=error),
+                patch("forecast_etl.sources.icon_dwd.urllib.request.urlopen", side_effect=error),
             ):
                 with self.assertRaises(SystemExit) as raised:
-                    icon._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
+                    icon_dwd._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
 
         self.assertIn("ICON DWD source not ready after waiting", str(raised.exception))
         self.assertIn("HTTP 404 Not Found", str(raised.exception))
 
     def test_icon_download_retries_then_succeeds(self) -> None:
-        from forecast_etl.models import icon
-
         error = urllib.error.HTTPError(
             url="https://example.test/icon.grib2.bz2",
             code=404,
@@ -254,13 +251,13 @@ class ModelSourceAdapterTest(unittest.TestCase):
                     },
                     clear=False,
                 ),
-                patch("forecast_etl.models.icon.time.sleep"),
+                patch("forecast_etl.sources.icon_dwd.time.sleep"),
                 patch(
-                    "forecast_etl.models.icon.urllib.request.urlopen",
+                    "forecast_etl.sources.icon_dwd.urllib.request.urlopen",
                     side_effect=[error, _FakeHttpResponse(b"payload")],
                 ),
             ):
-                downloaded = icon._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
+                downloaded = icon_dwd._download_if_needed("https://example.test/icon.grib2.bz2", out_path)
             output_bytes = out_path.read_bytes()
 
         self.assertTrue(downloaded)
@@ -310,7 +307,7 @@ class ModelSourceAdapterTest(unittest.TestCase):
                 patch("forecast_etl.models.icon.time.sleep"),
                 patch("forecast_etl.models.icon._regrid_if_needed", side_effect=fake_regrid),
                 patch(
-                    "forecast_etl.models.icon.urllib.request.urlopen",
+                    "forecast_etl.sources.icon_dwd.urllib.request.urlopen",
                     side_effect=[
                         _FakeHttpResponse(b"not-bzip2"),
                         _FakeHttpResponse(bz2.compress(b"grib")),
