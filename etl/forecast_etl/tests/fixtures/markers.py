@@ -43,29 +43,6 @@ def write_scalar_marker(
     )
 
 
-def write_cloud_layers_marker(
-    *,
-    store,
-    ap: ArtifactPaths,
-    cycle: str,
-    fhour: str,
-    variable: str,
-    source_values_by_component: dict[str, list[float]],
-    product_config: dict,
-    grid_meta: dict[str, Any],
-) -> None:
-    write_product_marker(
-        store=store,
-        ap=ap,
-        cycle=cycle,
-        fhour=fhour,
-        product_id=variable,
-        product_config=product_config,
-        grid_meta=grid_meta,
-        source_values_by_component=source_values_by_component,
-    )
-
-
 def write_vector_marker(
     *,
     store,

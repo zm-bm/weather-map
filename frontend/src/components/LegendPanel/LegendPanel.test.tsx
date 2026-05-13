@@ -13,11 +13,11 @@ import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
-  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'cloud_layers'
+  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
 ) {
   return createManifestFixture({
     cycle: '2026041100',
-    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'cloud_layers'])),
+    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'low_clouds'])),
     groups: [
       {
         id: 'temperature',
@@ -44,8 +44,8 @@ function createLegendSelectionManifest(
         id: 'atmosphere',
         layerId: 'scalar',
         label: 'Atmosphere',
-        defaultProduct: asScalarProductId('cloud_layers'),
-        products: [asScalarProductId('cloud_layers')],
+        defaultProduct: asScalarProductId('low_clouds'),
+        products: [asScalarProductId('low_clouds')],
       },
     ],
     vectorProducts: ['wind10m_uv'],
@@ -65,10 +65,11 @@ function createLegendSelectionManifest(
         parameter: 'prate',
         valueRange: { min: 0, max: 30 },
       }),
-      cloud_layers: createScalarProductFixture({
-        label: 'Cloud Layers',
+      low_clouds: createScalarProductFixture({
+        id: asScalarProductId('low_clouds'),
+        label: 'Low Clouds',
         units: '%',
-        parameter: 'cloud_layers',
+        parameter: 'low_clouds',
         valueRange: { min: 0, max: 100 },
       }),
       wind10m_uv: createVectorProductFixture(),
@@ -76,7 +77,7 @@ function createLegendSelectionManifest(
   })
 }
 
-function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'cloud_layers' = 'tmp_surface') {
+function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
       <ForecastPanel
@@ -135,14 +136,11 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('0.000')
   })
 
-  it('shows compact cloud layer swatches for the packed cloud layer measurement', () => {
-    const { container } = renderLegendHarness('cloud_layers')
+  it('shows normal scalar legend for low clouds', () => {
+    const { container } = renderLegendHarness('low_clouds')
 
-    expect(screen.getByLabelText('Cloud Layers units %.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Cloud layer tones')).toBeInTheDocument()
-    expect(screen.getByText('Low')).toBeInTheDocument()
-    expect(screen.getByText('Mid')).toBeInTheDocument()
-    expect(screen.getByText('High')).toBeInTheDocument()
-    expect(container.querySelector('.legend-panel__scale')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Low Clouds units %.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Cloud layer tones')).not.toBeInTheDocument()
+    expect(container.querySelector('.legend-panel__scale')).toBeInTheDocument()
   })
 })

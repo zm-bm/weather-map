@@ -178,46 +178,14 @@ describe('parseCycleManifest', () => {
     expect(() => parseCycleManifest(payload)).toThrow('expected -128')
   })
 
-  it('accepts packed cloud layer scalar products with product-level components', () => {
+  it('preserves vector product component order as payload layout', () => {
     const payload = createCycleManifestPayloadFixture()
-    tmpProduct(payload).components = ['low', 'medium', 'high']
-    tmpProduct(payload).style = {
-      layerId: 'scalar',
-      paletteId: 'cloud.layers.percent.v1',
-    }
-    tmpProduct(payload).encoding = {
-      id: 'e0',
-      format: 'linear-i8-v1',
-      dtype: 'int8',
-      byteOrder: 'none',
-      nodata: -128,
-      scale: 5,
-      offset: 0,
-      decodeFormula: 'value = stored * scale + offset',
-    }
+    const products = payload.products as Record<string, { components: string[] }>
+    products.wind10m_uv.components = ['v', 'u']
 
     const manifest = parseCycleManifest(payload)
 
-    expect(manifest.products.tmp_surface.components).toEqual(['low', 'medium', 'high'])
-    expect(manifest.products.tmp_surface.encoding).toEqual({
-      id: 'e0',
-      format: 'linear-i8-v1',
-      dtype: 'int8',
-      byteOrder: 'none',
-      nodata: -128,
-      scale: 5,
-      offset: 0,
-      decodeFormula: 'value = stored * scale + offset',
-    })
-  })
-
-  it('preserves packed product component order as payload layout', () => {
-    const payload = createCycleManifestPayloadFixture()
-    tmpProduct(payload).components = ['medium', 'low', 'high']
-
-    const manifest = parseCycleManifest(payload)
-
-    expect(manifest.products.tmp_surface.components).toEqual(['medium', 'low', 'high'])
+    expect(manifest.products.wind10m_uv.components).toEqual(['v', 'u'])
   })
 
   it('parses explicit scalar product groups', () => {

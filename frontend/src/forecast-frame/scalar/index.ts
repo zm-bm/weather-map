@@ -1,4 +1,4 @@
 export {
   canInterpolateScalarFrames,
 } from './frame'
-export type { CloudLayerFrameValues, ScalarFrameData, ScalarFrameWindowData } from './types'
+export type { ScalarFrameData, ScalarFrameWindowData } from './types'

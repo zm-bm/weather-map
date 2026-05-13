@@ -1,12 +1,4 @@
 import type { ScalarEncodingSpec } from '../../manifest'
-import type { CloudLayerFrameValues } from './types'
-
-export type DecodedScalarPayload = {
-  values: Float32Array
-  cloudLayers?: CloudLayerFrameValues
-}
-
-type ScalarCloudLayerEncodingSpec = Extract<ScalarEncodingSpec, { format: 'linear-i8-v1', dtype: 'int8' }>
 type ScalarPayloadComponents = readonly string[]
 
 export function decodeScalarPayloadToValues(
@@ -14,29 +6,23 @@ export function decodeScalarPayloadToValues(
   encoding: ScalarEncodingSpec,
   components: ScalarPayloadComponents = ['value']
 ): Float32Array {
-  return decodeScalarPayload(payload, encoding, components).values
+  return decodeScalarPayload(payload, encoding, components)
 }
 
 export function decodeScalarPayload(
   payload: ArrayBuffer,
   encoding: ScalarEncodingSpec,
   components: ScalarPayloadComponents
-): DecodedScalarPayload {
-  const isSingleValue = components.length === 1
+): Float32Array {
+  validateScalarComponents(encoding.format, components)
   if (encoding.format === 'temp-c-piecewise-i8-v1') {
-    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
-    return { values: decodeTemperaturePiecewisePayload(payload, encoding.nodata) }
-  }
-  if (encoding.format === 'linear-i8-v1' && isCloudLayerComponents(components)) {
-    return decodeCloudLayerPayload(payload, encoding, components)
+    return decodeTemperaturePiecewisePayload(payload, encoding.nodata)
   }
   if (encoding.format === 'linear-i8-v1') {
-    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
-    return { values: decodeLinearValues(decodeScalarPayloadInt8(payload, encoding.byteOrder), encoding) }
+    return decodeLinearValues(decodeScalarPayloadInt8(payload, encoding.byteOrder), encoding)
   }
   if (encoding.format === 'linear-i16-v1') {
-    if (!isSingleValue) throw new Error(`Unsupported scalar components for ${encoding.format}: ${components.join(', ')}`)
-    return { values: decodeLinearValues(decodeScalarPayloadInt16(payload, encoding.byteOrder), encoding) }
+    return decodeLinearValues(decodeScalarPayloadInt16(payload, encoding.byteOrder), encoding)
   }
   throw new Error(
     `Unsupported scalar format for decoding: ${(encoding as unknown as { format?: string }).format ?? 'unknown'}`
@@ -106,72 +92,7 @@ function decodeLinearValues(
   return out
 }
 
-export function decodeCloudLayerPayload(
-  payload: ArrayBuffer,
-  encoding: ScalarCloudLayerEncodingSpec,
-  components: readonly ['low', 'medium', 'high']
-): DecodedScalarPayload {
-  const raw = decodeScalarPayloadInt8(payload, encoding.byteOrder)
-  const componentCount = components.length
-  if (raw.length % componentCount !== 0) {
-    throw new Error(
-      `Invalid cloud layer payload byte length: ${raw.length}; expected a multiple of ${componentCount}`
-    )
-  }
-
-  const componentCellCount = raw.length / componentCount
-  const low = decodeCloudLayerComponent(raw, 0, componentCellCount, encoding)
-  const medium = decodeCloudLayerComponent(raw, componentCellCount, componentCellCount, encoding)
-  const high = decodeCloudLayerComponent(raw, componentCellCount * 2, componentCellCount, encoding)
-  const values = new Float32Array(componentCellCount)
-
-  for (let idx = 0; idx < componentCellCount; idx += 1) {
-    const lowValue = low[idx]
-    const mediumValue = medium[idx]
-    const highValue = high[idx]
-    let maxValue = Number.isNaN(lowValue) ? Number.NaN : lowValue
-    if (!Number.isNaN(mediumValue)) {
-      maxValue = Number.isNaN(maxValue) ? mediumValue : Math.max(maxValue, mediumValue)
-    }
-    if (!Number.isNaN(highValue)) {
-      maxValue = Number.isNaN(maxValue) ? highValue : Math.max(maxValue, highValue)
-    }
-    values[idx] = maxValue
-  }
-
-  return {
-    values,
-    cloudLayers: {
-      low,
-      medium,
-      high,
-    },
-  }
-}
-
-function isCloudLayerComponents(
-  components: ScalarPayloadComponents
-): components is readonly ['low', 'medium', 'high'] {
-  return (
-    components.length === 3 &&
-    components[0] === 'low' &&
-    components[1] === 'medium' &&
-    components[2] === 'high'
-  )
-}
-
-function decodeCloudLayerComponent(
-  raw: Int8Array,
-  offset: number,
-  length: number,
-  encoding: ScalarCloudLayerEncodingSpec,
-): Float32Array {
-  const out = new Float32Array(length)
-  for (let idx = 0; idx < length; idx += 1) {
-    const stored = raw[offset + idx]
-    out[idx] = stored === encoding.nodata
-      ? Number.NaN
-      : (stored * encoding.scale) + encoding.offset
-  }
-  return out
+function validateScalarComponents(format: string, components: ScalarPayloadComponents): void {
+  if (components.length === 1 && components[0] === 'value') return
+  throw new Error(`Unsupported scalar components for ${format}: ${components.join(', ')}`)
 }

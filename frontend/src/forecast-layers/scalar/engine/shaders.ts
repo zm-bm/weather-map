@@ -32,7 +32,6 @@ uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
 uniform float u_opacity;
-uniform int u_render_mode;
 
 // Convert WebMercator Y back to latitude in degrees.
 float mercatorYToLatitude(float y) {
@@ -82,72 +81,6 @@ vec2 sampleScalarField(sampler2D scalarTex, int x0, int y0, int x1, int y1, floa
   return vec2(value, 1.0);
 }
 
-vec4 sampleCloudDecoded(sampler2D scalarTex, int x, int y) {
-  vec4 value = texelFetch(scalarTex, ivec2(x, y), 0);
-  if (value.a <= 0.0) {
-    return vec4(0.0);
-  }
-  return value;
-}
-
-vec4 sampleCloudField(sampler2D scalarTex, int x0, int y0, int x1, int y1, float w00, float w10, float w01, float w11) {
-  vec4 s00 = sampleCloudDecoded(scalarTex, x0, y0);
-  vec4 s10 = sampleCloudDecoded(scalarTex, x1, y0);
-  vec4 s01 = sampleCloudDecoded(scalarTex, x0, y1);
-  vec4 s11 = sampleCloudDecoded(scalarTex, x1, y1);
-
-  float totalWeight =
-    w00 * s00.a +
-    w10 * s10.a +
-    w01 * s01.a +
-    w11 * s11.a;
-
-  if (totalWeight <= 0.0) {
-    return vec4(0.0);
-  }
-
-  vec3 value =
-    (w00 * s00.rgb * s00.a +
-      w10 * s10.rgb * s10.a +
-      w01 * s01.rgb * s01.a +
-      w11 * s11.rgb * s11.a) / totalWeight;
-
-  return vec4(value, 1.0);
-}
-
-vec4 compositeOver(vec4 base, vec3 color, float alpha) {
-  float safeAlpha = clamp(alpha, 0.0, 1.0);
-  float outAlpha = safeAlpha + base.a * (1.0 - safeAlpha);
-  if (outAlpha <= 0.0) {
-    return vec4(0.0);
-  }
-  vec3 outRgb = ((color * safeAlpha) + (base.rgb * base.a * (1.0 - safeAlpha))) / outAlpha;
-  return vec4(outRgb, outAlpha);
-}
-
-vec4 renderCloudLayers(vec3 coverage) {
-  vec3 normalized = clamp(coverage / 100.0, 0.0, 1.0);
-  float strongestRaw = max(max(normalized.r, normalized.g), normalized.b);
-  if (strongestRaw <= 0.001) {
-    return vec4(0.0);
-  }
-
-  float low = smoothstep(0.02, 0.74, normalized.r);
-  float medium = smoothstep(0.02, 0.74, normalized.g);
-  float high = smoothstep(0.02, 0.74, normalized.b);
-
-  vec4 color = vec4(0.0);
-  color = compositeOver(color, vec3(0.43, 0.41, 0.35), low * 0.64);
-  color = compositeOver(color, vec3(1.0, 0.94, 0.64), medium * 0.66);
-
-  float highBand = step(0.5, fract((gl_FragCoord.x + gl_FragCoord.y * 0.72) * 0.075));
-  vec3 highColor = mix(vec3(0.08, 0.42, 1.0), vec3(0.46, 0.78, 1.0), highBand * 0.32);
-  color = compositeOver(color, highColor, high * 0.76);
-
-  color.a = min(color.a, 0.90);
-  return color;
-}
-
 void main() {
   float nx = u_grid_size.x;
   float ny = u_grid_size.y;
@@ -181,23 +114,6 @@ void main() {
   float w11 = tx * ty;
 
   float mixValue = clamp(u_time_mix, 0.0, 1.0);
-
-  if (u_render_mode == 1) {
-    vec4 lowerCloud = sampleCloudField(u_scalar_tex, x0, y0, x1, y1, w00, w10, w01, w11);
-    vec4 upperCloud = sampleCloudField(u_scalar_tex_upper, x0, y0, x1, y1, w00, w10, w01, w11);
-
-    if (lowerCloud.a <= 0.0 && upperCloud.a <= 0.0) {
-      outColor = vec4(0.0);
-      return;
-    }
-
-    vec3 cloudCoverage = lowerCloud.a <= 0.0
-      ? upperCloud.rgb
-      : (upperCloud.a <= 0.0 ? lowerCloud.rgb : mix(lowerCloud.rgb, upperCloud.rgb, mixValue));
-    vec4 cloudColor = renderCloudLayers(cloudCoverage);
-    outColor = vec4(cloudColor.rgb, cloudColor.a * u_opacity);
-    return;
-  }
 
   vec2 lower = sampleScalarField(u_scalar_tex, x0, y0, x1, y1, w00, w10, w01, w11);
   vec2 upper = sampleScalarField(u_scalar_tex_upper, x0, y0, x1, y1, w00, w10, w01, w11);

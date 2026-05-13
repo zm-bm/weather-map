@@ -198,19 +198,24 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
 
-  it('shows cloud layers as an Atmosphere measurement option', () => {
+  it('shows low medium and high clouds as Atmosphere measurement options', () => {
     render(
       <ForecastSelectionProvider
         manifest={createManifestFixture({
           cycle: '2026041118',
-          scalarProducts: ['tcdc', 'cloud_layers'],
+          scalarProducts: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
           groups: [
             {
               id: 'atmosphere',
               layerId: 'scalar',
               label: 'Atmosphere',
               defaultProduct: asScalarProductId('tcdc'),
-              products: [asScalarProductId('tcdc'), asScalarProductId('cloud_layers')],
+              products: [
+                asScalarProductId('tcdc'),
+                asScalarProductId('low_clouds'),
+                asScalarProductId('medium_clouds'),
+                asScalarProductId('high_clouds'),
+              ],
             },
           ],
           vectorProducts: ['wind10m_uv'],
@@ -221,10 +226,25 @@ describe('ForecastPanel', () => {
               parameter: 'tcdc',
               valueRange: { min: 0, max: 100 },
             }),
-            cloud_layers: createScalarProductFixture({
-              label: 'Cloud Layers',
+            low_clouds: createScalarProductFixture({
+              id: asScalarProductId('low_clouds'),
+              label: 'Low Clouds',
               units: '%',
-              parameter: 'cloud_layers',
+              parameter: 'low_clouds',
+              valueRange: { min: 0, max: 100 },
+            }),
+            medium_clouds: createScalarProductFixture({
+              id: asScalarProductId('medium_clouds'),
+              label: 'Medium Clouds',
+              units: '%',
+              parameter: 'medium_clouds',
+              valueRange: { min: 0, max: 100 },
+            }),
+            high_clouds: createScalarProductFixture({
+              id: asScalarProductId('high_clouds'),
+              label: 'High Clouds',
+              units: '%',
+              parameter: 'high_clouds',
               valueRange: { min: 0, max: 100 },
             }),
           },
@@ -236,12 +256,14 @@ describe('ForecastPanel', () => {
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
     expect(screen.getByRole('button', { name: 'Atmosphere' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('option', { name: 'Cloud Layers' })).toHaveValue('cloud_layers')
+    expect(screen.getByRole('option', { name: 'Low Clouds' })).toHaveValue('low_clouds')
+    expect(screen.getByRole('option', { name: 'Medium Clouds' })).toHaveValue('medium_clouds')
+    expect(screen.getByRole('option', { name: 'High Clouds' })).toHaveValue('high_clouds')
 
     fireEvent.change(measurement, {
-      target: { value: 'cloud_layers' },
+      target: { value: 'medium_clouds' },
     })
 
-    expect(measurement.value).toBe('cloud_layers')
+    expect(measurement.value).toBe('medium_clouds')
   })
 })

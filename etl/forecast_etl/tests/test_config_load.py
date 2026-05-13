@@ -13,7 +13,7 @@ from forecast_etl.tests.fixtures.pipeline import (
     model_product,
 )
 from forecast_etl.tests.fixtures.products import (
-    cloud_layers_config,
+    cloud_cover_config,
     minimal_product_config,
     precip_rate_config,
     precip_total_config,
@@ -38,7 +38,9 @@ class ConfigValidationTest(unittest.TestCase):
             "rh_surface",
             "prmsl_surface",
             "tcdc",
-            "cloud_layers",
+            "low_clouds",
+            "medium_clouds",
+            "high_clouds",
             "prate_surface",
             "precip_total_surface",
             "snow_depth_surface",
@@ -55,7 +57,9 @@ class ConfigValidationTest(unittest.TestCase):
             "rh_surface",
             "prmsl_surface",
             "tcdc",
-            "cloud_layers",
+            "low_clouds",
+            "medium_clouds",
+            "high_clouds",
             "prate_surface",
             "snow_depth_surface",
             "visibility_surface",
@@ -78,7 +82,9 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon.products["rh_surface"].label, "Relative Humidity")
         self.assertEqual(icon.products["prmsl_surface"].label, "Air Pressure")
         self.assertEqual(icon.products["tcdc"].label, "Total Cloud Cover")
-        self.assertEqual(icon.products["cloud_layers"].label, "Cloud Layers")
+        self.assertEqual(icon.products["low_clouds"].label, "Low Clouds")
+        self.assertEqual(icon.products["medium_clouds"].label, "Medium Clouds")
+        self.assertEqual(icon.products["high_clouds"].label, "High Clouds")
         self.assertEqual(icon.products["prate_surface"].label, "Precipitation Rate")
         self.assertEqual(icon.products["precip_total_surface"].label, "Accumulated Precipitation")
         self.assertEqual(icon.products["snow_depth_surface"].label, "Snow Depth")
@@ -104,6 +110,12 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs.products["freezing_level"].components[0].grib_match["GRIB_SHORT_NAME"], "0-0DEG")
         self.assertEqual(gfs.products["precipitable_water"].components[0].grib_match["GRIB_SHORT_NAME"], "0-EATM")
         self.assertEqual(gfs.products["cape_index"].components[0].grib_match["GRIB_SHORT_NAME"], "18000-0-SPDL")
+        self.assertEqual(gfs.products["low_clouds"].components[0].grib_match["GRIB_ELEMENT"], "LCDC")
+        self.assertEqual(gfs.products["medium_clouds"].components[0].grib_match["GRIB_ELEMENT"], "MCDC")
+        self.assertEqual(gfs.products["high_clouds"].components[0].grib_match["GRIB_ELEMENT"], "HCDC")
+        self.assertEqual(icon.products["low_clouds"].components[0].grib_match["ICON_PARAM"], "clcl")
+        self.assertEqual(icon.products["medium_clouds"].components[0].grib_match["ICON_PARAM"], "clcm")
+        self.assertEqual(icon.products["high_clouds"].components[0].grib_match["ICON_PARAM"], "clch")
         self.assertEqual(icon.products["snow_depth_surface"].components[0].grib_match["ICON_PARAM"], "h_snow")
         self.assertEqual(icon.products["freezing_level"].components[0].grib_match["ICON_PARAM"], "hzerocl")
         self.assertEqual(icon.products["precipitable_water"].components[0].grib_match["ICON_PARAM"], "tqv")
@@ -120,7 +132,10 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(groups["wind"].label, "Wind & Pressure")
         self.assertEqual(groups["wind"].products, ("gust_surface", "prmsl_surface"))
         self.assertEqual(groups["atmosphere"].default_product, "tcdc")
-        self.assertEqual(groups["atmosphere"].products, ("tcdc", "cloud_layers", "freezing_level", "precipitable_water"))
+        self.assertEqual(
+            groups["atmosphere"].products,
+            ("tcdc", "low_clouds", "medium_clouds", "high_clouds", "freezing_level", "precipitable_water"),
+        )
         self.assertEqual(groups["precipitation"].default_product, "prate_surface")
         self.assertEqual(groups["precipitation"].products, ("prate_surface", "precip_total_surface", "snow_depth_surface"))
         self.assertEqual(groups["severe"].default_product, "cape_index")
@@ -129,7 +144,15 @@ class ConfigValidationTest(unittest.TestCase):
         gfs_groups = {group.id: group for group in gfs.product_groups}
         self.assertEqual(
             gfs_groups["atmosphere"].products,
-            ("tcdc", "cloud_layers", "visibility_surface", "freezing_level", "precipitable_water"),
+            (
+                "tcdc",
+                "low_clouds",
+                "medium_clouds",
+                "high_clouds",
+                "visibility_surface",
+                "freezing_level",
+                "precipitable_water",
+            ),
         )
         self.assertEqual(gfs_groups["wind"].label, "Wind & Pressure")
         self.assertEqual(gfs_groups["severe"].products, ("cape_index",))
@@ -362,62 +385,25 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
 
-    def test_pipeline_config_accepts_packed_cloud_component_scalar(self) -> None:
-        cfg = minimal_pipeline_config()
-        add_model_product(
-            cfg,
-            model_id="gfs",
-            product_id="cloud_layers",
-            product_config=cloud_layers_config(),
-        )
-        _gfs(cfg)["workload"]["products"] = ["tmp_surface", "cloud_layers"]
-        _gfs(cfg)["product_groups"] = [
-            {
-                "id": "temperature",
-                "label": "Temperature",
-                "layer_id": "scalar",
-                "default_product": "tmp_surface",
-                "products": ["tmp_surface"],
-            },
-            {
-                "id": "clouds",
-                "label": "Clouds",
-                "layer_id": "scalar",
-                "default_product": "cloud_layers",
-                "products": ["cloud_layers"],
-            },
-        ]
-
-        parsed = parse_pipeline_config(cfg)
-
-        self.assertEqual(
-            parsed.model("gfs").products["cloud_layers"].encoding.format,
-            "linear-i8-v1",
-        )
-        self.assertEqual(
-            parsed.model("gfs").products["cloud_layers"].components[1].grib_match["GRIB_ELEMENT"],
-            "MCDC",
-        )
-
     def test_pipeline_config_rejects_model_product_missing_component_match(self) -> None:
         cfg = minimal_pipeline_config()
         add_model_product(
             cfg,
             model_id="gfs",
-            product_id="cloud_layers",
-            product_config=cloud_layers_config(),
+            product_id="low_clouds",
+            product_config=cloud_cover_config(),
         )
-        _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
+        _gfs(cfg)["workload"]["products"] = ["low_clouds"]
         _gfs(cfg)["product_groups"] = [
             {
-                "id": "clouds",
-                "label": "Clouds",
+                "id": "atmosphere",
+                "label": "Atmosphere",
                 "layer_id": "scalar",
-                "default_product": "cloud_layers",
-                "products": ["cloud_layers"],
+                "default_product": "low_clouds",
+                "products": ["low_clouds"],
             },
         ]
-        del _gfs(cfg)["products"]["cloud_layers"]["components"][1]["grib_match"]
+        del _gfs(cfg)["products"]["low_clouds"]["components"][0]["grib_match"]
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
@@ -427,20 +413,20 @@ class ConfigValidationTest(unittest.TestCase):
         add_model_product(
             cfg,
             model_id="gfs",
-            product_id="cloud_layers",
-            product_config=cloud_layers_config(),
+            product_id="low_clouds",
+            product_config=cloud_cover_config(),
         )
-        _gfs(cfg)["workload"]["products"] = ["cloud_layers"]
+        _gfs(cfg)["workload"]["products"] = ["low_clouds"]
         _gfs(cfg)["product_groups"] = [
             {
-                "id": "clouds",
-                "label": "Clouds",
+                "id": "atmosphere",
+                "label": "Atmosphere",
                 "layer_id": "scalar",
-                "default_product": "cloud_layers",
-                "products": ["cloud_layers"],
+                "default_product": "low_clouds",
+                "products": ["low_clouds"],
             },
         ]
-        _gfs(cfg)["products"]["cloud_layers"]["components"].append(
+        _gfs(cfg)["products"]["low_clouds"]["components"].append(
             {"id": "ceiling", "grib_match": {"GRIB_ELEMENT": "CEIL"}}
         )
 

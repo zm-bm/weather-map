@@ -77,17 +77,6 @@ export type ScalarLinearInt8EncodingSpec = {
   decodeFormula: string
 }
 
-export type ScalarCloudLayerEncodingSpec = {
-  id: string
-  format: 'linear-i8-v1'
-  dtype: 'int8'
-  byteOrder: 'none'
-  nodata: number
-  scale: number
-  offset: number
-  decodeFormula: string
-}
-
 export type ScalarTempCPiecewiseEncodingSpec = {
   id: string
   format: 'temp-c-piecewise-i8-v1'
@@ -99,7 +88,6 @@ export type ScalarTempCPiecewiseEncodingSpec = {
 export type ScalarEncodingSpec =
   | ScalarLinearInt16EncodingSpec
   | ScalarLinearInt8EncodingSpec
-  | ScalarCloudLayerEncodingSpec
   | ScalarTempCPiecewiseEncodingSpec
 
 export type VectorEncodingSpec = {

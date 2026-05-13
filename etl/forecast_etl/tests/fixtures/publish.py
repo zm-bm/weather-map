@@ -18,8 +18,8 @@ from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.routing import make_store
 
 from .grids import grid_meta_fixture
-from .markers import write_cloud_layers_marker, write_scalar_marker, write_vector_marker
-from .products import cloud_layers_config, minimal_product_config, product_specs
+from .markers import write_scalar_marker, write_vector_marker
+from .products import minimal_product_config, product_specs
 
 
 @dataclass(frozen=True)
@@ -110,30 +110,6 @@ class PublishFixture:
     def write_vector_markers(self, *, product_id: str = "wind10m_uv", cycle: str | None = None) -> None:
         for fhour in self.fhours:
             self.write_vector_marker(product_id=product_id, cycle=cycle, fhour=fhour)
-
-    def write_cloud_layers_marker(
-        self,
-        *,
-        product_id: str = "cloud_layers",
-        product_config: dict | None = None,
-        fhour: str | None = None,
-        source_values_by_component: dict[str, list[float]] | None = None,
-    ) -> None:
-        values_by_component = source_values_by_component or {
-            "low": [0.0 for _ in range(self.cell_count)],
-            "medium": [50.0 for _ in range(self.cell_count)],
-            "high": [100.0 for _ in range(self.cell_count)],
-        }
-        write_cloud_layers_marker(
-            store=self.store,
-            ap=self.ap,
-            cycle=self.cycle,
-            fhour=fhour or self.fhours[0],
-            variable=product_id,
-            source_values_by_component=values_by_component,
-            product_config=product_config or cloud_layers_config(),
-            grid_meta=self.grid_meta,
-        )
 
     def publish(
         self,

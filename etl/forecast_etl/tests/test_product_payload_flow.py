@@ -11,7 +11,7 @@ from forecast_etl.proc import RunResult
 from forecast_etl.tests.fixtures.execution import product_run_fixture
 from forecast_etl.tests.fixtures.grids import pack_f32, small_grid_meta_fixture
 from forecast_etl.tests.fixtures.products import (
-    cloud_layers_config,
+    cloud_cover_config,
     minimal_product_config,
     precip_rate_config,
     precip_total_config,
@@ -64,28 +64,18 @@ class ScalarProductContractTest(unittest.TestCase):
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
 
-    def test_cloud_layers_product_writes_packed_low_medium_high_scalar_payload(self) -> None:
+    def test_cloud_cover_product_writes_single_component_scalar_payload(self) -> None:
         with product_run_fixture(prefix="weather-map-cloud-product-") as fx:
-            low_src = pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
-            medium_src = pack_f32([10.0, 55.0, 80.0, 25.0], byte_order="little")
-            high_src = pack_f32([15.0, 45.0, 65.0, 95.0], byte_order="little")
+            source = pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
 
             with (
                 patch(
                     "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
-                    side_effect=[
-                        (1, {"GRIB_ELEMENT": "LCDC"}),
-                        (2, {"GRIB_ELEMENT": "MCDC"}),
-                        (3, {"GRIB_ELEMENT": "HCDC"}),
-                    ],
+                    return_value=(1, {"GRIB_ELEMENT": "LCDC"}),
                 ),
                 patch(
                     "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
-                    side_effect=[
-                        (low_src, "little"),
-                        (medium_src, "little"),
-                        (high_src, "little"),
-                    ],
+                    return_value=(source, "little"),
                 ),
                 patch(
                     "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
@@ -93,28 +83,24 @@ class ScalarProductContractTest(unittest.TestCase):
                 ),
             ):
                 result = fx.run_product(
-                    product_id="cloud_layers",
-                    product_config=cloud_layers_config(),
+                    product_id="low_clouds",
+                    product_config=cloud_cover_config(),
                     source=fx.single_grib_source(),
                     run=_unused_run,
                 )
 
-            payload_uri = fx.payload_uri(product_id="cloud_layers", dtype="int8")
-            payload_path = fx.payload_path(product_id="cloud_layers", dtype="int8")
+            payload_uri = fx.payload_uri(product_id="low_clouds", dtype="int8")
+            payload_path = fx.payload_path(product_id="low_clouds", dtype="int8")
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
-            payload_bytes = fx.payload_bytes(product_id="cloud_layers", dtype="int8")
-            expected_payload = (
-                struct.pack("bbbb", 0, 1, 20, -128)
-                + struct.pack("bbbb", 2, 11, 16, 5)
-                + struct.pack("bbbb", 3, 9, 13, 19)
-            )
+            payload_bytes = fx.payload_bytes(product_id="low_clouds", dtype="int8")
+            expected_payload = struct.pack("bbbb", -50, -45, 50, -128)
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(result["byte_length"], len(expected_payload))
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
             self.assertEqual(result["format"], "linear-i8-v1")
-            self.assertEqual(result["components"], ["low", "medium", "high"])
+            self.assertEqual(result["components"], ["value"])
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
 
@@ -412,28 +398,20 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
         self.assertIn("Negative accumulation delta", str(raised.exception))
 
-    def test_icon_cloud_layers_use_component_specific_grib_paths(self) -> None:
+    def test_icon_cloud_cover_uses_configured_grib_path(self) -> None:
         with product_run_fixture(
             prefix="weather-map-icon-cloud-product-",
             model_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
-            paths = {
-                "clcl": fx.grib_path("clcl.regridded.grib2"),
-                "clcm": fx.grib_path("clcm.regridded.grib2"),
-                "clch": fx.grib_path("clch.regridded.grib2"),
-            }
-
-            product_config = cloud_layers_config()
-            product_config["components"][0]["grib_match"] = {"ICON_PARAM": "clcl"}
-            product_config["components"][1]["grib_match"] = {"ICON_PARAM": "clcm"}
-            product_config["components"][2]["grib_match"] = {"ICON_PARAM": "clch"}
+            path = fx.grib_path("clcl.regridded.grib2")
+            product_config = cloud_cover_config(grib_match={"ICON_PARAM": "clcl"})
             component_source = pack_f32([0.0, 5.0, 10.0, 15.0], byte_order="little")
 
             with (
                 patch(
                     "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
-                    side_effect=[(1, {"id": "low"}), (1, {"id": "medium"}), (1, {"id": "high"})],
+                    return_value=(1, {"id": "value"}),
                 ) as find_band,
                 patch(
                     "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
@@ -445,17 +423,17 @@ class IconGribCollectionProductTest(unittest.TestCase):
                 ),
             ):
                 fx.run_product(
-                    product_id="cloud_layers",
+                    product_id="low_clouds",
                     product_config=product_config,
                     source=fx.grib_collection_source(
-                        grib_paths=paths,
+                        grib_paths={"clcl": path},
                         grid_id="icon_global_regridded_0p125",
                     ),
                     run=_unused_run,
                 )
 
         called_paths = [call.args[0] for call in find_band.call_args_list]
-        self.assertEqual(called_paths, [paths["clcl"], paths["clcm"], paths["clch"]])
+        self.assertEqual(called_paths, [path])
 
     def test_icon_wind_uses_u_and_v_grib_paths(self) -> None:
         with product_run_fixture(

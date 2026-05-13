@@ -213,9 +213,10 @@ function defaultScalarPaletteId(productId: string): string {
     case 'prmsl_surface':
       return 'pressure.msl.pa.v1'
     case 'tcdc':
+    case 'low_clouds':
+    case 'medium_clouds':
+    case 'high_clouds':
       return 'cloud.cover.percent.v1'
-    case 'cloud_layers':
-      return 'cloud.layers.percent.v1'
     case 'prate_surface':
       return 'precip.rate.mm_hr.v1'
     case 'precip_total_surface':

@@ -64,31 +64,37 @@ def minimal_product_config() -> dict:
     }
 
 
-def cloud_layers_config() -> dict:
+def cloud_cover_config(
+    *,
+    parameter: str = "low_clouds",
+    label: str = "Low Clouds",
+    level: str = "low cloud layer",
+    encoding_id: str = "low_clouds_i8_1pct_v1",
+    grib_match: dict | None = None,
+) -> dict:
     return {
-        "parameter": "cloud_layers",
-        "level": "low/medium/high cloud layers",
+        "label": label,
+        "parameter": parameter,
+        "level": level,
         "units": "%",
         "valid_min": 0,
         "valid_max": 100,
         "style": {
             "layer_id": "scalar",
-            "palette_id": "cloud.layers.percent.v1",
+            "palette_id": "cloud.cover.percent.v1",
         },
         "source_transform": "identity",
         "encoding": {
-            "id": "cloud_layers_i8_5pct_components_v1",
+            "id": encoding_id,
             "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
-            "scale": 5,
-            "offset": 0,
+            "scale": 1,
+            "offset": 50,
             "nodata": -128,
         },
         "components": [
-            {"id": "low", "grib_match": {"GRIB_ELEMENT": "LCDC"}},
-            {"id": "medium", "grib_match": {"GRIB_ELEMENT": "MCDC"}},
-            {"id": "high", "grib_match": {"GRIB_ELEMENT": "HCDC"}},
+            {"id": "value", "grib_match": grib_match or {"GRIB_ELEMENT": "LCDC"}},
         ],
     }
 

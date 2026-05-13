@@ -13,7 +13,7 @@ from forecast_etl.manifest.constants import (
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.markers import write_json
 from forecast_etl.tests.fixtures.products import (
-    cloud_layers_config,
+    cloud_cover_config,
     minimal_product_config,
     precip_rate_config,
     product_group,
@@ -372,16 +372,17 @@ class PublishManifestTest(unittest.TestCase):
                 fx.cell_count,
             )
 
-    def test_publish_writes_packed_cloud_component_scalar_manifest(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-cloud-components-") as fx:
-            variables = ("cloud_layers",)
+    def test_publish_writes_cloud_cover_scalar_manifest(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-cloud-cover-") as fx:
+            variables = ("low_clouds",)
             products_cfg = {
-                "cloud_layers": cloud_layers_config(),
+                "low_clouds": cloud_cover_config(),
             }
 
-            fx.write_cloud_layers_marker(
-                product_id="cloud_layers",
-                product_config=products_cfg["cloud_layers"],
+            fx.write_scalar_marker(
+                product_id="low_clouds",
+                product_config=products_cfg["low_clouds"],
+                values=fx.values(10.0),
             )
 
             result = fx.publish(
@@ -389,40 +390,40 @@ class PublishManifestTest(unittest.TestCase):
                 products_cfg=products_cfg,
                 product_groups=[
                     product_group(
-                        group_id="clouds",
-                        label="Clouds",
-                        default_product="cloud_layers",
-                        products=["cloud_layers"],
+                        group_id="atmosphere",
+                        label="Atmosphere",
+                        default_product="low_clouds",
+                        products=["low_clouds"],
                     ),
                 ],
             )
 
             self.assertTrue(result.ready)
             cycle_manifest = fx.cycle_manifest()
-            product = cycle_manifest["products"]["cloud_layers"]
+            product = cycle_manifest["products"]["low_clouds"]
             encoding = product["encoding"]
             self.assertEqual(
                 encoding,
                 {
-                    "id": "cloud_layers_i8_5pct_components_v1",
+                    "id": "low_clouds_i8_1pct_v1",
                     "format": "linear-i8-v1",
                     "dtype": "int8",
                     "byteOrder": "none",
                     "nodata": -128,
-                    "scale": 5.0,
-                    "offset": 0.0,
+                    "scale": 1.0,
+                    "offset": 50.0,
                     "decodeFormula": "value = stored * scale + offset",
                 },
             )
-            self.assertEqual(product["components"], ["low", "medium", "high"])
-            self.assertEqual(product["style"], {"layerId": "scalar", "paletteId": "cloud.layers.percent.v1"})
+            self.assertEqual(product["components"], ["value"])
+            self.assertEqual(product["style"], {"layerId": "scalar", "paletteId": "cloud.cover.percent.v1"})
             self.assertEqual(
                 product["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/cloud_layers.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/low_clouds.field.i8.bin",
             )
             self.assertEqual(
                 product["frames"]["000"]["byteLength"],
-                fx.cell_count * 3,
+                fx.cell_count,
             )
 
     def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:

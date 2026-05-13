@@ -76,8 +76,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     )
   }
 
-  const decoded = decodeScalarPayload(payload, encoding, components)
-  const { values, cloudLayers } = decoded
+  const values = decodeScalarPayload(payload, encoding, components)
   if (values.length !== expectedCellCount) {
     throw new Error(
       `Scalar payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
@@ -93,7 +92,6 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     grid,
     encoding,
     values,
-    cloudLayers,
     displayRange: [spec.variable.valueRange.min, spec.variable.valueRange.max] as [number, number],
     colortable: style.colortable,
   }
@@ -198,7 +196,6 @@ export function canInterpolateScalarFrames(
   if (lower.grid.dx !== upper.grid.dx || lower.grid.dy !== upper.grid.dy) return false
   if (lower.grid.xWrap !== upper.grid.xWrap || lower.grid.yMode !== upper.grid.yMode) return false
   if (lower.encoding.format !== upper.encoding.format) return false
-  if (Boolean(lower.cloudLayers) !== Boolean(upper.cloudLayers)) return false
   if ('scale' in lower.encoding || 'scale' in upper.encoding) {
     if (!('scale' in lower.encoding) || !('scale' in upper.encoding)) return false
     if (lower.encoding.scale !== upper.encoding.scale || lower.encoding.offset !== upper.encoding.offset) return false
@@ -213,13 +210,6 @@ export function canInterpolateScalarFrames(
     if (lowerStop.length !== upperStop.length) return false
     for (let partIdx = 0; partIdx < lowerStop.length; partIdx += 1) {
       if (lowerStop[partIdx] !== upperStop[partIdx]) return false
-    }
-  }
-  if (lower.cloudLayers && upper.cloudLayers) {
-    const expectedCellCount = lower.grid.nx * lower.grid.ny
-    for (const component of ['low', 'medium', 'high'] as const) {
-      if (lower.cloudLayers[component].length !== expectedCellCount) return false
-      if (upper.cloudLayers[component].length !== expectedCellCount) return false
     }
   }
 

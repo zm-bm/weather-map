@@ -186,36 +186,84 @@
         }
       ]
     },
-    "cloud_layers": {
-      "label": "Cloud Layers",
-      "parameter": "cloud_layers",
-      "level": "low/medium/high cloud layers",
+    "low_clouds": {
+      "label": "Low Clouds",
+      "parameter": "low_clouds",
+      "level": "low cloud layer",
       "valid_min": 0,
       "valid_max": 100,
       "units": "%",
       "source_transform": "identity",
       "style": {
         "layer_id": "scalar",
-        "palette_id": "cloud.layers.percent.v1"
+        "palette_id": "cloud.cover.percent.v1"
       },
       "encoding": {
-        "id": "cloud_layers_i8_5pct_components_v1",
+        "id": "low_clouds_i8_1pct_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 5,
-        "offset": 0,
+        "scale": 1,
+        "offset": 50,
         "nodata": -128
       },
       "components": [
         {
-          "id": "low"
-        },
+          "id": "value"
+        }
+      ]
+    },
+    "medium_clouds": {
+      "label": "Medium Clouds",
+      "parameter": "medium_clouds",
+      "level": "middle cloud layer",
+      "valid_min": 0,
+      "valid_max": 100,
+      "units": "%",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "cloud.cover.percent.v1"
+      },
+      "encoding": {
+        "id": "medium_clouds_i8_1pct_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 50,
+        "nodata": -128
+      },
+      "components": [
         {
-          "id": "medium"
-        },
+          "id": "value"
+        }
+      ]
+    },
+    "high_clouds": {
+      "label": "High Clouds",
+      "parameter": "high_clouds",
+      "level": "high cloud layer",
+      "valid_min": 0,
+      "valid_max": 100,
+      "units": "%",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "cloud.cover.percent.v1"
+      },
+      "encoding": {
+        "id": "high_clouds_i8_1pct_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 50,
+        "nodata": -128
+      },
+      "components": [
         {
-          "id": "high"
+          "id": "value"
         }
       ]
     },
@@ -472,7 +520,9 @@
           "rh_surface",
           "prmsl_surface",
           "tcdc",
-          "cloud_layers",
+          "low_clouds",
+          "medium_clouds",
+          "high_clouds",
           "prate_surface",
           "snow_depth_surface",
           "visibility_surface",
@@ -560,22 +610,30 @@
             }
           ]
         },
-        "cloud_layers": {
+        "low_clouds": {
           "components": [
             {
-              "id": "low",
+              "id": "value",
               "grib_match": {
                 "GRIB_ELEMENT": "LCDC"
               }
-            },
+            }
+          ]
+        },
+        "medium_clouds": {
+          "components": [
             {
-              "id": "medium",
+              "id": "value",
               "grib_match": {
                 "GRIB_ELEMENT": "MCDC"
               }
-            },
+            }
+          ]
+        },
+        "high_clouds": {
+          "components": [
             {
-              "id": "high",
+              "id": "value",
               "grib_match": {
                 "GRIB_ELEMENT": "HCDC"
               }
@@ -711,7 +769,9 @@
           "default_product": "tcdc",
           "products": [
             "tcdc",
-            "cloud_layers",
+            "low_clouds",
+            "medium_clouds",
+            "high_clouds",
             "visibility_surface",
             "freezing_level",
             "precipitable_water"
@@ -746,7 +806,9 @@
           "rh_surface",
           "prmsl_surface",
           "tcdc",
-          "cloud_layers",
+          "low_clouds",
+          "medium_clouds",
+          "high_clouds",
           "prate_surface",
           "precip_total_surface",
           "snow_depth_surface",
@@ -817,22 +879,30 @@
             }
           ]
         },
-        "cloud_layers": {
+        "low_clouds": {
           "components": [
             {
-              "id": "low",
+              "id": "value",
               "grib_match": {
                 "ICON_PARAM": "clcl"
               }
-            },
+            }
+          ]
+        },
+        "medium_clouds": {
+          "components": [
             {
-              "id": "medium",
+              "id": "value",
               "grib_match": {
                 "ICON_PARAM": "clcm"
               }
-            },
+            }
+          ]
+        },
+        "high_clouds": {
+          "components": [
             {
-              "id": "high",
+              "id": "value",
               "grib_match": {
                 "ICON_PARAM": "clch"
               }
@@ -964,7 +1034,9 @@
           "default_product": "tcdc",
           "products": [
             "tcdc",
-            "cloud_layers",
+            "low_clouds",
+            "medium_clouds",
+            "high_clouds",
             "freezing_level",
             "precipitable_water"
           ]

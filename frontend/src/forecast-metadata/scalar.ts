@@ -12,20 +12,10 @@ export type ScalarMeta = {
   max: number
   paletteId: string
   colortable: LayerColortableStop[]
-  legendKind?: 'cloud_layers'
-  cloudLayerSwatches?: CloudLayerLegendSwatch[]
 }
 
 type ScalarStyleEntry = {
   colortable: LayerColortableStop[]
-  legendKind?: 'cloud_layers'
-  cloudLayerSwatches?: CloudLayerLegendSwatch[]
-}
-
-export type CloudLayerLegendSwatch = {
-  id: 'low' | 'medium' | 'high'
-  label: string
-  color: string
 }
 
 const fahrenheitToCelsius = (value: number) => ((value - 32) * 5) / 9
@@ -133,21 +123,6 @@ const SCALAR_PALETTES: Record<string, ScalarStyleEntry> = {
       [70, 75, 150, 195],
       [80, 70, 145, 190],
       [90, 65, 135, 180],
-      [100, 60, 120, 170],
-    ],
-  },
-  'cloud.layers.percent.v1': {
-    legendKind: 'cloud_layers',
-    cloudLayerSwatches: [
-      { id: 'low', label: 'Low', color: 'rgb(110 105 89)' },
-      { id: 'medium', label: 'Mid', color: 'rgb(255 240 163)' },
-      { id: 'high', label: 'High', color: 'rgb(20 107 255)' },
-    ],
-    colortable: [
-      [0, 180, 180, 180],
-      [25, 120, 175, 220],
-      [50, 90, 160, 205],
-      [75, 72, 148, 192],
       [100, 60, 120, 170],
     ],
   },
@@ -293,8 +268,6 @@ export function getScalarMeta(
     max: sourceMeta.valueRange.max,
     paletteId: sourceMeta.style.paletteId,
     colortable: style.colortable,
-    legendKind: style.legendKind,
-    cloudLayerSwatches: style.cloudLayerSwatches,
   }
 }
 
