@@ -1,7 +1,5 @@
 import type {
   CycleManifest,
-  ManifestEncodingSpec,
-  ScalarEncodingSpec,
 } from '../../manifest'
 import { createAbortError } from '../../abort'
 import type { WeatherMapConfig } from '../../config'
@@ -53,7 +51,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   if (cachedFrame) return cachedFrame
 
   const spec = resolveFrameSpec(manifest, normalizedHourToken, artifactId, 'scalar')
-  const encoding = resolveScalarEncoding(artifactId, spec.variable.encoding)
+  const encoding = spec.variable.encoding
   const grid = spec.variable.grid
   const components = spec.variable.components
   const { payload } = await loadFramePayload({
@@ -218,22 +216,4 @@ export function canInterpolateScalarFrames(
   }
 
   return true
-}
-
-function resolveScalarEncoding(
-  variable: string,
-  encoding: ManifestEncodingSpec
-): ScalarEncodingSpec {
-  const encodingFormat = (encoding as { format?: string }).format
-  if (
-    encodingFormat !== 'linear-i16-v1' &&
-    encodingFormat !== 'linear-i8-v1' &&
-    encodingFormat !== 'temp-c-piecewise-i8-v1'
-  ) {
-    throw new Error(`Unsupported scalar format for ${variable}: ${encodingFormat}`)
-  }
-  if (!('nodata' in encoding)) {
-    throw new Error(`Scalar encoding for ${variable} is missing nodata`)
-  }
-  return encoding
 }

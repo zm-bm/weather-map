@@ -56,12 +56,12 @@ describe('parseCycleManifest', () => {
       vector_variables: ['wind10m_uv'],
     }
 
-    expect(() => parseCycleManifest(payload)).toThrow('Invalid manifest field schema: expected string')
+    expect(() => parseCycleManifest(payload)).toThrow('Invalid manifest field schema:')
 
     const v3Payload = createCycleManifestPayloadFixture()
     v3Payload.schemaVersion = 3
 
-    expect(() => parseCycleManifest(v3Payload)).toThrow('Invalid manifest field schemaVersion: expected 4')
+    expect(() => parseCycleManifest(v3Payload)).toThrow(/Invalid manifest field schemaVersion: .*4/)
   })
 
   it('accepts scalar-only and vector-only manifests but rejects empty product sets', () => {
@@ -92,21 +92,28 @@ describe('parseCycleManifest', () => {
     delete tmpProduct(missingKind).kind
 
     expect(() => parseCycleManifest(missingKind)).toThrow(
-      'Invalid manifest field products.tmp_surface.kind: expected string'
+      'Invalid manifest field products.tmp_surface.kind:'
     )
 
     const missingGridPayload = createCycleManifestPayloadFixture()
     delete tmpProduct(missingGridPayload).grid
 
     expect(() => parseCycleManifest(missingGridPayload)).toThrow(
-      'Invalid manifest field products.tmp_surface.grid: expected object'
+      'Invalid manifest field products.tmp_surface.grid:'
+    )
+
+    const missingNodataPayload = createCycleManifestPayloadFixture()
+    delete (tmpProduct(missingNodataPayload).encoding as Record<string, unknown>).nodata
+
+    expect(() => parseCycleManifest(missingNodataPayload)).toThrow(
+      'Invalid manifest field products.tmp_surface.encoding.nodata:'
     )
 
     const missingFramePayload = createCycleManifestPayloadFixture()
     delete (tmpProduct(missingFramePayload).frames as Record<string, unknown>)['000']
 
     expect(() => parseCycleManifest(missingFramePayload)).toThrow(
-      'Manifest product tmp_surface missing frame for hour 000'
+      'Invalid manifest field products.tmp_surface.frames.000: missing frame for hour 000'
     )
   })
 

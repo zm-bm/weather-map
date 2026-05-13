@@ -326,51 +326,11 @@ describe('scalar payload', () => {
     ).rejects.toThrow('Scalar payload byte length mismatch')
   })
 
-  it('rejects unsupported scalar encodings locally', async () => {
-    const badFormatManifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
-          encoding: {
-            id: 'e0',
-            format: 'bad-format',
-          } as unknown as ScalarEncodingSpec,
-        }),
-      },
-    })
-    await expect(
-      loadScalarFrame({
-        config: createConfigFixture(),
-        manifest: badFormatManifest,
-        layer: scalarLayer(badFormatManifest),
-        hourToken: '000',
-        signal: createSignalFixture(),
-      })
-    ).rejects.toThrow('Unsupported scalar format')
-
-    const missingNodataManifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
-          encoding: {
-            id: 'e0',
-            format: 'linear-i16-v1',
-            dtype: 'int16',
-            byteOrder: 'little',
-            scale: 0.01,
-            offset: 0,
-            decodeFormula: 'value = stored * scale + offset',
-          } as unknown as ScalarEncodingSpec,
-        }),
-      },
-    })
-    await expect(
-      loadScalarFrame({
-        config: createConfigFixture(),
-        manifest: missingNodataManifest,
-        layer: scalarLayer(missingNodataManifest),
-        hourToken: '000',
-        signal: createSignalFixture(),
-      })
-    ).rejects.toThrow('Scalar encoding for tmp_surface is missing nodata')
+  it('rejects unsupported scalar encodings in the codec', () => {
+    expect(() => decodeScalarPayloadToValues(new Int8Array([0, 1]).buffer, {
+      id: 'e0',
+      format: 'bad-format',
+    } as unknown as ScalarEncodingSpec)).toThrow('Unsupported scalar format')
   })
 
   it('rejects scalar frame loads for artifacts assigned to another kind', async () => {

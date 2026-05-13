@@ -1,6 +1,5 @@
 import {
   type CycleManifest,
-  type ManifestEncodingSpec,
   type VectorEncodingSpec,
 } from '../../manifest'
 import type { WeatherMapConfig } from '../../config'
@@ -136,37 +135,30 @@ export function canInterpolateVectorFrames(
 
 function resolveVectorEncoding(
   variable: string,
-  encoding: ManifestEncodingSpec
+  encoding: VectorEncodingSpec
 ): VectorEncodingSpec {
   if (encoding.format !== VECTOR_PAYLOAD_FORMAT) {
     throw new Error(`Unsupported vector format for ${variable}: ${encoding.format}`)
   }
-  assertVectorEncoding(variable, encoding)
+  validateVectorEncoding(variable, encoding)
   return encoding
 }
 
-function assertVectorEncoding(
+function validateVectorEncoding(
   variable: string,
-  encoding: ManifestEncodingSpec
-): asserts encoding is VectorEncodingSpec {
-  const rawEncoding = encoding as {
-    dtype?: unknown
-    byteOrder?: unknown
-    decodeFormula?: unknown
-    scale?: unknown
-    offset?: unknown
+  encoding: VectorEncodingSpec
+): void {
+  if (encoding.dtype !== 'int8') {
+    throw new Error(`Unsupported vector dtype for ${variable}: ${encoding.dtype}`)
   }
-  if (rawEncoding.dtype !== 'int8') {
-    throw new Error(`Unsupported vector dtype for ${variable}: ${rawEncoding.dtype}`)
+  if (encoding.byteOrder !== 'none') {
+    throw new Error(`Unsupported vector byte order for ${variable}: ${encoding.byteOrder}`)
   }
-  if (rawEncoding.byteOrder !== 'none') {
-    throw new Error(`Unsupported vector byte order for ${variable}: ${rawEncoding.byteOrder}`)
+  if (encoding.decodeFormula !== VECTOR_DECODE_FORMULA) {
+    throw new Error(`Unsupported vector decode formula for ${variable}: ${encoding.decodeFormula}`)
   }
-  if (rawEncoding.decodeFormula !== VECTOR_DECODE_FORMULA) {
-    throw new Error(`Unsupported vector decode formula for ${variable}: ${rawEncoding.decodeFormula}`)
-  }
-  if (rawEncoding.scale !== 0.5 || rawEncoding.offset !== 0) {
-    throw new Error(`Unsupported vector decode params for ${variable}: scale=${rawEncoding.scale} offset=${rawEncoding.offset}`)
+  if (encoding.scale !== 0.5 || encoding.offset !== 0) {
+    throw new Error(`Unsupported vector decode params for ${variable}: scale=${encoding.scale} offset=${encoding.offset}`)
   }
 }
 
