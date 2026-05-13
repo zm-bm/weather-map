@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Mapping
 
-from pydantic import field_validator
+from pydantic import ConfigDict, field_validator
 
 from ..config.resolved import ProductSpec
 from ..validation import (
@@ -19,11 +19,6 @@ from ..validation import (
     validated_dict,
     validator_dict,
 )
-
-
-class _MarkerStyle(FrozenModel):
-    layer_id: NonEmptyStr
-    palette_id: NonEmptyStr
 
 
 class _MarkerGrid(FrozenModel):
@@ -41,7 +36,13 @@ class _MarkerGrid(FrozenModel):
 
 
 class ProductMarkerPayload(FrozenModel):
-    """Strict success-marker product payload used by manifest publishing."""
+    """Artifact success-marker payload used by manifest publishing."""
+
+    model_config = ConfigDict(
+        extra="ignore",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
 
     payload_uri: NonEmptyStr
     byte_length: PositiveInt
@@ -51,17 +52,9 @@ class ProductMarkerPayload(FrozenModel):
     units: NonEmptyStr
     parameter: NonEmptyStr
     level: NonEmptyStr
-    valid_min: FiniteNumber
-    valid_max: FiniteNumber
     grid_id: NonEmptyStr
     grid: dict[str, Any]
     components: UniqueNonEmptyStringTuple
-    style: dict[str, str]
-
-    @field_validator("style")
-    @classmethod
-    def _validate_style(cls, value: dict[str, str]) -> dict[str, str]:
-        return validator_dict(_MarkerStyle, value)
 
     @field_validator("grid")
     @classmethod
@@ -125,13 +118,7 @@ def build_product_marker_payload(
         "units": product.units,
         "parameter": product.parameter,
         "level": product.level,
-        "valid_min": product.valid_min,
-        "valid_max": product.valid_max,
         "components": product.component_ids,
-        "style": {
-            "layer_id": product.style.layer_id,
-            "palette_id": product.style.palette_id,
-        },
         "grid_id": grid_id,
         "grid": grid,
     })

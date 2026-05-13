@@ -21,6 +21,5 @@ def publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str, stor
         model_label=model.label,
         product_ids=model.workload.products,
         products=model.products,
-        product_groups=model.product_groups,
         artifacts=artifacts,
     )

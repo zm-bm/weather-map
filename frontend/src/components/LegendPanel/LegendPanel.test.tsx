@@ -2,7 +2,6 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
-import { asScalarProductId } from '../../manifest'
 import {
   createManifestFixture,
   createScalarProductFixture,
@@ -15,62 +14,28 @@ import LegendPanel from './LegendPanel'
 function createLegendSelectionManifest(
   activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
 ) {
+  const scalarProducts = activeScalar === 'tmp_surface'
+    ? ['tmp_surface', 'prate_surface']
+    : [activeScalar]
   return createManifestFixture({
     cycle: '2026041100',
-    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'prmsl_surface', 'prate_surface', 'low_clouds'])),
-    groups: [
-      {
-        id: 'temperature',
-        layerId: 'scalar',
-        label: 'Temperature',
-        defaultProduct: asScalarProductId('tmp_surface'),
-        products: [asScalarProductId('tmp_surface')],
-      },
-      {
-        id: 'precipitation',
-        layerId: 'scalar',
-        label: 'Precipitation',
-        defaultProduct: asScalarProductId('prate_surface'),
-        products: [asScalarProductId('prate_surface')],
-      },
-      {
-        id: 'wind',
-        layerId: 'scalar',
-        label: 'Wind & Pressure',
-        defaultProduct: asScalarProductId('prmsl_surface'),
-        products: [asScalarProductId('prmsl_surface')],
-      },
-      {
-        id: 'atmosphere',
-        layerId: 'scalar',
-        label: 'Atmosphere',
-        defaultProduct: asScalarProductId('low_clouds'),
-        products: [asScalarProductId('low_clouds')],
-      },
-    ],
+    scalarProducts,
     vectorProducts: ['wind10m_uv'],
     products: {
       tmp_surface: createScalarProductFixture({
-        label: 'Temperature',
       }),
       prmsl_surface: createScalarProductFixture({
-        label: 'Air Pressure',
         units: 'Pa',
         parameter: 'prmsl',
-        valueRange: { min: 98000, max: 103500 },
       }),
       prate_surface: createScalarProductFixture({
-        label: 'Precipitation Rate',
         units: 'mm/hr',
         parameter: 'prate',
-        valueRange: { min: 0, max: 30 },
       }),
       low_clouds: createScalarProductFixture({
-        id: asScalarProductId('low_clouds'),
-        label: 'Low Clouds',
+        id: 'low_clouds',
         units: '%',
         parameter: 'low_clouds',
-        valueRange: { min: 0, max: 100 },
       }),
       wind10m_uv: createVectorProductFixture(),
     },

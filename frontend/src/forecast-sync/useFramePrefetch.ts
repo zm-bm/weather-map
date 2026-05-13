@@ -26,7 +26,7 @@ export function useFramePrefetch({
     void prefetchForecastFrames({
       config,
       manifest: request.manifest,
-      activeScalar: request.activeScalar,
+      activeScalar: request.activeScalarLayer,
       activeVector: request.activeVector,
       lowerHourToken: request.lowerHourToken,
       upperHourToken: request.upperHourToken,

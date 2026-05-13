@@ -24,8 +24,8 @@ export type ForecastProbeValueDisplay = {
 }
 
 export function useForecastProbeValueFormatter() {
-  const { activeScalar, products, unitSystem } = useLoadedForecastSelectionContext()
-  const probeMeta = activeScalar == null ? null : getScalarMeta(activeScalar, products)
+  const { activeScalar, scalarLayers, products, unitSystem } = useLoadedForecastSelectionContext()
+  const probeMeta = activeScalar == null ? null : getScalarMeta(activeScalar, scalarLayers, products)
   const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
 
   const probeUnitOption = probeMeta == null || probeUnitDisplay == null

@@ -2,6 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createFrameManifestFixture } from '../test/fixtures'
+import { buildAvailableScalarCatalog } from '../forecast-catalog'
 import type { SyncRequest } from './types'
 import { useFramePrefetch } from './useFramePrefetch'
 
@@ -17,11 +18,13 @@ function createRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
   const manifest = overrides.manifest ?? createFrameManifestFixture({
     forecastHours: ['000', '003', '006', '009'],
   })
+  const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
 
   return {
     manifest,
-    activeScalar: manifest.productsByLayerId.scalar[0]!,
-    activeVector: manifest.productsByLayerId.vector[0]!,
+    activeScalar: activeScalarLayer.id,
+    activeScalarLayer,
+    activeVector: manifest.productsByKind.vector[0]!,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 15),
     lowerHourToken: '000',
     upperHourToken: '003',
@@ -59,7 +62,7 @@ describe('useFramePrefetch', () => {
     expect(mocks.prefetchForecastFrames).toHaveBeenCalledWith(expect.objectContaining({
       config,
       manifest: request.manifest,
-      activeScalar: 'tmp_surface',
+      activeScalar: request.activeScalarLayer,
       activeVector: 'wind10m_uv',
       lowerHourToken: '000',
       upperHourToken: '003',

@@ -6,6 +6,7 @@ import {
   createManifestFixture,
   createSignalFixture,
 } from '../test/fixtures'
+import { buildAvailableScalarCatalog } from '../forecast-catalog'
 import { loadForecastFrames, prefetchForecastFrames } from './frames'
 
 const mocks = vi.hoisted(() => ({
@@ -60,6 +61,7 @@ describe('loadForecastFrames', () => {
       scalar: previousScalarWindow,
       vector: previousVectorWindow,
     }
+    const scalarLayer = buildAvailableScalarCatalog(manifest).layers.rh_surface!
     const scalar = { lower: { variableId: 'rh_surface' } }
     const vector = { lower: { metadata: { variableId: 'gust10m_uv' } } }
 
@@ -69,8 +71,8 @@ describe('loadForecastFrames', () => {
     await expect(loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.productsByLayerId.scalar[0]!,
-      activeVector: manifest.productsByLayerId.vector[0]!,
+      activeScalar: scalarLayer,
+      activeVector: manifest.productsByKind.vector[0]!,
       previousWindows,
       selectedValidTimeMs: 123,
       lowerHourToken: '000',
@@ -87,7 +89,7 @@ describe('loadForecastFrames', () => {
       lowerHourToken: '000',
       upperHourToken: '003',
       mix: 0.5,
-      variable: 'rh_surface',
+      layer: scalarLayer,
       signal,
     })
     expect(mocks.loadVectorFrameWindow).toHaveBeenCalledWith({
@@ -117,12 +119,13 @@ describe('prefetchForecastFrames', () => {
       forecastHours: ['000', '003', '006', '009'],
     })
     const signal = createSignalFixture()
+    const scalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
 
     await prefetchForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.productsByLayerId.scalar[0]!,
-      activeVector: manifest.productsByLayerId.vector[0]!,
+      activeScalar: scalarLayer,
+      activeVector: manifest.productsByKind.vector[0]!,
       lowerHourToken: '0',
       upperHourToken: '3',
       aheadHourCount: 2,
@@ -131,7 +134,7 @@ describe('prefetchForecastFrames', () => {
     })
 
     expect(mocks.prefetchScalarFrames.mock.calls.map(([args]) => ({
-      variableId: args.variable,
+      variableId: args.layer.id,
       hourTokens: args.hourTokens,
     }))).toEqual([
       { variableId: 'tmp_surface', hourTokens: ['000'] },
@@ -164,11 +167,12 @@ describe('prefetchForecastFrames', () => {
     const manifest = createFrameManifestFixture({
       forecastHours: ['000', '003', '006', '009'],
     })
+    const scalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
     const prefetch = prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.productsByLayerId.scalar[0]!,
-      activeVector: manifest.productsByLayerId.vector[0]!,
+      activeScalar: scalarLayer,
+      activeVector: manifest.productsByKind.vector[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,
@@ -203,14 +207,15 @@ describe('prefetchForecastFrames', () => {
     const manifest = createFrameManifestFixture({
       forecastHours: ['000', '003', '006', '009'],
     })
+    const scalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
     mocks.prefetchFramePayloads.mockRejectedValue(new Error('prefetch failed'))
     mocks.prefetchScalarFrames.mockRejectedValue(new Error('prefetch failed'))
 
     await expect(prefetchForecastFrames({
       config: createConfigFixture(),
       manifest,
-      activeScalar: manifest.productsByLayerId.scalar[0]!,
-      activeVector: manifest.productsByLayerId.vector[0]!,
+      activeScalar: scalarLayer,
+      activeVector: manifest.productsByKind.vector[0]!,
       lowerHourToken: '000',
       upperHourToken: '003',
       aheadHourCount: 2,

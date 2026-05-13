@@ -1,24 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
+import { asProductId } from '../manifest'
+import { asScalarLayerId, type ScalarLayerSpec } from '../forecast-catalog'
 import { createScalarProductFixture } from '../test/fixtures'
 import { getScalarMeta, getScalarStyleByPaletteId } from './scalar'
 
 describe('scalar metadata palettes', () => {
-  it('resolves scalar colortables by product style paletteId', () => {
-    const product = createScalarProductFixture({
-      id: 'custom_pressure',
+  it('resolves scalar colortables from frontend catalog palette ids', () => {
+    const layer: ScalarLayerSpec = {
+      id: asScalarLayerId('custom_pressure'),
+      artifactId: asProductId('prmsl_surface'),
       label: 'Custom Pressure',
+      groupId: 'wind',
+      paletteId: 'pressure.msl.pa.v1',
+      displayRange: { min: 98_000, max: 103_500 },
+    }
+    const product = createScalarProductFixture({
+      id: 'prmsl_surface',
       units: 'Pa',
       parameter: 'prmsl',
-      valueRange: { min: 98_000, max: 103_500 },
-      style: {
-        layerId: 'scalar',
-        paletteId: 'pressure.msl.pa.v1',
-      },
     })
 
-    const meta = getScalarMeta('custom_pressure', { custom_pressure: product })
+    const meta = getScalarMeta('custom_pressure', { custom_pressure: layer }, { prmsl_surface: product })
 
+    expect(meta.label).toBe('Custom Pressure')
     expect(meta.paletteId).toBe('pressure.msl.pa.v1')
     expect(meta.colortable).toBe(getScalarStyleByPaletteId('pressure.msl.pa.v1').colortable)
   })
@@ -31,16 +36,18 @@ describe('scalar metadata palettes', () => {
     expect(getScalarStyleByPaletteId('severe.cape.jkg.v1').colortable.length).toBeGreaterThan(0)
   })
 
-  it('rejects scalar products with unknown palette ids', () => {
-    const product = createScalarProductFixture({
-      id: 'custom_scalar',
-      style: {
-        layerId: 'scalar',
-        paletteId: 'missing.palette.v1',
-      },
-    })
+  it('rejects scalar layers with unknown palette ids', () => {
+    const layer: ScalarLayerSpec = {
+      id: asScalarLayerId('custom_scalar'),
+      artifactId: asProductId('tmp_surface'),
+      label: 'Custom Scalar',
+      groupId: 'temperature',
+      paletteId: 'missing.palette.v1',
+      displayRange: { min: 0, max: 1 },
+    }
 
-    expect(() => getScalarMeta('custom_scalar', { custom_scalar: product }))
-      .toThrow('Unknown scalar paletteId: missing.palette.v1')
+    expect(() => getScalarMeta('custom_scalar', { custom_scalar: layer }, {
+      tmp_surface: createScalarProductFixture(),
+    })).toThrow('Unknown scalar paletteId: missing.palette.v1')
   })
 })

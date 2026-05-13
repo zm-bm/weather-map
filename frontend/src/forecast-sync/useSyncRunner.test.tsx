@@ -4,9 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CycleManifest,
-  ScalarProductId,
   VectorProductId,
 } from '../manifest'
+import {
+  buildAvailableScalarCatalog,
+  type ScalarLayerId,
+  type ScalarLayerSpec,
+} from '../forecast-catalog'
 import type { ForecastTimeSyncBridge } from '../forecast-time'
 import {
   frameWindowMinuteOffset,
@@ -51,7 +55,8 @@ vi.mock('../forecast-probe', () => ({
 
 type SyncInput = {
   manifest: CycleManifest
-  activeScalar: ScalarProductId
+  activeScalar: ScalarLayerId
+  activeScalarLayer: ScalarLayerSpec
   activeVector: VectorProductId
   targetTimeMs: number
   sync: ForecastTimeSyncBridge
@@ -98,10 +103,17 @@ function validTimeFor(manifest: CycleManifest, hourId: string): number {
 
 function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
   const manifest = overrides.manifest ?? createManifestFixture()
+  const catalog = buildAvailableScalarCatalog(manifest)
+  const defaultLayerId = catalog.groups[0]?.defaultLayer
+  const activeScalarLayer = defaultLayerId ? catalog.layers[defaultLayerId] : undefined
+  if (!activeScalarLayer) {
+    throw new Error('Fixture manifest must include at least one catalog scalar layer')
+  }
   return {
     manifest,
-    activeScalar: manifest.productsByLayerId.scalar[0]!,
-    activeVector: manifest.productsByLayerId.vector[0]!,
+    activeScalar: activeScalarLayer.id,
+    activeScalarLayer,
+    activeVector: manifest.productsByKind.vector[0]!,
     targetTimeMs: validTimeFor(manifest, manifest.times[0]?.id ?? '000'),
     sync: createSyncCallbacks(),
     ...overrides,
@@ -143,6 +155,7 @@ function buildSyncRequest(
   return {
     manifest: syncInput.manifest,
     activeScalar: syncInput.activeScalar,
+    activeScalarLayer: syncInput.activeScalarLayer,
     activeVector: syncInput.activeVector,
     selectedValidTimeMs: frameWindow.selectedValidTimeMs,
     lowerHourToken: frameWindow.lowerHourToken,
@@ -482,11 +495,13 @@ describe('useSyncRunner + useStartupState', () => {
       scalarProducts: ['rh_surface'],
       vectorProducts: ['gust10m_uv'],
     })
+    const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.rh_surface!
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
-        activeScalar: manifest.productsByLayerId.scalar[0]!,
-        activeVector: manifest.productsByLayerId.vector[0]!,
+        activeScalar: activeScalarLayer.id,
+        activeScalarLayer,
+        activeVector: manifest.productsByKind.vector[0]!,
       }),
     })
 
@@ -498,7 +513,7 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     expect(mocks.loadForecastFrames).toHaveBeenCalledWith(expect.objectContaining({
-      activeScalar: 'rh_surface',
+      activeScalar: activeScalarLayer,
       activeVector: 'gust10m_uv',
     }))
   })

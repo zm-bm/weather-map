@@ -11,10 +11,6 @@ export type VectorFrameMetadata = {
   units: string
   parameter: string
   level: string
-  valueRange: {
-    min: number
-    max: number
-  }
   format: typeof VECTOR_PAYLOAD_FORMAT
   dtype: 'int8'
   byteOrder: 'none'

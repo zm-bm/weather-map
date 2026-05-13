@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FORECAST_MODEL_OPTIONS, type ForecastModelId } from '../../forecast-models'
-import { asScalarProductId } from '../../manifest'
 import {
   createManifestFixture,
   createScalarProductFixture,
@@ -29,30 +28,12 @@ function createPanelManifest(
     cycle: '2026041100',
     model: options.model,
     scalarProducts,
-    groups: [
-      {
-        id: 'temperature',
-        layerId: 'scalar',
-        label: 'Temperature',
-        defaultProduct: asScalarProductId('tmp_surface'),
-        products: [asScalarProductId('tmp_surface')],
-      },
-      {
-        id: 'moisture',
-        layerId: 'scalar',
-        label: 'Moisture',
-        defaultProduct: asScalarProductId('rh_surface'),
-        products: [asScalarProductId('rh_surface')],
-      },
-    ],
     vectorProducts: ['wind10m_uv'],
     products: {
       tmp_surface: createScalarProductFixture(),
       rh_surface: createScalarProductFixture({
-        label: 'Relative Humidity',
         units: '%',
         parameter: 'rh',
-        valueRange: { min: 0, max: 100 },
       }),
     },
   })
@@ -73,34 +54,15 @@ function createInteractivePanelManifest(
   return createManifestFixture({
     cycle,
     scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
-    groups: [
-      {
-        id: 'temperature',
-        layerId: 'scalar',
-        label: 'Temperature',
-        defaultProduct: asScalarProductId('tmp_surface'),
-        products: [asScalarProductId('tmp_surface'), asScalarProductId('aptmp_surface')],
-      },
-      {
-        id: 'wind',
-        layerId: 'scalar',
-        label: 'Wind & Pressure',
-        defaultProduct: asScalarProductId('prmsl_surface'),
-        products: [asScalarProductId('prmsl_surface')],
-      },
-    ],
     vectorProducts: ['wind10m_uv', 'gust10m_uv'],
     products: {
       tmp_surface: createScalarProductFixture(),
       aptmp_surface: createScalarProductFixture({
-        label: 'Apparent Temperature',
         parameter: 'aptmp',
       }),
       prmsl_surface: createScalarProductFixture({
-        label: 'Air Pressure',
         units: 'Pa',
         parameter: 'prmsl',
-        valueRange: { min: 98000, max: 103500 },
       }),
     },
   })
@@ -204,48 +166,26 @@ describe('ForecastPanel', () => {
         manifest={createManifestFixture({
           cycle: '2026041118',
           scalarProducts: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
-          groups: [
-            {
-              id: 'atmosphere',
-              layerId: 'scalar',
-              label: 'Atmosphere',
-              defaultProduct: asScalarProductId('tcdc'),
-              products: [
-                asScalarProductId('tcdc'),
-                asScalarProductId('low_clouds'),
-                asScalarProductId('medium_clouds'),
-                asScalarProductId('high_clouds'),
-              ],
-            },
-          ],
           vectorProducts: ['wind10m_uv'],
           products: {
             tcdc: createScalarProductFixture({
-              label: 'Total Cloud Cover',
               units: '%',
               parameter: 'tcdc',
-              valueRange: { min: 0, max: 100 },
             }),
             low_clouds: createScalarProductFixture({
-              id: asScalarProductId('low_clouds'),
-              label: 'Low Clouds',
+              id: 'low_clouds',
               units: '%',
               parameter: 'low_clouds',
-              valueRange: { min: 0, max: 100 },
             }),
             medium_clouds: createScalarProductFixture({
-              id: asScalarProductId('medium_clouds'),
-              label: 'Medium Clouds',
+              id: 'medium_clouds',
               units: '%',
               parameter: 'medium_clouds',
-              valueRange: { min: 0, max: 100 },
             }),
             high_clouds: createScalarProductFixture({
-              id: asScalarProductId('high_clouds'),
-              label: 'High Clouds',
+              id: 'high_clouds',
               units: '%',
               parameter: 'high_clouds',
-              valueRange: { min: 0, max: 100 },
             }),
           },
         })}

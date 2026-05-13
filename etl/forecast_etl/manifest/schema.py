@@ -18,44 +18,12 @@ from ..validation import (
 )
 
 
-class ManifestProductGroup(FrozenAliasModel):
-    """Frontend product-group entry in the cycle manifest."""
-
-    id: NonEmptyStr
-    layer_id: NonEmptyStr = Field(alias="layerId")
-    label: NonEmptyStr
-    default_product_id: NonEmptyStr = Field(alias="defaultProductId")
-    product_ids: UniqueNonEmptyStringTuple = Field(alias="productIds")
-
-    @model_validator(mode="after")
-    def _default_product_in_group(self) -> "ManifestProductGroup":
-        if self.default_product_id not in self.product_ids:
-            raise ValueError("defaultProductId must be included in productIds")
-        return self
-
-
 class ManifestFrame(FrozenAliasModel):
     """One forecast-hour frame pointing at a field payload."""
 
     path: NonEmptyStr
     byte_length: PositiveInt = Field(alias="byteLength")
     sha256: HexSha256
-
-
-class ManifestStyle(FrozenAliasModel):
-    layer_id: NonEmptyStr = Field(alias="layerId")
-    palette_id: NonEmptyStr = Field(alias="paletteId")
-
-
-class ManifestValueRange(FrozenAliasModel):
-    min: FiniteNumber
-    max: FiniteNumber
-
-    @model_validator(mode="after")
-    def _valid_range(self) -> "ManifestValueRange":
-        if self.min >= self.max:
-            raise ValueError("valueRange.min must be less than valueRange.max")
-        return self
 
 
 class ManifestGrid(FrozenAliasModel):
@@ -94,13 +62,11 @@ class ManifestProduct(FrozenAliasModel):
     """Frontend product entry with frames keyed by forecast hour."""
 
     id: NonEmptyStr
-    label: NonEmptyStr
+    kind: Literal["scalar", "vector"]
     units: NonEmptyStr
     parameter: NonEmptyStr
     level: NonEmptyStr
     components: UniqueNonEmptyStringTuple
-    style: ManifestStyle
-    value_range: ManifestValueRange = Field(alias="valueRange")
     grid: ManifestGrid
     encoding: ManifestEncoding
     frames: dict[NonEmptyStr, ManifestFrame] = Field(min_length=1)
@@ -135,36 +101,12 @@ class CycleManifest(FrozenAliasModel):
     """Top-level frontend cycle manifest."""
 
     schema_name: Literal["weather-map.cycle-manifest"] = Field(alias="schema")
-    schema_version: Literal[3] = Field(alias="schemaVersion")
+    schema_version: Literal[4] = Field(alias="schemaVersion")
     payload_contract: Literal["forecast-binary-v2"] = Field(alias="payloadContract")
     model: ManifestModelIdentity
     run: ManifestRun
     times: tuple[ManifestTime, ...] = Field(min_length=1)
-    groups: tuple[ManifestProductGroup, ...]
     products: dict[NonEmptyStr, dict[str, Any]] = Field(min_length=1)
-
-
-def manifest_product_group(
-    *,
-    group_id: str,
-    layer_id: str,
-    label: str,
-    default_product_id: str,
-    product_ids: tuple[str, ...],
-) -> dict[str, Any]:
-    """Build a validated frontend product-group dictionary."""
-
-    return validated_dict(
-        ManifestProductGroup,
-        {
-            "id": group_id,
-            "layer_id": layer_id,
-            "label": label,
-            "default_product_id": default_product_id,
-            "product_ids": product_ids,
-        },
-        by_alias=True,
-    )
 
 
 def manifest_frame(*, path: str, byte_length: int, sha256: str) -> dict[str, Any]:

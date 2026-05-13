@@ -145,7 +145,6 @@ class SourceAdapterTest(unittest.TestCase):
             workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
             model_products={},
             products={"tmp_surface": product},
-            product_groups=(),
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-source-") as td:
@@ -198,7 +197,6 @@ class SourceAdapterTest(unittest.TestCase):
             workload=WorkloadConfig(forecast_hours=("003",), products=("prate_surface",)),
             model_products={},
             products={"prate_surface": product},
-            product_groups=(),
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-source-") as td:
@@ -252,7 +250,6 @@ class SourceAdapterTest(unittest.TestCase):
             workload=WorkloadConfig(forecast_hours=("001",), products=("prate_surface",)),
             model_products={},
             products={"prate_surface": product},
-            product_groups=(),
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-first-source-") as td:
@@ -397,7 +394,6 @@ class SourceAdapterTest(unittest.TestCase):
             workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
             model_products={},
             products={"tmp_surface": product},
-            product_groups=(),
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-bad-bz2-") as td:

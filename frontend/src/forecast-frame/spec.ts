@@ -50,8 +50,8 @@ function resolveVariable<D extends FrameKind>(
     manifest.products[variable],
     `No ${domain} variable metadata for ${variable}`
   )
-  if (resolvedVariable.style.layerId !== domain) {
-    throw new Error(`Variable ${variable} is not ${domain} (got ${resolvedVariable.style.layerId})`)
+  if (resolvedVariable.kind !== domain) {
+    throw new Error(`Variable ${variable} is not ${domain} (got ${resolvedVariable.kind})`)
   }
   return resolvedVariable as FrameVariableMetaMap[D]
 }

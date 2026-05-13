@@ -9,7 +9,8 @@ import { loadFramePayload, normalizeFrameHourToken } from '../loader'
 import { loadFrameWindow } from '../window'
 import type { ForecastFrameSelection } from '../../forecast-time'
 import { resolveFrameSpec } from '../spec'
-import { getScalarStyle } from '../../forecast-metadata/scalar'
+import { getScalarStyleByPaletteId } from '../../forecast-metadata/scalar'
+import type { ScalarLayerSpec } from '../../forecast-catalog'
 import { decodeScalarPayload } from './codec'
 import type { ScalarFrameData, ScalarFrameWindowData } from './types'
 
@@ -20,7 +21,7 @@ export type LoadScalarFrameArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
   hourToken: string
-  variable: string
+  layer: ScalarLayerSpec
   signal: AbortSignal
 }
 
@@ -28,7 +29,7 @@ export type PrefetchScalarFramesArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
   hourTokens: string[]
-  variable: string
+  layer: ScalarLayerSpec
   signal: AbortSignal
 }
 
@@ -36,21 +37,23 @@ export type LoadScalarFrameWindowArgs = ForecastFrameSelection & {
   config: WeatherMapConfig
   manifest: CycleManifest
   previousWindow?: ScalarFrameWindowData | null
-  variable: string
+  layer: ScalarLayerSpec
   signal: AbortSignal
 }
 
 export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<ScalarFrameData> {
   if (args.signal.aborted) throw createAbortError()
 
-  const { config, manifest, hourToken, variable, signal } = args
+  const { config, manifest, hourToken, layer, signal } = args
   const normalizedHourToken = normalizeFrameHourToken(hourToken)
-  const cacheKey = decodedScalarFrameCacheKey(manifest, variable, normalizedHourToken)
+  const artifactId = String(layer.artifactId)
+  const layerId = String(layer.id)
+  const cacheKey = decodedScalarFrameCacheKey(manifest, layerId, artifactId, normalizedHourToken)
   const cachedFrame = getDecodedScalarFrame(cacheKey)
   if (cachedFrame) return cachedFrame
 
-  const spec = resolveFrameSpec(manifest, normalizedHourToken, variable, 'scalar')
-  const encoding = resolveScalarEncoding(variable, spec.variable.encoding)
+  const spec = resolveFrameSpec(manifest, normalizedHourToken, artifactId, 'scalar')
+  const encoding = resolveScalarEncoding(artifactId, spec.variable.encoding)
   const grid = spec.variable.grid
   const components = spec.variable.components
   const { payload } = await loadFramePayload({
@@ -59,7 +62,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
     frameRef: spec.frameRef,
     grid,
     hourToken: normalizedHourToken,
-    variableId: variable,
+    variableId: artifactId,
     frameKind: 'scalar',
     signal,
     verifyPayloadSha256: config.verifyPayloadSha256,
@@ -71,7 +74,7 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   const expectedByteLength = expectedCellCount * components.length * bytesPerStoredValue
   if (payload.byteLength !== expectedByteLength) {
     throw new Error(
-      `Scalar payload byte length mismatch for ${variable} ${normalizedHourToken}: ` +
+      `Scalar payload byte length mismatch for ${artifactId} ${normalizedHourToken}: ` +
       `got=${payload.byteLength} expected=${expectedByteLength}`
     )
   }
@@ -79,20 +82,20 @@ export async function loadScalarFrame(args: LoadScalarFrameArgs): Promise<Scalar
   const values = decodeScalarPayload(payload, encoding, components)
   if (values.length !== expectedCellCount) {
     throw new Error(
-      `Scalar payload cell count mismatch for ${variable} ${normalizedHourToken}: ` +
+      `Scalar payload cell count mismatch for ${artifactId} ${normalizedHourToken}: ` +
       `got=${values.length} expected=${expectedCellCount}`
     )
   }
-  const style = getScalarStyle(spec.variable)
+  const style = getScalarStyleByPaletteId(layer.paletteId)
 
   const frame = {
     hourToken: normalizedHourToken,
-    variableId: variable,
-    paletteId: spec.variable.style.paletteId,
+    variableId: layerId,
+    paletteId: layer.paletteId,
     grid,
     encoding,
     values,
-    displayRange: [spec.variable.valueRange.min, spec.variable.valueRange.max] as [number, number],
+    displayRange: [layer.displayRange.min, layer.displayRange.max] as [number, number],
     colortable: style.colortable,
   }
   setDecodedScalarFrame(cacheKey, frame)
@@ -106,7 +109,7 @@ export async function prefetchScalarFrames(args: PrefetchScalarFramesArgs): Prom
       config: args.config,
       manifest: args.manifest,
       hourToken,
-      variable: args.variable,
+      layer: args.layer,
       signal: args.signal,
     }))
   )
@@ -119,7 +122,7 @@ export async function loadScalarFrameWindow(
     config,
     manifest,
     previousWindow,
-    variable,
+    layer,
     signal,
   } = args
 
@@ -130,7 +133,7 @@ export async function loadScalarFrameWindow(
       config,
       manifest,
       hourToken,
-      variable,
+      layer,
       signal,
     }),
   })
@@ -142,10 +145,11 @@ export function clearDecodedScalarFrameCache() {
 
 export function decodedScalarFrameCacheKey(
   manifest: CycleManifest,
-  variable: string,
+  layerId: string,
+  artifactId: string,
   hourToken: string
 ): string {
-  return `${manifest.run.cycle}:${manifest.run.revision}:${variable}:${normalizeFrameHourToken(hourToken)}`
+  return `${manifest.run.cycle}:${manifest.run.revision}:${layerId}:${artifactId}:${normalizeFrameHourToken(hourToken)}`
 }
 
 function getDecodedScalarFrame(cacheKey: string): ScalarFrameData | null {

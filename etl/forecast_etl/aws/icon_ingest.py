@@ -287,7 +287,6 @@ def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: s
         model_label=model.label,
         product_ids=model.workload.products,
         products=model.products,
-        product_groups=model.product_groups,
         artifacts=artifacts,
     )
     return result.ready

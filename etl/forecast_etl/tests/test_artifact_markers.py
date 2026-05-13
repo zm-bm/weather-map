@@ -23,6 +23,8 @@ class ProductSuccessMarkerTest(unittest.TestCase):
                     units="m/s",
                     parameter="wind_uv",
                     level="10m_above_ground",
+                    # Legacy presentation fields should be tolerated but not
+                    # carried into the normalized marker payload.
                     valid_min=-64,
                     valid_max=63.5,
                     grid_id="gfs_0p25_global",
@@ -39,10 +41,10 @@ class ProductSuccessMarkerTest(unittest.TestCase):
 
         self.assertEqual(marker.product_id, "wind10m_uv")
         self.assertEqual(marker.product.byte_length, 24)
-        self.assertEqual(marker.product.valid_min, -64.0)
         self.assertEqual(marker.product.components, ("u", "v"))
-        self.assertEqual(marker.product.style["layer_id"], "vector")
         self.assertEqual(marker.product.grid["nx"], grid["nx"])
+        self.assertFalse(hasattr(marker.product, "valid_min"))
+        self.assertFalse(hasattr(marker.product, "style"))
 
     def test_parse_product_success_marker_requires_product_payload(self) -> None:
         with self.assertRaises(SystemExit) as raised:

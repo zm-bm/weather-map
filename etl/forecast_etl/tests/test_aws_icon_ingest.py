@@ -42,7 +42,6 @@ class _FakeModel:
     )
     workload: _FakeWorkload = _FakeWorkload(forecast_hours=("001",), products=("tmp_surface",))
     products: dict[str, _FakeProduct] | None = None
-    product_groups: tuple = ()
 
     def __post_init__(self) -> None:
         if self.products is None:

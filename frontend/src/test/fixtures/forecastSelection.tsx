@@ -4,9 +4,9 @@ import { vi } from 'vitest'
 
 import type { CycleManifest } from '../../manifest'
 import {
-  asScalarProductId,
   asVectorProductId,
 } from '../../manifest'
+import { asScalarLayerId, buildAvailableScalarCatalog } from '../../forecast-catalog'
 import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
@@ -37,6 +37,7 @@ export function createForecastSelectionContextValue(
       ? {
           manifest: null,
           groups: [],
+          scalarLayers: null,
           products: null,
           activeScalar: null,
           activeVector: null,
@@ -44,14 +45,15 @@ export function createForecastSelectionContextValue(
         }
       : {
           manifest,
-          groups: manifest.groups,
+          groups: buildAvailableScalarCatalog(manifest).groups,
+          scalarLayers: buildAvailableScalarCatalog(manifest).layers,
           products: manifest.products,
           activeScalar: options.activeScalar
-            ? asScalarProductId(options.activeScalar)
-            : manifest.productsByLayerId.scalar?.[0] ?? null,
+            ? asScalarLayerId(options.activeScalar)
+            : buildAvailableScalarCatalog(manifest).groups[0]?.defaultLayer ?? null,
           activeVector: options.activeVector
             ? asVectorProductId(options.activeVector)
-            : manifest.productsByLayerId.vector?.[0] ?? null,
+            : manifest.productsByKind.vector?.[0] ?? null,
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue

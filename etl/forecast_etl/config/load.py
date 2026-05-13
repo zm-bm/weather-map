@@ -8,7 +8,6 @@ from typing import Any, Mapping
 from ..storage.base import UriStore
 from ..storage.routing import make_store
 from ._types import parse_config_model
-from .groups import parse_product_groups
 from .input import ModelConfigInput, PipelineConfigInput
 from .resolved import ModelConfig, PipelineConfig, ProductCatalogSpec
 from .validate import (
@@ -83,17 +82,6 @@ def _parse_model_config(
         model_products=model_products,
     )
 
-    grouped_product_ids = tuple(
-        product_id
-        for product_id in workload.products
-        if resolved_products[product_id].style.layer_id == "scalar"
-    )
-    product_groups = parse_product_groups(
-        raw.product_groups,
-        products=resolved_products,
-        grouped_product_ids=grouped_product_ids,
-    )
-
     return ModelConfig(
         id=model_id,
         label=raw.label,
@@ -101,7 +89,6 @@ def _parse_model_config(
         workload=workload,
         model_products=model_products,
         products=resolved_products,
-        product_groups=product_groups,
     )
 
 

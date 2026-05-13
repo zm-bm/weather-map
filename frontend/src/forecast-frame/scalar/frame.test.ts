@@ -16,8 +16,10 @@ import {
   createScalarProductFixture,
   createScalarPayloadFixture,
   createSignalFixture,
+  createVectorProductFixture,
 } from '../../test/fixtures'
 import { stubFetchArrayBufferOnce } from '../../test/fetch'
+import { buildAvailableScalarCatalog } from '../../forecast-catalog'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -26,6 +28,10 @@ afterEach(() => {
 beforeEach(() => {
   clearDecodedScalarFrameCache()
 })
+
+function scalarLayer(manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'tmp_surface') {
+  return buildAvailableScalarCatalog(manifest).layers[layerId]!
+}
 
 describe('scalar payload', () => {
   it('decodes little-endian int16 payloads', () => {
@@ -93,37 +99,38 @@ describe('scalar payload', () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const frame = await loadScalarFrame({
-      config: createConfigFixture(),
-      manifest: createFrameManifestFixture({
-        cycle: '2026041100',
-        generatedAt: '2026-04-11T00:00:00Z',
-        products: {
-          tmp_surface: createScalarProductFixture({
-            grid: createGridFixture({
-              crs: 'EPSG:4326',
-              nx: 2,
-              ny: 2,
+    const manifest = createFrameManifestFixture({
+      cycle: '2026041100',
+      generatedAt: '2026-04-11T00:00:00Z',
+      products: {
+        tmp_surface: createScalarProductFixture({
+          grid: createGridFixture({
+            crs: 'EPSG:4326',
+            nx: 2,
+            ny: 2,
             lon0: 0,
             lat0: 0,
             dx: 1,
             dy: -1,
             origin: 'cell_center',
-              layout: 'row_major',
-              xWrap: 'repeat',
-              yMode: 'clamp',
-            }),
-            frames: {
-              '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
-                byteLength: 8,
-                sha256: 'x',
-              }),
-            },
+            layout: 'row_major',
+            xWrap: 'repeat',
+            yMode: 'clamp',
           }),
-        },
-      }),
-      variable: 'tmp_surface',
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
+              byteLength: 8,
+              sha256: 'x',
+            }),
+          },
+        }),
+      },
+    })
+    const frame = await loadScalarFrame({
+      config: createConfigFixture(),
+      manifest,
+      layer: scalarLayer(manifest),
       hourToken: '000',
       signal: createSignalFixture(),
     })
@@ -142,7 +149,7 @@ describe('scalar payload', () => {
     const args = {
       config: createConfigFixture(),
       manifest,
-      variable: 'tmp_surface',
+      layer: scalarLayer(manifest),
       hourToken: '000',
       signal: createSignalFixture(),
     }
@@ -185,7 +192,7 @@ describe('scalar payload', () => {
       loadedFrames.push(await loadScalarFrame({
         config: createConfigFixture(),
         manifest,
-        variable: 'tmp_surface',
+        layer: scalarLayer(manifest),
         hourToken,
         signal: createSignalFixture(),
       }))
@@ -194,7 +201,7 @@ describe('scalar payload', () => {
     const reloadedFirstFrame = await loadScalarFrame({
       config: createConfigFixture(),
       manifest,
-      variable: 'tmp_surface',
+      layer: scalarLayer(manifest),
       hourToken: '000',
       signal: createSignalFixture(),
     })
@@ -207,32 +214,33 @@ describe('scalar payload', () => {
     const payload = new Int8Array([-100, 0, 100, -128]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
+    const manifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture({
+          encoding: {
+            id: 'e0',
+            format: 'linear-i8-v1',
+            dtype: 'int8',
+            byteOrder: 'none',
+            nodata: -128,
+            scale: 0.5,
+            offset: 50,
+            decodeFormula: 'value = stored * scale + offset',
+          },
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041100/000/tmp_surface.temp-piecewise.field.i8.bin',
+              byteLength: 4,
+              sha256: 'x',
+            }),
+          },
+        }),
+      },
+    })
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
-      manifest: createFrameManifestFixture({
-        products: {
-          tmp_surface: createScalarProductFixture({
-            encoding: {
-              id: 'e0',
-              format: 'linear-i8-v1',
-              dtype: 'int8',
-              byteOrder: 'none',
-              nodata: -128,
-              scale: 0.5,
-              offset: 50,
-              decodeFormula: 'value = stored * scale + offset',
-            },
-            frames: {
-              '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.temp-piecewise.field.i8.bin',
-                byteLength: 4,
-                sha256: 'x',
-              }),
-            },
-          }),
-        },
-      }),
-      variable: 'tmp_surface',
+      manifest,
+      layer: scalarLayer(manifest),
       hourToken: '000',
       signal: createSignalFixture(),
     })
@@ -247,29 +255,30 @@ describe('scalar payload', () => {
     const payload = new Int8Array([-127, -73, -72, 95]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
+    const manifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture({
+          encoding: {
+            id: 'e0',
+            format: 'temp-c-piecewise-i8-v1',
+            dtype: 'int8',
+            byteOrder: 'none',
+            nodata: -128,
+          },
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
+              byteLength: 4,
+              sha256: 'x',
+            }),
+          },
+        }),
+      },
+    })
     const frame = await loadScalarFrame({
       config: createConfigFixture(),
-      manifest: createFrameManifestFixture({
-        products: {
-          tmp_surface: createScalarProductFixture({
-            encoding: {
-              id: 'e0',
-              format: 'temp-c-piecewise-i8-v1',
-              dtype: 'int8',
-              byteOrder: 'none',
-              nodata: -128,
-            },
-            frames: {
-              '000': createFrameRefFixture({
-                path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-                byteLength: 4,
-                sha256: 'x',
-              }),
-            },
-          }),
-        },
-      }),
-      variable: 'tmp_surface',
+      manifest,
+      layer: scalarLayer(manifest),
       hourToken: '000',
       signal: createSignalFixture(),
     })
@@ -282,34 +291,35 @@ describe('scalar payload', () => {
   it('rejects scalar payloads with the wrong byte length', async () => {
     const payload = new Int8Array([1, 2, 3]).buffer
     stubFetchArrayBufferOnce(payload)
+    const manifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture({
+          encoding: {
+            id: 'e0',
+            format: 'linear-i8-v1',
+            dtype: 'int8',
+            byteOrder: 'none',
+            nodata: -128,
+            scale: 0.5,
+            offset: 50,
+            decodeFormula: 'value = stored * scale + offset',
+          },
+          frames: {
+            '000': createFrameRefFixture({
+              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
+              byteLength: 3,
+              sha256: 'x',
+            }),
+          },
+        }),
+      },
+    })
 
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
-        manifest: createFrameManifestFixture({
-          products: {
-            tmp_surface: createScalarProductFixture({
-              encoding: {
-                id: 'e0',
-                format: 'linear-i8-v1',
-                dtype: 'int8',
-                byteOrder: 'none',
-                nodata: -128,
-                scale: 0.5,
-                offset: 50,
-                decodeFormula: 'value = stored * scale + offset',
-              },
-              frames: {
-                '000': createFrameRefFixture({
-                  path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-                  byteLength: 3,
-                  sha256: 'x',
-                }),
-              },
-            }),
-          },
-        }),
-        variable: 'tmp_surface',
+        manifest,
+        layer: scalarLayer(manifest),
         hourToken: '000',
         signal: createSignalFixture(),
       })
@@ -317,65 +327,71 @@ describe('scalar payload', () => {
   })
 
   it('rejects unsupported scalar encodings locally', async () => {
+    const badFormatManifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture({
+          encoding: {
+            id: 'e0',
+            format: 'bad-format',
+          } as unknown as ScalarEncodingSpec,
+        }),
+      },
+    })
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
-        manifest: createFrameManifestFixture({
-          products: {
-            tmp_surface: createScalarProductFixture({
-              encoding: {
-                id: 'e0',
-                format: 'bad-format',
-              } as unknown as ScalarEncodingSpec,
-            }),
-          },
-        }),
-        variable: 'tmp_surface',
+        manifest: badFormatManifest,
+        layer: scalarLayer(badFormatManifest),
         hourToken: '000',
         signal: createSignalFixture(),
       })
     ).rejects.toThrow('Unsupported scalar format')
 
+    const missingNodataManifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture({
+          encoding: {
+            id: 'e0',
+            format: 'linear-i16-v1',
+            dtype: 'int16',
+            byteOrder: 'little',
+            scale: 0.01,
+            offset: 0,
+            decodeFormula: 'value = stored * scale + offset',
+          } as unknown as ScalarEncodingSpec,
+        }),
+      },
+    })
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
-        manifest: createFrameManifestFixture({
-          products: {
-            tmp_surface: createScalarProductFixture({
-              encoding: {
-                id: 'e0',
-                format: 'linear-i16-v1',
-                dtype: 'int16',
-                byteOrder: 'little',
-                scale: 0.01,
-                offset: 0,
-                decodeFormula: 'value = stored * scale + offset',
-              } as unknown as ScalarEncodingSpec,
-            }),
-          },
-        }),
-        variable: 'tmp_surface',
+        manifest: missingNodataManifest,
+        layer: scalarLayer(missingNodataManifest),
         hourToken: '000',
         signal: createSignalFixture(),
       })
     ).rejects.toThrow('Scalar encoding for tmp_surface is missing nodata')
   })
 
-  it('rejects scalar frame loads for products assigned to another layer', async () => {
+  it('rejects scalar frame loads for artifacts assigned to another kind', async () => {
+    const manifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: {
+          ...createVectorProductFixture(),
+          id: 'tmp_surface',
+        },
+      },
+      scalarProducts: ['tmp_surface'],
+      vectorProducts: [],
+    })
     await expect(
       loadScalarFrame({
         config: createConfigFixture(),
-        manifest: createFrameManifestFixture({
-          products: {
-            tmp_surface: createScalarProductFixture({
-              style: {
-                layerId: 'vector',
-                paletteId: 'temperature.air.c.v1',
-              },
-            }),
-          },
-        }),
-        variable: 'tmp_surface',
+        manifest,
+        layer: {
+          ...scalarLayer(createFrameManifestFixture()),
+          artifactId: 'tmp_surface' as never,
+        },
         hourToken: '000',
         signal: createSignalFixture(),
       })

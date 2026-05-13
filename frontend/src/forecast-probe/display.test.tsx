@@ -25,26 +25,18 @@ const manifest = createManifestFixture({
   scalarProducts: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
   vectorProducts: ['wind10m_uv'],
   products: {
-    tmp_surface: createScalarProductFixture({
-      label: 'Temperature',
-    }),
+    tmp_surface: createScalarProductFixture(),
     rh_surface: createScalarProductFixture({
-      label: 'Relative Humidity',
       units: '%',
       parameter: 'rh',
-      valueRange: { min: 0, max: 100 },
     }),
     prmsl_surface: createScalarProductFixture({
-      label: 'Air Pressure',
       units: 'Pa',
       parameter: 'prmsl',
-      valueRange: { min: 98_000, max: 103_500 },
     }),
     prate_surface: createScalarProductFixture({
-      label: 'Precipitation Rate',
       units: 'mm/hr',
       parameter: 'prate',
-      valueRange: { min: 0, max: 30 },
     }),
   },
 })

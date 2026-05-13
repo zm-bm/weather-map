@@ -2,9 +2,9 @@ import type { WeatherMapConfig } from '../config'
 import type { ForecastFrameSelection } from '../forecast-time'
 import type {
   CycleManifest,
-  ScalarProductId,
   VectorProductId,
 } from '../manifest'
+import type { ScalarLayerSpec } from '../forecast-catalog'
 import {
   loadScalarFrameWindow,
   prefetchScalarFrames,
@@ -16,7 +16,6 @@ import type { ScalarFrameWindowData } from './scalar/types'
 import type { VectorFrameWindowData } from './vector/types'
 import { normalizeFrameHourToken } from './loader'
 import { prefetchFramePayloads } from './prefetch'
-import type { FrameKind } from './spec'
 
 export type ForecastFrames = {
   scalar: ScalarFrameWindowData
@@ -31,22 +30,23 @@ export type PreviousForecastFrameWindows = {
 export type LoadForecastFramesArgs = ForecastFrameSelection & {
   config: WeatherMapConfig
   manifest: CycleManifest
-  activeScalar: ScalarProductId
+  activeScalar: ScalarLayerSpec
   activeVector: VectorProductId
   previousWindows?: PreviousForecastFrameWindows
   signal: AbortSignal
 }
 
 type ForecastFramePrefetchTask = {
-  frameKind: FrameKind
-  variableId: string
   hourToken: string
-}
+} & (
+  | { frameKind: 'scalar'; layer: ScalarLayerSpec }
+  | { frameKind: 'vector'; variableId: string }
+)
 
 export type PrefetchForecastFramesArgs = {
   config: WeatherMapConfig
   manifest: CycleManifest
-  activeScalar: ScalarProductId
+  activeScalar: ScalarLayerSpec
   activeVector: VectorProductId
   lowerHourToken: string
   upperHourToken: string
@@ -65,7 +65,7 @@ export async function loadForecastFrames(args: LoadForecastFramesArgs): Promise<
       upperHourToken: args.upperHourToken,
       selectedValidTimeMs: args.selectedValidTimeMs,
       mix: args.mix,
-      variable: args.activeScalar,
+      layer: args.activeScalar,
       signal: args.signal,
     }),
     loadVectorFrameWindow({
@@ -107,7 +107,7 @@ function createForecastFramePrefetchTasks(args: PrefetchForecastFramesArgs): For
   return hourTokens.flatMap((hourToken) => [
     {
       frameKind: 'scalar' as const,
-      variableId: args.activeScalar,
+      layer: args.activeScalar,
       hourToken,
     },
     {
@@ -173,7 +173,7 @@ async function runPrefetchQueue(args: {
           await prefetchScalarFrames({
             config: args.config,
             manifest: args.manifest,
-            variable: task.variableId,
+            layer: task.layer,
             hourTokens: [task.hourToken],
             signal: args.signal,
           })

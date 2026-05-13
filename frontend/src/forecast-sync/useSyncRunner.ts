@@ -105,6 +105,7 @@ export function useSyncRunner({
     const {
       manifest,
       activeScalar,
+      activeScalarLayer,
       activeVector,
       selectedValidTimeMs,
       lowerHourToken,
@@ -113,7 +114,7 @@ export function useSyncRunner({
       requestKey,
       sync,
     } = syncRequest
-    const scalarKey = createForecastFrameKey(manifest, activeScalar)
+    const scalarKey = createForecastFrameKey(manifest, `${activeScalar}:${activeScalarLayer.artifactId}`)
     const vectorKey = createForecastFrameKey(manifest, activeVector)
 
     if (machine.isApplied(requestKey)) {
@@ -140,7 +141,7 @@ export function useSyncRunner({
           lowerHourToken,
           upperHourToken,
           mix,
-          activeScalar,
+          activeScalar: activeScalarLayer,
           activeVector,
           signal: activeRequest.controller.signal,
         })
@@ -189,7 +190,10 @@ function resolveReusableFrameWindows(
 ): PreviousForecastFrameWindows {
   if (previous == null) return {}
 
-  const scalarKey = createForecastFrameKey(request.manifest, request.activeScalar)
+  const scalarKey = createForecastFrameKey(
+    request.manifest,
+    `${request.activeScalar}:${request.activeScalarLayer.artifactId}`
+  )
   const vectorKey = createForecastFrameKey(request.manifest, request.activeVector)
 
   return {
@@ -200,7 +204,7 @@ function resolveReusableFrameWindows(
 
 function createForecastFrameKey(
   manifest: SyncRequest['manifest'],
-  variable: SyncRequest['activeScalar'] | SyncRequest['activeVector']
+  variable: string
 ): string {
   return `${manifest.run.cycle}:${manifest.run.revision}:${variable}`
 }

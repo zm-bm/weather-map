@@ -11,12 +11,12 @@ from ._types import (
     FiniteNumber,
     NonEmptyStr,
     NonEmptyStringMap,
-    OptionalNonEmptyStr,
     UniqueNonEmptyStringTuple,
 )
 
 SOURCE_TYPE_GFS_NOMADS = "gfs_nomads"
 SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL = "icon_dwd_icosahedral"
+ProductKind: TypeAlias = Literal["scalar", "vector"]
 
 
 class WorkloadConfig(ConfigModel):
@@ -87,27 +87,17 @@ class EncodingSpec(ConfigModel):
     nodata: int | None = None
 
 
-class ProductStyleSpec(ConfigModel):
-    """Frontend layer and palette identifiers for one product."""
-
-    layer_id: NonEmptyStr
-    palette_id: NonEmptyStr
-
-
 class ProductCatalogSpec(ConfigModel):
     """Reusable product definition before model-specific GRIB selectors."""
 
     id: NonEmptyStr
+    kind: ProductKind
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
-    valid_min: FiniteNumber
-    valid_max: FiniteNumber
     source_transform: NonEmptyStr
     encoding: EncodingSpec
     component_ids: UniqueNonEmptyStringTuple
-    style: ProductStyleSpec
-    label: OptionalNonEmptyStr = None
 
 
 class ProductTemporalSpec(ConfigModel):
@@ -137,16 +127,13 @@ class ProductSpec(ConfigModel):
     """Fully resolved product ready for extraction, encoding, and publishing."""
 
     id: NonEmptyStr
+    kind: ProductKind
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
-    valid_min: FiniteNumber
-    valid_max: FiniteNumber
     source_transform: NonEmptyStr
     encoding: EncodingSpec
     components: tuple[ComponentSpec, ...]
-    style: ProductStyleSpec
-    label: OptionalNonEmptyStr = None
     temporal: ProductTemporalSpec | None = None
     derivation: ProductDerivationSpec | None = None
 
@@ -155,16 +142,6 @@ class ProductSpec(ConfigModel):
         """Component identifiers in payload packing order."""
 
         return tuple(component.id for component in self.components)
-
-
-class ProductGroup(ConfigModel):
-    """Frontend grouping for scalar product selection."""
-
-    id: NonEmptyStr
-    label: NonEmptyStr
-    layer_id: NonEmptyStr
-    default_product: NonEmptyStr
-    products: UniqueNonEmptyStringTuple
 
 
 class ModelConfig(ConfigModel):
@@ -176,7 +153,6 @@ class ModelConfig(ConfigModel):
     workload: WorkloadConfig
     model_products: dict[str, ModelProductSpec]
     products: dict[str, ProductSpec]
-    product_groups: tuple[ProductGroup, ...]
 
 
 class PipelineConfig(ConfigModel):

@@ -113,14 +113,13 @@ describe('App composition', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
       generatedAt: '2026-04-09T00:00:00Z',
-      scalarProducts: ['rh_2m'],
+      scalarProducts: ['rh_surface'],
       forecastHours: ['003'],
       products: {
-        rh_2m: createScalarProductFixture({
+        rh_surface: createScalarProductFixture({
           units: '%',
           parameter: 'rh',
           level: '2m_above_ground',
-          valueRange: { min: 0, max: 100 },
         }),
       },
     })

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { asScalarProductId, asVectorProductId } from '../manifest'
+import { asVectorProductId } from '../manifest'
+import { asScalarLayerId } from '../forecast-catalog'
 import { createManifestFixture } from '../test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
@@ -17,10 +18,10 @@ function ForecastSelectionProbe() {
       <div data-testid="unit-system">{context.unitSystem}</div>
       <div data-testid="has-scalar-unit-api">{String('getScalarUnitOptionId' in rawContext)}</div>
       <div data-testid="has-vector-unit-api">{String('getVectorUnitOptionId' in rawContext)}</div>
-      <button type="button" onClick={() => context.setActiveScalar(asScalarProductId('rh_2m'))}>
+      <button type="button" onClick={() => context.setActiveScalar(asScalarLayerId('rh_surface'))}>
         set-scalar-rh
       </button>
-      <button type="button" onClick={() => context.setActiveScalar(asScalarProductId('prate_surface'))}>
+      <button type="button" onClick={() => context.setActiveScalar(asScalarLayerId('prate_surface'))}>
         set-scalar-prate
       </button>
       <button type="button" onClick={() => context.setActiveVector(asVectorProductId('wind10m_uv'))}>
@@ -40,7 +41,7 @@ describe('ForecastSelectionContext', () => {
   it('resets scalar/vector defaults when forecast cycle changes', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_2m'],
+      scalarProducts: ['tmp_surface', 'rh_surface'],
       vectorProducts: ['wind10m_uv', 'gust10m_uv'],
     })
 
@@ -54,11 +55,11 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('active-vector')).toHaveTextContent('wind10m_uv')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-scalar-rh' }))
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_2m')
+    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_surface')
 
     const secondManifest = createManifestFixture({
       cycle: '2026040912',
-      scalarProducts: ['tmp_surface', 'rh_2m'],
+      scalarProducts: ['tmp_surface', 'rh_surface'],
       vectorProducts: ['gust10m_uv', 'wind10m_uv'],
     })
 
@@ -75,7 +76,7 @@ describe('ForecastSelectionContext', () => {
   it('uses one global unit system and omits per-layer unit APIs', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_2m'],
+      scalarProducts: ['tmp_surface', 'rh_surface'],
       vectorProducts: ['wind10m_uv', 'gust10m_uv'],
     })
 
@@ -99,7 +100,7 @@ describe('ForecastSelectionContext', () => {
   it('preserves active selections when the manifest changes within the same cycle', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_2m'],
+      scalarProducts: ['tmp_surface', 'rh_surface'],
       vectorProducts: ['gust10m_uv', 'wind10m_uv'],
     })
 
@@ -117,7 +118,7 @@ describe('ForecastSelectionContext', () => {
 
     const secondManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_2m'],
+      scalarProducts: ['tmp_surface', 'rh_surface'],
       vectorProducts: ['gust10m_uv', 'wind10m_uv'],
       revision: 'same-cycle-new-revision',
     })
@@ -128,7 +129,7 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_2m')
+    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_surface')
     expect(screen.getByTestId('active-vector')).toHaveTextContent('wind10m_uv')
   })
 
@@ -137,22 +138,6 @@ describe('ForecastSelectionContext', () => {
       model: { id: 'gfs', label: 'GFS' },
       cycle: '2026040900',
       scalarProducts: ['tmp_surface', 'prate_surface'],
-      groups: [
-        {
-          id: 'temperature',
-          layerId: 'scalar',
-          label: 'Temperature',
-          defaultProduct: asScalarProductId('tmp_surface'),
-          products: [asScalarProductId('tmp_surface')],
-        },
-        {
-          id: 'precipitation',
-          layerId: 'scalar',
-          label: 'Precipitation',
-          defaultProduct: asScalarProductId('prate_surface'),
-          products: [asScalarProductId('prate_surface')],
-        },
-      ],
     })
 
     const { rerender } = render(
@@ -168,22 +153,6 @@ describe('ForecastSelectionContext', () => {
       model: { id: 'icon', label: 'ICON' },
       cycle: '2026040900',
       scalarProducts: ['tmp_surface', 'precip_total_surface'],
-      groups: [
-        {
-          id: 'temperature',
-          layerId: 'scalar',
-          label: 'Temperature',
-          defaultProduct: asScalarProductId('tmp_surface'),
-          products: [asScalarProductId('tmp_surface')],
-        },
-        {
-          id: 'precipitation',
-          layerId: 'scalar',
-          label: 'Precipitation',
-          defaultProduct: asScalarProductId('precip_total_surface'),
-          products: [asScalarProductId('precip_total_surface')],
-        },
-      ],
     })
 
     rerender(

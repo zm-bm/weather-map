@@ -12,7 +12,6 @@ from forecast_etl.config.resolved import (
     IconDwdConfig,
     IconDwdSourceConfig,
     NomadsConfig,
-    ProductGroup,
 )
 
 
@@ -41,23 +40,9 @@ class _FakePipelineConfig:
         )
         self.nomads = self.source.nomads
         self.products = {
-            name: {
-                "style": {
-                    "layer_id": "scalar",
-                    "palette_id": "temperature.air.c.v1",
-                },
-            }
+            name: {"kind": "scalar"}
             for name in products
         }
-        self.product_groups = (
-            ProductGroup(
-                id="products",
-                label="Products",
-                layer_id="scalar",
-                default_product=products[0],
-                products=products,
-            ),
-        ) if products else ()
         self.id = "gfs"
         self.label = "GFS"
 
@@ -135,7 +120,7 @@ class CliTest(unittest.TestCase):
         self.assertEqual(run_process_hour.call_args.kwargs["product_ids"], ("tmp_surface",))
         self.assertEqual(
             run_process_hour.call_args.kwargs["products"],
-            {"tmp_surface": {"style": {"layer_id": "scalar", "palette_id": "temperature.air.c.v1"}}},
+            {"tmp_surface": {"kind": "scalar"}},
         )
         run_publish.assert_called_once()
 

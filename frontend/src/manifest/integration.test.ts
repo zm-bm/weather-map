@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
+import { buildAvailableScalarCatalog } from '../forecast-catalog'
 import { loadForecastFrames } from '../forecast-frame'
 import {
   createConfigFixture,
@@ -52,6 +53,7 @@ describe('manifest + frame loading end-to-end', () => {
 
     const signal = createSignalFixture()
     const manifest = await fetchCurrentManifest({ signal })
+    const scalarCatalog = buildAvailableScalarCatalog(manifest)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
     })
@@ -59,8 +61,8 @@ describe('manifest + frame loading end-to-end', () => {
     const frames = await loadForecastFrames({
       config,
       manifest,
-      activeScalar: manifest.productsByLayerId.scalar[0]!,
-      activeVector: manifest.productsByLayerId.vector[0]!,
+      activeScalar: scalarCatalog.layers.tmp_surface!,
+      activeVector: manifest.productsByKind.vector[0]!,
       selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
       lowerHourToken: '000',
       upperHourToken: '000',

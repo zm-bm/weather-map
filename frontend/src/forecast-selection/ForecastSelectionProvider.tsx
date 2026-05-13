@@ -3,9 +3,13 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type {
   CycleManifest,
   ProductId,
-  ScalarProductId,
   VectorProductId,
 } from '../manifest'
+import {
+  buildAvailableScalarCatalog,
+  type ScalarLayerGroupSpec,
+  type ScalarLayerId,
+} from '../forecast-catalog'
 import type { UnitSystem } from '../units'
 import {
   ForecastSelectionContext,
@@ -15,35 +19,35 @@ import {
 const EMPTY_GROUPS: [] = []
 const EMPTY_PRODUCTS: [] = []
 
-function productsForLayer(manifest: CycleManifest | null, layerId: string): ProductId[] {
-  return manifest?.productsByLayerId[layerId] ?? EMPTY_PRODUCTS
+function productsForKind(manifest: CycleManifest | null, kind: string): ProductId[] {
+  return manifest?.productsByKind[kind] ?? EMPTY_PRODUCTS
 }
 
-function groupsForLayer(manifest: CycleManifest | null, layerId: string): CycleManifest['groups'] {
-  return manifest?.groups.filter((group) => group.layerId === layerId) ?? EMPTY_GROUPS
+function availableScalarCatalog(manifest: CycleManifest | null) {
+  return manifest ? buildAvailableScalarCatalog(manifest) : { groups: EMPTY_GROUPS, layers: null }
 }
 
 function findScalarGroupId(
-  groups: readonly CycleManifest['groups'][number][],
-  productId: ScalarProductId | null
+  groups: readonly ScalarLayerGroupSpec[],
+  layerId: ScalarLayerId | null
 ): string | null {
-  if (productId == null) return null
-  return groups.find((group) => group.products.includes(productId))?.id ?? null
+  if (layerId == null) return null
+  return groups.find((group) => group.layers.includes(layerId))?.id ?? null
 }
 
 function defaultScalarForGroupId(
-  groups: readonly CycleManifest['groups'][number][],
+  groups: readonly ScalarLayerGroupSpec[],
   groupId: string | null
-): ScalarProductId | null {
+): ScalarLayerId | null {
   if (groupId == null) return null
-  return groups.find((group) => group.id === groupId)?.defaultProduct ?? null
+  return groups.find((group) => group.id === groupId)?.defaultLayer ?? null
 }
 
 function resolveFallbackScalar(
-  groups: readonly CycleManifest['groups'][number][],
-  scalarProducts: readonly ScalarProductId[]
-): ScalarProductId | null {
-  return groups[0]?.defaultProduct ?? scalarProducts[0] ?? null
+  groups: readonly ScalarLayerGroupSpec[],
+  scalarLayers: readonly ScalarLayerId[]
+): ScalarLayerId | null {
+  return groups[0]?.defaultLayer ?? scalarLayers[0] ?? null
 }
 
 export default function ForecastSelectionProvider({
@@ -53,28 +57,30 @@ export default function ForecastSelectionProvider({
   manifest: CycleManifest | null
   children: ReactNode
 }) {
-  const initialScalarProducts = productsForLayer(manifest, 'scalar') as ScalarProductId[]
-  const initialVectorProducts = productsForLayer(manifest, 'vector') as VectorProductId[]
-  const initialScalarGroups = groupsForLayer(manifest, 'scalar')
+  const initialScalarCatalog = availableScalarCatalog(manifest)
+  const initialScalarLayers = Object.keys(initialScalarCatalog.layers ?? {}) as ScalarLayerId[]
+  const initialVectorProducts = productsForKind(manifest, 'vector') as VectorProductId[]
+  const initialScalarGroups = initialScalarCatalog.groups
+  const initialActiveScalar = resolveFallbackScalar(initialScalarGroups, initialScalarLayers)
   const [selection, setSelection] = useState<{
     modelId: string | null
     cycle: string | null
-    activeScalar: ScalarProductId | null
+    activeScalar: ScalarLayerId | null
     activeScalarGroupId: string | null
     activeVector: VectorProductId | null
   }>(() => ({
     modelId: manifest?.model.id ?? null,
     cycle: manifest?.run.cycle ?? null,
-    activeScalar: initialScalarProducts[0] ?? null,
+    activeScalar: initialActiveScalar,
     activeScalarGroupId: findScalarGroupId(
       initialScalarGroups,
-      initialScalarProducts[0] ?? null
+      initialActiveScalar
     ),
     activeVector: initialVectorProducts[0] ?? null,
   }))
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
-  const setActiveScalar = useCallback((value: ScalarProductId) => {
+  const setActiveScalar = useCallback((value: ScalarLayerId) => {
     setSelection((current) => ({
       modelId: current.modelId,
       cycle: current.cycle,
@@ -103,6 +109,7 @@ export default function ForecastSelectionProvider({
       return {
         manifest: null,
         groups: EMPTY_GROUPS,
+        scalarLayers: null,
         products: null,
         activeScalar: null,
         activeVector: null,
@@ -116,22 +123,23 @@ export default function ForecastSelectionProvider({
 
     const cycle = manifest.run.cycle
     const modelId = manifest.model.id
-    const scalarProducts = productsForLayer(manifest, 'scalar') as ScalarProductId[]
-    const groups = groupsForLayer(manifest, 'scalar')
-    const vectorProducts = productsForLayer(manifest, 'vector') as VectorProductId[]
+    const scalarCatalog = buildAvailableScalarCatalog(manifest)
+    const scalarLayers = Object.keys(scalarCatalog.layers) as ScalarLayerId[]
+    const groups = scalarCatalog.groups
+    const vectorProducts = productsForKind(manifest, 'vector') as VectorProductId[]
     const sameModel = selection.modelId === modelId
     const sameCycle = selection.cycle === cycle
 
     const activeScalar =
       ((sameModel && sameCycle) || !sameModel)
       && selection.activeScalar != null
-      && scalarProducts.includes(selection.activeScalar)
+      && scalarLayers.includes(selection.activeScalar)
         ? selection.activeScalar
         : (
             (!sameModel || sameCycle)
               ? defaultScalarForGroupId(groups, selection.activeScalarGroupId)
               : null
-          ) ?? resolveFallbackScalar(groups, scalarProducts)
+          ) ?? resolveFallbackScalar(groups, scalarLayers)
     const activeVector =
       sameCycle
       && selection.activeVector != null
@@ -142,6 +150,7 @@ export default function ForecastSelectionProvider({
     return {
       manifest,
       groups,
+      scalarLayers: scalarCatalog.layers,
       products: manifest.products,
       activeScalar,
       activeVector,
@@ -167,13 +176,13 @@ export default function ForecastSelectionProvider({
           activeScalar:
             current.cycle === cycle
             && current.activeScalar != null
-            && scalarProducts.includes(current.activeScalar)
+            && scalarLayers.includes(current.activeScalar)
               ? current.activeScalar
-              : resolveFallbackScalar(groups, scalarProducts),
+              : resolveFallbackScalar(groups, scalarLayers),
           activeScalarGroupId:
             current.cycle === cycle
               ? current.activeScalarGroupId
-              : findScalarGroupId(groups, resolveFallbackScalar(groups, scalarProducts)),
+              : findScalarGroupId(groups, resolveFallbackScalar(groups, scalarLayers)),
           activeVector: nextVector,
         }))
       },

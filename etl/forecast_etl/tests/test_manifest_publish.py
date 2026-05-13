@@ -16,10 +16,51 @@ from forecast_etl.tests.fixtures.products import (
     cloud_cover_config,
     minimal_product_config,
     precip_rate_config,
-    product_group,
     wind_product_config,
 )
 from forecast_etl.tests.fixtures.publish import publish_fixture
+
+
+def _manifest_product(product_id: str, *, parameter: str = "tmp") -> dict:
+    return {
+        "id": product_id,
+        "kind": "scalar",
+        "units": "C",
+        "parameter": parameter,
+        "level": "surface",
+        "components": ["value"],
+        "grid": {
+            "id": "gfs_0p25_global",
+            "crs": "EPSG:4326",
+            "nx": 1,
+            "ny": 1,
+            "lon0": 0,
+            "lat0": 0,
+            "dx": 1,
+            "dy": 1,
+            "origin": "cell_center",
+            "layout": "row_major",
+            "xWrap": "repeat",
+            "yMode": "clamp",
+        },
+        "encoding": {
+            "id": "tmp_surface_i16_v1",
+            "format": "linear-i16-v1",
+            "dtype": "int16",
+            "byteOrder": "little",
+            "nodata": -32768,
+            "scale": 0.01,
+            "offset": 0.0,
+            "decodeFormula": "value = stored * scale + offset",
+        },
+        "frames": {
+            "000": {
+                "path": "fields/gfs/2026041100/000/tmp_surface.field.i16.bin",
+                "byteLength": 2,
+                "sha256": "a" * 64,
+            },
+        },
+    }
 
 
 class PublishManifestTest(unittest.TestCase):
@@ -30,25 +71,8 @@ class PublishManifestTest(unittest.TestCase):
             cycle="2026041100",
             generated_at="2026-04-11T01:00:00+00:00",
             fhours=("000",),
-            product_groups=[
-                {
-                    "id": "products",
-                    "layerId": "scalar",
-                    "label": "Products",
-                    "defaultProductId": "tmp_surface",
-                    "productIds": ["tmp_surface"],
-                }
-            ],
             products={
-                "tmp_surface": {
-                    "id": "tmp_surface",
-                    "components": ["value"],
-                    "style": {
-                        "layerId": "scalar",
-                        "paletteId": "temperature.air.c.v1",
-                    },
-                    "label": "Temperature",
-                }
+                "tmp_surface": _manifest_product("tmp_surface"),
             },
         )
 
@@ -61,7 +85,7 @@ class PublishManifestTest(unittest.TestCase):
         self.assertEqual(compute_manifest_revision(generated_changed), revision)
 
         product_changed = json.loads(json.dumps(manifest))
-        product_changed["products"]["tmp_surface"]["label"] = "Updated temperature"
+        product_changed["products"]["tmp_surface"]["parameter"] = "tmp_v2"
         self.assertNotEqual(compute_manifest_revision(product_changed), revision)
 
     def test_publish_writes_scalar_manifest_and_is_idempotent(self) -> None:
@@ -74,12 +98,6 @@ class PublishManifestTest(unittest.TestCase):
                     "level": "surface",
                     "parameter": "rh",
                     "units": "%",
-                    "valid_min": 0.0,
-                    "valid_max": 100.0,
-                    "style": {
-                        "layer_id": "scalar",
-                        "palette_id": "moisture.relative_humidity.percent.v1",
-                    },
                     "encoding": {
                         "id": "rh_surface_i16_v1",
                         "format": "linear-i16-v1",
@@ -125,25 +143,13 @@ class PublishManifestTest(unittest.TestCase):
                     {"id": "003", "leadHours": 3, "validAt": "2026-04-11T03:00:00Z"},
                 ],
             )
-            self.assertEqual(
-                cycle_manifest["groups"],
-                [
-                    {
-                        "id": "products",
-                        "layerId": "scalar",
-                        "label": "Products",
-                        "defaultProductId": "tmp_surface",
-                        "productIds": list(variables),
-                    },
-                ],
-            )
+            self.assertNotIn("groups", cycle_manifest)
             self.assertEqual(set(cycle_manifest["products"].keys()), set(variables))
+            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["kind"], "scalar")
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["components"], ["value"])
-            self.assertEqual(
-                cycle_manifest["products"]["tmp_surface"]["style"],
-                {"layerId": "scalar", "paletteId": "temperature.air.c.v1"},
-            )
-            self.assertEqual(cycle_manifest["products"]["tmp_surface"]["valueRange"], {"min": -45.0, "max": 50.0})
+            self.assertNotIn("style", cycle_manifest["products"]["tmp_surface"])
+            self.assertNotIn("label", cycle_manifest["products"]["tmp_surface"])
+            self.assertNotIn("valueRange", cycle_manifest["products"]["tmp_surface"])
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["id"], "gfs_0p25_global")
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["xWrap"], "repeat")
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["yMode"], "clamp")
@@ -187,14 +193,6 @@ class PublishManifestTest(unittest.TestCase):
             result = fx.publish(
                 product_ids=("prate_surface",),
                 products_cfg=products_cfg,
-                product_groups=[
-                    product_group(
-                        group_id="precipitation",
-                        label="Precipitation",
-                        default_product="prate_surface",
-                        products=["prate_surface"],
-                    ),
-                ],
             )
 
             self.assertTrue(result.ready)
@@ -237,84 +235,31 @@ class PublishManifestTest(unittest.TestCase):
 
             write_json(marker_uri, valid_marker)
 
-    def test_publish_revision_includes_product_groups(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-groups-") as fx:
-            variables = ("tmp_surface",)
-            products_cfg = {
-                "tmp_surface": minimal_product_config(),
-            }
-
-            fx.write_scalar_marker(
-                product_id="tmp_surface",
-                product_config=products_cfg["tmp_surface"],
-            )
-
-            fx.publish(
-                product_ids=variables,
-                products_cfg=products_cfg,
-                product_groups=[
-                    product_group(
-                        group_id="temperature",
-                        label="Temperature",
-                        default_product="tmp_surface",
-                        products=["tmp_surface"],
-                    ),
-                ],
-            )
-            first_manifest = fx.cycle_manifest()
-
-            fx.publish(
-                product_ids=variables,
-                products_cfg=products_cfg,
-                product_groups=[
-                    product_group(
-                        group_id="alternate",
-                        label="Alternate",
-                        default_product="tmp_surface",
-                        products=["tmp_surface"],
-                    ),
-                ],
-            )
-            second_manifest = fx.cycle_manifest()
-
-            self.assertNotEqual(first_manifest["run"]["revision"], second_manifest["run"]["revision"])
-            self.assertEqual(second_manifest["groups"][0]["id"], "alternate")
-
-    def test_publish_revision_includes_product_style(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-style-") as fx:
+    def test_publish_tolerates_legacy_marker_presentation_fields(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-legacy-marker-") as fx:
             product_id = "tmp_surface"
-
-            first_cfg = minimal_product_config()
+            product_cfg = minimal_product_config()
             fx.write_scalar_marker(
                 product_id=product_id,
-                product_config=first_cfg,
+                product_config=product_cfg,
             )
-            fx.publish(
-                product_ids=(product_id,),
-                products_cfg={product_id: first_cfg},
-            )
-            first_manifest = fx.cycle_manifest()
+            marker_uri = fx.marker_uri(product_id)
+            marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
+            marker["product"]["valid_min"] = -45.0
+            marker["product"]["valid_max"] = 50.0
+            marker["product"]["style"] = {"layer_id": "scalar", "palette_id": "legacy.palette"}
+            write_json(marker_uri, marker)
 
-            second_cfg = minimal_product_config()
-            second_cfg["style"] = {
-                "layer_id": "scalar",
-                "palette_id": "temperature.air.c.v2",
-            }
-            fx.write_scalar_marker(
-                product_id=product_id,
-                product_config=second_cfg,
-            )
-            fx.publish(
+            result = fx.publish(
                 product_ids=(product_id,),
-                products_cfg={product_id: second_cfg},
+                products_cfg={product_id: product_cfg},
             )
-            second_manifest = fx.cycle_manifest()
 
-            self.assertNotEqual(first_manifest["run"]["revision"], second_manifest["run"]["revision"])
-            self.assertEqual(
-                second_manifest["products"]["tmp_surface"]["style"],
-                {"layerId": "scalar", "paletteId": "temperature.air.c.v2"},
-            )
+            self.assertTrue(result.ready)
+            product = fx.cycle_manifest()["products"][product_id]
+            self.assertNotIn("valid_min", product)
+            self.assertNotIn("valid_max", product)
+            self.assertNotIn("style", product)
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
@@ -325,8 +270,6 @@ class PublishManifestTest(unittest.TestCase):
                     "parameter": "tmp",
                     "level": "surface",
                     "units": "C",
-                    "valid_min": -35.0,
-                    "valid_max": 50.0,
                     "source_transform": "identity",
                     "encoding": {
                         "id": "tmp_surface_i8_temp_c_piecewise_v1",
@@ -388,14 +331,6 @@ class PublishManifestTest(unittest.TestCase):
             result = fx.publish(
                 product_ids=variables,
                 products_cfg=products_cfg,
-                product_groups=[
-                    product_group(
-                        group_id="atmosphere",
-                        label="Atmosphere",
-                        default_product="low_clouds",
-                        products=["low_clouds"],
-                    ),
-                ],
             )
 
             self.assertTrue(result.ready)
@@ -416,7 +351,9 @@ class PublishManifestTest(unittest.TestCase):
                 },
             )
             self.assertEqual(product["components"], ["value"])
-            self.assertEqual(product["style"], {"layerId": "scalar", "paletteId": "cloud.cover.percent.v1"})
+            self.assertEqual(product["kind"], "scalar")
+            self.assertNotIn("style", product)
+            self.assertNotIn("valueRange", product)
             self.assertEqual(
                 product["frames"]["000"]["path"],
                 f"fields/gfs/{fx.cycle}/000/low_clouds.field.i8.bin",
@@ -516,13 +453,11 @@ class PublishManifestTest(unittest.TestCase):
 
             cycle_manifest = fx.cycle_manifest()
             latest_manifest = fx.latest_manifest()
-            self.assertEqual(cycle_manifest["groups"], [])
+            self.assertNotIn("groups", cycle_manifest)
             self.assertEqual(list(cycle_manifest["products"].keys()), ["wind10m_uv"])
+            self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["kind"], "vector")
             self.assertEqual(cycle_manifest["products"]["wind10m_uv"]["components"], ["u", "v"])
-            self.assertEqual(
-                cycle_manifest["products"]["wind10m_uv"]["style"],
-                {"layerId": "vector", "paletteId": "wind.vector.mps.v1"},
-            )
+            self.assertNotIn("style", cycle_manifest["products"]["wind10m_uv"])
             self.assertEqual(latest_manifest, cycle_manifest)
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],
@@ -558,7 +493,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
             self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
             self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
-            self.assertEqual(cycle_manifest["groups"][0]["productIds"], ["tmp_surface"])
+            self.assertNotIn("groups", cycle_manifest)
             self.assertEqual(list(cycle_manifest["products"].keys()), ["tmp_surface", "wind10m_uv"])
             self.assertEqual(
                 cycle_manifest["products"]["wind10m_uv"]["frames"]["000"]["path"],

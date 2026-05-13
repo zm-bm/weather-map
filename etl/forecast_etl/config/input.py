@@ -14,7 +14,6 @@ from ._types import (
     ForecastHourInt,
     NonEmptyStr,
     NonEmptyStringMap,
-    OptionalNonEmptyStr,
     UniqueNonEmptyStringTuple,
 )
 from .resolved import SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL
@@ -35,7 +34,6 @@ class ModelConfigInput(ConfigModel):
     source: dict[str, Any]
     workload: dict[str, Any]
     products: dict[NonEmptyStr, Any] = Field(min_length=1)
-    product_groups: list[Any] = Field(min_length=1)
 
 
 class WorkloadInput(ConfigModel):
@@ -90,28 +88,18 @@ class ModelSourceInputEnvelope(ConfigModel):
     source: ModelSourceInput
 
 
-class ProductStyleInput(ConfigModel):
-    layer_id: NonEmptyStr
-    palette_id: NonEmptyStr
-
-
 class ProductBaseInput(ConfigModel):
     """Raw product fields shared by catalog and resolved product fixtures."""
 
+    kind: Literal["scalar", "vector"]
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
-    valid_min: FiniteNumber
-    valid_max: FiniteNumber
-    style: ProductStyleInput
     encoding: dict[str, Any]
     source_transform: NonEmptyStr = SOURCE_TRANSFORM_IDENTITY
-    label: OptionalNonEmptyStr = None
 
     @model_validator(mode="after")
     def _validate_product_fields(self) -> "ProductBaseInput":
-        if self.valid_min >= self.valid_max:
-            raise ValueError("valid_min must be less than valid_max")
         if self.source_transform not in SOURCE_TRANSFORMS:
             raise ValueError(f"source_transform must be one of {sorted(SOURCE_TRANSFORMS)!r}")
         return self
@@ -197,37 +185,6 @@ class EncodingInput(ConfigModel):
     scale: FiniteNumber | None = None
     offset: FiniteNumber | None = None
     nodata: StrictInt | None = None
-
-
-class ProductGroupInput(ConfigModel):
-    """Raw frontend product group config."""
-
-    id: NonEmptyStr
-    label: NonEmptyStr
-    layer_id: NonEmptyStr
-    default_product: NonEmptyStr
-    products: UniqueNonEmptyStringTuple
-
-    @model_validator(mode="after")
-    def _validate_default_product(self) -> "ProductGroupInput":
-        if self.default_product not in self.products:
-            raise ValueError("default_product must be included in products")
-        return self
-
-
-class ProductGroupsInput(ConfigModel):
-    """Wrapper that validates product group collection-level constraints."""
-
-    groups: tuple[ProductGroupInput, ...] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _validate_group_ids(self) -> "ProductGroupsInput":
-        seen: set[str] = set()
-        for group in self.groups:
-            if group.id in seen:
-                raise ValueError(f"duplicate product group id: {group.id!r}")
-            seen.add(group.id)
-        return self
 
 
 def _validate_unique_component_ids(component_ids: tuple[str, ...]) -> None:

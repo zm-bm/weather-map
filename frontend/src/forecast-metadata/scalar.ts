@@ -2,6 +2,11 @@ import type {
   LayerColortableStop,
   ManifestProductSpec,
 } from '../manifest'
+import {
+  getScalarLayerSpec,
+  type ScalarLayerId,
+  type ScalarLayerSpec,
+} from '../forecast-catalog'
 
 export type ScalarMeta = {
   id: string
@@ -245,34 +250,35 @@ const SCALAR_PALETTES: Record<string, ScalarStyleEntry> = {
 }
 
 export function getScalarMeta(
-  variableId: string,
-  metaById?: Record<string, ManifestProductSpec> | null,
+  layerId: ScalarLayerId | string,
+  layersById?: Record<string, ScalarLayerSpec> | null,
+  artifactsById?: Record<string, ManifestProductSpec> | null,
 ): ScalarMeta {
-  const sourceMeta = metaById?.[variableId]
+  if (!layersById) {
+    throw new Error(`Missing scalar layer catalog for ${layerId}`)
+  }
+  const layer = getScalarLayerSpec(layerId, layersById)
+  const sourceMeta = artifactsById?.[layer.artifactId]
 
   if (!sourceMeta) {
-    throw new Error(`Missing layer metadata for ${variableId}`)
+    throw new Error(`Missing artifact metadata for scalar layer ${layerId}`)
   }
-  if (sourceMeta.style.layerId !== 'scalar') {
-    throw new Error(`Layer metadata for ${variableId} is not scalar (got ${sourceMeta.style.layerId})`)
+  if (sourceMeta.kind !== 'scalar') {
+    throw new Error(`Artifact metadata for scalar layer ${layerId} is not scalar (got ${sourceMeta.kind})`)
   }
 
-  const style = getScalarStyle(sourceMeta)
+  const style = getScalarStyleByPaletteId(layer.paletteId)
 
   return {
-    id: variableId,
-    label: sourceMeta.label,
+    id: String(layerId),
+    label: layer.label,
     units: sourceMeta.units,
     parameter: sourceMeta.parameter,
-    min: sourceMeta.valueRange.min,
-    max: sourceMeta.valueRange.max,
-    paletteId: sourceMeta.style.paletteId,
+    min: layer.displayRange.min,
+    max: layer.displayRange.max,
+    paletteId: layer.paletteId,
     colortable: style.colortable,
   }
-}
-
-export function getScalarStyle(product: ManifestProductSpec): ScalarStyleEntry {
-  return getScalarStyleByPaletteId(product.style.paletteId)
 }
 
 export function getScalarStyleByPaletteId(paletteId: string): ScalarStyleEntry {

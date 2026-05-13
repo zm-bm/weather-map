@@ -28,7 +28,6 @@ from .resolved import (
     ProductCatalogSpec,
     ProductDerivationSpec,
     ProductSpec,
-    ProductStyleSpec,
     ProductTemporalSpec,
     WorkloadConfig,
 )
@@ -119,28 +118,19 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
     """Parse one catalog product definition."""
 
     parsed = parse_config_model(CatalogProductInput, raw)
-    style = ProductStyleSpec(
-        layer_id=parsed.style.layer_id,
-        palette_id=parsed.style.palette_id,
-    )
     encoding = parse_encoding(
         product_id=product_id,
-        layer_id=style.layer_id,
         raw_encoding=parsed.encoding,
-        component_ids=parsed.component_ids,
     )
     return ProductCatalogSpec(
         id=product_id,
+        kind=parsed.kind,
         parameter=parsed.parameter,
         level=parsed.level,
         units=parsed.units,
-        valid_min=parsed.valid_min,
-        valid_max=parsed.valid_max,
         source_transform=parsed.source_transform,
         encoding=encoding,
         component_ids=parsed.component_ids,
-        style=style,
-        label=parsed.label,
     )
 
 
@@ -149,28 +139,19 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
 
     parsed = parse_config_model(ProductInput, raw)
     components = _component_specs(parsed.components)
-    style = ProductStyleSpec(
-        layer_id=parsed.style.layer_id,
-        palette_id=parsed.style.palette_id,
-    )
     encoding = parse_encoding(
         product_id=product_id,
-        layer_id=style.layer_id,
         raw_encoding=parsed.encoding,
-        component_ids=tuple(component.id for component in components),
     )
     return ProductSpec(
         id=product_id,
+        kind=parsed.kind,
         parameter=parsed.parameter,
         level=parsed.level,
         units=parsed.units,
-        valid_min=parsed.valid_min,
-        valid_max=parsed.valid_max,
         source_transform=parsed.source_transform,
         encoding=encoding,
         components=components,
-        style=style,
-        label=parsed.label,
         temporal=_temporal_spec(parsed.temporal),
         derivation=_derivation_spec(parsed.derivation),
     )
@@ -219,16 +200,13 @@ def resolve_product_spec(
     )
     return ProductSpec(
         id=catalog_product.id,
+        kind=catalog_product.kind,
         parameter=catalog_product.parameter,
         level=catalog_product.level,
         units=catalog_product.units,
-        valid_min=catalog_product.valid_min,
-        valid_max=catalog_product.valid_max,
         source_transform=catalog_product.source_transform,
         encoding=catalog_product.encoding,
         components=components,
-        style=catalog_product.style,
-        label=catalog_product.label,
         temporal=model_product.temporal,
         derivation=model_product.derivation,
     )

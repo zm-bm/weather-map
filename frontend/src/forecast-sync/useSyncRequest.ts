@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import { useForecastSelectionContext } from '../forecast-selection'
+import { getScalarLayerSpec } from '../forecast-catalog'
 import { useForecastTimeContext } from '../forecast-time'
 import {
   frameWindowMinuteOffset,
@@ -12,6 +13,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
   const {
     manifest,
     activeScalar,
+    scalarLayers,
     activeVector,
   } = useForecastSelectionContext()
   const {
@@ -20,9 +22,10 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
   } = useForecastTimeContext()
 
   return useMemo(() => {
-    if (manifest == null || activeScalar == null || activeVector == null) {
+    if (manifest == null || activeScalar == null || activeVector == null || scalarLayers == null) {
       return null
     }
+    const activeScalarLayer = getScalarLayerSpec(activeScalar, scalarLayers)
 
     const frameWindow = resolveForecastFrameWindow(
       manifest.times,
@@ -33,6 +36,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
     return {
       manifest,
       activeScalar,
+      activeScalarLayer,
       activeVector,
       selectedValidTimeMs: frameWindow.selectedValidTimeMs,
       lowerHourToken: frameWindow.lowerHourToken,
@@ -46,6 +50,7 @@ export function useSyncRequest(retryToken: number): SyncRequest | null {
     activeVector,
     manifest,
     retryToken,
+    scalarLayers,
     sync,
     timelineState.targetTimeMs,
   ])

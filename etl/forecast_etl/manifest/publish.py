@@ -8,9 +8,9 @@ from typing import Iterable, Mapping
 
 from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ProductGroup, ProductSpec
+from ..config.resolved import ProductSpec
 from ..runtime import ExecutionContext
-from .build import build_cycle_manifest, build_manifest_products, product_groups_for_manifest
+from .build import build_cycle_manifest, build_manifest_products
 from .inspect import manifest_info_from_obj
 
 
@@ -31,21 +31,11 @@ def run_publish(
     product_ids: Iterable[str],
     products: Mapping[str, ProductSpec],
     artifacts: ArtifactRepository,
-    product_groups: Iterable[ProductGroup] | None = None,
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
 
     fhours = tuple(ctx.forecast_hours or ())
     product_ids = tuple(product_ids)
-    grouped_product_ids = tuple(
-        product_id
-        for product_id in product_ids
-        if products[product_id].style.layer_id == "scalar"
-    )
-    manifest_product_groups = product_groups_for_manifest(
-        product_groups=product_groups,
-        grouped_product_ids=grouped_product_ids,
-    )
 
     if not fhours:
         print("Publish not ready: ctx.forecast_hours is empty")
@@ -85,7 +75,6 @@ def run_publish(
         cycle=cycle,
         generated_at=generated_at,
         fhours=fhours,
-        product_groups=manifest_product_groups,
         products=manifest_products,
     )
     revision = str(manifest_obj["run"]["revision"])

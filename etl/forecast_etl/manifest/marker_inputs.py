@@ -120,10 +120,7 @@ def _assert_marker_metadata_matches_product(
             "units": product_marker.units,
             "parameter": product_marker.parameter,
             "level": product_marker.level,
-            "valid_min": product_marker.valid_min,
-            "valid_max": product_marker.valid_max,
             "components": tuple(product_marker.components),
-            "style": product_marker.style,
         },
         expected={
             "encoding_id": encoding_id,
@@ -131,13 +128,7 @@ def _assert_marker_metadata_matches_product(
             "units": product.units,
             "parameter": product.parameter,
             "level": product.level,
-            "valid_min": product.valid_min,
-            "valid_max": product.valid_max,
             "components": product.component_ids,
-            "style": {
-                "layer_id": product.style.layer_id,
-                "palette_id": product.style.palette_id,
-            },
         },
     )
 

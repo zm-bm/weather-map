@@ -19,9 +19,7 @@ from .resolved import EncodingSpec
 def parse_encoding(
     *,
     product_id: str,
-    layer_id: str,
     raw_encoding: Any,
-    component_ids: tuple[str, ...],
 ) -> EncodingSpec:
     """Parse and normalize a product encoding contract from config."""
 

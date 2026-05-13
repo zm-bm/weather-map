@@ -14,7 +14,6 @@ from forecast_etl.tests.fixtures.pipeline import (
 )
 from forecast_etl.tests.fixtures.products import (
     cloud_cover_config,
-    minimal_product_config,
     precip_rate_config,
     precip_total_config,
     wind_product_config,
@@ -76,21 +75,9 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertNotIn("aptmp_surface", icon.workload.products)
         self.assertNotIn("visibility_surface", icon.workload.products)
         self.assertNotIn("visibility_surface", icon.products)
-        self.assertEqual(icon.products["tmp_surface"].label, "Temperature")
-        self.assertEqual(icon.products["gust_surface"].label, "Wind Gust")
-        self.assertEqual(icon.products["dewpoint_surface"].label, "Dew Point")
-        self.assertEqual(icon.products["rh_surface"].label, "Relative Humidity")
-        self.assertEqual(icon.products["prmsl_surface"].label, "Air Pressure")
-        self.assertEqual(icon.products["tcdc"].label, "Total Cloud Cover")
-        self.assertEqual(icon.products["low_clouds"].label, "Low Clouds")
-        self.assertEqual(icon.products["medium_clouds"].label, "Medium Clouds")
-        self.assertEqual(icon.products["high_clouds"].label, "High Clouds")
-        self.assertEqual(icon.products["prate_surface"].label, "Precipitation Rate")
-        self.assertEqual(icon.products["precip_total_surface"].label, "Accumulated Precipitation")
-        self.assertEqual(icon.products["snow_depth_surface"].label, "Snow Depth")
-        self.assertEqual(icon.products["freezing_level"].label, "Freezing Level")
-        self.assertEqual(icon.products["precipitable_water"].label, "Precipitable Water")
-        self.assertEqual(icon.products["cape_index"].label, "CAPE Index")
+        self.assertEqual(icon.products["tmp_surface"].kind, "scalar")
+        self.assertEqual(icon.products["gust_surface"].kind, "scalar")
+        self.assertEqual(icon.products["wind10m_uv"].kind, "vector")
         icon_prate_temporal = icon.products["prate_surface"].temporal
         icon_prate_derivation = icon.products["prate_surface"].derivation
         gfs_prate_temporal = gfs.products["prate_surface"].temporal
@@ -124,39 +111,6 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs.source.nomads.vars_levels["lev_180-0_mb_above_ground"], "on")
         self.assertEqual(gfs.source.nomads.vars_levels["lev_entire_atmosphere_(considered_as_a_single_layer)"], "on")
 
-        groups = {group.id: group for group in icon.product_groups}
-        self.assertNotIn("moisture", groups)
-        self.assertNotIn("clouds", groups)
-        self.assertNotIn("pressure", groups)
-        self.assertEqual(groups["temperature"].products, ("tmp_surface", "dewpoint_surface", "rh_surface"))
-        self.assertEqual(groups["wind"].label, "Wind & Pressure")
-        self.assertEqual(groups["wind"].products, ("gust_surface", "prmsl_surface"))
-        self.assertEqual(groups["atmosphere"].default_product, "tcdc")
-        self.assertEqual(
-            groups["atmosphere"].products,
-            ("tcdc", "low_clouds", "medium_clouds", "high_clouds", "freezing_level", "precipitable_water"),
-        )
-        self.assertEqual(groups["precipitation"].default_product, "prate_surface")
-        self.assertEqual(groups["precipitation"].products, ("prate_surface", "precip_total_surface", "snow_depth_surface"))
-        self.assertEqual(groups["severe"].default_product, "cape_index")
-        self.assertEqual(groups["severe"].products, ("cape_index",))
-
-        gfs_groups = {group.id: group for group in gfs.product_groups}
-        self.assertEqual(
-            gfs_groups["atmosphere"].products,
-            (
-                "tcdc",
-                "low_clouds",
-                "medium_clouds",
-                "high_clouds",
-                "visibility_surface",
-                "freezing_level",
-                "precipitable_water",
-            ),
-        )
-        self.assertEqual(gfs_groups["wind"].label, "Wind & Pressure")
-        self.assertEqual(gfs_groups["severe"].products, ("cape_index",))
-
     def test_infra_config_matches_local_config_except_forecast_horizon(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
         local_path = repo_root / "etl" / "forecast.etl_config.json"
@@ -180,11 +134,7 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(model.workload.products, ("tmp_surface",))
         self.assertIn("tmp_surface", model.products)
         self.assertEqual(model.products["tmp_surface"].component_ids, ("value",))
-        self.assertEqual(model.products["tmp_surface"].style.layer_id, "scalar")
-        self.assertEqual(model.products["tmp_surface"].style.palette_id, "temperature.air.c.v1")
-        self.assertEqual(model.product_groups[0].id, "temperature")
-        self.assertEqual(model.product_groups[0].layer_id, "scalar")
-        self.assertEqual(model.product_groups[0].default_product, "tmp_surface")
+        self.assertEqual(model.products["tmp_surface"].kind, "scalar")
 
     def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
         cfg = minimal_pipeline_config()
@@ -217,15 +167,6 @@ class ConfigValidationTest(unittest.TestCase):
                     ],
                 },
             },
-            "product_groups": [
-                {
-                    "id": "precipitation",
-                    "label": "Precipitation",
-                    "layer_id": "scalar",
-                    "default_product": "prate_surface",
-                    "products": ["prate_surface", "precip_total_surface"],
-                },
-            ],
         }
 
         parsed = parse_pipeline_config(cfg)
@@ -259,15 +200,6 @@ class ConfigValidationTest(unittest.TestCase):
             "products": {
                 "prate_surface": model_product(prate_config),
             },
-            "product_groups": [
-                {
-                    "id": "precipitation",
-                    "label": "Precipitation",
-                    "layer_id": "scalar",
-                    "default_product": "prate_surface",
-                    "products": ["prate_surface"],
-                },
-            ],
         }
         cfg["models"]["icon"]["products"]["prate_surface"]["temporal"]["source_interval_hours"] = 3
 
@@ -298,15 +230,6 @@ class ConfigValidationTest(unittest.TestCase):
                     ],
                 },
             },
-            "product_groups": [
-                {
-                    "id": "temperature",
-                    "label": "Temperature",
-                    "layer_id": "scalar",
-                    "default_product": "tmp_surface",
-                    "products": ["tmp_surface"],
-                },
-            ],
         }
 
         with self.assertRaises(SystemExit):
@@ -394,15 +317,6 @@ class ConfigValidationTest(unittest.TestCase):
             product_config=cloud_cover_config(),
         )
         _gfs(cfg)["workload"]["products"] = ["low_clouds"]
-        _gfs(cfg)["product_groups"] = [
-            {
-                "id": "atmosphere",
-                "label": "Atmosphere",
-                "layer_id": "scalar",
-                "default_product": "low_clouds",
-                "products": ["low_clouds"],
-            },
-        ]
         del _gfs(cfg)["products"]["low_clouds"]["components"][0]["grib_match"]
 
         with self.assertRaises(SystemExit):
@@ -417,74 +331,8 @@ class ConfigValidationTest(unittest.TestCase):
             product_config=cloud_cover_config(),
         )
         _gfs(cfg)["workload"]["products"] = ["low_clouds"]
-        _gfs(cfg)["product_groups"] = [
-            {
-                "id": "atmosphere",
-                "label": "Atmosphere",
-                "layer_id": "scalar",
-                "default_product": "low_clouds",
-                "products": ["low_clouds"],
-            },
-        ]
         _gfs(cfg)["products"]["low_clouds"]["components"].append(
             {"id": "ceiling", "grib_match": {"GRIB_ELEMENT": "CEIL"}}
-        )
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(cfg)
-
-    def test_pipeline_config_rejects_product_group_missing_workload_product(self) -> None:
-        cfg = minimal_pipeline_config()
-        rh_config = {**minimal_product_config(), "parameter": "rh"}
-        add_model_product(
-            cfg,
-            model_id="gfs",
-            product_id="rh_surface",
-            product_config=rh_config,
-        )
-        _gfs(cfg)["workload"]["products"] = ["tmp_surface", "rh_surface"]
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(cfg)
-
-    def test_pipeline_config_rejects_product_group_default_outside_group(self) -> None:
-        cfg = minimal_pipeline_config()
-        _gfs(cfg)["product_groups"][0]["default_product"] = "rh_surface"
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(cfg)
-
-    def test_pipeline_config_rejects_product_group_unknown_product(self) -> None:
-        cfg = minimal_pipeline_config()
-        _gfs(cfg)["product_groups"][0]["products"] = ["missing_surface"]
-        _gfs(cfg)["product_groups"][0]["default_product"] = "missing_surface"
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(cfg)
-
-    def test_pipeline_config_rejects_product_group_invalid_or_mismatched_layer_id(self) -> None:
-        empty_layer = minimal_pipeline_config()
-        _gfs(empty_layer)["product_groups"][0]["layer_id"] = ""
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(empty_layer)
-
-        mismatched_layer = minimal_pipeline_config()
-        _gfs(mismatched_layer)["product_groups"][0]["layer_id"] = "vector"
-
-        with self.assertRaises(SystemExit):
-            parse_pipeline_config(mismatched_layer)
-
-    def test_pipeline_config_rejects_product_group_duplicate_product(self) -> None:
-        cfg = minimal_pipeline_config()
-        _gfs(cfg)["product_groups"].append(
-            {
-                "id": "duplicate",
-                "label": "Duplicate",
-                "layer_id": "scalar",
-                "default_product": "tmp_surface",
-                "products": ["tmp_surface"],
-            }
         )
 
         with self.assertRaises(SystemExit):

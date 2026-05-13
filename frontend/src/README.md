@@ -5,15 +5,16 @@ This document defines preferred domain terms and module ownership boundaries for
 
 ## Core Terms
 
-- `forecast`: umbrella domain for manifest loading, timeline navigation, product selection, and map frame application.
+- `forecast`: umbrella domain for manifest loading, timeline navigation, layer selection, and map frame application.
 - `cycle`: model run initialization timestamp (`YYYYMMDDHH`).
 - `hourToken` or `leadHour`: forecast offset token from cycle (`000`, `003`, ...), used for manifest frame and payload keys.
 - `validTimeMs`: minute-resolved selected forecast time in UTC epoch milliseconds; primary timeline state value.
 - `frame window`: the lower/upper forecast-hour pair plus interpolation mix used to represent a continuous selected time.
 - `frame`: concrete render target formed by `{ run.cycle, hourToken }`.
-- `scalar`: gridded scalar fields such as temperature, humidity, pressure, and precipitation rate.
-- `vector`: vector field (`u/v`) and particle visualization pipeline.
-- `variable`: selected meteorological field; prefer this over generic `layer` in UI/domain code.
+- `artifact`: ETL-produced payload advertised by the manifest, with decode metadata and frame refs.
+- `scalar layer`: user-facing gridded scalar selection, defined by `forecast-catalog`, backed by one scalar artifact.
+- `vector`: vector artifact (`u/v`) and particle visualization pipeline.
+- `variable`: legacy frame-loading term for a manifest artifact id; prefer `artifact` or `scalar layer` in new UI/domain code.
 - `overlay`: map-rendered visual layer above the basemap.
 - `sync`: process that turns current app state into applied MapLibre/runtime resources.
 - `probe`: sampling a rendered forecast frame at a map coordinate for label/readout display.
@@ -25,7 +26,7 @@ startup state into `app-status`, then renders `components/ForecastShell`.
 
 `ForecastShell` wires the main providers:
 
-- `forecast-selection`: active scalar/vector variables and unit options.
+- `forecast-selection`: active scalar layer, active vector artifact, and unit options.
 - `forecast-time`: selected valid time and playback state.
 
 `components/ForecastMap` owns the MapLibre host instance and calls
@@ -38,11 +39,13 @@ payload loading, and layer application.
 
 - `components/*`: React composition and panel/control UI. Components should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly.
 
-- `forecast-selection/*`: active scalar/vector choice and per-variable unit option state derived from the loaded manifest. Keep product selection concerns here, separate from time selection.
+- `forecast-catalog/*`: user-facing forecast layer catalog, scalar groups, labels, palettes, display ranges, and direct artifact mappings.
+
+- `forecast-selection/*`: active scalar layer, vector artifact choice, and unit option state derived from the loaded manifest and frontend catalog. Keep layer selection concerns here, separate from time selection.
 
 - `forecast-time/*`: valid-time selection, playback state, manifest time bounds, and formatting helpers. This layer should not know about scalar/vector payload decoding or MapLibre runtime details.
 
-- `manifest/*`: fetch, parse, validate, and expose forecast manifests. This is the source of typed manifest contracts used by selection, frame loading, and UI metadata.
+- `manifest/*`: fetch, parse, validate, and expose forecast manifests. Manifests describe artifact availability, decode metadata, frames, and model/run identity, not UI layer taxonomy.
 
 - `forecast-frame/*`: frame specs, frame windows, scalar/vector payload decoding, frame loading, and frame prefetching. This module translates manifest data plus the selected time into concrete frame data.
 
@@ -52,7 +55,7 @@ payload loading, and layer application.
 
 - `forecast-layers/*`: forecast renderer adapters, controllers, shaders, and renderer-specific options. This module should install MapLibre custom layers and apply already-loaded frame windows only; frame loading and probe behavior live elsewhere.
 
-- `forecast-metadata/*`: static style helpers for forecast products, such as color tables and special legend affordances. Labels, units, and value ranges come from the manifest.
+- `forecast-metadata/*`: static style helpers for forecast layers, such as color tables and special legend affordances. Labels and value ranges come from `forecast-catalog`; artifact units and parameters come from the manifest.
 
 - `map/*`: MapLibre host platform, style construction, viewport persistence, map controls, and base map interactions. Keep forecast product logic out of this layer.
 

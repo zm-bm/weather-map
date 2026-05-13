@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
+import { buildAvailableScalarCatalog } from '../forecast-catalog'
 import type { StartupState, SyncRequest } from './types'
 import { useForecastSync } from './useForecastSync'
 
@@ -54,15 +55,18 @@ function createStartupState(overrides: Partial<StartupState> = {}): StartupState
 function createSyncRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
   const manifest = overrides.manifest ?? createManifestFixture()
   const hourToken = manifest.times[0].id
+  const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
+  const activeVector = manifest.productsByKind.vector[0]!
   return {
     manifest,
-    activeScalar: manifest.productsByLayerId.scalar[0]!,
-    activeVector: manifest.productsByLayerId.vector[0]!,
+    activeScalar: activeScalarLayer.id,
+    activeScalarLayer,
+    activeVector,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
     lowerHourToken: hourToken,
     upperHourToken: hourToken,
     mix: 0,
-    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${manifest.productsByLayerId.scalar[0]!}:${manifest.productsByLayerId.vector[0]!}:${hourToken}:${hourToken}:0:0`,
+    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${activeScalarLayer.id}:${activeVector}:${hourToken}:${hourToken}:0:0`,
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),

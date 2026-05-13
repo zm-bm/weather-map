@@ -2,19 +2,24 @@ import { createContext, useContext } from 'react'
 
 import type {
   CycleManifest,
-  ScalarProductId,
   VectorProductId,
 } from '../manifest'
+import type {
+  ScalarLayerGroupSpec,
+  ScalarLayerId,
+  ScalarLayerSpec,
+} from '../forecast-catalog'
 import type { UnitSystem } from '../units'
 
 type ForecastSelectionContextLoadedValue = {
   manifest: CycleManifest
-  groups: CycleManifest['groups']
+  groups: ScalarLayerGroupSpec[]
+  scalarLayers: Record<string, ScalarLayerSpec>
   products: CycleManifest['products']
-  activeScalar: ScalarProductId | null
+  activeScalar: ScalarLayerId | null
   activeVector: VectorProductId | null
   unitSystem: UnitSystem
-  setActiveScalar: (value: ScalarProductId) => void
+  setActiveScalar: (value: ScalarLayerId) => void
   setActiveVector: (value: VectorProductId) => void
   setUnitSystem: (value: UnitSystem) => void
   toggleUnitSystem: () => void
@@ -23,11 +28,12 @@ type ForecastSelectionContextLoadedValue = {
 type ForecastSelectionContextUnloadedValue = {
   manifest: null
   groups: []
+  scalarLayers: null
   products: null
   activeScalar: null
   activeVector: null
   unitSystem: UnitSystem
-  setActiveScalar: (value: ScalarProductId) => void
+  setActiveScalar: (value: ScalarLayerId) => void
   setActiveVector: (value: VectorProductId) => void
   setUnitSystem: (value: UnitSystem) => void
   toggleUnitSystem: () => void

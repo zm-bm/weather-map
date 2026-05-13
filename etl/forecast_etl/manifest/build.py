@@ -6,8 +6,7 @@ from datetime import timedelta
 from typing import Any, Iterable, Mapping
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.groups import DEFAULT_PRODUCT_GROUP_ID, DEFAULT_PRODUCT_GROUP_LABEL
-from ..config.resolved import ProductGroup, ProductSpec
+from ..config.resolved import ProductSpec
 from ..cycles import cycle_datetime
 from ..validation import validated_dict
 from .constants import (
@@ -20,41 +19,8 @@ from .revision import compute_manifest_revision
 from .schema import (
     ManifestProduct,
     cycle_manifest,
-    manifest_product_group,
     manifest_time,
 )
-
-
-def product_groups_for_manifest(
-    *,
-    product_groups: Iterable[ProductGroup] | None,
-    grouped_product_ids: tuple[str, ...],
-) -> list[dict[str, Any]]:
-    """Return manifest product groups for the requested groupable products."""
-
-    if not grouped_product_ids:
-        return []
-    if product_groups is None:
-        product_groups = (
-            ProductGroup(
-                id=DEFAULT_PRODUCT_GROUP_ID,
-                layer_id="scalar",
-                label=DEFAULT_PRODUCT_GROUP_LABEL,
-                default_product=grouped_product_ids[0],
-                products=grouped_product_ids,
-            ),
-        )
-    return [_product_group_for_manifest(group) for group in product_groups]
-
-
-def _product_group_for_manifest(group: ProductGroup) -> dict[str, Any]:
-    return manifest_product_group(
-        group_id=group.id,
-        layer_id=group.layer_id,
-        label=group.label,
-        default_product_id=group.default_product,
-        product_ids=group.products,
-    )
 
 
 def build_manifest_products(
@@ -86,19 +52,11 @@ def build_manifest_products(
         )
         product_entry: dict[str, Any] = {
             "id": product_id,
-            "label": product.label or product_id,
+            "kind": product.kind,
             "units": product.units,
             "parameter": product.parameter,
             "level": product.level,
             "components": product.component_ids,
-            "style": {
-                "layerId": product.style.layer_id,
-                "paletteId": product.style.palette_id,
-            },
-            "valueRange": {
-                "min": product.valid_min,
-                "max": product.valid_max,
-            },
             "grid": marker_inputs.grid,
             "encoding": marker_inputs.encoding,
             "frames": marker_inputs.frames,
@@ -123,7 +81,6 @@ def build_cycle_manifest(
     cycle: str,
     generated_at: str,
     fhours: Iterable[str],
-    product_groups: Iterable[Mapping[str, Any]],
     products: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
     """Build a complete cycle manifest and compute its stable revision."""
@@ -142,7 +99,6 @@ def build_cycle_manifest(
         },
         "run": run,
         "times": _manifest_times(cycle=cycle, fhours=fhours),
-        "groups": list(product_groups),
         "products": products,
     }
     run["revision"] = compute_manifest_revision(manifest_obj)

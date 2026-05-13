@@ -29,8 +29,6 @@ class RunHourCommandTest(unittest.TestCase):
             **minimal_product_config(),
             "parameter": "rh",
             "units": "%",
-            "valid_min": 0,
-            "valid_max": 100,
             "encoding": {
                 "id": "rh_surface_i16_v1",
                 "format": "linear-i16-v1",
@@ -51,7 +49,6 @@ class RunHourCommandTest(unittest.TestCase):
         }
         add_model_product(cfg, model_id="gfs", product_id="rh_surface", product_config=rh_config)
         cfg["models"]["gfs"]["workload"]["products"] = ["tmp_surface", "rh_surface"]
-        cfg["models"]["gfs"]["product_groups"][0]["products"] = ["tmp_surface", "rh_surface"]
         model = parse_pipeline_config(cfg).model("gfs")
 
         with tempfile.TemporaryDirectory(prefix="weather-map-run-hour-") as td:

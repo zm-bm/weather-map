@@ -7,9 +7,7 @@ import {
   type ForecastModelId,
   type ForecastModelOption,
 } from '../../forecast-models'
-import type { CycleManifest, ScalarProductId } from '../../manifest'
-
-type ScalarProductGroup = CycleManifest['groups'][number]
+import type { ScalarLayerGroupSpec, ScalarLayerId } from '../../forecast-catalog'
 
 type ForecastPanelProps = {
   activeModelId: ForecastModelId
@@ -18,11 +16,11 @@ type ForecastPanelProps = {
 }
 
 function getActiveScalarGroup(
-  groups: CycleManifest['groups'],
-  activeScalar: ScalarProductId | null
-): ScalarProductGroup | null {
+  groups: ScalarLayerGroupSpec[],
+  activeScalar: ScalarLayerId | null
+): ScalarLayerGroupSpec | null {
   if (activeScalar == null) return groups[0] ?? null
-  return groups.find((group) => group.products.includes(activeScalar))
+  return groups.find((group) => group.layers.includes(activeScalar))
     ?? groups[0]
 }
 
@@ -38,6 +36,7 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
   const {
     manifest,
     groups,
+    scalarLayers,
     activeScalar,
     products,
     setActiveScalar,
@@ -88,7 +87,7 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
                   aria-label={group.label}
                   aria-pressed={group.id === activeScalarGroup.id}
                   title={group.label}
-                  onClick={() => setActiveScalar(group.defaultProduct)}
+                  onClick={() => setActiveScalar(group.defaultLayer)}
                 >
                   {group.label}
                 </button>
@@ -99,13 +98,13 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
               className="forecast-controls__select forecast-controls__measurement-select"
               aria-label="Measurement"
               value={activeScalar ?? ''}
-              onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarProductId)}
+              onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarLayerId)}
             >
-              {activeScalarGroup.products.map((productId) => {
-                const meta = getScalarMeta(productId, products)
+              {activeScalarGroup.layers.map((layerId) => {
+                const meta = getScalarMeta(layerId, scalarLayers, products)
 
                 return (
-                  <option key={productId} value={productId}>
+                  <option key={layerId} value={layerId}>
                     {meta.label}
                   </option>
                 )

@@ -26,6 +26,7 @@ COPY --from=dwd_regrid /data/weights/icon/icon_weights.nc /opt/dwd-regrid/weight
 COPY ./pyproject.toml ./etl/pyproject.toml
 COPY ./forecast_etl ./etl/forecast_etl
 COPY forecast.etl_config.json /app/etl/forecast.etl_config.json
+RUN chmod 0644 /app/etl/forecast.etl_config.json
 
 RUN pip install --no-cache-dir --upgrade pip "setuptools>=64" \
     && pip install --no-cache-dir --no-build-isolation ./etl

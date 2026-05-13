@@ -28,15 +28,6 @@ def minimal_pipeline_config() -> dict:
                 "products": {
                     "tmp_surface": model_product(product),
                 },
-                "product_groups": [
-                    {
-                        "id": "temperature",
-                        "label": "Temperature",
-                        "layer_id": "scalar",
-                        "default_product": "tmp_surface",
-                        "products": ["tmp_surface"],
-                    },
-                ],
             },
         },
     }

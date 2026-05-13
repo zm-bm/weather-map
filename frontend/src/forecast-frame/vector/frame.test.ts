@@ -5,6 +5,7 @@ import { loadVectorFrame } from './frame'
 import {
   createConfigFixture,
   createFrameManifestFixture,
+  createScalarProductFixture,
   createSignalFixture,
   createVectorProductFixture,
   createVectorPayloadFixture,
@@ -93,18 +94,16 @@ describe('vector payload', () => {
     ).rejects.toThrow('Unsupported vector decode params')
   })
 
-  it('rejects vector frame loads for products assigned to another layer', async () => {
+  it('rejects vector frame loads for artifacts assigned to another kind', async () => {
     await expect(
       loadVectorFrame({
         config: createConfigFixture(),
         manifest: createFrameManifestFixture({
           products: {
-            wind10m_uv: createVectorProductFixture({
-              style: {
-                layerId: 'scalar',
-                paletteId: 'wind.vector.mps.v1',
-              },
-            }),
+            wind10m_uv: {
+              ...createScalarProductFixture(),
+              id: 'wind10m_uv',
+            },
           },
         }),
         variable: 'wind10m_uv',

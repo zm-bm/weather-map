@@ -67,7 +67,6 @@ export async function loadVectorFrame(args: LoadVectorFrameArgs): Promise<Vector
       units: spec.variable.units,
       parameter: spec.variable.parameter,
       level: spec.variable.level,
-      valueRange: spec.variable.valueRange,
       format: VECTOR_PAYLOAD_FORMAT,
       dtype: 'int8',
       byteOrder: 'none',
