@@ -220,6 +220,16 @@ function defaultScalarPaletteId(productId: string): string {
       return 'precip.rate.mm_hr.v1'
     case 'precip_total_surface':
       return 'precip.total.mm.v1'
+    case 'snow_depth_surface':
+      return 'snow.depth.m.v1'
+    case 'visibility_surface':
+      return 'atmosphere.visibility.m.v1'
+    case 'freezing_level':
+      return 'atmosphere.freezing_level.m.v1'
+    case 'precipitable_water':
+      return 'atmosphere.precipitable_water.mm.v1'
+    case 'cape_index':
+      return 'severe.cape.jkg.v1'
     default:
       return 'temperature.air.c.v1'
   }

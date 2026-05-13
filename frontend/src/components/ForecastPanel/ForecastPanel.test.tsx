@@ -82,9 +82,9 @@ function createInteractivePanelManifest(
         products: [asScalarProductId('tmp_surface'), asScalarProductId('aptmp_surface')],
       },
       {
-        id: 'pressure',
+        id: 'wind',
         layerId: 'scalar',
-        label: 'Pressure',
+        label: 'Wind & Pressure',
         defaultProduct: asScalarProductId('prmsl_surface'),
         products: [asScalarProductId('prmsl_surface')],
       },
@@ -97,9 +97,9 @@ function createInteractivePanelManifest(
         parameter: 'aptmp',
       }),
       prmsl_surface: createScalarProductFixture({
-        label: 'Pressure',
+        label: 'Air Pressure',
         units: 'Pa',
-        parameter: 'pressure',
+        parameter: 'prmsl',
         valueRange: { min: 98000, max: 103500 },
       }),
     },
@@ -179,8 +179,8 @@ describe('ForecastPanel', () => {
     })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('aptmp_surface')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pressure' }))
-    expect(screen.getByRole('button', { name: 'Pressure' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
+    expect(screen.getByRole('button', { name: 'Wind & Pressure' })).toHaveAttribute('aria-pressed', 'true')
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('prmsl_surface')
 
     fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
@@ -198,7 +198,7 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
 
-  it('shows cloud layers as a Clouds measurement option', () => {
+  it('shows cloud layers as an Atmosphere measurement option', () => {
     render(
       <ForecastSelectionProvider
         manifest={createManifestFixture({
@@ -206,9 +206,9 @@ describe('ForecastPanel', () => {
           scalarProducts: ['tcdc', 'cloud_layers'],
           groups: [
             {
-              id: 'clouds',
+              id: 'atmosphere',
               layerId: 'scalar',
-              label: 'Clouds',
+              label: 'Atmosphere',
               defaultProduct: asScalarProductId('tcdc'),
               products: [asScalarProductId('tcdc'), asScalarProductId('cloud_layers')],
             },
@@ -235,7 +235,7 @@ describe('ForecastPanel', () => {
     )
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
-    expect(screen.getByRole('button', { name: 'Clouds' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Atmosphere' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('option', { name: 'Cloud Layers' })).toHaveValue('cloud_layers')
 
     fireEvent.change(measurement, {

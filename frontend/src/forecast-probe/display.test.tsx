@@ -35,7 +35,7 @@ const manifest = createManifestFixture({
       valueRange: { min: 0, max: 100 },
     }),
     prmsl_surface: createScalarProductFixture({
-      label: 'Pressure',
+      label: 'Air Pressure',
       units: 'Pa',
       parameter: 'prmsl',
       valueRange: { min: 98_000, max: 103_500 },

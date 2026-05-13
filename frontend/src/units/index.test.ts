@@ -65,6 +65,95 @@ describe('getUnitDisplay', () => {
     expect(formatUnitValue(1.25, getUnitOption(display, 'inches'))).toBe('1.3')
   })
 
+  it('maps snow depth from meters to centimeters and inches', () => {
+    const display = getUnitDisplay({
+      id: 'snow_depth_surface',
+      label: 'Snow Depth',
+      units: 'm',
+      parameter: 'snow_depth',
+      min: 0,
+      max: 5,
+      paletteId: 'snow.depth.m.v1',
+      colortable: [],
+    })
+
+    expect(canToggleUnitSystem(display)).toBe(true)
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('centimeters')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('inches')
+    expect(getUnitOption(display, 'centimeters').convert(1.2)).toBe(120)
+    expect(Math.round(getUnitOption(display, 'inches').convert(1))).toBe(39)
+  })
+
+  it('maps visibility from meters to kilometers and miles', () => {
+    const display = getUnitDisplay({
+      id: 'visibility_surface',
+      label: 'Visibility',
+      units: 'm',
+      parameter: 'visibility',
+      min: 0,
+      max: 50000,
+      paletteId: 'atmosphere.visibility.m.v1',
+      colortable: [],
+    })
+
+    expect(canToggleUnitSystem(display)).toBe(true)
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('miles')
+    expect(getUnitOption(display, 'kilometers').convert(1500)).toBe(1.5)
+    expect(formatUnitValue(3.106855961, getUnitOption(display, 'miles'))).toBe('3.1')
+  })
+
+  it('maps freezing level from meters to feet', () => {
+    const display = getUnitDisplay({
+      id: 'freezing_level',
+      label: 'Freezing Level',
+      units: 'm',
+      parameter: 'freezing_level',
+      min: 0,
+      max: 8000,
+      paletteId: 'atmosphere.freezing_level.m.v1',
+      colortable: [],
+    })
+
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('meters')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('feet')
+    expect(Math.round(getUnitOption(display, 'feet').convert(1000))).toBe(3281)
+  })
+
+  it('maps precipitable water from millimeters to inches', () => {
+    const display = getUnitDisplay({
+      id: 'precipitable_water',
+      label: 'Precipitable Water',
+      units: 'mm',
+      parameter: 'precipitable_water',
+      min: 0,
+      max: 80,
+      paletteId: 'atmosphere.precipitable_water.mm.v1',
+      colortable: [],
+    })
+
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('millimeters')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('inches')
+    expect(getUnitOption(display, 'inches').convert(25.4)).toBe(1)
+  })
+
+  it('keeps CAPE as a static J/kg display', () => {
+    const display = getUnitDisplay({
+      id: 'cape_index',
+      label: 'CAPE Index',
+      units: 'J/kg',
+      parameter: 'cape',
+      min: 0,
+      max: 5000,
+      paletteId: 'severe.cape.jkg.v1',
+      colortable: [],
+    })
+
+    expect(canToggleUnitSystem(display)).toBe(false)
+    expect(getUnitOption(display).id).toBe('joules_per_kilogram')
+    expect(formatUnitValue(1250.4, getUnitOption(display))).toBe('1250')
+  })
+
   it('uses whole-number formatting for percentage values', () => {
     const display = getUnitDisplay({
       id: 'rh_surface',

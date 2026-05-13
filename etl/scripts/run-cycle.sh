@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>] [--dry-run]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>] [--rebuild] [--dry-run]
 
 Description:
 	Refreshes local forecast artifacts by running the same ETL worker container
@@ -15,7 +15,8 @@ Options:
 	--cycle <cycle>  Forecast cycle string (example: 2026021600)
 	--model <model>  Forecast model id (default: gfs)
 	--procs <n>  Maximum concurrent local worker containers (default: 1)
-	--dry-run  Build the worker image, resolve hours inside it, and print run-hour commands
+	--rebuild  Force a local worker image rebuild before resolving forecast hours
+	--dry-run  Prepare the worker image, resolve hours inside it, and print run-hour commands
 	-h, --help  Show this help and exit
 
 Environment:
@@ -46,6 +47,7 @@ CYCLE=""
 MODEL="gfs"
 PROCS="1"
 DRY_RUN="${DRY_RUN:-false}"
+FORCE_REBUILD="false"
 LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-forecast-etl:local}"
 ETL_WORKER_STAGGER_SECONDS="${ETL_WORKER_STAGGER_SECONDS:-5}"
 
@@ -89,6 +91,10 @@ while [[ $# -gt 0 ]]; do
 			DRY_RUN="true"
 			shift
 			;;
+		--rebuild)
+			FORCE_REBUILD="true"
+			shift
+			;;
 		*)
 			echo "Error: unexpected argument: $1" >&2
 			usage >&2
@@ -127,6 +133,7 @@ ETL_DIR="$ROOT/etl"
 CONFIG_FILE="$ETL_DIR/forecast.etl_config.json"
 ARTIFACTS_DIR="$ROOT/artifacts"
 CACHE_DIR="$ETL_DIR/cache"
+IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.forecast-etl.source-fingerprint"
 
 mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
 
@@ -148,13 +155,62 @@ resolve_forecast_hours_with_worker() {
 		--pipeline-config-uri file:///app/etl/forecast.etl_config.json
 }
 
-docker_build_cmd=(
-	docker build
-	--network=host
-	-f "$ETL_DIR/Dockerfile"
-	-t "$LOCAL_ETL_IMAGE"
-	"$ETL_DIR"
-)
+image_source_fingerprint() {
+	(
+		cd "$ETL_DIR"
+		{
+			printf '%s\0' Dockerfile forecast.etl_config.json pyproject.toml
+			find forecast_etl \
+				-type f \
+				! -path '*/__pycache__/*' \
+				! -name '*.pyc' \
+				-print0
+		} | LC_ALL=C sort -z | xargs -0 sha256sum
+	) | sha256sum | awk '{print $1}'
+}
+
+inspect_image_fingerprint() {
+	docker image inspect \
+		--format "{{ index .Config.Labels \"$IMAGE_FINGERPRINT_LABEL\" }}" \
+		"$LOCAL_ETL_IMAGE" 2>/dev/null
+}
+
+build_worker_image() {
+	local fingerprint="$1"
+	local docker_build_cmd=(
+		docker build
+		--network=host
+		--label "$IMAGE_FINGERPRINT_LABEL=$fingerprint"
+		-f "$ETL_DIR/Dockerfile"
+		-t "$LOCAL_ETL_IMAGE"
+		"$ETL_DIR"
+	)
+	"${docker_build_cmd[@]}"
+}
+
+prepare_worker_image() {
+	local expected_fingerprint
+	local current_fingerprint
+	local build_reason
+
+	expected_fingerprint="$(image_source_fingerprint)"
+
+	if [[ "$FORCE_REBUILD" == "true" ]]; then
+		build_reason="forced by --rebuild"
+	elif ! current_fingerprint="$(inspect_image_fingerprint)"; then
+		build_reason="image is missing"
+	elif [[ -z "$current_fingerprint" || "$current_fingerprint" == "<no value>" ]]; then
+		build_reason="image has no source fingerprint"
+	elif [[ "$current_fingerprint" != "$expected_fingerprint" ]]; then
+		build_reason="ETL image inputs changed"
+	else
+		echo "Worker image is current; skipping rebuild."
+		return 0
+	fi
+
+	echo "Building worker image ($build_reason)."
+	build_worker_image "$expected_fingerprint"
+}
 
 worker_cmd_for_hour() {
 	local fhour="$1"
@@ -205,7 +261,7 @@ run_worker_hour() {
 require_docker
 
 echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
-"${docker_build_cmd[@]}"
+prepare_worker_image
 mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker)
 
 if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then

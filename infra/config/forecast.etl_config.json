@@ -133,7 +133,7 @@
       ]
     },
     "prmsl_surface": {
-      "label": "Pressure",
+      "label": "Air Pressure",
       "parameter": "prmsl",
       "level": "surface",
       "valid_min": 98000,
@@ -273,6 +273,141 @@
         }
       ]
     },
+    "snow_depth_surface": {
+      "label": "Snow Depth",
+      "parameter": "snow_depth",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 5,
+      "units": "m",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "snow.depth.m.v1"
+      },
+      "encoding": {
+        "id": "snow_depth_surface_i8_0p02m_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.02,
+        "offset": 2.54,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "visibility_surface": {
+      "label": "Visibility",
+      "parameter": "visibility",
+      "level": "surface",
+      "valid_min": 0,
+      "valid_max": 50000,
+      "units": "m",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "atmosphere.visibility.m.v1"
+      },
+      "encoding": {
+        "id": "visibility_surface_i8_200m_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 200,
+        "offset": 25400,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "freezing_level": {
+      "label": "Freezing Level",
+      "parameter": "freezing_level",
+      "level": "0C isotherm",
+      "valid_min": 0,
+      "valid_max": 8000,
+      "units": "m",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "atmosphere.freezing_level.m.v1"
+      },
+      "encoding": {
+        "id": "freezing_level_i8_32m_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 32,
+        "offset": 4064,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "precipitable_water": {
+      "label": "Precipitable Water",
+      "parameter": "precipitable_water",
+      "level": "entire atmosphere",
+      "valid_min": 0,
+      "valid_max": 80,
+      "units": "mm",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "atmosphere.precipitable_water.mm.v1"
+      },
+      "encoding": {
+        "id": "precipitable_water_i8_0p32mm_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.32,
+        "offset": 40.64,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "cape_index": {
+      "label": "CAPE Index",
+      "parameter": "cape",
+      "level": "mixed layer",
+      "valid_min": 0,
+      "valid_max": 5000,
+      "units": "J/kg",
+      "source_transform": "identity",
+      "style": {
+        "layer_id": "scalar",
+        "palette_id": "severe.cape.jkg.v1"
+      },
+      "encoding": {
+        "id": "cape_index_i8_20jkg_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 20,
+        "offset": 2540,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
     "wind10m_uv": {
       "label": "10m Wind U/V",
       "units": "m/s",
@@ -317,6 +452,9 @@
           "lev_surface": "on",
           "lev_mean_sea_level": "on",
           "lev_entire_atmosphere": "on",
+          "lev_entire_atmosphere_(considered_as_a_single_layer)": "on",
+          "lev_0C_isotherm": "on",
+          "lev_180-0_mb_above_ground": "on",
           "lev_low_cloud_layer": "on",
           "lev_middle_cloud_layer": "on",
           "lev_high_cloud_layer": "on"
@@ -336,6 +474,11 @@
           "tcdc",
           "cloud_layers",
           "prate_surface",
+          "snow_depth_surface",
+          "visibility_surface",
+          "freezing_level",
+          "precipitable_water",
+          "cape_index",
           "wind10m_uv"
         ]
       },
@@ -454,6 +597,61 @@
             "kind": "instantaneous_rate"
           }
         },
+        "snow_depth_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "SNOD",
+                "GRIB_SHORT_NAME": "0-SFC"
+              }
+            }
+          ]
+        },
+        "visibility_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "VIS",
+                "GRIB_SHORT_NAME": "0-SFC"
+              }
+            }
+          ]
+        },
+        "freezing_level": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "HGT",
+                "GRIB_SHORT_NAME": "0-0DEG"
+              }
+            }
+          ]
+        },
+        "precipitable_water": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "PWAT",
+                "GRIB_SHORT_NAME": "0-EATM"
+              }
+            }
+          ]
+        },
+        "cape_index": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "CAPE",
+                "GRIB_SHORT_NAME": "18000-0-SPDL"
+              }
+            }
+          ]
+        },
         "wind10m_uv": {
           "components": [
             {
@@ -488,11 +686,12 @@
         },
         {
           "id": "wind",
-          "label": "Wind",
+          "label": "Wind & Pressure",
           "layer_id": "scalar",
           "default_product": "gust_surface",
           "products": [
-            "gust_surface"
+            "gust_surface",
+            "prmsl_surface"
           ]
         },
         {
@@ -501,26 +700,30 @@
           "layer_id": "scalar",
           "default_product": "prate_surface",
           "products": [
-            "prate_surface"
+            "prate_surface",
+            "snow_depth_surface"
           ]
         },
         {
-          "id": "clouds",
-          "label": "Clouds",
+          "id": "atmosphere",
+          "label": "Atmosphere",
           "layer_id": "scalar",
           "default_product": "tcdc",
           "products": [
             "tcdc",
-            "cloud_layers"
+            "cloud_layers",
+            "visibility_surface",
+            "freezing_level",
+            "precipitable_water"
           ]
         },
         {
-          "id": "pressure",
-          "label": "Pressure",
+          "id": "severe",
+          "label": "Severe",
           "layer_id": "scalar",
-          "default_product": "prmsl_surface",
+          "default_product": "cape_index",
           "products": [
-            "prmsl_surface"
+            "cape_index"
           ]
         }
       ]
@@ -546,6 +749,10 @@
           "cloud_layers",
           "prate_surface",
           "precip_total_surface",
+          "snow_depth_surface",
+          "freezing_level",
+          "precipitable_water",
+          "cape_index",
           "wind10m_uv"
         ]
       },
@@ -660,6 +867,46 @@
             }
           ]
         },
+        "snow_depth_surface": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "h_snow"
+              }
+            }
+          ]
+        },
+        "freezing_level": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "hzerocl"
+              }
+            }
+          ]
+        },
+        "precipitable_water": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "tqv"
+              }
+            }
+          ]
+        },
+        "cape_index": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "ICON_PARAM": "cape_ml"
+              }
+            }
+          ]
+        },
         "wind10m_uv": {
           "components": [
             {
@@ -691,11 +938,12 @@
         },
         {
           "id": "wind",
-          "label": "Wind",
+          "label": "Wind & Pressure",
           "layer_id": "scalar",
           "default_product": "gust_surface",
           "products": [
-            "gust_surface"
+            "gust_surface",
+            "prmsl_surface"
           ]
         },
         {
@@ -705,26 +953,29 @@
           "default_product": "prate_surface",
           "products": [
             "prate_surface",
-            "precip_total_surface"
+            "precip_total_surface",
+            "snow_depth_surface"
           ]
         },
         {
-          "id": "clouds",
-          "label": "Clouds",
+          "id": "atmosphere",
+          "label": "Atmosphere",
           "layer_id": "scalar",
           "default_product": "tcdc",
           "products": [
             "tcdc",
-            "cloud_layers"
+            "cloud_layers",
+            "freezing_level",
+            "precipitable_water"
           ]
         },
         {
-          "id": "pressure",
-          "label": "Pressure",
+          "id": "severe",
+          "label": "Severe",
           "layer_id": "scalar",
-          "default_product": "prmsl_surface",
+          "default_product": "cape_index",
           "products": [
-            "prmsl_surface"
+            "cape_index"
           ]
         }
       ]

@@ -20,9 +20,11 @@ etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
 ```
 
-The script builds `weather-map-forecast-etl:local`, resolves configured
+The script prepares `weather-map-forecast-etl:local`, resolves configured
 forecast hours inside that image, then runs one `forecast-etl run-hour`
-container per forecast hour.
+container per forecast hour. It automatically rebuilds the image when the ETL
+Dockerfile, package code, package metadata, or forecast config changes; use
+`--rebuild` to force a rebuild when needed.
 
 Local outputs are written under the repo-level `artifacts/` directory.
 Downloads and prepared GRIB files are cached under `etl/cache/`.

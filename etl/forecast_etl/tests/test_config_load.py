@@ -31,7 +31,7 @@ class ConfigValidationTest(unittest.TestCase):
         parsed = parse_pipeline_config(json.loads(cfg_path.read_text(encoding="utf-8")))
         icon = parsed.model("icon")
 
-        expected_products = (
+        expected_icon_products = (
             "tmp_surface",
             "gust_surface",
             "dewpoint_surface",
@@ -41,22 +41,50 @@ class ConfigValidationTest(unittest.TestCase):
             "cloud_layers",
             "prate_surface",
             "precip_total_surface",
+            "snow_depth_surface",
+            "freezing_level",
+            "precipitable_water",
+            "cape_index",
+            "wind10m_uv",
+        )
+        expected_gfs_products = (
+            "tmp_surface",
+            "aptmp_surface",
+            "gust_surface",
+            "dewpoint_surface",
+            "rh_surface",
+            "prmsl_surface",
+            "tcdc",
+            "cloud_layers",
+            "prate_surface",
+            "snow_depth_surface",
+            "visibility_surface",
+            "freezing_level",
+            "precipitable_water",
+            "cape_index",
             "wind10m_uv",
         )
         gfs = parsed.model("gfs")
         self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
         self.assertEqual(icon.workload.forecast_hours, tuple(f"{hour:03d}" for hour in range(1, 25)))
-        self.assertEqual(icon.workload.products, expected_products)
+        self.assertEqual(icon.workload.products, expected_icon_products)
+        self.assertEqual(gfs.workload.products, expected_gfs_products)
         self.assertNotIn("aptmp_surface", icon.workload.products)
+        self.assertNotIn("visibility_surface", icon.workload.products)
+        self.assertNotIn("visibility_surface", icon.products)
         self.assertEqual(icon.products["tmp_surface"].label, "Temperature")
         self.assertEqual(icon.products["gust_surface"].label, "Wind Gust")
         self.assertEqual(icon.products["dewpoint_surface"].label, "Dew Point")
         self.assertEqual(icon.products["rh_surface"].label, "Relative Humidity")
-        self.assertEqual(icon.products["prmsl_surface"].label, "Pressure")
+        self.assertEqual(icon.products["prmsl_surface"].label, "Air Pressure")
         self.assertEqual(icon.products["tcdc"].label, "Total Cloud Cover")
         self.assertEqual(icon.products["cloud_layers"].label, "Cloud Layers")
         self.assertEqual(icon.products["prate_surface"].label, "Precipitation Rate")
         self.assertEqual(icon.products["precip_total_surface"].label, "Accumulated Precipitation")
+        self.assertEqual(icon.products["snow_depth_surface"].label, "Snow Depth")
+        self.assertEqual(icon.products["freezing_level"].label, "Freezing Level")
+        self.assertEqual(icon.products["precipitable_water"].label, "Precipitable Water")
+        self.assertEqual(icon.products["cape_index"].label, "CAPE Index")
         icon_prate_temporal = icon.products["prate_surface"].temporal
         icon_prate_derivation = icon.products["prate_surface"].derivation
         gfs_prate_temporal = gfs.products["prate_surface"].temporal
@@ -71,14 +99,56 @@ class ConfigValidationTest(unittest.TestCase):
             "0",
         )
         self.assertEqual(gfs_prate_temporal.kind, "instantaneous_rate")
+        self.assertEqual(gfs.products["snow_depth_surface"].components[0].grib_match["GRIB_ELEMENT"], "SNOD")
+        self.assertEqual(gfs.products["visibility_surface"].components[0].grib_match["GRIB_ELEMENT"], "VIS")
+        self.assertEqual(gfs.products["freezing_level"].components[0].grib_match["GRIB_SHORT_NAME"], "0-0DEG")
+        self.assertEqual(gfs.products["precipitable_water"].components[0].grib_match["GRIB_SHORT_NAME"], "0-EATM")
+        self.assertEqual(gfs.products["cape_index"].components[0].grib_match["GRIB_SHORT_NAME"], "18000-0-SPDL")
+        self.assertEqual(icon.products["snow_depth_surface"].components[0].grib_match["ICON_PARAM"], "h_snow")
+        self.assertEqual(icon.products["freezing_level"].components[0].grib_match["ICON_PARAM"], "hzerocl")
+        self.assertEqual(icon.products["precipitable_water"].components[0].grib_match["ICON_PARAM"], "tqv")
+        self.assertEqual(icon.products["cape_index"].components[0].grib_match["ICON_PARAM"], "cape_ml")
+        self.assertEqual(gfs.source.nomads.vars_levels["lev_0C_isotherm"], "on")
+        self.assertEqual(gfs.source.nomads.vars_levels["lev_180-0_mb_above_ground"], "on")
+        self.assertEqual(gfs.source.nomads.vars_levels["lev_entire_atmosphere_(considered_as_a_single_layer)"], "on")
 
         groups = {group.id: group for group in icon.product_groups}
         self.assertNotIn("moisture", groups)
+        self.assertNotIn("clouds", groups)
+        self.assertNotIn("pressure", groups)
         self.assertEqual(groups["temperature"].products, ("tmp_surface", "dewpoint_surface", "rh_surface"))
-        self.assertEqual(groups["clouds"].default_product, "tcdc")
-        self.assertEqual(groups["clouds"].products, ("tcdc", "cloud_layers"))
+        self.assertEqual(groups["wind"].label, "Wind & Pressure")
+        self.assertEqual(groups["wind"].products, ("gust_surface", "prmsl_surface"))
+        self.assertEqual(groups["atmosphere"].default_product, "tcdc")
+        self.assertEqual(groups["atmosphere"].products, ("tcdc", "cloud_layers", "freezing_level", "precipitable_water"))
         self.assertEqual(groups["precipitation"].default_product, "prate_surface")
-        self.assertEqual(groups["precipitation"].products, ("prate_surface", "precip_total_surface"))
+        self.assertEqual(groups["precipitation"].products, ("prate_surface", "precip_total_surface", "snow_depth_surface"))
+        self.assertEqual(groups["severe"].default_product, "cape_index")
+        self.assertEqual(groups["severe"].products, ("cape_index",))
+
+        gfs_groups = {group.id: group for group in gfs.product_groups}
+        self.assertEqual(
+            gfs_groups["atmosphere"].products,
+            ("tcdc", "cloud_layers", "visibility_surface", "freezing_level", "precipitable_water"),
+        )
+        self.assertEqual(gfs_groups["wind"].label, "Wind & Pressure")
+        self.assertEqual(gfs_groups["severe"].products, ("cape_index",))
+
+    def test_infra_config_matches_local_config_except_forecast_horizon(self) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        local_path = repo_root / "etl" / "forecast.etl_config.json"
+        infra_path = repo_root / "infra" / "config" / "forecast.etl_config.json"
+        local_config = json.loads(local_path.read_text(encoding="utf-8"))
+        infra_config = json.loads(infra_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(infra_config["models"]["gfs"]["workload"]["forecast_hour_end"], 72)
+        self.assertEqual(infra_config["models"]["icon"]["workload"]["forecast_hour_end"], 72)
+
+        for model_id in ("gfs", "icon"):
+            infra_config["models"][model_id]["workload"]["forecast_hour_end"] = (
+                local_config["models"][model_id]["workload"]["forecast_hour_end"]
+            )
+        self.assertEqual(infra_config, local_config)
 
     def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = parse_pipeline_config(minimal_pipeline_config())

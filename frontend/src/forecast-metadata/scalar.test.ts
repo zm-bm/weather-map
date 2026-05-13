@@ -23,6 +23,14 @@ describe('scalar metadata palettes', () => {
     expect(meta.colortable).toBe(getScalarStyleByPaletteId('pressure.msl.pa.v1').colortable)
   })
 
+  it('resolves first-pass direct-band product palettes', () => {
+    expect(getScalarStyleByPaletteId('snow.depth.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getScalarStyleByPaletteId('atmosphere.visibility.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getScalarStyleByPaletteId('atmosphere.freezing_level.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getScalarStyleByPaletteId('atmosphere.precipitable_water.mm.v1').colortable.length).toBeGreaterThan(0)
+    expect(getScalarStyleByPaletteId('severe.cape.jkg.v1').colortable.length).toBeGreaterThan(0)
+  })
+
   it('rejects scalar products with unknown palette ids', () => {
     const product = createScalarProductFixture({
       id: 'custom_scalar',

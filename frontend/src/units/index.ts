@@ -34,6 +34,11 @@ const WHOLE_VALUE_FORMAT: UnitValueFormat = {
   maximumFractionDigits: 0,
 }
 
+const ONE_DECIMAL_VALUE_FORMAT: UnitValueFormat = {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+}
+
 const PRECIPITATION_VALUE_FORMAT: UnitValueFormat = {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -240,6 +245,131 @@ const UNIT_RULES: UnitRule[] = [
           casing: 'literal',
           unitSystem: 'imperial',
           valueFormat: PRECIPITATION_TOTAL_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['snow depth'],
+    parameters: ['snow_depth'],
+    display: {
+      defaultOptionId: 'inches',
+      options: [
+        {
+          id: 'centimeters',
+          buttonLabel: 'cm',
+          units: 'cm',
+          convert: (value) => value * 100,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+        {
+          id: 'inches',
+          buttonLabel: 'in',
+          units: 'in',
+          convert: (value) => value * 39.37007874015748,
+          casing: 'literal',
+          unitSystem: 'imperial',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['visibility'],
+    parameters: ['visibility'],
+    display: {
+      defaultOptionId: 'miles',
+      options: [
+        {
+          id: 'kilometers',
+          buttonLabel: 'km',
+          units: 'km',
+          convert: (value) => value / 1000,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: ONE_DECIMAL_VALUE_FORMAT,
+        },
+        {
+          id: 'miles',
+          buttonLabel: 'mi',
+          units: 'mi',
+          convert: (value) => value / 1609.344,
+          casing: 'literal',
+          unitSystem: 'imperial',
+          valueFormat: ONE_DECIMAL_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['freezing level'],
+    parameters: ['freezing_level'],
+    display: {
+      defaultOptionId: 'feet',
+      options: [
+        {
+          id: 'meters',
+          buttonLabel: 'm',
+          units: 'm',
+          convert: (value) => value,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+        {
+          id: 'feet',
+          buttonLabel: 'ft',
+          units: 'ft',
+          convert: (value) => value * 3.280839895013123,
+          casing: 'literal',
+          unitSystem: 'imperial',
+          valueFormat: WHOLE_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['precipitable water'],
+    parameters: ['precipitable_water'],
+    display: {
+      defaultOptionId: 'inches',
+      options: [
+        {
+          id: 'millimeters',
+          buttonLabel: 'mm',
+          units: 'mm',
+          convert: (value) => value,
+          casing: 'literal',
+          unitSystem: 'metric',
+          valueFormat: PRECIPITATION_TOTAL_VALUE_FORMAT,
+        },
+        {
+          id: 'inches',
+          buttonLabel: 'in',
+          units: 'in',
+          convert: (value) => value / 25.4,
+          casing: 'literal',
+          unitSystem: 'imperial',
+          valueFormat: PRECIPITATION_TOTAL_VALUE_FORMAT,
+        },
+      ],
+    },
+  },
+  {
+    labelIncludes: ['cape'],
+    parameters: ['cape'],
+    display: {
+      defaultOptionId: 'joules_per_kilogram',
+      options: [
+        {
+          id: 'joules_per_kilogram',
+          buttonLabel: 'J/kg',
+          units: 'J/kg',
+          convert: (value) => value,
+          casing: 'literal',
+          valueFormat: WHOLE_VALUE_FORMAT,
         },
       ],
     },

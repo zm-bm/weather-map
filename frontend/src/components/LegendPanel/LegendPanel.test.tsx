@@ -34,16 +34,16 @@ function createLegendSelectionManifest(
         products: [asScalarProductId('prate_surface')],
       },
       {
-        id: 'pressure',
+        id: 'wind',
         layerId: 'scalar',
-        label: 'Pressure',
+        label: 'Wind & Pressure',
         defaultProduct: asScalarProductId('prmsl_surface'),
         products: [asScalarProductId('prmsl_surface')],
       },
       {
-        id: 'clouds',
+        id: 'atmosphere',
         layerId: 'scalar',
-        label: 'Clouds',
+        label: 'Atmosphere',
         defaultProduct: asScalarProductId('cloud_layers'),
         products: [asScalarProductId('cloud_layers')],
       },
@@ -54,9 +54,9 @@ function createLegendSelectionManifest(
         label: 'Temperature',
       }),
       prmsl_surface: createScalarProductFixture({
-        label: 'Pressure',
+        label: 'Air Pressure',
         units: 'Pa',
-        parameter: 'pressure',
+        parameter: 'prmsl',
         valueRange: { min: 98000, max: 103500 },
       }),
       prate_surface: createScalarProductFixture({
@@ -113,11 +113,11 @@ describe('LegendPanel', () => {
     expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('in/hr')
   })
 
-  it('shows a static hPa unit readout for pressure', () => {
+  it('shows a static hPa unit readout for air pressure', () => {
     renderLegendHarness('prmsl_surface')
 
-    expect(screen.queryByRole('button', { name: /cycle pressure units/i })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Pressure units hPa.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /cycle air pressure units/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Air Pressure units hPa.')).toBeInTheDocument()
   })
 
   it('uses rounded imperial precipitation tick labels without repeated units by default', () => {
