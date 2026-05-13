@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { DEFAULT_FORECAST_MODEL_ID, type ForecastModelId } from '../forecast-models'
 import { fetchCurrentManifest } from './fetch'
-import type { CycleManifest } from './types'
+import type { CycleManifest } from './schema'
 import { isAbortError, normalizeError } from '../abort'
 
 export type UseManifestResult = {

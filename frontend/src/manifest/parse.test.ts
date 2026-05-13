@@ -5,7 +5,7 @@ import {
   MANIFEST_PAYLOAD_CONTRACT,
   MANIFEST_SCHEMA,
   MANIFEST_SCHEMA_VERSION,
-} from './types'
+} from './constants'
 import { createCycleManifestPayloadFixture } from '../test/fixtures'
 
 function products(payload: Record<string, unknown>): Record<string, Record<string, unknown>> {

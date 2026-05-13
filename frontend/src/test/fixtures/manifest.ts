@@ -11,14 +11,14 @@ import type {
   VectorEncodingSpec,
   VectorProductId,
   VectorProductSpec,
-} from '../../manifest/types'
+} from '../../manifest'
 import {
   asProductId,
   asVectorProductId,
   MANIFEST_PAYLOAD_CONTRACT,
   MANIFEST_SCHEMA,
   MANIFEST_SCHEMA_VERSION,
-} from '../../manifest/types'
+} from '../../manifest'
 
 export const FIXTURE_CYCLE = '2026041312'
 export const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'

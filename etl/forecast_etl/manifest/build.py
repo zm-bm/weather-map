@@ -69,6 +69,7 @@ def build_manifest_products(
             ManifestProduct,
             product_entry,
             by_alias=True,
+            exclude_none=True,
         )
 
     return manifest_products

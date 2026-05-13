@@ -49,16 +49,22 @@ def parse_model(model_type: type[ModelT], raw: object) -> ModelT:
         raise SystemExit(str(exc)) from exc
 
 
-def dump_model(model: BaseModel, *, by_alias: bool = False) -> dict[str, Any]:
+def dump_model(model: BaseModel, *, by_alias: bool = False, exclude_none: bool = False) -> dict[str, Any]:
     """Dump a Pydantic model as JSON-compatible Python objects."""
 
-    return model.model_dump(by_alias=by_alias, mode="json")
+    return model.model_dump(by_alias=by_alias, exclude_none=exclude_none, mode="json")
 
 
-def validated_dict(model_type: type[ModelT], raw: object, *, by_alias: bool = False) -> dict[str, Any]:
+def validated_dict(
+    model_type: type[ModelT],
+    raw: object,
+    *,
+    by_alias: bool = False,
+    exclude_none: bool = False,
+) -> dict[str, Any]:
     """Validate raw input and return a JSON-compatible dictionary."""
 
-    return dump_model(parse_model(model_type, raw), by_alias=by_alias)
+    return dump_model(parse_model(model_type, raw), by_alias=by_alias, exclude_none=exclude_none)
 
 
 def validator_dict(model_type: type[ModelT], raw: object, *, by_alias: bool = False) -> dict[str, Any]:

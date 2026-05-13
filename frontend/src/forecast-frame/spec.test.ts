@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ScalarEncodingSpec, ScalarProductSpec } from '../manifest/types'
+import type { ScalarEncodingSpec, ScalarProductSpec } from '../manifest'
 import { createFrameManifestFixture } from '../test/fixtures'
 import { resolveFrameSpec } from './spec'
 

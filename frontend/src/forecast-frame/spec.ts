@@ -4,7 +4,7 @@ import type {
   ManifestProductSpec,
   ScalarProductSpec,
   VectorProductSpec,
-} from '../manifest/types'
+} from '../manifest'
 
 export type FrameKind = 'scalar' | 'vector'
 

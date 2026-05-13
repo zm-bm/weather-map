@@ -150,6 +150,8 @@ class PublishManifestTest(unittest.TestCase):
             self.assertNotIn("style", cycle_manifest["products"]["tmp_surface"])
             self.assertNotIn("label", cycle_manifest["products"]["tmp_surface"])
             self.assertNotIn("valueRange", cycle_manifest["products"]["tmp_surface"])
+            self.assertNotIn("temporalKind", cycle_manifest["products"]["tmp_surface"])
+            self.assertNotIn("sourceIntervalHours", cycle_manifest["products"]["tmp_surface"])
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["id"], "gfs_0p25_global")
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["xWrap"], "repeat")
             self.assertEqual(cycle_manifest["products"]["tmp_surface"]["grid"]["yMode"], "clamp")

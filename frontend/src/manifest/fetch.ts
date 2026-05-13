@@ -2,7 +2,7 @@ import config from '../config'
 import { DEFAULT_FORECAST_MODEL_ID, type ForecastModelId } from '../forecast-models'
 import { joinUrl } from '../url/joinUrl'
 import { parseCycleManifest } from './parse'
-import type { CycleManifest } from './types'
+import type { CycleManifest } from './schema'
 
 export async function fetchCurrentManifest(opts?: {
   modelId?: ForecastModelId

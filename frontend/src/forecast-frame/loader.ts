@@ -2,7 +2,7 @@ import type {
   CycleManifest,
   FramePayloadRef,
   ScalarGridSpec,
-} from '../manifest/types'
+} from '../manifest'
 import type { WeatherMapConfig } from '../config'
 import { createAbortError } from '../abort'
 import { joinUrl } from '../url/joinUrl'
