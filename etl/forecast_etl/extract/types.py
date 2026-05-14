@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ExtractedBand:
-    """Float32 source bytes extracted for one configured product component."""
+    """Float32 source bytes for one extracted output or intermediate band."""
 
     component_id: str
     source_f32_bytes: bytes

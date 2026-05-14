@@ -15,8 +15,9 @@ from ..config.resolved import ModelConfig
 from ..cycles import parse_cycle
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    ICON_WEATHER_CODE_DERIVATION_TYPES,
     icon_param_from_grib_match,
-    single_component_icon_param,
+    single_icon_derivation_input_param,
 )
 
 DEFAULT_ICON_SOURCE_WAIT_SECONDS = 2700.0
@@ -53,13 +54,25 @@ def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
         if product is None:
             raise SystemExit(f"Unknown ICON workload product: {product_id}")
         for component in product.components:
+            if component.grib_match is None:
+                continue
             params.add(
                 icon_param_from_grib_match(
                     product_id=product_id,
-                    component_id=getattr(component, "id", None),
+                    selector_id=getattr(component, "id", None),
                     grib_match=component.grib_match,
                 )
             )
+        derivation = getattr(product, "derivation", None)
+        if derivation is not None:
+            for input_item in getattr(derivation, "inputs", ()):
+                params.add(
+                    icon_param_from_grib_match(
+                        product_id=product_id,
+                        selector_id=input_item.id,
+                        grib_match=input_item.grib_match,
+                    )
+                )
     return tuple(sorted(params))
 
 
@@ -75,7 +88,9 @@ def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
         if derivation is None:
             continue
         if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            params.add(single_component_icon_param(product_id=product_id, components=product.components))
+            params.add(single_icon_derivation_input_param(product_id=product_id, derivation=derivation))
+            continue
+        if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
             continue
         raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
     return tuple(sorted(params))

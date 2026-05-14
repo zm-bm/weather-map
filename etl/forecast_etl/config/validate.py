@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from ..derivations import DERIVATION_ICON_TOT_PREC_DELTA_RATE, ICON_PARAM_MATCH_KEY
+from ..derivations import (
+    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
+    ICON_PARAM_MATCH_KEY,
+    ICON_WEATHER_CODE_DERIVATION_TYPES,
+)
 from ._types import parse_config_model
 from .encoding import parse_encoding
 from .input import (
@@ -19,6 +24,7 @@ from .input import (
 )
 from .resolved import (
     ComponentSpec,
+    DerivationInputSpec,
     GfsNomadsSourceConfig,
     IconDwdConfig,
     IconDwdSourceConfig,
@@ -75,7 +81,33 @@ def validate_model_products_for_source(
     """Validate model-product selectors that depend on the source adapter."""
 
     for product_id, model_product in model_products.items():
-        if model_product.derivation is not None and not isinstance(source, IconDwdSourceConfig):
+        derivation = model_product.derivation
+        if derivation is None:
+            for component_id, grib_match in model_product.component_grib_matches.items():
+                if grib_match is None:
+                    raise SystemExit(
+                        f"models.{model_id}.products.{product_id}.{component_id} "
+                        "requires grib_match for direct products"
+                    )
+            continue
+
+        _validate_derived_output_components(
+            model_id=model_id,
+            product_id=product_id,
+            component_grib_matches=model_product.component_grib_matches,
+        )
+
+        if derivation.type == DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES:
+            if not isinstance(source, GfsNomadsSourceConfig):
+                raise SystemExit(
+                    f"models.{model_id}.products.{product_id} uses derivation "
+                    f"{derivation.type!r}, which is only supported for gfs_nomads sources"
+                )
+            if not derivation.inputs:
+                raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {product_id}")
+            continue
+
+        if not isinstance(source, IconDwdSourceConfig):
             raise SystemExit(
                 f"models.{model_id}.products.{product_id} uses derivation "
                 f"{model_product.derivation.type!r}, which is only supported for icon_dwd_icosahedral sources"
@@ -85,21 +117,32 @@ def validate_model_products_for_source(
         return
 
     for product_id, model_product in model_products.items():
-        for component_id, grib_match in model_product.component_grib_matches.items():
-            icon_param = grib_match.get(ICON_PARAM_MATCH_KEY)
-            if not isinstance(icon_param, str) or not icon_param.strip():
-                raise SystemExit(
-                    f"models.{model_id}.products.{product_id}.{component_id} "
-                    f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
-                )
-
         derivation = model_product.derivation
         if derivation is None:
+            _validate_icon_component_selectors(
+                model_id=model_id,
+                product_id=product_id,
+                component_grib_matches=model_product.component_grib_matches,
+            )
             continue
         if derivation.type != DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
-        if len(model_product.component_grib_matches) != 1:
-            raise SystemExit(f"ICON derivation {derivation.type!r} requires exactly one component for {product_id}")
+            if derivation.type not in ICON_WEATHER_CODE_DERIVATION_TYPES:
+                raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+            _validate_icon_derivation_inputs(
+                model_id=model_id,
+                product_id=product_id,
+                inputs=derivation.inputs,
+            )
+            continue
+        _validate_icon_derivation_inputs(
+            model_id=model_id,
+            product_id=product_id,
+            inputs=derivation.inputs,
+        )
+        if len(derivation.inputs) != 1:
+            raise SystemExit(
+                f"ICON derivation {derivation.type!r} requires exactly one derivation input for {product_id}"
+            )
         if model_product.temporal is None:
             raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {product_id}")
         if model_product.temporal.kind != "average_rate":
@@ -111,7 +154,9 @@ def validate_model_products_for_source(
                 f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {product_id}"
             )
         if derivation.first_hour_previous != "zero":
-            raise SystemExit(f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}")
+            raise SystemExit(
+                f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}"
+            )
 
 
 def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
@@ -226,7 +271,10 @@ def validate_workload_products(
 
 def _component_specs(raw_components: tuple[ProductComponentInput, ...]) -> tuple[ComponentSpec, ...]:
     return tuple(
-        ComponentSpec(id=component.id, grib_match=dict(component.grib_match))
+        ComponentSpec(
+            id=component.id,
+            grib_match=dict(component.grib_match) if component.grib_match is not None else None,
+        )
         for component in raw_components
     )
 
@@ -246,4 +294,74 @@ def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
     return ProductDerivationSpec(
         type=getattr(raw, "type"),
         first_hour_previous=getattr(raw, "first_hour_previous"),
+        inputs=tuple(
+            DerivationInputSpec(id=input_item.id, grib_match=dict(input_item.grib_match))
+            for input_item in getattr(raw, "inputs", ())
+        ),
     )
+
+
+def _validate_icon_component_selectors(
+    *,
+    model_id: str,
+    product_id: str,
+    component_grib_matches: Mapping[str, Mapping[str, str] | None],
+) -> None:
+    for component_id, grib_match in component_grib_matches.items():
+        if grib_match is None:
+            raise SystemExit(
+                f"models.{model_id}.products.{product_id}.{component_id} "
+                f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
+            )
+        _validate_icon_grib_match(
+            model_id=model_id,
+            product_id=product_id,
+            selector_id=component_id,
+            grib_match=grib_match,
+        )
+
+
+def _validate_derived_output_components(
+    *,
+    model_id: str,
+    product_id: str,
+    component_grib_matches: Mapping[str, Mapping[str, str] | None],
+) -> None:
+    for component_id, grib_match in component_grib_matches.items():
+        if grib_match is not None:
+            raise SystemExit(
+                f"models.{model_id}.products.{product_id}.{component_id} is a derived output component; "
+                "put source selectors in derivation.inputs instead of components"
+            )
+
+
+def _validate_icon_derivation_inputs(
+    *,
+    model_id: str,
+    product_id: str,
+    inputs: tuple[DerivationInputSpec, ...],
+) -> None:
+    if not inputs:
+        raise SystemExit(f"ICON derivation for {product_id} requires derivation.inputs")
+    for input_item in inputs:
+        _validate_icon_grib_match(
+            model_id=model_id,
+            product_id=product_id,
+            selector_id=f"derivation.inputs.{input_item.id}",
+            grib_match=input_item.grib_match,
+        )
+
+
+def _validate_icon_grib_match(
+    *,
+    model_id: str,
+    product_id: str,
+    selector_id: str,
+    grib_match: Mapping[str, str],
+) -> None:
+    icon_param = grib_match.get(ICON_PARAM_MATCH_KEY)
+    if not isinstance(icon_param, str) or not icon_param.strip():
+        raise SystemExit(
+            f"models.{model_id}.products.{product_id}.{selector_id} "
+            f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
+        )

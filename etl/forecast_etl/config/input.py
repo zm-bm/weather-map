@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, StrictInt, model_validator
 
-from ..derivations import DERIVATION_ICON_TOT_PREC_DELTA_RATE
+from ..derivations import DERIVATION_TYPES
 from ..encoding.transforms import SOURCE_TRANSFORM_IDENTITY, SOURCE_TRANSFORMS
 from ._types import (
     ConfigModel,
@@ -111,7 +111,7 @@ class CatalogComponentInput(ConfigModel):
 
 class ProductComponentInput(ConfigModel):
     id: NonEmptyStr
-    grib_match: NonEmptyStringMap
+    grib_match: NonEmptyStringMap | None = None
 
 
 class ProductTemporalInput(ConfigModel):
@@ -125,9 +125,21 @@ class ProductTemporalInput(ConfigModel):
         return self
 
 
+class ProductDerivationSourceInput(ConfigModel):
+    id: NonEmptyStr
+    grib_match: NonEmptyStringMap
+
+
 class ProductDerivationInput(ConfigModel):
-    type: Literal["icon_tot_prec_delta_rate"] = DERIVATION_ICON_TOT_PREC_DELTA_RATE
-    first_hour_previous: Literal["zero"] = "zero"
+    type: NonEmptyStr
+    first_hour_previous: Literal["zero"] | None = None
+    inputs: tuple[ProductDerivationSourceInput, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_type(self) -> "ProductDerivationInput":
+        if self.type not in DERIVATION_TYPES:
+            raise ValueError(f"type must be one of {sorted(DERIVATION_TYPES)!r}")
+        return self
 
 
 class CatalogProductInput(ProductBaseInput):
@@ -171,8 +183,11 @@ class ModelProductInput(ConfigModel):
         return self
 
     @property
-    def component_grib_matches(self) -> dict[str, dict[str, str]]:
-        return {component.id: dict(component.grib_match) for component in self.components}
+    def component_grib_matches(self) -> dict[str, dict[str, str] | None]:
+        return {
+            component.id: dict(component.grib_match) if component.grib_match is not None else None
+            for component in self.components
+        }
 
 
 class EncodingInput(ConfigModel):

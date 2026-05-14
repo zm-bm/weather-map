@@ -1,15 +1,15 @@
-"""Dispatch product component extraction from prepared GRIB sources."""
+"""Dispatch product output-band extraction from prepared GRIB sources."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from ..config.resolved import ProductSpec
+from ..config.resolved import ComponentSpec, ProductSpec
 from ..proc import RunFn
 from ..source_adapters.base import PreparedSource
 from .derived_product_bands import extract_derived_product_band
-from .direct_product_bands import extract_product_band
+from .source_bands import extract_source_band
 from .types import ExtractedBand
 
 
@@ -22,7 +22,7 @@ def extract_product_bands(
     run: RunFn,
     fhour: str | None = None,
 ) -> list[ExtractedBand]:
-    """Extract all configured GRIB components for one product."""
+    """Extract all output bands for one product."""
 
     if product.derivation is not None:
         return [
@@ -37,10 +37,10 @@ def extract_product_bands(
         ]
 
     return [
-        extract_product_band(
+        extract_source_band(
             product=product,
-            component_id=component.id,
-            grib_match=component.grib_match,
+            band_id=component.id,
+            grib_match=_direct_component_grib_match(product=product, component=component),
             grid=grid,
             source=source,
             workdir_path=workdir / f"{product.id}.{component.id}.f32.bin",
@@ -48,3 +48,9 @@ def extract_product_bands(
         )
         for component in product.components
     ]
+
+
+def _direct_component_grib_match(*, product: ProductSpec, component: ComponentSpec) -> dict[str, str]:
+    if component.grib_match is None:
+        raise SystemExit(f"Product {product.id}.{component.id} requires grib_match for direct extraction")
+    return dict(component.grib_match)

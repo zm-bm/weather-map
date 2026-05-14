@@ -16,6 +16,8 @@ from forecast_etl.tests.fixtures.products import (
     cloud_cover_config,
     precip_rate_config,
     precip_total_config,
+    precip_type_config,
+    thunderstorm_mask_config,
     wind_product_config,
 )
 
@@ -42,6 +44,8 @@ class ConfigValidationTest(unittest.TestCase):
             "high_clouds",
             "prate_surface",
             "precip_total_surface",
+            "precip_type_surface",
+            "thunderstorm_mask",
             "snow_depth_surface",
             "freezing_level",
             "precipitable_water",
@@ -60,6 +64,7 @@ class ConfigValidationTest(unittest.TestCase):
             "medium_clouds",
             "high_clouds",
             "prate_surface",
+            "precip_type_surface",
             "snow_depth_surface",
             "visibility_surface",
             "freezing_level",
@@ -75,6 +80,8 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertNotIn("aptmp_surface", icon.workload.products)
         self.assertNotIn("visibility_surface", icon.workload.products)
         self.assertNotIn("visibility_surface", icon.products)
+        self.assertNotIn("thunderstorm_mask", gfs.workload.products)
+        self.assertNotIn("thunderstorm_mask", gfs.products)
         self.assertEqual(icon.products["tmp_surface"].kind, "scalar")
         self.assertEqual(icon.products["gust_surface"].kind, "scalar")
         self.assertEqual(icon.products["wind10m_uv"].kind, "vector")
@@ -87,6 +94,9 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon_prate_temporal.kind, "average_rate")
         self.assertEqual(icon_prate_temporal.source_interval_hours, 1)
         self.assertEqual(icon_prate_derivation.type, "icon_tot_prec_delta_rate")
+        self.assertIsNone(icon.products["prate_surface"].components[0].grib_match)
+        self.assertEqual(icon_prate_derivation.inputs[0].id, "total")
+        self.assertEqual(icon_prate_derivation.inputs[0].grib_match["ICON_PARAM"], "tot_prec")
         self.assertEqual(
             gfs.products["prate_surface"].components[0].grib_match["GRIB_PDS_PDTN"],
             "0",
@@ -97,6 +107,15 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs.products["freezing_level"].components[0].grib_match["GRIB_SHORT_NAME"], "0-0DEG")
         self.assertEqual(gfs.products["precipitable_water"].components[0].grib_match["GRIB_SHORT_NAME"], "0-EATM")
         self.assertEqual(gfs.products["cape_index"].components[0].grib_match["GRIB_SHORT_NAME"], "18000-0-SPDL")
+        gfs_precip_type = gfs.products["precip_type_surface"]
+        assert gfs_precip_type.derivation is not None
+        self.assertEqual(gfs_precip_type.derivation.type, "precip_type_from_gfs_categories")
+        self.assertEqual(gfs_precip_type.component_ids, ("value",))
+        self.assertIsNone(gfs_precip_type.components[0].grib_match)
+        self.assertEqual(
+            [input_item.id for input_item in gfs_precip_type.derivation.inputs],
+            ["rain", "freezing_rain", "ice_pellets", "snow"],
+        )
         self.assertEqual(gfs.products["low_clouds"].components[0].grib_match["GRIB_ELEMENT"], "LCDC")
         self.assertEqual(gfs.products["medium_clouds"].components[0].grib_match["GRIB_ELEMENT"], "MCDC")
         self.assertEqual(gfs.products["high_clouds"].components[0].grib_match["GRIB_ELEMENT"], "HCDC")
@@ -107,6 +126,16 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon.products["freezing_level"].components[0].grib_match["ICON_PARAM"], "hzerocl")
         self.assertEqual(icon.products["precipitable_water"].components[0].grib_match["ICON_PARAM"], "tqv")
         self.assertEqual(icon.products["cape_index"].components[0].grib_match["ICON_PARAM"], "cape_ml")
+        icon_precip_type = icon.products["precip_type_surface"]
+        icon_thunderstorm = icon.products["thunderstorm_mask"]
+        assert icon_precip_type.derivation is not None
+        assert icon_thunderstorm.derivation is not None
+        self.assertEqual(icon_precip_type.derivation.type, "precip_type_from_icon_ww")
+        self.assertEqual(icon_thunderstorm.derivation.type, "thunderstorm_mask_from_icon_ww")
+        self.assertEqual(icon_precip_type.component_ids, ("value",))
+        self.assertIsNone(icon_precip_type.components[0].grib_match)
+        self.assertEqual(icon_precip_type.derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
+        self.assertEqual(icon_thunderstorm.derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
         self.assertEqual(gfs.source.nomads.vars_levels["lev_0C_isotherm"], "on")
         self.assertEqual(gfs.source.nomads.vars_levels["lev_180-0_mb_above_ground"], "on")
         self.assertEqual(gfs.source.nomads.vars_levels["lev_entire_atmosphere_(considered_as_a_single_layer)"], "on")
@@ -207,6 +236,87 @@ class ConfigValidationTest(unittest.TestCase):
             parse_pipeline_config(cfg)
 
         self.assertIn("source_interval_hours=1", str(raised.exception))
+
+    def test_pipeline_config_parses_derivation_inputs_separately_from_output_components(self) -> None:
+        cfg = minimal_pipeline_config()
+        product_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        cfg["product_catalog"]["precip_type_surface"] = catalog_product(product_config)
+        cfg["models"]["gfs"]["workload"]["products"] = ["precip_type_surface"]
+        cfg["models"]["gfs"]["products"] = {
+            "precip_type_surface": model_product(product_config),
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        product = parsed.model("gfs").products["precip_type_surface"]
+
+        self.assertEqual(product.component_ids, ("value",))
+        self.assertIsNone(product.components[0].grib_match)
+        assert product.derivation is not None
+        self.assertEqual(
+            [input_item.id for input_item in product.derivation.inputs],
+            ["rain", "freezing_rain", "ice_pellets", "snow"],
+        )
+
+    def test_pipeline_config_rejects_gfs_precip_type_without_derivation_inputs(self) -> None:
+        cfg = minimal_pipeline_config()
+        product_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        product_config["derivation"]["inputs"] = []
+        cfg["product_catalog"]["precip_type_surface"] = catalog_product(product_config)
+        cfg["models"]["gfs"]["workload"]["products"] = ["precip_type_surface"]
+        cfg["models"]["gfs"]["products"] = {
+            "precip_type_surface": model_product(product_config),
+        }
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(cfg)
+
+        self.assertIn("requires derivation.inputs", str(raised.exception))
+
+    def test_pipeline_config_rejects_derived_output_component_source_selector(self) -> None:
+        cfg = minimal_pipeline_config()
+        product_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        product_config["components"][0]["grib_match"] = {"GRIB_ELEMENT": "CRAIN"}
+        cfg["product_catalog"]["precip_type_surface"] = catalog_product(product_config)
+        cfg["models"]["gfs"]["workload"]["products"] = ["precip_type_surface"]
+        cfg["models"]["gfs"]["products"] = {
+            "precip_type_surface": model_product(product_config),
+        }
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(cfg)
+
+        self.assertIn("put source selectors in derivation.inputs", str(raised.exception))
+
+    def test_pipeline_config_parses_icon_weather_code_overlay_products(self) -> None:
+        cfg = minimal_pipeline_config()
+        precip_type = precip_type_config(derivation_type="precip_type_from_icon_ww")
+        thunderstorm = thunderstorm_mask_config()
+        cfg["product_catalog"]["precip_type_surface"] = catalog_product(precip_type)
+        cfg["product_catalog"]["thunderstorm_mask"] = catalog_product(thunderstorm)
+        cfg["models"]["icon"] = {
+            "label": "ICON",
+            "source": {
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "rate_limit_seconds": 0.0,
+            },
+            "workload": {
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
+                "products": ["precip_type_surface", "thunderstorm_mask"],
+            },
+            "products": {
+                "precip_type_surface": model_product(precip_type),
+                "thunderstorm_mask": model_product(thunderstorm),
+            },
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        icon = parsed.model("icon")
+
+        self.assertEqual(icon.products["precip_type_surface"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
+        self.assertEqual(icon.products["thunderstorm_mask"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
 
     def test_pipeline_config_rejects_icon_dwd_product_without_icon_param(self) -> None:
         cfg = minimal_pipeline_config()

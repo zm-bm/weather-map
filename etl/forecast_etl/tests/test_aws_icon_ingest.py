@@ -12,6 +12,12 @@ from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig
 
 @dataclass(frozen=True)
 class _FakeComponent:
+    grib_match: dict[str, str] | None
+
+
+@dataclass(frozen=True)
+class _FakeDerivationInput:
+    id: str
     grib_match: dict[str, str]
 
 
@@ -24,6 +30,7 @@ class _FakeProduct:
 @dataclass(frozen=True)
 class _FakeDerivation:
     type: str
+    inputs: tuple[_FakeDerivationInput, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -193,9 +200,12 @@ class IconIngestTest(unittest.TestCase):
             workload=_FakeWorkload(forecast_hours=("003",), products=("prate_surface",)),
             products={
                 "prate_surface": _FakeProduct(
-                    components=(_FakeComponent({"ICON_PARAM": "tot_prec"}),),
+                    components=(_FakeComponent(None),),
                     derivation=_FakeDerivation(
                         type="icon_tot_prec_delta_rate",
+                        inputs=(
+                            _FakeDerivationInput(id="total", grib_match={"ICON_PARAM": "tot_prec"}),
+                        ),
                     ),
                 )
             },

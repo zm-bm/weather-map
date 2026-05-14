@@ -72,7 +72,7 @@ class ComponentSpec(ConfigModel):
     """Resolved product component and its GRIB metadata selector."""
 
     id: NonEmptyStr
-    grib_match: NonEmptyStringMap
+    grib_match: NonEmptyStringMap | None = None
 
 
 class EncodingSpec(ConfigModel):
@@ -107,18 +107,26 @@ class ProductTemporalSpec(ConfigModel):
     source_interval_hours: FiniteNumber | None = None
 
 
+class DerivationInputSpec(ConfigModel):
+    """Resolved source input for a product derivation."""
+
+    id: NonEmptyStr
+    grib_match: NonEmptyStringMap
+
+
 class ProductDerivationSpec(ConfigModel):
     """Source derivation contract for a resolved model product."""
 
     type: NonEmptyStr
-    first_hour_previous: NonEmptyStr
+    first_hour_previous: NonEmptyStr | None = None
+    inputs: tuple[DerivationInputSpec, ...] = ()
 
 
 class ModelProductSpec(ConfigModel):
     """Model-specific GRIB selectors for a catalog product."""
 
     product_id: NonEmptyStr
-    component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap]
+    component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap | None]
     temporal: ProductTemporalSpec | None = None
     derivation: ProductDerivationSpec | None = None
 

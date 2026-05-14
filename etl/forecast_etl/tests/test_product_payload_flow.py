@@ -9,12 +9,15 @@ from forecast_etl.derivations import previous_icon_param_key
 from forecast_etl.encoding.codecs import FORMAT_LINEAR_I8, encode_component_payload
 from forecast_etl.proc import RunResult
 from forecast_etl.tests.fixtures.execution import product_run_fixture
-from forecast_etl.tests.fixtures.grids import pack_f32, small_grid_meta_fixture
+from forecast_etl.tests.fixtures.grids import grid_meta_fixture, pack_f32, small_grid_meta_fixture
 from forecast_etl.tests.fixtures.products import (
     cloud_cover_config,
     minimal_product_config,
     precip_rate_config,
     precip_total_config,
+    precip_type_config,
+    product_spec,
+    thunderstorm_mask_config,
     wind_product_config,
 )
 
@@ -30,11 +33,11 @@ class ScalarProductContractTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     return_value=(1, {"GRIB_ELEMENT": "TMP"}),
                 ),
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     return_value=(source, "little"),
                 ),
                 patch(
@@ -70,11 +73,11 @@ class ScalarProductContractTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     return_value=(1, {"GRIB_ELEMENT": "LCDC"}),
                 ),
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     return_value=(source, "little"),
                 ),
                 patch(
@@ -113,11 +116,11 @@ class WindProductContractTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     side_effect=[(1, {"id": "u"}), (2, {"id": "v"})],
                 ),
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     side_effect=[(u_src, "little"), (v_src, "little")],
                 ),
                 patch(
@@ -180,11 +183,11 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     return_value=(1, {"GRIB_ELEMENT": "TOT_PREC"}),
                 ) as find_band,
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     return_value=(source, "little"),
                 ) as extract_band,
                 patch(
@@ -228,14 +231,14 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     side_effect=[
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                     ],
                 ) as find_band,
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     side_effect=[
                         (current, "little"),
                         (previous, "little"),
@@ -278,11 +281,11 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     return_value=(1, {"GRIB_ELEMENT": "TOT_PREC"}),
                 ) as find_band,
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     return_value=(current, "little"),
                 ),
                 patch(
@@ -317,14 +320,14 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     side_effect=[
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                     ],
                 ),
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     side_effect=[
                         (current, "little"),
                         (previous, "little"),
@@ -364,14 +367,14 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     side_effect=[
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                         (1, {"GRIB_ELEMENT": "TOT_PREC"}),
                     ],
                 ),
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     side_effect=[
                         (current, "little"),
                         (previous, "little"),
@@ -410,11 +413,11 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     return_value=(1, {"id": "value"}),
                 ) as find_band,
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     return_value=(component_source, "little"),
                 ),
                 patch(
@@ -454,11 +457,11 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
             with (
                 patch(
-                    "forecast_etl.extract.direct_product_bands.find_grib_band_by_metadata",
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
                     side_effect=[(1, {"id": "u"}), (1, {"id": "v"})],
                 ) as find_band,
                 patch(
-                    "forecast_etl.extract.direct_product_bands.extract_float32_band_bytes",
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
                     side_effect=[(u_src, "little"), (v_src, "little")],
                 ),
                 patch(
@@ -478,3 +481,134 @@ class IconGribCollectionProductTest(unittest.TestCase):
 
         called_paths = [call.args[0] for call in find_band.call_args_list]
         self.assertEqual(called_paths, [paths["u_10m"], paths["v_10m"]])
+
+
+class PrecipitationOverlayProductTest(unittest.TestCase):
+    def test_gfs_precip_type_derives_category_codes(self) -> None:
+        with product_run_fixture(prefix="weather-map-gfs-precip-type-product-") as fx:
+            rain = pack_f32([0, 1, 0, 0, 0, 1, 0.49, float("nan"), 0, 0, 0, 0], byte_order="little")
+            freezing_rain = pack_f32([0, 0, 1, 0, 0, 0, 0, float("nan"), 0, 0, 0, 0], byte_order="little")
+            ice_pellets = pack_f32([0, 0, 0, 1, 0, 0, 0, float("nan"), 0, 0, 0, 0], byte_order="little")
+            snow = pack_f32([0, 0, 0, 0, 1, 1, 0, float("nan"), 0, 0, 0, 0], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    side_effect=[
+                        (1, {"GRIB_ELEMENT": "CRAIN"}),
+                        (2, {"GRIB_ELEMENT": "CFRZR"}),
+                        (3, {"GRIB_ELEMENT": "CICEP"}),
+                        (4, {"GRIB_ELEMENT": "CSNOW"}),
+                    ],
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    side_effect=[
+                        (rain, "little"),
+                        (freezing_rain, "little"),
+                        (ice_pellets, "little"),
+                        (snow, "little"),
+                    ],
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_product(
+                    product_id="precip_type_surface",
+                    product_config=precip_type_config(),
+                    source=fx.single_grib_source(),
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(product_id="precip_type_surface", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbbbbbbbbbb", 0, 1, 2, 3, 4, 5, 0, -128, 0, 0, 0, 0))
+            self.assertEqual(result["encoding_id"], "precip_type_surface_i8_code_v1")
+            self.assertEqual(result["components"], ["value"])
+            self.assertEqual(result["units"], "code")
+
+    def test_icon_weather_code_derives_precip_type_codes(self) -> None:
+        with product_run_fixture(
+            prefix="weather-map-icon-precip-type-product-",
+            model_id="icon",
+            source_uri="icon-dwd://icon/2026041200/003",
+        ) as fx:
+            weather_code_path = fx.grib_path("ww.regridded.grib2")
+            weather_codes = pack_f32([0, 51, 56, 79, 71, 68, 95, 96, 97, 99, float("nan"), 999], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"ICON_PARAM": "ww"}),
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(weather_codes, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_product(
+                    product_id="precip_type_surface",
+                    product_config=precip_type_config(derivation_type="precip_type_from_icon_ww"),
+                    source=fx.grib_collection_source(
+                        grib_paths={"ww": weather_code_path},
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(product_id="precip_type_surface", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbbbbbbbbbb", 0, 1, 2, 3, 4, 5, 1, 3, 1, 3, -128, 0))
+            self.assertEqual(result["encoding_id"], "precip_type_surface_i8_code_v1")
+            self.assertEqual(result["units"], "code")
+
+    def test_icon_weather_code_derives_thunderstorm_mask(self) -> None:
+        with product_run_fixture(
+            prefix="weather-map-icon-thunderstorm-product-",
+            model_id="icon",
+            source_uri="icon-dwd://icon/2026041200/003",
+        ) as fx:
+            weather_code_path = fx.grib_path("ww.regridded.grib2")
+            weather_codes = pack_f32([0, 95, 96, 97, 98, 99, 51, float("nan"), 0, 0, 0, 0], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"ICON_PARAM": "ww"}),
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(weather_codes, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_product(
+                    product_id="thunderstorm_mask",
+                    product_config=thunderstorm_mask_config(),
+                    source=fx.grib_collection_source(
+                        grib_paths={"ww": weather_code_path},
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(product_id="thunderstorm_mask", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbbbbbbbbbb", 0, 1, 1, 1, 1, 1, 0, -128, 0, 0, 0, 0))
+            self.assertEqual(result["encoding_id"], "thunderstorm_mask_i8_flag_v1")
+            self.assertEqual(result["units"], "flag")
+
+    def test_unsupported_derivation_type_fails_clearly(self) -> None:
+        product_config = precip_type_config()
+        product_config["derivation"]["type"] = "not_supported"
+
+        with self.assertRaises(SystemExit) as raised:
+            product_spec("precip_type_surface", product_config)
+
+        self.assertIn("type must be one of", str(raised.exception))

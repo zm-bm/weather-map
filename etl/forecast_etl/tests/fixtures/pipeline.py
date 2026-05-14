@@ -58,10 +58,7 @@ def catalog_product(product_config: dict) -> dict:
 def model_product(product_config: dict) -> dict:
     model_cfg = {
         "components": [
-            {
-                "id": component["id"],
-                "grib_match": component["grib_match"],
-            }
+            _model_product_component(component)
             for component in product_config["components"]
         ],
     }
@@ -70,3 +67,10 @@ def model_product(product_config: dict) -> dict:
     if "derivation" in product_config:
         model_cfg["derivation"] = product_config["derivation"]
     return model_cfg
+
+
+def _model_product_component(component: dict) -> dict:
+    model_component = {"id": component["id"]}
+    if "grib_match" in component:
+        model_component["grib_match"] = component["grib_match"]
+    return model_component

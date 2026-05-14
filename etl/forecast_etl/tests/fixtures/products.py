@@ -131,7 +131,7 @@ def precip_rate_config() -> dict:
             "nodata": -128,
         },
         "components": [
-            {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
+            {"id": "value"},
         ],
         "temporal": {
             "kind": "average_rate",
@@ -140,5 +140,74 @@ def precip_rate_config() -> dict:
         "derivation": {
             "type": "icon_tot_prec_delta_rate",
             "first_hour_previous": "zero",
+            "inputs": [
+                {"id": "total", "grib_match": {"ICON_PARAM": "tot_prec"}},
+            ],
+        },
+    }
+
+
+def precip_type_config(*, derivation_type: str = "precip_type_from_gfs_categories") -> dict:
+    if derivation_type == "precip_type_from_gfs_categories":
+        inputs = [
+            {"id": "rain", "grib_match": {"GRIB_ELEMENT": "CRAIN", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "freezing_rain", "grib_match": {"GRIB_ELEMENT": "CFRZR", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "ice_pellets", "grib_match": {"GRIB_ELEMENT": "CICEP", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "snow", "grib_match": {"GRIB_ELEMENT": "CSNOW", "GRIB_SHORT_NAME": "0-SFC"}},
+        ]
+    else:
+        inputs = [
+            {"id": "ww", "grib_match": {"ICON_PARAM": "ww"}},
+        ]
+
+    return {
+        "kind": "scalar",
+        "parameter": "precip_type",
+        "level": "surface",
+        "units": "code",
+        "source_transform": "identity",
+        "encoding": {
+            "id": "precip_type_surface_i8_code_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 1,
+            "offset": 0,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value"},
+        ],
+        "derivation": {
+            "type": derivation_type,
+            "inputs": inputs,
+        },
+    }
+
+
+def thunderstorm_mask_config() -> dict:
+    return {
+        "kind": "scalar",
+        "parameter": "thunderstorm",
+        "level": "surface",
+        "units": "flag",
+        "source_transform": "identity",
+        "encoding": {
+            "id": "thunderstorm_mask_i8_flag_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 1,
+            "offset": 0,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value"},
+        ],
+        "derivation": {
+            "type": "thunderstorm_mask_from_icon_ww",
+            "inputs": [
+                {"id": "ww", "grib_match": {"ICON_PARAM": "ww"}},
+            ],
         },
     }

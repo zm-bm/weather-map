@@ -249,6 +249,48 @@
         }
       ]
     },
+    "precip_type_surface": {
+      "kind": "scalar",
+      "parameter": "precip_type",
+      "level": "surface",
+      "units": "code",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "precip_type_surface_i8_code_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 0,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
+    "thunderstorm_mask": {
+      "kind": "scalar",
+      "parameter": "thunderstorm",
+      "level": "surface",
+      "units": "flag",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "thunderstorm_mask_i8_flag_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 1,
+        "offset": 0,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
     "snow_depth_surface": {
       "kind": "scalar",
       "parameter": "snow_depth",
@@ -416,6 +458,7 @@
           "medium_clouds",
           "high_clouds",
           "prate_surface",
+          "precip_type_surface",
           "snow_depth_surface",
           "visibility_surface",
           "freezing_level",
@@ -547,6 +590,46 @@
             "kind": "instantaneous_rate"
           }
         },
+        "precip_type_surface": {
+          "components": [
+            {
+              "id": "value"
+            }
+          ],
+          "derivation": {
+            "type": "precip_type_from_gfs_categories",
+            "inputs": [
+              {
+                "id": "rain",
+                "grib_match": {
+                  "GRIB_ELEMENT": "CRAIN",
+                  "GRIB_SHORT_NAME": "0-SFC"
+                }
+              },
+              {
+                "id": "freezing_rain",
+                "grib_match": {
+                  "GRIB_ELEMENT": "CFRZR",
+                  "GRIB_SHORT_NAME": "0-SFC"
+                }
+              },
+              {
+                "id": "ice_pellets",
+                "grib_match": {
+                  "GRIB_ELEMENT": "CICEP",
+                  "GRIB_SHORT_NAME": "0-SFC"
+                }
+              },
+              {
+                "id": "snow",
+                "grib_match": {
+                  "GRIB_ELEMENT": "CSNOW",
+                  "GRIB_SHORT_NAME": "0-SFC"
+                }
+              }
+            ]
+          }
+        },
         "snow_depth_surface": {
           "components": [
             {
@@ -645,6 +728,8 @@
           "high_clouds",
           "prate_surface",
           "precip_total_surface",
+          "precip_type_surface",
+          "thunderstorm_mask",
           "snow_depth_surface",
           "freezing_level",
           "precipitable_water",
@@ -746,10 +831,7 @@
         "prate_surface": {
           "components": [
             {
-              "id": "value",
-              "grib_match": {
-                "ICON_PARAM": "tot_prec"
-              }
+              "id": "value"
             }
           ],
           "temporal": {
@@ -758,7 +840,15 @@
           },
           "derivation": {
             "type": "icon_tot_prec_delta_rate",
-            "first_hour_previous": "zero"
+            "first_hour_previous": "zero",
+            "inputs": [
+              {
+                "id": "total",
+                "grib_match": {
+                  "ICON_PARAM": "tot_prec"
+                }
+              }
+            ]
           }
         },
         "precip_total_surface": {
@@ -770,6 +860,42 @@
               }
             }
           ]
+        },
+        "precip_type_surface": {
+          "components": [
+            {
+              "id": "value"
+            }
+          ],
+          "derivation": {
+            "type": "precip_type_from_icon_ww",
+            "inputs": [
+              {
+                "id": "ww",
+                "grib_match": {
+                  "ICON_PARAM": "ww"
+                }
+              }
+            ]
+          }
+        },
+        "thunderstorm_mask": {
+          "components": [
+            {
+              "id": "value"
+            }
+          ],
+          "derivation": {
+            "type": "thunderstorm_mask_from_icon_ww",
+            "inputs": [
+              {
+                "id": "ww",
+                "grib_match": {
+                  "ICON_PARAM": "ww"
+                }
+              }
+            ]
+          }
         },
         "snow_depth_surface": {
           "components": [

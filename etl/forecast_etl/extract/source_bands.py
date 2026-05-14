@@ -1,4 +1,4 @@
-"""Extraction helpers for direct GRIB-backed product components."""
+"""Extraction helpers for configured GRIB source bands."""
 
 from __future__ import annotations
 
@@ -12,21 +12,21 @@ from .grib import extract_float32_band_bytes, find_grib_band_by_metadata
 from .types import ExtractedBand
 
 
-def extract_product_band(
+def extract_source_band(
     *,
     product: ProductSpec,
-    component_id: str,
+    band_id: str,
     grib_match: dict[str, str],
     grid: dict[str, Any],
     source: PreparedSource,
     workdir_path: Path,
     run: RunFn,
 ) -> ExtractedBand:
-    """Find and extract one configured GRIB component as Float32 bytes."""
+    """Find and extract one configured GRIB source band as Float32 bytes."""
 
     grib_path = source.component_grib_path(
         product_id=product.id,
-        component_id=component_id,
+        component_id=band_id,
         grib_match=grib_match,
     )
     band_idx, _ = find_grib_band_by_metadata(
@@ -44,12 +44,12 @@ def extract_product_band(
     expected_source_bytes = int(grid["nx"]) * int(grid["ny"]) * 4
     if len(source_f32_bytes) != expected_source_bytes:
         raise SystemExit(
-            f"Unexpected product component source byte length for {product.id}.{component_id}: "
+            f"Unexpected source band byte length for {product.id}.{band_id}: "
             f"got={len(source_f32_bytes)} expected={expected_source_bytes}"
         )
 
     return ExtractedBand(
-        component_id=component_id,
+        component_id=band_id,
         source_f32_bytes=source_f32_bytes,
         source_byte_order=source_byte_order,
     )
