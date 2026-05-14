@@ -1,35 +1,39 @@
 import { useEffect } from 'react'
 
 import type { WeatherMapConfig } from '../config'
-import { prefetchForecastFrames } from '../forecast-frame'
-import type { SyncRequest } from './types'
+import { createArtifactLoader } from '../forecast-artifacts'
+import { createForecastFramePlan, prefetchForecastFrames } from '../forecast-frame'
+import type { ForecastSyncTarget } from './types'
 
 const PREFETCH_CONCURRENCY = 2
 const PREFETCH_AHEAD_HOUR_COUNT = 2
 
 export type UseFramePrefetchArgs = {
   config: WeatherMapConfig
-  request: SyncRequest | null
+  target: ForecastSyncTarget | null
   enabled: boolean
 }
 
 export function useFramePrefetch({
   config,
-  request,
+  target,
   enabled,
 }: UseFramePrefetchArgs): void {
   useEffect(() => {
-    if (!enabled || request == null) return
+    if (!enabled || target == null) return
 
     const controller = new AbortController()
+    const plan = createForecastFramePlan({
+      target,
+      artifacts: createArtifactLoader({
+        config,
+        manifest: target.manifest,
+        signal: controller.signal,
+      }),
+    })
 
     void prefetchForecastFrames({
-      config,
-      manifest: request.manifest,
-      activeScalar: request.activeScalarLayer,
-      activeVector: request.activeVector,
-      lowerHourToken: request.lowerHourToken,
-      upperHourToken: request.upperHourToken,
+      plan,
       aheadHourCount: PREFETCH_AHEAD_HOUR_COUNT,
       concurrency: PREFETCH_CONCURRENCY,
       signal: controller.signal,
@@ -40,5 +44,5 @@ export function useFramePrefetch({
     return () => {
       controller.abort()
     }
-  }, [config, enabled, request])
+  }, [config, enabled, target])
 }

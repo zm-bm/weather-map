@@ -1,4 +1,4 @@
-import type { ScalarMeta } from '../../forecast-metadata/scalar'
+import type { LayerMeta } from '../../forecast-catalog'
 import type { UnitOption } from '../../units'
 
 export type LegendTick = {
@@ -23,14 +23,14 @@ const MM_TOTAL_PRECIP_MINOR_TICKS = [5, 75, 125, 200]
 const IN_TOTAL_PRECIP_MAJOR_TICKS = [0, 0.5, 1, 2, 4, 6, 10]
 const IN_TOTAL_PRECIP_MINOR_TICKS = [0.25, 3, 8]
 
-type LegendScaleKind = 'percent' | 'pressure' | 'temperature' | 'rate' | 'precipTotal' | 'default'
+type LegendScaleKind = LayerMeta['legendScale']
 
 type LegendTickSet = {
   major: number[]
   minor: number[]
 }
 
-function toLegendGradient(meta: ScalarMeta): string {
+function toLegendGradient(meta: LayerMeta): string {
   const range = meta.max - meta.min || 1
   const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
   const stops = orderedStops
@@ -120,35 +120,6 @@ function getLinearizedRateTickPosition(value: number, majorTicks: number[], mino
   return 100
 }
 
-function isPercentScale(units: string, label: string): boolean {
-  return units === '%' || label.includes('humidity') || label.includes('cloud')
-}
-
-function isPressureScale(units: string, label: string): boolean {
-  return units === 'hPa' || units === 'Pa' || label.includes('pressure')
-}
-
-function isTemperatureScale(units: string, label: string): boolean {
-  return units === 'C' || units === 'F' || label.includes('temperature')
-}
-
-function isRateScale(units: string, label: string): boolean {
-  return units === 'mm/hr' || units === 'in/hr' || label.includes('precipitation rate')
-}
-
-function isPrecipTotalScale(label: string, parameter: string): boolean {
-  return parameter === 'precip_total' || label.includes('accumulated precipitation')
-}
-
-function getLegendScaleKind(units: string, label: string, parameter: string): LegendScaleKind {
-  if (isPercentScale(units, label)) return 'percent'
-  if (isPressureScale(units, label)) return 'pressure'
-  if (isTemperatureScale(units, label)) return 'temperature'
-  if (isRateScale(units, label)) return 'rate'
-  if (isPrecipTotalScale(label, parameter)) return 'precipTotal'
-  return 'default'
-}
-
 function buildEvenTicks(min: number, max: number, targetCount: number): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min]
   const span = max - min
@@ -166,7 +137,7 @@ function buildEvenTicks(min: number, max: number, targetCount: number): number[]
   return sampleEvenly(uniqueTicks, targetCount)
 }
 
-function buildStopBasedTicks(meta: ScalarMeta, option: UnitOption, maxCount: number): number[] {
+function buildStopBasedTicks(meta: LayerMeta, option: UnitOption, maxCount: number): number[] {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min]
@@ -225,12 +196,12 @@ function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, ma
         major: filterCandidatesInRange(units === 'F' ? TEMP_F_MAJOR_TICKS : TEMP_C_MAJOR_TICKS, min, max),
         minor: [],
       }
-    case 'rate':
+    case 'precip-rate':
       return {
         major: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MAJOR_TICKS : MM_RATE_MAJOR_TICKS, min, max),
         minor: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MINOR_TICKS : MM_RATE_MINOR_TICKS, min, max),
       }
-    case 'precipTotal':
+    case 'precip-total':
       return {
         major: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
         minor: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
@@ -240,7 +211,7 @@ function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, ma
   }
 }
 
-function getLegendTickValues(meta: ScalarMeta, option: UnitOption): LegendTickSet {
+function getLegendTickValues(meta: LayerMeta, option: UnitOption): LegendTickSet {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
@@ -251,9 +222,7 @@ function getLegendTickValues(meta: ScalarMeta, option: UnitOption): LegendTickSe
   }
 
   const normalizedUnits = option.units.trim()
-  const normalizedLabel = meta.label.trim().toLowerCase()
-  const normalizedParameter = meta.parameter.trim().toLowerCase()
-  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter)
+  const scaleKind = meta.legendScale
   const hardCodedTicks = getHardCodedTicks(scaleKind, normalizedUnits, min, max)
   if (hardCodedTicks && hardCodedTicks.major.length > 0) return hardCodedTicks
 
@@ -264,17 +233,14 @@ function getLegendTickValues(meta: ScalarMeta, option: UnitOption): LegendTickSe
   }
 }
 
-export function getLegendTicks(meta: ScalarMeta, option: UnitOption): LegendTick[] {
+export function getLegendTicks(meta: LayerMeta, option: UnitOption): LegendTick[] {
   const min = option.convert(meta.min)
   const max = option.convert(meta.max)
   const range = max - min || 1
   const ticks = getLegendTickValues(meta, option)
-  const normalizedUnits = option.units.trim()
-  const normalizedLabel = meta.label.trim().toLowerCase()
-  const normalizedParameter = meta.parameter.trim().toLowerCase()
-  const scaleKind = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter)
+  const scaleKind = meta.legendScale
   const toLegendPosition = (value: number) => {
-    if (scaleKind === 'rate') {
+    if (scaleKind === 'precip-rate') {
       return getLinearizedRateTickPosition(value, ticks.major, ticks.minor)
     }
     return clamp(((value - min) / range) * 100, 0, 100)
@@ -295,14 +261,11 @@ export function getLegendTicks(meta: ScalarMeta, option: UnitOption): LegendTick
   return [...minorTicks, ...majorTicks].sort((a, b) => a.value - b.value)
 }
 
-export function toLegendSteppedGradient(meta: ScalarMeta, direction = 'to top'): string {
+export function toLegendSteppedGradient(meta: LayerMeta, direction = 'to top'): string {
   const range = meta.max - meta.min || 1
   const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
   if (orderedStops.length < 2) return toLegendGradient(meta)
-  const normalizedUnits = meta.units.trim()
-  const normalizedLabel = meta.label.trim().toLowerCase()
-  const normalizedParameter = meta.parameter.trim().toLowerCase()
-  const useEvenBandSpacing = getLegendScaleKind(normalizedUnits, normalizedLabel, normalizedParameter) === 'rate'
+  const useEvenBandSpacing = meta.legendScale === 'precip-rate'
 
   const gradientStops: string[] = []
   const firstColor = orderedStops[0]

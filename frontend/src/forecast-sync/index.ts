@@ -4,5 +4,5 @@ export type {
   StartupPhase,
   StartupState,
   StartupStatus,
-  SyncRequest,
+  ForecastSyncTarget,
 } from './types'

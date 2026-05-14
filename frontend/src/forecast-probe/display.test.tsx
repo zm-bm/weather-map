@@ -42,13 +42,13 @@ const manifest = createManifestFixture({
 })
 
 function renderDisplayHook(options: {
-  activeScalar?: 'tmp_surface' | 'rh_surface' | 'prmsl_surface' | 'prate_surface'
+  selectedLayerId?: 'tmp_surface' | 'rh_surface' | 'prmsl_surface' | 'prate_surface'
   unitSystem?: 'imperial' | 'metric'
 } = {}) {
   mocks.selectionContext = createForecastSelectionContextValue(
     manifest,
     {
-      activeScalar: options.activeScalar ?? 'tmp_surface',
+      selectedLayerId: options.selectedLayerId ?? 'tmp_surface',
       unitSystem: options.unitSystem ?? 'imperial',
     }
   )
@@ -70,26 +70,26 @@ describe('probe value display', () => {
   })
 
   it('rounds percentage values to whole numbers', () => {
-    const { result } = renderDisplayHook({ activeScalar: 'rh_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'rh_surface' })
 
     expect(result.current(55.25).text).toBe('55 %')
   })
 
   it('rounds pressure values to whole numbers after conversion', () => {
-    const { result } = renderDisplayHook({ activeScalar: 'prmsl_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'prmsl_surface' })
 
     expect(result.current(101_325).text).toBe('1013 hPa')
   })
 
   it('formats precipitation values with two fixed decimal places', () => {
-    const { result } = renderDisplayHook({ activeScalar: 'prate_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'prate_surface' })
 
     expect(result.current(2.54).text).toBe('0.10 in/hr')
   })
 
   it('formats metric precipitation values with two fixed decimal places', () => {
     const { result } = renderDisplayHook({
-      activeScalar: 'prate_surface',
+      selectedLayerId: 'prate_surface',
       unitSystem: 'metric',
     })
 

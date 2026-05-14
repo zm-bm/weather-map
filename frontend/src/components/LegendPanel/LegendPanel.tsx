@@ -1,5 +1,5 @@
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
-import { getScalarMeta } from '../../forecast-metadata/scalar'
+import { getLayerMeta } from '../../forecast-catalog'
 import {
   canToggleUnitSystem,
   getUnitDisplay,
@@ -8,10 +8,10 @@ import {
 import { LegendPanelView } from './LegendPanelView'
 
 export default function LegendPanel() {
-  const { activeScalar, scalarLayers, products, unitSystem, toggleUnitSystem } = useLoadedForecastSelectionContext()
-  if (activeScalar == null) return null
+  const { manifest, selectedLayerId, layers, unitSystem, toggleUnitSystem } = useLoadedForecastSelectionContext()
+  if (selectedLayerId == null) return null
 
-  const meta = getScalarMeta(activeScalar, scalarLayers, products)
+  const meta = getLayerMeta(selectedLayerId, layers, manifest)
   const unitDisplay = getUnitDisplay(meta)
   const selectedOption = getUnitOptionForSystem(unitDisplay, unitSystem)
   const canCycleUnits = canToggleUnitSystem(unitDisplay)

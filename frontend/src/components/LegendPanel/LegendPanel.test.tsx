@@ -5,22 +5,21 @@ import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
 import {
   createManifestFixture,
   createScalarProductFixture,
-  createVectorProductFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
-  activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
+  selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
 ) {
-  const scalarProducts = activeScalar === 'tmp_surface'
+  const scalarProducts = selectedLayerId === 'tmp_surface'
     ? ['tmp_surface', 'prate_surface']
-    : [activeScalar]
+    : [selectedLayerId]
   return createManifestFixture({
     cycle: '2026041100',
     scalarProducts,
-    vectorProducts: ['wind10m_uv'],
+    vectorProducts: [],
     products: {
       tmp_surface: createScalarProductFixture({
       }),
@@ -37,12 +36,11 @@ function createLegendSelectionManifest(
         units: '%',
         parameter: 'low_clouds',
       }),
-      wind10m_uv: createVectorProductFixture(),
     },
   })
 }
 
-function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
+function renderLegendHarness(selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
       <ForecastPanel
@@ -52,7 +50,7 @@ function renderLegendHarness(activeScalar: 'tmp_surface' | 'prmsl_surface' | 'pr
       />
       <LegendPanel />
     </>,
-    createLegendSelectionManifest(activeScalar)
+    createLegendSelectionManifest(selectedLayerId)
   )
 }
 
@@ -60,7 +58,6 @@ describe('LegendPanel', () => {
   it('uses the legend pill as the global imperial/metric unit toggle', () => {
     const { container } = renderLegendHarness('tmp_surface')
 
-    expect(screen.queryByLabelText('Scalar units')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /cycle temperature units/i })).toHaveTextContent('F')
 
     fireEvent.click(screen.getByRole('button', { name: /cycle temperature units/i }))
@@ -101,7 +98,7 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('0.000')
   })
 
-  it('shows normal scalar legend for low clouds', () => {
+  it('shows normal layer legend for low clouds', () => {
     const { container } = renderLegendHarness('low_clouds')
 
     expect(screen.getByLabelText('Low Clouds units %.')).toBeInTheDocument()

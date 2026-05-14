@@ -1,13 +1,12 @@
 import { forwardRef } from 'react'
 
 import { formatCycleRunTimeLabel } from '../../forecast-time'
-import { getScalarMeta } from '../../forecast-metadata/scalar'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
   type ForecastModelId,
   type ForecastModelOption,
 } from '../../forecast-models'
-import type { ScalarLayerGroupSpec, ScalarLayerId } from '../../forecast-catalog'
+import { getLayerMeta, type LayerGroupSpec, type LayerId } from '../../forecast-catalog'
 
 type ForecastPanelProps = {
   activeModelId: ForecastModelId
@@ -15,12 +14,12 @@ type ForecastPanelProps = {
   onActiveModelChange: (modelId: ForecastModelId) => void
 }
 
-function getActiveScalarGroup(
-  groups: ScalarLayerGroupSpec[],
-  activeScalar: ScalarLayerId | null
-): ScalarLayerGroupSpec | null {
-  if (activeScalar == null) return groups[0] ?? null
-  return groups.find((group) => group.layers.includes(activeScalar))
+function getSelectedLayerGroup(
+  groups: LayerGroupSpec[],
+  selectedLayerId: LayerId | null
+): LayerGroupSpec | null {
+  if (selectedLayerId == null) return groups[0] ?? null
+  return groups.find((group) => group.layers.includes(selectedLayerId))
     ?? groups[0]
 }
 
@@ -36,14 +35,13 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
   const {
     manifest,
     groups,
-    scalarLayers,
-    activeScalar,
-    products,
-    setActiveScalar,
+    layers,
+    selectedLayerId,
+    setSelectedLayer,
   } = useLoadedForecastSelectionContext()
   const runTime = formatCycleRunTimeLabel(manifest.run.cycle) ?? '--'
   const runLabel = formatModelRunLabel(runTime)
-  const activeScalarGroup = getActiveScalarGroup(groups, activeScalar)
+  const selectedLayerGroup = getSelectedLayerGroup(groups, selectedLayerId)
   const activeModelLabel = manifest.model.label
 
   return (
@@ -69,7 +67,7 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
           <span className="forecast-controls__run">{runLabel}</span>
         </div>
 
-        {activeScalarGroup ? (
+        {selectedLayerGroup ? (
           <>
             <div
               className={
@@ -85,9 +83,9 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
                   type="button"
                   className="forecast-controls__category-tab wm-mono-caps"
                   aria-label={group.label}
-                  aria-pressed={group.id === activeScalarGroup.id}
+                  aria-pressed={group.id === selectedLayerGroup.id}
                   title={group.label}
-                  onClick={() => setActiveScalar(group.defaultLayer)}
+                  onClick={() => setSelectedLayer(group.defaultLayer)}
                 >
                   {group.label}
                 </button>
@@ -97,11 +95,11 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
             <select
               className="forecast-controls__select forecast-controls__measurement-select"
               aria-label="Measurement"
-              value={activeScalar ?? ''}
-              onChange={(event) => setActiveScalar(event.currentTarget.value as ScalarLayerId)}
+              value={selectedLayerId ?? ''}
+              onChange={(event) => setSelectedLayer(event.currentTarget.value as LayerId)}
             >
-              {activeScalarGroup.layers.map((layerId) => {
-                const meta = getScalarMeta(layerId, scalarLayers, products)
+              {selectedLayerGroup.layers.map((layerId) => {
+                const meta = getLayerMeta(layerId, layers, manifest)
 
                 return (
                   <option key={layerId} value={layerId}>

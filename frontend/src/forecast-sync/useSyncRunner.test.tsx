@@ -2,62 +2,78 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type {
-  CycleManifest,
-  VectorProductId,
-} from '../manifest'
+import type { CycleManifest } from '../manifest'
 import {
-  buildAvailableScalarCatalog,
-  type ScalarLayerId,
-  type ScalarLayerSpec,
+  getAvailableGroups,
+  getAvailableParticleLayers,
+  getAvailableLayers,
+  getDefaultParticleLayer,
+  type ParticleLayerId,
+  type ParticleLayerSpec,
+  type LayerId,
+  type LayerSpec,
 } from '../forecast-catalog'
 import type { ForecastTimeSyncBridge } from '../forecast-time'
-import {
-  frameWindowMinuteOffset,
-  resolveForecastFrameWindow,
-} from '../forecast-time'
+import { resolveForecastFrameWindow } from '../forecast-time'
+import { createForecastFrameTarget } from '../forecast-frame'
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
-import type { SyncRequest } from './types'
+import type { ForecastSyncTarget } from './types'
 import { useSyncRunner } from './useSyncRunner'
 import { useStartupState } from './useStartupState'
 
 const mocks = vi.hoisted(() => ({
   loadForecastFrames: vi.fn(),
   applyForecastFrames: vi.fn(),
-  setForecastProbeFrame: vi.fn(),
-  clearForecastProbeFrame: vi.fn(),
-  scalarFrame: {
-    lower: { variableId: 'tmp_surface' },
-    upper: { variableId: 'tmp_surface' },
+  setForecastFieldFrame: vi.fn(),
+  clearForecastFieldFrame: vi.fn(),
+  artifactLoaderSignals: [] as AbortSignal[],
+  fieldWindow: {
+    lower: { layerId: 'tmp_surface' },
+    upper: { layerId: 'tmp_surface' },
     mix: 0,
   },
-  vectorFrame: {
-    lower: { metadata: { variableId: 'wind10m_uv' } },
-    upper: { metadata: { variableId: 'wind10m_uv' } },
+  particleWindow: {
+    lower: { artifactId: 'wind10m_uv' },
+    upper: { artifactId: 'wind10m_uv' },
     mix: 0,
   },
 }))
 
-vi.mock('../forecast-frame', () => ({
-  loadForecastFrames: mocks.loadForecastFrames,
+vi.mock('../forecast-frame', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-frame')>()
+  return {
+    ...actual,
+    loadForecastFrames: mocks.loadForecastFrames,
+  }
+})
+
+vi.mock('../forecast-artifacts', () => ({
+  createArtifactLoader: (args: { signal: AbortSignal }) => {
+    mocks.artifactLoaderSignals.push(args.signal)
+    return {
+      loadScalar: vi.fn(),
+      loadVector: vi.fn(),
+    }
+  },
 }))
 
-vi.mock('../forecast-layers', () => ({
+vi.mock('../forecast-render', () => ({
   applyForecastFrames: mocks.applyForecastFrames,
 }))
 
 vi.mock('../forecast-probe', () => ({
-  forecastProbeFrameStore: {
-    publish: mocks.setForecastProbeFrame,
-    clear: mocks.clearForecastProbeFrame,
+  forecastFieldFrameStore: {
+    publish: mocks.setForecastFieldFrame,
+    clear: mocks.clearForecastFieldFrame,
   },
 }))
 
 type SyncInput = {
   manifest: CycleManifest
-  activeScalar: ScalarLayerId
-  activeScalarLayer: ScalarLayerSpec
-  activeVector: VectorProductId
+  selectedLayerId: LayerId
+  selectedLayer: LayerSpec
+  selectedParticleLayerId: ParticleLayerId | null
+  selectedParticleLayer: ParticleLayerSpec | null
   targetTimeMs: number
   sync: ForecastTimeSyncBridge
 }
@@ -71,8 +87,8 @@ type SyncHarnessArgs = {
 
 function useSyncHarness(args: SyncHarnessArgs) {
   const startup = useStartupState()
-  const request = useMemo(
-    () => buildSyncRequest(args.syncInput, startup.retryToken),
+  const target = useMemo(
+    () => buildSyncTarget(args.syncInput, startup.retryToken),
     [args.syncInput, startup.retryToken]
   )
 
@@ -80,7 +96,7 @@ function useSyncHarness(args: SyncHarnessArgs) {
     getMap: args.getMap,
     mapReadyVersion: args.mapReadyVersion,
     config: args.config,
-    request,
+    target,
     startup,
   })
 
@@ -103,17 +119,23 @@ function validTimeFor(manifest: CycleManifest, hourId: string): number {
 
 function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
   const manifest = overrides.manifest ?? createManifestFixture()
-  const catalog = buildAvailableScalarCatalog(manifest)
-  const defaultLayerId = catalog.groups[0]?.defaultLayer
-  const activeScalarLayer = defaultLayerId ? catalog.layers[defaultLayerId] : undefined
-  if (!activeScalarLayer) {
-    throw new Error('Fixture manifest must include at least one catalog scalar layer')
+  const layers = getAvailableLayers(manifest)
+  const defaultLayerId = getAvailableGroups(layers)[0]?.defaultLayer
+  const selectedLayer = defaultLayerId ? layers[defaultLayerId] : undefined
+  if (!selectedLayer) {
+    throw new Error('Fixture manifest must include at least one catalog layer')
   }
+  const particleLayers = getAvailableParticleLayers(manifest)
+  const defaultParticleLayerId = getDefaultParticleLayer(particleLayers)
+  const selectedParticleLayer = defaultParticleLayerId
+    ? particleLayers[defaultParticleLayerId]
+    : undefined
   return {
     manifest,
-    activeScalar: activeScalarLayer.id,
-    activeScalarLayer,
-    activeVector: manifest.productsByKind.vector[0]!,
+    selectedLayerId: selectedLayer.id,
+    selectedLayer,
+    selectedParticleLayerId: selectedParticleLayer?.id ?? null,
+    selectedParticleLayer: selectedParticleLayer ?? null,
     targetTimeMs: validTimeFor(manifest, manifest.times[0]?.id ?? '000'),
     sync: createSyncCallbacks(),
     ...overrides,
@@ -141,27 +163,26 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function buildSyncRequest(
+function buildSyncTarget(
   syncInput: SyncInput | null,
   retryToken: number
-): SyncRequest | null {
+): ForecastSyncTarget | null {
   if (!syncInput) return null
   const frameWindow = resolveForecastFrameWindow(
     syncInput.manifest.times,
     syncInput.targetTimeMs
   )
-  const minuteOffset = frameWindowMinuteOffset(frameWindow)
 
   return {
-    manifest: syncInput.manifest,
-    activeScalar: syncInput.activeScalar,
-    activeScalarLayer: syncInput.activeScalarLayer,
-    activeVector: syncInput.activeVector,
-    selectedValidTimeMs: frameWindow.selectedValidTimeMs,
-    lowerHourToken: frameWindow.lowerHourToken,
-    upperHourToken: frameWindow.upperHourToken,
-    mix: frameWindow.mix,
-    requestKey: `${syncInput.manifest.run.cycle}:${syncInput.manifest.run.revision}:${syncInput.activeScalar}:${syncInput.activeVector}:${frameWindow.lowerHourToken}:${frameWindow.upperHourToken}:${minuteOffset}:${retryToken}`,
+    ...createForecastFrameTarget({
+      manifest: syncInput.manifest,
+      selectedLayerId: syncInput.selectedLayerId,
+      selectedLayer: syncInput.selectedLayer,
+      selectedParticleLayerId: syncInput.selectedParticleLayerId,
+      selectedParticleLayer: syncInput.selectedParticleLayer,
+      frameWindow,
+      retryToken,
+    }),
     sync: syncInput.sync,
   }
 }
@@ -169,9 +190,10 @@ function buildSyncRequest(
 describe('useSyncRunner + useStartupState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.artifactLoaderSignals.length = 0
     mocks.loadForecastFrames.mockResolvedValue({
-      scalar: mocks.scalarFrame,
-      vector: mocks.vectorFrame,
+      field: mocks.fieldWindow,
+      particles: mocks.particleWindow,
     })
     mocks.applyForecastFrames.mockReturnValue(undefined)
   })
@@ -189,7 +211,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     expect(mocks.loadForecastFrames).not.toHaveBeenCalled()
     expect(mocks.applyForecastFrames).not.toHaveBeenCalled()
-    expect(mocks.clearForecastProbeFrame).toHaveBeenCalledTimes(1)
+    expect(mocks.clearForecastFieldFrame).toHaveBeenCalledTimes(1)
     expect(result.current.startupPhase).toBe('idle')
     expect(result.current.startupErrorMessage).toBeNull()
   })
@@ -356,8 +378,8 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('fires start then applied callbacks when engine succeeds', async () => {
     const frames = {
-      scalar: mocks.scalarFrame,
-      vector: mocks.vectorFrame,
+      field: mocks.fieldWindow,
+      particles: mocks.particleWindow,
     }
     const request = deferred<typeof frames>()
     mocks.loadForecastFrames.mockImplementation(() => request.promise)
@@ -412,8 +434,8 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastFrames
       .mockRejectedValueOnce(startupError)
       .mockResolvedValueOnce({
-        scalar: mocks.scalarFrame,
-        vector: mocks.vectorFrame,
+        field: mocks.fieldWindow,
+        particles: mocks.particleWindow,
       })
 
     const args = createBaseArgs()
@@ -452,8 +474,8 @@ describe('useSyncRunner + useStartupState', () => {
     const laterError = new Error('later timeline error')
     mocks.loadForecastFrames
       .mockResolvedValueOnce({
-        scalar: mocks.scalarFrame,
-        vector: mocks.vectorFrame,
+        field: mocks.fieldWindow,
+        particles: mocks.particleWindow,
       })
       .mockRejectedValueOnce(laterError)
 
@@ -490,18 +512,20 @@ describe('useSyncRunner + useStartupState', () => {
     expect(result.current.startupErrorMessage).toBeNull()
   })
 
-  it('forwards active scalar and active vector to frame loading', async () => {
+  it('forwards selected layer and selected particle layer to frame loading', async () => {
     const manifest = createManifestFixture({
       scalarProducts: ['rh_surface'],
-      vectorProducts: ['gust10m_uv'],
+      vectorProducts: ['wind10m_uv'],
     })
-    const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.rh_surface!
+    const selectedLayer = getAvailableLayers(manifest).rh_surface!
+    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
-        activeScalar: activeScalarLayer.id,
-        activeScalarLayer,
-        activeVector: manifest.productsByKind.vector[0]!,
+        selectedLayerId: selectedLayer.id,
+        selectedLayer,
+        selectedParticleLayerId: selectedParticleLayer.id,
+        selectedParticleLayer,
       }),
     })
 
@@ -513,16 +537,49 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     expect(mocks.loadForecastFrames).toHaveBeenCalledWith(expect.objectContaining({
-      activeScalar: activeScalarLayer,
-      activeVector: 'gust10m_uv',
+      plan: expect.objectContaining({
+        field: expect.objectContaining({ key: expect.any(String) }),
+        particles: expect.objectContaining({ key: expect.any(String) }),
+      }),
     }))
   })
 
-  it('applies loaded frames and publishes the scalar probe frame after render succeeds', async () => {
+  it('forwards null particle selection to frame loading when no particle artifact is available', async () => {
+    const manifest = createManifestFixture({
+      scalarProducts: ['rh_surface'],
+      vectorProducts: [],
+    })
+    const selectedLayer = getAvailableLayers(manifest).rh_surface!
+    const args = createBaseArgs({
+      syncInput: createSyncInput({
+        manifest,
+        selectedLayerId: selectedLayer.id,
+        selectedLayer,
+        selectedParticleLayerId: null,
+        selectedParticleLayer: null,
+      }),
+    })
+
+    renderHook(() => useSyncHarness(args))
+
+    await waitFor(() => {
+      expect(mocks.loadForecastFrames).toHaveBeenCalledTimes(1)
+      expect(mocks.applyForecastFrames).toHaveBeenCalledTimes(1)
+    })
+
+    expect(mocks.loadForecastFrames).toHaveBeenCalledWith(expect.objectContaining({
+      plan: expect.objectContaining({
+        field: expect.objectContaining({ key: expect.any(String) }),
+        particles: null,
+      }),
+    }))
+  })
+
+  it('applies loaded frames and publishes the selected layer probe frame after render succeeds', async () => {
     const map = createMapFixture()
     const frames = {
-      scalar: { lower: { variableId: 'rh_surface' } },
-      vector: { lower: { metadata: { variableId: 'wind10m_uv' } } },
+      field: { lower: { layerId: 'rh_surface' } },
+      particles: { lower: { artifactId: 'wind10m_uv' } },
     }
     mocks.loadForecastFrames.mockResolvedValueOnce(frames)
     const args = createBaseArgs({
@@ -533,10 +590,10 @@ describe('useSyncRunner + useStartupState', () => {
 
     await waitFor(() => {
       expect(mocks.applyForecastFrames).toHaveBeenCalledWith(map, frames)
-      expect(mocks.setForecastProbeFrame).toHaveBeenCalledWith(frames.scalar)
+      expect(mocks.setForecastFieldFrame).toHaveBeenCalledWith(frames.field)
     })
     expect(mocks.applyForecastFrames.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.setForecastProbeFrame.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.setForecastFieldFrame.mock.invocationCallOrder[0])
   })
 
   it('does not publish a probe frame when render application fails', async () => {
@@ -556,17 +613,17 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('error')
     })
 
-    expect(mocks.setForecastProbeFrame).not.toHaveBeenCalled()
+    expect(mocks.setForecastFieldFrame).not.toHaveBeenCalled()
   })
 
-  it('passes reusable previous scalar and vector frame windows to frame loading', async () => {
+  it('passes reusable previous layer and particle frame windows to frame loading', async () => {
     const firstFrames = {
-      scalar: { lower: { variableId: 'tmp_surface', frame: 1 } },
-      vector: { lower: { metadata: { variableId: 'wind10m_uv', frame: 1 } } },
+      field: { lower: { layerId: 'tmp_surface', frame: 1 } },
+      particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
     }
     const secondFrames = {
-      scalar: { lower: { variableId: 'tmp_surface', frame: 2 } },
-      vector: { lower: { metadata: { variableId: 'wind10m_uv', frame: 2 } } },
+      field: { lower: { layerId: 'tmp_surface', frame: 2 } },
+      particles: { lower: { artifactId: 'wind10m_uv', frame: 2 } },
     }
     mocks.loadForecastFrames
       .mockResolvedValueOnce(firstFrames)
@@ -600,8 +657,8 @@ describe('useSyncRunner + useStartupState', () => {
       2,
       expect.objectContaining({
         previousWindows: {
-          scalar: firstFrames.scalar,
-          vector: firstFrames.vector,
+          field: firstFrames.field,
+          particles: firstFrames.particles,
         },
       })
     )
@@ -609,9 +666,7 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('resets startup state and aborts in-flight request when request becomes disabled', async () => {
     const request = deferred<void>()
-    const observedSignals: AbortSignal[] = []
-    mocks.loadForecastFrames.mockImplementationOnce((args: { signal: AbortSignal }) => {
-      observedSignals.push(args.signal)
+    mocks.loadForecastFrames.mockImplementationOnce(() => {
       return request.promise
     })
 
@@ -632,11 +687,11 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     await waitFor(() => {
-      expect(observedSignals[0]?.aborted).toBe(true)
+      expect(mocks.artifactLoaderSignals[0]?.aborted).toBe(true)
       expect(result.current.startupPhase).toBe('idle')
       expect(result.current.startupErrorMessage).toBeNull()
     })
-    expect(mocks.clearForecastProbeFrame).toHaveBeenCalledTimes(1)
+    expect(mocks.clearForecastFieldFrame).toHaveBeenCalledTimes(1)
   })
 
   it('aborts an in-flight request when the target returns to an already applied frame', async () => {
@@ -653,9 +708,7 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     const request = deferred<void>()
-    const observedSignals: AbortSignal[] = []
-    mocks.loadForecastFrames.mockImplementationOnce((syncArgs: { signal: AbortSignal }) => {
-      observedSignals.push(syncArgs.signal)
+    mocks.loadForecastFrames.mockImplementationOnce(() => {
       return request.promise
     })
 
@@ -674,13 +727,13 @@ describe('useSyncRunner + useStartupState', () => {
 
     await waitFor(() => {
       expect(mocks.loadForecastFrames).toHaveBeenCalledTimes(2)
-      expect(observedSignals[0]).toBeDefined()
+      expect(mocks.artifactLoaderSignals[1]).toBeDefined()
     })
 
     rerender(args)
 
     await waitFor(() => {
-      expect(observedSignals[0]?.aborted).toBe(true)
+      expect(mocks.artifactLoaderSignals[1]?.aborted).toBe(true)
     })
 
     request.resolve()

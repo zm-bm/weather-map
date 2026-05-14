@@ -4,7 +4,7 @@ import type { WeatherMapConfig } from '../config'
 import { useStartupAppStatus } from './useStartupAppStatus'
 import { useStartupState } from './useStartupState'
 import { useFramePrefetch } from './useFramePrefetch'
-import { useSyncRequest } from './useSyncRequest'
+import { useSyncTarget } from './useSyncTarget'
 import { useSyncRunner } from './useSyncRunner'
 
 export type UseForecastSyncArgs = {
@@ -19,18 +19,18 @@ export function useForecastSync({
   config,
 }: UseForecastSyncArgs): void {
   const startup = useStartupState()
-  const request = useSyncRequest(startup.retryToken)
+  const target = useSyncTarget(startup.retryToken)
 
   useSyncRunner({
     getMap,
     mapReadyVersion,
     config,
-    request,
+    target,
     startup,
   })
   useFramePrefetch({
     config,
-    request,
+    target,
     enabled: !startup.isBlocked,
   })
   useStartupAppStatus(startup.status)

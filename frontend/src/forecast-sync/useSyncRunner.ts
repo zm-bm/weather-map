@@ -3,20 +3,21 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
+import { createArtifactLoader } from '../forecast-artifacts'
 import {
+  createForecastFramePlan,
+  createForecastFrameMemory,
   loadForecastFrames,
-  type ForecastFrames,
-  type PreviousForecastFrameWindows,
 } from '../forecast-frame'
-import { applyForecastFrames } from '../forecast-layers'
-import { forecastProbeFrameStore } from '../forecast-probe'
-import type { StartupState, SyncRequest } from './types'
+import { applyForecastFrames } from '../forecast-render'
+import { forecastFieldFrameStore } from '../forecast-probe'
+import type { StartupState, ForecastSyncTarget } from './types'
 
 type UseSyncRunnerArgs = {
   getMap: () => MapLibreMap | null
   mapReadyVersion: number
   config: WeatherMapConfig
-  request: SyncRequest | null
+  target: ForecastSyncTarget | null
   startup: StartupState
 }
 
@@ -24,17 +25,11 @@ type RunnerDecision =
   | { kind: 'disabled' }
   | { kind: 'blocked' }
   | { kind: 'pending' }
-  | { kind: 'run'; map: MapLibreMap; request: SyncRequest }
+  | { kind: 'run'; map: MapLibreMap; target: ForecastSyncTarget }
 
 type ActiveRequest = {
   key: string
   controller: AbortController
-}
-
-type PreviousForecastFrames = {
-  scalarKey: string
-  vectorKey: string
-  frames: ForecastFrames
 }
 
 type RunnerMachine = {
@@ -42,7 +37,7 @@ type RunnerMachine = {
     isBlocked: boolean
     getMap: () => MapLibreMap | null
     mapReadyVersion: number
-    request: SyncRequest | null
+    target: ForecastSyncTarget | null
   }) => RunnerDecision
   reset: () => void
   abort: () => void
@@ -58,7 +53,7 @@ export function useSyncRunner({
   getMap,
   mapReadyVersion,
   config,
-  request,
+  target,
   startup,
 }: UseSyncRunnerArgs): void {
   const {
@@ -73,7 +68,10 @@ export function useSyncRunner({
   if (machineRef.current == null) {
     machineRef.current = createRunnerMachine()
   }
-  const previousFramesRef = useRef<PreviousForecastFrames | null>(null)
+  const frameMemoryRef = useRef<ReturnType<typeof createForecastFrameMemory> | null>(null)
+  if (frameMemoryRef.current == null) {
+    frameMemoryRef.current = createForecastFrameMemory()
+  }
 
   useEffect(() => {
     const machine = machineRef.current
@@ -83,13 +81,13 @@ export function useSyncRunner({
       isBlocked,
       getMap,
       mapReadyVersion,
-      request,
+      target,
     })
 
     switch (decision.kind) {
       case 'disabled':
-        previousFramesRef.current = null
-        forecastProbeFrameStore.clear()
+        frameMemoryRef.current?.reset()
+        forecastFieldFrameStore.clear()
         handleDisabled()
         return
       case 'blocked':
@@ -101,21 +99,14 @@ export function useSyncRunner({
         break
     }
 
-    const { map, request: syncRequest } = decision
+    const { map, target: syncTarget } = decision
     const {
-      manifest,
-      activeScalar,
-      activeScalarLayer,
-      activeVector,
       selectedValidTimeMs,
-      lowerHourToken,
-      upperHourToken,
-      mix,
       requestKey,
       sync,
-    } = syncRequest
-    const scalarKey = createForecastFrameKey(manifest, `${activeScalar}:${activeScalarLayer.artifactId}`)
-    const vectorKey = createForecastFrameKey(manifest, activeVector)
+    } = syncTarget
+    const frameMemory = frameMemoryRef.current
+    if (frameMemory == null) return
 
     if (machine.isApplied(requestKey)) {
       machine.abort()
@@ -123,39 +114,36 @@ export function useSyncRunner({
     }
     if (machine.isActive(requestKey)) return
 
-    if (previousFramesRef.current != null && previousFramesRef.current.scalarKey !== scalarKey) {
-      forecastProbeFrameStore.clear()
+    const activeRequest = machine.start(requestKey)
+    const framePlan = createForecastFramePlan({
+      target: syncTarget,
+      artifacts: createArtifactLoader({
+        config,
+        manifest: syncTarget.manifest,
+        signal: activeRequest.controller.signal,
+      }),
+    })
+
+    if (frameMemory.shouldClearFieldProbe(framePlan)) {
+      forecastFieldFrameStore.clear()
     }
 
-    const activeRequest = machine.start(requestKey)
     handlePending()
     sync.onRequestStart(selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
         const frames = await loadForecastFrames({
-          config,
-          manifest,
-          previousWindows: resolveReusableFrameWindows(previousFramesRef.current, syncRequest),
-          selectedValidTimeMs,
-          lowerHourToken,
-          upperHourToken,
-          mix,
-          activeScalar: activeScalarLayer,
-          activeVector,
-          signal: activeRequest.controller.signal,
+          plan: framePlan,
+          previousWindows: frameMemory.reusableWindowsFor(framePlan),
         })
 
         if (isRequestStale(machine, activeRequest)) return
         applyForecastFrames(map, frames)
         if (isRequestStale(machine, activeRequest)) return
 
-        forecastProbeFrameStore.publish(frames.scalar)
-        previousFramesRef.current = {
-          scalarKey,
-          vectorKey,
-          frames,
-        }
+        forecastFieldFrameStore.publish(frames.field)
+        frameMemory.commit(framePlan, frames)
         machine.markApplied(activeRequest)
         sync.onRequestApplied(selectedValidTimeMs)
         handleApplied()
@@ -180,33 +168,8 @@ export function useSyncRunner({
     handlePending,
     isBlocked,
     mapReadyVersion,
-    request,
+    target,
   ])
-}
-
-function resolveReusableFrameWindows(
-  previous: PreviousForecastFrames | null,
-  request: SyncRequest
-): PreviousForecastFrameWindows {
-  if (previous == null) return {}
-
-  const scalarKey = createForecastFrameKey(
-    request.manifest,
-    `${request.activeScalar}:${request.activeScalarLayer.artifactId}`
-  )
-  const vectorKey = createForecastFrameKey(request.manifest, request.activeVector)
-
-  return {
-    scalar: previous.scalarKey === scalarKey ? previous.frames.scalar : null,
-    vector: previous.vectorKey === vectorKey ? previous.frames.vector : null,
-  }
-}
-
-function createForecastFrameKey(
-  manifest: SyncRequest['manifest'],
-  variable: string
-): string {
-  return `${manifest.run.cycle}:${manifest.run.revision}:${variable}`
 }
 
 function createRunnerMachine(): RunnerMachine {
@@ -214,8 +177,8 @@ function createRunnerMachine(): RunnerMachine {
   let active: ActiveRequest | null = null
 
   const machine: RunnerMachine = {
-    prepare({ isBlocked, getMap, mapReadyVersion, request }) {
-      if (request == null) {
+    prepare({ isBlocked, getMap, mapReadyVersion, target }) {
+      if (target == null) {
         machine.reset()
         return { kind: 'disabled' }
       }
@@ -234,7 +197,7 @@ function createRunnerMachine(): RunnerMachine {
         return { kind: 'pending' }
       }
 
-      return { kind: 'run', map, request }
+      return { kind: 'run', map, target }
     },
     reset() {
       active?.controller.abort()

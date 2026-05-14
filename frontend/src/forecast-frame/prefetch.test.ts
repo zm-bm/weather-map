@@ -1,55 +1,175 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
 import {
-  createConfigFixture,
   createFrameManifestFixture,
-  createFrameRefFixture,
-  createScalarProductFixture,
-  createVectorProductFixture,
-  FIXTURE_SCALAR_ID,
-  FIXTURE_VECTOR_ID,
+  createSignalFixture,
 } from '../test/fixtures'
-import { stubFetchArrayBufferOnce } from '../test/fetch'
-import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrameCache'
-import { prefetchFramePayloads } from './prefetch'
+import { createForecastFrameTarget } from './target'
+import type { ForecastFramePlan } from './plan'
+import { prefetchForecastFrames } from './prefetch'
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-  return __resetPayloadFrameCacheForTests()
-})
+const loaders = {
+  field: vi.fn(),
+  particles: vi.fn(),
+}
 
-describe('prefetchFramePayloads', () => {
-  it('warms frame payloads through the shared loader cache', async () => {
-    const manifest = createFrameManifestFixture({
-      forecastHours: ['000'],
-      products: {
-        [FIXTURE_SCALAR_ID]: createScalarProductFixture({
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041312/000/tmp_surface.field.i16.bin',
-            }),
-          },
-        }),
-        [FIXTURE_VECTOR_ID]: createVectorProductFixture({
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041312/000/wind10m_uv.field.i8.bin',
-            }),
-          },
-        }),
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function createPlan(args: {
+  forecastHours?: string[]
+  includeParticles?: boolean
+  lowerHourToken?: string
+  upperHourToken?: string
+} = {}): ForecastFramePlan {
+  const manifest = createFrameManifestFixture({
+    forecastHours: args.forecastHours ?? ['000', '003', '006', '009'],
+    vectorProducts: args.includeParticles === false ? [] : ['wind10m_uv'],
+  })
+  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+  const selectedParticleLayer = args.includeParticles === false
+    ? null
+    : getAvailableParticleLayers(manifest).wind_particles!
+  const target = createForecastFrameTarget({
+    manifest,
+    selectedLayerId: selectedLayer.id,
+    selectedLayer,
+    selectedParticleLayerId: selectedParticleLayer?.id ?? null,
+    selectedParticleLayer,
+    frameWindow: {
+      selectedValidTimeMs: Date.UTC(2026, 3, 13, 15),
+      lowerHourToken: args.lowerHourToken ?? '000',
+      upperHourToken: args.upperHourToken ?? '003',
+      lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
+      upperValidTimeMs: Date.UTC(2026, 3, 13, 15),
+      mix: 0.5,
+    },
+    retryToken: 0,
+  })
+
+  return {
+    manifest: target.manifest,
+    selectedValidTimeMs: target.selectedValidTimeMs,
+    lowerHourToken: target.lowerHourToken,
+    upperHourToken: target.upperHourToken,
+    mix: target.mix,
+    field: {
+      key: 'field:key',
+      load: loaders.field,
+    },
+    particles: args.includeParticles === false
+      ? null
+      : {
+        key: 'particles:key',
+        load: loaders.particles,
       },
-    })
-    const fetchMock = stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
+  }
+}
 
-    await prefetchFramePayloads({
-      config: createConfigFixture(),
-      manifest,
-      frameKind: 'scalar',
-      variableId: FIXTURE_SCALAR_ID,
-      hourTokens: ['000', '0'],
-      signal: new AbortController().signal,
+describe('prefetchForecastFrames', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    loaders.field.mockResolvedValue({ layerId: 'tmp_surface' })
+    loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
+  })
+
+  it('prefetches planned channels for the current window plus lookahead hours', async () => {
+    await prefetchForecastFrames({
+      plan: createPlan({ lowerHourToken: '0', upperHourToken: '3' }),
+      aheadHourCount: 2,
+      concurrency: 2,
+      signal: createSignalFixture(),
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(loaders.field.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+      '000',
+      '003',
+      '006',
+      '009',
+    ])
+    expect(loaders.particles.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+      '000',
+      '003',
+      '006',
+      '009',
+    ])
+  })
+
+  it('limits prefetch concurrency across planned channels', async () => {
+    const requests: Array<ReturnType<typeof deferred<void>>> = []
+    const deferredPrefetch = () => {
+      const request = deferred<void>()
+      requests.push(request)
+      return request.promise
+    }
+    loaders.field.mockImplementation(deferredPrefetch)
+    loaders.particles.mockImplementation(deferredPrefetch)
+
+    const prefetch = prefetchForecastFrames({
+      plan: createPlan(),
+      aheadHourCount: 2,
+      concurrency: 2,
+      signal: createSignalFixture(),
+    })
+
+    expect(loaders.field.mock.calls.length + loaders.particles.mock.calls.length)
+      .toBe(2)
+
+    requests[0]!.resolve()
+    await Promise.resolve()
+
+    expect(loaders.field.mock.calls.length + loaders.particles.mock.calls.length)
+      .toBe(3)
+
+    let resolvedCount = 1
+    while (resolvedCount < 8) {
+      const request = requests[resolvedCount]
+      if (request == null) {
+        await Promise.resolve()
+        continue
+      }
+      request.resolve()
+      resolvedCount += 1
+      await Promise.resolve()
+    }
+    await prefetch
+  })
+
+  it('suppresses individual prefetch failures', async () => {
+    loaders.field.mockRejectedValue(new Error('prefetch failed'))
+    loaders.particles.mockRejectedValue(new Error('prefetch failed'))
+
+    await expect(prefetchForecastFrames({
+      plan: createPlan(),
+      aheadHourCount: 2,
+      concurrency: 2,
+      signal: createSignalFixture(),
+    })).resolves.toBeUndefined()
+
+    expect(loaders.field.mock.calls.length + loaders.particles.mock.calls.length)
+      .toBe(8)
+  })
+
+  it('skips particle payload prefetch when no particle channel is planned', async () => {
+    await prefetchForecastFrames({
+      plan: createPlan({
+        forecastHours: ['000', '003', '006'],
+        includeParticles: false,
+      }),
+      aheadHourCount: 1,
+      concurrency: 2,
+      signal: createSignalFixture(),
+    })
+
+    expect(loaders.field).toHaveBeenCalledTimes(3)
+    expect(loaders.particles).not.toHaveBeenCalled()
   })
 })

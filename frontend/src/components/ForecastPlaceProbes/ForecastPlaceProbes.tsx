@@ -17,13 +17,13 @@ function ForecastPlaceProbes({
   mapRef,
   mapReadyVersion,
 }: ForecastPlaceProbesProps) {
-  const { activeScalar, manifest } = useForecastSelectionContext()
+  const { selectedLayerId, manifest } = useForecastSelectionContext()
 
-  if (manifest == null || activeScalar == null) return null
+  if (manifest == null || selectedLayerId == null) return null
 
   return (
     <ForecastPlaceProbeLayer
-      activeScalar={activeScalar}
+      selectedLayerId={selectedLayerId}
       mapReadyVersion={mapReadyVersion}
       mapRef={mapRef}
     />
@@ -31,14 +31,14 @@ function ForecastPlaceProbes({
 }
 
 function ForecastPlaceProbeLayer({
-  activeScalar,
+  selectedLayerId,
   mapRef,
   mapReadyVersion,
 }: ForecastPlaceProbesProps & {
-  activeScalar: string
+  selectedLayerId: string
 }) {
   const formatProbeDisplay = useForecastProbeValueFormatter()
-  const activeScalarRef = useRef(activeScalar)
+  const selectedLayerIdRef = useRef(selectedLayerId)
   const formatProbeDisplayRef = useRef(formatProbeDisplay)
   const sessionRef = useRef<PlaceProbeSession | null>(null)
 
@@ -48,7 +48,7 @@ function ForecastPlaceProbeLayer({
 
     const session = createPlaceProbeSession({
       map,
-      getActiveScalar: () => activeScalarRef.current,
+      getSelectedLayerId: () => selectedLayerIdRef.current,
       getValueFormatter: () => formatProbeDisplayRef.current,
     })
     sessionRef.current = session
@@ -63,10 +63,10 @@ function ForecastPlaceProbeLayer({
   }, [mapReadyVersion, mapRef])
 
   useEffect(() => {
-    activeScalarRef.current = activeScalar
+    selectedLayerIdRef.current = selectedLayerId
     formatProbeDisplayRef.current = formatProbeDisplay
     sessionRef.current?.refreshFrame()
-  }, [activeScalar, formatProbeDisplay])
+  }, [selectedLayerId, formatProbeDisplay])
 
   return null
 }

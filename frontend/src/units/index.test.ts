@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ScalarMeta } from '../forecast-metadata/scalar'
+import type { LayerMeta } from '../forecast-catalog'
 import {
   canToggleUnitSystem,
   formatUnitValue,
@@ -9,8 +9,23 @@ import {
   getUnitOptionForSystem,
 } from './index'
 
-function createPrecipMeta(units: string): ScalarMeta {
+function createLayerMeta(overrides: Partial<LayerMeta> & Pick<LayerMeta, 'unitBehavior'>): LayerMeta {
   return {
+    id: 'test_layer',
+    label: 'Test Layer',
+    units: '',
+    parameter: 'test',
+    min: 0,
+    max: 1,
+    paletteId: 'test.palette.v1',
+    legendScale: 'stop-based',
+    colortable: [],
+    ...overrides,
+  }
+}
+
+function createPrecipMeta(units: string): LayerMeta {
+  return createLayerMeta({
     id: 'prate_surface',
     label: 'prate_surface',
     units,
@@ -18,8 +33,9 @@ function createPrecipMeta(units: string): ScalarMeta {
     min: 0,
     max: 30,
     paletteId: 'precip.rate.mm_hr.v1',
-    colortable: [],
-  }
+    unitBehavior: 'precip-rate',
+    legendScale: 'precip-rate',
+  })
 }
 
 describe('getUnitDisplay', () => {
@@ -47,7 +63,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('maps accumulated precipitation from millimeters to inches', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'precip_total_surface',
       label: 'precip_total_surface',
       units: 'mm',
@@ -55,8 +71,9 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 254,
       paletteId: 'precip.total.mm.v1',
-      colortable: [],
-    })
+      unitBehavior: 'precip-total',
+      legendScale: 'precip-total',
+    }))
 
     expect(canToggleUnitSystem(display)).toBe(true)
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('millimeters')
@@ -66,7 +83,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('maps snow depth from meters to centimeters and inches', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'snow_depth_surface',
       label: 'Snow Depth',
       units: 'm',
@@ -74,8 +91,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 5,
       paletteId: 'snow.depth.m.v1',
-      colortable: [],
-    })
+      unitBehavior: 'snow-depth',
+    }))
 
     expect(canToggleUnitSystem(display)).toBe(true)
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('centimeters')
@@ -85,7 +102,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('maps visibility from meters to kilometers and miles', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'visibility_surface',
       label: 'Visibility',
       units: 'm',
@@ -93,8 +110,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 50000,
       paletteId: 'atmosphere.visibility.m.v1',
-      colortable: [],
-    })
+      unitBehavior: 'visibility',
+    }))
 
     expect(canToggleUnitSystem(display)).toBe(true)
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers')
@@ -104,7 +121,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('maps freezing level from meters to feet', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'freezing_level',
       label: 'Freezing Level',
       units: 'm',
@@ -112,8 +129,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 8000,
       paletteId: 'atmosphere.freezing_level.m.v1',
-      colortable: [],
-    })
+      unitBehavior: 'height',
+    }))
 
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('meters')
     expect(getUnitOptionForSystem(display, 'imperial').id).toBe('feet')
@@ -121,7 +138,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('maps precipitable water from millimeters to inches', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'precipitable_water',
       label: 'Precipitable Water',
       units: 'mm',
@@ -129,8 +146,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 80,
       paletteId: 'atmosphere.precipitable_water.mm.v1',
-      colortable: [],
-    })
+      unitBehavior: 'water-depth',
+    }))
 
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('millimeters')
     expect(getUnitOptionForSystem(display, 'imperial').id).toBe('inches')
@@ -138,7 +155,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('keeps CAPE as a static J/kg display', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'cape_index',
       label: 'CAPE Index',
       units: 'J/kg',
@@ -146,8 +163,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 5000,
       paletteId: 'severe.cape.jkg.v1',
-      colortable: [],
-    })
+      unitBehavior: 'cape',
+    }))
 
     expect(canToggleUnitSystem(display)).toBe(false)
     expect(getUnitOption(display).id).toBe('joules_per_kilogram')
@@ -155,7 +172,7 @@ describe('getUnitDisplay', () => {
   })
 
   it('uses whole-number formatting for percentage values', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'rh_surface',
       label: 'rh_surface',
       units: '%',
@@ -163,14 +180,15 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 100,
       paletteId: 'moisture.relative_humidity.percent.v1',
-      colortable: [],
-    })
+      unitBehavior: 'percent',
+      legendScale: 'percent',
+    }))
 
     expect(formatUnitValue(55.25, getUnitOption(display))).toBe('55')
   })
 
   it('treats dew point as a temperature unit', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'dewpoint_surface',
       label: 'dewpoint_surface',
       units: 'C',
@@ -178,15 +196,16 @@ describe('getUnitDisplay', () => {
       min: -60,
       max: 40,
       paletteId: 'temperature.dewpoint.c.v1',
-      colortable: [],
-    })
+      unitBehavior: 'temperature',
+      legendScale: 'temperature',
+    }))
 
     expect(getUnitOptionForSystem(display, 'imperial').id).toBe('fahrenheit')
     expect(getUnitOption(display, 'fahrenheit').convert(10)).toBe(50)
   })
 
   it('maps wind gust from meters per second to speed display units', () => {
-    const display = getUnitDisplay({
+    const display = getUnitDisplay(createLayerMeta({
       id: 'gust_surface',
       label: 'gust_surface',
       units: 'm/s',
@@ -194,8 +213,8 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 60,
       paletteId: 'wind.gust.mps.v1',
-      colortable: [],
-    })
+      unitBehavior: 'wind-speed',
+    }))
 
     expect(canToggleUnitSystem(display)).toBe(true)
     expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers_per_hour')
@@ -203,8 +222,25 @@ describe('getUnitDisplay', () => {
     expect(getUnitOption(display, 'kilometers_per_hour').convert(10)).toBe(36)
   })
 
-  it('matches raw manifest product labels through parameter metadata', () => {
-    const temperature = getUnitDisplay({
+  it('maps derived wind speed from meters per second to speed display units', () => {
+    const display = getUnitDisplay(createLayerMeta({
+      id: 'wind_speed_surface',
+      label: 'Wind Speed',
+      units: 'm/s',
+      parameter: 'wind_speed',
+      min: 0,
+      max: 60,
+      paletteId: 'wind.gust.mps.v1',
+      unitBehavior: 'wind-speed',
+    }))
+
+    expect(canToggleUnitSystem(display)).toBe(true)
+    expect(getUnitOptionForSystem(display, 'metric').id).toBe('kilometers_per_hour')
+    expect(getUnitOptionForSystem(display, 'imperial').id).toBe('miles_per_hour')
+  })
+
+  it('uses explicit catalog unit behavior instead of label or parameter heuristics', () => {
+    const temperature = getUnitDisplay(createLayerMeta({
       id: 'tmp_surface',
       label: 'tmp_surface',
       units: 'C',
@@ -212,9 +248,10 @@ describe('getUnitDisplay', () => {
       min: -35,
       max: 50,
       paletteId: 'temperature.air.c.v1',
-      colortable: [],
-    })
-    const pressure = getUnitDisplay({
+      unitBehavior: 'temperature',
+      legendScale: 'temperature',
+    }))
+    const pressure = getUnitDisplay(createLayerMeta({
       id: 'prmsl_surface',
       label: 'prmsl_surface',
       units: 'Pa',
@@ -222,8 +259,9 @@ describe('getUnitDisplay', () => {
       min: 98000,
       max: 103500,
       paletteId: 'pressure.msl.pa.v1',
-      colortable: [],
-    })
+      unitBehavior: 'pressure',
+      legendScale: 'pressure',
+    }))
 
     expect(getUnitOptionForSystem(temperature, 'imperial').id).toBe('fahrenheit')
     expect(getUnitOption(pressure).id).toBe('hectopascal')

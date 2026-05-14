@@ -1,0 +1,100 @@
+import { describe, expect, it } from 'vitest'
+
+import { asProductId } from '../manifest'
+import { asLayerId, type LayerSpec } from './layer'
+import {
+  createFrameManifestFixture,
+  createScalarProductFixture,
+  createVectorProductFixture,
+} from '../test/fixtures'
+import { getLayerMeta, getLayerStyleByPaletteId } from './display'
+
+describe('layer metadata palettes', () => {
+  it('resolves layer colortables from frontend catalog palette ids', () => {
+    const layer: LayerSpec = {
+      id: asLayerId('custom_pressure'),
+      label: 'Custom Pressure',
+      groupId: 'wind',
+      paletteId: 'pressure.msl.pa.v1',
+      displayRange: { min: 98_000, max: 103_500 },
+      unitBehavior: 'pressure',
+      legendScale: 'pressure',
+      source: { kind: 'artifact', artifactId: asProductId('prmsl_surface') },
+    }
+    const product = createScalarProductFixture({
+      id: 'prmsl_surface',
+      units: 'Pa',
+      parameter: 'prmsl',
+    })
+
+    const manifest = createFrameManifestFixture({ products: { prmsl_surface: product } })
+
+    const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, manifest)
+
+    expect(meta.label).toBe('Custom Pressure')
+    expect(meta.paletteId).toBe('pressure.msl.pa.v1')
+    expect(meta.unitBehavior).toBe('pressure')
+    expect(meta.legendScale).toBe('pressure')
+    expect(meta.colortable).toBe(getLayerStyleByPaletteId('pressure.msl.pa.v1').colortable)
+  })
+
+  it('resolves first-pass direct-band product palettes', () => {
+    expect(getLayerStyleByPaletteId('snow.depth.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getLayerStyleByPaletteId('atmosphere.visibility.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getLayerStyleByPaletteId('atmosphere.freezing_level.m.v1').colortable.length).toBeGreaterThan(0)
+    expect(getLayerStyleByPaletteId('atmosphere.precipitable_water.mm.v1').colortable.length).toBeGreaterThan(0)
+    expect(getLayerStyleByPaletteId('severe.cape.jkg.v1').colortable.length).toBeGreaterThan(0)
+  })
+
+  it('resolves frontend-derived wind speed metadata from the vector source artifact', () => {
+    const layer: LayerSpec = {
+      id: asLayerId('wind_speed_surface'),
+      label: 'Wind Speed',
+      groupId: 'wind',
+      paletteId: 'wind.gust.mps.v1',
+      displayRange: { min: 0, max: 60 },
+      unitBehavior: 'wind-speed',
+      legendScale: 'stop-based',
+      source: { kind: 'derived', artifactId: asProductId('wind10m_uv'), recipe: 'wind-speed' },
+      parameter: 'wind_speed',
+    }
+
+    const manifest = createFrameManifestFixture({
+      products: {
+        wind10m_uv: createVectorProductFixture({
+          units: 'm/s',
+          parameter: 'vector',
+        }),
+      },
+    })
+
+    const meta = getLayerMeta('wind_speed_surface', { wind_speed_surface: layer }, manifest)
+
+    expect(meta.label).toBe('Wind Speed')
+    expect(meta.units).toBe('m/s')
+    expect(meta.parameter).toBe('wind_speed')
+    expect(meta.colortable).toBe(getLayerStyleByPaletteId('wind.gust.mps.v1').colortable)
+  })
+
+  it('rejects layers with unknown palette ids', () => {
+    const layer: LayerSpec = {
+      id: asLayerId('custom_layer'),
+      label: 'Custom Layer',
+      groupId: 'temperature',
+      paletteId: 'missing.palette.v1',
+      displayRange: { min: 0, max: 1 },
+      unitBehavior: 'temperature',
+      legendScale: 'temperature',
+      source: { kind: 'artifact', artifactId: asProductId('tmp_surface') },
+    }
+
+    const manifest = createFrameManifestFixture({
+      products: {
+        tmp_surface: createScalarProductFixture(),
+      },
+    })
+
+    expect(() => getLayerMeta('custom_layer', { custom_layer: layer }, manifest))
+      .toThrow('Unknown layer paletteId: missing.palette.v1')
+  })
+})

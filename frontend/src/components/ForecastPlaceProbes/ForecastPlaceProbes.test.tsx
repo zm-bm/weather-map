@@ -42,36 +42,36 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    activeScalar: 'tmp_surface',
+    selectedLayerId: 'tmp_surface',
     forecastLoaded: true,
     testGrid,
     frame: {
       lower: {
-        variableId: 'tmp_surface',
+        layerId: 'tmp_surface',
         grid: testGrid,
       },
       upper: {
-        variableId: 'tmp_surface',
+        layerId: 'tmp_surface',
         grid: testGrid,
       },
       mix: 0,
-    } as { lower: { variableId: string; grid: typeof testGrid }; upper: { variableId: string; grid: typeof testGrid }; mix: number } | null,
+    } as { lower: { layerId: string; grid: typeof testGrid }; upper: { layerId: string; grid: typeof testGrid }; mix: number } | null,
     formatProbeDisplay: vi.fn((rawValue: number | null, loading = false) => ({
       text: loading ? 'Loading' : (rawValue == null ? 'No data' : `${rawValue} F`),
       loading,
       value: rawValue,
     })),
-    getForecastProbeFrame: vi.fn(),
-    createScalarProbeSampler: vi.fn(),
-    sampleScalarFrameWindowWithSampler: vi.fn(),
-    subscribeForecastProbeFrame: vi.fn(),
+    getForecastFieldFrame: vi.fn(),
+    createLayerProbeSampler: vi.fn(),
+    sampleFieldFrameWindowWithSampler: vi.fn(),
+    subscribeForecastFieldFrame: vi.fn(),
     forecastProbeFrameListener: null as ((frame: unknown) => void) | null,
   }
 })
 
 vi.mock('../../forecast-selection', () => ({
   useForecastSelectionContext: () => ({
-    activeScalar: mocks.forecastLoaded ? mocks.activeScalar : null,
+    selectedLayerId: mocks.forecastLoaded ? mocks.selectedLayerId : null,
     manifest: mocks.forecastLoaded ? {} : null,
   }),
 }))
@@ -81,17 +81,17 @@ vi.mock('../../forecast-probe', async () => {
 
   return {
     ...actual,
-    forecastProbeFrameStore: {
-      getCurrent: () => mocks.getForecastProbeFrame(),
+    forecastFieldFrameStore: {
+      getCurrent: () => mocks.getForecastFieldFrame(),
       subscribe: (listener: (frame: unknown) => void) => {
         mocks.forecastProbeFrameListener = listener
-        mocks.subscribeForecastProbeFrame(listener)
+        mocks.subscribeForecastFieldFrame(listener)
         return vi.fn()
       },
     },
-    scalarProbe: {
-      createPointSampler: mocks.createScalarProbeSampler,
-      sampleFrameWindowWithSampler: mocks.sampleScalarFrameWindowWithSampler,
+    layerProbe: {
+      createPointSampler: mocks.createLayerProbeSampler,
+      sampleFrameWindowWithSampler: mocks.sampleFieldFrameWindowWithSampler,
     },
     useForecastProbeValueFormatter: () => mocks.formatProbeDisplay,
   }
@@ -228,27 +228,27 @@ describe('ForecastPlaceProbes', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
 
-    mocks.activeScalar = 'tmp_surface'
+    mocks.selectedLayerId = 'tmp_surface'
     mocks.forecastLoaded = true
     mocks.frame = {
       lower: {
-        variableId: 'tmp_surface',
+        layerId: 'tmp_surface',
         grid: mocks.testGrid,
       },
       upper: {
-        variableId: 'tmp_surface',
+        layerId: 'tmp_surface',
         grid: mocks.testGrid,
       },
       mix: 0,
     }
     mocks.formatProbeDisplay.mockClear()
-    mocks.getForecastProbeFrame.mockReset()
-    mocks.getForecastProbeFrame.mockImplementation(() => mocks.frame)
-    mocks.createScalarProbeSampler.mockReset()
-    mocks.createScalarProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
-    mocks.sampleScalarFrameWindowWithSampler.mockReset()
-    mocks.sampleScalarFrameWindowWithSampler.mockReturnValue(20)
-    mocks.subscribeForecastProbeFrame.mockClear()
+    mocks.getForecastFieldFrame.mockReset()
+    mocks.getForecastFieldFrame.mockImplementation(() => mocks.frame)
+    mocks.createLayerProbeSampler.mockReset()
+    mocks.createLayerProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
+    mocks.sampleFieldFrameWindowWithSampler.mockReset()
+    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(20)
+    mocks.subscribeForecastFieldFrame.mockClear()
     mocks.forecastProbeFrameListener = null
   })
 
@@ -308,7 +308,7 @@ describe('ForecastPlaceProbes', () => {
       basemapLayerIds.source,
       { sourceLayer: basemapLayerIds.placeSourceLayer },
     )
-    expect(mocks.createScalarProbeSampler).toHaveBeenCalledTimes(2)
+    expect(mocks.createLayerProbeSampler).toHaveBeenCalledTimes(2)
     expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
       expect.objectContaining({ name: 'Chicago', sortKey: 0, probeText: '20 F' }),
       expect.objectContaining({ name: 'Milwaukee', sortKey: 1, probeText: '20 F' }),
@@ -350,11 +350,11 @@ describe('ForecastPlaceProbes', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(1)
 
-    mocks.sampleScalarFrameWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { variableId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { variableId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
         mix: 0.5,
       })
     })
@@ -379,8 +379,8 @@ describe('ForecastPlaceProbes', () => {
 
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { variableId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { variableId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
         mix: 0.5,
       })
     })
@@ -390,7 +390,7 @@ describe('ForecastPlaceProbes', () => {
     expect(map.probeSource?.updateData).not.toHaveBeenCalled()
   })
 
-  it('keeps the source/layer installed when the active scalar changes', () => {
+  it('keeps the source/layer installed when the selected layer changes', () => {
     const map = createProbeablePlacesMap()
     const mapRef = { current: map }
     map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
@@ -398,7 +398,7 @@ describe('ForecastPlaceProbes', () => {
     const { rerender } = render(<ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={1} />)
     act(flushAnimationFrames)
 
-    mocks.activeScalar = 'dewpoint_surface'
+    mocks.selectedLayerId = 'dewpoint_surface'
     rerender(<ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={1} />)
     act(flushAnimationFrames)
 
@@ -425,7 +425,7 @@ describe('ForecastPlaceProbes', () => {
     act(flushAnimationFrames)
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
-    expect(mocks.createScalarProbeSampler).toHaveBeenLastCalledWith(
+    expect(mocks.createLayerProbeSampler).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.objectContaining({ name: 'Madison' })
     )
@@ -517,11 +517,11 @@ describe('ForecastPlaceProbes', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
 
-    mocks.sampleScalarFrameWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { variableId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { variableId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
         mix: 0.5,
       })
     })

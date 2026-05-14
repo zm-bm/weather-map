@@ -2,9 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
-  scalarRuntimeOptions,
-  vectorRuntimeOptions,
-} from '../../forecast-layers/options'
+  fieldRuntimeOptions,
+  particleRuntimeOptions,
+} from '../../forecast-render/options'
 import { createMapFixture } from '../../test/fixtures'
 import MapControlRail from './MapControlRail'
 
@@ -55,11 +55,11 @@ describe('MapControlRail', () => {
     expect(screen.getByRole('button', { name: 'Map options' })).toBeInTheDocument()
   })
 
-  it('updates scalar and vector runtime options from the options panel', () => {
-    const previousScalarColorSamplingMode = scalarRuntimeOptions.colorSamplingMode
-    const previousClearTrailsOnViewChange = vectorRuntimeOptions.clearTrailsOnViewChange
-    scalarRuntimeOptions.colorSamplingMode = 'interpolated'
-    vectorRuntimeOptions.clearTrailsOnViewChange = true
+  it('updates layer color and particle runtime options from the options panel', () => {
+    const previousColorSamplingMode = fieldRuntimeOptions.colorSamplingMode
+    const previousClearTrailsOnViewChange = particleRuntimeOptions.clearTrailsOnViewChange
+    fieldRuntimeOptions.colorSamplingMode = 'interpolated'
+    particleRuntimeOptions.clearTrailsOnViewChange = true
 
     try {
       render(
@@ -74,11 +74,11 @@ describe('MapControlRail', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
 
-      expect(scalarRuntimeOptions.colorSamplingMode).toBe('banded')
-      expect(vectorRuntimeOptions.clearTrailsOnViewChange).toBe(false)
+      expect(fieldRuntimeOptions.colorSamplingMode).toBe('banded')
+      expect(particleRuntimeOptions.clearTrailsOnViewChange).toBe(false)
     } finally {
-      scalarRuntimeOptions.colorSamplingMode = previousScalarColorSamplingMode
-      vectorRuntimeOptions.clearTrailsOnViewChange = previousClearTrailsOnViewChange
+      fieldRuntimeOptions.colorSamplingMode = previousColorSamplingMode
+      particleRuntimeOptions.clearTrailsOnViewChange = previousClearTrailsOnViewChange
     }
   })
 })

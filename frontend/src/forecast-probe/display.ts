@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-import { getScalarMeta } from '../forecast-metadata/scalar'
+import { getLayerMeta } from '../forecast-catalog'
 import { useLoadedForecastSelectionContext } from '../forecast-selection'
 import {
   formatUnitValue,
@@ -24,8 +24,8 @@ export type ForecastProbeValueDisplay = {
 }
 
 export function useForecastProbeValueFormatter() {
-  const { activeScalar, scalarLayers, products, unitSystem } = useLoadedForecastSelectionContext()
-  const probeMeta = activeScalar == null ? null : getScalarMeta(activeScalar, scalarLayers, products)
+  const { manifest, selectedLayerId, layers, unitSystem } = useLoadedForecastSelectionContext()
+  const probeMeta = selectedLayerId == null ? null : getLayerMeta(selectedLayerId, layers, manifest)
   const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
 
   const probeUnitOption = probeMeta == null || probeUnitDisplay == null

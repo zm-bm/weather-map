@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
-import type {
-  CycleManifest,
-  ProductId,
-  VectorProductId,
-} from '../manifest'
+import type { CycleManifest } from '../manifest'
 import {
-  buildAvailableScalarCatalog,
-  type ScalarLayerGroupSpec,
-  type ScalarLayerId,
+  getAvailableGroups,
+  getAvailableLayers,
+  getAvailableParticleLayers,
+  getDefaultParticleLayer,
+  type ParticleLayerId,
+  type LayerGroupSpec,
+  type LayerId,
 } from '../forecast-catalog'
 import type { UnitSystem } from '../units'
 import {
@@ -17,37 +17,40 @@ import {
 } from './ForecastSelectionContext'
 
 const EMPTY_GROUPS: [] = []
-const EMPTY_PRODUCTS: [] = []
 
-function productsForKind(manifest: CycleManifest | null, kind: string): ProductId[] {
-  return manifest?.productsByKind[kind] ?? EMPTY_PRODUCTS
+function availableLayerCatalog(manifest: CycleManifest | null) {
+  if (!manifest) return { groups: EMPTY_GROUPS, layers: null }
+  const layers = getAvailableLayers(manifest)
+  return { groups: getAvailableGroups(layers), layers }
 }
 
-function availableScalarCatalog(manifest: CycleManifest | null) {
-  return manifest ? buildAvailableScalarCatalog(manifest) : { groups: EMPTY_GROUPS, layers: null }
+function availableParticleCatalog(manifest: CycleManifest | null) {
+  if (!manifest) return { layers: null, defaultLayer: null }
+  const layers = getAvailableParticleLayers(manifest)
+  return { layers, defaultLayer: getDefaultParticleLayer(layers) }
 }
 
-function findScalarGroupId(
-  groups: readonly ScalarLayerGroupSpec[],
-  layerId: ScalarLayerId | null
+function findLayerGroupId(
+  groups: readonly LayerGroupSpec[],
+  layerId: LayerId | null
 ): string | null {
   if (layerId == null) return null
   return groups.find((group) => group.layers.includes(layerId))?.id ?? null
 }
 
-function defaultScalarForGroupId(
-  groups: readonly ScalarLayerGroupSpec[],
+function defaultLayerForGroupId(
+  groups: readonly LayerGroupSpec[],
   groupId: string | null
-): ScalarLayerId | null {
+): LayerId | null {
   if (groupId == null) return null
   return groups.find((group) => group.id === groupId)?.defaultLayer ?? null
 }
 
-function resolveFallbackScalar(
-  groups: readonly ScalarLayerGroupSpec[],
-  scalarLayers: readonly ScalarLayerId[]
-): ScalarLayerId | null {
-  return groups[0]?.defaultLayer ?? scalarLayers[0] ?? null
+function resolveFallbackLayer(
+  groups: readonly LayerGroupSpec[],
+  layers: readonly LayerId[]
+): LayerId | null {
+  return groups[0]?.defaultLayer ?? layers[0] ?? null
 }
 
 export default function ForecastSelectionProvider({
@@ -57,46 +60,46 @@ export default function ForecastSelectionProvider({
   manifest: CycleManifest | null
   children: ReactNode
 }) {
-  const initialScalarCatalog = availableScalarCatalog(manifest)
-  const initialScalarLayers = Object.keys(initialScalarCatalog.layers ?? {}) as ScalarLayerId[]
-  const initialVectorProducts = productsForKind(manifest, 'vector') as VectorProductId[]
-  const initialScalarGroups = initialScalarCatalog.groups
-  const initialActiveScalar = resolveFallbackScalar(initialScalarGroups, initialScalarLayers)
+  const initialLayerCatalog = availableLayerCatalog(manifest)
+  const initialLayers = Object.keys(initialLayerCatalog.layers ?? {}) as LayerId[]
+  const initialLayerGroups = initialLayerCatalog.groups
+  const initialParticleCatalog = availableParticleCatalog(manifest)
+  const initialSelectedLayerId = resolveFallbackLayer(initialLayerGroups, initialLayers)
   const [selection, setSelection] = useState<{
     modelId: string | null
     cycle: string | null
-    activeScalar: ScalarLayerId | null
-    activeScalarGroupId: string | null
-    activeVector: VectorProductId | null
+    selectedLayerId: LayerId | null
+    selectedLayerGroupId: string | null
+    selectedParticleLayerId: ParticleLayerId | null
   }>(() => ({
     modelId: manifest?.model.id ?? null,
     cycle: manifest?.run.cycle ?? null,
-    activeScalar: initialActiveScalar,
-    activeScalarGroupId: findScalarGroupId(
-      initialScalarGroups,
-      initialActiveScalar
+    selectedLayerId: initialSelectedLayerId,
+    selectedLayerGroupId: findLayerGroupId(
+      initialLayerGroups,
+      initialSelectedLayerId
     ),
-    activeVector: initialVectorProducts[0] ?? null,
+    selectedParticleLayerId: initialParticleCatalog.defaultLayer,
   }))
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
-  const setActiveScalar = useCallback((value: ScalarLayerId) => {
+  const setSelectedLayer = useCallback((value: LayerId) => {
     setSelection((current) => ({
       modelId: current.modelId,
       cycle: current.cycle,
-      activeScalar: value,
-      activeScalarGroupId: current.activeScalarGroupId,
-      activeVector: current.activeVector,
+      selectedLayerId: value,
+      selectedLayerGroupId: current.selectedLayerGroupId,
+      selectedParticleLayerId: current.selectedParticleLayerId,
     }))
   }, [])
 
-  const setActiveVector = useCallback((value: VectorProductId) => {
+  const setSelectedParticleLayer = useCallback((value: ParticleLayerId) => {
     setSelection((current) => ({
       modelId: current.modelId,
       cycle: current.cycle,
-      activeScalar: current.activeScalar,
-      activeScalarGroupId: current.activeScalarGroupId,
-      activeVector: value,
+      selectedLayerId: current.selectedLayerId,
+      selectedLayerGroupId: current.selectedLayerGroupId,
+      selectedParticleLayerId: value,
     }))
   }, [])
 
@@ -109,13 +112,13 @@ export default function ForecastSelectionProvider({
       return {
         manifest: null,
         groups: EMPTY_GROUPS,
-        scalarLayers: null,
-        products: null,
-        activeScalar: null,
-        activeVector: null,
+        layers: null,
+        particleLayers: null,
+        selectedLayerId: null,
+        selectedParticleLayerId: null,
         unitSystem,
-        setActiveScalar,
-        setActiveVector,
+        setSelectedLayer,
+        setSelectedParticleLayer,
         setUnitSystem,
         toggleUnitSystem,
       }
@@ -123,67 +126,68 @@ export default function ForecastSelectionProvider({
 
     const cycle = manifest.run.cycle
     const modelId = manifest.model.id
-    const scalarCatalog = buildAvailableScalarCatalog(manifest)
-    const scalarLayers = Object.keys(scalarCatalog.layers) as ScalarLayerId[]
-    const groups = scalarCatalog.groups
-    const vectorProducts = productsForKind(manifest, 'vector') as VectorProductId[]
+    const layerCatalog = availableLayerCatalog(manifest)
+    const layers = Object.keys(layerCatalog.layers ?? {}) as LayerId[]
+    const groups = layerCatalog.groups
+    const particleCatalog = availableParticleCatalog(manifest)
+    const particleLayers = Object.keys(particleCatalog.layers ?? {}) as ParticleLayerId[]
     const sameModel = selection.modelId === modelId
     const sameCycle = selection.cycle === cycle
 
-    const activeScalar =
+    const selectedLayerId =
       ((sameModel && sameCycle) || !sameModel)
-      && selection.activeScalar != null
-      && scalarLayers.includes(selection.activeScalar)
-        ? selection.activeScalar
+      && selection.selectedLayerId != null
+      && layers.includes(selection.selectedLayerId)
+        ? selection.selectedLayerId
         : (
             (!sameModel || sameCycle)
-              ? defaultScalarForGroupId(groups, selection.activeScalarGroupId)
+              ? defaultLayerForGroupId(groups, selection.selectedLayerGroupId)
               : null
-          ) ?? resolveFallbackScalar(groups, scalarLayers)
-    const activeVector =
+          ) ?? resolveFallbackLayer(groups, layers)
+    const selectedParticleLayerId =
       sameCycle
-      && selection.activeVector != null
-      && vectorProducts.includes(selection.activeVector)
-        ? selection.activeVector
-        : vectorProducts[0] ?? null
+      && selection.selectedParticleLayerId != null
+      && particleLayers.includes(selection.selectedParticleLayerId)
+        ? selection.selectedParticleLayerId
+        : particleCatalog.defaultLayer
 
     return {
       manifest,
       groups,
-      scalarLayers: scalarCatalog.layers,
-      products: manifest.products,
-      activeScalar,
-      activeVector,
+      layers: layerCatalog.layers ?? {},
+      particleLayers: particleCatalog.layers ?? {},
+      selectedLayerId,
+      selectedParticleLayerId,
       unitSystem,
-      setActiveScalar: (nextScalar) => {
+      setSelectedLayer: (nextLayer) => {
         setSelection((current) => ({
           modelId,
           cycle,
-          activeScalar: nextScalar,
-          activeScalarGroupId: findScalarGroupId(groups, nextScalar),
-          activeVector:
+          selectedLayerId: nextLayer,
+          selectedLayerGroupId: findLayerGroupId(groups, nextLayer),
+          selectedParticleLayerId:
             current.cycle === cycle
-            && current.activeVector != null
-            && vectorProducts.includes(current.activeVector)
-              ? current.activeVector
-              : vectorProducts[0] ?? null,
+            && current.selectedParticleLayerId != null
+            && particleLayers.includes(current.selectedParticleLayerId)
+              ? current.selectedParticleLayerId
+              : particleCatalog.defaultLayer,
         }))
       },
-      setActiveVector: (nextVector) => {
+      setSelectedParticleLayer: (nextParticleLayer) => {
         setSelection((current) => ({
           modelId,
           cycle,
-          activeScalar:
+          selectedLayerId:
             current.cycle === cycle
-            && current.activeScalar != null
-            && scalarLayers.includes(current.activeScalar)
-              ? current.activeScalar
-              : resolveFallbackScalar(groups, scalarLayers),
-          activeScalarGroupId:
+            && current.selectedLayerId != null
+            && layers.includes(current.selectedLayerId)
+              ? current.selectedLayerId
+              : resolveFallbackLayer(groups, layers),
+          selectedLayerGroupId:
             current.cycle === cycle
-              ? current.activeScalarGroupId
-              : findScalarGroupId(groups, resolveFallbackScalar(groups, scalarLayers)),
-          activeVector: nextVector,
+              ? current.selectedLayerGroupId
+              : findLayerGroupId(groups, resolveFallbackLayer(groups, layers)),
+          selectedParticleLayerId: nextParticleLayer,
         }))
       },
       setUnitSystem,
@@ -191,13 +195,13 @@ export default function ForecastSelectionProvider({
     }
   }, [
     manifest,
-    selection.activeScalar,
-    selection.activeScalarGroupId,
-    selection.activeVector,
     selection.cycle,
     selection.modelId,
-    setActiveScalar,
-    setActiveVector,
+    selection.selectedLayerGroupId,
+    selection.selectedLayerId,
+    selection.selectedParticleLayerId,
+    setSelectedLayer,
+    setSelectedParticleLayer,
     toggleUnitSystem,
     unitSystem,
   ])

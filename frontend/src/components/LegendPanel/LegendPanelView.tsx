@@ -1,9 +1,9 @@
-import type { ScalarMeta } from '../../forecast-metadata/scalar'
+import type { LayerMeta } from '../../forecast-catalog'
 import type { UnitOption } from '../../units'
 import { getLegendTicks, toLegendSteppedGradient } from './legendScale'
 
 type LegendPanelViewProps = {
-  meta: ScalarMeta
+  meta: LayerMeta
   selectedOption: UnitOption
   canCycleUnits: boolean
   onCycleUnits: () => void

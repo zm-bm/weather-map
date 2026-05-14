@@ -2,12 +2,13 @@
 
 ## Overview
 
-Weather forecast map app with a Vite frontend, a local forecast ETL, and an
-nginx artifact server for development.
+Weather forecast map app with a Vite frontend, FastAPI backend, forecast
+ETL, and nginx artifact server for development.
 
 ## Layout
 
 - `frontend/` is the React/Vite MapLibre app.
+- `backend/` is the FastAPI service used by frontend API routes.
 - `etl/` owns forecast artifact generation and local ETL helpers.
 - `infra/` owns project infrastructure, production ETL config, and production
   release/operator scripts.
@@ -36,6 +37,7 @@ docker compose up --build
 That runs:
 
 - `frontend` on `http://localhost:5173`
+- `backend` on `http://localhost:8000`
 - `nginx` artifact serving on `http://localhost:3000`
 
 Refresh local forecast artifacts with a forecast cycle:
@@ -83,6 +85,7 @@ cd ../backend && ../.venv/bin/python -m pytest && ../.venv/bin/ruff check weathe
 
 - [frontend/README.md](frontend/README.md): frontend development, configuration, and commands.
 - [frontend/src/README.md](frontend/src/README.md): frontend module boundaries and domain naming.
+- [backend/README.md](backend/README.md): backend service configuration and local run command.
 - [etl/README.md](etl/README.md): ETL code, local runs, artifact layout, and checks.
 - [infra/README.md](infra/README.md): project infrastructure layout, prod config, and release/operator scripts.
 - [artifacts/README.md](artifacts/README.md): local artifact root layout.

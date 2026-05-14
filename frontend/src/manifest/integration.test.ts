@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
-import { buildAvailableScalarCatalog } from '../forecast-catalog'
-import { loadForecastFrames } from '../forecast-frame'
+import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
+import { createArtifactLoader } from '../forecast-artifacts'
+import {
+  createForecastFramePlan,
+  createForecastFrameTarget,
+  loadForecastFrames,
+} from '../forecast-frame'
 import {
   createConfigFixture,
   createCycleManifestPayloadFixture,
@@ -53,27 +58,39 @@ describe('manifest + frame loading end-to-end', () => {
 
     const signal = createSignalFixture()
     const manifest = await fetchCurrentManifest({ signal })
-    const scalarCatalog = buildAvailableScalarCatalog(manifest)
+    const layers = getAvailableLayers(manifest)
+    const particleLayers = getAvailableParticleLayers(manifest)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
     })
 
-    const frames = await loadForecastFrames({
-      config,
+    const target = createForecastFrameTarget({
       manifest,
-      activeScalar: scalarCatalog.layers.tmp_surface!,
-      activeVector: manifest.productsByKind.vector[0]!,
-      selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-      lowerHourToken: '000',
-      upperHourToken: '000',
-      mix: 0,
-      signal,
+      selectedLayerId: layers.tmp_surface!.id,
+      selectedLayer: layers.tmp_surface!,
+      selectedParticleLayerId: particleLayers.wind_particles!.id,
+      selectedParticleLayer: particleLayers.wind_particles!,
+      frameWindow: {
+        selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
+        lowerHourToken: '000',
+        upperHourToken: '000',
+        lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
+        upperValidTimeMs: Date.UTC(2026, 3, 13, 12),
+        mix: 0,
+      },
+      retryToken: 0,
+    })
+    const frames = await loadForecastFrames({
+      plan: createForecastFramePlan({
+        target,
+        artifacts: createArtifactLoader({ config, manifest, signal }),
+      }),
     })
 
     expect(manifest.run.cycle).toBe('2026041312')
-    expect(Array.from(frames.scalar.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
-    expect(Array.from(frames.vector.lower.u)).toEqual([5, 6, 7, 8])
-    expect(Array.from(frames.vector.lower.v)).toEqual([-1, -2, -3, -4])
+    expect(Array.from(frames.field.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
+    expect(Array.from(frames.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
+    expect(Array.from(frames.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

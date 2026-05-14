@@ -1,19 +1,19 @@
 import type {
-  ScalarFrameData,
-  ScalarFrameWindowData,
-} from '../../forecast-frame/scalar'
+  FieldFrameData,
+  FieldFrameWindowData,
+} from '../../forecast-frame'
 import {
-  scalarProbe,
+  layerProbe,
   type ForecastProbeValueDisplay,
-  type ScalarProbeSampler,
+  type LayerProbeSampler,
 } from '../../forecast-probe'
 import type { MapSelectedPlace } from '../../map/place-selection'
 import type { PlaceProbeValueLabel } from '../../map/view/placeProbeLayer'
 
-export type PlaceProbeScalarSamplers = {
+export type PlaceProbeLayerSamplers = {
   frameGridKey: string | null
   placeKey: string
-  samplers: Array<ScalarProbeSampler | null>
+  samplers: Array<LayerProbeSampler | null>
 }
 
 type ForecastProbeValueFormatter = (
@@ -21,12 +21,12 @@ type ForecastProbeValueFormatter = (
   loading?: boolean
 ) => Pick<ForecastProbeValueDisplay, 'text'>
 
-export function refreshScalarPlaceProbeSamplers(
-  frame: ScalarFrameWindowData | null,
+export function refreshLayerPlaceProbeSamplers(
+  frame: FieldFrameWindowData | null,
   places: MapSelectedPlace[],
-  previousSamplers?: PlaceProbeScalarSamplers,
+  previousSamplers?: PlaceProbeLayerSamplers,
   force = false,
-): PlaceProbeScalarSamplers {
+): PlaceProbeLayerSamplers {
   const placeKey = getPlaceProbeKey(places)
 
   if (frame == null) {
@@ -37,7 +37,7 @@ export function refreshScalarPlaceProbeSamplers(
     }
   }
 
-  const frameGridKey = getScalarFrameGridKey(frame.lower)
+  const frameGridKey = getFieldFrameGridKey(frame.lower)
   if (
     !force &&
     previousSamplers?.frameGridKey === frameGridKey &&
@@ -49,14 +49,14 @@ export function refreshScalarPlaceProbeSamplers(
   return {
     frameGridKey,
     placeKey,
-    samplers: places.map((place) => scalarProbe.createPointSampler(frame.lower, place)),
+    samplers: places.map((place) => layerProbe.createPointSampler(frame.lower, place)),
   }
 }
 
-export function createScalarPlaceProbeValueLabels(
+export function createLayerPlaceProbeValueLabels(
   places: MapSelectedPlace[],
-  frame: ScalarFrameWindowData | null,
-  samplerState: PlaceProbeScalarSamplers,
+  frame: FieldFrameWindowData | null,
+  samplerState: PlaceProbeLayerSamplers,
   formatProbeValue: ForecastProbeValueFormatter,
 ): PlaceProbeValueLabel[] {
   return places.map((place, index) => ({
@@ -66,7 +66,7 @@ export function createScalarPlaceProbeValueLabels(
     lon: place.lon,
     lat: place.lat,
     sortKey: place.sortKey,
-    probeText: getScalarPlaceProbeText(index, frame, samplerState, formatProbeValue),
+    probeText: getLayerPlaceProbeText(index, frame, samplerState, formatProbeValue),
   }))
 }
 
@@ -74,21 +74,21 @@ function getPlaceProbeKey(places: MapSelectedPlace[]): string {
   return places.map((place) => place.id).join('|')
 }
 
-function getScalarPlaceProbeText(
+function getLayerPlaceProbeText(
   placeIndex: number,
-  frame: ScalarFrameWindowData | null,
-  samplerState: PlaceProbeScalarSamplers,
+  frame: FieldFrameWindowData | null,
+  samplerState: PlaceProbeLayerSamplers,
   formatProbeValue: ForecastProbeValueFormatter,
 ): string {
   const sampler = samplerState.samplers[placeIndex]
   const rawValue = frame != null && sampler != null
-    ? scalarProbe.sampleFrameWindowWithSampler(frame, sampler)
+    ? layerProbe.sampleFrameWindowWithSampler(frame, sampler)
     : null
 
   return formatProbeValue(rawValue, frame == null).text
 }
 
-function getScalarFrameGridKey(frame: ScalarFrameData): string {
+function getFieldFrameGridKey(frame: FieldFrameData): string {
   const { grid } = frame
   return [
     grid.nx,

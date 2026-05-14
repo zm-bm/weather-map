@@ -1,8 +1,9 @@
 # Frontend
 
-React/Vite frontend for the weather map. The app renders forecast artifacts from
-`/manifests/*` and `/fields/*`, optional PMTiles basemaps from `/pmtiles/*`, and
-frontend-owned static assets from `public/`.
+React/Vite frontend for the weather map. The app loads artifact-only forecast
+manifests from `/manifests/*`, renders payloads from `/fields/*` through the
+frontend forecast catalog, loads optional PMTiles basemaps from `/pmtiles/*`,
+and serves frontend-owned static assets from `public/`.
 
 ## Development
 
@@ -15,6 +16,7 @@ docker compose up --build
 That starts:
 
 - Vite frontend: `http://localhost:5173`
+- backend API: `http://localhost:8000`
 - nginx artifact server: `http://localhost:3000`
 
 ## Configuration
@@ -31,6 +33,8 @@ Runtime config is read from Vite env variables:
   during `npm run dev`; use this to smoke-test loading and prefetch behavior.
 - `VITE_DEV_ARTIFACT_PROXY_TARGET` is the Vite proxy target. It defaults to
   `http://localhost:3000`; compose sets it to `http://nginx:3000`.
+- `VITE_DEV_API_PROXY_TARGET` is the Vite `/api/*` proxy target. It defaults to
+  `http://localhost:8000`; compose sets it to `http://backend:8000`.
 
 Glyph PBFs are generated manually by `npm run build:glyphs` from
 `src/assets/glyph-fontstacks.json` into `../artifacts/glyphs/`. The command requires

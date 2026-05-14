@@ -48,20 +48,25 @@ The config is model-aware:
 
 - `models.gfs` reads NOAA GFS data.
 - `models.icon` reads DWD ICON data and regrids it inside the worker image.
-- `models.<model>.workload` controls forecast hours and products.
+- `models.<model>.workload` controls forecast hours and artifact ids.
 
-Each `run-hour` writes product payloads and success markers. Publishing is
+Each `run-hour` writes artifact payloads and success markers. Publishing is
 marker-based and idempotent.
 
 ```text
-source adapter -> prepared GRIB -> product payloads -> success markers -> cycle manifest
+source adapter -> prepared GRIB -> artifact payloads -> success markers -> cycle manifest
 ```
+
+The cycle manifest is artifact-only: it advertises produced scalar/vector
+artifacts, decode metadata, frame refs, and model/run identity. User-facing
+layer groups, labels, palettes, display ranges, unit behavior, and derived
+frontend layer recipes live in the frontend forecast catalog.
 
 ## Artifacts
 
 ```text
-fields/<model>/<cycle>/<fhour>/<product>.field.<dtype>.bin
-status/<model>/<cycle>/<product>/<fhour>._SUCCESS.json
+fields/<model>/<cycle>/<fhour>/<artifact>.field.<dtype>.bin
+status/<model>/<cycle>/<artifact>/<fhour>._SUCCESS.json
 status/<model>/<cycle>/_PUBLISHED.json
 manifests/<model>/<cycle>.json
 manifests/<model>/latest.json

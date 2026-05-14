@@ -1,0 +1,3 @@
+export {
+  createParticleChannel,
+} from './channel'

@@ -9,12 +9,12 @@ import {
 
 import config from '../../config'
 import {
-  scalarRuntimeOptions,
-  vectorRuntimeOptions,
-  type ScalarColorSamplingMode,
-  type ScalarRuntimeOptions,
-  type VectorRuntimeOptions,
-} from '../../forecast-layers/options'
+  fieldRuntimeOptions,
+  particleRuntimeOptions,
+  type FieldColorSamplingMode,
+  type FieldRuntimeOptions,
+  type ParticleRuntimeOptions,
+} from '../../forecast-render/options'
 import type { RadioPlaylistFetch } from '../../radio/playlist'
 import type { AudioFactory } from '../../radio/useRadioPlayer'
 import { joinUrl } from '../../url/joinUrl'
@@ -33,9 +33,9 @@ export type MapControlRailProps = {
   createAudio?: AudioFactory
   fetchPlaylist?: RadioPlaylistFetch
   random?: () => number
-  scalarOptions?: ScalarRuntimeOptions
-  vectorOptions?: VectorRuntimeOptions
-  onScalarColorSamplingModeChange?: (nextValue: ScalarColorSamplingMode) => void
+  layerColorOptions?: FieldRuntimeOptions
+  particleOptions?: ParticleRuntimeOptions
+  onLayerColorSamplingModeChange?: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange?: (nextValue: boolean) => void
 }
 
@@ -45,12 +45,12 @@ const DISABLED_ZOOM_BUTTON_STATE: ZoomButtonState = {
   canZoomOut: false,
 }
 
-function setScalarRuntimeColorSamplingMode(nextValue: ScalarColorSamplingMode) {
-  scalarRuntimeOptions.colorSamplingMode = nextValue
+function setLayerColorSamplingMode(nextValue: FieldColorSamplingMode) {
+  fieldRuntimeOptions.colorSamplingMode = nextValue
 }
 
-function setVectorRuntimeClearTrailsOnViewChange(nextValue: boolean) {
-  vectorRuntimeOptions.clearTrailsOnViewChange = nextValue
+function setParticleClearTrailsOnViewChange(nextValue: boolean) {
+  particleRuntimeOptions.clearTrailsOnViewChange = nextValue
 }
 
 function readMapNumber(readValue: () => number): number | null {
@@ -87,10 +87,10 @@ export default function MapControlRail({
   createAudio,
   fetchPlaylist,
   random,
-  scalarOptions = scalarRuntimeOptions,
-  vectorOptions = vectorRuntimeOptions,
-  onScalarColorSamplingModeChange = setScalarRuntimeColorSamplingMode,
-  onClearTrailsOnViewChange = setVectorRuntimeClearTrailsOnViewChange,
+  layerColorOptions = fieldRuntimeOptions,
+  particleOptions = particleRuntimeOptions,
+  onLayerColorSamplingModeChange = setLayerColorSamplingMode,
+  onClearTrailsOnViewChange = setParticleClearTrailsOnViewChange,
 }: MapControlRailProps) {
   const resolvedPlaylistUrl = useMemo(
     () => playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json'),
@@ -167,9 +167,9 @@ export default function MapControlRail({
       />
 
       <MapOptionsButton
-        scalarOptions={scalarOptions}
-        vectorOptions={vectorOptions}
-        onScalarColorSamplingModeChange={onScalarColorSamplingModeChange}
+        layerColorOptions={layerColorOptions}
+        particleOptions={particleOptions}
+        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
         onClearTrailsOnViewChange={onClearTrailsOnViewChange}
       />
     </div>

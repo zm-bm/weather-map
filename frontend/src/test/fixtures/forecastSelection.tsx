@@ -4,9 +4,13 @@ import { vi } from 'vitest'
 
 import type { CycleManifest } from '../../manifest'
 import {
-  asVectorProductId,
-} from '../../manifest'
-import { asScalarLayerId, buildAvailableScalarCatalog } from '../../forecast-catalog'
+  asParticleLayerId,
+  asLayerId,
+  getAvailableGroups,
+  getAvailableLayers,
+  getAvailableParticleLayers,
+  getDefaultParticleLayer,
+} from '../../forecast-catalog'
 import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
@@ -15,8 +19,8 @@ import type { UnitSystem } from '../../units'
 
 
 type ForecastSelectionContextOptions = Partial<{
-  activeScalar: string
-  activeVector: string
+  selectedLayerId: string
+  selectedParticleLayerId: string
   unitSystem: UnitSystem
 }>
 
@@ -26,34 +30,38 @@ export function createForecastSelectionContextValue(
 ): ForecastSelectionContextValue {
   const shared = {
     unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
-    setActiveScalar: vi.fn(),
-    setActiveVector: vi.fn(),
+    setSelectedLayer: vi.fn(),
+    setSelectedParticleLayer: vi.fn(),
     setUnitSystem: vi.fn(),
     toggleUnitSystem: vi.fn(),
   }
+  const layers = manifest == null ? null : getAvailableLayers(manifest)
+  const groups = layers == null ? [] : getAvailableGroups(layers)
+  const particleLayers = manifest == null ? null : getAvailableParticleLayers(manifest)
+  const defaultParticleLayer = particleLayers == null ? null : getDefaultParticleLayer(particleLayers)
 
   return (
     manifest == null
       ? {
           manifest: null,
           groups: [],
-          scalarLayers: null,
-          products: null,
-          activeScalar: null,
-          activeVector: null,
+          layers: null,
+          particleLayers: null,
+          selectedLayerId: null,
+          selectedParticleLayerId: null,
           ...shared,
         }
       : {
           manifest,
-          groups: buildAvailableScalarCatalog(manifest).groups,
-          scalarLayers: buildAvailableScalarCatalog(manifest).layers,
-          products: manifest.products,
-          activeScalar: options.activeScalar
-            ? asScalarLayerId(options.activeScalar)
-            : buildAvailableScalarCatalog(manifest).groups[0]?.defaultLayer ?? null,
-          activeVector: options.activeVector
-            ? asVectorProductId(options.activeVector)
-            : manifest.productsByKind.vector?.[0] ?? null,
+          groups,
+          layers: layers!,
+          particleLayers: particleLayers!,
+          selectedLayerId: options.selectedLayerId
+            ? asLayerId(options.selectedLayerId)
+            : groups[0]?.defaultLayer ?? null,
+          selectedParticleLayerId: options.selectedParticleLayerId
+            ? asParticleLayerId(options.selectedParticleLayerId)
+            : defaultParticleLayer,
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue

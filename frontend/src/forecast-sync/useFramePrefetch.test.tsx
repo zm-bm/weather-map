@@ -2,34 +2,47 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createFrameManifestFixture } from '../test/fixtures'
-import { buildAvailableScalarCatalog } from '../forecast-catalog'
-import type { SyncRequest } from './types'
+import { getAvailableParticleLayers, getAvailableLayers } from '../forecast-catalog'
+import { createForecastFrameTarget } from '../forecast-frame'
+import type { ForecastSyncTarget } from './types'
 import { useFramePrefetch } from './useFramePrefetch'
 
 const mocks = vi.hoisted(() => ({
   prefetchForecastFrames: vi.fn(),
 }))
 
-vi.mock('../forecast-frame', () => ({
-  prefetchForecastFrames: (args: unknown) => mocks.prefetchForecastFrames(args),
-}))
+vi.mock('../forecast-frame', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-frame')>()
+  return {
+    ...actual,
+    prefetchForecastFrames: (args: unknown) => mocks.prefetchForecastFrames(args),
+  }
+})
 
-function createRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
+function createTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSyncTarget {
   const manifest = overrides.manifest ?? createFrameManifestFixture({
     forecastHours: ['000', '003', '006', '009'],
   })
-  const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
+  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
 
   return {
-    manifest,
-    activeScalar: activeScalarLayer.id,
-    activeScalarLayer,
-    activeVector: manifest.productsByKind.vector[0]!,
-    selectedValidTimeMs: Date.UTC(2026, 3, 13, 15),
-    lowerHourToken: '000',
-    upperHourToken: '003',
-    mix: 0.5,
-    requestKey: 'request-key',
+    ...createForecastFrameTarget({
+      manifest,
+      selectedLayerId: selectedLayer.id,
+      selectedLayer,
+      selectedParticleLayerId: selectedParticleLayer.id,
+      selectedParticleLayer,
+      frameWindow: {
+        selectedValidTimeMs: Date.UTC(2026, 3, 13, 15),
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
+        upperValidTimeMs: Date.UTC(2026, 3, 13, 15),
+        mix: 0.5,
+      },
+      retryToken: 0,
+    }),
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),
@@ -47,11 +60,11 @@ describe('useFramePrefetch', () => {
 
   it('delegates current frame-window prefetching to forecast-frame', async () => {
     const config = createConfigFixture()
-    const request = createRequest()
+    const target = createTarget()
 
     renderHook(() => useFramePrefetch({
       config,
-      request,
+      target,
       enabled: true,
     }))
 
@@ -60,12 +73,9 @@ describe('useFramePrefetch', () => {
     })
 
     expect(mocks.prefetchForecastFrames).toHaveBeenCalledWith(expect.objectContaining({
-      config,
-      manifest: request.manifest,
-      activeScalar: request.activeScalarLayer,
-      activeVector: 'wind10m_uv',
-      lowerHourToken: '000',
-      upperHourToken: '003',
+      plan: expect.objectContaining({
+        field: expect.objectContaining({ key: expect.any(String) }),
+      }),
       aheadHourCount: 2,
       concurrency: 2,
       signal: expect.any(AbortSignal),
@@ -82,7 +92,7 @@ describe('useFramePrefetch', () => {
 
     const { rerender } = renderHook((props: { enabled: boolean }) => useFramePrefetch({
       config: createConfigFixture(),
-      request: createRequest(),
+      target: createTarget(),
       enabled: props.enabled,
     }), {
       initialProps: { enabled: true },
@@ -103,7 +113,7 @@ describe('useFramePrefetch', () => {
 
     renderHook(() => useFramePrefetch({
       config: createConfigFixture(),
-      request: createRequest(),
+      target: createTarget(),
       enabled: true,
     }))
 

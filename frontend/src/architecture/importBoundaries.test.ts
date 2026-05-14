@@ -36,15 +36,15 @@ describe('frontend import boundaries', () => {
         ({ imports }) => imports.some((reference) => isMapProbeImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Do not import forecast-layers frame/probe internals',
+        'Do not import forecast-render frame/probe internals',
         ({ imports }) => imports.some((reference) => (
-          /\/forecast-layers\/[^/]+\/engine\/frame$/.test(reference.resolvedPath) ||
-          /\/forecast-layers\/[^/]+\/probe$/.test(reference.resolvedPath)
+          /\/forecast-render\/[^/]+\/engine\/frame$/.test(reference.resolvedPath) ||
+          /\/forecast-render\/[^/]+\/probe$/.test(reference.resolvedPath)
         ))
       ),
       ...findSourceImportViolations(
-        'forecast-layers must not import forecast-probe',
-        (file) => isForecastLayersFile(file.path) &&
+        'forecast-render must not import forecast-probe',
+        (file) => isForecastRenderFile(file.path) &&
           file.imports.some((reference) => isForecastProbeImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
@@ -56,6 +56,11 @@ describe('frontend import boundaries', () => {
         'Import forecast-frame internals through forecast-frame public modules',
         (file) => !file.path.includes('/forecast-frame/') &&
           file.imports.some((reference) => isForecastFrameInternalImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-artifacts internals through forecast-artifacts public modules',
+        (file) => !file.path.includes('/forecast-artifacts/') &&
+          file.imports.some((reference) => isForecastArtifactsInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
         'Import forecast-selection through its public module',
@@ -73,11 +78,11 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastTimeInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Import forecast layer runtime options through forecast-layers/options',
+        'Import forecast renderer runtime options through forecast-render/options',
         (file) => isUiControlFile(file.path) &&
           file.imports.some((reference) => (
-            reference.resolvedPath === '/forecast-layers/scalar' ||
-            reference.resolvedPath === '/forecast-layers/vector'
+            reference.resolvedPath === '/forecast-render/field' ||
+            reference.resolvedPath === '/forecast-render/particles'
           ))
       ),
       ...findSourceImportViolations(
@@ -88,16 +93,16 @@ describe('frontend import boundaries', () => {
             .test(file.source)
       ),
       ...findSourceImportViolations(
-        'forecast-layers must not import frame loader modules or APIs',
-        (file) => isForecastLayersFile(file.path) && (
+        'forecast-render must not import frame loader modules or APIs',
+        (file) => isForecastRenderFile(file.path) && (
           file.imports.some((reference) => isForecastFrameInternalImport(reference.resolvedPath)) ||
-          /\b(loadScalarFrame|loadScalarFrameWindow|prefetchScalarFrames|loadVectorFrame|loadVectorFrameWindow)\b/
+          /\b(createForecastFramePlan|createArtifactLoader)\b/
             .test(file.source)
         )
       ),
       ...findSourceImportViolations(
-        'forecast-layers must not expose sync runner APIs',
-        (file) => isForecastLayersFile(file.path) && /\bapplySync\b/.test(file.source)
+        'forecast-render must not expose sync runner APIs',
+        (file) => isForecastRenderFile(file.path) && /\bapplySync\b/.test(file.source)
       ),
     ]
 
@@ -152,8 +157,8 @@ function findSourceImportViolations(
     .map((file) => `${label}: ${file.path}`)
 }
 
-function isForecastLayersFile(path: string): boolean {
-  return path.includes('/forecast-layers/')
+function isForecastRenderFile(path: string): boolean {
+  return path.includes('/forecast-render/')
 }
 
 function isMapProbeImport(path: string): boolean {
@@ -169,11 +174,22 @@ function isForecastProbeSubmoduleImport(path: string): boolean {
 }
 
 function isForecastFrameInternalImport(path: string): boolean {
-  return path.includes('/forecast-frame/loader') ||
+  return path.includes('/forecast-frame/plan') ||
+    path.includes('/forecast-frame/load') ||
     path.includes('/forecast-frame/prefetch') ||
-    path.includes('/forecast-frame/spec') ||
-    path.includes('/forecast-frame/window') ||
-    /\/forecast-frame\/[^/]+\/frame$/.test(path)
+    path.includes('/forecast-frame/memory') ||
+    path.includes('/forecast-frame/field/') ||
+    path.includes('/forecast-frame/particles/') ||
+    path.includes('/forecast-frame/keys') ||
+    path.includes('/forecast-frame/target') ||
+    path.includes('/forecast-frame/types') ||
+    path.includes('/forecast-frame/window')
+}
+
+function isForecastArtifactsInternalImport(path: string): boolean {
+  return path.includes('/forecast-artifacts/data') ||
+    path.includes('/forecast-artifacts/payload') ||
+    path.includes('/forecast-artifacts/types')
 }
 
 function isForecastSelectionInternalImport(path: string): boolean {

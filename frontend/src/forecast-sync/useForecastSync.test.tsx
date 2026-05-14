@@ -2,13 +2,14 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
-import { buildAvailableScalarCatalog } from '../forecast-catalog'
-import type { StartupState, SyncRequest } from './types'
+import { getAvailableParticleLayers, getAvailableLayers } from '../forecast-catalog'
+import { createForecastFrameTarget } from '../forecast-frame'
+import type { StartupState, ForecastSyncTarget } from './types'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
   useStartupState: vi.fn(),
-  useSyncRequest: vi.fn(),
+  useSyncTarget: vi.fn(),
   useSyncRunner: vi.fn(),
   useFramePrefetch: vi.fn(),
   useStartupAppStatus: vi.fn(),
@@ -18,8 +19,8 @@ vi.mock('./useStartupState', () => ({
   useStartupState: () => mocks.useStartupState(),
 }))
 
-vi.mock('./useSyncRequest', () => ({
-  useSyncRequest: (retryToken: number) => mocks.useSyncRequest(retryToken),
+vi.mock('./useSyncTarget', () => ({
+  useSyncTarget: (retryToken: number) => mocks.useSyncTarget(retryToken),
 }))
 
 vi.mock('./useSyncRunner', () => ({
@@ -52,21 +53,29 @@ function createStartupState(overrides: Partial<StartupState> = {}): StartupState
   }
 }
 
-function createSyncRequest(overrides: Partial<SyncRequest> = {}): SyncRequest {
+function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSyncTarget {
   const manifest = overrides.manifest ?? createManifestFixture()
   const hourToken = manifest.times[0].id
-  const activeScalarLayer = buildAvailableScalarCatalog(manifest).layers.tmp_surface!
-  const activeVector = manifest.productsByKind.vector[0]!
+  const validTimeMs = Date.UTC(2026, 3, 13, 12)
+  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
   return {
-    manifest,
-    activeScalar: activeScalarLayer.id,
-    activeScalarLayer,
-    activeVector,
-    selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: hourToken,
-    upperHourToken: hourToken,
-    mix: 0,
-    requestKey: `${manifest.run.cycle}:${manifest.run.revision}:${activeScalarLayer.id}:${activeVector}:${hourToken}:${hourToken}:0:0`,
+    ...createForecastFrameTarget({
+      manifest,
+      selectedLayerId: selectedLayer.id,
+      selectedLayer,
+      selectedParticleLayerId: selectedParticleLayer.id,
+      selectedParticleLayer,
+      frameWindow: {
+        selectedValidTimeMs: validTimeMs,
+        lowerHourToken: hourToken,
+        upperHourToken: hourToken,
+        lowerValidTimeMs: validTimeMs,
+        upperValidTimeMs: validTimeMs,
+        mix: 0,
+      },
+      retryToken: 0,
+    }),
     sync: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),
@@ -81,15 +90,15 @@ describe('useForecastSync', () => {
     vi.clearAllMocks()
   })
 
-  it('wires startup state into request composition, runner execution, and app status', () => {
+  it('wires startup state into target composition, runner execution, and app status', () => {
     const map = createMapFixture()
     const getMap = () => map
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
-    const request = createSyncRequest()
+    const target = createSyncTarget()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncRequest.mockReturnValue(request)
+    mocks.useSyncTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       getMap,
@@ -98,30 +107,30 @@ describe('useForecastSync', () => {
     }))
 
     expect(mocks.useStartupState).toHaveBeenCalledTimes(1)
-    expect(mocks.useSyncRequest).toHaveBeenCalledWith(2)
+    expect(mocks.useSyncTarget).toHaveBeenCalledWith(2)
     expect(mocks.useSyncRunner).toHaveBeenCalledWith({
       getMap,
       mapReadyVersion: 3,
       config,
-      request,
+      target,
       startup,
     })
     expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
       config,
-      request,
+      target,
       enabled: true,
     })
     expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
   })
 
-  it('passes null requests through to the sync runner', () => {
+  it('passes null targets through to the sync runner', () => {
     const map = createMapFixture()
     const getMap = () => map
     const config = createConfigFixture()
     const startup = createStartupState()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncRequest.mockReturnValue(null)
+    mocks.useSyncTarget.mockReturnValue(null)
 
     renderHook(() => useForecastSync({
       getMap,
@@ -130,11 +139,11 @@ describe('useForecastSync', () => {
     }))
 
     expect(mocks.useSyncRunner).toHaveBeenCalledWith(expect.objectContaining({
-      request: null,
+      target: null,
       startup,
     }))
     expect(mocks.useFramePrefetch).toHaveBeenCalledWith(expect.objectContaining({
-      request: null,
+      target: null,
       enabled: true,
     }))
     expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
@@ -145,10 +154,10 @@ describe('useForecastSync', () => {
     const getMap = () => map
     const config = createConfigFixture()
     const startup = createStartupState({ isBlocked: true })
-    const request = createSyncRequest()
+    const target = createSyncTarget()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncRequest.mockReturnValue(request)
+    mocks.useSyncTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       getMap,
@@ -158,7 +167,7 @@ describe('useForecastSync', () => {
 
     expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
       config,
-      request,
+      target,
       enabled: false,
     })
   })

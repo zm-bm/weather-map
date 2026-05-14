@@ -1,10 +1,12 @@
 import type { ForecastFrameSelection } from '../forecast-time'
 
-import { normalizeFrameHourToken } from './loader'
-
 export type LoadedFrameWindow<T> = ForecastFrameSelection & {
   lower: T
   upper: T
+}
+
+export function normalizeFrameHourToken(value: string): string {
+  return value.trim().padStart(3, '0')
 }
 
 export function clampInterpolationMix(mix: number): number {

@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => {
   return {
     addProtocol: vi.fn(),
     Map: MockMapConstructor,
-    installForecastLayers: vi.fn(),
+    installForecastRenderers: vi.fn(),
     loadStoredViewport: vi.fn(() => null),
     saveStoredViewport: vi.fn(),
     getMap: () => map,
@@ -65,8 +65,8 @@ vi.mock('../../config', () => ({
   default: createConfigFixture(),
 }))
 
-vi.mock('../../forecast-layers', () => ({
-  installForecastLayers: (map: unknown) => mocks.installForecastLayers(map),
+vi.mock('../../forecast-render', () => ({
+  installForecastRenderers: (map: unknown) => mocks.installForecastRenderers(map),
 }))
 
 vi.mock('./viewportPersistence', () => ({
@@ -142,7 +142,7 @@ describe('useMapLibre', () => {
     expect((style.layers ?? []).map((layer) => layer.id)).toEqual(['background'])
   })
 
-  it('installs forecast layers on style load and bumps readiness', () => {
+  it('installs forecast renderers on style load and bumps readiness', () => {
     const { result } = renderHook(() => useMapLibre({
       center: [-95, 39],
       zoom: 4,
@@ -156,12 +156,12 @@ describe('useMapLibre', () => {
       mocks.emit('style.load')
     })
 
-    expect(mocks.installForecastLayers).toHaveBeenCalledTimes(1)
-    expect(mocks.installForecastLayers).toHaveBeenCalledWith(mocks.getMap())
+    expect(mocks.installForecastRenderers).toHaveBeenCalledTimes(1)
+    expect(mocks.installForecastRenderers).toHaveBeenCalledWith(mocks.getMap())
     expect(result.current.mapReadyVersion).toBe(1)
   })
 
-  it('installs forecast layers immediately when the style is already loaded', async () => {
+  it('installs forecast renderers immediately when the style is already loaded', async () => {
     mocks.setStyleLoaded(true)
 
     const { result } = renderHook(() => useMapLibre({
@@ -172,7 +172,7 @@ describe('useMapLibre', () => {
     }))
 
     await waitFor(() => {
-      expect(mocks.installForecastLayers).toHaveBeenCalledTimes(1)
+      expect(mocks.installForecastRenderers).toHaveBeenCalledTimes(1)
       expect(result.current.mapReadyVersion).toBe(1)
     })
   })

@@ -48,12 +48,12 @@ function renderForecastPanel(scalarProducts: ['tmp_surface', 'rh_surface'] | ['r
 }
 
 function createInteractivePanelManifest(
-  activeScalar: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface',
+  selectedLayerId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface',
   cycle = '2026041118'
 ) {
   return createManifestFixture({
     cycle,
-    scalarProducts: Array.from(new Set([activeScalar, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
+    scalarProducts: Array.from(new Set([selectedLayerId, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
     vectorProducts: ['wind10m_uv', 'gust10m_uv'],
     products: {
       tmp_surface: createScalarProductFixture(),
@@ -69,11 +69,11 @@ function createInteractivePanelManifest(
 }
 
 function renderInteractiveForecastPanel(
-  activeScalar: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface' = 'tmp_surface',
+  selectedLayerId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface' = 'tmp_surface',
   cycle?: string
 ) {
   return render(
-    <ForecastSelectionProvider manifest={createInteractivePanelManifest(activeScalar, cycle)}>
+    <ForecastSelectionProvider manifest={createInteractivePanelManifest(selectedLayerId, cycle)}>
       <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
@@ -124,7 +124,7 @@ describe('ForecastPanel', () => {
     expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
   })
 
-  it('updates active scalar through category and measurement controls without rendering unit controls', () => {
+  it('updates selected layer through category and measurement controls without rendering unit controls', () => {
     renderInteractiveForecastPanel('tmp_surface')
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
@@ -143,16 +143,17 @@ describe('ForecastPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
     expect(screen.getByRole('button', { name: 'Wind & Pressure' })).toHaveAttribute('aria-pressed', 'true')
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('prmsl_surface')
+    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_speed_surface')
+    expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed_surface')
+    expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('prmsl_surface')
 
     fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('tmp_surface')
 
-    expect(screen.queryByLabelText('Scalar units')).not.toBeInTheDocument()
   })
 
-  it('keeps scalar selection controls after the probe readout moves onto the map', () => {
+  it('keeps layer selection controls after the probe readout moves onto the map', () => {
     renderForecastPanel(['rh_surface', 'tmp_surface'])
 
     expect(screen.getByText('Relative Humidity')).toBeInTheDocument()
@@ -166,7 +167,7 @@ describe('ForecastPanel', () => {
         manifest={createManifestFixture({
           cycle: '2026041118',
           scalarProducts: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
-          vectorProducts: ['wind10m_uv'],
+          vectorProducts: [],
           products: {
             tcdc: createScalarProductFixture({
               units: '%',

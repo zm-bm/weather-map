@@ -1,31 +1,27 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { asVectorProductId } from '../manifest'
-import { asScalarLayerId } from '../forecast-catalog'
+import { asParticleLayerId, asLayerId } from '../forecast-catalog'
 import { createManifestFixture } from '../test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
 
 function ForecastSelectionProbe() {
   const context = useForecastSelectionContext()
-  const rawContext = context as unknown as Record<string, unknown>
 
   return (
     <div>
-      <div data-testid="active-scalar">{context.activeScalar}</div>
-      <div data-testid="active-vector">{context.activeVector}</div>
+      <div data-testid="selected-layer">{context.selectedLayerId}</div>
+      <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
       <div data-testid="unit-system">{context.unitSystem}</div>
-      <div data-testid="has-scalar-unit-api">{String('getScalarUnitOptionId' in rawContext)}</div>
-      <div data-testid="has-vector-unit-api">{String('getVectorUnitOptionId' in rawContext)}</div>
-      <button type="button" onClick={() => context.setActiveScalar(asScalarLayerId('rh_surface'))}>
-        set-scalar-rh
+      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('rh_surface'))}>
+        set-layer-rh
       </button>
-      <button type="button" onClick={() => context.setActiveScalar(asScalarLayerId('prate_surface'))}>
-        set-scalar-prate
+      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('prate_surface'))}>
+        set-layer-prate
       </button>
-      <button type="button" onClick={() => context.setActiveVector(asVectorProductId('wind10m_uv'))}>
-        set-vector-wind
+      <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind_particles'))}>
+        set-particle-wind
       </button>
       <button type="button" onClick={() => context.setUnitSystem('metric')}>
         set-metric
@@ -38,7 +34,7 @@ function ForecastSelectionProbe() {
 }
 
 describe('ForecastSelectionContext', () => {
-  it('resets scalar/vector defaults when forecast cycle changes', () => {
+  it('resets selected layer defaults when forecast cycle changes', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
       scalarProducts: ['tmp_surface', 'rh_surface'],
@@ -51,11 +47,11 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('active-vector')).toHaveTextContent('wind10m_uv')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-scalar-rh' }))
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_surface')
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('rh_surface')
 
     const secondManifest = createManifestFixture({
       cycle: '2026040912',
@@ -69,8 +65,8 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('active-vector')).toHaveTextContent('gust10m_uv')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
   })
 
   it('uses one global unit system and omits per-layer unit APIs', () => {
@@ -87,8 +83,6 @@ describe('ForecastSelectionContext', () => {
     )
 
     expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
-    expect(screen.getByTestId('has-scalar-unit-api')).toHaveTextContent('false')
-    expect(screen.getByTestId('has-vector-unit-api')).toHaveTextContent('false')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-metric' }))
     expect(screen.getByTestId('unit-system')).toHaveTextContent('metric')
@@ -97,7 +91,7 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
   })
 
-  it('preserves active selections when the manifest changes within the same cycle', () => {
+  it('preserves selected layer and particle choices when the manifest changes within the same cycle', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
       scalarProducts: ['tmp_surface', 'rh_surface'],
@@ -110,11 +104,11 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('active-vector')).toHaveTextContent('gust10m_uv')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-scalar-rh' }))
-    fireEvent.click(screen.getByRole('button', { name: 'set-vector-wind' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-particle-wind' }))
 
     const secondManifest = createManifestFixture({
       cycle: '2026040900',
@@ -129,11 +123,11 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('rh_surface')
-    expect(screen.getByTestId('active-vector')).toHaveTextContent('wind10m_uv')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('rh_surface')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
   })
 
-  it('falls back to the matching scalar group default when switching models without the same product', () => {
+  it('falls back to the matching layer group default when switching models without the same layer', () => {
     const gfsManifest = createManifestFixture({
       model: { id: 'gfs', label: 'GFS' },
       cycle: '2026040900',
@@ -146,8 +140,8 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-scalar-prate' }))
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('prate_surface')
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-prate' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('prate_surface')
 
     const iconManifest = createManifestFixture({
       model: { id: 'icon', label: 'ICON' },
@@ -161,6 +155,34 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('active-scalar')).toHaveTextContent('precip_total_surface')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('precip_total_surface')
+  })
+
+  it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
+    const manifest = createManifestFixture({
+      vectorProducts: ['wind10m_uv'],
+    })
+
+    render(
+      <ForecastSelectionProvider manifest={manifest}>
+        <ForecastSelectionProbe />
+      </ForecastSelectionProvider>
+    )
+
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+  })
+
+  it('leaves particle selection empty when no compatible particle artifact is available', () => {
+    const manifest = createManifestFixture({
+      vectorProducts: [],
+    })
+
+    render(
+      <ForecastSelectionProvider manifest={manifest}>
+        <ForecastSelectionProbe />
+      </ForecastSelectionProvider>
+    )
+
+    expect(screen.getByTestId('selected-particle')).toBeEmptyDOMElement()
   })
 })

@@ -2,29 +2,29 @@ import type { ChangeEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import {
-  SCALAR_COLOR_SAMPLING_MODES,
-  type ScalarColorSamplingMode,
-  type ScalarRuntimeOptions,
-} from '../../forecast-layers/options'
-import type { VectorRuntimeOptions } from '../../forecast-layers/options'
+  FIELD_COLOR_SAMPLING_MODES,
+  type FieldColorSamplingMode,
+  type FieldRuntimeOptions,
+  type ParticleRuntimeOptions,
+} from '../../forecast-render/options'
 
 export type MapOptionsButtonProps = {
-  scalarOptions: ScalarRuntimeOptions,
-  vectorOptions: VectorRuntimeOptions,
-  onScalarColorSamplingModeChange: (nextValue: ScalarColorSamplingMode) => void
+  layerColorOptions: FieldRuntimeOptions,
+  particleOptions: ParticleRuntimeOptions,
+  onLayerColorSamplingModeChange: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange: (nextValue: boolean) => void
 }
 
 export default function MapOptionsButton({
-  scalarOptions,
-  vectorOptions,
-  onScalarColorSamplingModeChange,
+  layerColorOptions,
+  particleOptions,
+  onLayerColorSamplingModeChange,
   onClearTrailsOnViewChange,
 }: MapOptionsButtonProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
-  const [scalarColorSamplingMode, setScalarColorSamplingMode] = useState(scalarOptions.colorSamplingMode)
-  const [clearTrailsOnViewChange, setClearTrailsOnViewChange] = useState(vectorOptions.clearTrailsOnViewChange)
+  const [layerColorSamplingMode, setLayerColorSamplingMode] = useState(layerColorOptions.colorSamplingMode)
+  const [clearTrailsOnViewChange, setClearTrailsOnViewChange] = useState(particleOptions.clearTrailsOnViewChange)
 
   useEffect(() => {
     if (!isOpen) return
@@ -54,10 +54,10 @@ export default function MapOptionsButton({
     onClearTrailsOnViewChange(nextValue)
   }
 
-  const handleScalarColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.value as ScalarColorSamplingMode
-    setScalarColorSamplingMode(nextValue)
-    onScalarColorSamplingModeChange(nextValue)
+  const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.currentTarget.value as FieldColorSamplingMode
+    setLayerColorSamplingMode(nextValue)
+    onLayerColorSamplingModeChange(nextValue)
   }
 
   return (
@@ -75,16 +75,16 @@ export default function MapOptionsButton({
       </button>
       <div className="map-control-options-panel" hidden={!isOpen}>
         <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Scalar</div>
-          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Scalar color sampling mode">
-            {SCALAR_COLOR_SAMPLING_MODES.map((mode) => (
+          <div className="map-control-options-heading wm-mono-caps">Layer Color</div>
+          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Layer color sampling mode">
+            {FIELD_COLOR_SAMPLING_MODES.map((mode) => (
               <label className="map-control-options-row wm-mono-caps" key={mode}>
                 <input
                   type="radio"
-                  name="scalar-color-sampling-mode"
+                  name="layer-color-sampling-mode"
                   value={mode}
-                  checked={scalarColorSamplingMode === mode}
-                  onChange={handleScalarColorSamplingModeChange}
+                  checked={layerColorSamplingMode === mode}
+                  onChange={handleLayerColorSamplingModeChange}
                 />
                 <span>{mode === 'interpolated' ? 'Interpolated' : 'Banded'}</span>
               </label>
@@ -93,7 +93,7 @@ export default function MapOptionsButton({
         </div>
         <div className="map-control-options-divider" />
         <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Vector</div>
+          <div className="map-control-options-heading wm-mono-caps">Particles</div>
           <label className="map-control-options-row wm-mono-caps">
             <input
               type="checkbox"

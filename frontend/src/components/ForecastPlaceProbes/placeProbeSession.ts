@@ -1,9 +1,9 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
-  forecastProbeFrameStore,
+  forecastFieldFrameStore,
 } from '../../forecast-probe'
-import type { ScalarFrameWindowData } from '../../forecast-frame/scalar'
+import type { FieldFrameWindowData } from '../../forecast-frame'
 import {
   mapPlaceSelection,
   type MapSelectedPlace,
@@ -13,9 +13,9 @@ import {
   type PlaceProbeLabelSnapshot,
 } from '../../map/view/placeProbeLayer'
 import {
-  createScalarPlaceProbeValueLabels,
-  refreshScalarPlaceProbeSamplers,
-  type PlaceProbeScalarSamplers,
+  createLayerPlaceProbeValueLabels,
+  refreshLayerPlaceProbeSamplers,
+  type PlaceProbeLayerSamplers,
 } from './placeProbeValues'
 
 type ProbeValueFormatter = (
@@ -31,20 +31,20 @@ export type PlaceProbeSession = {
 
 type PlaceProbeSessionOptions = {
   map: MapLibreMap
-  getActiveScalar: () => string
+  getSelectedLayerId: () => string
   getValueFormatter: () => ProbeValueFormatter
 }
 
 export function createPlaceProbeSession({
   map,
-  getActiveScalar,
+  getSelectedLayerId,
   getValueFormatter,
 }: PlaceProbeSessionOptions): PlaceProbeSession {
   let started = false
-  let currentFrame: ScalarFrameWindowData | null = null
+  let currentFrame: FieldFrameWindowData | null = null
   let visiblePlaces: MapSelectedPlace[] = []
   let visiblePlaceKey = ''
-  let samplerState: PlaceProbeScalarSamplers = refreshScalarPlaceProbeSamplers(null, [])
+  let samplerState: PlaceProbeLayerSamplers = refreshLayerPlaceProbeSamplers(null, [])
   let labelsByPlaceId: PlaceProbeLabelSnapshot = new Map()
   let pendingSourceUpdateId: number | null = null
   let needsFullSourceUpdate = true
@@ -52,7 +52,7 @@ export function createPlaceProbeSession({
   let unsubscribeFrameStore: (() => void) | null = null
 
   const rebuildSamplers = (force: boolean) => {
-    samplerState = refreshScalarPlaceProbeSamplers(
+    samplerState = refreshLayerPlaceProbeSamplers(
       currentFrame,
       visiblePlaces,
       samplerState,
@@ -62,7 +62,7 @@ export function createPlaceProbeSession({
 
   const updateSourceData = () => {
     pendingSourceUpdateId = null
-    const labels = createScalarPlaceProbeValueLabels(
+    const labels = createLayerPlaceProbeValueLabels(
       visiblePlaces,
       currentFrame,
       samplerState,
@@ -99,14 +99,14 @@ export function createPlaceProbeSession({
     return true
   }
 
-  const setFrame = (frame: ScalarFrameWindowData | null) => {
-    currentFrame = frame?.lower.variableId === getActiveScalar() ? frame : null
+  const setFrame = (frame: FieldFrameWindowData | null) => {
+    currentFrame = frame?.lower.layerId === getSelectedLayerId() ? frame : null
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
   const refreshFrame = () => {
-    setFrame(forecastProbeFrameStore.getCurrent())
+    setFrame(forecastFieldFrameStore.getCurrent())
   }
 
   const refreshPlaces = (followUpOnIdle = false) => {
@@ -150,7 +150,7 @@ export function createPlaceProbeSession({
       map.on('moveend', handleViewportSettled)
       map.on('resize', handleViewportSettled)
       map.on('idle', handleIdle)
-      unsubscribeFrameStore = forecastProbeFrameStore.subscribe(setFrame)
+      unsubscribeFrameStore = forecastFieldFrameStore.subscribe(setFrame)
 
       refreshFrame()
       refreshPlaces(true)
@@ -176,7 +176,7 @@ export function createPlaceProbeSession({
       currentFrame = null
       visiblePlaces = []
       visiblePlaceKey = ''
-      samplerState = refreshScalarPlaceProbeSamplers(null, [])
+      samplerState = refreshLayerPlaceProbeSamplers(null, [])
       labelsByPlaceId.clear()
       refreshOnNextIdle = false
       needsFullSourceUpdate = true

@@ -1,27 +1,27 @@
 import { useForecastProbeValueFormatter } from './display'
 import {
-  clearForecastProbeFrame,
-  getForecastProbeFrame,
-  setForecastProbeFrame,
-  subscribeForecastProbeFrame,
+  clearForecastFieldFrame,
+  getForecastFieldFrame,
+  setForecastFieldFrame,
+  subscribeForecastFieldFrame,
 } from './frame'
 import {
-  createScalarProbeSampler,
-  sampleScalarFrameWindowWithSampler,
-} from './scalar'
+  createLayerProbeSampler,
+  sampleFieldFrameWindowWithSampler,
+} from './layer'
 
 export { useForecastProbeValueFormatter }
 export type { ForecastProbeValueDisplay } from './display'
-export type { ScalarProbeSampler } from './scalar'
+export type { LayerProbeSampler } from './layer'
 
-export const forecastProbeFrameStore = {
-  publish: setForecastProbeFrame,
-  getCurrent: getForecastProbeFrame,
-  subscribe: subscribeForecastProbeFrame,
-  clear: clearForecastProbeFrame,
+export const forecastFieldFrameStore = {
+  publish: setForecastFieldFrame,
+  getCurrent: getForecastFieldFrame,
+  subscribe: subscribeForecastFieldFrame,
+  clear: clearForecastFieldFrame,
 } as const
 
-export const scalarProbe = {
-  createPointSampler: createScalarProbeSampler,
-  sampleFrameWindowWithSampler: sampleScalarFrameWindowWithSampler,
+export const layerProbe = {
+  createPointSampler: createLayerProbeSampler,
+  sampleFrameWindowWithSampler: sampleFieldFrameWindowWithSampler,
 } as const

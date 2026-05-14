@@ -6,7 +6,7 @@ import { Protocol } from 'pmtiles'
 
 import { normalizeError } from '../../abort'
 import config from '../../config'
-import { installForecastLayers } from '../../forecast-layers'
+import { installForecastRenderers } from '../../forecast-render'
 import { buildMapStyle } from './buildMapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
 
@@ -72,7 +72,7 @@ export function useMapLibre({
 
     const handleStyleLoad = () => {
       try {
-        installForecastLayers(m)
+        installForecastRenderers(m)
       } catch (error) {
         const normalizedError = normalizeError(error)
         console.error('[map] startup overlay initialization failed', normalizedError)
