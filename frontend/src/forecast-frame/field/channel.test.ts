@@ -156,6 +156,8 @@ describe('createFieldChannel', () => {
     expect(frame.paletteId).toBe('precip.rate.mm_hr.v1')
     expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
     expect(frame.overlays).toEqual([])
+    expect(frame.classifiedColoring?.classifierOverlayId).toBe('precip-type')
+    expect(frame.classifiedColoring?.classes.map((entry) => entry.values)).toEqual([[1], [4], [2, 3, 5]])
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -163,7 +165,6 @@ describe('createFieldChannel', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
       .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([1, 4, 0, 5])))
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 1, 0, 1])))
     vi.stubGlobal('fetch', fetchMock)
     const categoricalEncoding = createScalarEncodingFixture({ scale: 1 })
     const manifest = createFrameManifestFixture({
@@ -178,11 +179,6 @@ describe('createFieldChannel', () => {
           cycle: '2026041206',
           encoding: categoricalEncoding,
         }),
-        thunderstorm_mask: createScalarProductFixture({
-          id: 'thunderstorm_mask',
-          cycle: '2026041206',
-          encoding: categoricalEncoding,
-        }),
       },
     })
 
@@ -191,39 +187,10 @@ describe('createFieldChannel', () => {
       layerId: 'prate_surface',
     }).load('000')
 
-    expect(frame.overlays.map((overlay) => overlay.id)).toEqual(['precip-type', 'thunderstorm'])
+    expect(frame.overlays.map((overlay) => overlay.id)).toEqual(['precip-type'])
     expect(Array.from(frame.overlays[0]!.values)).toEqual([1, 4, 0, 5])
-    expect(Array.from(frame.overlays[1]!.values)).toEqual([0, 1, 0, 1])
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('loads available composite phase-rate overlays', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 0, 0, 0])))
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 200, 0, 0])))
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 0, 300, 0])))
-    vi.stubGlobal('fetch', fetchMock)
-    const manifest = createFrameManifestFixture({
-      cycle: '2026041209',
-      scalarProducts: ['prate_surface', 'rain_rate_surface', 'snow_rate_surface', 'wintry_mix_rate_surface'],
-      vectorProducts: [],
-    })
-
-    const frame = await fieldChannel({
-      manifest,
-      layerId: 'prate_surface',
-    }).load('000')
-
-    expect(frame.overlays.map((overlay) => overlay.id)).toEqual([
-      'rain-rate',
-      'snow-rate',
-      'wintry-mix-rate',
-    ])
-    expect(Array.from(frame.overlays[0]!.values)).toEqual([1, 0, 0, 0])
-    expect(Array.from(frame.overlays[1]!.values)).toEqual([0, 2, 0, 0])
-    expect(Array.from(frame.overlays[2]!.values)).toEqual([0, 0, 3, 0])
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(frame.classifiedColoring?.classes).toHaveLength(3)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('falls back to the composite base field when an optional overlay fails to load', async () => {

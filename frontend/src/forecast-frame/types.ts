@@ -26,6 +26,16 @@ export type FieldOverlayData = Pick<
   id: string
 }
 
+export type FieldClassifiedColoringClass = {
+  values: readonly number[]
+  colortable: LayerColortableStop[]
+}
+
+export type FieldClassifiedColoring = {
+  classifierOverlayId: string
+  classes: readonly FieldClassifiedColoringClass[]
+}
+
 export type FieldFrameData = {
   hourToken: string
   layerId: string
@@ -36,6 +46,7 @@ export type FieldFrameData = {
   displayRange: [number, number]
   colortable: LayerColortableStop[]
   overlays: readonly FieldOverlayData[]
+  classifiedColoring?: FieldClassifiedColoring
 }
 
 export type ParticleFrameData = VectorArtifactData

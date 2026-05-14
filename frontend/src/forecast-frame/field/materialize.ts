@@ -2,7 +2,7 @@ import {
   getLayerStyleByPaletteId,
   type LayerSpec,
 } from '../../forecast-catalog'
-import type { FieldFrameData } from '../types'
+import type { FieldClassifiedColoring, FieldFrameData } from '../types'
 import type { FieldSourceData } from './source'
 
 export function materializeFieldFrame(
@@ -21,5 +21,19 @@ export function materializeFieldFrame(
     displayRange: [layer.displayRange.min, layer.displayRange.max],
     colortable: style.colortable,
     overlays: sourceData.overlays ?? [],
+    classifiedColoring: resolveClassifiedColoring(layer),
+  }
+}
+
+function resolveClassifiedColoring(layer: LayerSpec): FieldClassifiedColoring | undefined {
+  const { classifiedColoring } = layer
+  if (!classifiedColoring) return undefined
+
+  return {
+    classifierOverlayId: classifiedColoring.classifierOverlayId,
+    classes: classifiedColoring.classes.map((entry) => ({
+      values: entry.values,
+      colortable: getLayerStyleByPaletteId(entry.paletteId).colortable,
+    })),
   }
 }

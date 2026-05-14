@@ -46,6 +46,16 @@ describe('layer metadata palettes', () => {
     expect(getLayerStyleByPaletteId('severe.cape.jkg.v1').colortable.length).toBeGreaterThan(0)
   })
 
+  it('resolves classified precipitation rate palettes with matching breakpoints', () => {
+    const base = getLayerStyleByPaletteId('precip.rate.mm_hr.v1').colortable
+    const snow = getLayerStyleByPaletteId('precip.rate.snow.mm_hr.v1').colortable
+    const wintryMix = getLayerStyleByPaletteId('precip.rate.wintry_mix.mm_hr.v1').colortable
+
+    expect(snow.map((stop) => stop[0])).toEqual(base.map((stop) => stop[0]))
+    expect(wintryMix.map((stop) => stop[0])).toEqual(base.map((stop) => stop[0]))
+    expect(snow[2]?.slice(1)).not.toEqual(base[2]?.slice(1))
+  })
+
   it('resolves frontend-derived wind speed metadata from the vector source artifact', () => {
     const layer: LayerSpec = {
       id: asLayerId('wind_speed_surface'),

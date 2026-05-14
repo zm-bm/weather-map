@@ -109,9 +109,22 @@ describe('forecast layer catalog', () => {
     })
   })
 
+  it('declares classified precipitation coloring from precip type to palette rows', () => {
+    const prateLayer = FORECAST_LAYERS.find((entry) => entry.id === 'prate_surface')
+
+    expect(prateLayer?.classifiedColoring).toEqual({
+      classifierOverlayId: 'precip-type',
+      classes: [
+        { values: [1], paletteId: 'precip.rate.mm_hr.v1' },
+        { values: [4], paletteId: 'precip.rate.snow.mm_hr.v1' },
+        { values: [2, 3, 5], paletteId: 'precip.rate.wintry_mix.mm_hr.v1' },
+      ],
+    })
+  })
+
   it('accepts optional composite overlays when scalar artifacts are present', () => {
     const manifest = createFrameManifestFixture({
-      scalarProducts: ['prate_surface', 'precip_type_surface', 'thunderstorm_mask'],
+      scalarProducts: ['prate_surface', 'precip_type_surface'],
       vectorProducts: [],
     })
 

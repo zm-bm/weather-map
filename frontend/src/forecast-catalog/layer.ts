@@ -68,6 +68,16 @@ export type LayerSource =
   | DerivedLayerSource
   | CompositeLayerSource
 
+export type ClassifiedColoringClassSpec = {
+  values: readonly number[]
+  paletteId: string
+}
+
+export type ClassifiedColoringSpec = {
+  classifierOverlayId: string
+  classes: readonly ClassifiedColoringClassSpec[]
+}
+
 export type LayerSpec = {
   id: LayerId
   label: string
@@ -78,6 +88,7 @@ export type LayerSpec = {
   legendScale: LegendScaleId
   source: LayerSource
   parameter?: string
+  classifiedColoring?: ClassifiedColoringSpec
 }
 
 export type LayerGroupSpec = {
@@ -129,30 +140,18 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
       base: { kind: 'artifact', artifactId: asProductId('prate_surface') },
       overlays: [
         {
-          id: 'rain-rate',
-          source: { kind: 'artifact', artifactId: asProductId('rain_rate_surface') },
-          optional: true,
-        },
-        {
-          id: 'snow-rate',
-          source: { kind: 'artifact', artifactId: asProductId('snow_rate_surface') },
-          optional: true,
-        },
-        {
-          id: 'wintry-mix-rate',
-          source: { kind: 'artifact', artifactId: asProductId('wintry_mix_rate_surface') },
-          optional: true,
-        },
-        {
           id: 'precip-type',
           source: { kind: 'artifact', artifactId: asProductId('precip_type_surface') },
           optional: true,
         },
-        {
-          id: 'thunderstorm',
-          source: { kind: 'artifact', artifactId: asProductId('thunderstorm_mask') },
-          optional: true,
-        },
+      ],
+    },
+    classifiedColoring: {
+      classifierOverlayId: 'precip-type',
+      classes: [
+        { values: [1], paletteId: 'precip.rate.mm_hr.v1' },
+        { values: [4], paletteId: 'precip.rate.snow.mm_hr.v1' },
+        { values: [2, 3, 5], paletteId: 'precip.rate.wintry_mix.mm_hr.v1' },
       ],
     },
   }),
@@ -243,6 +242,7 @@ function layer(
   options: {
     source?: LayerSource
     parameter?: string
+    classifiedColoring?: ClassifiedColoringSpec
   } = {}
 ): LayerSpec {
   return {
@@ -255,6 +255,7 @@ function layer(
     legendScale,
     source: options.source ?? { kind: 'artifact', artifactId: asProductId(id) },
     parameter: options.parameter,
+    classifiedColoring: options.classifiedColoring,
   }
 }
 

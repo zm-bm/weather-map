@@ -24,13 +24,13 @@ out vec4 outColor;
 uniform sampler2D u_scalar_tex;
 uniform sampler2D u_scalar_tex_upper;
 uniform sampler2D u_colormap_tex;
-uniform sampler2D u_rain_rate_tex;
-uniform sampler2D u_rain_rate_tex_upper;
-uniform sampler2D u_snow_rate_tex;
-uniform sampler2D u_snow_rate_tex_upper;
-uniform sampler2D u_wintry_mix_rate_tex;
-uniform sampler2D u_wintry_mix_rate_tex_upper;
-uniform ivec3 u_phase_rate_enabled;
+uniform sampler2D u_classifier_tex;
+uniform sampler2D u_classifier_tex_upper;
+uniform int u_classifier_enabled;
+uniform int u_classifier_value_count;
+uniform int u_classifier_values[16];
+uniform int u_classifier_rows[16];
+uniform float u_colormap_row_count;
 uniform vec2 u_grid_size;
 uniform vec2 u_display_range;
 uniform float u_time_mix;
@@ -94,56 +94,39 @@ float blendFieldValue(vec2 lower, vec2 upper, float mixValue) {
     : (upper.y <= 0.0 ? lower.x : mix(lower.x, upper.x, mixValue));
 }
 
-float samplePhaseRate(
+float sampleClassifierValue(
   sampler2D lowerTex,
   sampler2D upperTex,
   int enabled,
-  int x0,
-  int y0,
-  int x1,
-  int y1,
-  float w00,
-  float w10,
-  float w01,
-  float w11,
+  int x,
+  int y,
   float mixValue
 ) {
   if (enabled == 0) return 0.0;
-  vec2 lower = sampleScalarField(lowerTex, x0, y0, x1, y1, w00, w10, w01, w11);
-  vec2 upper = sampleScalarField(upperTex, x0, y0, x1, y1, w00, w10, w01, w11);
+  vec2 lower = sampleDecoded(lowerTex, x, y);
+  vec2 upper = sampleDecoded(upperTex, x, y);
   if (lower.y <= 0.0 && upper.y <= 0.0) return 0.0;
-  return max(blendFieldValue(lower, upper, mixValue), 0.0);
+  if (mixValue >= 0.5 && upper.y > 0.0) return upper.x;
+  if (lower.y > 0.0) return lower.x;
+  return upper.x;
 }
 
-vec3 phaseGradient(float t, vec3 lowColor, vec3 midColor, vec3 highColor) {
-  float clamped = clamp(t, 0.0, 1.0);
-  return clamped < 0.5
-    ? mix(lowColor, midColor, clamped * 2.0)
-    : mix(midColor, highColor, (clamped - 0.5) * 2.0);
+int classifierRowForValue(int classifierValue) {
+  for (int i = 0; i < 16; i += 1) {
+    if (i >= u_classifier_value_count) break;
+    if (classifierValue == u_classifier_values[i]) return u_classifier_rows[i];
+  }
+  return 0;
 }
 
-vec4 phaseOverlayColor(vec4 baseColor, float rate, int phase) {
-  float range = max(1e-6, u_display_range.y - u_display_range.x);
-  float t = clamp((rate - u_display_range.x) / range, 0.0, 1.0);
-  if (phase == 1) {
-    return baseColor;
-  }
-  if (phase == 2) {
-    vec3 snow = phaseGradient(
-      t,
-      vec3(0.78, 0.95, 1.0),
-      vec3(0.48, 0.82, 1.0),
-      vec3(0.22, 0.42, 0.95)
-    );
-    return vec4(snow, baseColor.a);
-  }
-  vec3 mixColor = phaseGradient(
-    t,
-    vec3(0.95, 0.70, 1.0),
-    vec3(0.84, 0.38, 0.86),
-    vec3(0.52, 0.15, 0.72)
-  );
-  return vec4(mixColor, baseColor.a);
+float colormapRowCoord(int row) {
+  float rowCount = max(1.0, u_colormap_row_count);
+  float clampedRow = clamp(float(row), 0.0, rowCount - 1.0);
+  return (clampedRow + 0.5) / rowCount;
+}
+
+vec4 sampleColormap(float t, int row) {
+  return texture(u_colormap_tex, vec2(t, colormapRowCoord(row)));
 }
 
 void main() {
@@ -177,6 +160,8 @@ void main() {
   float w10 = tx * (1.0 - ty);
   float w01 = (1.0 - tx) * ty;
   float w11 = tx * ty;
+  int nearestX = tx < 0.5 ? x0 : x1;
+  int nearestY = ty < 0.5 ? y0 : y1;
 
   float mixValue = clamp(u_time_mix, 0.0, 1.0);
 
@@ -193,58 +178,19 @@ void main() {
   // Normalize value into display range and sample color LUT.
   float range = max(1e-6, u_display_range.y - u_display_range.x);
   float t = clamp((value - u_display_range.x) / range, 0.0, 1.0);
-  // LUT is uploaded as a 1px-high texture, so sample along x at mid-row y=0.5.
-  vec4 color = texture(u_colormap_tex, vec2(t, 0.5));
-  float rainRate = samplePhaseRate(
-    u_rain_rate_tex,
-    u_rain_rate_tex_upper,
-    u_phase_rate_enabled.x,
-    x0,
-    y0,
-    x1,
-    y1,
-    w00,
-    w10,
-    w01,
-    w11,
-    mixValue
-  );
-  float snowRate = samplePhaseRate(
-    u_snow_rate_tex,
-    u_snow_rate_tex_upper,
-    u_phase_rate_enabled.y,
-    x0,
-    y0,
-    x1,
-    y1,
-    w00,
-    w10,
-    w01,
-    w11,
-    mixValue
-  );
-  float wintryMixRate = samplePhaseRate(
-    u_wintry_mix_rate_tex,
-    u_wintry_mix_rate_tex_upper,
-    u_phase_rate_enabled.z,
-    x0,
-    y0,
-    x1,
-    y1,
-    w00,
-    w10,
-    w01,
-    w11,
-    mixValue
-  );
-
-  if (wintryMixRate > 0.001) {
-    color = phaseOverlayColor(color, wintryMixRate, 3);
-  } else if (snowRate > 0.001) {
-    color = phaseOverlayColor(color, snowRate, 2);
-  } else if (rainRate > 0.001) {
-    color = phaseOverlayColor(color, rainRate, 1);
+  int colormapRow = 0;
+  if (u_classifier_enabled != 0) {
+    float classifierValue = sampleClassifierValue(
+      u_classifier_tex,
+      u_classifier_tex_upper,
+      u_classifier_enabled,
+      nearestX,
+      nearestY,
+      mixValue
+    );
+    colormapRow = classifierRowForValue(int(floor(classifierValue + 0.5)));
   }
+  vec4 color = sampleColormap(t, colormapRow);
   outColor = vec4(color.rgb, color.a * u_opacity);
 }
 `
