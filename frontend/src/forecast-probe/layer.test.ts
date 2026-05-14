@@ -42,6 +42,7 @@ function createFrame(values: number[]): FieldFrameData {
     values: Float32Array.from(values),
     displayRange: [0, 100],
     colortable: [[0, 0, 0, 0]],
+    overlays: [],
   }
 }
 

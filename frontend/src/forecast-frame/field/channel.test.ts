@@ -2,23 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createArtifactLoader } from '../../forecast-artifacts'
 import {
-  asLayerId,
   FORECAST_LAYERS,
   getAvailableLayers,
   type LayerSpec,
 } from '../../forecast-catalog'
-import { asProductId } from '../../manifest'
 import {
   createConfigFixture,
   createFrameManifestFixture,
   createFrameRefFixture,
   createGridFixture,
+  createScalarEncodingFixture,
   createScalarProductFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
 } from '../../test/fixtures'
-import { stubFetchArrayBufferOnce } from '../../test/fetch'
+import {
+  createFetchArrayBufferResponse,
+  createFetchErrorResponse,
+  stubFetchArrayBufferOnce,
+} from '../../test/fetch'
 import {
   clearFieldFrameCache,
   createFieldChannel,
@@ -135,23 +138,112 @@ describe('createFieldChannel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects composite sources until composite field loading is implemented', async () => {
-    const baseLayer = layer(createFrameManifestFixture())
-    const compositeLayer: LayerSpec = {
-      ...baseLayer,
-      id: asLayerId('test_composite'),
-      source: {
-        kind: 'composite',
-        base: { kind: 'artifact', artifactId: asProductId('tmp_surface') },
-        overlays: [],
-      },
-    }
+  it('loads composite precipitation fields without optional overlays', async () => {
+    const payload = createScalarPayloadFixture([100, 200, 300, 400])
+    const fetchMock = stubFetchArrayBufferOnce(payload)
+    const manifest = createFrameManifestFixture({
+      cycle: '2026041200',
+      scalarProducts: ['prate_surface'],
+      vectorProducts: [],
+    })
 
-    await expect(
-      fieldChannel({
-        manifest: createFrameManifestFixture(),
-        layer: compositeLayer,
-      }).load('000')
-    ).rejects.toThrow('Unsupported layer source')
+    const frame = await fieldChannel({
+      manifest,
+      layerId: 'prate_surface',
+    }).load('000')
+
+    expect(frame.layerId).toBe('prate_surface')
+    expect(frame.paletteId).toBe('precip.rate.mm_hr.v1')
+    expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
+    expect(frame.overlays).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads available composite precipitation overlays', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([1, 4, 0, 5])))
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 1, 0, 1])))
+    vi.stubGlobal('fetch', fetchMock)
+    const categoricalEncoding = createScalarEncodingFixture({ scale: 1 })
+    const manifest = createFrameManifestFixture({
+      cycle: '2026041206',
+      products: {
+        prate_surface: createScalarProductFixture({
+          id: 'prate_surface',
+          cycle: '2026041206',
+        }),
+        precip_type_surface: createScalarProductFixture({
+          id: 'precip_type_surface',
+          cycle: '2026041206',
+          encoding: categoricalEncoding,
+        }),
+        thunderstorm_mask: createScalarProductFixture({
+          id: 'thunderstorm_mask',
+          cycle: '2026041206',
+          encoding: categoricalEncoding,
+        }),
+      },
+    })
+
+    const frame = await fieldChannel({
+      manifest,
+      layerId: 'prate_surface',
+    }).load('000')
+
+    expect(frame.overlays.map((overlay) => overlay.id)).toEqual(['precip-type', 'thunderstorm'])
+    expect(Array.from(frame.overlays[0]!.values)).toEqual([1, 4, 0, 5])
+    expect(Array.from(frame.overlays[1]!.values)).toEqual([0, 1, 0, 1])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('loads available composite phase-rate overlays', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 0, 0, 0])))
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 200, 0, 0])))
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([0, 0, 300, 0])))
+    vi.stubGlobal('fetch', fetchMock)
+    const manifest = createFrameManifestFixture({
+      cycle: '2026041209',
+      scalarProducts: ['prate_surface', 'rain_rate_surface', 'snow_rate_surface', 'wintry_mix_rate_surface'],
+      vectorProducts: [],
+    })
+
+    const frame = await fieldChannel({
+      manifest,
+      layerId: 'prate_surface',
+    }).load('000')
+
+    expect(frame.overlays.map((overlay) => overlay.id)).toEqual([
+      'rain-rate',
+      'snow-rate',
+      'wintry-mix-rate',
+    ])
+    expect(Array.from(frame.overlays[0]!.values)).toEqual([1, 0, 0, 0])
+    expect(Array.from(frame.overlays[1]!.values)).toEqual([0, 2, 0, 0])
+    expect(Array.from(frame.overlays[2]!.values)).toEqual([0, 0, 3, 0])
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('falls back to the composite base field when an optional overlay fails to load', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
+      .mockResolvedValueOnce(createFetchErrorResponse(404, 'Not Found'))
+    vi.stubGlobal('fetch', fetchMock)
+    const manifest = createFrameManifestFixture({
+      cycle: '2026041212',
+      scalarProducts: ['prate_surface', 'precip_type_surface'],
+      vectorProducts: [],
+    })
+
+    const frame = await fieldChannel({
+      manifest,
+      layerId: 'prate_surface',
+    }).load('000')
+
+    expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
+    expect(frame.overlays).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

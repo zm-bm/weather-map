@@ -5,6 +5,7 @@ import {
   createScalarProductFixture,
   createVectorProductFixture,
 } from '../test/fixtures'
+import { getLayerMeta } from './display'
 import { FORECAST_LAYERS, getAvailableGroups, getAvailableLayers } from './layer'
 
 describe('forecast layer catalog', () => {
@@ -79,6 +80,58 @@ describe('forecast layer catalog', () => {
 
     expect(() => getAvailableLayers(manifest)).toThrow(
       'Layer tmp_surface requires scalar artifact tmp_surface, got vector'
+    )
+  })
+
+  it('keeps composite precipitation rate available when optional overlays are missing', () => {
+    const manifest = createFrameManifestFixture({
+      products: {
+        prate_surface: createScalarProductFixture({
+          id: 'prate_surface',
+          units: 'kg m^-2 s^-1',
+          parameter: 'prate',
+        }),
+      },
+    })
+
+    const layers = getAvailableLayers(manifest)
+    const precipLayer = layers.prate_surface
+
+    expect(precipLayer?.source).toMatchObject({
+      kind: 'composite',
+      base: { kind: 'artifact', artifactId: 'prate_surface' },
+    })
+    expect(getAvailableGroups(layers).find((group) => group.id === 'precipitation')?.defaultLayer)
+      .toBe('prate_surface')
+    expect(getLayerMeta('prate_surface', layers, manifest)).toMatchObject({
+      units: 'kg m^-2 s^-1',
+      parameter: 'prate',
+    })
+  })
+
+  it('accepts optional composite overlays when scalar artifacts are present', () => {
+    const manifest = createFrameManifestFixture({
+      scalarProducts: ['prate_surface', 'precip_type_surface', 'thunderstorm_mask'],
+      vectorProducts: [],
+    })
+
+    expect(getAvailableLayers(manifest).prate_surface).toBeDefined()
+  })
+
+  it('rejects optional composite overlays backed by non-scalar artifacts', () => {
+    const manifest = createFrameManifestFixture({
+      products: {
+        prate_surface: createScalarProductFixture({
+          id: 'prate_surface',
+        }),
+        precip_type_surface: createVectorProductFixture({
+          id: 'precip_type_surface',
+        }),
+      },
+    })
+
+    expect(() => getAvailableLayers(manifest)).toThrow(
+      'Layer prate_surface overlay precip-type requires scalar artifact precip_type_surface, got vector'
     )
   })
 })

@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, StrictInt, model_validator
 
-from ..derivations import DERIVATION_TYPES
+from ..derivations import DERIVATION_TYPES, PRECIP_PHASES
 from ..encoding.transforms import SOURCE_TRANSFORM_IDENTITY, SOURCE_TRANSFORMS
 from ._types import (
     ConfigModel,
@@ -132,6 +132,7 @@ class ProductDerivationSourceInput(ConfigModel):
 
 class ProductDerivationInput(ConfigModel):
     type: NonEmptyStr
+    phase: NonEmptyStr | None = None
     first_hour_previous: Literal["zero"] | None = None
     inputs: tuple[ProductDerivationSourceInput, ...] = ()
 
@@ -139,6 +140,8 @@ class ProductDerivationInput(ConfigModel):
     def _validate_type(self) -> "ProductDerivationInput":
         if self.type not in DERIVATION_TYPES:
             raise ValueError(f"type must be one of {sorted(DERIVATION_TYPES)!r}")
+        if self.phase is not None and self.phase not in PRECIP_PHASES:
+            raise ValueError(f"phase must be one of {sorted(PRECIP_PHASES)!r}")
         return self
 
 

@@ -19,6 +19,7 @@ from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.products import (
     minimal_product_config,
+    phase_rate_config,
     precip_rate_config,
     precip_type_config,
     product_spec,
@@ -375,6 +376,80 @@ class SourceAdapterTest(unittest.TestCase):
                 grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
             ),
             previous_tot_prec,
+        )
+
+    def test_icon_adapter_prepares_phase_rate_derivation_inputs(self) -> None:
+        phase_rate = product_spec(
+            "rain_rate_surface",
+            phase_rate_config(
+                derivation_type="phase_rate_from_icon_tot_prec_ww",
+                phase="rain",
+            ),
+        )
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=IconDwdSourceConfig(
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(
+                forecast_hours=("003",),
+                products=("rain_rate_surface",),
+            ),
+            model_products={},
+            products={"rain_rate_surface": phase_rate},
+        )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-phase-rate-source-") as td:
+            tmp = Path(td)
+            current_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="tot_prec")
+            previous_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param="tot_prec")
+            weather_code = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="ww")
+
+            with (
+                patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
+                patch("forecast_etl.source_adapters.icon_dwd.default_etl_dir", return_value=tmp),
+                patch(
+                    "forecast_etl.source_adapters.icon_dwd.make_runner",
+                    side_effect=AssertionError("regrid should be cached"),
+                ),
+            ):
+                source = acquire_prepared_source(
+                    model=model,
+                    cycle="2026042800",
+                    fhour="003",
+                    source_uri_override=None,
+                    workdir=tmp / "work",
+                    store=make_store(),
+                )
+
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="rain_rate_surface",
+                component_id="total",
+                grib_match={"ICON_PARAM": "tot_prec"},
+            ),
+            current_tot_prec,
+        )
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="rain_rate_surface",
+                component_id="total",
+                grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
+            ),
+            previous_tot_prec,
+        )
+        self.assertEqual(
+            source.component_grib_path(
+                product_id="rain_rate_surface",
+                component_id="ww",
+                grib_match={"ICON_PARAM": "ww"},
+            ),
+            weather_code,
         )
 
     def test_icon_regrid_requires_cdo(self) -> None:

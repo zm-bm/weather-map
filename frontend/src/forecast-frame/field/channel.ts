@@ -52,6 +52,7 @@ async function loadFieldFrame(args: {
 
   const sourceData = await loadFieldSourceData({
     artifacts: args.artifacts,
+    manifest: args.manifest,
     layer: args.layer,
     hourToken: normalizedHourToken,
   })

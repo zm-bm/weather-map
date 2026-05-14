@@ -14,6 +14,7 @@ from forecast_etl.tests.fixtures.pipeline import (
 )
 from forecast_etl.tests.fixtures.products import (
     cloud_cover_config,
+    phase_rate_config,
     precip_rate_config,
     precip_total_config,
     precip_type_config,
@@ -43,6 +44,9 @@ class ConfigValidationTest(unittest.TestCase):
             "medium_clouds",
             "high_clouds",
             "prate_surface",
+            "rain_rate_surface",
+            "snow_rate_surface",
+            "wintry_mix_rate_surface",
             "precip_total_surface",
             "precip_type_surface",
             "thunderstorm_mask",
@@ -64,6 +68,9 @@ class ConfigValidationTest(unittest.TestCase):
             "medium_clouds",
             "high_clouds",
             "prate_surface",
+            "rain_rate_surface",
+            "snow_rate_surface",
+            "wintry_mix_rate_surface",
             "precip_type_surface",
             "snow_depth_surface",
             "visibility_surface",
@@ -102,6 +109,13 @@ class ConfigValidationTest(unittest.TestCase):
             "0",
         )
         self.assertEqual(gfs_prate_temporal.kind, "instantaneous_rate")
+        self.assertEqual(gfs.products["rain_rate_surface"].derivation.type, "phase_rate_from_gfs_prate_categories")
+        self.assertEqual(gfs.products["snow_rate_surface"].derivation.phase, "snow")
+        self.assertEqual(gfs.products["wintry_mix_rate_surface"].derivation.phase, "wintry_mix")
+        self.assertEqual(icon.products["rain_rate_surface"].derivation.type, "phase_rate_from_icon_tot_prec_ww")
+        self.assertEqual(icon.products["rain_rate_surface"].derivation.inputs[0].id, "total")
+        self.assertEqual(icon.products["rain_rate_surface"].derivation.inputs[1].id, "ww")
+        self.assertEqual(icon.products["wintry_mix_rate_surface"].temporal.kind, "average_rate")
         self.assertEqual(gfs.products["snow_depth_surface"].components[0].grib_match["GRIB_ELEMENT"], "SNOD")
         self.assertEqual(gfs.products["visibility_surface"].components[0].grib_match["GRIB_ELEMENT"], "VIS")
         self.assertEqual(gfs.products["freezing_level"].components[0].grib_match["GRIB_SHORT_NAME"], "0-0DEG")
@@ -317,6 +331,42 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertEqual(icon.products["precip_type_surface"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
         self.assertEqual(icon.products["thunderstorm_mask"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
+
+    def test_pipeline_config_parses_phase_rate_products(self) -> None:
+        cfg = minimal_pipeline_config()
+        rain_rate = phase_rate_config(phase="rain")
+        snow_rate = phase_rate_config(
+            derivation_type="phase_rate_from_icon_tot_prec_ww",
+            phase="snow",
+        )
+        cfg["product_catalog"]["rain_rate_surface"] = catalog_product(rain_rate)
+        cfg["product_catalog"]["snow_rate_surface"] = catalog_product(snow_rate)
+        cfg["models"]["gfs"]["workload"]["products"] = ["rain_rate_surface"]
+        cfg["models"]["gfs"]["products"] = {
+            "rain_rate_surface": model_product(rain_rate),
+        }
+        cfg["models"]["icon"] = {
+            "label": "ICON",
+            "source": {
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "rate_limit_seconds": 0.0,
+            },
+            "workload": {
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
+                "products": ["snow_rate_surface"],
+            },
+            "products": {
+                "snow_rate_surface": model_product(snow_rate),
+            },
+        }
+
+        parsed = parse_pipeline_config(cfg)
+
+        self.assertEqual(parsed.model("gfs").products["rain_rate_surface"].derivation.phase, "rain")
+        self.assertEqual(parsed.model("icon").products["snow_rate_surface"].derivation.phase, "snow")
 
     def test_pipeline_config_rejects_icon_dwd_product_without_icon_param(self) -> None:
         cfg = minimal_pipeline_config()

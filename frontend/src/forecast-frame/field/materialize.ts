@@ -20,5 +20,6 @@ export function materializeFieldFrame(
     values: sourceData.values,
     displayRange: [layer.displayRange.min, layer.displayRange.max],
     colortable: style.colortable,
+    overlays: sourceData.overlays ?? [],
   }
 }

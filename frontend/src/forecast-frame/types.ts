@@ -3,7 +3,10 @@ import type {
   ScalarEncodingSpec,
   ScalarGridSpec,
 } from '../manifest'
-import type { VectorArtifactData } from '../forecast-artifacts'
+import type {
+  ScalarArtifactData,
+  VectorArtifactData,
+} from '../forecast-artifacts'
 import type { LoadedFrameWindow } from './window'
 
 export type DerivedFieldFrameEncodingSpec = {
@@ -16,6 +19,13 @@ export type DerivedFieldFrameEncodingSpec = {
 
 export type FieldFrameEncodingSpec = ScalarEncodingSpec | DerivedFieldFrameEncodingSpec
 
+export type FieldOverlayData = Pick<
+  ScalarArtifactData,
+  'artifactId' | 'hourToken' | 'grid' | 'encoding' | 'values'
+> & {
+  id: string
+}
+
 export type FieldFrameData = {
   hourToken: string
   layerId: string
@@ -25,6 +35,7 @@ export type FieldFrameData = {
   values: Float32Array
   displayRange: [number, number]
   colortable: LayerColortableStop[]
+  overlays: readonly FieldOverlayData[]
 }
 
 export type ParticleFrameData = VectorArtifactData

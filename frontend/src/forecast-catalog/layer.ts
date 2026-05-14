@@ -51,10 +51,16 @@ export type DerivedLayerSource = {
   recipe: 'wind-speed'
 }
 
+export type CompositeLayerOverlaySource = {
+  id: string
+  source: ArtifactLayerSource
+  optional: boolean
+}
+
 export type CompositeLayerSource = {
   kind: 'composite'
   base: LayerSource
-  overlays: readonly LayerSource[]
+  overlays: readonly CompositeLayerOverlaySource[]
 }
 
 export type LayerSource =
@@ -89,7 +95,9 @@ export function layerSourceKey(source: LayerSource): string {
     return `derived:${source.recipe}:${source.artifactId}`
   }
 
-  return `composite:${layerSourceKey(source.base)}:${source.overlays.map(layerSourceKey).join(',')}`
+  return `composite:${layerSourceKey(source.base)}:${source.overlays.map((overlay) => (
+    `${overlay.id}:${overlay.optional ? 'optional' : 'required'}:${layerSourceKey(overlay.source)}`
+  )).join(',')}`
 }
 
 export function layerSourceArtifactId(source: LayerSource): ProductId {
@@ -97,7 +105,7 @@ export function layerSourceArtifactId(source: LayerSource): ProductId {
     return source.artifactId
   }
 
-  throw new Error('Composite layer metadata is not implemented yet')
+  return layerSourceArtifactId(source.base)
 }
 
 export const FORECAST_LAYERS: readonly LayerSpec[] = [
@@ -115,7 +123,39 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
   }),
   layer('gust_surface', 'Wind Gust', 'wind', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based'),
   layer('prmsl_surface', 'Air Pressure', 'wind', 'pressure.msl.pa.v1', 98_000, 103_500, 'pressure', 'pressure'),
-  layer('prate_surface', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate'),
+  layer('prate_surface', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate', {
+    source: {
+      kind: 'composite',
+      base: { kind: 'artifact', artifactId: asProductId('prate_surface') },
+      overlays: [
+        {
+          id: 'rain-rate',
+          source: { kind: 'artifact', artifactId: asProductId('rain_rate_surface') },
+          optional: true,
+        },
+        {
+          id: 'snow-rate',
+          source: { kind: 'artifact', artifactId: asProductId('snow_rate_surface') },
+          optional: true,
+        },
+        {
+          id: 'wintry-mix-rate',
+          source: { kind: 'artifact', artifactId: asProductId('wintry_mix_rate_surface') },
+          optional: true,
+        },
+        {
+          id: 'precip-type',
+          source: { kind: 'artifact', artifactId: asProductId('precip_type_surface') },
+          optional: true,
+        },
+        {
+          id: 'thunderstorm',
+          source: { kind: 'artifact', artifactId: asProductId('thunderstorm_mask') },
+          optional: true,
+        },
+      ],
+    },
+  }),
   layer('precip_total_surface', 'Accumulated Precipitation', 'precipitation', 'precip.total.mm.v1', 0, 254, 'precip-total', 'precip-total'),
   layer('snow_depth_surface', 'Snow Depth', 'precipitation', 'snow.depth.m.v1', 0, 5, 'snow-depth', 'stop-based'),
   layer('tcdc', 'Total Cloud Cover', 'atmosphere', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent'),
@@ -188,7 +228,7 @@ export function getAvailableGroups(layers: Record<string, LayerSpec>): LayerGrou
 export function layerSourceExpectedArtifactKind(source: LayerSource): ManifestProductSpec['kind'] {
   if (source.kind === 'artifact') return 'scalar'
   if (source.kind === 'derived') return 'vector'
-  throw new Error('Composite layer metadata is not implemented yet')
+  return layerSourceExpectedArtifactKind(source.base)
 }
 
 function layer(
@@ -229,7 +269,7 @@ function isLayerSourceAvailable(
 ): boolean {
   if (source.kind === 'composite') {
     return isLayerSourceAvailable(manifest, source.base, owner) &&
-      source.overlays.every((overlay) => isLayerSourceAvailable(manifest, overlay, owner))
+      source.overlays.every((overlay) => isCompositeOverlayAvailable(manifest, overlay, owner))
   }
 
   const expectedKind = layerSourceExpectedArtifactKind(source)
@@ -243,6 +283,19 @@ function isLayerSourceAvailable(
     return hasOrderedComponents(artifact, ['u', 'v'])
   }
 
+  return true
+}
+
+function isCompositeOverlayAvailable(
+  manifest: CycleManifest,
+  overlay: CompositeLayerOverlaySource,
+  owner: string
+): boolean {
+  const artifact = manifest.products[overlay.source.artifactId]
+  if (!artifact) return overlay.optional
+  if (artifact.kind !== 'scalar') {
+    throw new Error(`${owner} overlay ${overlay.id} requires scalar artifact ${overlay.source.artifactId}, got ${artifact.kind}`)
+  }
   return true
 }
 

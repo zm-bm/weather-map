@@ -6,9 +6,12 @@ from typing import Any, Mapping
 
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
-    DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
+    DERIVATION_PHASE_RATE_TYPES,
+    GFS_DERIVATION_TYPES,
+    ICON_ACCUMULATION_RATE_DERIVATION_TYPES,
+    ICON_DERIVATION_TYPES,
     ICON_PARAM_MATCH_KEY,
-    ICON_WEATHER_CODE_DERIVATION_TYPES,
+    PRECIP_PHASES,
 )
 from ._types import parse_config_model
 from .encoding import parse_encoding
@@ -97,7 +100,7 @@ def validate_model_products_for_source(
             component_grib_matches=model_product.component_grib_matches,
         )
 
-        if derivation.type == DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES:
+        if derivation.type in GFS_DERIVATION_TYPES:
             if not isinstance(source, GfsNomadsSourceConfig):
                 raise SystemExit(
                     f"models.{model_id}.products.{product_id} uses derivation "
@@ -105,6 +108,7 @@ def validate_model_products_for_source(
                 )
             if not derivation.inputs:
                 raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {product_id}")
+            _validate_phase_derivation(product_id=product_id, derivation=derivation)
             continue
 
         if not isinstance(source, IconDwdSourceConfig):
@@ -112,6 +116,8 @@ def validate_model_products_for_source(
                 f"models.{model_id}.products.{product_id} uses derivation "
                 f"{model_product.derivation.type!r}, which is only supported for icon_dwd_icosahedral sources"
             )
+        if derivation.type not in ICON_DERIVATION_TYPES:
+            raise SystemExit(f"Unsupported derivation for {product_id}: {derivation.type!r}")
 
     if not isinstance(source, IconDwdSourceConfig):
         return
@@ -125,38 +131,56 @@ def validate_model_products_for_source(
                 component_grib_matches=model_product.component_grib_matches,
             )
             continue
-        if derivation.type != DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            if derivation.type not in ICON_WEATHER_CODE_DERIVATION_TYPES:
-                raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
-            _validate_icon_derivation_inputs(
-                model_id=model_id,
-                product_id=product_id,
-                inputs=derivation.inputs,
-            )
-            continue
+        if derivation.type not in ICON_DERIVATION_TYPES:
+            raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+
         _validate_icon_derivation_inputs(
             model_id=model_id,
             product_id=product_id,
             inputs=derivation.inputs,
         )
-        if len(derivation.inputs) != 1:
+        if derivation.type in DERIVATION_PHASE_RATE_TYPES:
+            _validate_phase_derivation(product_id=product_id, derivation=derivation)
+        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE and len(derivation.inputs) != 1:
             raise SystemExit(
                 f"ICON derivation {derivation.type!r} requires exactly one derivation input for {product_id}"
             )
-        if model_product.temporal is None:
-            raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {product_id}")
-        if model_product.temporal.kind != "average_rate":
-            raise SystemExit(
-                f"ICON derivation {derivation.type!r} requires temporal.kind='average_rate' for {product_id}"
-            )
-        if model_product.temporal.source_interval_hours != 1:
-            raise SystemExit(
-                f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {product_id}"
-            )
-        if derivation.first_hour_previous != "zero":
-            raise SystemExit(
-                f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}"
-            )
+        if derivation.type in ICON_ACCUMULATION_RATE_DERIVATION_TYPES:
+            _validate_icon_average_rate_derivation(product_id=product_id, model_product=model_product)
+
+
+def _validate_icon_average_rate_derivation(
+    *,
+    product_id: str,
+    model_product: ModelProductSpec,
+) -> None:
+    derivation = model_product.derivation
+    if derivation is None:
+        raise SystemExit(f"Product {product_id} does not declare a derivation")
+    if model_product.temporal is None:
+        raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {product_id}")
+    if model_product.temporal.kind != "average_rate":
+        raise SystemExit(
+            f"ICON derivation {derivation.type!r} requires temporal.kind='average_rate' for {product_id}"
+        )
+    if model_product.temporal.source_interval_hours != 1:
+        raise SystemExit(
+            f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {product_id}"
+        )
+    if derivation.first_hour_previous != "zero":
+        raise SystemExit(
+            f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}"
+        )
+
+
+def _validate_phase_derivation(*, product_id: str, derivation: ProductDerivationSpec) -> None:
+    if derivation.type not in DERIVATION_PHASE_RATE_TYPES:
+        return
+    if derivation.phase not in PRECIP_PHASES:
+        raise SystemExit(
+            f"Product derivation {derivation.type!r} requires phase one of "
+            f"{sorted(PRECIP_PHASES)!r} for {product_id}"
+        )
 
 
 def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
@@ -293,6 +317,7 @@ def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
         return None
     return ProductDerivationSpec(
         type=getattr(raw, "type"),
+        phase=getattr(raw, "phase"),
         first_hour_previous=getattr(raw, "first_hour_previous"),
         inputs=tuple(
             DerivationInputSpec(id=input_item.id, grib_match=dict(input_item.grib_match))

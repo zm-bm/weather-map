@@ -27,8 +27,18 @@ import {
   type FieldColorSamplingMode,
   type FieldRuntimeOptions,
 } from '../options'
+import {
+  PRECIPITATION_PHASE_OVERLAY_IDS,
+  type PrecipitationPhaseOverlayId,
+} from './precipitationPhase'
 
 type NormalizedColortableStop = [number, number, number, number]
+
+type PhaseRateTextureSet = {
+  id: PrecipitationPhaseOverlayId
+  lower: WebGLTexture
+  upper: WebGLTexture
+}
 
 type FieldRendererState = {
   map?: MapLibreMap
@@ -47,6 +57,7 @@ type FieldRendererState = {
   scalarTextureUpper: WebGLTexture | null
   scalarFrameLower: FieldFrameData | null
   scalarFrameUpper: FieldFrameData | null
+  phaseRateTextures: PhaseRateTextureSet[]
   colormapTextureInterpolated: WebGLTexture | null
   colormapTextureBanded: WebGLTexture | null
   // Colormap rebuild cache key.
@@ -67,6 +78,13 @@ type FieldRendererState = {
     scalarTex: WebGLUniformLocation | null
     scalarTexUpper: WebGLUniformLocation | null
     colormapTex: WebGLUniformLocation | null
+    rainRateTex: WebGLUniformLocation | null
+    rainRateTexUpper: WebGLUniformLocation | null
+    snowRateTex: WebGLUniformLocation | null
+    snowRateTexUpper: WebGLUniformLocation | null
+    wintryMixRateTex: WebGLUniformLocation | null
+    wintryMixRateTexUpper: WebGLUniformLocation | null
+    phaseRateEnabled: WebGLUniformLocation | null
     gridSize: WebGLUniformLocation | null
     displayRange: WebGLUniformLocation | null
     timeMix: WebGLUniformLocation | null
@@ -105,6 +123,7 @@ export function createFieldRuntime(
     scalarTextureUpper: null,
     scalarFrameLower: null,
     scalarFrameUpper: null,
+    phaseRateTextures: [],
     colormapTextureInterpolated: null,
     colormapTextureBanded: null,
     colormapKey: null,
@@ -121,6 +140,13 @@ export function createFieldRuntime(
       scalarTex: null,
       scalarTexUpper: null,
       colormapTex: null,
+      rainRateTex: null,
+      rainRateTexUpper: null,
+      snowRateTex: null,
+      snowRateTexUpper: null,
+      wintryMixRateTex: null,
+      wintryMixRateTexUpper: null,
+      phaseRateEnabled: null,
       gridSize: null,
       displayRange: null,
       timeMix: null,
@@ -151,6 +177,7 @@ export function createFieldRuntime(
 
       const previousScalarTexture = state.scalarTexture
       const previousScalarTextureUpper = state.scalarTextureUpper
+      const previousPhaseRateTextures = state.phaseRateTextures
       const reusableLowerTexture = findReusableScalarTexture(state, lowerFrame)
       const reusableUpperTexture = upperFrame === lowerFrame
         ? reusableLowerTexture
@@ -215,8 +242,11 @@ export function createFieldRuntime(
         }
       }
 
+      const nextPhaseRateTextures = createPhaseRateTextures(gl, lowerFrame, upperFrame)
+
       deleteUnusedScalarTexture(gl, previousScalarTexture, nextScalarTexture, nextScalarTextureUpper)
       deleteUnusedScalarTexture(gl, previousScalarTextureUpper, nextScalarTexture, nextScalarTextureUpper)
+      deletePhaseRateTextures(gl, previousPhaseRateTextures)
       if (shouldRebuildColormap) {
         if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
         if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
@@ -226,6 +256,7 @@ export function createFieldRuntime(
       state.scalarTextureUpper = nextScalarTextureUpper
       state.scalarFrameLower = lowerFrame
       state.scalarFrameUpper = upperFrame
+      state.phaseRateTextures = nextPhaseRateTextures
       if (shouldRebuildColormap) {
         state.colormapTextureInterpolated = nextColormapTextureInterpolated
         state.colormapTextureBanded = nextColormapTextureBanded
@@ -276,6 +307,13 @@ export function createFieldRuntime(
         scalarTex: gl2.getUniformLocation(state.program, 'u_scalar_tex'),
         scalarTexUpper: gl2.getUniformLocation(state.program, 'u_scalar_tex_upper'),
         colormapTex: gl2.getUniformLocation(state.program, 'u_colormap_tex'),
+        rainRateTex: gl2.getUniformLocation(state.program, 'u_rain_rate_tex'),
+        rainRateTexUpper: gl2.getUniformLocation(state.program, 'u_rain_rate_tex_upper'),
+        snowRateTex: gl2.getUniformLocation(state.program, 'u_snow_rate_tex'),
+        snowRateTexUpper: gl2.getUniformLocation(state.program, 'u_snow_rate_tex_upper'),
+        wintryMixRateTex: gl2.getUniformLocation(state.program, 'u_wintry_mix_rate_tex'),
+        wintryMixRateTexUpper: gl2.getUniformLocation(state.program, 'u_wintry_mix_rate_tex_upper'),
+        phaseRateEnabled: gl2.getUniformLocation(state.program, 'u_phase_rate_enabled'),
         gridSize: gl2.getUniformLocation(state.program, 'u_grid_size'),
         displayRange: gl2.getUniformLocation(state.program, 'u_display_range'),
         timeMix: gl2.getUniformLocation(state.program, 'u_time_mix'),
@@ -316,12 +354,33 @@ export function createFieldRuntime(
         gl2.activeTexture(gl2.TEXTURE2)
         gl2.bindTexture(gl2.TEXTURE_2D, colormapTexture)
       }
+      const rainRateTexture = findPhaseRateTexture(state, 'rain-rate')
+      const snowRateTexture = findPhaseRateTexture(state, 'snow-rate')
+      const wintryMixRateTexture = findPhaseRateTexture(state, 'wintry-mix-rate')
+      bindPhaseRateTexture(gl2, 3, rainRateTexture, state.scalarTexture, 'lower')
+      bindPhaseRateTexture(gl2, 4, rainRateTexture, state.scalarTextureUpper, 'upper')
+      bindPhaseRateTexture(gl2, 5, snowRateTexture, state.scalarTexture, 'lower')
+      bindPhaseRateTexture(gl2, 6, snowRateTexture, state.scalarTextureUpper, 'upper')
+      bindPhaseRateTexture(gl2, 7, wintryMixRateTexture, state.scalarTexture, 'lower')
+      bindPhaseRateTexture(gl2, 8, wintryMixRateTexture, state.scalarTextureUpper, 'upper')
 
       gl2.uniform1i(state.uniforms.scalarTex, 0)
       gl2.uniform1i(state.uniforms.scalarTexUpper, 1)
       if (colormapTexture) {
         gl2.uniform1i(state.uniforms.colormapTex, 2)
       }
+      gl2.uniform1i(state.uniforms.rainRateTex, 3)
+      gl2.uniform1i(state.uniforms.rainRateTexUpper, 4)
+      gl2.uniform1i(state.uniforms.snowRateTex, 5)
+      gl2.uniform1i(state.uniforms.snowRateTexUpper, 6)
+      gl2.uniform1i(state.uniforms.wintryMixRateTex, 7)
+      gl2.uniform1i(state.uniforms.wintryMixRateTexUpper, 8)
+      gl2.uniform3i(
+        state.uniforms.phaseRateEnabled,
+        rainRateTexture ? 1 : 0,
+        snowRateTexture ? 1 : 0,
+        wintryMixRateTexture ? 1 : 0
+      )
       gl2.uniform2f(state.uniforms.gridSize, state.gridNx, state.gridNy)
       gl2.uniform2f(state.uniforms.displayRange, state.displayMin, state.displayMax)
       gl2.uniform1f(state.uniforms.timeMix, state.timeMix)
@@ -357,6 +416,7 @@ export function createFieldRuntime(
       if (gl) {
         deleteUnusedScalarTexture(gl, state.scalarTexture, null, state.scalarTextureUpper)
         if (state.scalarTextureUpper) gl.deleteTexture(state.scalarTextureUpper)
+        deletePhaseRateTextures(gl, state.phaseRateTextures)
         if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
         if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
         if (state.vertexBuffer) gl.deleteBuffer(state.vertexBuffer)
@@ -372,6 +432,7 @@ export function createFieldRuntime(
       state.scalarTextureUpper = null
       state.scalarFrameLower = null
       state.scalarFrameUpper = null
+      state.phaseRateTextures = []
       state.colormapTextureInterpolated = null
       state.colormapTextureBanded = null
       state.colormapKey = null
@@ -400,6 +461,70 @@ function deleteUnusedScalarTexture(
   if (!texture) return
   if (texture === nextLowerTexture || texture === nextUpperTexture) return
   gl.deleteTexture(texture)
+}
+
+function createPhaseRateTextures(
+  gl: WebGL2RenderingContext,
+  lowerFrame: FieldFrameData,
+  upperFrame: FieldFrameData,
+): PhaseRateTextureSet[] {
+  return PRECIPITATION_PHASE_OVERLAY_IDS.flatMap((id) => {
+    const lowerOverlay = lowerFrame.overlays.find((overlay) => overlay.id === id)
+    const upperOverlay = upperFrame === lowerFrame
+      ? lowerOverlay
+      : upperFrame.overlays.find((overlay) => overlay.id === id)
+    if (!lowerOverlay || !upperOverlay) return []
+
+    const lowerTexture = createOverlayTexture(gl, lowerOverlay)
+    if (!lowerTexture) return []
+    const upperTexture = upperOverlay === lowerOverlay
+      ? lowerTexture
+      : createOverlayTexture(gl, upperOverlay)
+    if (!upperTexture) {
+      gl.deleteTexture(lowerTexture)
+      return []
+    }
+    return [{ id, lower: lowerTexture, upper: upperTexture }]
+  })
+}
+
+function createOverlayTexture(
+  gl: WebGL2RenderingContext,
+  overlay: FieldFrameData['overlays'][number],
+): WebGLTexture | null {
+  const expectedCellCount = overlay.grid.nx * overlay.grid.ny
+  if (overlay.values.length !== expectedCellCount) return null
+  return createScalarTexture(gl, overlay.grid.nx, overlay.grid.ny, overlay.values)
+}
+
+function deletePhaseRateTextures(
+  gl: WebGL2RenderingContext,
+  textures: readonly PhaseRateTextureSet[]
+): void {
+  for (const textureSet of textures) {
+    gl.deleteTexture(textureSet.lower)
+    if (textureSet.upper !== textureSet.lower) {
+      gl.deleteTexture(textureSet.upper)
+    }
+  }
+}
+
+function findPhaseRateTexture(
+  state: FieldRendererState,
+  id: PrecipitationPhaseOverlayId
+): PhaseRateTextureSet | null {
+  return state.phaseRateTextures.find((textureSet) => textureSet.id === id) ?? null
+}
+
+function bindPhaseRateTexture(
+  gl: WebGL2RenderingContext,
+  textureUnitOffset: number,
+  textureSet: PhaseRateTextureSet | null,
+  fallbackTexture: WebGLTexture,
+  side: 'lower' | 'upper',
+): void {
+  gl.activeTexture(gl.TEXTURE0 + textureUnitOffset)
+  gl.bindTexture(gl.TEXTURE_2D, textureSet?.[side] ?? fallbackTexture)
 }
 
 function createFrameTexture(

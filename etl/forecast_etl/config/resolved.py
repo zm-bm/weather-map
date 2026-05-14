@@ -118,6 +118,7 @@ class ProductDerivationSpec(ConfigModel):
     """Source derivation contract for a resolved model product."""
 
     type: NonEmptyStr
+    phase: NonEmptyStr | None = None
     first_hour_previous: NonEmptyStr | None = None
     inputs: tuple[DerivationInputSpec, ...] = ()
 

@@ -14,8 +14,9 @@ from pathlib import Path
 from ..config.resolved import ModelConfig
 from ..cycles import parse_cycle
 from ..derivations import (
-    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    ICON_PREVIOUS_HOUR_DERIVATION_INPUT_IDS,
     ICON_WEATHER_CODE_DERIVATION_TYPES,
+    icon_derivation_input_param,
     icon_param_from_grib_match,
     single_icon_derivation_input_param,
 )
@@ -87,7 +88,17 @@ def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
         derivation = getattr(product, "derivation", None)
         if derivation is None:
             continue
-        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
+        if derivation.type in ICON_PREVIOUS_HOUR_DERIVATION_INPUT_IDS:
+            input_id = ICON_PREVIOUS_HOUR_DERIVATION_INPUT_IDS[derivation.type]
+            if input_id is not None:
+                params.add(
+                    icon_derivation_input_param(
+                        product_id=product_id,
+                        derivation=derivation,
+                        input_id=input_id,
+                    )
+                )
+                continue
             params.add(single_icon_derivation_input_param(product_id=product_id, derivation=derivation))
             continue
         if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:

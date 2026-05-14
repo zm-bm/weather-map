@@ -185,6 +185,70 @@ def precip_type_config(*, derivation_type: str = "precip_type_from_gfs_categorie
     }
 
 
+def phase_rate_config(
+    *,
+    derivation_type: str = "phase_rate_from_gfs_prate_categories",
+    phase: str = "rain",
+) -> dict:
+    if derivation_type == "phase_rate_from_gfs_prate_categories":
+        inputs = [
+            {
+                "id": "total",
+                "grib_match": {
+                    "GRIB_ELEMENT": "PRATE",
+                    "GRIB_SHORT_NAME": "0-SFC",
+                    "GRIB_PDS_PDTN": "0",
+                },
+            },
+            {"id": "rain", "grib_match": {"GRIB_ELEMENT": "CRAIN", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "freezing_rain", "grib_match": {"GRIB_ELEMENT": "CFRZR", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "ice_pellets", "grib_match": {"GRIB_ELEMENT": "CICEP", "GRIB_SHORT_NAME": "0-SFC"}},
+            {"id": "snow", "grib_match": {"GRIB_ELEMENT": "CSNOW", "GRIB_SHORT_NAME": "0-SFC"}},
+        ]
+        temporal = {"kind": "instantaneous_rate"}
+        first_hour_previous = None
+    else:
+        inputs = [
+            {"id": "total", "grib_match": {"ICON_PARAM": "tot_prec"}},
+            {"id": "ww", "grib_match": {"ICON_PARAM": "ww"}},
+        ]
+        temporal = {
+            "kind": "average_rate",
+            "source_interval_hours": 1,
+        }
+        first_hour_previous = "zero"
+
+    derivation = {
+        "type": derivation_type,
+        "phase": phase,
+        "inputs": inputs,
+    }
+    if first_hour_previous is not None:
+        derivation["first_hour_previous"] = first_hour_previous
+
+    return {
+        "kind": "scalar",
+        "parameter": f"{phase}_rate",
+        "level": "surface",
+        "units": "mm/hr",
+        "source_transform": "kg_m2_s_to_mm_hr",
+        "encoding": {
+            "id": "phase_rate_surface_i8_0p15mmhr_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 0.15,
+            "offset": 19.05,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value"},
+        ],
+        "temporal": temporal,
+        "derivation": derivation,
+    }
+
+
 def thunderstorm_mask_config() -> dict:
     return {
         "kind": "scalar",
