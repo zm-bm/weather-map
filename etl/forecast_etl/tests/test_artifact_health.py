@@ -86,7 +86,7 @@ class ArtifactHealthTest(unittest.TestCase):
             artifacts.write_invalid_success_marker(
                 model_id=model.id,
                 cycle=CURRENT_CYCLE,
-                product_id="tmp_surface",
+                artifact_id="tmp_surface",
                 fhour="000",
                 modified=NOW,
             )
@@ -142,15 +142,15 @@ def _read_health(artifacts, *, model):
 
 def _write_success_markers(artifacts, *, model, cycle: str, count: int, modified: datetime) -> None:
     marker_ids = [
-        (product_id, fhour)
-        for product_id in model.workload.products
+        (artifact_id, fhour)
+        for artifact_id in model.workload.artifacts
         for fhour in model.workload.forecast_hours
     ]
-    for product_id, fhour in marker_ids[:count]:
+    for artifact_id, fhour in marker_ids[:count]:
         artifacts.write_success_marker(
             model_id=model.id,
             cycle=cycle,
-            product_id=product_id,
+            artifact_id=artifact_id,
             fhour=fhour,
             modified=modified,
         )

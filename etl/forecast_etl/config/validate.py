@@ -13,28 +13,28 @@ from ..derivations import (
 from ._types import parse_config_model
 from .encoding import parse_encoding
 from .input import (
-    CatalogProductInput,
+    ArtifactComponentInput,
+    ArtifactInput,
+    CatalogArtifactInput,
     GfsNomadsSourceInput,
     IconDwdSourceInput,
-    ModelProductInput,
+    ModelArtifactInput,
     ModelSourceInputEnvelope,
-    ProductComponentInput,
-    ProductInput,
     WorkloadInput,
 )
 from .resolved import (
+    ArtifactCatalogSpec,
+    ArtifactDerivationSpec,
+    ArtifactSpec,
+    ArtifactTemporalSpec,
     ComponentSpec,
     DerivationInputSpec,
     GfsNomadsSourceConfig,
     IconDwdConfig,
     IconDwdSourceConfig,
-    ModelProductSpec,
+    ModelArtifactSpec,
     ModelSourceConfig,
     NomadsConfig,
-    ProductCatalogSpec,
-    ProductDerivationSpec,
-    ProductSpec,
-    ProductTemporalSpec,
     WorkloadConfig,
 )
 
@@ -43,7 +43,7 @@ def parse_workload_config(raw: Any) -> WorkloadConfig:
     """Normalize raw workload ranges into explicit forecast-hour ids."""
 
     parsed = parse_config_model(WorkloadInput, raw)
-    return WorkloadConfig(forecast_hours=parsed.forecast_hours, products=parsed.products)
+    return WorkloadConfig(forecast_hours=parsed.forecast_hours, artifacts=parsed.artifacts)
 
 
 def parse_model_source_config(raw: Any) -> ModelSourceConfig:
@@ -72,111 +72,111 @@ def parse_model_source_config(raw: Any) -> ModelSourceConfig:
     raise SystemExit(f"Unsupported source config: {raw!r}")
 
 
-def validate_model_products_for_source(
+def validate_model_artifacts_for_source(
     *,
     model_id: str,
     source: ModelSourceConfig,
-    model_products: Mapping[str, ModelProductSpec],
+    model_artifacts: Mapping[str, ModelArtifactSpec],
 ) -> None:
-    """Validate model-product selectors that depend on the source adapter."""
+    """Validate model-artifact selectors that depend on the source adapter."""
 
-    for product_id, model_product in model_products.items():
-        derivation = model_product.derivation
+    for artifact_id, model_artifact in model_artifacts.items():
+        derivation = model_artifact.derivation
         if derivation is None:
-            for component_id, grib_match in model_product.component_grib_matches.items():
+            for component_id, grib_match in model_artifact.component_grib_matches.items():
                 if grib_match is None:
                     raise SystemExit(
-                        f"models.{model_id}.products.{product_id}.{component_id} "
-                        "requires grib_match for direct products"
+                        f"models.{model_id}.artifacts.{artifact_id}.{component_id} "
+                        "requires grib_match for direct artifacts"
                     )
             continue
 
         _validate_derived_output_components(
             model_id=model_id,
-            product_id=product_id,
-            component_grib_matches=model_product.component_grib_matches,
+            artifact_id=artifact_id,
+            component_grib_matches=model_artifact.component_grib_matches,
         )
 
         if derivation.type in GFS_DERIVATION_TYPES:
             if not isinstance(source, GfsNomadsSourceConfig):
                 raise SystemExit(
-                    f"models.{model_id}.products.{product_id} uses derivation "
+                    f"models.{model_id}.artifacts.{artifact_id} uses derivation "
                     f"{derivation.type!r}, which is only supported for gfs_nomads sources"
                 )
             if not derivation.inputs:
-                raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {product_id}")
+                raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {artifact_id}")
             continue
 
         if not isinstance(source, IconDwdSourceConfig):
             raise SystemExit(
-                f"models.{model_id}.products.{product_id} uses derivation "
-                f"{model_product.derivation.type!r}, which is only supported for icon_dwd_icosahedral sources"
+                f"models.{model_id}.artifacts.{artifact_id} uses derivation "
+                f"{model_artifact.derivation.type!r}, which is only supported for icon_dwd_icosahedral sources"
             )
         if derivation.type not in ICON_DERIVATION_TYPES:
-            raise SystemExit(f"Unsupported derivation for {product_id}: {derivation.type!r}")
+            raise SystemExit(f"Unsupported derivation for {artifact_id}: {derivation.type!r}")
 
     if not isinstance(source, IconDwdSourceConfig):
         return
 
-    for product_id, model_product in model_products.items():
-        derivation = model_product.derivation
+    for artifact_id, model_artifact in model_artifacts.items():
+        derivation = model_artifact.derivation
         if derivation is None:
             _validate_icon_component_selectors(
                 model_id=model_id,
-                product_id=product_id,
-                component_grib_matches=model_product.component_grib_matches,
+                artifact_id=artifact_id,
+                component_grib_matches=model_artifact.component_grib_matches,
             )
             continue
         if derivation.type not in ICON_DERIVATION_TYPES:
-            raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+            raise SystemExit(f"Unsupported ICON derivation for {artifact_id}: {derivation.type!r}")
 
         _validate_icon_derivation_inputs(
             model_id=model_id,
-            product_id=product_id,
+            artifact_id=artifact_id,
             inputs=derivation.inputs,
         )
         if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE and len(derivation.inputs) != 1:
             raise SystemExit(
-                f"ICON derivation {derivation.type!r} requires exactly one derivation input for {product_id}"
+                f"ICON derivation {derivation.type!r} requires exactly one derivation input for {artifact_id}"
             )
         if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            _validate_icon_average_rate_derivation(product_id=product_id, model_product=model_product)
+            _validate_icon_average_rate_derivation(artifact_id=artifact_id, model_artifact=model_artifact)
 
 
 def _validate_icon_average_rate_derivation(
     *,
-    product_id: str,
-    model_product: ModelProductSpec,
+    artifact_id: str,
+    model_artifact: ModelArtifactSpec,
 ) -> None:
-    derivation = model_product.derivation
+    derivation = model_artifact.derivation
     if derivation is None:
-        raise SystemExit(f"Product {product_id} does not declare a derivation")
-    if model_product.temporal is None:
-        raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {product_id}")
-    if model_product.temporal.kind != "average_rate":
+        raise SystemExit(f"Artifact {artifact_id} does not declare a derivation")
+    if model_artifact.temporal is None:
+        raise SystemExit(f"ICON derivation {derivation.type!r} requires temporal metadata for {artifact_id}")
+    if model_artifact.temporal.kind != "average_rate":
         raise SystemExit(
-            f"ICON derivation {derivation.type!r} requires temporal.kind='average_rate' for {product_id}"
+            f"ICON derivation {derivation.type!r} requires temporal.kind='average_rate' for {artifact_id}"
         )
-    if model_product.temporal.source_interval_hours != 1:
+    if model_artifact.temporal.source_interval_hours != 1:
         raise SystemExit(
-            f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {product_id}"
+            f"ICON derivation {derivation.type!r} requires source_interval_hours=1 for {artifact_id}"
         )
     if derivation.first_hour_previous != "zero":
         raise SystemExit(
-            f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}"
+            f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {artifact_id}"
         )
 
 
-def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSpec:
-    """Parse one catalog product definition."""
+def parse_artifact_catalog_spec(*, artifact_id: str, raw: Any) -> ArtifactCatalogSpec:
+    """Parse one catalog artifact definition."""
 
-    parsed = parse_config_model(CatalogProductInput, raw)
+    parsed = parse_config_model(CatalogArtifactInput, raw)
     encoding = parse_encoding(
-        product_id=product_id,
+        artifact_id=artifact_id,
         raw_encoding=parsed.encoding,
     )
-    return ProductCatalogSpec(
-        id=product_id,
+    return ArtifactCatalogSpec(
+        id=artifact_id,
         kind=parsed.kind,
         parameter=parsed.parameter,
         level=parsed.level,
@@ -187,17 +187,17 @@ def parse_product_catalog_spec(*, product_id: str, raw: Any) -> ProductCatalogSp
     )
 
 
-def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
-    """Parse a fully resolved product spec from test or fixture input."""
+def parse_artifact_spec(*, artifact_id: str, raw: Any) -> ArtifactSpec:
+    """Parse a fully resolved artifact spec from test or fixture input."""
 
-    parsed = parse_config_model(ProductInput, raw)
+    parsed = parse_config_model(ArtifactInput, raw)
     components = _component_specs(parsed.components)
     encoding = parse_encoding(
-        product_id=product_id,
+        artifact_id=artifact_id,
         raw_encoding=parsed.encoding,
     )
-    return ProductSpec(
-        id=product_id,
+    return ArtifactSpec(
+        id=artifact_id,
         kind=parsed.kind,
         parameter=parsed.parameter,
         level=parsed.level,
@@ -210,74 +210,74 @@ def parse_product_spec(*, product_id: str, raw: Any) -> ProductSpec:
     )
 
 
-def parse_model_product_spec(
+def parse_model_artifact_spec(
     *,
-    product_id: str,
+    artifact_id: str,
     raw: Any,
-    catalog_product: ProductCatalogSpec,
-) -> ModelProductSpec:
-    """Parse one model product and verify catalog component order."""
+    catalog_artifact: ArtifactCatalogSpec,
+) -> ModelArtifactSpec:
+    """Parse one model artifact and verify catalog component order."""
 
-    parsed = parse_config_model(ModelProductInput, raw)
+    parsed = parse_config_model(ModelArtifactInput, raw)
     matches = parsed.component_grib_matches
 
-    expected = catalog_product.component_ids
+    expected = catalog_artifact.component_ids
     actual = tuple(matches)
     if actual != expected:
         raise SystemExit(
-            f"products.{product_id}.components must match product_catalog order "
+            f"artifacts.{artifact_id}.components must match artifact_catalog order "
             f"{list(expected)!r}, got {list(actual)!r}"
         )
 
-    return ModelProductSpec(
-        product_id=product_id,
+    return ModelArtifactSpec(
+        artifact_id=artifact_id,
         component_grib_matches=matches,
         temporal=_temporal_spec(parsed.temporal),
         derivation=_derivation_spec(parsed.derivation),
     )
 
 
-def resolve_product_spec(
+def resolve_artifact_spec(
     *,
-    catalog_product: ProductCatalogSpec,
-    model_product: ModelProductSpec,
-) -> ProductSpec:
-    """Merge catalog product metadata with model-specific component selectors."""
+    catalog_artifact: ArtifactCatalogSpec,
+    model_artifact: ModelArtifactSpec,
+) -> ArtifactSpec:
+    """Merge catalog artifact metadata with model-specific component selectors."""
 
     components = tuple(
         ComponentSpec(
             id=component_id,
-            grib_match=model_product.component_grib_matches[component_id],
+            grib_match=model_artifact.component_grib_matches[component_id],
         )
-        for component_id in catalog_product.component_ids
+        for component_id in catalog_artifact.component_ids
     )
-    return ProductSpec(
-        id=catalog_product.id,
-        kind=catalog_product.kind,
-        parameter=catalog_product.parameter,
-        level=catalog_product.level,
-        units=catalog_product.units,
-        source_transform=catalog_product.source_transform,
-        encoding=catalog_product.encoding,
+    return ArtifactSpec(
+        id=catalog_artifact.id,
+        kind=catalog_artifact.kind,
+        parameter=catalog_artifact.parameter,
+        level=catalog_artifact.level,
+        units=catalog_artifact.units,
+        source_transform=catalog_artifact.source_transform,
+        encoding=catalog_artifact.encoding,
         components=components,
-        temporal=model_product.temporal,
-        derivation=model_product.derivation,
+        temporal=model_artifact.temporal,
+        derivation=model_artifact.derivation,
     )
 
 
-def validate_workload_products(
+def validate_workload_artifacts(
     *,
-    product_ids: tuple[str, ...],
-    products: Mapping[str, object],
+    artifact_ids: tuple[str, ...],
+    artifacts: Mapping[str, object],
 ) -> None:
-    """Ensure every workload product exists in the product catalog."""
+    """Ensure every workload artifact exists in the artifact catalog."""
 
-    for product_id in product_ids:
-        if product_id not in products:
-            raise SystemExit(f"workload.products references unknown product: {product_id!r}")
+    for artifact_id in artifact_ids:
+        if artifact_id not in artifacts:
+            raise SystemExit(f"workload.artifacts references unknown artifact: {artifact_id!r}")
 
 
-def _component_specs(raw_components: tuple[ProductComponentInput, ...]) -> tuple[ComponentSpec, ...]:
+def _component_specs(raw_components: tuple[ArtifactComponentInput, ...]) -> tuple[ComponentSpec, ...]:
     return tuple(
         ComponentSpec(
             id=component.id,
@@ -287,19 +287,19 @@ def _component_specs(raw_components: tuple[ProductComponentInput, ...]) -> tuple
     )
 
 
-def _temporal_spec(raw: object | None) -> ProductTemporalSpec | None:
+def _temporal_spec(raw: object | None) -> ArtifactTemporalSpec | None:
     if raw is None:
         return None
-    return ProductTemporalSpec(
+    return ArtifactTemporalSpec(
         kind=getattr(raw, "kind"),
         source_interval_hours=getattr(raw, "source_interval_hours"),
     )
 
 
-def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
+def _derivation_spec(raw: object | None) -> ArtifactDerivationSpec | None:
     if raw is None:
         return None
-    return ProductDerivationSpec(
+    return ArtifactDerivationSpec(
         type=getattr(raw, "type"),
         first_hour_previous=getattr(raw, "first_hour_previous"),
         inputs=tuple(
@@ -312,18 +312,18 @@ def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
 def _validate_icon_component_selectors(
     *,
     model_id: str,
-    product_id: str,
+    artifact_id: str,
     component_grib_matches: Mapping[str, Mapping[str, str] | None],
 ) -> None:
     for component_id, grib_match in component_grib_matches.items():
         if grib_match is None:
             raise SystemExit(
-                f"models.{model_id}.products.{product_id}.{component_id} "
+                f"models.{model_id}.artifacts.{artifact_id}.{component_id} "
                 f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
             )
         _validate_icon_grib_match(
             model_id=model_id,
-            product_id=product_id,
+            artifact_id=artifact_id,
             selector_id=component_id,
             grib_match=grib_match,
         )
@@ -332,13 +332,13 @@ def _validate_icon_component_selectors(
 def _validate_derived_output_components(
     *,
     model_id: str,
-    product_id: str,
+    artifact_id: str,
     component_grib_matches: Mapping[str, Mapping[str, str] | None],
 ) -> None:
     for component_id, grib_match in component_grib_matches.items():
         if grib_match is not None:
             raise SystemExit(
-                f"models.{model_id}.products.{product_id}.{component_id} is a derived output component; "
+                f"models.{model_id}.artifacts.{artifact_id}.{component_id} is a derived output component; "
                 "put source selectors in derivation.inputs instead of components"
             )
 
@@ -346,15 +346,15 @@ def _validate_derived_output_components(
 def _validate_icon_derivation_inputs(
     *,
     model_id: str,
-    product_id: str,
+    artifact_id: str,
     inputs: tuple[DerivationInputSpec, ...],
 ) -> None:
     if not inputs:
-        raise SystemExit(f"ICON derivation for {product_id} requires derivation.inputs")
+        raise SystemExit(f"ICON derivation for {artifact_id} requires derivation.inputs")
     for input_item in inputs:
         _validate_icon_grib_match(
             model_id=model_id,
-            product_id=product_id,
+            artifact_id=artifact_id,
             selector_id=f"derivation.inputs.{input_item.id}",
             grib_match=input_item.grib_match,
         )
@@ -363,13 +363,13 @@ def _validate_icon_derivation_inputs(
 def _validate_icon_grib_match(
     *,
     model_id: str,
-    product_id: str,
+    artifact_id: str,
     selector_id: str,
     grib_match: Mapping[str, str],
 ) -> None:
     icon_param = grib_match.get(ICON_PARAM_MATCH_KEY)
     if not isinstance(icon_param, str) or not icon_param.strip():
         raise SystemExit(
-            f"models.{model_id}.products.{product_id}.{selector_id} "
+            f"models.{model_id}.artifacts.{artifact_id}.{selector_id} "
             f"requires grib_match.{ICON_PARAM_MATCH_KEY} for icon_dwd_icosahedral sources"
         )

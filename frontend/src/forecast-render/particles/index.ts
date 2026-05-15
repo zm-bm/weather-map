@@ -1,1 +1,1 @@
-export { applyParticleFrame, particleRenderer, PARTICLE_RENDERER_LAYER_ID } from './adapter'
+export { applyParticleInterpolationWindow, particleRenderer, PARTICLE_RENDERER_LAYER_ID } from './adapter'

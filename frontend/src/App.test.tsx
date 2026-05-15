@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ForecastModelId, ForecastModelOption } from './forecast-models'
 import type { CycleManifest } from './manifest'
-import { createFrameManifestFixture, createScalarProductFixture } from './test/fixtures'
+import { createFrameManifestFixture, createScalarArtifactFixture } from './test/fixtures'
 import App from './App'
 
 const mocks = vi.hoisted(() => ({
@@ -113,10 +113,10 @@ describe('App composition', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
       generatedAt: '2026-04-09T00:00:00Z',
-      scalarProducts: ['rh_surface'],
+      scalarArtifactIds: ['rh_surface'],
       forecastHours: ['003'],
-      products: {
-        rh_surface: createScalarProductFixture({
+      artifacts: {
+        rh_surface: createScalarArtifactFixture({
           units: '%',
           parameter: 'rh',
           level: '2m_above_ground',

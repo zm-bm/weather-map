@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "product_catalog": {
+  "version": 3,
+  "artifact_catalog": {
     "tmp_surface": {
       "kind": "scalar",
       "parameter": "tmp",
@@ -446,7 +446,7 @@
       "workload": {
         "forecast_hour_start": 0,
         "forecast_hour_end": 72,
-        "products": [
+        "artifacts": [
           "tmp_surface",
           "aptmp_surface",
           "gust_surface",
@@ -467,7 +467,7 @@
           "wind10m_uv"
         ]
       },
-      "products": {
+      "artifacts": {
         "tmp_surface": {
           "components": [
             {
@@ -716,7 +716,7 @@
       "workload": {
         "forecast_hour_start": 1,
         "forecast_hour_end": 72,
-        "products": [
+        "artifacts": [
           "tmp_surface",
           "gust_surface",
           "dewpoint_surface",
@@ -737,7 +737,7 @@
           "wind10m_uv"
         ]
       },
-      "products": {
+      "artifacts": {
         "tmp_surface": {
           "components": [
             {

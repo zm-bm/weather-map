@@ -1,4 +1,4 @@
-"""Run one forecast hour through source acquisition and product generation."""
+"""Run one forecast hour through source acquisition and artifact generation."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from ..artifacts.markers_schema import build_product_marker_payload
+from ..artifacts.markers_schema import build_artifact_marker_payload
 from ..artifacts.paths import WorkItem
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ModelConfig, ProductSpec
-from ..encoding.product_payload import encode_product_payload
+from ..config.resolved import ArtifactSpec, ModelConfig
+from ..encoding.artifact_payload import encode_artifact_payload
+from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
-from ..extract.product_bands import extract_product_bands
 from ..proc import RunFn, make_runner
 from ..runtime import ExecutionContext
 from ..source_adapters import acquire_prepared_source
@@ -28,18 +28,18 @@ def run_process_hour(
     cycle: str,
     fhour: str,
     source_uri: str | None,
-    product_ids: Iterable[str],
-    products: Mapping[str, ProductSpec],
+    artifact_ids: Iterable[str],
+    artifact_specs: Mapping[str, ArtifactSpec],
     store: UriStore,
-    artifacts: ArtifactRepository,
+    artifact_repo: ArtifactRepository,
     run: RunFn,
 ) -> None:
-    """Run all configured products for one (cycle, fhour)."""
+    """Run all configured artifacts for one (cycle, fhour)."""
 
-    product_ids = tuple(product_ids or ())
+    artifact_ids = tuple(artifact_ids or ())
 
-    if not product_ids:
-        raise SystemExit("No workload.products configured for process-hour")
+    if not artifact_ids:
+        raise SystemExit("No workload.artifacts configured for process-hour")
 
     with tempfile.TemporaryDirectory(prefix="forecast-work-hour-") as td:
         workdir = Path(td)
@@ -54,42 +54,42 @@ def run_process_hour(
         )
         grid = grid_meta_from_grib(grib_path=source.reference_grib_path(), run=run)
 
-        product_done = 0
-        for product_id in product_ids:
-            product = products.get(product_id)
-            if product is None:
-                raise SystemExit(f"Unknown product in workload.products: {product_id}")
+        artifact_done = 0
+        for artifact_id in artifact_ids:
+            artifact = artifact_specs.get(artifact_id)
+            if artifact is None:
+                raise SystemExit(f"Unknown artifact in workload.artifacts: {artifact_id}")
 
             item = WorkItem(
                 model_id=ctx.model_id,
                 cycle=cycle,
                 fhour=fhour,
                 source_uri=source.uri,
-                product_id=str(product_id),
+                artifact_id=str(artifact_id),
             )
-            bands = extract_product_bands(
-                product=product,
+            bands = extract_artifact_bands(
+                artifact=artifact,
                 grid=grid,
                 source=source,
                 workdir=workdir,
                 run=run,
                 fhour=fhour,
             )
-            payload = encode_product_payload(product=product, grid=grid, bands=bands)
-            payload_uri = artifacts.write_field_payload(item=item, dtype=product.encoding.dtype, payload=payload)
-            product_marker_payload = build_product_marker_payload(
-                product=product,
+            payload = encode_artifact_payload(artifact=artifact, grid=grid, bands=bands)
+            payload_uri = artifact_repo.write_field_payload(item=item, dtype=artifact.encoding.dtype, payload=payload)
+            artifact_marker_payload = build_artifact_marker_payload(
+                artifact=artifact,
                 payload_uri=payload_uri,
                 payload=payload,
                 grid_id=source.grid_id,
                 grid=grid,
             )
-            artifacts.write_success_marker(item=item, product=product_marker_payload)
-            product_done += 1
+            artifact_repo.write_success_marker(item=item, artifact=artifact_marker_payload)
+            artifact_done += 1
 
     print(
         f"Done. Published fhour bundle cycle={cycle} fhour={fhour}: "
-        f"model={ctx.model_id} products={product_done}",
+        f"model={ctx.model_id} artifacts={artifact_done}",
         flush=True,
     )
 
@@ -108,7 +108,7 @@ def run_hour(
     """Process one forecast hour and optionally publish the cycle."""
 
     resolved_store = store if store is not None else make_store()
-    artifacts = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
+    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
     resolved_run = run if run is not None else make_runner()
     run_process_hour(
         ctx=ctx,
@@ -116,10 +116,10 @@ def run_hour(
         cycle=cycle,
         fhour=fhour,
         source_uri=source_uri,
-        product_ids=model.workload.products,
-        products=model.products,
+        artifact_ids=model.workload.artifacts,
+        artifact_specs=model.artifacts,
         store=resolved_store,
-        artifacts=artifacts,
+        artifact_repo=artifact_repo,
         run=resolved_run,
     )
     if publish:

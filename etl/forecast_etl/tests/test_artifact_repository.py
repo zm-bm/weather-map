@@ -14,7 +14,7 @@ from forecast_etl.artifacts.repository import (
     ArtifactRepository,
 )
 from forecast_etl.storage.base import UriObject, UriWriteMetadata
-from forecast_etl.tests.fixtures.artifacts import product_marker_payload
+from forecast_etl.tests.fixtures.artifacts import artifact_marker_payload
 
 
 class RecordingStore:
@@ -62,7 +62,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
             model_id="gfs",
             cycle="2026042700",
             fhour="003",
-            product_id="tmp_surface",
+            artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
         payload = bytes(range(64))
@@ -108,35 +108,35 @@ class ArtifactRepositoryTests(unittest.TestCase):
             model_id="gfs",
             cycle="2026042700",
             fhour="000",
-            product_id="tmp_surface",
+            artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
 
         uri = repo.write_success_marker(
             item=item,
-            product=product_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
+            artifact=artifact_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
         )
 
         stored = json.loads(store.objects[uri].decode("utf-8"))
         self.assertEqual(stored["cycle"], "2026042700")
         self.assertEqual(stored["fhour"], "000")
-        self.assertEqual(stored["product_id"], "tmp_surface")
-        self.assertEqual(stored["product"]["payload_uri"], "s3://bucket/fields/tmp.bin")
+        self.assertEqual(stored["artifact_id"], "tmp_surface")
+        self.assertEqual(stored["artifact"]["payload_uri"], "s3://bucket/fields/tmp.bin")
         self.assertEqual(store.metadata[uri], INTERNAL_JSON_METADATA)
 
-    def test_write_success_marker_rejects_invalid_product_payload(self) -> None:
+    def test_write_success_marker_rejects_invalid_artifact_payload(self) -> None:
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
             model_id="gfs",
             cycle="2026042700",
             fhour="000",
-            product_id="tmp_surface",
+            artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
 
         with self.assertRaises(SystemExit):
-            repo.write_success_marker(item=item, product={})
+            repo.write_success_marker(item=item, artifact={})
 
         self.assertEqual(store.objects, {})
 
@@ -147,19 +147,19 @@ class ArtifactRepositoryTests(unittest.TestCase):
             model_id="gfs",
             cycle="2026042700",
             fhour="000",
-            product_id="tmp_surface",
+            artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
         repo.write_success_marker(
             item=item,
-            product=product_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
+            artifact=artifact_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
         )
 
         missing = repo.missing_success_markers(
             model_id="gfs",
             cycle="2026042700",
             fhours=("000", "003"),
-            product_ids=("tmp_surface",),
+            artifact_ids=("tmp_surface",),
         )
 
         self.assertEqual(

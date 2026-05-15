@@ -7,10 +7,10 @@ import {
   createFrameRefFixture,
   createFrameManifestFixture,
   createGridFixture,
-  createScalarProductFixture,
+  createScalarArtifactFixture,
   createScalarPayloadFixture,
   createSignalFixture,
-  createVectorProductFixture,
+  createVectorArtifactFixture,
   createVectorPayloadFixture,
 } from '../test/fixtures'
 import { stubFetchArrayBufferOnce } from '../test/fetch'
@@ -35,8 +35,8 @@ describe('scalar payload', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026041100',
       generatedAt: '2026-04-11T00:00:00Z',
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           grid: createGridFixture({
             crs: 'EPSG:4326',
             nx: 2,
@@ -73,8 +73,8 @@ describe('scalar payload', () => {
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           encoding: {
             id: 'e0',
             format: 'linear-i16-v1',
@@ -106,8 +106,8 @@ describe('scalar payload', () => {
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           encoding: {
             id: 'e0',
             format: 'linear-i8-v1',
@@ -141,8 +141,8 @@ describe('scalar payload', () => {
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           encoding: {
             id: 'e0',
             format: 'temp-c-piecewise-i8-v1',
@@ -170,8 +170,8 @@ describe('scalar payload', () => {
   it('rejects scalar payloads with non-value components', async () => {
     stubFetchArrayBufferOnce(new Int8Array(12).buffer)
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           components: ['low', 'medium', 'high'],
           encoding: {
             id: 'e0',
@@ -203,8 +203,8 @@ describe('scalar payload', () => {
     const payload = new Int8Array([1, 2, 3]).buffer
     stubFetchArrayBufferOnce(payload)
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           encoding: {
             id: 'e0',
             format: 'linear-i8-v1',
@@ -234,8 +234,8 @@ describe('scalar payload', () => {
   it('rejects unsupported scalar encodings in artifact loads', async () => {
     stubFetchArrayBufferOnce(new Int8Array([0, 1, 2, 3]).buffer)
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
           encoding: {
             id: 'e0',
             format: 'bad-format',
@@ -261,14 +261,14 @@ describe('scalar payload', () => {
 
   it('rejects scalar artifact loads for artifacts assigned to another kind', async () => {
     const manifest = createFrameManifestFixture({
-      products: {
+      artifacts: {
         tmp_surface: {
-          ...createVectorProductFixture(),
+          ...createVectorArtifactFixture(),
           id: 'tmp_surface',
         },
       },
-      scalarProducts: ['tmp_surface'],
-      vectorProducts: [],
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: [],
     })
     await expect(
       artifacts(manifest).loadScalar('tmp_surface', '000')
@@ -281,8 +281,8 @@ describe('vector payload', () => {
     const payload = createVectorPayloadFixture([1, -2, 3, -4], [-5, 6, -7, 8])
     const fetchMock = stubFetchArrayBufferOnce(payload)
     const manifest = createFrameManifestFixture({
-      products: {
-        wind10m_uv: createVectorProductFixture(),
+      artifacts: {
+        wind10m_uv: createVectorArtifactFixture(),
       },
     })
 
@@ -298,10 +298,10 @@ describe('vector payload', () => {
   it('validates vector metadata before fetching payloads', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const baseEncoding = createVectorProductFixture().encoding
+    const baseEncoding = createVectorArtifactFixture().encoding
     const manifest = createFrameManifestFixture({
-      products: {
-        wind10m_uv: createVectorProductFixture({
+      artifacts: {
+        wind10m_uv: createVectorArtifactFixture({
           encoding: {
             ...baseEncoding,
             dtype: 'int16',
@@ -322,20 +322,20 @@ describe('vector payload', () => {
     ).rejects.toThrow('No vector artifact metadata for missing_wind')
 
     const missingFrameManifest = createFrameManifestFixture({
-      products: {
-        wind10m_uv: createVectorProductFixture(),
+      artifacts: {
+        wind10m_uv: createVectorArtifactFixture(),
       },
     })
-    delete missingFrameManifest.products.wind10m_uv.frames['000']
+    delete missingFrameManifest.artifacts.wind10m_uv.frames['000']
     await expect(
       artifacts(missingFrameManifest).loadVector('wind10m_uv', '000')
     ).rejects.toThrow('No vector frame ref for artifact=wind10m_uv hour=000')
 
     await expect(
       artifacts(createFrameManifestFixture({
-        products: {
+        artifacts: {
           wind10m_uv: {
-            ...createScalarProductFixture(),
+            ...createScalarArtifactFixture(),
             id: 'wind10m_uv',
           },
         },

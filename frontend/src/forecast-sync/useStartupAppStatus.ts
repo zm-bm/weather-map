@@ -28,7 +28,7 @@ export function useStartupAppStatus(status: StartupStatus): void {
       mode: 'blocking',
       level: 'loading',
       title: 'Initializing Forecast Map',
-      detail: 'Loading initial forecast frames.',
+      detail: 'Loading initial forecast data.',
     })
   }, [
     clearStatus,

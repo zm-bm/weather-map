@@ -1,5 +1,5 @@
 export type ParticleRuntimeOptions = {
-  // Reseed all particles whenever a new forecast frame is applied.
+  // Reseed all particles whenever new particle data is applied.
   reseedOnFrameChange: boolean
   // Number of simulated particles.
   particleCount: number

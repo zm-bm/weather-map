@@ -18,29 +18,29 @@ from .resolved import EncodingSpec
 
 def parse_encoding(
     *,
-    product_id: str,
+    artifact_id: str,
     raw_encoding: Any,
 ) -> EncodingSpec:
-    """Parse and normalize a product encoding contract from config."""
+    """Parse and normalize an artifact encoding contract from config."""
 
     raw = parse_config_model(EncodingInput, raw_encoding)
     dtype = raw.dtype
     if dtype not in BYTE_ORDERS_BY_DTYPE:
         raise SystemExit(
-            f"Product {product_id!r} encoding.dtype must be one of "
+            f"Artifact {artifact_id!r} encoding.dtype must be one of "
             f"{sorted(BYTE_ORDERS_BY_DTYPE)!r}, got: {dtype!r}"
         )
 
     try:
         encoding_format = encoding_format_for_spec(dtype=dtype, explicit_format=raw.format)
     except ValueError as exc:
-        raise SystemExit(f"Product {product_id!r} has invalid encoding.format: {exc}") from exc
+        raise SystemExit(f"Artifact {artifact_id!r} has invalid encoding.format: {exc}") from exc
 
     byte_order = raw.byte_order
     allowed_byte_orders = BYTE_ORDERS_BY_DTYPE[dtype]
     if byte_order not in allowed_byte_orders:
         raise SystemExit(
-            f"Product {product_id!r} encoding.byte_order must be one of "
+            f"Artifact {artifact_id!r} encoding.byte_order must be one of "
             f"{sorted(allowed_byte_orders)!r}, got: {byte_order!r}"
         )
 
@@ -48,12 +48,12 @@ def parse_encoding(
     offset: float | None = None
     if is_linear_encoding_format(encoding_format):
         if raw.scale is None:
-            raise SystemExit(f"Product {product_id!r} encoding missing required field 'scale'")
+            raise SystemExit(f"Artifact {artifact_id!r} encoding missing required field 'scale'")
         if raw.offset is None:
-            raise SystemExit(f"Product {product_id!r} encoding missing required field 'offset'")
+            raise SystemExit(f"Artifact {artifact_id!r} encoding missing required field 'offset'")
         scale = raw.scale
         if scale == 0:
-            raise SystemExit(f"Product {product_id!r} encoding.scale must be a finite non-zero number")
+            raise SystemExit(f"Artifact {artifact_id!r} encoding.scale must be a finite non-zero number")
         offset = raw.offset
     else:
         unexpected_linear_fields = sorted(
@@ -63,7 +63,7 @@ def parse_encoding(
         )
         if unexpected_linear_fields:
             raise SystemExit(
-                f"Product {product_id!r} encoding fields are not supported for "
+                f"Artifact {artifact_id!r} encoding fields are not supported for "
                 f"format {encoding_format!r}: {unexpected_linear_fields!r}"
             )
 
@@ -72,14 +72,14 @@ def parse_encoding(
         min_stored, max_stored = encoding_storage_bounds(dtype)
         if nodata < min_stored or nodata > max_stored:
             raise SystemExit(
-                f"Product {product_id!r} encoding.nodata must be a {dtype} integer "
+                f"Artifact {artifact_id!r} encoding.nodata must be a {dtype} integer "
                 f"({min_stored}..{max_stored})"
             )
 
     required_nodata = required_nodata_for_format(encoding_format)
     if required_nodata is not None and nodata != required_nodata:
         raise SystemExit(
-            f"Product {product_id!r} encoding.nodata must be {required_nodata} "
+            f"Artifact {artifact_id!r} encoding.nodata must be {required_nodata} "
             f"for format {encoding_format!r}"
         )
 

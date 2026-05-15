@@ -16,9 +16,9 @@ from forecast_etl.runtime import ExecutionContext
 from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.routing import make_store
 
+from .artifact_configs import artifact_specs, minimal_artifact_config
 from .grids import grid_meta_fixture
 from .markers import write_scalar_marker, write_vector_marker
-from .products import minimal_product_config, product_specs
 
 
 @dataclass(frozen=True)
@@ -44,19 +44,19 @@ class PublishFixture:
     def values(self, base: float = 0.0) -> list[float]:
         return [base + float(i) for i in range(self.cell_count)]
 
-    def marker_uri(self, product_id: str, *, cycle: str | None = None, fhour: str | None = None) -> str:
+    def marker_uri(self, artifact_id: str, *, cycle: str | None = None, fhour: str | None = None) -> str:
         return self.ap.success_marker_uri_parts(
             model_id=self.model_id,
             cycle=cycle or self.cycle,
             fhour=fhour or self.fhours[0],
-            product_id=product_id,
+            artifact_id=artifact_id,
         )
 
     def write_scalar_marker(
         self,
         *,
-        product_id: str = "tmp_surface",
-        product_config: dict | None = None,
+        artifact_id: str = "tmp_surface",
+        artifact_config: dict | None = None,
         cycle: str | None = None,
         fhour: str | None = None,
         values: Sequence[float] | None = None,
@@ -67,24 +67,24 @@ class PublishFixture:
             ap=self.ap,
             cycle=cycle or self.cycle,
             fhour=fhour or self.fhours[0],
-            variable=product_id,
+            artifact_id=artifact_id,
             source_values=list(values) if values is not None else self.values(base),
-            product_config=product_config or minimal_product_config(),
+            artifact_config=artifact_config or minimal_artifact_config(),
             grid_meta=self.grid_meta,
         )
 
     def write_scalar_markers(
         self,
         *,
-        product_id: str = "tmp_surface",
-        product_config: dict | None = None,
+        artifact_id: str = "tmp_surface",
+        artifact_config: dict | None = None,
         cycle: str | None = None,
         base: float = 0.0,
     ) -> None:
         for fhour in self.fhours:
             self.write_scalar_marker(
-                product_id=product_id,
-                product_config=product_config,
+                artifact_id=artifact_id,
+                artifact_config=artifact_config,
                 cycle=cycle,
                 fhour=fhour,
                 base=base,
@@ -93,7 +93,7 @@ class PublishFixture:
     def write_vector_marker(
         self,
         *,
-        product_id: str = "wind10m_uv",
+        artifact_id: str = "wind10m_uv",
         cycle: str | None = None,
         fhour: str | None = None,
     ) -> None:
@@ -102,28 +102,28 @@ class PublishFixture:
             ap=self.ap,
             cycle=cycle or self.cycle,
             fhour=fhour or self.fhours[0],
-            variable=product_id,
+            artifact_id=artifact_id,
             grid_meta=self.grid_meta,
         )
 
-    def write_vector_markers(self, *, product_id: str = "wind10m_uv", cycle: str | None = None) -> None:
+    def write_vector_markers(self, *, artifact_id: str = "wind10m_uv", cycle: str | None = None) -> None:
         for fhour in self.fhours:
-            self.write_vector_marker(product_id=product_id, cycle=cycle, fhour=fhour)
+            self.write_vector_marker(artifact_id=artifact_id, cycle=cycle, fhour=fhour)
 
     def publish(
         self,
         *,
-        product_ids: Sequence[str],
-        products_cfg: dict[str, dict],
+        artifact_ids: Sequence[str],
+        artifacts_cfg: dict[str, dict],
         cycle: str | None = None,
     ) -> PublishResult:
         return run_publish(
             model_label=self.model_label,
             ctx=self.ctx,
             cycle=cycle or self.cycle,
-            product_ids=tuple(product_ids),
-            products=product_specs(products_cfg),
-            artifacts=self.artifacts,
+            artifact_ids=tuple(artifact_ids),
+            artifact_specs=artifact_specs(artifacts_cfg),
+            artifact_repo=self.artifacts,
         )
 
     def cycle_manifest(self, *, cycle: str | None = None) -> dict[str, Any]:
@@ -133,13 +133,13 @@ class PublishFixture:
     def latest_manifest(self) -> dict[str, Any]:
         return json.loads(self.store.read_bytes(uri=self.ap.manifest_latest_uri(model_id=self.model_id)).decode("utf-8"))
 
-    def payload_bytes(self, *, product_id: str, fhour: str, dtype: str, cycle: str | None = None) -> bytes:
+    def payload_bytes(self, *, artifact_id: str, fhour: str, dtype: str, cycle: str | None = None) -> bytes:
         payload_uri = self.ap.output_field_payload_uri(
             item=WorkItem(
                 model_id=self.model_id,
                 cycle=cycle or self.cycle,
                 fhour=fhour,
-                product_id=product_id,
+                artifact_id=artifact_id,
                 source_uri="file:///dev/null",
             ),
             dtype=dtype,

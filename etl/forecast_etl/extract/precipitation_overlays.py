@@ -28,15 +28,15 @@ ICON_WW_THUNDERSTORM = {95, 96, 97, 98, 99}
 def precip_type_from_gfs_category_bytes(
     *,
     input_bands: Mapping[str, ExtractedBand],
-    product_id: str,
+    artifact_id: str,
 ) -> bytes:
     """Return categorical precip-type float32 bytes from GFS category bands."""
 
     bands = {
-        input_id: _required_band(input_bands, input_id=input_id, product_id=product_id)
+        input_id: _required_band(input_bands, input_id=input_id, artifact_id=artifact_id)
         for input_id in GFS_PRECIP_TYPE_INPUT_IDS
     }
-    _validate_equal_lengths(bands.values(), product_id=product_id)
+    _validate_equal_lengths(bands.values(), artifact_id=artifact_id)
 
     out = bytearray(len(bands["rain"].source_f32_bytes))
     iterators = {
@@ -113,15 +113,15 @@ def _required_band(
     input_bands: Mapping[str, ExtractedBand],
     *,
     input_id: str,
-    product_id: str,
+    artifact_id: str,
 ) -> ExtractedBand:
     try:
         return input_bands[input_id]
     except KeyError:
-        raise SystemExit(f"Product {product_id} derivation missing input {input_id!r}") from None
+        raise SystemExit(f"Artifact {artifact_id} derivation missing input {input_id!r}") from None
 
 
-def _validate_equal_lengths(bands: Iterable[ExtractedBand], *, product_id: str) -> None:
+def _validate_equal_lengths(bands: Iterable[ExtractedBand], *, artifact_id: str) -> None:
     lengths = {len(band.source_f32_bytes) for band in bands}
     if len(lengths) != 1:
-        raise SystemExit(f"Product {product_id} derivation input byte lengths differ: {sorted(lengths)!r}")
+        raise SystemExit(f"Artifact {artifact_id} derivation input byte lengths differ: {sorted(lengths)!r}")

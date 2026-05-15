@@ -2,19 +2,19 @@ import type {
   CycleManifest,
   ForecastTimeSpec,
   FramePayloadRef,
-  ManifestProductSpec,
+  ManifestArtifactSpec,
   NonEmptyArray,
-  ProductId,
+  ArtifactId,
   ScalarEncodingSpec,
   ScalarGridSpec,
-  ScalarProductSpec,
+  ScalarArtifactSpec,
   VectorEncodingSpec,
-  VectorProductId,
-  VectorProductSpec,
+  VectorArtifactId,
+  VectorArtifactSpec,
 } from '../../manifest'
 import {
-  asProductId,
-  asVectorProductId,
+  asArtifactId,
+  asVectorArtifactId,
   MANIFEST_PAYLOAD_CONTRACT,
   MANIFEST_SCHEMA,
   MANIFEST_SCHEMA_VERSION,
@@ -27,37 +27,37 @@ export const FIXTURE_HOUR_TOKEN = '000'
 export const FIXTURE_GRID_ID = 'g0'
 export const FIXTURE_SCALAR_ENCODING_ID = 'e0'
 export const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_v1'
-export const FIXTURE_SCALAR_ID = asProductId('tmp_surface')
-export const FIXTURE_VECTOR_ID = asVectorProductId('wind10m_uv')
+export const FIXTURE_SCALAR_ID = asArtifactId('tmp_surface')
+export const FIXTURE_VECTOR_ID = asVectorArtifactId('wind10m_uv')
 export const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
 
 export type ManifestFixtureOverrides =
-  Partial<Pick<CycleManifest, 'model' | 'run' | 'times' | 'products'>> & {
+  Partial<Pick<CycleManifest, 'model' | 'run' | 'times' | 'artifacts'>> & {
     cycle?: string
     generatedAt?: string
     revision?: string
     forecastHours?: string[]
-    scalarProducts?: string[]
-    vectorProducts?: string[]
+    scalarArtifactIds?: string[]
+    vectorArtifactIds?: string[]
   }
 
-export type ScalarProductFixtureOverrides =
-  Partial<Omit<ScalarProductSpec, 'frames'>> & {
+export type ScalarArtifactFixtureOverrides =
+  Partial<Omit<ScalarArtifactSpec, 'frames'>> & {
     cycle?: string
     forecastHours?: string[]
     times?: ForecastTimeSpec[]
     frames?: Record<string, FramePayloadRef>
   }
 
-export type VectorProductFixtureOverrides =
-  Partial<Omit<VectorProductSpec, 'frames'>> & {
+export type VectorArtifactFixtureOverrides =
+  Partial<Omit<VectorArtifactSpec, 'frames'>> & {
     cycle?: string
     forecastHours?: string[]
     times?: ForecastTimeSpec[]
     frames?: Record<string, FramePayloadRef>
   }
 
-function toProductIds<T>(
+function toArtifactIds<T>(
   values: string[],
   brand: (value: string) => T,
 ): T[] {
@@ -132,13 +132,13 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
 }
 
 function createFramePath(
-  productId: string,
-  dtype: ManifestProductSpec['encoding']['dtype'],
+  artifactId: string,
+  dtype: ManifestArtifactSpec['encoding']['dtype'],
   cycle = FIXTURE_CYCLE,
   hourToken = FIXTURE_HOUR_TOKEN
 ): string {
   const extension = dtype === 'int16' ? 'field.i16.bin' : 'field.i8.bin'
-  return `fields/${cycle}/${hourToken}/${productId}.${extension}`
+  return `fields/${cycle}/${hourToken}/${artifactId}.${extension}`
 }
 
 export function createFrameRefFixture(overrides: Partial<FramePayloadRef> = {}): FramePayloadRef {
@@ -150,8 +150,8 @@ export function createFrameRefFixture(overrides: Partial<FramePayloadRef> = {}):
   }
 }
 
-function createProductFrames(
-  product: Pick<ManifestProductSpec, 'id' | 'encoding'>,
+function createArtifactFrames(
+  artifact: Pick<ManifestArtifactSpec, 'id' | 'encoding'>,
   times: ForecastTimeSpec[],
   cycle: string,
   overrides: Record<string, FramePayloadRef> = {}
@@ -160,20 +160,20 @@ function createProductFrames(
     times.map((time) => [
       time.id,
       overrides[time.id] ?? createFrameRefFixture({
-        path: createFramePath(product.id, product.encoding.dtype, cycle, time.id),
+        path: createFramePath(artifact.id, artifact.encoding.dtype, cycle, time.id),
       }),
     ])
   )
 }
 
-export function createScalarProductFixture(
-  overrides: ScalarProductFixtureOverrides = {}
-): ScalarProductSpec {
+export function createScalarArtifactFixture(
+  overrides: ScalarArtifactFixtureOverrides = {}
+): ScalarArtifactSpec {
   const cycle = overrides.cycle ?? FIXTURE_CYCLE
   const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_SCALAR_ID
 
-  const product: Omit<ScalarProductSpec, 'frames'> = {
+  const artifact: Omit<ScalarArtifactSpec, 'frames'> = {
     id,
     kind: 'scalar',
     units: overrides.units ?? 'C',
@@ -185,19 +185,19 @@ export function createScalarProductFixture(
   }
 
   return {
-    ...product,
-    frames: overrides.frames ?? createProductFrames(product, times, cycle),
+    ...artifact,
+    frames: overrides.frames ?? createArtifactFrames(artifact, times, cycle),
   }
 }
 
-export function createVectorProductFixture(
-  overrides: VectorProductFixtureOverrides = {}
-): VectorProductSpec {
+export function createVectorArtifactFixture(
+  overrides: VectorArtifactFixtureOverrides = {}
+): VectorArtifactSpec {
   const cycle = overrides.cycle ?? FIXTURE_CYCLE
   const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_VECTOR_ID
 
-  const product: Omit<VectorProductSpec, 'frames'> = {
+  const artifact: Omit<VectorArtifactSpec, 'frames'> = {
     id,
     kind: 'vector',
     units: overrides.units ?? 'm/s',
@@ -209,71 +209,71 @@ export function createVectorProductFixture(
   }
 
   return {
-    ...product,
-    frames: overrides.frames ?? createProductFrames(product, times, cycle),
+    ...artifact,
+    frames: overrides.frames ?? createArtifactFrames(artifact, times, cycle),
   }
 }
 
-function productIdsByKind(
-  products: Record<string, ManifestProductSpec> | undefined,
-  kind: ManifestProductSpec['kind']
+function artifactIdsByKind(
+  artifacts: Record<string, ManifestArtifactSpec> | undefined,
+  kind: ManifestArtifactSpec['kind']
 ): string[] {
-  return Object.values(products ?? {})
-    .filter((product) => product.kind === kind)
-    .map((product) => product.id)
+  return Object.values(artifacts ?? {})
+    .filter((artifact) => artifact.kind === kind)
+    .map((artifact) => artifact.id)
 }
 
-function completeProductFrames(
-  product: ManifestProductSpec,
+function completeArtifactFrames(
+  artifact: ManifestArtifactSpec,
   times: ForecastTimeSpec[],
   cycle: string
-): ManifestProductSpec {
-  const frames = createProductFrames(product, times, cycle, product.frames)
+): ManifestArtifactSpec {
+  const frames = createArtifactFrames(artifact, times, cycle, artifact.frames)
   return {
-    ...product,
+    ...artifact,
     frames,
   }
 }
 
-function createProducts(args: {
-  scalarProducts: ProductId[]
-  vectorProducts: VectorProductId[]
-  overrides?: Record<string, ManifestProductSpec>
+function createManifestArtifacts(args: {
+  scalarArtifactIds: ArtifactId[]
+  vectorArtifactIds: VectorArtifactId[]
+  overrides?: Record<string, ManifestArtifactSpec>
   times: ForecastTimeSpec[]
   cycle: string
-}): Record<string, ManifestProductSpec> {
-  const products: Record<string, ManifestProductSpec> = {}
+}): Record<string, ManifestArtifactSpec> {
+  const manifestArtifacts: Record<string, ManifestArtifactSpec> = {}
 
-  for (const productId of args.scalarProducts) {
-    const override = args.overrides?.[productId]
-    const product = override ? retargetProductOverride(override, productId) : createScalarProductFixture({
-      id: productId,
+  for (const artifactId of args.scalarArtifactIds) {
+    const override = args.overrides?.[artifactId]
+    const artifact = override ? retargetArtifactOverride(override, artifactId) : createScalarArtifactFixture({
+      id: artifactId,
       times: args.times,
       cycle: args.cycle,
     })
-    products[productId] = completeProductFrames(product, args.times, args.cycle)
+    manifestArtifacts[artifactId] = completeArtifactFrames(artifact, args.times, args.cycle)
   }
 
-  for (const productId of args.vectorProducts) {
-    const override = args.overrides?.[productId]
-    const product = override ? retargetProductOverride(override, productId) : createVectorProductFixture({
-      id: productId,
+  for (const artifactId of args.vectorArtifactIds) {
+    const override = args.overrides?.[artifactId]
+    const artifact = override ? retargetArtifactOverride(override, artifactId) : createVectorArtifactFixture({
+      id: artifactId,
       times: args.times,
       cycle: args.cycle,
     })
-    products[productId] = completeProductFrames(product, args.times, args.cycle)
+    manifestArtifacts[artifactId] = completeArtifactFrames(artifact, args.times, args.cycle)
   }
 
-  return products
+  return manifestArtifacts
 }
 
-function retargetProductOverride(
-  product: ManifestProductSpec,
-  productId: ProductId
-): ManifestProductSpec {
+function retargetArtifactOverride(
+  artifact: ManifestArtifactSpec,
+  artifactId: ArtifactId
+): ManifestArtifactSpec {
   return {
-    ...product,
-    id: productId,
+    ...artifact,
+    id: artifactId,
   }
 }
 
@@ -287,41 +287,41 @@ export function createManifestFixture(
     overrides.forecastHours ?? DEFAULT_FORECAST_HOURS,
     cycle
   )
-  const scalarProductIds = overrides.scalarProducts ?? productIdsByKind(overrides.products, 'scalar')
-  const vectorProductIds = overrides.vectorProducts ?? productIdsByKind(overrides.products, 'vector')
-  const defaultScalarProductIds = (
-    overrides.scalarProducts === undefined
-    && overrides.products === undefined
-    && scalarProductIds.length === 0
+  const scalarArtifactIdValues = overrides.scalarArtifactIds ?? artifactIdsByKind(overrides.artifacts, 'scalar')
+  const vectorArtifactIdValues = overrides.vectorArtifactIds ?? artifactIdsByKind(overrides.artifacts, 'vector')
+  const defaultScalarArtifactIdValues = (
+    overrides.scalarArtifactIds === undefined
+    && overrides.artifacts === undefined
+    && scalarArtifactIdValues.length === 0
   )
     ? [FIXTURE_SCALAR_ID]
-    : scalarProductIds
-  const defaultVectorProductIds = (
-    overrides.vectorProducts === undefined
-    && overrides.products === undefined
-    && vectorProductIds.length === 0
+    : scalarArtifactIdValues
+  const defaultVectorArtifactIdValues = (
+    overrides.vectorArtifactIds === undefined
+    && overrides.artifacts === undefined
+    && vectorArtifactIdValues.length === 0
   )
     ? [FIXTURE_VECTOR_ID]
-    : vectorProductIds
-  if (defaultScalarProductIds.length + defaultVectorProductIds.length < 1) {
-    throw new Error('createManifestFixture requires at least one product id')
+    : vectorArtifactIdValues
+  if (defaultScalarArtifactIdValues.length + defaultVectorArtifactIdValues.length < 1) {
+    throw new Error('createManifestFixture requires at least one artifact id')
   }
-  const scalarProducts = toProductIds<ProductId>(
-    defaultScalarProductIds,
-    asProductId,
+  const scalarArtifactIds = toArtifactIds<ArtifactId>(
+    defaultScalarArtifactIdValues,
+    asArtifactId,
   )
-  const vectorProducts = toProductIds<VectorProductId>(
-    defaultVectorProductIds,
-    asVectorProductId,
+  const vectorArtifactIds = toArtifactIds<VectorArtifactId>(
+    defaultVectorArtifactIdValues,
+    asVectorArtifactId,
   )
-  const products = createProducts({
-    scalarProducts,
-    vectorProducts,
-    overrides: overrides.products,
+  const manifestArtifacts = createManifestArtifacts({
+    scalarArtifactIds,
+    vectorArtifactIds,
+    overrides: overrides.artifacts,
     times,
     cycle,
   })
-  const productsByKind = deriveProductsByKind(products)
+  const artifactsByKind = deriveArtifactsByKind(manifestArtifacts)
 
   return {
     schema: MANIFEST_SCHEMA,
@@ -334,8 +334,8 @@ export function createManifestFixture(
       revision,
     },
     times,
-    products,
-    productsByKind,
+    artifacts: manifestArtifacts,
+    artifactsByKind,
   }
 }
 
@@ -358,7 +358,7 @@ function toCycleManifestPayload(
     model: manifest.model,
     run: manifest.run,
     times: manifest.times,
-    products: manifest.products,
+    artifacts: manifest.artifacts,
   }
 }
 
@@ -368,15 +368,15 @@ export function createCycleManifestPayloadFixture(
   return toCycleManifestPayload(createFrameManifestFixture(overrides))
 }
 
-function deriveProductsByKind(
-  products: Record<string, ManifestProductSpec>
-): Record<string, NonEmptyArray<ProductId>> {
-  const byKind: Record<string, ProductId[]> = {}
-  for (const product of Object.values(products)) {
-    byKind[product.kind] ??= []
-    byKind[product.kind].push(asProductId(product.id))
+function deriveArtifactsByKind(
+  artifacts: Record<string, ManifestArtifactSpec>
+): Record<string, NonEmptyArray<ArtifactId>> {
+  const byKind: Record<string, ArtifactId[]> = {}
+  for (const artifact of Object.values(artifacts)) {
+    byKind[artifact.kind] ??= []
+    byKind[artifact.kind].push(asArtifactId(artifact.id))
   }
   return Object.fromEntries(
-    Object.entries(byKind).map(([kind, ids]) => [kind, ids as NonEmptyArray<ProductId>])
+    Object.entries(byKind).map(([kind, ids]) => [kind, ids as NonEmptyArray<ArtifactId>])
   )
 }

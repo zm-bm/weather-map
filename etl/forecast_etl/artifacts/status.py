@@ -9,7 +9,7 @@ from typing import Any
 
 from ..config.resolved import ModelConfig
 from ..storage.base import UriObject, UriStore
-from .markers_schema import parse_product_success_marker
+from .markers_schema import parse_artifact_success_marker
 from .paths import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX, ArtifactPaths
 from .repository import ArtifactRepository
 
@@ -43,19 +43,19 @@ class CycleProgress:
         return self.expected_markers > 0 and self.missing_markers == 0 and not self.invalid_marker_sample
 
 
-def expected_success_marker_ids(*, product_ids: Iterable[str], fhours: Iterable[str]) -> set[str]:
-    """Return expected status marker ids as {product_id}/{fhour}."""
+def expected_success_marker_ids(*, artifact_ids: Iterable[str], fhours: Iterable[str]) -> set[str]:
+    """Return expected status marker ids as {artifact_id}/{fhour}."""
 
-    return {f"{product_id}/{fhour}" for product_id in product_ids for fhour in fhours}
+    return {f"{artifact_id}/{fhour}" for artifact_id in artifact_ids for fhour in fhours}
 
 
 def success_marker_id_from_key(*, model_id: str, cycle: str, key: str) -> str | None:
-    """Return {product_id}/{fhour} for a success marker key, or None."""
+    """Return {artifact_id}/{fhour} for a success marker key, or None."""
 
     parts = key.split("/")
     if len(parts) != 5:
         return None
-    status_part, key_model, key_cycle, product_id, filename = parts
+    status_part, key_model, key_cycle, artifact_id, filename = parts
     if status_part != "status" or key_model != model_id or key_cycle != cycle:
         return None
     if not filename.endswith(SUCCESS_MARKER_SUFFIX):
@@ -63,7 +63,7 @@ def success_marker_id_from_key(*, model_id: str, cycle: str, key: str) -> str | 
     fhour = filename[: -len(SUCCESS_MARKER_SUFFIX)]
     if not fhour:
         return None
-    return f"{product_id}/{fhour}"
+    return f"{artifact_id}/{fhour}"
 
 
 def published_marker_key(*, model_id: str, cycle: str) -> str:
@@ -79,7 +79,7 @@ def summarize_cycle_progress(
     artifact_root_uri: str,
     model_id: str,
     cycle: str,
-    product_ids: Iterable[str],
+    artifact_ids: Iterable[str],
     fhours: Iterable[str],
     objects: Iterable[UriObject],
     read_json: Callable[[str], Mapping[str, Any]],
@@ -107,7 +107,7 @@ def summarize_cycle_progress(
         if marker_id is not None
     }
 
-    expected = expected_success_marker_ids(product_ids=product_ids, fhours=fhours)
+    expected = expected_success_marker_ids(artifact_ids=artifact_ids, fhours=fhours)
     found = set(marker_by_id) & expected
     missing = sorted(expected - found)
     invalid = _invalid_marker_sample(
@@ -152,7 +152,7 @@ def read_cycle_progress(
         artifact_root_uri=paths.artifact_root_uri,
         model_id=model.id,
         cycle=cycle,
-        product_ids=model.workload.products,
+        artifact_ids=model.workload.artifacts,
         fhours=model.workload.forecast_hours,
         objects=artifacts.list_status_objects(model_id=model.id, cycle=cycle),
         read_json=artifacts.read_json_uri,
@@ -173,7 +173,7 @@ def _invalid_marker_sample(
     for marker_id in sorted(found)[:limit]:
         obj = marker_by_id[marker_id]
         try:
-            parse_product_success_marker(read_json(obj.uri), uri=obj.uri)
+            parse_artifact_success_marker(read_json(obj.uri), uri=obj.uri)
         except (Exception, SystemExit):
             invalid.append(marker_id)
     return invalid

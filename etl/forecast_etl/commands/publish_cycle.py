@@ -14,12 +14,12 @@ def publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str, stor
     """Publish the manifest for a processed model cycle."""
 
     resolved_store = store if store is not None else make_store()
-    artifacts = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
+    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
     run_publish(
         ctx=ctx,
         cycle=cycle,
         model_label=model.label,
-        product_ids=model.workload.products,
-        products=model.products,
-        artifacts=artifacts,
+        artifact_ids=model.workload.artifacts,
+        artifact_specs=model.artifacts,
+        artifact_repo=artifact_repo,
     )

@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { FieldFrameWindowData } from '../../forecast-frame'
+import type { FieldInterpolationWindowData } from '../../forecast-data'
 
-export type FieldController = MapFrameController<FieldFrameWindowData>
+export type FieldController = MapFrameController<FieldInterpolationWindowData>
 
 const controllers = createMapControllerRegistry<FieldController>()
 

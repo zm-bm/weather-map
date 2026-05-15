@@ -16,14 +16,14 @@ from ._types import (
 
 SOURCE_TYPE_GFS_NOMADS = "gfs_nomads"
 SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL = "icon_dwd_icosahedral"
-ProductKind: TypeAlias = Literal["scalar", "vector"]
+ArtifactKind: TypeAlias = Literal["scalar", "vector"]
 
 
 class WorkloadConfig(ConfigModel):
-    """Resolved product and forecast-hour selection for one model."""
+    """Resolved artifact and forecast-hour selection for one model."""
 
     forecast_hours: UniqueNonEmptyStringTuple
-    products: UniqueNonEmptyStringTuple
+    artifacts: UniqueNonEmptyStringTuple
 
 
 class NomadsConfig(ConfigModel):
@@ -69,14 +69,14 @@ ModelSourceConfig: TypeAlias = Annotated[
 
 
 class ComponentSpec(ConfigModel):
-    """Resolved product component and its GRIB metadata selector."""
+    """Resolved artifact component and its GRIB metadata selector."""
 
     id: NonEmptyStr
     grib_match: NonEmptyStringMap | None = None
 
 
 class EncodingSpec(ConfigModel):
-    """Resolved binary payload encoding contract for one product."""
+    """Resolved binary payload encoding contract for one artifact."""
 
     id: NonEmptyStr
     format: NonEmptyStr
@@ -87,11 +87,11 @@ class EncodingSpec(ConfigModel):
     nodata: int | None = None
 
 
-class ProductCatalogSpec(ConfigModel):
-    """Reusable product definition before model-specific GRIB selectors."""
+class ArtifactCatalogSpec(ConfigModel):
+    """Reusable artifact definition before model-specific GRIB selectors."""
 
     id: NonEmptyStr
-    kind: ProductKind
+    kind: ArtifactKind
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
@@ -100,50 +100,50 @@ class ProductCatalogSpec(ConfigModel):
     component_ids: UniqueNonEmptyStringTuple
 
 
-class ProductTemporalSpec(ConfigModel):
-    """Temporal semantics for a resolved model product."""
+class ArtifactTemporalSpec(ConfigModel):
+    """Temporal semantics for a resolved model artifact."""
 
     kind: NonEmptyStr
     source_interval_hours: FiniteNumber | None = None
 
 
 class DerivationInputSpec(ConfigModel):
-    """Resolved source input for a product derivation."""
+    """Resolved source input for an artifact derivation."""
 
     id: NonEmptyStr
     grib_match: NonEmptyStringMap
 
 
-class ProductDerivationSpec(ConfigModel):
-    """Source derivation contract for a resolved model product."""
+class ArtifactDerivationSpec(ConfigModel):
+    """Source derivation contract for a resolved model artifact."""
 
     type: NonEmptyStr
     first_hour_previous: NonEmptyStr | None = None
     inputs: tuple[DerivationInputSpec, ...] = ()
 
 
-class ModelProductSpec(ConfigModel):
-    """Model-specific GRIB selectors for a catalog product."""
+class ModelArtifactSpec(ConfigModel):
+    """Model-specific GRIB selectors for a catalog artifact."""
 
-    product_id: NonEmptyStr
+    artifact_id: NonEmptyStr
     component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap | None]
-    temporal: ProductTemporalSpec | None = None
-    derivation: ProductDerivationSpec | None = None
+    temporal: ArtifactTemporalSpec | None = None
+    derivation: ArtifactDerivationSpec | None = None
 
 
-class ProductSpec(ConfigModel):
-    """Fully resolved product ready for extraction, encoding, and publishing."""
+class ArtifactSpec(ConfigModel):
+    """Fully resolved artifact ready for extraction, encoding, and publishing."""
 
     id: NonEmptyStr
-    kind: ProductKind
+    kind: ArtifactKind
     parameter: NonEmptyStr
     level: NonEmptyStr
     units: NonEmptyStr
     source_transform: NonEmptyStr
     encoding: EncodingSpec
     components: tuple[ComponentSpec, ...]
-    temporal: ProductTemporalSpec | None = None
-    derivation: ProductDerivationSpec | None = None
+    temporal: ArtifactTemporalSpec | None = None
+    derivation: ArtifactDerivationSpec | None = None
 
     @property
     def component_ids(self) -> tuple[str, ...]:
@@ -159,14 +159,14 @@ class ModelConfig(ConfigModel):
     label: NonEmptyStr
     source: ModelSourceConfig
     workload: WorkloadConfig
-    model_products: dict[str, ModelProductSpec]
-    products: dict[str, ProductSpec]
+    model_artifacts: dict[str, ModelArtifactSpec]
+    artifacts: dict[str, ArtifactSpec]
 
 
 class PipelineConfig(ConfigModel):
     """Resolved ETL config containing the catalog and all configured models."""
 
-    product_catalog: dict[str, ProductCatalogSpec]
+    artifact_catalog: dict[str, ArtifactCatalogSpec]
     models: dict[str, ModelConfig]
 
     def model(self, model_id: str) -> ModelConfig:

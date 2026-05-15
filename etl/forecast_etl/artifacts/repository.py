@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from ..storage.base import MetadataUriStore, UriObject, UriStore, UriWriteMetadata
-from .markers_schema import ProductSuccessMarker, parse_product_success_marker, product_success_marker_dict
+from .markers_schema import ArtifactSuccessMarker, artifact_success_marker_dict, parse_artifact_success_marker
 from .paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths, WorkItem
 from .published_schema import PublishedMarker, parse_published_marker
 
@@ -53,41 +53,41 @@ class ArtifactRepository:
         self._write_bytes(uri=uri, data=gzip.compress(payload, mtime=0), metadata=FIELD_PAYLOAD_METADATA)
         return uri
 
-    def write_success_marker(self, *, item: WorkItem, product: Mapping[str, Any]) -> str:
-        """Write one product success marker and return its artifact URI."""
+    def write_success_marker(self, *, item: WorkItem, artifact: Mapping[str, Any]) -> str:
+        """Write one artifact success marker and return its artifact URI."""
 
         uri = self.paths.success_marker_uri(item)
-        marker = product_success_marker_dict({
+        marker = artifact_success_marker_dict({
             "cycle": item.cycle,
             "fhour": item.fhour,
-            "product_id": item.product_id,
-            "product": dict(product),
+            "artifact_id": item.artifact_id,
+            "artifact": dict(artifact),
         })
         self._write_json(uri=uri, obj=marker, metadata=INTERNAL_JSON_METADATA, indent=None)
         return uri
 
-    def read_product_success_marker(
+    def read_artifact_success_marker(
         self,
         *,
         model_id: str,
         cycle: str,
         fhour: str,
-        product_id: str,
-    ) -> ProductSuccessMarker:
-        """Read and validate one product success marker."""
+        artifact_id: str,
+    ) -> ArtifactSuccessMarker:
+        """Read and validate one artifact success marker."""
 
         uri = self.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
             fhour=fhour,
-            product_id=product_id,
+            artifact_id=artifact_id,
         )
-        return self.read_product_success_marker_uri(uri)
+        return self.read_artifact_success_marker_uri(uri)
 
-    def read_product_success_marker_uri(self, uri: str) -> ProductSuccessMarker:
-        """Read and validate one product success marker by URI."""
+    def read_artifact_success_marker_uri(self, uri: str) -> ArtifactSuccessMarker:
+        """Read and validate one artifact success marker by URI."""
 
-        return parse_product_success_marker(self.read_json_uri(uri), uri=uri)
+        return parse_artifact_success_marker(self.read_json_uri(uri), uri=uri)
 
     def read_json_uri(self, uri: str) -> dict[str, Any]:
         """Read a JSON artifact by exact URI."""
@@ -95,7 +95,7 @@ class ArtifactRepository:
         return self._read_json(uri=uri)
 
     def list_success_marker_uris(self, *, model_id: str, cycle: str) -> set[str]:
-        """List product success marker URIs for a model cycle."""
+        """List artifact success marker URIs for a model cycle."""
 
         prefix = self.paths.status_prefix_uri(model_id=model_id, cycle=cycle)
         return {uri for uri in self.store.list_prefix(prefix_uri=prefix) if uri.endswith(SUCCESS_MARKER_SUFFIX)}
@@ -111,14 +111,14 @@ class ArtifactRepository:
         model_id: str,
         cycle: str,
         fhours: Iterable[str],
-        product_ids: Iterable[str],
+        artifact_ids: Iterable[str],
     ) -> list[str]:
-        """Return expected product success markers missing from storage."""
+        """Return expected artifact success markers missing from storage."""
 
         existing = self.list_success_marker_uris(model_id=model_id, cycle=cycle)
         expected = {
-            self.paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, product_id=product_id)
-            for product_id in product_ids
+            self.paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, artifact_id=artifact_id)
+            for artifact_id in artifact_ids
             for fhour in fhours
         }
         return sorted(expected - existing)

@@ -1,11 +1,11 @@
 import type {
   CycleManifest,
   FramePayloadRef,
-  ManifestProductSpec,
-  ProductId,
+  ManifestArtifactSpec,
+  ArtifactId,
   ScalarEncodingSpec,
-  ScalarProductSpec,
-  VectorProductSpec,
+  ScalarArtifactSpec,
+  VectorArtifactSpec,
 } from '../manifest'
 import { createAbortError } from '../abort'
 import type { WeatherMapConfig } from '../config'
@@ -24,7 +24,7 @@ import {
 type ResolveArtifactArgs<D extends ArtifactKind> = {
   manifest: CycleManifest
   hourToken: string
-  artifactId: ProductId | string
+  artifactId: ArtifactId | string
   kind: D
   signal: AbortSignal
 }
@@ -36,20 +36,20 @@ type CreateArtifactLoaderArgs = {
 }
 
 export type ArtifactLoader = {
-  loadScalar: (artifactId: ProductId | string, hourToken: string) => Promise<ScalarArtifactData>
-  loadVector: (artifactId: ProductId | string, hourToken: string) => Promise<VectorArtifactData>
+  loadScalar: (artifactId: ArtifactId | string, hourToken: string) => Promise<ScalarArtifactData>
+  loadVector: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorArtifactData>
 }
 
-type ArtifactProductMap = {
-  scalar: ScalarProductSpec
-  vector: VectorProductSpec
+type ArtifactSpecByKind = {
+  scalar: ScalarArtifactSpec
+  vector: VectorArtifactSpec
 }
 
 type ResolvedArtifact<D extends ArtifactKind> = {
   artifactId: string
   hourToken: string
   frameRef: FramePayloadRef
-  artifact: ArtifactProductMap[D]
+  artifact: ArtifactSpecByKind[D]
 }
 
 export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLoader {
@@ -171,19 +171,19 @@ function resolveArtifact<D extends ArtifactKind>(
   args: {
     manifest: CycleManifest
     hourToken: string
-    artifactId: ProductId | string
+    artifactId: ArtifactId | string
     kind: D
   }
 ): ResolvedArtifact<D> {
   const hourToken = normalizeArtifactHourToken(args.hourToken)
   const artifactId = String(args.artifactId)
-  const artifact = resolveArtifactProduct(args.manifest, artifactId, args.kind)
+  const artifact = resolveArtifactSpec(args.manifest, artifactId, args.kind)
   const frameRef = resolveArtifactFrameRef(artifact, hourToken, artifactId, args.kind)
   return { artifactId, hourToken, artifact, frameRef }
 }
 
 function resolveArtifactFrameRef(
-  artifact: ManifestProductSpec,
+  artifact: ManifestArtifactSpec,
   hourToken: string,
   artifactId: string,
   kind: ArtifactKind
@@ -194,19 +194,19 @@ function resolveArtifactFrameRef(
   )
 }
 
-function resolveArtifactProduct<D extends ArtifactKind>(
+function resolveArtifactSpec<D extends ArtifactKind>(
   manifest: CycleManifest,
   artifactId: string,
   kind: D
-): ArtifactProductMap[D] {
+): ArtifactSpecByKind[D] {
   const artifact = requiredValue(
-    manifest.products[artifactId],
+    manifest.artifacts[artifactId],
     `No ${kind} artifact metadata for ${artifactId}`
   )
   if (artifact.kind !== kind) {
     throw new Error(`Artifact ${artifactId} is not ${kind} (got ${artifact.kind})`)
   }
-  return artifact as ArtifactProductMap[D]
+  return artifact as ArtifactSpecByKind[D]
 }
 
 function assertSupportedScalarArtifact(resolved: ResolvedArtifact<'scalar'>): void {

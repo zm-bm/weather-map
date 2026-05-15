@@ -61,10 +61,10 @@ const mocks = vi.hoisted(() => {
       loading,
       value: rawValue,
     })),
-    getForecastFieldFrame: vi.fn(),
+    getForecastFieldData: vi.fn(),
     createLayerProbeSampler: vi.fn(),
-    sampleFieldFrameWindowWithSampler: vi.fn(),
-    subscribeForecastFieldFrame: vi.fn(),
+    sampleFieldInterpolationWindowWithSampler: vi.fn(),
+    subscribeForecastFieldData: vi.fn(),
     forecastProbeFrameListener: null as ((frame: unknown) => void) | null,
   }
 })
@@ -81,17 +81,17 @@ vi.mock('../../forecast-probe', async () => {
 
   return {
     ...actual,
-    forecastFieldFrameStore: {
-      getCurrent: () => mocks.getForecastFieldFrame(),
+    forecastFieldDataStore: {
+      getCurrent: () => mocks.getForecastFieldData(),
       subscribe: (listener: (frame: unknown) => void) => {
         mocks.forecastProbeFrameListener = listener
-        mocks.subscribeForecastFieldFrame(listener)
+        mocks.subscribeForecastFieldData(listener)
         return vi.fn()
       },
     },
     layerProbe: {
       createPointSampler: mocks.createLayerProbeSampler,
-      sampleFrameWindowWithSampler: mocks.sampleFieldFrameWindowWithSampler,
+      sampleInterpolationWindowWithSampler: mocks.sampleFieldInterpolationWindowWithSampler,
     },
     useForecastProbeValueFormatter: () => mocks.formatProbeDisplay,
   }
@@ -242,13 +242,13 @@ describe('ForecastPlaceProbes', () => {
       mix: 0,
     }
     mocks.formatProbeDisplay.mockClear()
-    mocks.getForecastFieldFrame.mockReset()
-    mocks.getForecastFieldFrame.mockImplementation(() => mocks.frame)
+    mocks.getForecastFieldData.mockReset()
+    mocks.getForecastFieldData.mockImplementation(() => mocks.frame)
     mocks.createLayerProbeSampler.mockReset()
     mocks.createLayerProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
-    mocks.sampleFieldFrameWindowWithSampler.mockReset()
-    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(20)
-    mocks.subscribeForecastFieldFrame.mockClear()
+    mocks.sampleFieldInterpolationWindowWithSampler.mockReset()
+    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(20)
+    mocks.subscribeForecastFieldData.mockClear()
     mocks.forecastProbeFrameListener = null
   })
 
@@ -350,7 +350,7 @@ describe('ForecastPlaceProbes', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(1)
 
-    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
         lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
@@ -517,7 +517,7 @@ describe('ForecastPlaceProbes', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
 
-    mocks.sampleFieldFrameWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
         lower: { layerId: 'tmp_surface', grid: mocks.testGrid },

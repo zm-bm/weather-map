@@ -1,4 +1,4 @@
-"""Build frontend manifest sections from product success markers."""
+"""Build frontend manifest sections from artifact success markers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Any, Iterable, Mapping
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ProductSpec
+from ..config.resolved import ArtifactSpec
 from ..cycles import cycle_datetime
 from ..validation import validated_dict
 from .constants import (
@@ -14,65 +14,65 @@ from .constants import (
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
-from .marker_inputs import product_manifest_inputs_from_markers
+from .marker_inputs import artifact_manifest_inputs_from_markers
 from .revision import compute_manifest_revision
 from .schema import (
-    ManifestProduct,
+    ManifestArtifact,
     cycle_manifest,
     manifest_time,
 )
 
 
-def build_manifest_products(
+def build_manifest_artifacts(
     *,
-    artifacts: ArtifactRepository,
+    artifact_repo: ArtifactRepository,
     model_id: str,
     cycle: str,
     fhours: Iterable[str],
-    product_ids: Iterable[str],
-    products: Mapping[str, ProductSpec],
+    artifact_ids: Iterable[str],
+    artifact_specs: Mapping[str, ArtifactSpec],
 ) -> dict[str, dict[str, Any]]:
-    """Build manifest product entries from success markers and product config."""
+    """Build manifest artifact entries from success markers and artifact config."""
 
-    manifest_products: dict[str, dict[str, Any]] = {}
+    manifest_artifacts: dict[str, dict[str, Any]] = {}
     fhours = tuple(str(fhour) for fhour in fhours)
 
-    for product_id in product_ids:
-        product = products.get(product_id)
-        if product is None:
-            raise SystemExit(f"Missing product config for product {product_id!r}")
+    for artifact_id in artifact_ids:
+        artifact = artifact_specs.get(artifact_id)
+        if artifact is None:
+            raise SystemExit(f"Missing artifact config for artifact {artifact_id!r}")
 
-        marker_inputs = product_manifest_inputs_from_markers(
-            artifacts=artifacts,
+        marker_inputs = artifact_manifest_inputs_from_markers(
+            artifact_repo=artifact_repo,
             model_id=model_id,
             cycle=cycle,
             fhours=fhours,
-            product_id=product_id,
-            product=product,
+            artifact_id=artifact_id,
+            artifact=artifact,
         )
-        product_entry: dict[str, Any] = {
-            "id": product_id,
-            "kind": product.kind,
-            "units": product.units,
-            "parameter": product.parameter,
-            "level": product.level,
-            "components": product.component_ids,
+        artifact_entry: dict[str, Any] = {
+            "id": artifact_id,
+            "kind": artifact.kind,
+            "units": artifact.units,
+            "parameter": artifact.parameter,
+            "level": artifact.level,
+            "components": artifact.component_ids,
             "grid": marker_inputs.grid,
             "encoding": marker_inputs.encoding,
             "frames": marker_inputs.frames,
         }
-        if product.temporal is not None:
-            product_entry["temporalKind"] = product.temporal.kind
-            if product.temporal.source_interval_hours is not None:
-                product_entry["sourceIntervalHours"] = product.temporal.source_interval_hours
-        manifest_products[product_id] = validated_dict(
-            ManifestProduct,
-            product_entry,
+        if artifact.temporal is not None:
+            artifact_entry["temporalKind"] = artifact.temporal.kind
+            if artifact.temporal.source_interval_hours is not None:
+                artifact_entry["sourceIntervalHours"] = artifact.temporal.source_interval_hours
+        manifest_artifacts[artifact_id] = validated_dict(
+            ManifestArtifact,
+            artifact_entry,
             by_alias=True,
             exclude_none=True,
         )
 
-    return manifest_products
+    return manifest_artifacts
 
 
 def build_cycle_manifest(
@@ -82,7 +82,7 @@ def build_cycle_manifest(
     cycle: str,
     generated_at: str,
     fhours: Iterable[str],
-    products: Mapping[str, Mapping[str, Any]],
+    artifacts: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
     """Build a complete cycle manifest and compute its stable revision."""
 
@@ -100,7 +100,7 @@ def build_cycle_manifest(
         },
         "run": run,
         "times": _manifest_times(cycle=cycle, fhours=fhours),
-        "products": products,
+        "artifacts": artifacts,
     }
     run["revision"] = compute_manifest_revision(manifest_obj)
     return cycle_manifest(manifest_obj)

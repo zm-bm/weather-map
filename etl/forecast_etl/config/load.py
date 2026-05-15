@@ -9,15 +9,15 @@ from ..storage.base import UriStore
 from ..storage.routing import make_store
 from ._types import parse_config_model
 from .input import ModelConfigInput, PipelineConfigInput
-from .resolved import ModelConfig, PipelineConfig, ProductCatalogSpec
+from .resolved import ArtifactCatalogSpec, ModelConfig, PipelineConfig
 from .validate import (
-    parse_model_product_spec,
+    parse_artifact_catalog_spec,
+    parse_model_artifact_spec,
     parse_model_source_config,
-    parse_product_catalog_spec,
     parse_workload_config,
-    resolve_product_spec,
-    validate_model_products_for_source,
-    validate_workload_products,
+    resolve_artifact_spec,
+    validate_model_artifacts_for_source,
+    validate_workload_artifacts,
 )
 
 
@@ -25,18 +25,18 @@ def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
     """Parse raw config JSON into a fully resolved `PipelineConfig`."""
 
     raw = parse_config_model(PipelineConfigInput, obj)
-    product_catalog = {
-        product_id: parse_product_catalog_spec(product_id=product_id, raw=product_cfg)
-        for product_id, product_cfg in raw.product_catalog.items()
+    artifact_catalog = {
+        artifact_id: parse_artifact_catalog_spec(artifact_id=artifact_id, raw=artifact_cfg)
+        for artifact_id, artifact_cfg in raw.artifact_catalog.items()
     }
 
     return PipelineConfig(
-        product_catalog=product_catalog,
+        artifact_catalog=artifact_catalog,
         models={
             model_id: _parse_model_config(
                 model_id=model_id,
                 raw=model_cfg,
-                product_catalog=product_catalog,
+                artifact_catalog=artifact_catalog,
             )
             for model_id, model_cfg in raw.models.items()
         },
@@ -47,39 +47,39 @@ def _parse_model_config(
     *,
     model_id: str,
     raw: ModelConfigInput,
-    product_catalog: Mapping[str, ProductCatalogSpec],
+    artifact_catalog: Mapping[str, ArtifactCatalogSpec],
 ) -> ModelConfig:
-    """Resolve one raw model config against the shared product catalog."""
+    """Resolve one raw model config against the shared artifact catalog."""
 
     source = parse_model_source_config(raw.source)
     workload = parse_workload_config(raw.workload)
-    validate_workload_products(product_ids=workload.products, products=product_catalog)
+    validate_workload_artifacts(artifact_ids=workload.artifacts, artifacts=artifact_catalog)
 
-    model_products = {}
-    resolved_products = {}
-    for product_id in workload.products:
-        catalog_product = product_catalog[product_id]
-        raw_model_product = raw.products.get(product_id)
-        if raw_model_product is None:
-            raise SystemExit(f"models.{model_id}.products missing product {product_id!r}")
-        model_product = parse_model_product_spec(
-            product_id=product_id,
-            raw=raw_model_product,
-            catalog_product=catalog_product,
+    model_artifacts = {}
+    resolved_artifacts = {}
+    for artifact_id in workload.artifacts:
+        catalog_artifact = artifact_catalog[artifact_id]
+        raw_model_artifact = raw.artifacts.get(artifact_id)
+        if raw_model_artifact is None:
+            raise SystemExit(f"models.{model_id}.artifacts missing artifact {artifact_id!r}")
+        model_artifact = parse_model_artifact_spec(
+            artifact_id=artifact_id,
+            raw=raw_model_artifact,
+            catalog_artifact=catalog_artifact,
         )
-        model_products[product_id] = model_product
-        resolved_products[product_id] = resolve_product_spec(
-            catalog_product=catalog_product,
-            model_product=model_product,
+        model_artifacts[artifact_id] = model_artifact
+        resolved_artifacts[artifact_id] = resolve_artifact_spec(
+            catalog_artifact=catalog_artifact,
+            model_artifact=model_artifact,
         )
 
-    unknown_model_products = sorted(set(raw.products) - set(workload.products))
-    if unknown_model_products:
-        raise SystemExit(f"models.{model_id}.products contains products not in workload: {unknown_model_products!r}")
-    validate_model_products_for_source(
+    unknown_model_artifacts = sorted(set(raw.artifacts) - set(workload.artifacts))
+    if unknown_model_artifacts:
+        raise SystemExit(f"models.{model_id}.artifacts contains artifacts not in workload: {unknown_model_artifacts!r}")
+    validate_model_artifacts_for_source(
         model_id=model_id,
         source=source,
-        model_products=model_products,
+        model_artifacts=model_artifacts,
     )
 
     return ModelConfig(
@@ -87,8 +87,8 @@ def _parse_model_config(
         label=raw.label,
         source=source,
         workload=workload,
-        model_products=model_products,
-        products=resolved_products,
+        model_artifacts=model_artifacts,
+        artifacts=resolved_artifacts,
     )
 
 

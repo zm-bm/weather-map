@@ -22,18 +22,18 @@ from .resolved import SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL
 class PipelineConfigInput(ConfigModel):
     """Raw top-level `etl_config.json` shape."""
 
-    version: Literal[2]
-    product_catalog: dict[NonEmptyStr, Any] = Field(min_length=1)
+    version: Literal[3]
+    artifact_catalog: dict[NonEmptyStr, Any] = Field(min_length=1)
     models: dict[NonEmptyStr, "ModelConfigInput"] = Field(min_length=1)
 
 
 class ModelConfigInput(ConfigModel):
-    """Raw model config before catalog products are resolved."""
+    """Raw model config before catalog artifacts are resolved."""
 
     label: NonEmptyStr
     source: dict[str, Any]
     workload: dict[str, Any]
-    products: dict[NonEmptyStr, Any] = Field(min_length=1)
+    artifacts: dict[NonEmptyStr, Any] = Field(min_length=1)
 
 
 class WorkloadInput(ConfigModel):
@@ -41,7 +41,7 @@ class WorkloadInput(ConfigModel):
 
     forecast_hour_start: ForecastHourInt
     forecast_hour_end: ForecastHourInt
-    products: UniqueNonEmptyStringTuple
+    artifacts: UniqueNonEmptyStringTuple
 
     @model_validator(mode="after")
     def _validate_range(self) -> "WorkloadInput":
@@ -88,8 +88,8 @@ class ModelSourceInputEnvelope(ConfigModel):
     source: ModelSourceInput
 
 
-class ProductBaseInput(ConfigModel):
-    """Raw product fields shared by catalog and resolved product fixtures."""
+class ArtifactBaseInput(ConfigModel):
+    """Raw artifact fields shared by catalog and resolved artifact fixtures."""
 
     kind: Literal["scalar", "vector"]
     parameter: NonEmptyStr
@@ -99,7 +99,7 @@ class ProductBaseInput(ConfigModel):
     source_transform: NonEmptyStr = SOURCE_TRANSFORM_IDENTITY
 
     @model_validator(mode="after")
-    def _validate_product_fields(self) -> "ProductBaseInput":
+    def _validate_artifact_fields(self) -> "ArtifactBaseInput":
         if self.source_transform not in SOURCE_TRANSFORMS:
             raise ValueError(f"source_transform must be one of {sorted(SOURCE_TRANSFORMS)!r}")
         return self
@@ -109,46 +109,46 @@ class CatalogComponentInput(ConfigModel):
     id: NonEmptyStr
 
 
-class ProductComponentInput(ConfigModel):
+class ArtifactComponentInput(ConfigModel):
     id: NonEmptyStr
     grib_match: NonEmptyStringMap | None = None
 
 
-class ProductTemporalInput(ConfigModel):
+class ArtifactTemporalInput(ConfigModel):
     kind: Literal["instantaneous_rate", "average_rate", "accumulation"]
     source_interval_hours: FiniteNumber | None = None
 
     @model_validator(mode="after")
-    def _validate_interval(self) -> "ProductTemporalInput":
+    def _validate_interval(self) -> "ArtifactTemporalInput":
         if self.source_interval_hours is not None and self.source_interval_hours <= 0:
             raise ValueError("source_interval_hours must be positive when provided")
         return self
 
 
-class ProductDerivationSourceInput(ConfigModel):
+class ArtifactDerivationSourceInput(ConfigModel):
     id: NonEmptyStr
     grib_match: NonEmptyStringMap
 
 
-class ProductDerivationInput(ConfigModel):
+class ArtifactDerivationInput(ConfigModel):
     type: NonEmptyStr
     first_hour_previous: Literal["zero"] | None = None
-    inputs: tuple[ProductDerivationSourceInput, ...] = ()
+    inputs: tuple[ArtifactDerivationSourceInput, ...] = ()
 
     @model_validator(mode="after")
-    def _validate_type(self) -> "ProductDerivationInput":
+    def _validate_type(self) -> "ArtifactDerivationInput":
         if self.type not in DERIVATION_TYPES:
             raise ValueError(f"type must be one of {sorted(DERIVATION_TYPES)!r}")
         return self
 
 
-class CatalogProductInput(ProductBaseInput):
-    """Raw catalog product with component identities only."""
+class CatalogArtifactInput(ArtifactBaseInput):
+    """Raw catalog artifact with component identities only."""
 
     components: tuple[CatalogComponentInput, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _validate_components(self) -> "CatalogProductInput":
+    def _validate_components(self) -> "CatalogArtifactInput":
         _validate_unique_component_ids(tuple(component.id for component in self.components))
         return self
 
@@ -157,28 +157,28 @@ class CatalogProductInput(ProductBaseInput):
         return tuple(component.id for component in self.components)
 
 
-class ProductInput(ProductBaseInput):
-    """Raw fully-resolved product used by product fixture helpers."""
+class ArtifactInput(ArtifactBaseInput):
+    """Raw fully-resolved artifact used by artifact fixture helpers."""
 
-    components: tuple[ProductComponentInput, ...] = Field(min_length=1)
-    temporal: ProductTemporalInput | None = None
-    derivation: ProductDerivationInput | None = None
+    components: tuple[ArtifactComponentInput, ...] = Field(min_length=1)
+    temporal: ArtifactTemporalInput | None = None
+    derivation: ArtifactDerivationInput | None = None
 
     @model_validator(mode="after")
-    def _validate_components(self) -> "ProductInput":
+    def _validate_components(self) -> "ArtifactInput":
         _validate_unique_component_ids(tuple(component.id for component in self.components))
         return self
 
 
-class ModelProductInput(ConfigModel):
-    """Raw model product component-to-GRIB selector mapping."""
+class ModelArtifactInput(ConfigModel):
+    """Raw model artifact component-to-GRIB selector mapping."""
 
-    components: tuple[ProductComponentInput, ...] = Field(min_length=1)
-    temporal: ProductTemporalInput | None = None
-    derivation: ProductDerivationInput | None = None
+    components: tuple[ArtifactComponentInput, ...] = Field(min_length=1)
+    temporal: ArtifactTemporalInput | None = None
+    derivation: ArtifactDerivationInput | None = None
 
     @model_validator(mode="after")
-    def _validate_components(self) -> "ModelProductInput":
+    def _validate_components(self) -> "ModelArtifactInput":
         _validate_unique_component_ids(tuple(component.id for component in self.components))
         return self
 
@@ -191,7 +191,7 @@ class ModelProductInput(ConfigModel):
 
 
 class EncodingInput(ConfigModel):
-    """Raw encoding object from product config."""
+    """Raw encoding object from artifact config."""
 
     id: NonEmptyStr
     format: NonEmptyStr

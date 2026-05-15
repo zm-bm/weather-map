@@ -16,9 +16,9 @@ from forecast_etl.config.resolved import (
 
 
 class _FakeWorkload:
-    def __init__(self, *, forecast_hours: tuple[str, ...], products: tuple[str, ...]) -> None:
+    def __init__(self, *, forecast_hours: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
         self.forecast_hours = forecast_hours
-        self.products = products
+        self.artifacts = artifacts
 
 
 class _FakePipelineConfig:
@@ -26,10 +26,10 @@ class _FakePipelineConfig:
         self,
         *,
         forecast_hours: tuple[str, ...] = ("000", "003"),
-        products: tuple[str, ...] = ("tmp_surface",),
+        artifacts: tuple[str, ...] = ("tmp_surface",),
         rate_limit_seconds: float = 0.0,
     ) -> None:
-        self.workload = _FakeWorkload(forecast_hours=forecast_hours, products=products)
+        self.workload = _FakeWorkload(forecast_hours=forecast_hours, artifacts=artifacts)
         self.source: GfsNomadsSourceConfig | IconDwdSourceConfig = GfsNomadsSourceConfig(
             grid_id="gfs_0p25",
             nomads=NomadsConfig(
@@ -39,9 +39,9 @@ class _FakePipelineConfig:
             )
         )
         self.nomads = self.source.nomads
-        self.products = {
+        self.artifacts = {
             name: {"kind": "scalar"}
-            for name in products
+            for name in artifacts
         }
         self.id = "gfs"
         self.label = "GFS"
@@ -117,9 +117,9 @@ class CliTest(unittest.TestCase):
             run_process_hour.call_args.kwargs["source_uri"],
             "s3://noaa-gfs-bdp-pds/gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003",
         )
-        self.assertEqual(run_process_hour.call_args.kwargs["product_ids"], ("tmp_surface",))
+        self.assertEqual(run_process_hour.call_args.kwargs["artifact_ids"], ("tmp_surface",))
         self.assertEqual(
-            run_process_hour.call_args.kwargs["products"],
+            run_process_hour.call_args.kwargs["artifact_specs"],
             {"tmp_surface": {"kind": "scalar"}},
         )
         run_publish.assert_called_once()
@@ -177,7 +177,7 @@ class CliTest(unittest.TestCase):
             run_process_hour.call_args.kwargs["source_uri"],
             "https://example.test/gfs.t00z.pgrb2.0p25.f006",
         )
-        self.assertEqual(run_process_hour.call_args.kwargs["product_ids"], ("tmp_surface",))
+        self.assertEqual(run_process_hour.call_args.kwargs["artifact_ids"], ("tmp_surface",))
         run_publish.assert_called_once()
 
     def test_run_cycle_processes_all_hours_and_publishes_once(self) -> None:
@@ -196,7 +196,7 @@ class CliTest(unittest.TestCase):
         processed_hours = [call.kwargs["fhour"] for call in run_process_hour.call_args_list]
         self.assertEqual(processed_hours, ["000", "003"])
         for call in run_process_hour.call_args_list:
-            self.assertEqual(call.kwargs["product_ids"], ("tmp_surface",))
+            self.assertEqual(call.kwargs["artifact_ids"], ("tmp_surface",))
         run_publish.assert_called_once()
 
     def test_run_cycle_no_publish_skips_publish(self) -> None:

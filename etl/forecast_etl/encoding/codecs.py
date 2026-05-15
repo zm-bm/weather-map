@@ -122,7 +122,7 @@ def encode_component_payload(
     nodata: int | None = None,
     value_transform: Callable[[float], float] | None = None,
 ) -> bytes:
-    """Encode one extracted float32 product component into payload bytes."""
+    """Encode one extracted float32 artifact component into payload bytes."""
     try:
         encoding_format = encoding_format_for_spec(dtype=target_dtype, explicit_format=target_format)
     except ValueError as exc:

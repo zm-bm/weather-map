@@ -1,5 +1,5 @@
 export {
-  applyForecastFrames,
+  applyForecastRenderData,
   forecastRenderers,
   installForecastRenderers,
 } from './host'

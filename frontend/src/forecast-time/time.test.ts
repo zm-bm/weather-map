@@ -5,7 +5,7 @@ import {
   forecastTimeBounds,
   initialForecastValidTimeMs,
   minuteOffsetForValidTime,
-  resolveForecastFrameWindow,
+  resolveForecastInterpolationWindow,
   stepForecastValidTimeMs,
   validTimeMsForMinuteOffset,
 } from './time'
@@ -53,8 +53,8 @@ describe('forecastTime helpers', () => {
     )).toBe(Date.UTC(2026, 3, 9, 6, 0))
   })
 
-  it('resolves exact and interpolated frame windows using actual valid times', () => {
-    expect(resolveForecastFrameWindow(TIMES, Date.UTC(2026, 3, 9, 3, 0))).toEqual({
+  it('resolves exact and interpolated valid times into interpolation windows', () => {
+    expect(resolveForecastInterpolationWindow(TIMES, Date.UTC(2026, 3, 9, 3, 0))).toEqual({
       selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 0),
       lowerHourToken: '003',
       upperHourToken: '003',
@@ -63,7 +63,7 @@ describe('forecastTime helpers', () => {
       mix: 0,
     })
 
-    const interpolated = resolveForecastFrameWindow(
+    const interpolated = resolveForecastInterpolationWindow(
       TIMES,
       Date.UTC(2026, 3, 9, 4, 30)
     )
@@ -72,12 +72,12 @@ describe('forecastTime helpers', () => {
     expect(interpolated.mix).toBeCloseTo(0.5)
   })
 
-  it('clamps arbitrary times before resolving the frame window', () => {
+  it('clamps arbitrary times before resolving the interpolation window', () => {
     expect(clampForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
       .toBe(Date.UTC(2026, 3, 9, 6, 0))
     expect(clampForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 4, 19)))
       .toBe(Date.UTC(2026, 3, 9, 4, 10))
-    expect(resolveForecastFrameWindow(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
+    expect(resolveForecastInterpolationWindow(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
       .toEqual({
         selectedValidTimeMs: Date.UTC(2026, 3, 9, 6, 0),
         lowerHourToken: '006',

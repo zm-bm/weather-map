@@ -5,10 +5,10 @@ import {
   getParticleLayerSpec,
   getLayerSpec,
 } from '../forecast-catalog'
-import { createForecastFrameTarget } from '../forecast-frame'
+import { createForecastDataTarget } from '../forecast-data'
 import { useForecastTimeContext } from '../forecast-time'
 import {
-  resolveForecastFrameWindow,
+  resolveForecastInterpolationWindow,
 } from '../forecast-time'
 import type { ForecastSyncTarget } from './types'
 
@@ -38,19 +38,19 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
       ? null
       : getParticleLayerSpec(selectedParticleLayerId, particleLayers ?? {})
 
-    const frameWindow = resolveForecastFrameWindow(
+    const interpolationWindow = resolveForecastInterpolationWindow(
       manifest.times,
       timelineState.targetTimeMs
     )
 
     return {
-      ...createForecastFrameTarget({
+      ...createForecastDataTarget({
         manifest,
         selectedLayerId,
         selectedLayer,
         selectedParticleLayerId,
         selectedParticleLayer,
-        frameWindow,
+        interpolationWindow,
         retryToken,
       }),
       sync,

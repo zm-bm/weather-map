@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { asProductId } from '../manifest'
+import { asArtifactId } from '../manifest'
 import { asLayerId, type LayerSpec } from './layer'
 import {
   createFrameManifestFixture,
-  createScalarProductFixture,
-  createVectorProductFixture,
+  createScalarArtifactFixture,
+  createVectorArtifactFixture,
 } from '../test/fixtures'
 import { getLayerMeta, getLayerStyleByPaletteId } from './display'
 
@@ -19,15 +19,15 @@ describe('layer metadata palettes', () => {
       displayRange: { min: 98_000, max: 103_500 },
       unitBehavior: 'pressure',
       legendScale: 'pressure',
-      source: { kind: 'artifact', artifactId: asProductId('prmsl_surface') },
+      source: { kind: 'artifact', artifactId: asArtifactId('prmsl_surface') },
     }
-    const product = createScalarProductFixture({
+    const artifact = createScalarArtifactFixture({
       id: 'prmsl_surface',
       units: 'Pa',
       parameter: 'prmsl',
     })
 
-    const manifest = createFrameManifestFixture({ products: { prmsl_surface: product } })
+    const manifest = createFrameManifestFixture({ artifacts: { prmsl_surface: artifact } })
 
     const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, manifest)
 
@@ -38,7 +38,7 @@ describe('layer metadata palettes', () => {
     expect(meta.colortable).toBe(getLayerStyleByPaletteId('pressure.msl.pa.v1').colortable)
   })
 
-  it('resolves first-pass direct-band product palettes', () => {
+  it('resolves first-pass direct-band layer palettes', () => {
     expect(getLayerStyleByPaletteId('snow.depth.m.v1').colortable.length).toBeGreaterThan(0)
     expect(getLayerStyleByPaletteId('atmosphere.visibility.m.v1').colortable.length).toBeGreaterThan(0)
     expect(getLayerStyleByPaletteId('atmosphere.freezing_level.m.v1').colortable.length).toBeGreaterThan(0)
@@ -65,13 +65,13 @@ describe('layer metadata palettes', () => {
       displayRange: { min: 0, max: 60 },
       unitBehavior: 'wind-speed',
       legendScale: 'stop-based',
-      source: { kind: 'derived', artifactId: asProductId('wind10m_uv'), recipe: 'wind-speed' },
+      source: { kind: 'derived', artifactId: asArtifactId('wind10m_uv'), recipe: 'wind-speed' },
       parameter: 'wind_speed',
     }
 
     const manifest = createFrameManifestFixture({
-      products: {
-        wind10m_uv: createVectorProductFixture({
+      artifacts: {
+        wind10m_uv: createVectorArtifactFixture({
           units: 'm/s',
           parameter: 'vector',
         }),
@@ -95,12 +95,12 @@ describe('layer metadata palettes', () => {
       displayRange: { min: 0, max: 1 },
       unitBehavior: 'temperature',
       legendScale: 'temperature',
-      source: { kind: 'artifact', artifactId: asProductId('tmp_surface') },
+      source: { kind: 'artifact', artifactId: asArtifactId('tmp_surface') },
     }
 
     const manifest = createFrameManifestFixture({
-      products: {
-        tmp_surface: createScalarProductFixture(),
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture(),
       },
     })
 

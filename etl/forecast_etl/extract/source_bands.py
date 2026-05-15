@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..config.resolved import ProductSpec
+from ..config.resolved import ArtifactSpec
 from ..proc import RunFn
 from ..source_adapters.base import PreparedSource
 from .grib import extract_float32_band_bytes, find_grib_band_by_metadata
@@ -14,7 +14,7 @@ from .types import ExtractedBand
 
 def extract_source_band(
     *,
-    product: ProductSpec,
+    artifact: ArtifactSpec,
     band_id: str,
     grib_match: dict[str, str],
     grid: dict[str, Any],
@@ -25,7 +25,7 @@ def extract_source_band(
     """Find and extract one configured GRIB source band as Float32 bytes."""
 
     grib_path = source.component_grib_path(
-        product_id=product.id,
+        artifact_id=artifact.id,
         component_id=band_id,
         grib_match=grib_match,
     )
@@ -44,7 +44,7 @@ def extract_source_band(
     expected_source_bytes = int(grid["nx"]) * int(grid["ny"]) * 4
     if len(source_f32_bytes) != expected_source_bytes:
         raise SystemExit(
-            f"Unexpected source band byte length for {product.id}.{band_id}: "
+            f"Unexpected source band byte length for {artifact.id}.{band_id}: "
             f"got={len(source_f32_bytes)} expected={expected_source_bytes}"
         )
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FORECAST_LAYER_BEFORE_ID } from '../types'
-import { applyFieldFrame, fieldRenderer } from './adapter'
+import { applyFieldInterpolationWindow, fieldRenderer } from './adapter'
 import { fieldRuntimeOptions } from './options'
 
 const mocks = vi.hoisted(() => ({
@@ -61,7 +61,7 @@ describe('fieldRenderer', () => {
     expect(mocks.createFieldRuntime).not.toHaveBeenCalled()
   })
 
-  it('applies a loaded field frame to the runtime controller', () => {
+  it('applies a loaded field interpolation window to the runtime controller', () => {
     const frame = { lower: { layerId: 'tmp_surface' } }
     const applyFrame = vi.fn()
     const map = {}
@@ -71,7 +71,7 @@ describe('fieldRenderer', () => {
       setEnabled: vi.fn(),
     })
 
-    applyFieldFrame(map as never, frame as never)
+    applyFieldInterpolationWindow(map as never, frame as never)
 
     expect(applyFrame).toHaveBeenCalledWith(frame)
   })
@@ -83,7 +83,7 @@ describe('fieldRenderer', () => {
       setEnabled: vi.fn(),
     })
 
-    expect(() => applyFieldFrame({} as never, { lower: { layerId: 'tmp_surface' } } as never))
+    expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'tmp_surface' } } as never))
       .toThrow('Field renderer unavailable (WebGL2 required)')
   })
 })

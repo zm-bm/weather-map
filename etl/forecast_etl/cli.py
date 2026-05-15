@@ -1,7 +1,7 @@
 """forecast_etl CLI.
 
 Subcommands:
-- run-hour: run all configured products for one (cycle, fhour)
+- run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
@@ -57,7 +57,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_run_hour = sub.add_parser(
         "run-hour",
-        help="Run one (cycle, fhour) across all configured products",
+        help="Run one (cycle, fhour) across all configured artifacts",
         parents=[runtime],
     )
     ap_run_hour.add_argument("--cycle", help="Cycle YYYYMMDDHH (falls back to $CYCLE)")

@@ -63,7 +63,7 @@ class CycleStatusTest(unittest.TestCase):
             artifact_root_uri="file:///artifacts",
             model_id="gfs",
             cycle="2026051106",
-            product_ids=("tmp",),
+            artifact_ids=("tmp",),
             fhours=("000", "003"),
             objects=objects,
             read_json=success_marker_payload_from_uri,
@@ -85,7 +85,7 @@ class CycleStatusTest(unittest.TestCase):
             artifact_root_uri="file:///artifacts",
             model_id="gfs",
             cycle="2026051106",
-            product_ids=("tmp", "rh"),
+            artifact_ids=("tmp", "rh"),
             fhours=("000", "003"),
             objects=objects,
             read_json=success_marker_payload_from_uri,
@@ -106,7 +106,7 @@ class CycleStatusTest(unittest.TestCase):
             artifact_root_uri="file:///artifacts",
             model_id="gfs",
             cycle="2026051106",
-            product_ids=("tmp",),
+            artifact_ids=("tmp",),
             fhours=("000",),
             objects=objects,
             read_json=lambda uri: invalid_success_marker_payload(cycle="2026051106", fhour="000"),
@@ -122,7 +122,7 @@ class CycleStatusTest(unittest.TestCase):
             artifacts.write_success_marker(
                 model_id=model.id,
                 cycle=cycle,
-                product_id="tmp_surface",
+                artifact_id="tmp_surface",
                 fhour="000",
             )
             artifacts.write_published_marker(

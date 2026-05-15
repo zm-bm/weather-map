@@ -26,7 +26,7 @@ async function reloadPayloadFrameCache() {
 describe('payload frame cache', () => {
   const manifest = createFrameManifestFixture({ revision: 'rev-a' })
   const nextManifest = createFrameManifestFixture({ revision: 'rev-b' })
-  const frameRef = manifest.products.tmp_surface.frames['000']!
+  const frameRef = manifest.artifacts.tmp_surface.frames['000']!
   const payload = payloadBuffer(1, 2, 3, 4)
 
   beforeEach(() => {

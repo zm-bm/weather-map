@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest'
 import {
   blendLayerValues,
   createLayerProbeSampler,
-  probeFieldFrame,
-  probeFieldFrameWindow,
-  sampleFieldFrameWindowWithSampler,
-  sampleFieldFrameWithSampler,
+  probeFieldTimeSlice,
+  probeFieldInterpolationWindow,
+  sampleFieldInterpolationWindowWithSampler,
+  sampleFieldTimeSliceWithSampler,
 } from './layer'
-import type { FieldFrameData } from '../forecast-frame'
+import type { FieldTimeSliceData } from '../forecast-data'
 
-function createFrame(values: number[]): FieldFrameData {
+function createFrame(values: number[]): FieldTimeSliceData {
   return {
     hourToken: '000',
     layerId: 'tmp_surface',
@@ -46,9 +46,9 @@ function createFrame(values: number[]): FieldFrameData {
   }
 }
 
-describe('probeFieldFrame', () => {
+describe('probeFieldTimeSlice', () => {
   it('bilinearly interpolates nearby layer values', () => {
-    const probe = probeFieldFrame(createFrame([10, 20, 30, 40]), {
+    const probe = probeFieldTimeSlice(createFrame([10, 20, 30, 40]), {
       lon: 0.5,
       lat: 0.5,
     })
@@ -58,7 +58,7 @@ describe('probeFieldFrame', () => {
   })
 
   it('skips nodata neighbors when interpolating', () => {
-    const probe = probeFieldFrame(createFrame([10, Number.NaN, 30, 50]), {
+    const probe = probeFieldTimeSlice(createFrame([10, Number.NaN, 30, 50]), {
       lon: 0.5,
       lat: 0.5,
     })
@@ -68,7 +68,7 @@ describe('probeFieldFrame', () => {
   })
 
   it('wraps longitudes across repeating grids', () => {
-    const probe = probeFieldFrame(createFrame([10, 20, 30, 40]), {
+    const probe = probeFieldTimeSlice(createFrame([10, 20, 30, 40]), {
       lon: 2.25,
       lat: 0.5,
     })
@@ -77,8 +77,8 @@ describe('probeFieldFrame', () => {
     expect(probe?.value).toBe(22.5)
   })
 
-  it('blends probe values across a layer frame window', () => {
-    const frameWindow = {
+  it('blends probe values across a layer interpolation window', () => {
+    const interpolationWindow = {
       lower: createFrame([10, 20, 30, 40]),
       upper: {
         ...createFrame([20, 30, 40, 50]),
@@ -93,13 +93,13 @@ describe('probeFieldFrame', () => {
       lon: 0.5,
       lat: 0.5,
     }
-    const probe = probeFieldFrameWindow(frameWindow, coords)
-    const sampler = createLayerProbeSampler(frameWindow.lower, coords)
+    const probe = probeFieldInterpolationWindow(interpolationWindow, coords)
+    const sampler = createLayerProbeSampler(interpolationWindow.lower, coords)
 
     expect(probe?.value).toBe(30)
     expect(probe?.mix).toBe(0.5)
     expect(sampler).not.toBeNull()
-    expect(sampleFieldFrameWindowWithSampler(frameWindow, sampler!)).toBe(probe?.value)
+    expect(sampleFieldInterpolationWindowWithSampler(interpolationWindow, sampler!)).toBe(probe?.value)
   })
 
   it('falls back to the available side when blending nodata values', () => {
@@ -108,7 +108,7 @@ describe('probeFieldFrame', () => {
     expect(blendLayerValues(null, null, 0.5)).toBeNull()
   })
 
-  it('samples a layer frame from a cached probe sampler', () => {
+  it('samples a field time slice from a cached probe sampler', () => {
     const frame = createFrame([10, Number.NaN, 30, 50])
     const coords = {
       lon: 0.5,
@@ -117,6 +117,6 @@ describe('probeFieldFrame', () => {
     const sampler = createLayerProbeSampler(frame, coords)
 
     expect(sampler).not.toBeNull()
-    expect(sampleFieldFrameWithSampler(frame, sampler!)).toBe(probeFieldFrame(frame, coords)?.value)
+    expect(sampleFieldTimeSliceWithSampler(frame, sampler!)).toBe(probeFieldTimeSlice(frame, coords)?.value)
   })
 })

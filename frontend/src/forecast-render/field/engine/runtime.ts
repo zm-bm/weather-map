@@ -20,8 +20,8 @@ import {
   type FieldController,
 } from '../controller'
 import {
-  type FieldFrameData,
-} from '../../../forecast-frame'
+  type FieldTimeSliceData,
+} from '../../../forecast-data'
 import {
   DEFAULT_FIELD_RUNTIME_OPTIONS,
   type FieldColorSamplingMode,
@@ -58,8 +58,8 @@ type FieldRendererState = {
   // Field value texture + cached colormap LUT textures.
   scalarTexture: WebGLTexture | null
   scalarTextureUpper: WebGLTexture | null
-  scalarFrameLower: FieldFrameData | null
-  scalarFrameUpper: FieldFrameData | null
+  scalarFrameLower: FieldTimeSliceData | null
+  scalarFrameUpper: FieldTimeSliceData | null
   classifierTexture: TexturePair | null
   colormapTextureInterpolated: WebGLTexture | null
   colormapTextureBanded: WebGLTexture | null
@@ -445,7 +445,7 @@ export function createFieldRuntime(
 
 function findReusableScalarTexture(
   state: FieldRendererState,
-  frame: FieldFrameData
+  frame: FieldTimeSliceData
 ): WebGLTexture | null {
   if (state.scalarFrameLower === frame) return state.scalarTexture
   if (state.scalarFrameUpper === frame) return state.scalarTextureUpper
@@ -465,8 +465,8 @@ function deleteUnusedScalarTexture(
 
 function createClassifierTexturePair(
   gl: WebGL2RenderingContext,
-  lowerFrame: FieldFrameData,
-  upperFrame: FieldFrameData,
+  lowerFrame: FieldTimeSliceData,
+  upperFrame: FieldTimeSliceData,
 ): TexturePair | null {
   const classifierOverlayId = lowerFrame.classifiedColoring?.classifierOverlayId
   if (!classifierOverlayId) return null
@@ -491,7 +491,7 @@ function createClassifierTexturePair(
 
 function createOverlayTexture(
   gl: WebGL2RenderingContext,
-  overlay: FieldFrameData['overlays'][number],
+  overlay: FieldTimeSliceData['overlays'][number],
 ): WebGLTexture | null {
   const expectedCellCount = overlay.grid.nx * overlay.grid.ny
   if (overlay.values.length !== expectedCellCount) return null
@@ -522,7 +522,7 @@ function bindTexturePair(
 
 function createFrameTexture(
   gl: WebGL2RenderingContext,
-  frame: FieldFrameData,
+  frame: FieldTimeSliceData,
 ): WebGLTexture | null {
   return createScalarTexture(
     gl,
@@ -556,7 +556,7 @@ function createScalarTexture(
 
 function createColormapTexture(
   gl: WebGL2RenderingContext,
-  frame: FieldFrameData,
+  frame: FieldTimeSliceData,
   colorSamplingMode: FieldColorSamplingMode
 ): WebGLTexture | null {
   // Build a row-based RGBA LUT atlas. Row 0 is the default layer palette;
@@ -593,7 +593,7 @@ function createColormapTexture(
   return texture
 }
 
-function createColormapKey(frame: FieldFrameData): string {
+function createColormapKey(frame: FieldTimeSliceData): string {
   // Deterministic key for LUT texture reuse.
   return JSON.stringify({
     displayRange: frame.displayRange,
@@ -602,7 +602,7 @@ function createColormapKey(frame: FieldFrameData): string {
   })
 }
 
-function colormapRowsForFrame(frame: FieldFrameData): LayerColortableStop[][] {
+function colormapRowsForFrame(frame: FieldTimeSliceData): LayerColortableStop[][] {
   return [
     frame.colortable,
     ...(frame.classifiedColoring?.classes.map((entry) => entry.colortable) ?? []),
@@ -629,7 +629,7 @@ export function buildColormapAtlasLut(
 }
 
 export function buildClassifierRowMapping(
-  classifiedColoring: FieldFrameData['classifiedColoring'] | undefined
+  classifiedColoring: FieldTimeSliceData['classifiedColoring'] | undefined
 ): ClassifierRowMapping {
   const mapping = emptyClassifierRowMapping()
   if (!classifiedColoring) return mapping

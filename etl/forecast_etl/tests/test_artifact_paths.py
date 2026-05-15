@@ -12,7 +12,7 @@ class ArtifactPathContractTest(unittest.TestCase):
             model_id="gfs",
             cycle="2026041200",
             fhour="003",
-            product_id="wind10m_uv",
+            artifact_id="wind10m_uv",
             source_uri="file:///dev/null",
         )
 

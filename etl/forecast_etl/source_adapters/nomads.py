@@ -5,7 +5,7 @@ downloads missing GRIBs into a local cache.
 
 Intended usage:
 - GFS model source acquisition downloads once per (cycle, fhour) into etl/cache/grib/gfs
-- Product execution then consumes the prepared local GRIB source
+- Artifact execution then consumes the prepared local GRIB source
 """
 
 from __future__ import annotations

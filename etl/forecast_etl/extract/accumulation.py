@@ -20,18 +20,18 @@ def accumulation_delta_rate_bytes(
     previous_bytes: bytes,
     previous_byte_order: str,
     interval_seconds: float,
-    product_id: str,
+    artifact_id: str,
     component_id: str,
 ) -> bytes:
     """Return float32 rate bytes from adjacent accumulation fields."""
 
     if len(current_bytes) != len(previous_bytes):
         raise SystemExit(
-            f"Accumulation byte length mismatch for {product_id}.{component_id}: "
+            f"Accumulation byte length mismatch for {artifact_id}.{component_id}: "
             f"current={len(current_bytes)} previous={len(previous_bytes)}"
         )
     if interval_seconds <= 0 or not math.isfinite(interval_seconds):
-        raise SystemExit(f"Invalid accumulation interval for {product_id}.{component_id}: {interval_seconds!r}")
+        raise SystemExit(f"Invalid accumulation interval for {artifact_id}.{component_id}: {interval_seconds!r}")
     if current_byte_order not in FLOAT32_BYTE_ORDERS:
         raise SystemExit(f"Unsupported current float32 byte order: {current_byte_order!r}")
     if previous_byte_order not in FLOAT32_BYTE_ORDERS:
@@ -56,7 +56,7 @@ def accumulation_delta_rate_bytes(
             delta = current_value - previous_value
             if delta < -NEGATIVE_ACCUMULATION_DELTA_TOLERANCE:
                 raise SystemExit(
-                    f"Negative accumulation delta for {product_id}.{component_id} at cell {index}: "
+                    f"Negative accumulation delta for {artifact_id}.{component_id} at cell {index}: "
                     f"current={current_value!r} previous={previous_value!r} delta={delta!r}"
                 )
             rate = max(delta, 0.0) / interval_seconds

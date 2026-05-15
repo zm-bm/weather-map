@@ -2,20 +2,20 @@ from __future__ import annotations
 
 import unittest
 
-from forecast_etl.artifacts.markers_schema import parse_product_success_marker
-from forecast_etl.tests.fixtures.artifacts import product_marker_payload
+from forecast_etl.artifacts.markers_schema import parse_artifact_success_marker
+from forecast_etl.tests.fixtures.artifacts import artifact_marker_payload
 from forecast_etl.tests.fixtures.grids import grid_meta_fixture
 
 
-class ProductSuccessMarkerTest(unittest.TestCase):
-    def test_parse_product_success_marker_normalizes_product_payload(self) -> None:
+class ArtifactSuccessMarkerTest(unittest.TestCase):
+    def test_parse_artifact_success_marker_normalizes_artifact_payload(self) -> None:
         grid = grid_meta_fixture()
-        marker = parse_product_success_marker(
+        marker = parse_artifact_success_marker(
             {
                 "cycle": "2026041200",
                 "fhour": "003",
-                "product_id": "wind10m_uv",
-                "product": product_marker_payload(
+                "artifact_id": "wind10m_uv",
+                "artifact": artifact_marker_payload(
                     payload_uri="file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
                     byte_length=24,
                     format="linear-i8-v1",
@@ -39,23 +39,23 @@ class ProductSuccessMarkerTest(unittest.TestCase):
             uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
         )
 
-        self.assertEqual(marker.product_id, "wind10m_uv")
-        self.assertEqual(marker.product.byte_length, 24)
-        self.assertEqual(marker.product.components, ("u", "v"))
-        self.assertEqual(marker.product.grid["nx"], grid["nx"])
-        self.assertFalse(hasattr(marker.product, "valid_min"))
-        self.assertFalse(hasattr(marker.product, "style"))
+        self.assertEqual(marker.artifact_id, "wind10m_uv")
+        self.assertEqual(marker.artifact.byte_length, 24)
+        self.assertEqual(marker.artifact.components, ("u", "v"))
+        self.assertEqual(marker.artifact.grid["nx"], grid["nx"])
+        self.assertFalse(hasattr(marker.artifact, "valid_min"))
+        self.assertFalse(hasattr(marker.artifact, "style"))
 
-    def test_parse_product_success_marker_requires_product_payload(self) -> None:
+    def test_parse_artifact_success_marker_requires_artifact_payload(self) -> None:
         with self.assertRaises(SystemExit) as raised:
-            parse_product_success_marker(
+            parse_artifact_success_marker(
                 {
                     "cycle": "2026041200",
                     "fhour": "003",
-                    "product_id": "tmp_surface",
+                    "artifact_id": "tmp_surface",
                 },
                 uri="file:///tmp/out/status/gfs/2026041200/tmp_surface/003._SUCCESS.json",
             )
 
-        self.assertIn("product", str(raised.exception))
+        self.assertIn("artifact", str(raised.exception))
         self.assertIn("Field required", str(raised.exception))

@@ -1,7 +1,7 @@
 import type {
   CycleManifest,
   FramePayloadRef,
-  ManifestProductSpec,
+  ManifestArtifactSpec,
 } from '../manifest'
 import type { WeatherMapConfig } from '../config'
 import { createAbortError } from '../abort'
@@ -17,7 +17,7 @@ import type { ArtifactKind } from './types'
 type ResolvedArtifactPayload = {
   artifactId: string
   hourToken: string
-  artifact: ManifestProductSpec
+  artifact: ManifestArtifactSpec
   frameRef: FramePayloadRef
 }
 
@@ -150,7 +150,7 @@ async function fetchFramePayloadBuffer(args: {
 }
 
 function assertPayloadSize(args: {
-  artifact: ManifestProductSpec
+  artifact: ManifestArtifactSpec
   hourToken: string
   actualByteLength: number
   expectedFrameByteLength: number

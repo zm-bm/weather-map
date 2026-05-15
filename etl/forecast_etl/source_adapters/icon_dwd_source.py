@@ -49,26 +49,26 @@ def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
     """Return the unique ICON parameters required by the model workload."""
 
     params: set[str] = set()
-    for product_id in model.workload.products:
-        product = model.products.get(product_id)
-        if product is None:
-            raise SystemExit(f"Unknown ICON workload product: {product_id}")
-        for component in product.components:
+    for artifact_id in model.workload.artifacts:
+        artifact = model.artifacts.get(artifact_id)
+        if artifact is None:
+            raise SystemExit(f"Unknown ICON workload artifact: {artifact_id}")
+        for component in artifact.components:
             if component.grib_match is None:
                 continue
             params.add(
                 icon_param_from_grib_match(
-                    product_id=product_id,
+                    artifact_id=artifact_id,
                     selector_id=getattr(component, "id", None),
                     grib_match=component.grib_match,
                 )
             )
-        derivation = getattr(product, "derivation", None)
+        derivation = getattr(artifact, "derivation", None)
         if derivation is not None:
             for input_item in getattr(derivation, "inputs", ()):
                 params.add(
                     icon_param_from_grib_match(
-                        product_id=product_id,
+                        artifact_id=artifact_id,
                         selector_id=input_item.id,
                         grib_match=input_item.grib_match,
                     )
@@ -80,19 +80,19 @@ def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
     """Return ICON parameters needed from the previous forecast hour."""
 
     params: set[str] = set()
-    for product_id in model.workload.products:
-        product = model.products.get(product_id)
-        if product is None:
-            raise SystemExit(f"Unknown ICON workload product: {product_id}")
-        derivation = getattr(product, "derivation", None)
+    for artifact_id in model.workload.artifacts:
+        artifact = model.artifacts.get(artifact_id)
+        if artifact is None:
+            raise SystemExit(f"Unknown ICON workload artifact: {artifact_id}")
+        derivation = getattr(artifact, "derivation", None)
         if derivation is None:
             continue
         if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            params.add(single_icon_derivation_input_param(product_id=product_id, derivation=derivation))
+            params.add(single_icon_derivation_input_param(artifact_id=artifact_id, derivation=derivation))
             continue
         if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
             continue
-        raise SystemExit(f"Unsupported ICON derivation for {product_id}: {derivation.type!r}")
+        raise SystemExit(f"Unsupported ICON derivation for {artifact_id}: {derivation.type!r}")
     return tuple(sorted(params))
 
 

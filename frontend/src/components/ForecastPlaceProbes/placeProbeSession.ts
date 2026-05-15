@@ -1,9 +1,9 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
-  forecastFieldFrameStore,
+  forecastFieldDataStore,
 } from '../../forecast-probe'
-import type { FieldFrameWindowData } from '../../forecast-frame'
+import type { FieldInterpolationWindowData } from '../../forecast-data'
 import {
   mapPlaceSelection,
   type MapSelectedPlace,
@@ -41,7 +41,7 @@ export function createPlaceProbeSession({
   getValueFormatter,
 }: PlaceProbeSessionOptions): PlaceProbeSession {
   let started = false
-  let currentFrame: FieldFrameWindowData | null = null
+  let currentFrame: FieldInterpolationWindowData | null = null
   let visiblePlaces: MapSelectedPlace[] = []
   let visiblePlaceKey = ''
   let samplerState: PlaceProbeLayerSamplers = refreshLayerPlaceProbeSamplers(null, [])
@@ -99,14 +99,14 @@ export function createPlaceProbeSession({
     return true
   }
 
-  const setFrame = (frame: FieldFrameWindowData | null) => {
+  const setFrame = (frame: FieldInterpolationWindowData | null) => {
     currentFrame = frame?.lower.layerId === getSelectedLayerId() ? frame : null
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
   const refreshFrame = () => {
-    setFrame(forecastFieldFrameStore.getCurrent())
+    setFrame(forecastFieldDataStore.getCurrent())
   }
 
   const refreshPlaces = (followUpOnIdle = false) => {
@@ -150,7 +150,7 @@ export function createPlaceProbeSession({
       map.on('moveend', handleViewportSettled)
       map.on('resize', handleViewportSettled)
       map.on('idle', handleIdle)
-      unsubscribeFrameStore = forecastFieldFrameStore.subscribe(setFrame)
+      unsubscribeFrameStore = forecastFieldDataStore.subscribe(setFrame)
 
       refreshFrame()
       refreshPlaces(true)

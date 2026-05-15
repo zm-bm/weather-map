@@ -61,7 +61,7 @@ class ArtifactSnapshotTest(unittest.TestCase):
             artifacts.write_success_marker(
                 model_id=model.id,
                 cycle=cycle,
-                product_id="tmp_surface",
+                artifact_id="tmp_surface",
                 fhour="000",
             )
             artifacts.write_published_marker(

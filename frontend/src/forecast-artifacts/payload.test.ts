@@ -10,10 +10,10 @@ import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrame
 import { readArtifactPayload } from './payload'
 
 const BASE_MANIFEST = createFrameManifestFixture({ forecastHours: ['000'] })
-const SCALAR_ARTIFACT = BASE_MANIFEST.products.tmp_surface
-const VECTOR_ARTIFACT = BASE_MANIFEST.products.wind10m_uv
-const SCALAR_FRAME_REF = BASE_MANIFEST.products.tmp_surface.frames['000']!
-const VECTOR_FRAME_REF = BASE_MANIFEST.products.wind10m_uv.frames['000']!
+const SCALAR_ARTIFACT = BASE_MANIFEST.artifacts.tmp_surface
+const VECTOR_ARTIFACT = BASE_MANIFEST.artifacts.wind10m_uv
+const SCALAR_FRAME_REF = BASE_MANIFEST.artifacts.tmp_surface.frames['000']!
+const VECTOR_FRAME_REF = BASE_MANIFEST.artifacts.wind10m_uv.frames['000']!
 
 function resolvedArtifact(args: {
   artifact?: typeof SCALAR_ARTIFACT | typeof VECTOR_ARTIFACT

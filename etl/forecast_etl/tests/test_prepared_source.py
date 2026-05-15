@@ -18,7 +18,7 @@ class PreparedSourceTest(unittest.TestCase):
             self.assertEqual(source.reference_grib_path(), path)
             self.assertEqual(
                 source.component_grib_path(
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                     component_id="value",
                     grib_match={"GRIB_ELEMENT": "TMP"},
                 ),
@@ -46,7 +46,7 @@ class PreparedSourceTest(unittest.TestCase):
 
             with self.assertRaises(SystemExit) as raised:
                 source.component_grib_path(
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                     component_id="value",
                     grib_match={"GRIB_ELEMENT": "TMP"},
                 )
@@ -64,7 +64,7 @@ class PreparedSourceTest(unittest.TestCase):
 
             with self.assertRaises(SystemExit) as raised:
                 source.component_grib_path(
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                     component_id="value",
                     grib_match={"ICON_PARAM": "rh_2m"},
                 )
@@ -84,7 +84,7 @@ class PreparedSourceTest(unittest.TestCase):
             self.assertEqual(source.reference_grib_path(), path)
             self.assertEqual(
                 source.component_grib_path(
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                     component_id="value",
                     grib_match={"MODEL_PARAM": "t_2m"},
                 ),

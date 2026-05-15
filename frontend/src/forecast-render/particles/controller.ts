@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { ParticleFrameWindowData } from '../../forecast-frame'
+import type { ParticleInterpolationWindowData } from '../../forecast-data'
 
-export type ParticleController = MapFrameController<ParticleFrameWindowData>
+export type ParticleController = MapFrameController<ParticleInterpolationWindowData>
 
 const controllers = createMapControllerRegistry<ParticleController>()
 

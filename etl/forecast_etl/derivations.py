@@ -36,7 +36,7 @@ def previous_icon_param_key(icon_param: str) -> str:
 
 def icon_param_from_grib_match(
     *,
-    product_id: str,
+    artifact_id: str,
     grib_match: Mapping[str, str],
     selector_id: str | None = None,
 ) -> str:
@@ -45,19 +45,19 @@ def icon_param_from_grib_match(
     icon_param = grib_match.get(ICON_PARAM_MATCH_KEY, "").strip().lower()
     if not icon_param:
         suffix = f".{selector_id}" if selector_id else ""
-        raise SystemExit(f"ICON product {product_id}{suffix} missing {ICON_PARAM_MATCH_KEY}")
+        raise SystemExit(f"ICON artifact {artifact_id}{suffix} missing {ICON_PARAM_MATCH_KEY}")
     return icon_param
 
 
-def single_icon_derivation_input_param(*, product_id: str, derivation: Any) -> str:
+def single_icon_derivation_input_param(*, artifact_id: str, derivation: Any) -> str:
     """Return the ICON parameter for a single-input derivation."""
 
     inputs = tuple(getattr(derivation, "inputs", ()))
     if len(inputs) != 1:
-        raise SystemExit(f"ICON derived product {product_id} requires exactly one derivation input")
+        raise SystemExit(f"ICON derived artifact {artifact_id} requires exactly one derivation input")
     input_item = inputs[0]
     return icon_param_from_grib_match(
-        product_id=product_id,
+        artifact_id=artifact_id,
         selector_id=str(getattr(input_item, "id", "")) or None,
         grib_match=getattr(input_item, "grib_match"),
     )

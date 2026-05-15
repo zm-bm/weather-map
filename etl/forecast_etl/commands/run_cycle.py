@@ -7,7 +7,7 @@ from multiprocessing import Pool
 from traceback import format_exc
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import IconDwdSourceConfig, ModelConfig, ProductSpec
+from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig
 from ..cycles import parse_cycle
 from ..proc import RunFn, make_runner
 from ..runtime import ExecutionContext
@@ -19,7 +19,7 @@ from .run_hour import run_process_hour
 HourTask = tuple[
     ExecutionContext,
     ModelConfig,
-    dict[str, ProductSpec],
+    dict[str, ArtifactSpec],
     tuple[str, ...],
     str,
     str,
@@ -68,9 +68,9 @@ def run_cycle(
 def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunFn | None = None) -> None:
     """Run one serialized cycle task inside the current process."""
 
-    ctx, model, products, product_ids, cycle, fhour, source_uri = payload
+    ctx, model, artifact_specs, artifact_ids, cycle, fhour, source_uri = payload
     resolved_store = store if store is not None else make_store()
-    artifacts = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
+    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
     resolved_run = run if run is not None else make_runner()
     try:
         run_process_hour(
@@ -79,10 +79,10 @@ def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunF
             cycle=cycle,
             fhour=fhour,
             source_uri=source_uri,
-            product_ids=product_ids,
-            products=products,
+            artifact_ids=artifact_ids,
+            artifact_specs=artifact_specs,
             store=resolved_store,
-            artifacts=artifacts,
+            artifact_repo=artifact_repo,
             run=resolved_run,
         )
     except KeyboardInterrupt:
@@ -99,11 +99,11 @@ def build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: s
 
     parse_cycle(cycle)
     fhours = model.workload.forecast_hours
-    product_ids = tuple(model.workload.products or ())
+    artifact_ids = tuple(model.workload.artifacts or ())
     tasks: list[HourTask] = []
 
     for fhour in fhours:
-        tasks.append((ctx, model, model.products, product_ids, cycle, fhour, None))
+        tasks.append((ctx, model, model.artifacts, artifact_ids, cycle, fhour, None))
 
     return tasks
 

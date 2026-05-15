@@ -16,14 +16,14 @@ from forecast_etl.derivations import previous_icon_param_key
 from forecast_etl.source_adapters import acquire_prepared_source, icon_dwd
 from forecast_etl.source_adapters.icon_dwd import icon_dwd_filename, icon_dwd_url
 from forecast_etl.storage.routing import make_store
-from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
-from forecast_etl.tests.fixtures.products import (
-    minimal_product_config,
+from forecast_etl.tests.fixtures.artifact_configs import (
+    artifact_spec,
+    minimal_artifact_config,
     precip_rate_config,
     precip_type_config,
-    product_spec,
     thunderstorm_mask_config,
 )
+from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 
 
 class _FakeHttpResponse(io.BytesIO):
@@ -73,7 +73,7 @@ class SourceAdapterTest(unittest.TestCase):
             self.assertEqual(source.reference_grib_path(), workdir / "input.grib2")
             self.assertEqual(
                 source.component_grib_path(
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                     component_id="value",
                     grib_match={"GRIB_ELEMENT": "TMP"},
                 ),
@@ -135,9 +135,9 @@ class SourceAdapterTest(unittest.TestCase):
         self.assertEqual(output_bytes, b"regridded")
 
     def test_icon_adapter_reuses_cached_regridded_files(self) -> None:
-        product_config = minimal_product_config()
-        product_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
-        product = product_spec("tmp_surface", product_config)
+        artifact_config = minimal_artifact_config()
+        artifact_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
+        artifact = artifact_spec("tmp_surface", artifact_config)
         model = ModelConfig(
             id="icon",
             label="ICON",
@@ -148,9 +148,9 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
-            model_products={},
-            products={"tmp_surface": product},
+            workload=WorkloadConfig(forecast_hours=("000",), artifacts=("tmp_surface",)),
+            model_artifacts={},
+            artifacts={"tmp_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-source-") as td:
@@ -184,7 +184,7 @@ class SourceAdapterTest(unittest.TestCase):
         self.assertEqual(source.reference_grib_path(), regridded_path)
         self.assertEqual(
             source.component_grib_path(
-                product_id="tmp_surface",
+                artifact_id="tmp_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": "T_2M"},
             ),
@@ -192,7 +192,7 @@ class SourceAdapterTest(unittest.TestCase):
         )
 
     def test_icon_adapter_prepares_previous_tot_prec_for_derived_rate_after_first_hour(self) -> None:
-        product = product_spec("prate_surface", precip_rate_config())
+        artifact = artifact_spec("prate_surface", precip_rate_config())
         model = ModelConfig(
             id="icon",
             label="ICON",
@@ -203,9 +203,9 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("003",), products=("prate_surface",)),
-            model_products={},
-            products={"prate_surface": product},
+            workload=WorkloadConfig(forecast_hours=("003",), artifacts=("prate_surface",)),
+            model_artifacts={},
+            artifacts={"prate_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-source-") as td:
@@ -232,7 +232,7 @@ class SourceAdapterTest(unittest.TestCase):
 
         self.assertEqual(
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": "tot_prec"},
             ),
@@ -240,7 +240,7 @@ class SourceAdapterTest(unittest.TestCase):
         )
         self.assertEqual(
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
             ),
@@ -248,7 +248,7 @@ class SourceAdapterTest(unittest.TestCase):
         )
 
     def test_icon_adapter_uses_zero_baseline_for_first_derived_rate_hour(self) -> None:
-        product = product_spec("prate_surface", precip_rate_config())
+        artifact = artifact_spec("prate_surface", precip_rate_config())
         model = ModelConfig(
             id="icon",
             label="ICON",
@@ -259,9 +259,9 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("001",), products=("prate_surface",)),
-            model_products={},
-            products={"prate_surface": product},
+            workload=WorkloadConfig(forecast_hours=("001",), artifacts=("prate_surface",)),
+            model_artifacts={},
+            artifacts={"prate_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-first-source-") as td:
@@ -287,7 +287,7 @@ class SourceAdapterTest(unittest.TestCase):
 
         self.assertEqual(
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": "tot_prec"},
             ),
@@ -295,18 +295,18 @@ class SourceAdapterTest(unittest.TestCase):
         )
         with self.assertRaises(SystemExit):
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
             )
 
     def test_icon_adapter_prepares_weather_code_for_overlay_derivations(self) -> None:
-        precip_type = product_spec(
+        precip_type = artifact_spec(
             "precip_type_surface",
             precip_type_config(derivation_type="precip_type_from_icon_ww"),
         )
-        thunderstorm = product_spec("thunderstorm_mask", thunderstorm_mask_config())
-        prate = product_spec("prate_surface", precip_rate_config())
+        thunderstorm = artifact_spec("thunderstorm_mask", thunderstorm_mask_config())
+        prate = artifact_spec("prate_surface", precip_rate_config())
         model = ModelConfig(
             id="icon",
             label="ICON",
@@ -319,10 +319,10 @@ class SourceAdapterTest(unittest.TestCase):
             ),
             workload=WorkloadConfig(
                 forecast_hours=("003",),
-                products=("prate_surface", "precip_type_surface", "thunderstorm_mask"),
+                artifacts=("prate_surface", "precip_type_surface", "thunderstorm_mask"),
             ),
-            model_products={},
-            products={
+            model_artifacts={},
+            artifacts={
                 "prate_surface": prate,
                 "precip_type_surface": precip_type,
                 "thunderstorm_mask": thunderstorm,
@@ -354,7 +354,7 @@ class SourceAdapterTest(unittest.TestCase):
 
         self.assertEqual(
             source.component_grib_path(
-                product_id="precip_type_surface",
+                artifact_id="precip_type_surface",
                 component_id="ww",
                 grib_match={"ICON_PARAM": "ww"},
             ),
@@ -362,7 +362,7 @@ class SourceAdapterTest(unittest.TestCase):
         )
         self.assertEqual(
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": "tot_prec"},
             ),
@@ -370,7 +370,7 @@ class SourceAdapterTest(unittest.TestCase):
         )
         self.assertEqual(
             source.component_grib_path(
-                product_id="prate_surface",
+                artifact_id="prate_surface",
                 component_id="value",
                 grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
             ),
@@ -470,9 +470,9 @@ class SourceAdapterTest(unittest.TestCase):
     def test_icon_prepare_cleans_bad_bz2_and_retries(self) -> None:
         from forecast_etl.source_adapters import icon_dwd as icon
 
-        product_config = minimal_product_config()
-        product_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
-        product = product_spec("tmp_surface", product_config)
+        artifact_config = minimal_artifact_config()
+        artifact_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
+        artifact = artifact_spec("tmp_surface", artifact_config)
         model = ModelConfig(
             id="icon",
             label="ICON",
@@ -483,9 +483,9 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("000",), products=("tmp_surface",)),
-            model_products={},
-            products={"tmp_surface": product},
+            workload=WorkloadConfig(forecast_hours=("000",), artifacts=("tmp_surface",)),
+            model_artifacts={},
+            artifacts={"tmp_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-bad-bz2-") as td:

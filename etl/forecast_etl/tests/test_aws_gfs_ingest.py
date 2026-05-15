@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.aws import gfs_ingest
-from forecast_etl.tests.fixtures.pipeline import add_model_product, minimal_pipeline_config
-from forecast_etl.tests.fixtures.products import wind_product_config
+from forecast_etl.tests.fixtures.artifact_configs import wind_artifact_config
+from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
 
 
 class _FakeBatchClient:
@@ -21,14 +21,14 @@ class _FakeBatchClient:
 
 
 class _FakeWorkload:
-    def __init__(self, *, forecast_hours: tuple[str, ...], products: tuple[str, ...]) -> None:
+    def __init__(self, *, forecast_hours: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
         self.forecast_hours = forecast_hours
-        self.products = products
+        self.artifacts = artifacts
 
 
 class _FakePipelineConfig:
-    def __init__(self, *, forecast_hours: tuple[str, ...], products: tuple[str, ...]) -> None:
-        self.workload = _FakeWorkload(forecast_hours=forecast_hours, products=products)
+    def __init__(self, *, forecast_hours: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
+        self.workload = _FakeWorkload(forecast_hours=forecast_hours, artifacts=artifacts)
 
     def model(self, model_id: str) -> "_FakePipelineConfig":
         if model_id != "gfs":
@@ -79,15 +79,15 @@ class AwsGfsIngestTest(unittest.TestCase):
 
     def test_handler_submits_job_for_current_pipeline_config_schema(self) -> None:
         payload = minimal_pipeline_config()
-        wind_config = wind_product_config()
-        add_model_product(
+        wind_config = wind_artifact_config()
+        add_model_artifact(
             payload,
             model_id="gfs",
-            product_id="wind10m_uv",
-            product_config=wind_config,
+            artifact_id="wind10m_uv",
+            artifact_config=wind_config,
         )
         payload["models"]["gfs"]["workload"]["forecast_hour_end"] = 6
-        payload["models"]["gfs"]["workload"]["products"] = ["tmp_surface", "wind10m_uv"]
+        payload["models"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "wind10m_uv"]
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
             cfg_path = Path(td) / "forecast.etl_config.json"
@@ -119,7 +119,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_filters_by_forecast_hour(self) -> None:
         fake_cfg = _FakePipelineConfig(
             forecast_hours=("000", "003"),
-            products=("tmp_surface",),
+            artifacts=("tmp_surface",),
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
@@ -136,7 +136,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_skips_when_no_work_items_are_configured(self) -> None:
         fake_cfg = _FakePipelineConfig(
             forecast_hours=("000",),
-            products=(),
+            artifacts=(),
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
@@ -153,7 +153,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_preserves_cycle_cadence_filter(self) -> None:
         fake_cfg = _FakePipelineConfig(
             forecast_hours=("000",),
-            products=("tmp_surface", "wind10m_uv"),
+            artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
@@ -170,7 +170,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_skips_unknown_key_formats(self) -> None:
         fake_cfg = _FakePipelineConfig(
             forecast_hours=("000",),
-            products=("tmp_surface", "wind10m_uv"),
+            artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),

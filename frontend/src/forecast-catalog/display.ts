@@ -300,8 +300,8 @@ export function getLayerMeta(
     throw new Error(`Missing layer catalog for ${layerId}`)
   }
   const layer = getLayerSpec(layerId, layersById)
-  const sourceProductId = layerSourceArtifactId(layer.source)
-  const sourceMeta = manifest?.products[sourceProductId]
+  const sourceArtifactId = layerSourceArtifactId(layer.source)
+  const sourceMeta = manifest?.artifacts[sourceArtifactId]
 
   if (!sourceMeta) {
     throw new Error(`Missing artifact metadata for layer ${layerId}`)

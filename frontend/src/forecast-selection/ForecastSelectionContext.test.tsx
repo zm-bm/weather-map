@@ -37,8 +37,8 @@ describe('ForecastSelectionContext', () => {
   it('resets selected layer defaults when forecast cycle changes', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_surface'],
-      vectorProducts: ['wind10m_uv', 'gust10m_uv'],
+      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
+      vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     })
 
     const { rerender } = render(
@@ -55,8 +55,8 @@ describe('ForecastSelectionContext', () => {
 
     const secondManifest = createManifestFixture({
       cycle: '2026040912',
-      scalarProducts: ['tmp_surface', 'rh_surface'],
-      vectorProducts: ['gust10m_uv', 'wind10m_uv'],
+      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
+      vectorArtifactIds: ['gust10m_uv', 'wind10m_uv'],
     })
 
     rerender(
@@ -72,8 +72,8 @@ describe('ForecastSelectionContext', () => {
   it('uses one global unit system and omits per-layer unit APIs', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_surface'],
-      vectorProducts: ['wind10m_uv', 'gust10m_uv'],
+      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
+      vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     })
 
     render(
@@ -94,8 +94,8 @@ describe('ForecastSelectionContext', () => {
   it('preserves selected layer and particle choices when the manifest changes within the same cycle', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_surface'],
-      vectorProducts: ['gust10m_uv', 'wind10m_uv'],
+      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
+      vectorArtifactIds: ['gust10m_uv', 'wind10m_uv'],
     })
 
     const { rerender } = render(
@@ -112,8 +112,8 @@ describe('ForecastSelectionContext', () => {
 
     const secondManifest = createManifestFixture({
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'rh_surface'],
-      vectorProducts: ['gust10m_uv', 'wind10m_uv'],
+      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
+      vectorArtifactIds: ['gust10m_uv', 'wind10m_uv'],
       revision: 'same-cycle-new-revision',
     })
 
@@ -131,7 +131,7 @@ describe('ForecastSelectionContext', () => {
     const gfsManifest = createManifestFixture({
       model: { id: 'gfs', label: 'GFS' },
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'prate_surface'],
+      scalarArtifactIds: ['tmp_surface', 'prate_surface'],
     })
 
     const { rerender } = render(
@@ -146,7 +146,7 @@ describe('ForecastSelectionContext', () => {
     const iconManifest = createManifestFixture({
       model: { id: 'icon', label: 'ICON' },
       cycle: '2026040900',
-      scalarProducts: ['tmp_surface', 'precip_total_surface'],
+      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
     })
 
     rerender(
@@ -160,7 +160,7 @@ describe('ForecastSelectionContext', () => {
 
   it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
     const manifest = createManifestFixture({
-      vectorProducts: ['wind10m_uv'],
+      vectorArtifactIds: ['wind10m_uv'],
     })
 
     render(
@@ -174,7 +174,7 @@ describe('ForecastSelectionContext', () => {
 
   it('leaves particle selection empty when no compatible particle artifact is available', () => {
     const manifest = createManifestFixture({
-      vectorProducts: [],
+      vectorArtifactIds: [],
     })
 
     render(

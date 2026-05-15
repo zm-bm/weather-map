@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
 import { getAvailableParticleLayers, getAvailableLayers } from '../forecast-catalog'
-import { createForecastFrameTarget } from '../forecast-frame'
+import { createForecastDataTarget } from '../forecast-data'
 import type { StartupState, ForecastSyncTarget } from './types'
 import { useForecastSync } from './useForecastSync'
 
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   useStartupState: vi.fn(),
   useSyncTarget: vi.fn(),
   useSyncRunner: vi.fn(),
-  useFramePrefetch: vi.fn(),
+  useForecastDataPrefetch: vi.fn(),
   useStartupAppStatus: vi.fn(),
 }))
 
@@ -27,8 +27,8 @@ vi.mock('./useSyncRunner', () => ({
   useSyncRunner: (args: unknown) => mocks.useSyncRunner(args),
 }))
 
-vi.mock('./useFramePrefetch', () => ({
-  useFramePrefetch: (args: unknown) => mocks.useFramePrefetch(args),
+vi.mock('./useForecastDataPrefetch', () => ({
+  useForecastDataPrefetch: (args: unknown) => mocks.useForecastDataPrefetch(args),
 }))
 
 vi.mock('./useStartupAppStatus', () => ({
@@ -60,13 +60,13 @@ function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): Forecast
   const selectedLayer = getAvailableLayers(manifest).tmp_surface!
   const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
   return {
-    ...createForecastFrameTarget({
+    ...createForecastDataTarget({
       manifest,
       selectedLayerId: selectedLayer.id,
       selectedLayer,
       selectedParticleLayerId: selectedParticleLayer.id,
       selectedParticleLayer,
-      frameWindow: {
+      interpolationWindow: {
         selectedValidTimeMs: validTimeMs,
         lowerHourToken: hourToken,
         upperHourToken: hourToken,
@@ -115,7 +115,7 @@ describe('useForecastSync', () => {
       target,
       startup,
     })
-    expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
+    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: true,
@@ -142,7 +142,7 @@ describe('useForecastSync', () => {
       target: null,
       startup,
     }))
-    expect(mocks.useFramePrefetch).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       enabled: true,
     }))
@@ -165,7 +165,7 @@ describe('useForecastSync', () => {
       config,
     }))
 
-    expect(mocks.useFramePrefetch).toHaveBeenCalledWith({
+    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: false,

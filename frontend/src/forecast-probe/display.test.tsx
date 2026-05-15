@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createForecastSelectionContextValue,
   createManifestFixture,
-  createScalarProductFixture,
+  createScalarArtifactFixture,
 } from '../test/fixtures'
 import { formatForecastProbeValue, useForecastProbeValueFormatter } from './display'
 
@@ -22,19 +22,19 @@ vi.mock('../forecast-selection', async (importOriginal) => {
 
 const manifest = createManifestFixture({
   cycle: '2026041100',
-  scalarProducts: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
-  vectorProducts: ['wind10m_uv'],
-  products: {
-    tmp_surface: createScalarProductFixture(),
-    rh_surface: createScalarProductFixture({
+  scalarArtifactIds: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
+  vectorArtifactIds: ['wind10m_uv'],
+  artifacts: {
+    tmp_surface: createScalarArtifactFixture(),
+    rh_surface: createScalarArtifactFixture({
       units: '%',
       parameter: 'rh',
     }),
-    prmsl_surface: createScalarProductFixture({
+    prmsl_surface: createScalarArtifactFixture({
       units: 'Pa',
       parameter: 'prmsl',
     }),
-    prate_surface: createScalarProductFixture({
+    prate_surface: createScalarArtifactFixture({
       units: 'mm/hr',
       parameter: 'prate',
     }),

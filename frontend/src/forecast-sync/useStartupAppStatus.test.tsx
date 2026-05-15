@@ -58,7 +58,7 @@ describe('useStartupAppStatus', () => {
       mode: 'blocking',
       level: 'loading',
       title: 'Initializing Forecast Map',
-      detail: 'Loading initial forecast frames.',
+      detail: 'Loading initial forecast data.',
     })
   })
 

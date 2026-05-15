@@ -47,7 +47,7 @@ class ArtifactFixture:
         *,
         model_id: str = "gfs",
         cycle: str,
-        product_id: str,
+        artifact_id: str,
         fhour: str,
         modified: datetime | None = None,
     ) -> str:
@@ -55,11 +55,11 @@ class ArtifactFixture:
             item=WorkItem(
                 model_id=model_id,
                 cycle=cycle,
-                product_id=product_id,
+                artifact_id=artifact_id,
                 fhour=fhour,
                 source_uri="file:///dev/null",
             ),
-            product=product_marker_payload(),
+            artifact=artifact_marker_payload(),
         )
         self.touch(marker_uri, modified)
         return marker_uri
@@ -69,14 +69,14 @@ class ArtifactFixture:
         *,
         model_id: str = "gfs",
         cycle: str,
-        product_id: str,
+        artifact_id: str,
         fhour: str,
         modified: datetime | None = None,
     ) -> str:
         marker_uri = self.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
-            product_id=product_id,
+            artifact_id=artifact_id,
             fhour=fhour,
         )
         self.store.write_bytes(
@@ -143,18 +143,18 @@ def success_marker_payload(
     *,
     cycle: str,
     fhour: str,
-    product_id: str,
+    artifact_id: str,
     payload_uri: str = "file:///payload.bin",
 ) -> dict[str, Any]:
     return {
         "cycle": cycle,
         "fhour": fhour,
-        "product_id": product_id,
-        "product": product_marker_payload(payload_uri=payload_uri),
+        "artifact_id": artifact_id,
+        "artifact": artifact_marker_payload(payload_uri=payload_uri),
     }
 
 
-def product_marker_payload(*, payload_uri: str = "file:///payload.bin", **overrides: Any) -> dict[str, Any]:
+def artifact_marker_payload(*, payload_uri: str = "file:///payload.bin", **overrides: Any) -> dict[str, Any]:
     payload = {
         "payload_uri": payload_uri,
         "byte_length": 1,
@@ -193,13 +193,13 @@ def product_marker_payload(*, payload_uri: str = "file:///payload.bin", **overri
 def success_marker_payload_from_uri(uri: str) -> dict[str, Any]:
     parts = uri.rstrip("/").split("/")
     cycle = parts[-3]
-    product_id = parts[-2]
+    artifact_id = parts[-2]
     fhour = parts[-1].removesuffix(SUCCESS_MARKER_SUFFIX)
-    return success_marker_payload(cycle=cycle, fhour=fhour, product_id=product_id)
+    return success_marker_payload(cycle=cycle, fhour=fhour, artifact_id=artifact_id)
 
 
 def invalid_success_marker_payload(*, cycle: str, fhour: str) -> dict[str, Any]:
-    return {"cycle": cycle, "fhour": fhour, "product": {}}
+    return {"cycle": cycle, "fhour": fhour, "artifact": {}}
 
 
 def iso_utc(value: datetime) -> str:

@@ -79,7 +79,7 @@ describe('useSyncTarget', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
       forecastHours: ['000', '003', '006'],
-      vectorProducts: [],
+      vectorArtifactIds: [],
     })
     mocks.useForecastSelectionContext.mockReturnValue(createForecastSelectionContextValue(manifest))
     mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(

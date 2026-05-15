@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from .products import minimal_product_config
+from .artifact_configs import minimal_artifact_config
 
 
 def minimal_pipeline_config() -> dict:
-    product = minimal_product_config()
+    artifact = minimal_artifact_config()
     return {
-        "version": 2,
-        "product_catalog": {
-            "tmp_surface": catalog_product(product),
+        "version": 3,
+        "artifact_catalog": {
+            "tmp_surface": catalog_artifact(artifact),
         },
         "models": {
             "gfs": {
@@ -23,53 +23,53 @@ def minimal_pipeline_config() -> dict:
                 "workload": {
                     "forecast_hour_start": 0,
                     "forecast_hour_end": 0,
-                    "products": ["tmp_surface"],
+                    "artifacts": ["tmp_surface"],
                 },
-                "products": {
-                    "tmp_surface": model_product(product),
+                "artifacts": {
+                    "tmp_surface": model_artifact(artifact),
                 },
             },
         },
     }
 
 
-def add_model_product(
+def add_model_artifact(
     cfg: dict,
     *,
     model_id: str,
-    product_id: str,
-    product_config: dict,
+    artifact_id: str,
+    artifact_config: dict,
 ) -> None:
-    cfg["product_catalog"][product_id] = catalog_product(product_config)
-    cfg["models"][model_id]["products"][product_id] = model_product(product_config)
+    cfg["artifact_catalog"][artifact_id] = catalog_artifact(artifact_config)
+    cfg["models"][model_id]["artifacts"][artifact_id] = model_artifact(artifact_config)
 
 
-def catalog_product(product_config: dict) -> dict:
+def catalog_artifact(artifact_config: dict) -> dict:
     return {
         **{
             key: value
-            for key, value in product_config.items()
+            for key, value in artifact_config.items()
             if key not in {"components", "temporal", "derivation"}
         },
-        "components": [{"id": component["id"]} for component in product_config["components"]],
+        "components": [{"id": component["id"]} for component in artifact_config["components"]],
     }
 
 
-def model_product(product_config: dict) -> dict:
+def model_artifact(artifact_config: dict) -> dict:
     model_cfg = {
         "components": [
-            _model_product_component(component)
-            for component in product_config["components"]
+            _model_artifact_component(component)
+            for component in artifact_config["components"]
         ],
     }
-    if "temporal" in product_config:
-        model_cfg["temporal"] = product_config["temporal"]
-    if "derivation" in product_config:
-        model_cfg["derivation"] = product_config["derivation"]
+    if "temporal" in artifact_config:
+        model_cfg["temporal"] = artifact_config["temporal"]
+    if "derivation" in artifact_config:
+        model_cfg["derivation"] = artifact_config["derivation"]
     return model_cfg
 
 
-def _model_product_component(component: dict) -> dict:
+def _model_artifact_component(component: dict) -> dict:
     model_component = {"id": component["id"]}
     if "grib_match" in component:
         model_component["grib_match"] = component["grib_match"]

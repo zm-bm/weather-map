@@ -13,9 +13,9 @@ from forecast_etl.proc import RunResult
 from forecast_etl.runtime import ExecutionContext
 from forecast_etl.source_adapters.base import PreparedSource
 from forecast_etl.storage.local import LocalFSStore
+from forecast_etl.tests.fixtures.artifact_configs import minimal_artifact_config
 from forecast_etl.tests.fixtures.grids import pack_f32, small_grid_meta_fixture
-from forecast_etl.tests.fixtures.pipeline import add_model_product, minimal_pipeline_config
-from forecast_etl.tests.fixtures.products import minimal_product_config
+from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
 
 
 def _unused_run(*_args: object, **_kwargs: object) -> RunResult:
@@ -23,10 +23,10 @@ def _unused_run(*_args: object, **_kwargs: object) -> RunResult:
 
 
 class RunHourCommandTest(unittest.TestCase):
-    def test_run_process_hour_reads_grid_once_for_all_products(self) -> None:
+    def test_run_process_hour_reads_grid_once_for_all_artifacts(self) -> None:
         cfg = minimal_pipeline_config()
         rh_config = {
-            **minimal_product_config(),
+            **minimal_artifact_config(),
             "parameter": "rh",
             "units": "%",
             "encoding": {
@@ -47,8 +47,8 @@ class RunHourCommandTest(unittest.TestCase):
                 }
             ],
         }
-        add_model_product(cfg, model_id="gfs", product_id="rh_surface", product_config=rh_config)
-        cfg["models"]["gfs"]["workload"]["products"] = ["tmp_surface", "rh_surface"]
+        add_model_artifact(cfg, model_id="gfs", artifact_id="rh_surface", artifact_config=rh_config)
+        cfg["models"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "rh_surface"]
         model = parse_pipeline_config(cfg).model("gfs")
 
         with tempfile.TemporaryDirectory(prefix="weather-map-run-hour-") as td:
@@ -74,7 +74,7 @@ class RunHourCommandTest(unittest.TestCase):
             with (
                 patch("forecast_etl.commands.run_hour.acquire_prepared_source", return_value=source),
                 patch("forecast_etl.commands.run_hour.grid_meta_from_grib", return_value=grid) as grid_meta,
-                patch("forecast_etl.commands.run_hour.extract_product_bands", return_value=[band]) as extract_bands,
+                patch("forecast_etl.commands.run_hour.extract_artifact_bands", return_value=[band]) as extract_bands,
             ):
                 run_process_hour(
                     ctx=ExecutionContext(
@@ -86,21 +86,21 @@ class RunHourCommandTest(unittest.TestCase):
                     cycle="2026041200",
                     fhour="000",
                     source_uri=None,
-                    product_ids=model.workload.products,
-                    products=model.products,
+                    artifact_ids=model.workload.artifacts,
+                    artifact_specs=model.artifacts,
                     store=artifacts.store,
-                    artifacts=artifacts,
+                    artifact_repo=artifacts,
                     run=_unused_run,
                 )
 
-            for product_id in ("tmp_surface", "rh_surface"):
-                marker = artifacts.read_product_success_marker(
+            for artifact_id in ("tmp_surface", "rh_surface"):
+                marker = artifacts.read_artifact_success_marker(
                     model_id="gfs",
                     cycle="2026041200",
                     fhour="000",
-                    product_id=product_id,
+                    artifact_id=artifact_id,
                 )
-                self.assertEqual(marker.product.byte_length, 8)
+                self.assertEqual(marker.artifact.byte_length, 8)
 
         grid_meta.assert_called_once_with(grib_path=grib_path, run=_unused_run)
         self.assertEqual(extract_bands.call_count, 2)

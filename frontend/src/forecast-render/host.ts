@@ -2,10 +2,10 @@ import type {
   Map as MapLibreMap,
 } from 'maplibre-gl'
 
-import type { ForecastFrameBundle } from '../forecast-frame'
+import type { ForecastRenderData } from '../forecast-data'
 import type { ForecastRenderer } from './types'
-import { applyFieldFrame, fieldRenderer } from './field'
-import { applyParticleFrame, particleRenderer } from './particles'
+import { applyFieldInterpolationWindow, fieldRenderer } from './field'
+import { applyParticleInterpolationWindow, particleRenderer } from './particles'
 
 export const forecastRenderers: readonly ForecastRenderer[] = [
   fieldRenderer,
@@ -18,7 +18,7 @@ export function installForecastRenderers(map: MapLibreMap): void {
   }
 }
 
-export function applyForecastFrames(map: MapLibreMap, frames: ForecastFrameBundle): void {
-  applyFieldFrame(map, frames.field)
-  applyParticleFrame(map, frames.particles)
+export function applyForecastRenderData(map: MapLibreMap, frames: ForecastRenderData): void {
+  applyFieldInterpolationWindow(map, frames.field)
+  applyParticleInterpolationWindow(map, frames.particles)
 }

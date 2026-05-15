@@ -6,14 +6,14 @@ export const FORECAST_TIME_STEP_MS = FORECAST_TIME_STEP_MINUTES * MINUTE_MS
 
 export type ForecastTimelineTime = Pick<ForecastTimeSpec, 'id' | 'validAt'>
 
-export type ForecastFrameSelection = {
+export type ForecastTimeSliceSelection = {
   selectedValidTimeMs: number
   lowerHourToken: string
   upperHourToken: string
   mix: number
 }
 
-export type ForecastFrameWindow = ForecastFrameSelection & {
+export type ForecastInterpolationWindow = ForecastTimeSliceSelection & {
   lowerValidTimeMs: number
   upperValidTimeMs: number
 }
@@ -125,19 +125,19 @@ export function stepForecastValidTimeMs(
   return bounds.startValidTimeMs + (nextStep * FORECAST_TIME_STEP_MS)
 }
 
-export function frameWindowMinuteOffset(
-  frameWindow: Pick<ForecastFrameWindow, 'selectedValidTimeMs' | 'lowerValidTimeMs'>
+export function interpolationWindowMinuteOffset(
+  interpolationWindow: Pick<ForecastInterpolationWindow, 'selectedValidTimeMs' | 'lowerValidTimeMs'>
 ): number {
   return Math.max(
     0,
-    Math.round((frameWindow.selectedValidTimeMs - frameWindow.lowerValidTimeMs) / MINUTE_MS)
+    Math.round((interpolationWindow.selectedValidTimeMs - interpolationWindow.lowerValidTimeMs) / MINUTE_MS)
   )
 }
 
-export function resolveForecastFrameWindow(
+export function resolveForecastInterpolationWindow(
   times: ForecastTimelineTime[],
   selectedValidTimeMs: number
-): ForecastFrameWindow {
+): ForecastInterpolationWindow {
   const clampedValidTimeMs = clampForecastValidTimeMs(times, selectedValidTimeMs)
   if (times.length === 0) {
     return {

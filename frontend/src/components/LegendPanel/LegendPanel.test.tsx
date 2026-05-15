@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
 import {
   createManifestFixture,
-  createScalarProductFixture,
+  createScalarArtifactFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
@@ -13,25 +13,25 @@ import LegendPanel from './LegendPanel'
 function createLegendSelectionManifest(
   selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
 ) {
-  const scalarProducts = selectedLayerId === 'tmp_surface'
+  const scalarArtifactIds = selectedLayerId === 'tmp_surface'
     ? ['tmp_surface', 'prate_surface']
     : [selectedLayerId]
   return createManifestFixture({
     cycle: '2026041100',
-    scalarProducts,
-    vectorProducts: [],
-    products: {
-      tmp_surface: createScalarProductFixture({
+    scalarArtifactIds,
+    vectorArtifactIds: [],
+    artifacts: {
+      tmp_surface: createScalarArtifactFixture({
       }),
-      prmsl_surface: createScalarProductFixture({
+      prmsl_surface: createScalarArtifactFixture({
         units: 'Pa',
         parameter: 'prmsl',
       }),
-      prate_surface: createScalarProductFixture({
+      prate_surface: createScalarArtifactFixture({
         units: 'mm/hr',
         parameter: 'prate',
       }),
-      low_clouds: createScalarProductFixture({
+      low_clouds: createScalarArtifactFixture({
         id: 'low_clouds',
         units: '%',
         parameter: 'low_clouds',

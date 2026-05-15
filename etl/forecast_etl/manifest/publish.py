@@ -8,9 +8,9 @@ from typing import Iterable, Mapping
 
 from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ProductSpec
+from ..config.resolved import ArtifactSpec
 from ..runtime import ExecutionContext
-from .build import build_cycle_manifest, build_manifest_products
+from .build import build_cycle_manifest, build_manifest_artifacts
 from .inspect import manifest_info_from_obj
 
 
@@ -28,28 +28,28 @@ def run_publish(
     ctx: ExecutionContext,
     cycle: str,
     model_label: str,
-    product_ids: Iterable[str],
-    products: Mapping[str, ProductSpec],
-    artifacts: ArtifactRepository,
+    artifact_ids: Iterable[str],
+    artifact_specs: Mapping[str, ArtifactSpec],
+    artifact_repo: ArtifactRepository,
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
 
     fhours = tuple(ctx.forecast_hours or ())
-    product_ids = tuple(product_ids)
+    artifact_ids = tuple(artifact_ids)
 
     if not fhours:
         print("Publish not ready: ctx.forecast_hours is empty")
         return PublishResult(ready=False, already_published=False)
 
-    if not product_ids:
-        print("Publish not ready: workload.products is empty")
+    if not artifact_ids:
+        print("Publish not ready: workload.artifacts is empty")
         return PublishResult(ready=False, already_published=False)
 
-    missing = artifacts.missing_success_markers(
+    missing = artifact_repo.missing_success_markers(
         model_id=ctx.model_id,
         cycle=cycle,
         fhours=fhours,
-        product_ids=product_ids,
+        artifact_ids=artifact_ids,
     )
     if missing:
         print(f"Publish not ready: missing {len(missing)} success markers")
@@ -59,13 +59,13 @@ def run_publish(
             print(f"... and {len(missing) - 10} more")
         return PublishResult(ready=False, already_published=False, missing_markers=tuple(missing))
 
-    manifest_products = build_manifest_products(
-        artifacts=artifacts,
+    manifest_artifacts = build_manifest_artifacts(
+        artifact_repo=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
         fhours=fhours,
-        product_ids=product_ids,
-        products=products,
+        artifact_ids=artifact_ids,
+        artifact_specs=artifact_specs,
     )
 
     generated_at = _utc_now_iso()
@@ -75,13 +75,13 @@ def run_publish(
         cycle=cycle,
         generated_at=generated_at,
         fhours=fhours,
-        products=manifest_products,
+        artifacts=manifest_artifacts,
     )
     revision = str(manifest_obj["run"]["revision"])
 
-    cycle_manifest_uri = artifacts.paths.manifest_cycle_uri(model_id=ctx.model_id, cycle=cycle)
+    cycle_manifest_uri = artifact_repo.paths.manifest_cycle_uri(model_id=ctx.model_id, cycle=cycle)
     already_published = _is_already_published(
-        artifacts=artifacts,
+        artifacts=artifact_repo,
         model_id=ctx.model_id,
         revision=revision,
         cycle=cycle,
@@ -89,19 +89,19 @@ def run_publish(
 
     manifest_to_publish = manifest_obj
     if already_published:
-        manifest_to_publish = artifacts.read_cycle_manifest(model_id=ctx.model_id, cycle=cycle)
+        manifest_to_publish = artifact_repo.read_cycle_manifest(model_id=ctx.model_id, cycle=cycle)
     else:
-        cycle_manifest_uri = artifacts.write_cycle_manifest(model_id=ctx.model_id, cycle=cycle, manifest=manifest_obj)
+        cycle_manifest_uri = artifact_repo.write_cycle_manifest(model_id=ctx.model_id, cycle=cycle, manifest=manifest_obj)
 
     _maybe_promote_latest(
-        artifacts=artifacts,
+        artifacts=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
         manifest_obj=manifest_to_publish,
     )
 
     if not already_published:
-        artifacts.write_published_marker(
+        artifact_repo.write_published_marker(
             model_id=ctx.model_id,
             cycle=cycle,
             marker=published_marker_dict(

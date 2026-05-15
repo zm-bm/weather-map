@@ -4,7 +4,7 @@ import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
 import { createFieldRuntime } from './engine/runtime'
 import { getFieldController } from './controller'
 import { fieldRuntimeOptions } from './options'
-import type { FieldFrameWindowData } from '../../forecast-frame'
+import type { FieldInterpolationWindowData } from '../../forecast-data'
 
 export const FIELD_RENDERER_LAYER_ID = 'field-renderer-layer-id'
 
@@ -16,7 +16,7 @@ export const fieldRenderer: ForecastRenderer = {
   },
 }
 
-export function applyFieldFrame(map: MapLibreMap, frame: FieldFrameWindowData): void {
+export function applyFieldInterpolationWindow(map: MapLibreMap, frame: FieldInterpolationWindowData): void {
   const controller = getFieldController(map)
   if (!controller?.isAvailable()) {
     throw new Error('Field renderer unavailable (WebGL2 required)')

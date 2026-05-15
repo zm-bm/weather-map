@@ -1,9 +1,9 @@
 import {
-  asProductId,
+  asArtifactId,
   type CycleManifest,
-  type ManifestProductSpec,
+  type ManifestArtifactSpec,
   type NonEmptyArray,
-  type ProductId,
+  type ArtifactId,
 } from '../manifest'
 
 type Brand<T, B extends string> = T & { readonly __brand: B }
@@ -42,12 +42,12 @@ export type LegendScaleId =
 
 export type ArtifactLayerSource = {
   kind: 'artifact'
-  artifactId: ProductId
+  artifactId: ArtifactId
 }
 
 export type DerivedLayerSource = {
   kind: 'derived'
-  artifactId: ProductId
+  artifactId: ArtifactId
   recipe: 'wind-speed'
 }
 
@@ -111,7 +111,7 @@ export function layerSourceKey(source: LayerSource): string {
   )).join(',')}`
 }
 
-export function layerSourceArtifactId(source: LayerSource): ProductId {
+export function layerSourceArtifactId(source: LayerSource): ArtifactId {
   if (source.kind === 'artifact' || source.kind === 'derived') {
     return source.artifactId
   }
@@ -127,7 +127,7 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
   layer('wind_speed_surface', 'Wind Speed', 'wind', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
     source: {
       kind: 'derived',
-      artifactId: asProductId('wind10m_uv'),
+      artifactId: asArtifactId('wind10m_uv'),
       recipe: 'wind-speed',
     },
     parameter: 'wind_speed',
@@ -137,11 +137,11 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
   layer('prate_surface', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate', {
     source: {
       kind: 'composite',
-      base: { kind: 'artifact', artifactId: asProductId('prate_surface') },
+      base: { kind: 'artifact', artifactId: asArtifactId('prate_surface') },
       overlays: [
         {
           id: 'precip-type',
-          source: { kind: 'artifact', artifactId: asProductId('precip_type_surface') },
+          source: { kind: 'artifact', artifactId: asArtifactId('precip_type_surface') },
           optional: true,
         },
       ],
@@ -224,7 +224,7 @@ export function getAvailableGroups(layers: Record<string, LayerSpec>): LayerGrou
   })
 }
 
-export function layerSourceExpectedArtifactKind(source: LayerSource): ManifestProductSpec['kind'] {
+export function layerSourceExpectedArtifactKind(source: LayerSource): ManifestArtifactSpec['kind'] {
   if (source.kind === 'artifact') return 'scalar'
   if (source.kind === 'derived') return 'vector'
   return layerSourceExpectedArtifactKind(source.base)
@@ -253,7 +253,7 @@ function layer(
     displayRange: { min, max },
     unitBehavior,
     legendScale,
-    source: options.source ?? { kind: 'artifact', artifactId: asProductId(id) },
+    source: options.source ?? { kind: 'artifact', artifactId: asArtifactId(id) },
     parameter: options.parameter,
     classifiedColoring: options.classifiedColoring,
   }
@@ -274,7 +274,7 @@ function isLayerSourceAvailable(
   }
 
   const expectedKind = layerSourceExpectedArtifactKind(source)
-  const artifact = manifest.products[source.artifactId]
+  const artifact = manifest.artifacts[source.artifactId]
   if (!artifact) return false
   if (artifact.kind !== expectedKind) {
     throw new Error(`${owner} requires ${expectedKind} artifact ${source.artifactId}, got ${artifact.kind}`)
@@ -292,7 +292,7 @@ function isCompositeOverlayAvailable(
   overlay: CompositeLayerOverlaySource,
   owner: string
 ): boolean {
-  const artifact = manifest.products[overlay.source.artifactId]
+  const artifact = manifest.artifacts[overlay.source.artifactId]
   if (!artifact) return overlay.optional
   if (artifact.kind !== 'scalar') {
     throw new Error(`${owner} overlay ${overlay.id} requires scalar artifact ${overlay.source.artifactId}, got ${artifact.kind}`)
@@ -301,7 +301,7 @@ function isCompositeOverlayAvailable(
 }
 
 function hasOrderedComponents(
-  artifact: ManifestProductSpec,
+  artifact: ManifestArtifactSpec,
   components: readonly string[]
 ): boolean {
   return artifact.components.length === components.length &&

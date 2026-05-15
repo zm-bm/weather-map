@@ -1,31 +1,31 @@
-import type { FieldFrameWindowData } from '../forecast-frame'
+import type { FieldInterpolationWindowData } from '../forecast-data'
 
-export type ForecastFieldFrameListener = (frame: FieldFrameWindowData | null) => void
+export type ForecastFieldDataListener = (frame: FieldInterpolationWindowData | null) => void
 
-let currentFrame: FieldFrameWindowData | null = null
-const listeners = new Set<ForecastFieldFrameListener>()
+let currentFrame: FieldInterpolationWindowData | null = null
+const listeners = new Set<ForecastFieldDataListener>()
 
 function emitChange() {
   listeners.forEach((listener) => listener(currentFrame))
 }
 
-export function setForecastFieldFrame(frame: FieldFrameWindowData) {
+export function setForecastFieldData(frame: FieldInterpolationWindowData) {
   currentFrame = frame
   emitChange()
 }
 
-export function getForecastFieldFrame(): FieldFrameWindowData | null {
+export function getForecastFieldData(): FieldInterpolationWindowData | null {
   return currentFrame
 }
 
-export function subscribeForecastFieldFrame(listener: ForecastFieldFrameListener) {
+export function subscribeForecastFieldData(listener: ForecastFieldDataListener) {
   listeners.add(listener)
   return () => {
     listeners.delete(listener)
   }
 }
 
-export function clearForecastFieldFrame() {
+export function clearForecastFieldData() {
   currentFrame = null
   emitChange()
 }

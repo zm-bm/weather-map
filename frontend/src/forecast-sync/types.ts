@@ -1,4 +1,4 @@
-import type { ForecastFrameTarget } from '../forecast-frame'
+import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastTimeSyncBridge } from '../forecast-time'
 
 export type StartupPhase = 'idle' | 'loading' | 'ready' | 'error'
@@ -19,6 +19,6 @@ export type StartupState = {
   handleError: (error: Error) => void
 }
 
-export type ForecastSyncTarget = ForecastFrameTarget & {
+export type ForecastSyncTarget = ForecastDataTarget & {
   sync: ForecastTimeSyncBridge
 }

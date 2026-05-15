@@ -1,8 +1,8 @@
 import {
-  asVectorProductId,
+  asVectorArtifactId,
   type CycleManifest,
-  type ManifestProductSpec,
-  type VectorProductId,
+  type ManifestArtifactSpec,
+  type VectorArtifactId,
 } from '../manifest'
 
 type Brand<T, B extends string> = T & { readonly __brand: B }
@@ -15,7 +15,7 @@ export function asParticleLayerId(value: string): ParticleLayerId {
 
 export type ParticleLayerSource = {
   kind: 'artifact'
-  artifactId: VectorProductId
+  artifactId: VectorArtifactId
 }
 
 export type ParticleLayerSpec = {
@@ -54,7 +54,7 @@ export function getParticleLayerSpec(
   return layer
 }
 
-export function particleLayerSourceProductId(layer: ParticleLayerSpec): VectorProductId {
+export function particleLayerSourceArtifactId(layer: ParticleLayerSpec): VectorArtifactId {
   return layer.source.artifactId
 }
 
@@ -62,7 +62,7 @@ function isParticleLayerAvailable(
   manifest: CycleManifest,
   layer: ParticleLayerSpec
 ): boolean {
-  const artifact = manifest.products[layer.source.artifactId]
+  const artifact = manifest.artifacts[layer.source.artifactId]
   if (!artifact) return false
   if (artifact.kind !== 'vector') {
     throw new Error(`Particle layer ${layer.id} requires vector artifact ${layer.source.artifactId}, got ${artifact.kind}`)
@@ -75,7 +75,7 @@ function particleLayer(
   label: string,
   artifactId: string
 ): ParticleLayerSpec {
-  const vectorArtifactId = asVectorProductId(artifactId)
+  const vectorArtifactId = asVectorArtifactId(artifactId)
 
   return {
     id: asParticleLayerId(id),
@@ -88,7 +88,7 @@ function particleLayer(
 }
 
 function hasOrderedComponents(
-  artifact: ManifestProductSpec,
+  artifact: ManifestArtifactSpec,
   components: readonly string[]
 ): boolean {
   return artifact.components.length === components.length &&

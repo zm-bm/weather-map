@@ -6,18 +6,18 @@ import {
   MANIFEST_SCHEMA_VERSION,
 } from './constants'
 import {
-  asProductId,
+  asArtifactId,
   type NonEmptyArray,
-  type ProductId,
+  type ArtifactId,
 } from './ids'
 
 export type LayerColortableStop = [number, number, number, number] | [number, number, number]
 
-const PRODUCT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
+const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
 
 const finiteNumberSchema = z.number().finite()
 const componentNameSchema = z.string().trim().min(1)
-const optionalTemporalKindSchema = z.enum(PRODUCT_TEMPORAL_KINDS).optional()
+const optionalTemporalKindSchema = z.enum(ARTIFACT_TEMPORAL_KINDS).optional()
 const optionalSourceIntervalHoursSchema = finiteNumberSchema.positive().optional()
 
 export const modelSchema = z.object({
@@ -104,7 +104,7 @@ export const frameRefSchema = z.object({
   sha256: z.string(),
 })
 
-const productCommonSchema = {
+const artifactCommonSchema = {
   id: z.string(),
   units: z.string(),
   parameter: z.string(),
@@ -116,21 +116,21 @@ const productCommonSchema = {
   sourceIntervalHours: optionalSourceIntervalHoursSchema,
 }
 
-export const scalarProductSchema = z.object({
-  ...productCommonSchema,
+export const scalarArtifactSchema = z.object({
+  ...artifactCommonSchema,
   kind: z.literal('scalar'),
   encoding: scalarEncodingSchema,
 })
 
-export const vectorProductSchema = z.object({
-  ...productCommonSchema,
+export const vectorArtifactSchema = z.object({
+  ...artifactCommonSchema,
   kind: z.literal('vector'),
   encoding: vectorEncodingSchema,
 })
 
-export const manifestProductSchema = z.discriminatedUnion('kind', [
-  scalarProductSchema,
-  vectorProductSchema,
+export const manifestArtifactSchema = z.discriminatedUnion('kind', [
+  scalarArtifactSchema,
+  vectorArtifactSchema,
 ])
 
 const cycleManifestPayloadSchema = z.object({
@@ -140,7 +140,7 @@ const cycleManifestPayloadSchema = z.object({
   model: modelSchema,
   run: runSchema,
   times: z.array(timeSchema).nonempty('expected at least one time'),
-  products: z.record(z.string(), manifestProductSchema),
+  artifacts: z.record(z.string(), manifestArtifactSchema),
 })
 
 export const cycleManifestSchema = cycleManifestPayloadSchema
@@ -158,29 +158,29 @@ export const cycleManifestSchema = cycleManifestPayloadSchema
       })
     }
 
-    const productEntries = Object.entries(manifest.products)
-    if (productEntries.length < 1) {
+    const artifactEntries = Object.entries(manifest.artifacts)
+    if (artifactEntries.length < 1) {
       ctx.addIssue({
         code: 'custom',
-        path: ['products'],
-        message: 'expected at least one product',
+        path: ['artifacts'],
+        message: 'expected at least one artifact',
       })
     }
 
-    for (const [productId, product] of productEntries) {
-      if (product.id !== productId) {
+    for (const [artifactId, artifact] of artifactEntries) {
+      if (artifact.id !== artifactId) {
         ctx.addIssue({
           code: 'custom',
-          path: ['products', productId, 'id'],
-          message: `product key ${productId} does not match id ${product.id}`,
+          path: ['artifacts', artifactId, 'id'],
+          message: `artifact key ${artifactId} does not match id ${artifact.id}`,
         })
       }
 
       for (const time of manifest.times) {
-        if (product.frames[time.id]) continue
+        if (artifact.frames[time.id]) continue
         ctx.addIssue({
           code: 'custom',
-          path: ['products', productId, 'frames', time.id],
+          path: ['artifacts', artifactId, 'frames', time.id],
           message: `missing frame for hour ${time.id}`,
         })
       }
@@ -188,7 +188,7 @@ export const cycleManifestSchema = cycleManifestPayloadSchema
   })
   .transform((manifest): CycleManifest => ({
     ...manifest,
-    productsByKind: deriveProductsByKind(manifest.products),
+    artifactsByKind: deriveArtifactsByKind(manifest.artifacts),
   }))
 
 export type ForecastModelSpec = z.infer<typeof modelSchema>
@@ -202,28 +202,28 @@ export type ScalarEncodingSpec = z.infer<typeof scalarEncodingSchema>
 export type VectorEncodingSpec = z.infer<typeof vectorEncodingSchema>
 export type ManifestEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
 export type FramePayloadRef = z.infer<typeof frameRefSchema>
-export type ProductTemporalKind = typeof PRODUCT_TEMPORAL_KINDS[number]
-export type ProductKind = ManifestProductSpec['kind']
-export type ScalarProductSpec = z.infer<typeof scalarProductSchema>
-export type VectorProductSpec = z.infer<typeof vectorProductSchema>
-export type ManifestProductSpec = z.infer<typeof manifestProductSchema>
+export type ArtifactTemporalKind = typeof ARTIFACT_TEMPORAL_KINDS[number]
+export type ArtifactKind = ManifestArtifactSpec['kind']
+export type ScalarArtifactSpec = z.infer<typeof scalarArtifactSchema>
+export type VectorArtifactSpec = z.infer<typeof vectorArtifactSchema>
+export type ManifestArtifactSpec = z.infer<typeof manifestArtifactSchema>
 export type CycleManifest = z.infer<typeof cycleManifestPayloadSchema> & {
-  productsByKind: Record<string, NonEmptyArray<ProductId>>
+  artifactsByKind: Record<string, NonEmptyArray<ArtifactId>>
 }
 
-function deriveProductsByKind(products: Record<string, ManifestProductSpec>): Record<string, NonEmptyArray<ProductId>> {
-  const productIdsByKind: Record<string, ProductId[]> = {}
+function deriveArtifactsByKind(artifacts: Record<string, ManifestArtifactSpec>): Record<string, NonEmptyArray<ArtifactId>> {
+  const artifactIdsByKind: Record<string, ArtifactId[]> = {}
 
-  for (const product of Object.values(products)) {
-    const productId = asProductId(product.id)
-    productIdsByKind[product.kind] ??= []
-    productIdsByKind[product.kind].push(productId)
+  for (const artifact of Object.values(artifacts)) {
+    const artifactId = asArtifactId(artifact.id)
+    artifactIdsByKind[artifact.kind] ??= []
+    artifactIdsByKind[artifact.kind].push(artifactId)
   }
 
-  const productsByKind: Record<string, NonEmptyArray<ProductId>> = {}
-  for (const [kind, productIds] of Object.entries(productIdsByKind)) {
-    productsByKind[kind] = productIds as NonEmptyArray<ProductId>
+  const artifactsByKind: Record<string, NonEmptyArray<ArtifactId>> = {}
+  for (const [kind, artifactIds] of Object.entries(artifactIdsByKind)) {
+    artifactsByKind[kind] = artifactIds as NonEmptyArray<ArtifactId>
   }
 
-  return productsByKind
+  return artifactsByKind
 }

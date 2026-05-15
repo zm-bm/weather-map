@@ -32,7 +32,7 @@ class ManifestInspectTest(unittest.TestCase):
                     "generatedAt": "2026-05-11T14:05:00Z",
                     "revision": "abc123",
                 },
-                "products": {"malformed": object()},
+                "artifacts": {"malformed": object()},
             }
         )
 
@@ -58,7 +58,7 @@ class ManifestInspectTest(unittest.TestCase):
 
     def test_manifest_info_from_obj_returns_none_without_valid_cycle(self) -> None:
         self.assertIsNone(manifest_info_from_obj({"run": {"cycle": "20260511"}}))
-        self.assertIsNone(manifest_info_from_obj({"products": {}}))
+        self.assertIsNone(manifest_info_from_obj({"artifacts": {}}))
 
     def test_manifest_info_read_helpers_use_store_and_artifact_paths(self) -> None:
         with temp_artifact_fixture() as artifacts:

@@ -1,4 +1,4 @@
-"""Prepared source objects handed from source adapters to product execution."""
+"""Prepared source objects handed from source adapters to artifact execution."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ DEFAULT_GRIB_COLLECTION_SELECTOR_KEY = "ICON_PARAM"
 
 
 class PreparedSource:
-    """Source object consumed by product extraction after acquisition."""
+    """Source object consumed by artifact extraction after acquisition."""
 
     uri: str
     grid_id: str
@@ -46,11 +46,11 @@ class PreparedSource:
     def component_grib_path(
         self,
         *,
-        product_id: str,
+        artifact_id: str,
         component_id: str,
         grib_match: Mapping[str, str],
     ) -> Path:
-        """Return the GRIB path that should supply one product component."""
+        """Return the GRIB path that should supply one artifact component."""
 
         raise NotImplementedError
 
@@ -69,11 +69,11 @@ class SingleGribPreparedSource(PreparedSource):
     def component_grib_path(
         self,
         *,
-        product_id: str,
+        artifact_id: str,
         component_id: str,
         grib_match: Mapping[str, str],
     ) -> Path:
-        del product_id, component_id, grib_match
+        del artifact_id, component_id, grib_match
         return self.path
 
 
@@ -112,7 +112,7 @@ class GribCollectionPreparedSource(PreparedSource):
     def component_grib_path(
         self,
         *,
-        product_id: str,
+        artifact_id: str,
         component_id: str,
         grib_match: Mapping[str, str],
     ) -> Path:
@@ -120,7 +120,7 @@ class GribCollectionPreparedSource(PreparedSource):
         selector_value = raw_selector.strip() if isinstance(raw_selector, str) else ""
         if not selector_value:
             raise SystemExit(
-                f"Product {product_id}.{component_id} requires {self.selector_key} "
+                f"Artifact {artifact_id}.{component_id} requires {self.selector_key} "
                 "for GRIB collection source"
             )
 
@@ -129,6 +129,6 @@ class GribCollectionPreparedSource(PreparedSource):
         if grib_path is None:
             raise SystemExit(
                 f"Prepared GRIB collection missing {self.selector_key} {selector_value!r} "
-                f"for product {product_id}.{component_id}"
+                f"for artifact {artifact_id}.{component_id}"
             )
         return grib_path

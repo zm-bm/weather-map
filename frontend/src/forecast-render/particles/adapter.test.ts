@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FORECAST_LAYER_BEFORE_ID } from '../types'
-import { applyParticleFrame, particleRenderer } from './adapter'
+import { applyParticleInterpolationWindow, particleRenderer } from './adapter'
 import { particleRuntimeOptions } from './options'
 
 const mocks = vi.hoisted(() => ({
@@ -72,7 +72,7 @@ describe('particleRenderer', () => {
       setEnabled,
     })
 
-    applyParticleFrame(map as never, frame as never)
+    applyParticleInterpolationWindow(map as never, frame as never)
 
     expect(setEnabled).toHaveBeenCalledWith(true)
     expect(applyFrame).toHaveBeenCalledWith(frame)
@@ -86,7 +86,7 @@ describe('particleRenderer', () => {
       setEnabled,
     })
 
-    applyParticleFrame({} as never, null)
+    applyParticleInterpolationWindow({} as never, null)
 
     expect(setEnabled).toHaveBeenCalledWith(false)
   })
@@ -98,7 +98,7 @@ describe('particleRenderer', () => {
       setEnabled: vi.fn(),
     })
 
-    expect(() => applyParticleFrame({} as never, { lower: { artifactId: 'wind10m_uv' } } as never))
+    expect(() => applyParticleInterpolationWindow({} as never, { lower: { artifactId: 'wind10m_uv' } } as never))
       .toThrow('Particle runtime unavailable (WebGL2 required)')
   })
 })

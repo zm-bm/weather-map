@@ -44,7 +44,7 @@ class ManifestGrid(FrozenAliasModel):
 
 
 class ManifestEncoding(BaseModel):
-    """Permissive product encoding metadata emitted to the frontend."""
+    """Permissive artifact encoding metadata emitted to the frontend."""
 
     model_config = ConfigDict(
         extra="allow",
@@ -58,8 +58,8 @@ class ManifestEncoding(BaseModel):
     dtype: NonEmptyStr
 
 
-class ManifestProduct(FrozenAliasModel):
-    """Frontend product entry with frames keyed by forecast hour."""
+class ManifestArtifact(FrozenAliasModel):
+    """Frontend artifact entry with frames keyed by forecast hour."""
 
     id: NonEmptyStr
     kind: Literal["scalar", "vector"]
@@ -74,7 +74,7 @@ class ManifestProduct(FrozenAliasModel):
     source_interval_hours: FiniteNumber | None = Field(default=None, alias="sourceIntervalHours")
 
     @model_validator(mode="after")
-    def _valid_temporal_interval(self) -> "ManifestProduct":
+    def _valid_temporal_interval(self) -> "ManifestArtifact":
         if self.source_interval_hours is not None and self.source_interval_hours <= 0:
             raise ValueError("sourceIntervalHours must be positive when provided")
         return self
@@ -101,12 +101,12 @@ class CycleManifest(FrozenAliasModel):
     """Top-level frontend cycle manifest."""
 
     schema_name: Literal["weather-map.cycle-manifest"] = Field(alias="schema")
-    schema_version: Literal[4] = Field(alias="schemaVersion")
+    schema_version: Literal[5] = Field(alias="schemaVersion")
     payload_contract: Literal["forecast-binary-v2"] = Field(alias="payloadContract")
     model: ManifestModelIdentity
     run: ManifestRun
     times: tuple[ManifestTime, ...] = Field(min_length=1)
-    products: dict[NonEmptyStr, dict[str, Any]] = Field(min_length=1)
+    artifacts: dict[NonEmptyStr, dict[str, Any]] = Field(min_length=1)
 
 
 def manifest_frame(*, path: str, byte_length: int, sha256: str) -> dict[str, Any]:

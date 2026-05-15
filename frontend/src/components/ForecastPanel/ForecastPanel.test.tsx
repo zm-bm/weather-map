@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { FORECAST_MODEL_OPTIONS, type ForecastModelId } from '../../forecast-models'
 import {
   createManifestFixture,
-  createScalarProductFixture,
+  createScalarArtifactFixture,
 } from '../../test/fixtures'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import ForecastPanel from './ForecastPanel'
@@ -21,17 +21,17 @@ function createForecastPanelProps(overrides: {
 }
 
 function createPanelManifest(
-  scalarProducts: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
+  scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
   options: { model?: { id: string, label: string } } = {}
 ) {
   return createManifestFixture({
     cycle: '2026041100',
     model: options.model,
-    scalarProducts,
-    vectorProducts: ['wind10m_uv'],
-    products: {
-      tmp_surface: createScalarProductFixture(),
-      rh_surface: createScalarProductFixture({
+    scalarArtifactIds,
+    vectorArtifactIds: ['wind10m_uv'],
+    artifacts: {
+      tmp_surface: createScalarArtifactFixture(),
+      rh_surface: createScalarArtifactFixture({
         units: '%',
         parameter: 'rh',
       }),
@@ -39,9 +39,9 @@ function createPanelManifest(
   })
 }
 
-function renderForecastPanel(scalarProducts: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
+function renderForecastPanel(scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   return render(
-    <ForecastSelectionProvider manifest={createPanelManifest(scalarProducts)}>
+    <ForecastSelectionProvider manifest={createPanelManifest(scalarArtifactIds)}>
       <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
@@ -53,14 +53,14 @@ function createInteractivePanelManifest(
 ) {
   return createManifestFixture({
     cycle,
-    scalarProducts: Array.from(new Set([selectedLayerId, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
-    vectorProducts: ['wind10m_uv', 'gust10m_uv'],
-    products: {
-      tmp_surface: createScalarProductFixture(),
-      aptmp_surface: createScalarProductFixture({
+    scalarArtifactIds: Array.from(new Set([selectedLayerId, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
+    vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
+    artifacts: {
+      tmp_surface: createScalarArtifactFixture(),
+      aptmp_surface: createScalarArtifactFixture({
         parameter: 'aptmp',
       }),
-      prmsl_surface: createScalarProductFixture({
+      prmsl_surface: createScalarArtifactFixture({
         units: 'Pa',
         parameter: 'prmsl',
       }),
@@ -166,24 +166,24 @@ describe('ForecastPanel', () => {
       <ForecastSelectionProvider
         manifest={createManifestFixture({
           cycle: '2026041118',
-          scalarProducts: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
-          vectorProducts: [],
-          products: {
-            tcdc: createScalarProductFixture({
+          scalarArtifactIds: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
+          vectorArtifactIds: [],
+          artifacts: {
+            tcdc: createScalarArtifactFixture({
               units: '%',
               parameter: 'tcdc',
             }),
-            low_clouds: createScalarProductFixture({
+            low_clouds: createScalarArtifactFixture({
               id: 'low_clouds',
               units: '%',
               parameter: 'low_clouds',
             }),
-            medium_clouds: createScalarProductFixture({
+            medium_clouds: createScalarArtifactFixture({
               id: 'medium_clouds',
               units: '%',
               parameter: 'medium_clouds',
             }),
-            high_clouds: createScalarProductFixture({
+            high_clouds: createScalarArtifactFixture({
               id: 'high_clouds',
               units: '%',
               parameter: 'high_clouds',

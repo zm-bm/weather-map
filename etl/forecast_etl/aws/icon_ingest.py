@@ -150,9 +150,9 @@ def _hour_complete(
     fhour: str,
 ) -> bool:
     return all(
-        paths.success_marker_uri_parts(model_id=model.id, cycle=cycle, fhour=fhour, product_id=product_id)
+        paths.success_marker_uri_parts(model_id=model.id, cycle=cycle, fhour=fhour, artifact_id=artifact_id)
         in existing_markers
-        for product_id in model.workload.products
+        for artifact_id in model.workload.artifacts
     )
 
 
@@ -280,14 +280,14 @@ def _submit_job(
 def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: str, store: UriStore | None = None) -> bool:
     ctx = execution_context_for_model(model, artifact_root_uri)
     resolved_store = store if store is not None else make_store()
-    artifacts = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=artifact_root_uri)
+    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=artifact_root_uri)
     result = run_publish(
         ctx=ctx,
         cycle=cycle,
         model_label=model.label,
-        product_ids=model.workload.products,
-        products=model.products,
-        artifacts=artifacts,
+        artifact_ids=model.workload.artifacts,
+        artifact_specs=model.artifacts,
+        artifact_repo=artifact_repo,
     )
     return result.ready
 
@@ -303,7 +303,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
 
     model = _model(pipeline_config_uri)
-    if not model.workload.products or not model.workload.forecast_hours:
+    if not model.workload.artifacts or not model.workload.forecast_hours:
         print("ICON workload is empty; nothing to submit", flush=True)
         return {"ok": True, "submitted": 0, "published": 0}
 

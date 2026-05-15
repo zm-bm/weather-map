@@ -22,7 +22,7 @@ class _FakeDerivationInput:
 
 
 @dataclass(frozen=True)
-class _FakeProduct:
+class _FakeArtifact:
     components: tuple[_FakeComponent, ...]
     derivation: object | None = None
 
@@ -36,7 +36,7 @@ class _FakeDerivation:
 @dataclass(frozen=True)
 class _FakeWorkload:
     forecast_hours: tuple[str, ...]
-    products: tuple[str, ...]
+    artifacts: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -47,15 +47,15 @@ class _FakeModel:
         grid_id="icon_global_regridded_0p125",
         icon_dwd=IconDwdConfig(base_url="https://example.test/icon", rate_limit_seconds=0.0),
     )
-    workload: _FakeWorkload = _FakeWorkload(forecast_hours=("001",), products=("tmp_surface",))
-    products: dict[str, _FakeProduct] | None = None
+    workload: _FakeWorkload = _FakeWorkload(forecast_hours=("001",), artifacts=("tmp_surface",))
+    artifacts: dict[str, _FakeArtifact] | None = None
 
     def __post_init__(self) -> None:
-        if self.products is None:
+        if self.artifacts is None:
             object.__setattr__(
                 self,
-                "products",
-                {"tmp_surface": _FakeProduct(components=(_FakeComponent({"ICON_PARAM": "t_2m"}),))},
+                "artifacts",
+                {"tmp_surface": _FakeArtifact(components=(_FakeComponent({"ICON_PARAM": "t_2m"}),))},
             )
 
 
@@ -197,9 +197,9 @@ class IconIngestTest(unittest.TestCase):
 
     def test_derived_rate_waits_for_previous_hour_source(self) -> None:
         self.model = _FakeModel(
-            workload=_FakeWorkload(forecast_hours=("003",), products=("prate_surface",)),
-            products={
-                "prate_surface": _FakeProduct(
+            workload=_FakeWorkload(forecast_hours=("003",), artifacts=("prate_surface",)),
+            artifacts={
+                "prate_surface": _FakeArtifact(
                     components=(_FakeComponent(None),),
                     derivation=_FakeDerivation(
                         type="icon_tot_prec_delta_rate",
@@ -266,7 +266,7 @@ class IconIngestTest(unittest.TestCase):
                     model_id="icon",
                     cycle="2026051112",
                     fhour="001",
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                 )
             }
         )
@@ -288,7 +288,7 @@ class IconIngestTest(unittest.TestCase):
                     model_id="icon",
                     cycle="2026051112",
                     fhour="001",
-                    product_id="tmp_surface",
+                    artifact_id="tmp_surface",
                 )
             }
         )

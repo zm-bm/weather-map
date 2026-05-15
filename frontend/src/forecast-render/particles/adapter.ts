@@ -4,7 +4,7 @@ import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
 import { createParticleRuntime } from './engine/runtime'
 import { getParticleController } from './controller'
 import { particleRuntimeOptions } from './options'
-import type { ParticleFrameWindowData } from '../../forecast-frame'
+import type { ParticleInterpolationWindowData } from '../../forecast-data'
 
 export const PARTICLE_RENDERER_LAYER_ID = 'particle-renderer-layer-id'
 
@@ -16,7 +16,7 @@ export const particleRenderer: ForecastRenderer = {
   },
 }
 
-export function applyParticleFrame(map: MapLibreMap, frame: ParticleFrameWindowData | null): void {
+export function applyParticleInterpolationWindow(map: MapLibreMap, frame: ParticleInterpolationWindowData | null): void {
   const controller = getParticleController(map)
   if (frame == null) {
     controller?.setEnabled(false)

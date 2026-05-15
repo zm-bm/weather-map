@@ -30,7 +30,7 @@ def _filters(pipeline_config_uri: str) -> dict[str, Any]:
     except Exception as exc:
         print(f"Failed to load pipeline config from {pipeline_config_uri}: {exc}")
         resolved = {
-            "products": (),
+            "artifacts": (),
             "allowed_fhours": set(),
             "has_work_items": False,
             "allowed_cycles": ALLOWED_CYCLES,
@@ -39,13 +39,13 @@ def _filters(pipeline_config_uri: str) -> dict[str, Any]:
         return resolved
 
     model = cfg.model(MODEL_ID)
-    products = tuple(model.workload.products)
+    artifacts = tuple(model.workload.artifacts)
     allowed_fhours = set(model.workload.forecast_hours)
 
     resolved = {
-        "products": products,
+        "artifacts": artifacts,
         "allowed_fhours": allowed_fhours,
-        "has_work_items": bool(products),
+        "has_work_items": bool(artifacts),
         "allowed_cycles": ALLOWED_CYCLES,
     }
     _FILTERS_CACHE_BY_URI[pipeline_config_uri] = resolved
@@ -133,7 +133,7 @@ def _submit_job(
         return 0
 
     if not filters.get("has_work_items", False):
-        print(f"skip key (no workload.products configured): key={key}")
+        print(f"skip key (no workload.artifacts configured): key={key}")
         return 0
 
     grib_source_uri = f"s3://{bucket}/{key}"
@@ -157,7 +157,7 @@ def _submit_job(
     )
     print(
         f"submitted: {job_name} key={key} "
-        f"products={len(filters.get('products', ()))}"
+        f"artifacts={len(filters.get('artifacts', ()))}"
     )
     return 1
 

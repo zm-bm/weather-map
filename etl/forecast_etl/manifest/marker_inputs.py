@@ -5,34 +5,34 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..artifacts.markers_schema import ProductMarkerPayload
+from ..artifacts.markers_schema import ArtifactMarkerPayload
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ProductSpec
+from ..config.resolved import ArtifactSpec
 from ..encoding.codecs import LINEAR_DECODE_FORMULA, is_linear_encoding_format
 from .schema import manifest_encoding, manifest_frame, manifest_grid
 
 
 @dataclass(frozen=True)
-class ProductManifestInputs:
-    """Manifest-ready marker-derived inputs for one product."""
+class ArtifactManifestInputs:
+    """Manifest-ready marker-derived inputs for one artifact."""
 
     encoding: dict[str, Any]
     grid: dict[str, Any]
     frames: dict[str, dict[str, Any]]
 
 
-def product_manifest_inputs_from_markers(
+def artifact_manifest_inputs_from_markers(
     *,
-    artifacts: ArtifactRepository,
+    artifact_repo: ArtifactRepository,
     model_id: str,
     cycle: str,
     fhours: tuple[str, ...],
-    product_id: str,
-    product: ProductSpec,
-) -> ProductManifestInputs:
-    """Read product markers and validate them against publish context/config."""
+    artifact_id: str,
+    artifact: ArtifactSpec,
+) -> ArtifactManifestInputs:
+    """Read artifact markers and validate them against publish context/config."""
 
-    raw_encoding_entry = _encoding_marker_metadata_for_product(product)
+    raw_encoding_entry = _encoding_marker_metadata_for_artifact(artifact)
     encoding_id = str(raw_encoding_entry.pop("encoding_id"))
 
     first_grid_id: str | None = None
@@ -40,14 +40,14 @@ def product_manifest_inputs_from_markers(
     frames: dict[str, dict[str, Any]] = {}
 
     for fhour in fhours:
-        marker_uri = artifacts.paths.success_marker_uri_parts(
+        marker_uri = artifact_repo.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
             fhour=fhour,
-            product_id=product_id,
+            artifact_id=artifact_id,
         )
-        marker = artifacts.read_product_success_marker_uri(marker_uri)
-        product_marker = marker.product
+        marker = artifact_repo.read_artifact_success_marker_uri(marker_uri)
+        artifact_marker = marker.artifact
 
         _assert_fields_match(
             label="Success marker",
@@ -55,88 +55,88 @@ def product_manifest_inputs_from_markers(
             actual={
                 "cycle": marker.cycle,
                 "fhour": marker.fhour,
-                "product_id": marker.product_id,
+                "artifact_id": marker.artifact_id,
             },
             expected={
                 "cycle": cycle,
                 "fhour": fhour,
-                "product_id": product_id,
+                "artifact_id": artifact_id,
             },
         )
-        _assert_marker_metadata_matches_product(
+        _assert_marker_metadata_matches_artifact(
             marker_uri=marker_uri,
-            product=product,
-            product_marker=product_marker,
+            artifact=artifact,
+            artifact_marker=artifact_marker,
             encoding_id=encoding_id,
             encoding_entry=raw_encoding_entry,
         )
 
         if first_grid_id is None:
-            first_grid_id = product_marker.grid_id
-            first_grid = product_marker.grid
-        elif first_grid_id != product_marker.grid_id:
+            first_grid_id = artifact_marker.grid_id
+            first_grid = artifact_marker.grid
+        elif first_grid_id != artifact_marker.grid_id:
             raise SystemExit(
-                f"Grid id mismatch across forecast hours for product={product_id!r}: "
-                f"first={first_grid_id!r} current={product_marker.grid_id!r} marker={marker_uri}"
+                f"Grid id mismatch across forecast hours for artifact={artifact_id!r}: "
+                f"first={first_grid_id!r} current={artifact_marker.grid_id!r} marker={marker_uri}"
             )
-        elif first_grid != product_marker.grid:
+        elif first_grid != artifact_marker.grid:
             raise SystemExit(
-                f"Grid metadata mismatch across forecast hours for product={product_id!r}: "
-                f"grid_id={product_marker.grid_id!r} marker={marker_uri}"
+                f"Grid metadata mismatch across forecast hours for artifact={artifact_id!r}: "
+                f"grid_id={artifact_marker.grid_id!r} marker={marker_uri}"
             )
 
         frames[fhour] = manifest_frame(
-            path=_relative_artifact_path(artifacts=artifacts, uri=product_marker.payload_uri),
-            byte_length=product_marker.byte_length,
-            sha256=product_marker.sha256,
+            path=_relative_artifact_path(artifact_repo=artifact_repo, uri=artifact_marker.payload_uri),
+            byte_length=artifact_marker.byte_length,
+            sha256=artifact_marker.sha256,
         )
 
     if first_grid_id is None or first_grid is None:
-        raise SystemExit(f"No product metadata found for product={product_id!r}")
+        raise SystemExit(f"No artifact metadata found for artifact={artifact_id!r}")
 
-    return ProductManifestInputs(
+    return ArtifactManifestInputs(
         encoding=manifest_encoding(encoding_id=encoding_id, encoding=raw_encoding_entry),
         grid=manifest_grid(grid_id=first_grid_id, grid=first_grid),
         frames=frames,
     )
 
 
-def _assert_marker_metadata_matches_product(
+def _assert_marker_metadata_matches_artifact(
     *,
     marker_uri: str,
-    product: ProductSpec,
-    product_marker: ProductMarkerPayload,
+    artifact: ArtifactSpec,
+    artifact_marker: ArtifactMarkerPayload,
     encoding_id: str,
     encoding_entry: Mapping[str, Any],
 ) -> None:
-    """Fail when marker product metadata no longer matches current config."""
+    """Fail when marker artifact metadata no longer matches current config."""
 
     _assert_fields_match(
-        label="Product",
+        label="Artifact",
         marker_uri=marker_uri,
         actual={
-            "encoding_id": product_marker.encoding_id,
-            "format": product_marker.format,
-            "units": product_marker.units,
-            "parameter": product_marker.parameter,
-            "level": product_marker.level,
-            "components": tuple(product_marker.components),
+            "encoding_id": artifact_marker.encoding_id,
+            "format": artifact_marker.format,
+            "units": artifact_marker.units,
+            "parameter": artifact_marker.parameter,
+            "level": artifact_marker.level,
+            "components": tuple(artifact_marker.components),
         },
         expected={
             "encoding_id": encoding_id,
             "format": encoding_entry["format"],
-            "units": product.units,
-            "parameter": product.parameter,
-            "level": product.level,
-            "components": product.component_ids,
+            "units": artifact.units,
+            "parameter": artifact.parameter,
+            "level": artifact.level,
+            "components": artifact.component_ids,
         },
     )
 
 
-def _encoding_marker_metadata_for_product(product: ProductSpec) -> dict[str, Any]:
-    """Build manifest encoding metadata from a resolved product config."""
+def _encoding_marker_metadata_for_artifact(artifact: ArtifactSpec) -> dict[str, Any]:
+    """Build manifest encoding metadata from a resolved artifact config."""
 
-    encoding = product.encoding
+    encoding = artifact.encoding
     metadata: dict[str, Any] = {
         "format": encoding.format,
         "dtype": encoding.dtype,
@@ -170,11 +170,11 @@ def _assert_fields_match(
             )
 
 
-def _relative_artifact_path(*, artifacts: ArtifactRepository, uri: str) -> str:
+def _relative_artifact_path(*, artifact_repo: ArtifactRepository, uri: str) -> str:
     """Return a manifest path for a payload URI under the artifact root."""
 
     try:
-        rel = artifacts.paths.relative_key(uri)
+        rel = artifact_repo.paths.relative_key(uri)
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
     if not rel:

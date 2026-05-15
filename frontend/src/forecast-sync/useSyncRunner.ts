@@ -5,12 +5,12 @@ import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
-  createForecastFramePlan,
-  createForecastFrameMemory,
-  loadForecastFrames,
-} from '../forecast-frame'
-import { applyForecastFrames } from '../forecast-render'
-import { forecastFieldFrameStore } from '../forecast-probe'
+  createForecastDataPlan,
+  createForecastDataMemory,
+  loadForecastData,
+} from '../forecast-data'
+import { applyForecastRenderData } from '../forecast-render'
+import { forecastFieldDataStore } from '../forecast-probe'
 import type { StartupState, ForecastSyncTarget } from './types'
 
 type UseSyncRunnerArgs = {
@@ -68,9 +68,9 @@ export function useSyncRunner({
   if (machineRef.current == null) {
     machineRef.current = createRunnerMachine()
   }
-  const frameMemoryRef = useRef<ReturnType<typeof createForecastFrameMemory> | null>(null)
-  if (frameMemoryRef.current == null) {
-    frameMemoryRef.current = createForecastFrameMemory()
+  const dataMemoryRef = useRef<ReturnType<typeof createForecastDataMemory> | null>(null)
+  if (dataMemoryRef.current == null) {
+    dataMemoryRef.current = createForecastDataMemory()
   }
 
   useEffect(() => {
@@ -86,8 +86,8 @@ export function useSyncRunner({
 
     switch (decision.kind) {
       case 'disabled':
-        frameMemoryRef.current?.reset()
-        forecastFieldFrameStore.clear()
+        dataMemoryRef.current?.reset()
+        forecastFieldDataStore.clear()
         handleDisabled()
         return
       case 'blocked':
@@ -105,8 +105,8 @@ export function useSyncRunner({
       requestKey,
       sync,
     } = syncTarget
-    const frameMemory = frameMemoryRef.current
-    if (frameMemory == null) return
+    const dataMemory = dataMemoryRef.current
+    if (dataMemory == null) return
 
     if (machine.isApplied(requestKey)) {
       machine.abort()
@@ -115,7 +115,7 @@ export function useSyncRunner({
     if (machine.isActive(requestKey)) return
 
     const activeRequest = machine.start(requestKey)
-    const framePlan = createForecastFramePlan({
+    const dataPlan = createForecastDataPlan({
       target: syncTarget,
       artifacts: createArtifactLoader({
         config,
@@ -124,8 +124,8 @@ export function useSyncRunner({
       }),
     })
 
-    if (frameMemory.shouldClearFieldProbe(framePlan)) {
-      forecastFieldFrameStore.clear()
+    if (dataMemory.shouldClearFieldProbe(dataPlan)) {
+      forecastFieldDataStore.clear()
     }
 
     handlePending()
@@ -133,17 +133,17 @@ export function useSyncRunner({
 
     const runRequest = async () => {
       try {
-        const frames = await loadForecastFrames({
-          plan: framePlan,
-          previousWindows: frameMemory.reusableWindowsFor(framePlan),
+        const renderData = await loadForecastData({
+          plan: dataPlan,
+          previousWindows: dataMemory.reusableWindowsFor(dataPlan),
         })
 
         if (isRequestStale(machine, activeRequest)) return
-        applyForecastFrames(map, frames)
+        applyForecastRenderData(map, renderData)
         if (isRequestStale(machine, activeRequest)) return
 
-        forecastFieldFrameStore.publish(frames.field)
-        frameMemory.commit(framePlan, frames)
+        forecastFieldDataStore.publish(renderData.field)
+        dataMemory.commit(dataPlan, renderData)
         machine.markApplied(activeRequest)
         sync.onRequestApplied(selectedValidTimeMs)
         handleApplied()

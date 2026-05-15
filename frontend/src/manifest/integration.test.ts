@@ -4,10 +4,10 @@ import { fetchCurrentManifest } from './fetch'
 import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
-  createForecastFramePlan,
-  createForecastFrameTarget,
-  loadForecastFrames,
-} from '../forecast-frame'
+  createForecastDataPlan,
+  createForecastDataTarget,
+  loadForecastData,
+} from '../forecast-data'
 import {
   createConfigFixture,
   createCycleManifestPayloadFixture,
@@ -31,7 +31,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('manifest + frame loading end-to-end', () => {
+describe('manifest + data loading end-to-end', () => {
   it('fetches current manifest and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
@@ -64,13 +64,13 @@ describe('manifest + frame loading end-to-end', () => {
       artifactBaseUrl: 'http://localhost:3000',
     })
 
-    const target = createForecastFrameTarget({
+    const target = createForecastDataTarget({
       manifest,
       selectedLayerId: layers.tmp_surface!.id,
       selectedLayer: layers.tmp_surface!,
       selectedParticleLayerId: particleLayers.wind_particles!.id,
       selectedParticleLayer: particleLayers.wind_particles!,
-      frameWindow: {
+      interpolationWindow: {
         selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
         lowerHourToken: '000',
         upperHourToken: '000',
@@ -80,17 +80,17 @@ describe('manifest + frame loading end-to-end', () => {
       },
       retryToken: 0,
     })
-    const frames = await loadForecastFrames({
-      plan: createForecastFramePlan({
+    const renderData = await loadForecastData({
+      plan: createForecastDataPlan({
         target,
         artifacts: createArtifactLoader({ config, manifest, signal }),
       }),
     })
 
     expect(manifest.run.cycle).toBe('2026041312')
-    expect(Array.from(frames.field.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
-    expect(Array.from(frames.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
-    expect(Array.from(frames.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
+    expect(Array.from(renderData.field.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
+    expect(Array.from(renderData.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
+    expect(Array.from(renderData.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from pydantic import ConfigDict, field_validator
 
-from ..config.resolved import ProductSpec
+from ..config.resolved import ArtifactSpec
 from ..validation import (
     FiniteNumber,
     FrozenModel,
@@ -35,7 +35,7 @@ class _MarkerGrid(FrozenModel):
     y_mode: NonEmptyStr
 
 
-class ProductMarkerPayload(FrozenModel):
+class ArtifactMarkerPayload(FrozenModel):
     """Artifact success-marker payload used by manifest publishing."""
 
     model_config = ConfigDict(
@@ -62,63 +62,63 @@ class ProductMarkerPayload(FrozenModel):
         return validator_dict(_MarkerGrid, value)
 
 
-class StoredProductSuccessMarker(FrozenModel):
-    """Success marker JSON persisted for one product, cycle, and forecast hour."""
+class StoredArtifactSuccessMarker(FrozenModel):
+    """Success marker JSON persisted for one artifact, cycle, and forecast hour."""
 
-    product: ProductMarkerPayload
+    artifact: ArtifactMarkerPayload
     cycle: NonEmptyStr
     fhour: NonEmptyStr
-    product_id: NonEmptyStr
+    artifact_id: NonEmptyStr
 
 
-class ProductSuccessMarker(StoredProductSuccessMarker):
+class ArtifactSuccessMarker(StoredArtifactSuccessMarker):
     """Success marker read from storage, including its storage URI."""
 
     uri: NonEmptyStr
 
 
-def parse_product_success_marker_model(raw: Mapping[str, Any], *, uri: str) -> ProductSuccessMarker:
+def parse_artifact_success_marker_model(raw: Mapping[str, Any], *, uri: str) -> ArtifactSuccessMarker:
     """Validate success marker JSON and attach its storage URI."""
 
     if not isinstance(raw, Mapping):
-        return parse_model(ProductSuccessMarker, raw)
+        return parse_model(ArtifactSuccessMarker, raw)
     if "uri" in raw:
         raise SystemExit(f"Success marker contains unexpected field 'uri': {uri}")
-    return parse_model(ProductSuccessMarker, {"uri": uri, **dict(raw)})
+    return parse_model(ArtifactSuccessMarker, {"uri": uri, **dict(raw)})
 
 
-def parse_product_success_marker(raw: Mapping[str, Any], *, uri: str) -> ProductSuccessMarker:
+def parse_artifact_success_marker(raw: Mapping[str, Any], *, uri: str) -> ArtifactSuccessMarker:
     """Validate a raw success marker object from the given marker URI."""
 
-    return parse_product_success_marker_model(raw, uri=uri)
+    return parse_artifact_success_marker_model(raw, uri=uri)
 
 
-def product_success_marker_dict(raw: Mapping[str, Any]) -> dict[str, Any]:
+def artifact_success_marker_dict(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Validate and dump success marker JSON before writing it."""
 
-    return validated_dict(StoredProductSuccessMarker, raw)
+    return validated_dict(StoredArtifactSuccessMarker, raw)
 
 
-def build_product_marker_payload(
+def build_artifact_marker_payload(
     *,
-    product: ProductSpec,
+    artifact: ArtifactSpec,
     payload_uri: str,
     payload: bytes,
     grid_id: str,
     grid: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build and validate marker metadata for one product payload."""
+    """Build and validate marker metadata for one artifact payload."""
 
-    return validated_dict(ProductMarkerPayload, {
+    return validated_dict(ArtifactMarkerPayload, {
         "payload_uri": payload_uri,
         "byte_length": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
-        "format": product.encoding.format,
-        "encoding_id": product.encoding.id,
-        "units": product.units,
-        "parameter": product.parameter,
-        "level": product.level,
-        "components": product.component_ids,
+        "format": artifact.encoding.format,
+        "encoding_id": artifact.encoding.id,
+        "units": artifact.units,
+        "parameter": artifact.parameter,
+        "level": artifact.level,
+        "components": artifact.component_ids,
         "grid_id": grid_id,
         "grid": grid,
     })

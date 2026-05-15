@@ -19,17 +19,17 @@ export {
   FORECAST_TIME_STEP_MS,
   forecastTimeBounds,
   forecastValidTimeMsList,
-  frameWindowMinuteOffset,
+  interpolationWindowMinuteOffset,
   initialForecastValidTimeMs,
   MINUTE_MS,
   minuteOffsetForValidTime,
   normalizeMinuteMs,
-  resolveForecastFrameWindow,
+  resolveForecastInterpolationWindow,
   stepForecastValidTimeMs,
   validTimeMsForMinuteOffset,
 } from './time'
 export type {
-  ForecastFrameSelection,
-  ForecastFrameWindow,
+  ForecastTimeSliceSelection,
+  ForecastInterpolationWindow,
   ForecastTimelineTime,
 } from './time'
