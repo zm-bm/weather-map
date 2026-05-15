@@ -6,12 +6,9 @@ from typing import Any, Mapping
 
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
-    DERIVATION_PHASE_RATE_TYPES,
     GFS_DERIVATION_TYPES,
-    ICON_ACCUMULATION_RATE_DERIVATION_TYPES,
     ICON_DERIVATION_TYPES,
     ICON_PARAM_MATCH_KEY,
-    PRECIP_PHASES,
 )
 from ._types import parse_config_model
 from .encoding import parse_encoding
@@ -108,7 +105,6 @@ def validate_model_products_for_source(
                 )
             if not derivation.inputs:
                 raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {product_id}")
-            _validate_phase_derivation(product_id=product_id, derivation=derivation)
             continue
 
         if not isinstance(source, IconDwdSourceConfig):
@@ -139,13 +135,11 @@ def validate_model_products_for_source(
             product_id=product_id,
             inputs=derivation.inputs,
         )
-        if derivation.type in DERIVATION_PHASE_RATE_TYPES:
-            _validate_phase_derivation(product_id=product_id, derivation=derivation)
         if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE and len(derivation.inputs) != 1:
             raise SystemExit(
                 f"ICON derivation {derivation.type!r} requires exactly one derivation input for {product_id}"
             )
-        if derivation.type in ICON_ACCUMULATION_RATE_DERIVATION_TYPES:
+        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
             _validate_icon_average_rate_derivation(product_id=product_id, model_product=model_product)
 
 
@@ -170,16 +164,6 @@ def _validate_icon_average_rate_derivation(
     if derivation.first_hour_previous != "zero":
         raise SystemExit(
             f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {product_id}"
-        )
-
-
-def _validate_phase_derivation(*, product_id: str, derivation: ProductDerivationSpec) -> None:
-    if derivation.type not in DERIVATION_PHASE_RATE_TYPES:
-        return
-    if derivation.phase not in PRECIP_PHASES:
-        raise SystemExit(
-            f"Product derivation {derivation.type!r} requires phase one of "
-            f"{sorted(PRECIP_PHASES)!r} for {product_id}"
         )
 
 
@@ -317,7 +301,6 @@ def _derivation_spec(raw: object | None) -> ProductDerivationSpec | None:
         return None
     return ProductDerivationSpec(
         type=getattr(raw, "type"),
-        phase=getattr(raw, "phase"),
         first_hour_previous=getattr(raw, "first_hour_previous"),
         inputs=tuple(
             DerivationInputSpec(id=input_item.id, grib_match=dict(input_item.grib_match))

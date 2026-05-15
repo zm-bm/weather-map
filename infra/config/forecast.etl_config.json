@@ -228,69 +228,6 @@
         }
       ]
     },
-    "rain_rate_surface": {
-      "kind": "scalar",
-      "parameter": "rain_rate",
-      "level": "surface",
-      "units": "mm/hr",
-      "source_transform": "kg_m2_s_to_mm_hr",
-      "encoding": {
-        "id": "phase_rate_surface_i8_0p15mmhr_v1",
-        "format": "linear-i8-v1",
-        "dtype": "int8",
-        "byte_order": "none",
-        "scale": 0.15,
-        "offset": 19.05,
-        "nodata": -128
-      },
-      "components": [
-        {
-          "id": "value"
-        }
-      ]
-    },
-    "snow_rate_surface": {
-      "kind": "scalar",
-      "parameter": "snow_rate",
-      "level": "surface",
-      "units": "mm/hr",
-      "source_transform": "kg_m2_s_to_mm_hr",
-      "encoding": {
-        "id": "phase_rate_surface_i8_0p15mmhr_v1",
-        "format": "linear-i8-v1",
-        "dtype": "int8",
-        "byte_order": "none",
-        "scale": 0.15,
-        "offset": 19.05,
-        "nodata": -128
-      },
-      "components": [
-        {
-          "id": "value"
-        }
-      ]
-    },
-    "wintry_mix_rate_surface": {
-      "kind": "scalar",
-      "parameter": "wintry_mix_rate",
-      "level": "surface",
-      "units": "mm/hr",
-      "source_transform": "kg_m2_s_to_mm_hr",
-      "encoding": {
-        "id": "phase_rate_surface_i8_0p15mmhr_v1",
-        "format": "linear-i8-v1",
-        "dtype": "int8",
-        "byte_order": "none",
-        "scale": 0.15,
-        "offset": 19.05,
-        "nodata": -128
-      },
-      "components": [
-        {
-          "id": "value"
-        }
-      ]
-    },
     "precip_total_surface": {
       "kind": "scalar",
       "parameter": "precip_total",
@@ -521,9 +458,6 @@
           "medium_clouds",
           "high_clouds",
           "prate_surface",
-          "rain_rate_surface",
-          "snow_rate_surface",
-          "wintry_mix_rate_surface",
           "precip_type_surface",
           "snow_depth_surface",
           "visibility_surface",
@@ -654,162 +588,6 @@
           ],
           "temporal": {
             "kind": "instantaneous_rate"
-          }
-        },
-        "rain_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "instantaneous_rate"
-          },
-          "derivation": {
-            "type": "phase_rate_from_gfs_prate_categories",
-            "phase": "rain",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "GRIB_ELEMENT": "PRATE",
-                  "GRIB_SHORT_NAME": "0-SFC",
-                  "GRIB_PDS_PDTN": "0"
-                }
-              },
-              {
-                "id": "rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CRAIN",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "freezing_rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CFRZR",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "ice_pellets",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CICEP",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "snow",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CSNOW",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              }
-            ]
-          }
-        },
-        "snow_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "instantaneous_rate"
-          },
-          "derivation": {
-            "type": "phase_rate_from_gfs_prate_categories",
-            "phase": "snow",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "GRIB_ELEMENT": "PRATE",
-                  "GRIB_SHORT_NAME": "0-SFC",
-                  "GRIB_PDS_PDTN": "0"
-                }
-              },
-              {
-                "id": "rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CRAIN",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "freezing_rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CFRZR",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "ice_pellets",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CICEP",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "snow",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CSNOW",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              }
-            ]
-          }
-        },
-        "wintry_mix_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "instantaneous_rate"
-          },
-          "derivation": {
-            "type": "phase_rate_from_gfs_prate_categories",
-            "phase": "wintry_mix",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "GRIB_ELEMENT": "PRATE",
-                  "GRIB_SHORT_NAME": "0-SFC",
-                  "GRIB_PDS_PDTN": "0"
-                }
-              },
-              {
-                "id": "rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CRAIN",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "freezing_rain",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CFRZR",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "ice_pellets",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CICEP",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              },
-              {
-                "id": "snow",
-                "grib_match": {
-                  "GRIB_ELEMENT": "CSNOW",
-                  "GRIB_SHORT_NAME": "0-SFC"
-                }
-              }
-            ]
           }
         },
         "precip_type_surface": {
@@ -949,9 +727,6 @@
           "medium_clouds",
           "high_clouds",
           "prate_surface",
-          "rain_rate_surface",
-          "snow_rate_surface",
-          "wintry_mix_rate_surface",
           "precip_total_surface",
           "precip_type_surface",
           "thunderstorm_mask",
@@ -1071,96 +846,6 @@
                 "id": "total",
                 "grib_match": {
                   "ICON_PARAM": "tot_prec"
-                }
-              }
-            ]
-          }
-        },
-        "rain_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "average_rate",
-            "source_interval_hours": 1
-          },
-          "derivation": {
-            "type": "phase_rate_from_icon_tot_prec_ww",
-            "phase": "rain",
-            "first_hour_previous": "zero",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "ICON_PARAM": "tot_prec"
-                }
-              },
-              {
-                "id": "ww",
-                "grib_match": {
-                  "ICON_PARAM": "ww"
-                }
-              }
-            ]
-          }
-        },
-        "snow_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "average_rate",
-            "source_interval_hours": 1
-          },
-          "derivation": {
-            "type": "phase_rate_from_icon_tot_prec_ww",
-            "phase": "snow",
-            "first_hour_previous": "zero",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "ICON_PARAM": "tot_prec"
-                }
-              },
-              {
-                "id": "ww",
-                "grib_match": {
-                  "ICON_PARAM": "ww"
-                }
-              }
-            ]
-          }
-        },
-        "wintry_mix_rate_surface": {
-          "components": [
-            {
-              "id": "value"
-            }
-          ],
-          "temporal": {
-            "kind": "average_rate",
-            "source_interval_hours": 1
-          },
-          "derivation": {
-            "type": "phase_rate_from_icon_tot_prec_ww",
-            "phase": "wintry_mix",
-            "first_hour_previous": "zero",
-            "inputs": [
-              {
-                "id": "total",
-                "grib_match": {
-                  "ICON_PARAM": "tot_prec"
-                }
-              },
-              {
-                "id": "ww",
-                "grib_match": {
-                  "ICON_PARAM": "ww"
                 }
               }
             ]

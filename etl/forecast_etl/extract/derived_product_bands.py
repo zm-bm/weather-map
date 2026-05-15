@@ -8,8 +8,6 @@ from typing import Any
 from ..config.resolved import DerivationInputSpec, ProductSpec
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
-    DERIVATION_PHASE_RATE_FROM_GFS_PRATE_CATEGORIES,
-    DERIVATION_PHASE_RATE_FROM_ICON_TOT_PREC_WW,
     DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
     DERIVATION_PRECIP_TYPE_FROM_ICON_WW,
     DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW,
@@ -21,8 +19,6 @@ from ..proc import RunFn
 from ..source_adapters.base import PreparedSource
 from .accumulation import accumulation_delta_rate_bytes
 from .precipitation_overlays import (
-    phase_rate_from_gfs_category_bytes,
-    phase_rate_from_icon_ww_bytes,
     precip_type_from_gfs_category_bytes,
     precip_type_from_icon_ww_bytes,
     thunderstorm_mask_from_icon_ww_bytes,
@@ -61,23 +57,6 @@ def extract_derived_product_band(
             source=source,
             workdir=workdir,
             run=run,
-        )
-    if derivation.type == DERIVATION_PHASE_RATE_FROM_GFS_PRATE_CATEGORIES:
-        return _extract_gfs_phase_rate(
-            product=product,
-            grid=grid,
-            source=source,
-            workdir=workdir,
-            run=run,
-        )
-    if derivation.type == DERIVATION_PHASE_RATE_FROM_ICON_TOT_PREC_WW:
-        return _extract_icon_phase_rate(
-            product=product,
-            grid=grid,
-            source=source,
-            workdir=workdir,
-            run=run,
-            fhour=fhour,
         )
     if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
         return _extract_icon_ww_product(
@@ -151,97 +130,6 @@ def _extract_gfs_precip_type(
         component_id=output_component_id,
         source_f32_bytes=precip_type_from_gfs_category_bytes(
             input_bands=input_bands,
-            product_id=product.id,
-        ),
-        source_byte_order="little",
-    )
-
-
-def _extract_gfs_phase_rate(
-    *,
-    product: ProductSpec,
-    grid: dict[str, Any],
-    source: PreparedSource,
-    workdir: Path,
-    run: RunFn,
-) -> ExtractedBand:
-    derivation_type = DERIVATION_PHASE_RATE_FROM_GFS_PRATE_CATEGORIES
-    output_component_id = _single_output_component_id(
-        product=product,
-        derivation_type=derivation_type,
-    )
-    input_bands = {
-        input_item.id: _extract_derivation_input_band(
-            product=product,
-            grid=grid,
-            source=source,
-            input_item=input_item,
-            workdir=workdir,
-            run=run,
-        )
-        for input_item in _derivation_inputs(product=product, derivation_type=derivation_type)
-    }
-    return ExtractedBand(
-        component_id=output_component_id,
-        source_f32_bytes=phase_rate_from_gfs_category_bytes(
-            input_bands=input_bands,
-            phase=_derivation_phase(product=product, derivation_type=derivation_type),
-            product_id=product.id,
-        ),
-        source_byte_order="little",
-    )
-
-
-def _extract_icon_phase_rate(
-    *,
-    product: ProductSpec,
-    grid: dict[str, Any],
-    source: PreparedSource,
-    workdir: Path,
-    run: RunFn,
-    fhour: str | None,
-) -> ExtractedBand:
-    derivation_type = DERIVATION_PHASE_RATE_FROM_ICON_TOT_PREC_WW
-    output_component_id = _single_output_component_id(
-        product=product,
-        derivation_type=derivation_type,
-    )
-    total_input = _single_derivation_input(
-        product=product,
-        derivation_type=derivation_type,
-        input_id="total",
-    )
-    ww_input = _single_derivation_input(
-        product=product,
-        derivation_type=derivation_type,
-        input_id="ww",
-    )
-    total_rate_band = _extract_icon_accumulation_rate_band(
-        product=product,
-        derivation_type=derivation_type,
-        component_id=total_input.id,
-        input_item=total_input,
-        grid=grid,
-        source=source,
-        workdir=workdir,
-        run=run,
-        fhour=fhour,
-    )
-    ww_band = _extract_derivation_input_band(
-        product=product,
-        grid=grid,
-        source=source,
-        input_item=ww_input,
-        workdir=workdir,
-        run=run,
-    )
-
-    return ExtractedBand(
-        component_id=output_component_id,
-        source_f32_bytes=phase_rate_from_icon_ww_bytes(
-            total_rate_band=total_rate_band,
-            ww_band=ww_band,
-            phase=_derivation_phase(product=product, derivation_type=derivation_type),
             product_id=product.id,
         ),
         source_byte_order="little",
@@ -440,10 +328,3 @@ def _single_derivation_input(
             f"requires exactly one {input_label}input for {product.id}"
         )
     return inputs[0]
-
-
-def _derivation_phase(*, product: ProductSpec, derivation_type: str) -> str:
-    derivation = product.derivation
-    if derivation is None or not derivation.phase:
-        raise SystemExit(f"Product derivation {derivation_type!r} requires phase for {product.id}")
-    return derivation.phase
