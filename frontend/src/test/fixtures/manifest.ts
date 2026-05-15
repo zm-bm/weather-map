@@ -3,7 +3,6 @@ import type {
   ForecastTimeSpec,
   FramePayloadRef,
   ManifestArtifactSpec,
-  NonEmptyArray,
   ArtifactId,
   ScalarEncodingSpec,
   ScalarGridSpec,
@@ -19,6 +18,7 @@ import {
   MANIFEST_SCHEMA,
   MANIFEST_SCHEMA_VERSION,
 } from '../../manifest'
+import type { NonEmptyArray } from '../../types'
 
 export const FIXTURE_CYCLE = '2026041312'
 export const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'

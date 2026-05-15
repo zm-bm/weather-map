@@ -62,7 +62,7 @@ describe('fieldRenderer', () => {
   })
 
   it('applies a loaded field interpolation window to the runtime controller', () => {
-    const frame = { lower: { layerId: 'tmp_surface' } }
+    const frame = { lower: { layerId: 'temperature' } }
     const applyFrame = vi.fn()
     const map = {}
     mocks.getFieldController.mockReturnValue({
@@ -83,7 +83,7 @@ describe('fieldRenderer', () => {
       setEnabled: vi.fn(),
     })
 
-    expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'tmp_surface' } } as never))
+    expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'temperature' } } as never))
       .toThrow('Field renderer unavailable (WebGL2 required)')
   })
 })

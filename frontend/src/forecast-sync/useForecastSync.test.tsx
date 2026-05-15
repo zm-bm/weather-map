@@ -57,8 +57,8 @@ function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): Forecast
   const manifest = overrides.manifest ?? createManifestFixture()
   const hourToken = manifest.times[0].id
   const validTimeMs = Date.UTC(2026, 3, 13, 12)
-  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
-  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
+  const selectedLayer = getAvailableLayers(manifest).temperature!
+  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
   return {
     ...createForecastDataTarget({
       manifest,

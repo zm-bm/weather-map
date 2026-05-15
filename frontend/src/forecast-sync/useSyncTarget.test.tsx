@@ -65,8 +65,8 @@ describe('useSyncTarget', () => {
     const { result } = renderHook(() => useSyncTarget(0))
 
     expect(result.current).toEqual(expect.objectContaining({
-      selectedParticleLayerId: 'wind_particles',
-      selectedParticleLayer: expect.objectContaining({ id: 'wind_particles' }),
+      selectedParticleLayerId: 'wind',
+      selectedParticleLayer: expect.objectContaining({ id: 'wind' }),
       selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 30),
       lowerHourToken: '003',
       upperHourToken: '006',

@@ -2,16 +2,20 @@ import {
   asArtifactId,
   type CycleManifest,
   type ManifestArtifactSpec,
-  type NonEmptyArray,
   type ArtifactId,
 } from '../manifest'
-
-type Brand<T, B extends string> = T & { readonly __brand: B }
+import type { Brand, NonEmptyArray } from '../types'
 
 export type LayerId = Brand<string, 'LayerId'>
 
 export function asLayerId(value: string): LayerId {
   return value as LayerId
+}
+
+export type LayerGroupId = Brand<string, 'LayerGroupId'>
+
+export function asLayerGroupId(value: string): LayerGroupId {
+  return value as LayerGroupId
 }
 
 export type DisplayRangeSpec = {
@@ -81,7 +85,7 @@ export type ClassifiedColoringSpec = {
 export type LayerSpec = {
   id: LayerId
   label: string
-  groupId: string
+  groupId: LayerGroupId
   paletteId: string
   displayRange: DisplayRangeSpec
   unitBehavior: UnitBehaviorId
@@ -92,7 +96,7 @@ export type LayerSpec = {
 }
 
 export type LayerGroupSpec = {
-  id: string
+  id: LayerGroupId
   label: string
   defaultLayer: LayerId
   layers: NonEmptyArray<LayerId>
@@ -120,11 +124,19 @@ export function layerSourceArtifactId(source: LayerSource): ArtifactId {
 }
 
 export const FORECAST_LAYERS: readonly LayerSpec[] = [
-  layer('tmp_surface', 'Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature'),
-  layer('aptmp_surface', 'Apparent Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature'),
-  layer('dewpoint_surface', 'Dew Point', 'temperature', 'temperature.dewpoint.c.v1', -60, 40, 'temperature', 'temperature'),
-  layer('rh_surface', 'Relative Humidity', 'temperature', 'moisture.relative_humidity.percent.v1', 0, 100, 'percent', 'percent'),
-  layer('wind_speed_surface', 'Wind Speed', 'wind', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
+  layer('temperature', 'Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature', {
+    source: artifactSource('tmp_surface'),
+  }),
+  layer('apparent_temperature', 'Apparent Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature', {
+    source: artifactSource('aptmp_surface'),
+  }),
+  layer('dew_point', 'Dew Point', 'temperature', 'temperature.dewpoint.c.v1', -60, 40, 'temperature', 'temperature', {
+    source: artifactSource('dewpoint_surface'),
+  }),
+  layer('relative_humidity', 'Relative Humidity', 'temperature', 'moisture.relative_humidity.percent.v1', 0, 100, 'percent', 'percent', {
+    source: artifactSource('rh_surface'),
+  }),
+  layer('wind_speed', 'Wind Speed', 'wind_pressure', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
     source: {
       kind: 'derived',
       artifactId: asArtifactId('wind10m_uv'),
@@ -132,16 +144,20 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
     },
     parameter: 'wind_speed',
   }),
-  layer('gust_surface', 'Wind Gust', 'wind', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based'),
-  layer('prmsl_surface', 'Air Pressure', 'wind', 'pressure.msl.pa.v1', 98_000, 103_500, 'pressure', 'pressure'),
-  layer('prate_surface', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate', {
+  layer('wind_gust', 'Wind Gust', 'wind_pressure', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
+    source: artifactSource('gust_surface'),
+  }),
+  layer('air_pressure', 'Air Pressure', 'wind_pressure', 'pressure.msl.pa.v1', 98_000, 103_500, 'pressure', 'pressure', {
+    source: artifactSource('prmsl_msl'),
+  }),
+  layer('precipitation_rate', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate', {
     source: {
       kind: 'composite',
-      base: { kind: 'artifact', artifactId: asArtifactId('prate_surface') },
+      base: artifactSource('prate_surface'),
       overlays: [
         {
           id: 'precip-type',
-          source: { kind: 'artifact', artifactId: asArtifactId('precip_type_surface') },
+          source: artifactSource('precip_type_surface'),
           optional: true,
         },
       ],
@@ -155,32 +171,52 @@ export const FORECAST_LAYERS: readonly LayerSpec[] = [
       ],
     },
   }),
-  layer('precip_total_surface', 'Accumulated Precipitation', 'precipitation', 'precip.total.mm.v1', 0, 254, 'precip-total', 'precip-total'),
-  layer('snow_depth_surface', 'Snow Depth', 'precipitation', 'snow.depth.m.v1', 0, 5, 'snow-depth', 'stop-based'),
-  layer('tcdc', 'Total Cloud Cover', 'atmosphere', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent'),
-  layer('low_clouds', 'Low Clouds', 'atmosphere', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent'),
-  layer('medium_clouds', 'Medium Clouds', 'atmosphere', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent'),
-  layer('high_clouds', 'High Clouds', 'atmosphere', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent'),
-  layer('visibility_surface', 'Visibility', 'atmosphere', 'atmosphere.visibility.m.v1', 0, 50_000, 'visibility', 'stop-based'),
-  layer('freezing_level', 'Freezing Level', 'atmosphere', 'atmosphere.freezing_level.m.v1', 0, 8_000, 'height', 'stop-based'),
-  layer('precipitable_water', 'Precipitable Water', 'atmosphere', 'atmosphere.precipitable_water.mm.v1', 0, 80, 'water-depth', 'stop-based'),
-  layer('cape_index', 'CAPE Index', 'severe', 'severe.cape.jkg.v1', 0, 5_000, 'cape', 'stop-based'),
+  layer('accumulated_precipitation', 'Accumulated Precipitation', 'precipitation', 'precip.total.mm.v1', 0, 254, 'precip-total', 'precip-total', {
+    source: artifactSource('precip_total_surface'),
+  }),
+  layer('snow_depth', 'Snow Depth', 'precipitation', 'snow.depth.m.v1', 0, 5, 'snow-depth', 'stop-based', {
+    source: artifactSource('snow_depth_surface'),
+  }),
+  layer('cloud_cover', 'Total Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
+    source: artifactSource('tcdc'),
+  }),
+  layer('low_cloud_cover', 'Low Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
+    source: artifactSource('low_clouds'),
+  }),
+  layer('middle_cloud_cover', 'Middle Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
+    source: artifactSource('medium_clouds'),
+  }),
+  layer('high_cloud_cover', 'High Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
+    source: artifactSource('high_clouds'),
+  }),
+  layer('visibility', 'Visibility', 'sky_visibility', 'atmosphere.visibility.m.v1', 0, 50_000, 'visibility', 'stop-based', {
+    source: artifactSource('visibility_surface'),
+  }),
+  layer('freezing_level', 'Freezing Level', 'sky_visibility', 'atmosphere.freezing_level.m.v1', 0, 8_000, 'height', 'stop-based', {
+    source: artifactSource('freezing_level'),
+  }),
+  layer('precipitable_water', 'Precipitable Water', 'sky_visibility', 'atmosphere.precipitable_water.mm.v1', 0, 80, 'water-depth', 'stop-based', {
+    source: artifactSource('precipitable_water'),
+  }),
+  layer('cape', 'CAPE Index', 'severe_weather', 'severe.cape.jkg.v1', 0, 5_000, 'cape', 'stop-based', {
+    source: artifactSource('cape_index'),
+  }),
 ]
 
 export const FORECAST_LAYER_GROUPS: readonly LayerGroupSpec[] = [
-  group('temperature', 'Temperature', 'tmp_surface', ['tmp_surface', 'aptmp_surface', 'dewpoint_surface', 'rh_surface']),
-  group('wind', 'Wind & Pressure', 'gust_surface', ['wind_speed_surface', 'gust_surface', 'prmsl_surface']),
-  group('precipitation', 'Precipitation', 'prate_surface', ['prate_surface', 'precip_total_surface', 'snow_depth_surface']),
-  group('atmosphere', 'Atmosphere', 'tcdc', [
-    'tcdc',
-    'low_clouds',
-    'medium_clouds',
-    'high_clouds',
-    'visibility_surface',
+  group('temperature', 'Temperature', 'temperature', ['temperature', 'apparent_temperature', 'dew_point', 'relative_humidity']),
+  group('wind_pressure', 'Wind & Pressure', 'wind_gust', ['wind_speed', 'wind_gust', 'air_pressure']),
+  group('precipitation', 'Precipitation', 'precipitation_rate', ['precipitation_rate', 'accumulated_precipitation', 'snow_depth']),
+  group('sky_visibility', 'Sky & Visibility', 'cloud_cover', [
+    'cloud_cover',
+    'low_cloud_cover',
+    'middle_cloud_cover',
+    'high_cloud_cover',
+    'visibility',
     'freezing_level',
     'precipitable_water',
   ]),
-  group('severe', 'Severe', 'cape_index', ['cape_index']),
+  group('severe_weather', 'Severe Weather', 'cape', ['cape']),
 ]
 
 export function getLayerSpec(
@@ -240,23 +276,27 @@ function layer(
   unitBehavior: UnitBehaviorId,
   legendScale: LegendScaleId,
   options: {
-    source?: LayerSource
+    source: LayerSource
     parameter?: string
     classifiedColoring?: ClassifiedColoringSpec
-  } = {}
+  }
 ): LayerSpec {
   return {
     id: asLayerId(id),
     label,
-    groupId,
+    groupId: asLayerGroupId(groupId),
     paletteId,
     displayRange: { min, max },
     unitBehavior,
     legendScale,
-    source: options.source ?? { kind: 'artifact', artifactId: asArtifactId(id) },
+    source: options.source,
     parameter: options.parameter,
     classifiedColoring: options.classifiedColoring,
   }
+}
+
+function artifactSource(artifactId: string): ArtifactLayerSource {
+  return { kind: 'artifact', artifactId: asArtifactId(artifactId) }
 }
 
 function isLayerAvailable(manifest: CycleManifest, layer: LayerSpec): boolean {
@@ -315,7 +355,7 @@ function group(
   layers: NonEmptyArray<string>
 ): LayerGroupSpec {
   return {
-    id,
+    id: asLayerGroupId(id),
     label,
     defaultLayer: asLayerId(defaultLayer),
     layers: layers.map(asLayerId) as NonEmptyArray<LayerId>,

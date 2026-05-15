@@ -28,8 +28,8 @@ const mocks = vi.hoisted(() => ({
   clearForecastFieldData: vi.fn(),
   artifactLoaderSignals: [] as AbortSignal[],
   fieldWindow: {
-    lower: { layerId: 'tmp_surface' },
-    upper: { layerId: 'tmp_surface' },
+    lower: { layerId: 'temperature' },
+    upper: { layerId: 'temperature' },
     mix: 0,
   },
   particleWindow: {
@@ -517,8 +517,8 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
-    const selectedLayer = getAvailableLayers(manifest).rh_surface!
-    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
+    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
@@ -549,7 +549,7 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).rh_surface!
+    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,
@@ -578,7 +578,7 @@ describe('useSyncRunner + useStartupState', () => {
   it('applies render data and publishes the selected layer probe frame after render succeeds', async () => {
     const map = createMapFixture()
     const frames = {
-      field: { lower: { layerId: 'rh_surface' } },
+      field: { lower: { layerId: 'relative_humidity' } },
       particles: { lower: { artifactId: 'wind10m_uv' } },
     }
     mocks.loadForecastData.mockResolvedValueOnce(frames)
@@ -618,11 +618,11 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('passes reusable previous layer and particle interpolation windows to data loading', async () => {
     const firstFrames = {
-      field: { lower: { layerId: 'tmp_surface', frame: 1 } },
+      field: { lower: { layerId: 'temperature', frame: 1 } },
       particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
     }
     const secondFrames = {
-      field: { lower: { layerId: 'tmp_surface', frame: 2 } },
+      field: { lower: { layerId: 'temperature', frame: 2 } },
       particles: { lower: { artifactId: 'wind10m_uv', frame: 2 } },
     }
     mocks.loadForecastData

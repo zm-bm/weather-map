@@ -17,8 +17,8 @@ describe('forecast data keys', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
     })
-    const selectedLayer = getAvailableLayers(manifest).wind_speed_surface!
-    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
+    const selectedLayer = getAvailableLayers(manifest).wind_speed!
+    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
 
     expect(createForecastDataRequestKey({
       manifest,
@@ -33,23 +33,23 @@ describe('forecast data keys', () => {
         mix: 0.5,
       },
       retryToken: 2,
-    })).toBe('2026040900:rev:wind_speed_surface:derived:wind-speed:wind10m_uv:particles:wind10m_uv:003:006:30:2')
+    })).toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv:particles:wind:wind10m_uv:003:006:30:2')
     expect(createFieldChannelKey(manifest, selectedLayer))
-      .toBe('2026040900:rev:wind_speed_surface:derived:wind-speed:wind10m_uv')
+      .toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
     expect(createParticleChannelKey(manifest, selectedParticleLayer))
-      .toBe('2026040900:rev:wind10m_uv')
+      .toBe('2026040900:rev:wind:wind10m_uv')
   })
 
   it('builds decoded field cache keys by layer source and normalized hour', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
     })
-    const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+    const selectedLayer = getAvailableLayers(manifest).temperature!
 
     expect(createFieldTimeSliceCacheKey({
       manifest,
       layer: selectedLayer,
       hourToken: '3',
-    })).toBe('2026040900:rev:tmp_surface:artifact:tmp_surface:003')
+    })).toBe('2026040900:rev:temperature:artifact:tmp_surface:003')
   })
 })

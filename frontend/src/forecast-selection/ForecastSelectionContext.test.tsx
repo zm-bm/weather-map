@@ -14,13 +14,13 @@ function ForecastSelectionProbe() {
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
       <div data-testid="unit-system">{context.unitSystem}</div>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('rh_surface'))}>
+      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('relative_humidity'))}>
         set-layer-rh
       </button>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('prate_surface'))}>
+      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('precipitation_rate'))}>
         set-layer-prate
       </button>
-      <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind_particles'))}>
+      <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind'))}>
         set-particle-wind
       </button>
       <button type="button" onClick={() => context.setUnitSystem('metric')}>
@@ -47,11 +47,11 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('rh_surface')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
 
     const secondManifest = createManifestFixture({
       cycle: '2026040912',
@@ -65,8 +65,8 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
   it('uses one global unit system and omits per-layer unit APIs', () => {
@@ -104,8 +104,8 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('tmp_surface')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
     fireEvent.click(screen.getByRole('button', { name: 'set-particle-wind' }))
@@ -123,8 +123,8 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('rh_surface')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
   it('falls back to the matching layer group default when switching models without the same layer', () => {
@@ -141,7 +141,7 @@ describe('ForecastSelectionContext', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-prate' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('prate_surface')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('precipitation_rate')
 
     const iconManifest = createManifestFixture({
       model: { id: 'icon', label: 'ICON' },
@@ -155,7 +155,7 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('precip_total_surface')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
   })
 
   it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
@@ -169,7 +169,7 @@ describe('ForecastSelectionContext', () => {
       </ForecastSelectionProvider>
     )
 
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind_particles')
+    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
   it('leaves particle selection empty when no compatible particle artifact is available', () => {

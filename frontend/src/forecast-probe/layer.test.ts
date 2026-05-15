@@ -13,7 +13,7 @@ import type { FieldTimeSliceData } from '../forecast-data'
 function createFrame(values: number[]): FieldTimeSliceData {
   return {
     hourToken: '000',
-    layerId: 'tmp_surface',
+    layerId: 'temperature',
     paletteId: 'temperature.air.c.v1',
     grid: {
       id: 'g0',

@@ -42,16 +42,16 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    selectedLayerId: 'tmp_surface',
+    selectedLayerId: 'temperature',
     forecastLoaded: true,
     testGrid,
     frame: {
       lower: {
-        layerId: 'tmp_surface',
+        layerId: 'temperature',
         grid: testGrid,
       },
       upper: {
-        layerId: 'tmp_surface',
+        layerId: 'temperature',
         grid: testGrid,
       },
       mix: 0,
@@ -228,15 +228,15 @@ describe('ForecastPlaceProbes', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
 
-    mocks.selectedLayerId = 'tmp_surface'
+    mocks.selectedLayerId = 'temperature'
     mocks.forecastLoaded = true
     mocks.frame = {
       lower: {
-        layerId: 'tmp_surface',
+        layerId: 'temperature',
         grid: mocks.testGrid,
       },
       upper: {
-        layerId: 'tmp_surface',
+        layerId: 'temperature',
         grid: mocks.testGrid,
       },
       mix: 0,
@@ -353,8 +353,8 @@ describe('ForecastPlaceProbes', () => {
     mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'temperature', grid: mocks.testGrid },
+        upper: { layerId: 'temperature', grid: mocks.testGrid },
         mix: 0.5,
       })
     })
@@ -379,8 +379,8 @@ describe('ForecastPlaceProbes', () => {
 
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'temperature', grid: mocks.testGrid },
+        upper: { layerId: 'temperature', grid: mocks.testGrid },
         mix: 0.5,
       })
     })
@@ -398,7 +398,7 @@ describe('ForecastPlaceProbes', () => {
     const { rerender } = render(<ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={1} />)
     act(flushAnimationFrames)
 
-    mocks.selectedLayerId = 'dewpoint_surface'
+    mocks.selectedLayerId = 'dew_point'
     rerender(<ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={1} />)
     act(flushAnimationFrames)
 
@@ -520,8 +520,8 @@ describe('ForecastPlaceProbes', () => {
     mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
     act(() => {
       mocks.forecastProbeFrameListener?.({
-        lower: { layerId: 'tmp_surface', grid: mocks.testGrid },
-        upper: { layerId: 'tmp_surface', grid: mocks.testGrid },
+        lower: { layerId: 'temperature', grid: mocks.testGrid },
+        upper: { layerId: 'temperature', grid: mocks.testGrid },
         mix: 0.5,
       })
     })

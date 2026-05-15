@@ -46,7 +46,7 @@ export function createParticleChannelKey(
 ): string {
   return scopeForecastDataKey(
     manifest,
-    particleLayerSourceArtifactId(particleLayer)
+    createParticleLayerRequestKey(particleLayer)
   )
 }
 
@@ -75,5 +75,9 @@ function createLayerRequestKey(layer: LayerSpec): string {
 function createParticleRequestKey(particleLayer: ParticleLayerSpec | null): string {
   return particleLayer == null
     ? NO_PARTICLES_KEY
-    : `particles:${particleLayerSourceArtifactId(particleLayer)}`
+    : `particles:${createParticleLayerRequestKey(particleLayer)}`
+}
+
+function createParticleLayerRequestKey(particleLayer: ParticleLayerSpec): string {
+  return `${particleLayer.id}:${particleLayerSourceArtifactId(particleLayer)}`
 }

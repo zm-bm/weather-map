@@ -23,8 +23,8 @@ function createTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSync
   const manifest = overrides.manifest ?? createFrameManifestFixture({
     forecastHours: ['000', '003', '006', '009'],
   })
-  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
-  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
+  const selectedLayer = getAvailableLayers(manifest).temperature!
+  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
 
   return {
     ...createForecastDataTarget({

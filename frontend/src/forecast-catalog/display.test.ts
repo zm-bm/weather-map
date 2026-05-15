@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { asArtifactId } from '../manifest'
-import { asLayerId, type LayerSpec } from './layer'
+import { asLayerGroupId, asLayerId, type LayerSpec } from './layer'
 import {
   createFrameManifestFixture,
   createScalarArtifactFixture,
@@ -14,20 +14,20 @@ describe('layer metadata palettes', () => {
     const layer: LayerSpec = {
       id: asLayerId('custom_pressure'),
       label: 'Custom Pressure',
-      groupId: 'wind',
+      groupId: asLayerGroupId('wind_pressure'),
       paletteId: 'pressure.msl.pa.v1',
       displayRange: { min: 98_000, max: 103_500 },
       unitBehavior: 'pressure',
       legendScale: 'pressure',
-      source: { kind: 'artifact', artifactId: asArtifactId('prmsl_surface') },
+      source: { kind: 'artifact', artifactId: asArtifactId('prmsl_msl') },
     }
     const artifact = createScalarArtifactFixture({
-      id: 'prmsl_surface',
+      id: 'prmsl_msl',
       units: 'Pa',
       parameter: 'prmsl',
     })
 
-    const manifest = createFrameManifestFixture({ artifacts: { prmsl_surface: artifact } })
+    const manifest = createFrameManifestFixture({ artifacts: { prmsl_msl: artifact } })
 
     const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, manifest)
 
@@ -58,9 +58,9 @@ describe('layer metadata palettes', () => {
 
   it('resolves frontend-derived wind speed metadata from the vector source artifact', () => {
     const layer: LayerSpec = {
-      id: asLayerId('wind_speed_surface'),
+      id: asLayerId('wind_speed'),
       label: 'Wind Speed',
-      groupId: 'wind',
+      groupId: asLayerGroupId('wind_pressure'),
       paletteId: 'wind.gust.mps.v1',
       displayRange: { min: 0, max: 60 },
       unitBehavior: 'wind-speed',
@@ -78,7 +78,7 @@ describe('layer metadata palettes', () => {
       },
     })
 
-    const meta = getLayerMeta('wind_speed_surface', { wind_speed_surface: layer }, manifest)
+    const meta = getLayerMeta('wind_speed', { wind_speed: layer }, manifest)
 
     expect(meta.label).toBe('Wind Speed')
     expect(meta.units).toBe('m/s')
@@ -90,7 +90,7 @@ describe('layer metadata palettes', () => {
     const layer: LayerSpec = {
       id: asLayerId('custom_layer'),
       label: 'Custom Layer',
-      groupId: 'temperature',
+      groupId: asLayerGroupId('temperature'),
       paletteId: 'missing.palette.v1',
       displayRange: { min: 0, max: 1 },
       unitBehavior: 'temperature',

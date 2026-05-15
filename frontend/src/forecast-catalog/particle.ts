@@ -4,8 +4,7 @@ import {
   type ManifestArtifactSpec,
   type VectorArtifactId,
 } from '../manifest'
-
-type Brand<T, B extends string> = T & { readonly __brand: B }
+import type { Brand } from '../types'
 
 export type ParticleLayerId = Brand<string, 'ParticleLayerId'>
 
@@ -25,7 +24,7 @@ export type ParticleLayerSpec = {
 }
 
 export const PARTICLE_LAYERS: readonly ParticleLayerSpec[] = [
-  particleLayer('wind_particles', 'Wind', 'wind10m_uv'),
+  particleLayer('wind', 'Wind', 'wind10m_uv'),
 ]
 
 export function getAvailableParticleLayers(manifest: CycleManifest): Record<string, ParticleLayerSpec> {

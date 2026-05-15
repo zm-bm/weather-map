@@ -27,9 +27,9 @@ function createTarget(args: {
   upperHourToken?: string
   mix?: number
 }): ForecastDataTarget {
-  const selectedLayer = args.selectedLayer ?? getAvailableLayers(args.manifest).tmp_surface!
+  const selectedLayer = args.selectedLayer ?? getAvailableLayers(args.manifest).temperature!
   const selectedParticleLayer = args.selectedParticleLayer === undefined
-    ? (getAvailableParticleLayers(args.manifest).wind_particles ?? null)
+    ? (getAvailableParticleLayers(args.manifest).wind ?? null)
     : args.selectedParticleLayer
 
   return createForecastDataTarget({
@@ -79,7 +79,7 @@ describe('loadForecastData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loaders.field.mockImplementation(async (hourToken: string) => ({
-      layerId: 'rh_surface',
+      layerId: 'relative_humidity',
       hourToken,
     }))
     loaders.particles.mockImplementation(async (hourToken: string) => ({
@@ -93,8 +93,8 @@ describe('loadForecastData', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
-    const selectedLayer = getAvailableLayers(manifest).rh_surface!
-    const particleLayer = getAvailableParticleLayers(manifest).wind_particles!
+    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const particleLayer = getAvailableParticleLayers(manifest).wind!
     const target = createTarget({
       manifest,
       selectedLayer,
@@ -106,8 +106,8 @@ describe('loadForecastData', () => {
       plan,
     })).resolves.toEqual({
       field: {
-        lower: { layerId: 'rh_surface', hourToken: '000' },
-        upper: { layerId: 'rh_surface', hourToken: '003' },
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
         selectedValidTimeMs: 123,
         lowerHourToken: '000',
         upperHourToken: '003',
@@ -132,7 +132,7 @@ describe('loadForecastData', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).rh_surface!
+    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
     const target = createTarget({
       manifest,
       selectedLayer,
@@ -144,8 +144,8 @@ describe('loadForecastData', () => {
       plan,
     })).resolves.toEqual({
       field: {
-        lower: { layerId: 'rh_surface', hourToken: '000' },
-        upper: { layerId: 'rh_surface', hourToken: '003' },
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
         selectedValidTimeMs: 123,
         lowerHourToken: '000',
         upperHourToken: '003',

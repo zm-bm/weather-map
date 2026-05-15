@@ -66,10 +66,10 @@ describe('manifest + data loading end-to-end', () => {
 
     const target = createForecastDataTarget({
       manifest,
-      selectedLayerId: layers.tmp_surface!.id,
-      selectedLayer: layers.tmp_surface!,
-      selectedParticleLayerId: particleLayers.wind_particles!.id,
-      selectedParticleLayer: particleLayers.wind_particles!,
+      selectedLayerId: layers.temperature!.id,
+      selectedLayer: layers.temperature!,
+      selectedParticleLayerId: particleLayers.wind!.id,
+      selectedParticleLayer: particleLayers.wind!,
       interpolationWindow: {
         selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
         lowerHourToken: '000',

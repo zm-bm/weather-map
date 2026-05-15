@@ -11,11 +11,11 @@ import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
-  selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds'
+  selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds'
 ) {
-  const scalarArtifactIds = selectedLayerId === 'tmp_surface'
+  const scalarArtifactIds = selectedArtifactId === 'tmp_surface'
     ? ['tmp_surface', 'prate_surface']
-    : [selectedLayerId]
+    : [selectedArtifactId]
   return createManifestFixture({
     cycle: '2026041100',
     scalarArtifactIds,
@@ -23,7 +23,8 @@ function createLegendSelectionManifest(
     artifacts: {
       tmp_surface: createScalarArtifactFixture({
       }),
-      prmsl_surface: createScalarArtifactFixture({
+      prmsl_msl: createScalarArtifactFixture({
+        id: 'prmsl_msl',
         units: 'Pa',
         parameter: 'prmsl',
       }),
@@ -40,7 +41,7 @@ function createLegendSelectionManifest(
   })
 }
 
-function renderLegendHarness(selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
+function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
   return renderWithForecastSelection(
     <>
       <ForecastPanel
@@ -50,7 +51,7 @@ function renderLegendHarness(selectedLayerId: 'tmp_surface' | 'prmsl_surface' | 
       />
       <LegendPanel />
     </>,
-    createLegendSelectionManifest(selectedLayerId)
+    createLegendSelectionManifest(selectedArtifactId)
   )
 }
 
@@ -77,7 +78,7 @@ describe('LegendPanel', () => {
   })
 
   it('shows a static hPa unit readout for air pressure', () => {
-    renderLegendHarness('prmsl_surface')
+    renderLegendHarness('prmsl_msl')
 
     expect(screen.queryByRole('button', { name: /cycle air pressure units/i })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Air Pressure units hPa.')).toBeInTheDocument()
@@ -101,7 +102,7 @@ describe('LegendPanel', () => {
   it('shows normal layer legend for low clouds', () => {
     const { container } = renderLegendHarness('low_clouds')
 
-    expect(screen.getByLabelText('Low Clouds units %.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Low Cloud Cover units %.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Cloud layer tones')).not.toBeInTheDocument()
     expect(container.querySelector('.legend-panel__scale')).toBeInTheDocument()
   })

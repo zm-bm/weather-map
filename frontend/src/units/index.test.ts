@@ -26,8 +26,8 @@ function createLayerMeta(overrides: Partial<LayerMeta> & Pick<LayerMeta, 'unitBe
 
 function createPrecipMeta(units: string): LayerMeta {
   return createLayerMeta({
-    id: 'prate_surface',
-    label: 'prate_surface',
+    id: 'precipitation_rate',
+    label: 'Precipitation Rate',
     units,
     parameter: 'prate',
     min: 0,
@@ -64,8 +64,8 @@ describe('getUnitDisplay', () => {
 
   it('maps accumulated precipitation from millimeters to inches', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'precip_total_surface',
-      label: 'precip_total_surface',
+      id: 'accumulated_precipitation',
+      label: 'Accumulated Precipitation',
       units: 'mm',
       parameter: 'precip_total',
       min: 0,
@@ -84,7 +84,7 @@ describe('getUnitDisplay', () => {
 
   it('maps snow depth from meters to centimeters and inches', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'snow_depth_surface',
+      id: 'snow_depth',
       label: 'Snow Depth',
       units: 'm',
       parameter: 'snow_depth',
@@ -103,7 +103,7 @@ describe('getUnitDisplay', () => {
 
   it('maps visibility from meters to kilometers and miles', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'visibility_surface',
+      id: 'visibility',
       label: 'Visibility',
       units: 'm',
       parameter: 'visibility',
@@ -156,7 +156,7 @@ describe('getUnitDisplay', () => {
 
   it('keeps CAPE as a static J/kg display', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'cape_index',
+      id: 'cape',
       label: 'CAPE Index',
       units: 'J/kg',
       parameter: 'cape',
@@ -173,8 +173,8 @@ describe('getUnitDisplay', () => {
 
   it('uses whole-number formatting for percentage values', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'rh_surface',
-      label: 'rh_surface',
+      id: 'relative_humidity',
+      label: 'Relative Humidity',
       units: '%',
       parameter: 'rh',
       min: 0,
@@ -189,8 +189,8 @@ describe('getUnitDisplay', () => {
 
   it('treats dew point as a temperature unit', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'dewpoint_surface',
-      label: 'dewpoint_surface',
+      id: 'dew_point',
+      label: 'Dew Point',
       units: 'C',
       parameter: 'dpt',
       min: -60,
@@ -206,8 +206,8 @@ describe('getUnitDisplay', () => {
 
   it('maps wind gust from meters per second to speed display units', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'gust_surface',
-      label: 'gust_surface',
+      id: 'wind_gust',
+      label: 'Wind Gust',
       units: 'm/s',
       parameter: 'gust',
       min: 0,
@@ -224,7 +224,7 @@ describe('getUnitDisplay', () => {
 
   it('maps derived wind speed from meters per second to speed display units', () => {
     const display = getUnitDisplay(createLayerMeta({
-      id: 'wind_speed_surface',
+      id: 'wind_speed',
       label: 'Wind Speed',
       units: 'm/s',
       parameter: 'wind_speed',
@@ -241,8 +241,8 @@ describe('getUnitDisplay', () => {
 
   it('uses explicit catalog unit behavior instead of label or parameter heuristics', () => {
     const temperature = getUnitDisplay(createLayerMeta({
-      id: 'tmp_surface',
-      label: 'tmp_surface',
+      id: 'temperature',
+      label: 'Temperature',
       units: 'C',
       parameter: 'tmp',
       min: -35,
@@ -252,8 +252,8 @@ describe('getUnitDisplay', () => {
       legendScale: 'temperature',
     }))
     const pressure = getUnitDisplay(createLayerMeta({
-      id: 'prmsl_surface',
-      label: 'prmsl_surface',
+      id: 'air_pressure',
+      label: 'Air Pressure',
       units: 'Pa',
       parameter: 'prmsl',
       min: 98000,

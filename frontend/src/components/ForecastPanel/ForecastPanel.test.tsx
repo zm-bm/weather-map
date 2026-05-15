@@ -48,19 +48,20 @@ function renderForecastPanel(scalarArtifactIds: ['tmp_surface', 'rh_surface'] | 
 }
 
 function createInteractivePanelManifest(
-  selectedLayerId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface',
+  selectedArtifactId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_msl',
   cycle = '2026041118'
 ) {
   return createManifestFixture({
     cycle,
-    scalarArtifactIds: Array.from(new Set([selectedLayerId, 'tmp_surface', 'aptmp_surface', 'prmsl_surface'])),
+    scalarArtifactIds: Array.from(new Set([selectedArtifactId, 'tmp_surface', 'aptmp_surface', 'prmsl_msl'])),
     vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     artifacts: {
       tmp_surface: createScalarArtifactFixture(),
       aptmp_surface: createScalarArtifactFixture({
         parameter: 'aptmp',
       }),
-      prmsl_surface: createScalarArtifactFixture({
+      prmsl_msl: createScalarArtifactFixture({
+        id: 'prmsl_msl',
         units: 'Pa',
         parameter: 'prmsl',
       }),
@@ -69,11 +70,11 @@ function createInteractivePanelManifest(
 }
 
 function renderInteractiveForecastPanel(
-  selectedLayerId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_surface' = 'tmp_surface',
+  selectedArtifactId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_msl' = 'tmp_surface',
   cycle?: string
 ) {
   return render(
-    <ForecastSelectionProvider manifest={createInteractivePanelManifest(selectedLayerId, cycle)}>
+    <ForecastSelectionProvider manifest={createInteractivePanelManifest(selectedArtifactId, cycle)}>
       <ForecastPanel {...createForecastPanelProps()} />
     </ForecastSelectionProvider>
   )
@@ -84,7 +85,7 @@ describe('ForecastPanel', () => {
     renderForecastPanel(['tmp_surface', 'rh_surface'])
 
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Measurement')).toHaveValue('tmp_surface')
+    expect(screen.getByLabelText('Measurement')).toHaveValue('temperature')
     expect(screen.getByLabelText('Forecast model GFS, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/CYCLE APR 11 00Z/)
     expect(screen.getByLabelText('Forecast model')).toHaveValue('gfs')
     expect(screen.getByText('CYCLE APR 11 00Z')).toBeInTheDocument()
@@ -130,26 +131,24 @@ describe('ForecastPanel', () => {
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveTextContent('Temperature')
-    expect(measurement.value).toBe('tmp_surface')
-    expect(screen.getByRole('option', { name: 'Temperature' })).toHaveValue('tmp_surface')
-    expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('aptmp_surface')
-    expect(screen.queryByRole('option', { name: 'tmp_surface' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'aptmp_surface' })).not.toBeInTheDocument()
+    expect(measurement.value).toBe('temperature')
+    expect(screen.getByRole('option', { name: 'Temperature' })).toHaveValue('temperature')
+    expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('apparent_temperature')
 
     fireEvent.change(measurement, {
-      target: { value: 'aptmp_surface' },
+      target: { value: 'apparent_temperature' },
     })
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('aptmp_surface')
+    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('apparent_temperature')
 
     fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
     expect(screen.getByRole('button', { name: 'Wind & Pressure' })).toHaveAttribute('aria-pressed', 'true')
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_speed_surface')
-    expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed_surface')
-    expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('prmsl_surface')
+    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_speed')
+    expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed')
+    expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('air_pressure')
 
     fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
     expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('tmp_surface')
+    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('temperature')
 
   })
 
@@ -161,7 +160,7 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
 
-  it('shows low medium and high clouds as Atmosphere measurement options', () => {
+  it('shows low, middle, and high cloud cover as Sky & Visibility measurement options', () => {
     render(
       <ForecastSelectionProvider
         manifest={createManifestFixture({
@@ -196,15 +195,15 @@ describe('ForecastPanel', () => {
     )
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
-    expect(screen.getByRole('button', { name: 'Atmosphere' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('option', { name: 'Low Clouds' })).toHaveValue('low_clouds')
-    expect(screen.getByRole('option', { name: 'Medium Clouds' })).toHaveValue('medium_clouds')
-    expect(screen.getByRole('option', { name: 'High Clouds' })).toHaveValue('high_clouds')
+    expect(screen.getByRole('button', { name: 'Sky & Visibility' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('option', { name: 'Low Cloud Cover' })).toHaveValue('low_cloud_cover')
+    expect(screen.getByRole('option', { name: 'Middle Cloud Cover' })).toHaveValue('middle_cloud_cover')
+    expect(screen.getByRole('option', { name: 'High Cloud Cover' })).toHaveValue('high_cloud_cover')
 
     fireEvent.change(measurement, {
-      target: { value: 'medium_clouds' },
+      target: { value: 'middle_cloud_cover' },
     })
 
-    expect(measurement.value).toBe('medium_clouds')
+    expect(measurement.value).toBe('middle_cloud_cover')
   })
 })

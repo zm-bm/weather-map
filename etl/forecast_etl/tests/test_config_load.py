@@ -37,7 +37,7 @@ class ConfigValidationTest(unittest.TestCase):
             "gust_surface",
             "dewpoint_surface",
             "rh_surface",
-            "prmsl_surface",
+            "prmsl_msl",
             "tcdc",
             "low_clouds",
             "medium_clouds",
@@ -58,7 +58,7 @@ class ConfigValidationTest(unittest.TestCase):
             "gust_surface",
             "dewpoint_surface",
             "rh_surface",
-            "prmsl_surface",
+            "prmsl_msl",
             "tcdc",
             "low_clouds",
             "medium_clouds",
@@ -104,6 +104,8 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs_prate_temporal.kind, "instantaneous_rate")
         self.assertEqual(gfs.artifacts["snow_depth_surface"].components[0].grib_match["GRIB_ELEMENT"], "SNOD")
         self.assertEqual(gfs.artifacts["visibility_surface"].components[0].grib_match["GRIB_ELEMENT"], "VIS")
+        self.assertEqual(gfs.artifacts["prmsl_msl"].level, "mean sea level")
+        self.assertEqual(gfs.artifacts["prmsl_msl"].components[0].grib_match["GRIB_SHORT_NAME"], "0-MSL")
         self.assertEqual(gfs.artifacts["freezing_level"].components[0].grib_match["GRIB_SHORT_NAME"], "0-0DEG")
         self.assertEqual(gfs.artifacts["precipitable_water"].components[0].grib_match["GRIB_SHORT_NAME"], "0-EATM")
         self.assertEqual(gfs.artifacts["cape_index"].components[0].grib_match["GRIB_SHORT_NAME"], "18000-0-SPDL")
@@ -123,6 +125,8 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(icon.artifacts["medium_clouds"].components[0].grib_match["ICON_PARAM"], "clcm")
         self.assertEqual(icon.artifacts["high_clouds"].components[0].grib_match["ICON_PARAM"], "clch")
         self.assertEqual(icon.artifacts["snow_depth_surface"].components[0].grib_match["ICON_PARAM"], "h_snow")
+        self.assertEqual(icon.artifacts["prmsl_msl"].level, "mean sea level")
+        self.assertEqual(icon.artifacts["prmsl_msl"].components[0].grib_match["ICON_PARAM"], "pmsl")
         self.assertEqual(icon.artifacts["freezing_level"].components[0].grib_match["ICON_PARAM"], "hzerocl")
         self.assertEqual(icon.artifacts["precipitable_water"].components[0].grib_match["ICON_PARAM"], "tqv")
         self.assertEqual(icon.artifacts["cape_index"].components[0].grib_match["ICON_PARAM"], "cape_ml")

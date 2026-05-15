@@ -22,7 +22,7 @@ vi.mock('../forecast-selection', async (importOriginal) => {
 
 const manifest = createManifestFixture({
   cycle: '2026041100',
-  scalarArtifactIds: ['tmp_surface', 'rh_surface', 'prmsl_surface', 'prate_surface'],
+  scalarArtifactIds: ['tmp_surface', 'rh_surface', 'prmsl_msl', 'prate_surface'],
   vectorArtifactIds: ['wind10m_uv'],
   artifacts: {
     tmp_surface: createScalarArtifactFixture(),
@@ -30,7 +30,8 @@ const manifest = createManifestFixture({
       units: '%',
       parameter: 'rh',
     }),
-    prmsl_surface: createScalarArtifactFixture({
+    prmsl_msl: createScalarArtifactFixture({
+      id: 'prmsl_msl',
       units: 'Pa',
       parameter: 'prmsl',
     }),
@@ -42,13 +43,13 @@ const manifest = createManifestFixture({
 })
 
 function renderDisplayHook(options: {
-  selectedLayerId?: 'tmp_surface' | 'rh_surface' | 'prmsl_surface' | 'prate_surface'
+  selectedLayerId?: 'temperature' | 'relative_humidity' | 'air_pressure' | 'precipitation_rate'
   unitSystem?: 'imperial' | 'metric'
 } = {}) {
   mocks.selectionContext = createForecastSelectionContextValue(
     manifest,
     {
-      selectedLayerId: options.selectedLayerId ?? 'tmp_surface',
+      selectedLayerId: options.selectedLayerId ?? 'temperature',
       unitSystem: options.unitSystem ?? 'imperial',
     }
   )
@@ -70,26 +71,26 @@ describe('probe value display', () => {
   })
 
   it('rounds percentage values to whole numbers', () => {
-    const { result } = renderDisplayHook({ selectedLayerId: 'rh_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'relative_humidity' })
 
     expect(result.current(55.25).text).toBe('55 %')
   })
 
   it('rounds pressure values to whole numbers after conversion', () => {
-    const { result } = renderDisplayHook({ selectedLayerId: 'prmsl_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'air_pressure' })
 
     expect(result.current(101_325).text).toBe('1013 hPa')
   })
 
   it('formats precipitation values with two fixed decimal places', () => {
-    const { result } = renderDisplayHook({ selectedLayerId: 'prate_surface' })
+    const { result } = renderDisplayHook({ selectedLayerId: 'precipitation_rate' })
 
     expect(result.current(2.54).text).toBe('0.10 in/hr')
   })
 
   it('formats metric precipitation values with two fixed decimal places', () => {
     const { result } = renderDisplayHook({
-      selectedLayerId: 'prate_surface',
+      selectedLayerId: 'precipitation_rate',
       unitSystem: 'metric',
     })
 

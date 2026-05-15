@@ -83,6 +83,10 @@ cd ../backend && ../.venv/bin/python -m pytest && ../.venv/bin/ruff check weathe
 
 ## Docs
 
+- [docs/roadmap.md](docs/roadmap.md): current Weather Map roadmap, near-term priorities, and deferred ideas.
+- [docs/terminology.md](docs/terminology.md): shared Weather Map vocabulary for layers, artifacts, fields, time slices, and render channels.
+- [docs/forecast-layer-registry.md](docs/forecast-layer-registry.md): canonical user-facing layer registry for Weather Map concepts, labels, grouping, and semantics.
+- [docs/forecast-model-mapping.md](docs/forecast-model-mapping.md): per-model mapping for how GFS, ICON, and future sources support canonical layers.
 - [frontend/README.md](frontend/README.md): frontend development, configuration, and commands.
 - [frontend/src/README.md](frontend/src/README.md): frontend module boundaries and domain naming.
 - [backend/README.md](backend/README.md): backend service configuration and local run command.

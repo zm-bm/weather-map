@@ -5,7 +5,7 @@ import type { ForecastDataPlan } from './plan'
 import { createForecastDataMemory } from './memory'
 import type { ForecastRenderData } from './types'
 
-function createPlan(fieldKey = 'field:tmp_surface', particleKey = 'particles:wind10m_uv'): ForecastDataPlan {
+function createPlan(fieldKey = 'field:temperature', particleKey = 'particles:wind:wind10m_uv'): ForecastDataPlan {
   return {
     manifest: createFrameManifestFixture(),
     selectedValidTimeMs: 0,
@@ -34,7 +34,7 @@ describe('createForecastDataMemory', () => {
     const memory = createForecastDataMemory()
     const plan = createPlan()
     const frames = {
-      field: { lower: { layerId: 'tmp_surface' } },
+      field: { lower: { layerId: 'temperature' } },
       particles: { lower: { artifactId: 'wind10m_uv' } },
     } as ForecastRenderData
 
@@ -47,7 +47,7 @@ describe('createForecastDataMemory', () => {
       particles: frames.particles,
     })
 
-    const nextLayerPlan = createPlan('field:rh_surface', 'particles:wind10m_uv')
+    const nextLayerPlan = createPlan('field:relative_humidity', 'particles:wind:wind10m_uv')
     expect(memory.shouldClearFieldProbe(nextLayerPlan)).toBe(true)
     expect(memory.reusableWindowsFor(nextLayerPlan)).toEqual({
       field: null,
@@ -59,7 +59,7 @@ describe('createForecastDataMemory', () => {
     const memory = createForecastDataMemory()
     const plan = createPlan()
     const frames = {
-      field: { lower: { layerId: 'tmp_surface' } },
+      field: { lower: { layerId: 'temperature' } },
       particles: null,
     } as ForecastRenderData
 

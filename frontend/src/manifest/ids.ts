@@ -1,6 +1,5 @@
-type Brand<T, B extends string> = T & { readonly __brand: B }
+import type { Brand } from '../types'
 
-export type NonEmptyArray<T> = [T, ...T[]]
 export type ArtifactId = Brand<string, 'ArtifactId'>
 export type VectorArtifactId = ArtifactId
 

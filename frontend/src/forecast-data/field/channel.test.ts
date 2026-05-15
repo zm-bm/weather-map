@@ -35,7 +35,7 @@ beforeEach(() => {
   clearFieldTimeSliceCache()
 })
 
-function layer(manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'tmp_surface') {
+function layer(manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'temperature') {
   try {
     return getAvailableLayers(manifest)[layerId]!
   } catch {
@@ -97,7 +97,7 @@ describe('createFieldChannel', () => {
 
     const frame = await fieldChannel({ manifest }).load('000')
 
-    expect(frame.layerId).toBe('tmp_surface')
+    expect(frame.layerId).toBe('temperature')
     expect(frame.paletteId).toBe('temperature.air.c.v1')
     expect(frame.displayRange).toEqual([-35, 50])
     expect(frame.grid.nx).toBe(2)
@@ -128,10 +128,10 @@ describe('createFieldChannel', () => {
 
     const frame = await fieldChannel({
       manifest,
-      layerId: 'wind_speed_surface',
+      layerId: 'wind_speed',
     }).load('000')
 
-    expect(frame.layerId).toBe('wind_speed_surface')
+    expect(frame.layerId).toBe('wind_speed')
     expect(frame.paletteId).toBe('wind.gust.mps.v1')
     expect(frame.encoding.format).toBe('derived-float32-v1')
     expect(Array.from(frame.values)).toEqual([5, 0, 5, 0])
@@ -149,10 +149,10 @@ describe('createFieldChannel', () => {
 
     const frame = await fieldChannel({
       manifest,
-      layerId: 'prate_surface',
+      layerId: 'precipitation_rate',
     }).load('000')
 
-    expect(frame.layerId).toBe('prate_surface')
+    expect(frame.layerId).toBe('precipitation_rate')
     expect(frame.paletteId).toBe('precip.rate.mm_hr.v1')
     expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
     expect(frame.overlays).toEqual([])
@@ -184,7 +184,7 @@ describe('createFieldChannel', () => {
 
     const frame = await fieldChannel({
       manifest,
-      layerId: 'prate_surface',
+      layerId: 'precipitation_rate',
     }).load('000')
 
     expect(frame.overlays.map((overlay) => overlay.id)).toEqual(['precip-type'])
@@ -206,7 +206,7 @@ describe('createFieldChannel', () => {
 
     const frame = await fieldChannel({
       manifest,
-      layerId: 'prate_surface',
+      layerId: 'precipitation_rate',
     }).load('000')
 
     expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])

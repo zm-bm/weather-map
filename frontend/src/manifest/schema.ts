@@ -7,9 +7,9 @@ import {
 } from './constants'
 import {
   asArtifactId,
-  type NonEmptyArray,
   type ArtifactId,
 } from './ids'
+import type { NonEmptyArray } from '../types'
 
 export type LayerColortableStop = [number, number, number, number] | [number, number, number]
 

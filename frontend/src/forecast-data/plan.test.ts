@@ -18,10 +18,10 @@ function dataPlan(args: {
   layerId?: string
   includeParticles?: boolean
 }) {
-  const selectedLayer = getAvailableLayers(args.manifest)[args.layerId ?? 'tmp_surface']!
+  const selectedLayer = getAvailableLayers(args.manifest)[args.layerId ?? 'temperature']!
   const selectedParticleLayer = args.includeParticles === false
     ? null
-    : getAvailableParticleLayers(args.manifest).wind_particles!
+    : getAvailableParticleLayers(args.manifest).wind!
   const target = createForecastDataTarget({
     manifest: args.manifest,
     selectedLayerId: selectedLayer.id,
@@ -56,11 +56,11 @@ describe('createForecastDataPlan', () => {
         cycle: '2026040900',
         forecastHours: ['003', '006'],
       }),
-      layerId: 'wind_speed_surface',
+      layerId: 'wind_speed',
     })
 
-    expect(plan.field.key).toBe('2026040900:rev:wind_speed_surface:derived:wind-speed:wind10m_uv')
-    expect(plan.particles?.key).toBe('2026040900:rev:wind10m_uv')
+    expect(plan.field.key).toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
+    expect(plan.particles?.key).toBe('2026040900:rev:wind:wind10m_uv')
     expect(plan.lowerHourToken).toBe('000')
     expect(plan.upperHourToken).toBe('000')
   })
@@ -74,7 +74,7 @@ describe('createForecastDataPlan', () => {
       includeParticles: false,
     })
 
-    expect(plan.field.key).toBe('2026040900:rev:tmp_surface:artifact:tmp_surface')
+    expect(plan.field.key).toBe('2026040900:rev:temperature:artifact:tmp_surface')
     expect(plan.particles).toBeNull()
   })
 })

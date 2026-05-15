@@ -34,10 +34,10 @@ function createPlan(args: {
     forecastHours: args.forecastHours ?? ['000', '003', '006', '009'],
     vectorArtifactIds: args.includeParticles === false ? [] : ['wind10m_uv'],
   })
-  const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+  const selectedLayer = getAvailableLayers(manifest).temperature!
   const selectedParticleLayer = args.includeParticles === false
     ? null
-    : getAvailableParticleLayers(manifest).wind_particles!
+    : getAvailableParticleLayers(manifest).wind!
   const target = createForecastDataTarget({
     manifest,
     selectedLayerId: selectedLayer.id,
@@ -77,7 +77,7 @@ function createPlan(args: {
 describe('prefetchForecastData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    loaders.field.mockResolvedValue({ layerId: 'tmp_surface' })
+    loaders.field.mockResolvedValue({ layerId: 'temperature' })
     loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
   })
 

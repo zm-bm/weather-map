@@ -10,8 +10,8 @@ describe('createForecastDataTarget', () => {
       cycle: '2026040900',
       forecastHours: ['003', '006'],
     })
-    const selectedLayer = getAvailableLayers(manifest).wind_speed_surface!
-    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind_particles!
+    const selectedLayer = getAvailableLayers(manifest).wind_speed!
+    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
 
     const target = createForecastDataTarget({
       manifest,
@@ -32,7 +32,7 @@ describe('createForecastDataTarget', () => {
 
     expect(target.lowerHourToken).toBe('003')
     expect(target.upperHourToken).toBe('006')
-    expect(target.requestKey).toBe('2026040900:rev:wind_speed_surface:derived:wind-speed:wind10m_uv:particles:wind10m_uv:003:006:30:2')
+    expect(target.requestKey).toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv:particles:wind:wind10m_uv:003:006:30:2')
   })
 
   it('uses particles:none for missing particle layers', () => {
@@ -41,7 +41,7 @@ describe('createForecastDataTarget', () => {
       forecastHours: ['003', '006'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).tmp_surface!
+    const selectedLayer = getAvailableLayers(manifest).temperature!
 
     const target = createForecastDataTarget({
       manifest,

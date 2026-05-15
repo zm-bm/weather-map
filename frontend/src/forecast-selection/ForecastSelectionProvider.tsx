@@ -8,6 +8,7 @@ import {
   getDefaultParticleLayer,
   type ParticleLayerId,
   type LayerGroupSpec,
+  type LayerGroupId,
   type LayerId,
 } from '../forecast-catalog'
 import type { UnitSystem } from '../units'
@@ -33,14 +34,14 @@ function availableParticleCatalog(manifest: CycleManifest | null) {
 function findLayerGroupId(
   groups: readonly LayerGroupSpec[],
   layerId: LayerId | null
-): string | null {
+): LayerGroupId | null {
   if (layerId == null) return null
   return groups.find((group) => group.layers.includes(layerId))?.id ?? null
 }
 
 function defaultLayerForGroupId(
   groups: readonly LayerGroupSpec[],
-  groupId: string | null
+  groupId: LayerGroupId | null
 ): LayerId | null {
   if (groupId == null) return null
   return groups.find((group) => group.id === groupId)?.defaultLayer ?? null
@@ -69,7 +70,7 @@ export default function ForecastSelectionProvider({
     modelId: string | null
     cycle: string | null
     selectedLayerId: LayerId | null
-    selectedLayerGroupId: string | null
+    selectedLayerGroupId: LayerGroupId | null
     selectedParticleLayerId: ParticleLayerId | null
   }>(() => ({
     modelId: manifest?.model.id ?? null,
