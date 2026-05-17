@@ -50,7 +50,7 @@ docker build \
   -f "$REPO_ROOT/etl/Dockerfile" \
   -t "${ECR_IMAGE_URI}:${IMAGE_TAG}" \
   -t "${ECR_IMAGE_URI}:latest" \
-  "$REPO_ROOT/etl"
+  "$REPO_ROOT"
 
 if [[ "$PUSH_IMAGE" == "true" ]]; then
   echo "Logging into ECR"

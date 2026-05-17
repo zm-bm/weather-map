@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import unittest
+from pathlib import Path
 
+from forecast_etl.config.load import load_pipeline_config
 from forecast_etl.manifest.build import build_cycle_manifest
 from forecast_etl.manifest.constants import (
     FORECAST_BINARY_CONTRACT,
@@ -147,7 +149,6 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(set(cycle_manifest["artifacts"].keys()), set(artifact_ids))
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["kind"], "scalar")
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["components"], ["value"])
-            self.assertNotIn("style", cycle_manifest["artifacts"]["tmp_surface"])
             self.assertNotIn("label", cycle_manifest["artifacts"]["tmp_surface"])
             self.assertNotIn("valueRange", cycle_manifest["artifacts"]["tmp_surface"])
             self.assertNotIn("temporalKind", cycle_manifest["artifacts"]["tmp_surface"])
@@ -180,6 +181,38 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
+
+    def test_publish_writes_availability_index_when_pipeline_config_is_provided(self) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        cfg = load_pipeline_config(
+            (repo_root / "config" / "pipeline" / "base.json").as_uri(),
+            overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
+        )
+
+        with publish_fixture(prefix="weather-map-publish-availability-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(
+                artifact_id=artifact_id,
+                artifact_config=artifact_cfg,
+            )
+
+            result = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                pipeline_config=cfg,
+            )
+
+            self.assertTrue(result.ready)
+            self.assertTrue(fx.artifacts.availability_index_exists())
+            availability_index = fx.artifacts.read_availability_index()
+            self.assertEqual(availability_index["schema"], "weather-map-model-layer-availability-index")
+            self.assertEqual(availability_index["layers"]["temperature"]["models"]["gfs"]["state"], "available")
+            self.assertEqual(
+                availability_index["layers"]["visibility"]["models"]["gfs"]["state"],
+                "temporarily_unavailable",
+            )
+            self.assertNotIn("groups", fx.cycle_manifest())
 
     def test_publish_includes_artifact_temporal_metadata(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temporal-") as fx:
@@ -237,8 +270,8 @@ class PublishManifestTest(unittest.TestCase):
 
             write_json(marker_uri, valid_marker)
 
-    def test_publish_tolerates_legacy_marker_presentation_fields(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-legacy-marker-") as fx:
+    def test_publish_rejects_marker_presentation_fields(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-presentation-marker-") as fx:
             artifact_id = "tmp_surface"
             artifact_cfg = minimal_artifact_config()
             fx.write_scalar_marker(
@@ -247,21 +280,14 @@ class PublishManifestTest(unittest.TestCase):
             )
             marker_uri = fx.marker_uri(artifact_id)
             marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
-            marker["artifact"]["valid_min"] = -45.0
-            marker["artifact"]["valid_max"] = 50.0
-            marker["artifact"]["style"] = {"layer_id": "scalar", "palette_id": "legacy.palette"}
+            marker["artifact"]["unexpected_presentation_field"] = "legacy"
             write_json(marker_uri, marker)
 
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-            )
-
-            self.assertTrue(result.ready)
-            artifact = fx.cycle_manifest()["artifacts"][artifact_id]
-            self.assertNotIn("valid_min", artifact)
-            self.assertNotIn("valid_max", artifact)
-            self.assertNotIn("style", artifact)
+            with self.assertRaisesRegex(SystemExit, "unexpected_presentation_field"):
+                fx.publish(
+                    artifact_ids=(artifact_id,),
+                    artifacts_cfg={artifact_id: artifact_cfg},
+                )
 
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
@@ -354,7 +380,6 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertEqual(artifact["components"], ["value"])
             self.assertEqual(artifact["kind"], "scalar")
-            self.assertNotIn("style", artifact)
             self.assertNotIn("valueRange", artifact)
             self.assertEqual(
                 artifact["frames"]["000"]["path"],
@@ -459,7 +484,6 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(list(cycle_manifest["artifacts"].keys()), ["wind10m_uv"])
             self.assertEqual(cycle_manifest["artifacts"]["wind10m_uv"]["kind"], "vector")
             self.assertEqual(cycle_manifest["artifacts"]["wind10m_uv"]["components"], ["u", "v"])
-            self.assertNotIn("style", cycle_manifest["artifacts"]["wind10m_uv"])
             self.assertEqual(latest_manifest, cycle_manifest)
             self.assertEqual(
                 cycle_manifest["artifacts"]["wind10m_uv"]["frames"]["000"]["path"],

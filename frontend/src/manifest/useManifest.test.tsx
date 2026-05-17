@@ -21,7 +21,7 @@ describe('useManifest', () => {
   it('surfaces a single error state when no manifest is returned', async () => {
     mocks.fetchCurrentManifest.mockResolvedValue(null as unknown as CycleManifest)
 
-    const { result } = renderHook(() => useManifest())
+    const { result } = renderHook(() => useManifest('manifests/gfs/latest.json'))
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
@@ -43,7 +43,7 @@ describe('useManifest', () => {
       .mockRejectedValueOnce(failure)
       .mockResolvedValueOnce(manifest)
 
-    const { result } = renderHook(() => useManifest())
+    const { result } = renderHook(() => useManifest('manifests/gfs/latest.json'))
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
@@ -62,7 +62,9 @@ describe('useManifest', () => {
     })
 
     expect(mocks.fetchCurrentManifest).toHaveBeenCalledTimes(2)
-    expect(mocks.fetchCurrentManifest).toHaveBeenCalledWith(expect.anything())
+    expect(mocks.fetchCurrentManifest).toHaveBeenLastCalledWith(expect.objectContaining({
+      manifestPath: 'manifests/gfs/latest.json',
+    }))
   })
 
   it('ignores aborted in-flight requests when retry starts a newer load', async () => {
@@ -86,7 +88,7 @@ describe('useManifest', () => {
       })
       .mockResolvedValueOnce(manifest)
 
-    const { result } = renderHook(() => useManifest())
+    const { result } = renderHook(() => useManifest('manifests/gfs/latest.json'))
 
     await waitFor(() => {
       expect(mocks.fetchCurrentManifest).toHaveBeenCalledTimes(1)

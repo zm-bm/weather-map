@@ -5,8 +5,15 @@ import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
   type ForecastModelId,
   type ForecastModelOption,
-} from '../../forecast-models'
-import { getLayerMeta, type LayerGroupSpec, type LayerId } from '../../forecast-catalog'
+} from '../../forecast-availability'
+import {
+  type LayerGroupSpec,
+  type LayerId,
+} from '../../forecast-catalog'
+import {
+  hasAnyAvailableModelForLayer,
+  isLayerAvailableForModel,
+} from '../../forecast-availability'
 
 type ForecastPanelProps = {
   activeModelId: ForecastModelId
@@ -36,13 +43,30 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
     manifest,
     groups,
     layers,
+    availabilityIndex,
     selectedLayerId,
+    selectedLayerGroupId,
+    selectedLayerAvailability,
+    selectedLayerHasRenderableArtifacts,
     setSelectedLayer,
+    setSelectedLayerGroup,
   } = useLoadedForecastSelectionContext()
   const runTime = formatCycleRunTimeLabel(manifest.run.cycle) ?? '--'
   const runLabel = formatModelRunLabel(runTime)
-  const selectedLayerGroup = getSelectedLayerGroup(groups, selectedLayerId)
+  const selectedLayerGroup = groups.find((group) => group.id === selectedLayerGroupId) ??
+    getSelectedLayerGroup(groups, selectedLayerId)
   const activeModelLabel = manifest.model.label
+  const selectedLayer = selectedLayerId == null ? null : layers[selectedLayerId]
+  const showUnavailableMessage = selectedLayer != null && (
+    selectedLayerAvailability?.state === 'temporarily_unavailable' ||
+    selectedLayerAvailability?.state === 'unsupported' ||
+    !selectedLayerHasRenderableArtifacts
+  )
+  const unavailableMessage = selectedLayer == null
+    ? null
+    : selectedLayerAvailability?.state === 'unsupported'
+      ? `${selectedLayer.label} is not available from ${activeModelLabel}.`
+      : `${selectedLayer.label} is temporarily unavailable for this ${activeModelLabel} cycle.`
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -60,7 +84,9 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
           >
             {modelOptions.map((model) => (
               <option key={model.id} value={model.id}>
-                {model.label}
+                {selectedLayerId != null && availabilityIndex && !isLayerAvailableForModel(availabilityIndex, selectedLayerId, model.id)
+                  ? `${model.label} (unavailable)`
+                  : model.label}
               </option>
             ))}
           </select>
@@ -85,7 +111,7 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
                   aria-label={group.label}
                   aria-pressed={group.id === selectedLayerGroup.id}
                   title={group.label}
-                  onClick={() => setSelectedLayer(group.defaultLayer)}
+                  onClick={() => setSelectedLayerGroup(group.id)}
                 >
                   {group.label}
                 </button>
@@ -99,15 +125,23 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
               onChange={(event) => setSelectedLayer(event.currentTarget.value as LayerId)}
             >
               {selectedLayerGroup.layers.map((layerId) => {
-                const meta = getLayerMeta(layerId, layers, manifest)
+                const layer = layers[layerId]
+                const hasSource = hasAnyAvailableModelForLayer(availabilityIndex, layerId)
+                const label = layer?.label ?? String(layerId)
 
                 return (
-                  <option key={layerId} value={layerId}>
-                    {meta.label}
+                  <option key={layerId} value={layerId} disabled={availabilityIndex != null && !hasSource}>
+                    {availabilityIndex != null && !hasSource ? `${label} (Unavailable)` : label}
                   </option>
                 )
               })}
             </select>
+
+            {showUnavailableMessage && unavailableMessage ? (
+              <div className="forecast-controls__availability wm-mono-caps" role="status">
+                {unavailableMessage}
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

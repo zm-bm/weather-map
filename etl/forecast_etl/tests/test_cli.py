@@ -263,6 +263,28 @@ class CliTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(out.getvalue(), "000\n003\n006\n")
 
+    def test_pipeline_config_overlay_uri_is_passed_to_loader(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
+        out = io.StringIO()
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
+            redirect_stdout(out),
+        ):
+            result = cli.main([
+                "list-forecast-hours",
+                "--model",
+                "gfs",
+                "--pipeline-config-uri",
+                "file:///tmp/base.json",
+                "--pipeline-config-overlay-uri",
+                "file:///tmp/local.json",
+            ])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(load_pipeline_config.call_args.args, ("file:///tmp/base.json",))
+        self.assertEqual(load_pipeline_config.call_args.kwargs["overlay_uri"], "file:///tmp/local.json")
+
     def test_list_forecast_hours_uses_model_env_fallback(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("012",))
         out = io.StringIO()

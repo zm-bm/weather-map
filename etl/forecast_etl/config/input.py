@@ -1,4 +1,4 @@
-"""Pydantic models for raw etl_config.json objects."""
+"""Pydantic models for raw pipeline config JSON objects."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from .resolved import SOURCE_TYPE_GFS_NOMADS, SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL
 
 
 class PipelineConfigInput(ConfigModel):
-    """Raw top-level `etl_config.json` shape."""
+    """Raw top-level pipeline config shape."""
 
     version: Literal[3]
     artifact_catalog: dict[NonEmptyStr, Any] = Field(min_length=1)

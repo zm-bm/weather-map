@@ -11,6 +11,7 @@ from typing import Any
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.artifacts.repository import ArtifactRepository
+from forecast_etl.config.resolved import PipelineConfig
 from forecast_etl.manifest.publish import PublishResult, run_publish
 from forecast_etl.runtime import ExecutionContext
 from forecast_etl.storage.base import UriStore
@@ -115,6 +116,7 @@ class PublishFixture:
         *,
         artifact_ids: Sequence[str],
         artifacts_cfg: dict[str, dict],
+        pipeline_config: PipelineConfig | None = None,
         cycle: str | None = None,
     ) -> PublishResult:
         return run_publish(
@@ -124,6 +126,7 @@ class PublishFixture:
             artifact_ids=tuple(artifact_ids),
             artifact_specs=artifact_specs(artifacts_cfg),
             artifact_repo=self.artifacts,
+            pipeline_config=pipeline_config,
         )
 
     def cycle_manifest(self, *, cycle: str | None = None) -> dict[str, Any]:

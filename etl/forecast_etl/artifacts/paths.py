@@ -19,6 +19,7 @@ from ..uris import join_uri
 
 SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
 PUBLISHED_MARKER_FILENAME = "_PUBLISHED.json"
+AVAILABILITY_INDEX_FILENAME = "availability-index.json"
 
 
 def _safe_segment(value: str) -> str:
@@ -127,6 +128,11 @@ class ArtifactPaths:
     def manifest_latest_uri(self, *, model_id: str) -> str:
         """Canonical latest manifest alias: {root}/manifests/{model}/latest.json"""
         path = ["manifests", _safe_segment(model_id), "latest.json"]
+        return join_uri(self.artifact_root_uri, path)
+
+    def availability_index_uri(self) -> str:
+        """Model/layer availability index URI: {root}/manifests/availability-index.json"""
+        path = ["manifests", AVAILABILITY_INDEX_FILENAME]
         return join_uri(self.artifact_root_uri, path)
 
     def relative_key(self, uri: str) -> str:

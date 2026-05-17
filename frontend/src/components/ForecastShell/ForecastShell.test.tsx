@@ -2,9 +2,14 @@ import { render, screen, within } from '@testing-library/react'
 import type { Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FORECAST_MODEL_OPTIONS, type ForecastModelId, type ForecastModelOption } from '../../forecast-models'
+import type { ForecastModelId, ForecastModelOption } from '../../forecast-availability'
 import { createManifestFixture } from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
+
+const MODEL_OPTIONS: readonly ForecastModelOption[] = [
+  { id: 'gfs', label: 'GFS' },
+  { id: 'icon', label: 'ICON' },
+]
 
 vi.mock('../ForecastPanel', () => ({
   default: ({
@@ -42,8 +47,9 @@ function createForecastShellProps(overrides: {
 } = {}): Parameters<typeof ForecastShell>[0] {
   return {
     manifest: overrides.manifest ?? null,
+    availabilityIndex: null,
     activeModelId: overrides.activeModelId ?? 'gfs',
-    modelOptions: FORECAST_MODEL_OPTIONS,
+    modelOptions: MODEL_OPTIONS,
     onActiveModelChange: overrides.onActiveModelChange ?? vi.fn(),
   }
 }

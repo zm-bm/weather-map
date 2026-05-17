@@ -4,7 +4,9 @@ Forecast artifact pipeline shared by local development and production Batch.
 
 ## Key Files
 
-- `forecast.etl_config.json`: default local pipeline config.
+- `../config/pipeline/base.json`: production pipeline config source.
+- `../config/pipeline/local.json`: local pipeline override.
+- `../config/forecast_catalog.json`: canonical forecast layer catalog.
 - `forecast_etl/`: ETL package.
 - `Dockerfile`: worker image used by local runs and AWS Batch.
 - `scripts/run-cycle.sh`: local cycle runner.

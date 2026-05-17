@@ -130,7 +130,8 @@ fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ETL_DIR="$ROOT/etl"
-CONFIG_FILE="$ETL_DIR/forecast.etl_config.json"
+CONFIG_FILE="$ROOT/config/pipeline/base.json"
+CONFIG_OVERLAY_FILE="$ROOT/config/pipeline/local.json"
 ARTIFACTS_DIR="$ROOT/artifacts"
 CACHE_DIR="$ETL_DIR/cache"
 IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.forecast-etl.source-fingerprint"
@@ -139,6 +140,10 @@ mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
 	echo "Config file not found: $CONFIG_FILE" >&2
+	exit 1
+fi
+if [[ ! -f "$CONFIG_OVERLAY_FILE" ]]; then
+	echo "Config overlay file not found: $CONFIG_OVERLAY_FILE" >&2
 	exit 1
 fi
 
@@ -152,15 +157,20 @@ require_docker() {
 resolve_forecast_hours_with_worker() {
 	docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
 		--model "$MODEL" \
-		--pipeline-config-uri file:///app/etl/forecast.etl_config.json
+		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
 }
 
 image_source_fingerprint() {
 	(
-		cd "$ETL_DIR"
+		cd "$ROOT"
 		{
-			printf '%s\0' Dockerfile forecast.etl_config.json pyproject.toml
-			find forecast_etl \
+			printf '%s\0' \
+				config/forecast_catalog.json \
+				config/pipeline/base.json \
+				config/pipeline/local.json \
+				etl/Dockerfile \
+				etl/pyproject.toml
+			find etl/forecast_etl \
 				-type f \
 				! -path '*/__pycache__/*' \
 				! -name '*.pyc' \
@@ -183,7 +193,7 @@ build_worker_image() {
 		--label "$IMAGE_FINGERPRINT_LABEL=$fingerprint"
 		-f "$ETL_DIR/Dockerfile"
 		-t "$LOCAL_ETL_IMAGE"
-		"$ETL_DIR"
+		"$ROOT"
 	)
 	"${docker_build_cmd[@]}"
 }
@@ -220,8 +230,7 @@ worker_cmd_for_hour() {
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--volume "$CACHE_DIR:/app/etl/cache"
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
-		--env "PIPELINE_CONFIG_URI=file:///app/etl/forecast.etl_config.json"
-		--env "FORECAST_ETL_DIR=/app/etl"
+		--env "PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json"
 		--env "PYTHONDONTWRITEBYTECODE=1"
 		--env "MODEL=$MODEL"
 		--env "CYCLE=$CYCLE"

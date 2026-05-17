@@ -34,6 +34,12 @@ def _runtime_parser() -> argparse.ArgumentParser:
         help="Pipeline config URI (file://, s3://, http(s)://).",
     )
     p.add_argument(
+        "--pipeline-config-overlay-uri",
+        dest="pipeline_config_overlay_uri",
+        default=os.environ.get("PIPELINE_CONFIG_OVERLAY_URI") or None,
+        help="Optional local/dev pipeline config overlay URI.",
+    )
+    p.add_argument(
         "--artifact-root-uri",
         dest="artifact_root_uri",
         help="Artifact root URI (file://... or s3://...).",
@@ -106,7 +112,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def _load_cfg(args: argparse.Namespace, *, store: UriStore | None = None) -> PipelineConfig:
-    return load_pipeline_config(args.pipeline_config_uri, store=store)
+    return load_pipeline_config(
+        args.pipeline_config_uri,
+        overlay_uri=args.pipeline_config_overlay_uri,
+        store=store,
+    )
 
 
 def _require_str(
@@ -148,6 +158,7 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         fhour=fhour,
         source_uri=source_uri,
         publish=not args.no_publish,
+        pipeline_config=cfg,
         store=store,
     )
     return 0
@@ -162,7 +173,15 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     cycle = str(args.cycle)
     parse_cycle(cycle)
 
-    run_cycle(model=model, ctx=ctx, cycle=cycle, procs=args.procs, publish=not args.no_publish, store=store)
+    run_cycle(
+        model=model,
+        ctx=ctx,
+        cycle=cycle,
+        procs=args.procs,
+        publish=not args.no_publish,
+        pipeline_config=cfg,
+        store=store,
+    )
     return 0
 
 

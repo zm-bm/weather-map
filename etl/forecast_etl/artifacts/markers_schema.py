@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Mapping
 
-from pydantic import ConfigDict, field_validator
+from pydantic import field_validator
 
 from ..config.resolved import ArtifactSpec
 from ..validation import (
@@ -37,12 +37,6 @@ class _MarkerGrid(FrozenModel):
 
 class ArtifactMarkerPayload(FrozenModel):
     """Artifact success-marker payload used by manifest publishing."""
-
-    model_config = ConfigDict(
-        extra="ignore",
-        frozen=True,
-        str_strip_whitespace=True,
-    )
 
     payload_uri: NonEmptyStr
     byte_length: PositiveInt

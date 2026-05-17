@@ -23,17 +23,9 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     units="m/s",
                     parameter="wind_uv",
                     level="10m_above_ground",
-                    # Legacy presentation fields should be tolerated but not
-                    # carried into the normalized marker payload.
-                    valid_min=-64,
-                    valid_max=63.5,
                     grid_id="gfs_0p25_global",
                     grid=grid,
                     components=["u", "v"],
-                    style={
-                        "layer_id": "vector",
-                        "palette_id": "wind.vector.mps.v1",
-                    },
                 ),
             },
             uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
@@ -43,8 +35,25 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
         self.assertEqual(marker.artifact.byte_length, 24)
         self.assertEqual(marker.artifact.components, ("u", "v"))
         self.assertEqual(marker.artifact.grid["nx"], grid["nx"])
-        self.assertFalse(hasattr(marker.artifact, "valid_min"))
-        self.assertFalse(hasattr(marker.artifact, "style"))
+
+    def test_parse_artifact_success_marker_rejects_unexpected_presentation_fields(self) -> None:
+        payload = artifact_marker_payload(
+            unexpected_presentation_field="legacy",
+        )
+        with self.assertRaises(SystemExit) as raised:
+            parse_artifact_success_marker(
+                {
+                    "cycle": "2026041200",
+                    "fhour": "003",
+                    "artifact_id": "wind10m_uv",
+                    "artifact": payload,
+                },
+                uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
+            )
+
+        message = str(raised.exception)
+        self.assertIn("Extra inputs are not permitted", message)
+        self.assertIn("unexpected_presentation_field", message)
 
     def test_parse_artifact_success_marker_requires_artifact_payload(self) -> None:
         with self.assertRaises(SystemExit) as raised:

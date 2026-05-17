@@ -302,17 +302,27 @@ export function getLayerMeta(
   const layer = getLayerSpec(layerId, layersById)
   const sourceArtifactId = layerSourceArtifactId(layer.source)
   const sourceMeta = manifest?.artifacts[sourceArtifactId]
+  const style = getLayerStyleByPaletteId(layer.paletteId)
 
   if (!sourceMeta) {
-    throw new Error(`Missing artifact metadata for layer ${layerId}`)
+    return {
+      id: String(layerId),
+      label: layer.label,
+      units: '',
+      parameter: layer.parameter ?? '',
+      min: layer.displayRange.min,
+      max: layer.displayRange.max,
+      paletteId: layer.paletteId,
+      unitBehavior: layer.unitBehavior,
+      legendScale: layer.legendScale,
+      colortable: style.colortable,
+    }
   }
 
   const expectedKind = layerSourceExpectedArtifactKind(layer.source)
   if (sourceMeta.kind !== expectedKind) {
     throw new Error(`Artifact metadata for layer ${layerId} is not ${expectedKind} (got ${sourceMeta.kind})`)
   }
-
-  const style = getLayerStyleByPaletteId(layer.paletteId)
 
   return {
     id: String(layerId),

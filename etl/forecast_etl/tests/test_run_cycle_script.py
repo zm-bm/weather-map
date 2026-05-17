@@ -86,15 +86,16 @@ exit 1
         docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
 
     def current_image_source_fingerprint(self) -> str:
-        etl_dir = self.repo_root / "etl"
         relative_paths = [
-            Path("Dockerfile"),
-            Path("forecast.etl_config.json"),
-            Path("pyproject.toml"),
+            Path("config/forecast_catalog.json"),
+            Path("config/pipeline/base.json"),
+            Path("config/pipeline/local.json"),
+            Path("etl/Dockerfile"),
+            Path("etl/pyproject.toml"),
         ]
         relative_paths.extend(
-            path.relative_to(etl_dir)
-            for path in (etl_dir / "forecast_etl").rglob("*")
+            path.relative_to(self.repo_root)
+            for path in (self.repo_root / "etl" / "forecast_etl").rglob("*")
             if path.is_file()
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
@@ -102,7 +103,7 @@ exit 1
 
         sha256sum_lines = []
         for relative_path in sorted(relative_paths, key=lambda path: path.as_posix()):
-            digest = hashlib.sha256((etl_dir / relative_path).read_bytes()).hexdigest()
+            digest = hashlib.sha256((self.repo_root / relative_path).read_bytes()).hexdigest()
             sha256sum_lines.append(f"{digest}  {relative_path.as_posix()}\n")
         return hashlib.sha256("".join(sha256sum_lines).encode("utf-8")).hexdigest()
 
@@ -134,7 +135,8 @@ exit 1
         self.assertIn("--volume " + (self.repo_root / "artifacts").as_posix() + ":/artifacts", result.stdout)
         self.assertIn("--volume " + (self.repo_root / "etl" / "cache").as_posix() + ":/app/etl/cache", result.stdout)
         self.assertIn("--env ARTIFACT_ROOT_URI=file:///artifacts", result.stdout)
-        self.assertIn("--env PIPELINE_CONFIG_URI=file:///app/etl/forecast.etl_config.json", result.stdout)
+        self.assertNotIn("--env PIPELINE_CONFIG_URI", result.stdout)
+        self.assertIn("--env PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json", result.stdout)
         self.assertIn("--env MODEL=icon", result.stdout)
         self.assertIn("--env FHOUR=001", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)

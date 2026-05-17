@@ -5,6 +5,7 @@ import {
   type VectorArtifactId,
 } from '../manifest'
 import type { Brand } from '../types'
+import { RAW_FORECAST_CATALOG } from './catalog'
 
 export type ParticleLayerId = Brand<string, 'ParticleLayerId'>
 
@@ -23,9 +24,22 @@ export type ParticleLayerSpec = {
   source: ParticleLayerSource
 }
 
-export const PARTICLE_LAYERS: readonly ParticleLayerSpec[] = [
-  particleLayer('wind', 'Wind', 'wind10m_uv'),
-]
+type RawParticleLayerSpec = {
+  id: string
+  label: string
+  source: {
+    kind: 'artifact'
+    artifactId: string
+  }
+}
+
+type RawForecastCatalog = {
+  particleLayers: readonly RawParticleLayerSpec[]
+}
+
+const rawCatalog = RAW_FORECAST_CATALOG as RawForecastCatalog
+
+export const PARTICLE_LAYERS: readonly ParticleLayerSpec[] = rawCatalog.particleLayers.map(particleLayerFromRaw)
 
 export function getAvailableParticleLayers(manifest: CycleManifest): Record<string, ParticleLayerSpec> {
   const layers: Record<string, ParticleLayerSpec> = {}
@@ -69,16 +83,12 @@ function isParticleLayerAvailable(
   return hasOrderedComponents(artifact, ['u', 'v'])
 }
 
-function particleLayer(
-  id: string,
-  label: string,
-  artifactId: string
-): ParticleLayerSpec {
-  const vectorArtifactId = asVectorArtifactId(artifactId)
+function particleLayerFromRaw(raw: RawParticleLayerSpec): ParticleLayerSpec {
+  const vectorArtifactId = asVectorArtifactId(raw.source.artifactId)
 
   return {
-    id: asParticleLayerId(id),
-    label,
+    id: asParticleLayerId(raw.id),
+    label: raw.label,
     source: {
       kind: 'artifact',
       artifactId: vectorArtifactId,

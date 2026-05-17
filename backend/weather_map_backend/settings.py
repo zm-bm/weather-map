@@ -17,10 +17,7 @@ def _default_artifact_root_uri() -> str:
 
 
 def _default_pipeline_config_uri() -> str:
-    docker_config = Path("/config/forecast.etl_config.json")
-    if docker_config.exists():
-        return docker_config.as_uri()
-    return (_repo_root() / "infra" / "config" / "forecast.etl_config.json").as_uri()
+    return (_repo_root() / "config" / "pipeline" / "base.json").as_uri()
 
 
 @dataclass(frozen=True)

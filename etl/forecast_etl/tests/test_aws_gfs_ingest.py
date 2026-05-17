@@ -90,7 +90,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         payload["models"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "wind10m_uv"]
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
-            cfg_path = Path(td) / "forecast.etl_config.json"
+            cfg_path = Path(td) / "pipeline_config.json"
             cfg_path.write_text(json.dumps(payload), encoding="utf-8")
             with (
                 patch.dict(os.environ, {"PIPELINE_CONFIG_URI": f"file://{cfg_path.as_posix()}"}, clear=False),

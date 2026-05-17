@@ -9,10 +9,11 @@ import HealthPage from './health/HealthPage'
 import { useManifest } from './manifest/useManifest'
 import { AppStatusProvider, useAppStatusActions } from './app-status'
 import {
-  DEFAULT_FORECAST_MODEL_ID,
-  FORECAST_MODEL_OPTIONS,
-  getForecastModelLabel,
-} from './forecast-models'
+  type ForecastModelId,
+  manifestPathForModel,
+  modelOptionsFromAvailabilityIndex,
+  useAvailabilityIndex,
+} from './forecast-availability'
 
 function App() {
   return (
@@ -34,12 +35,75 @@ function ForecastApp() {
 }
 
 function AppContent() {
-  const [activeModelId, setActiveModelId] = useState(DEFAULT_FORECAST_MODEL_ID)
-  const { manifest, loading, error, retry } = useManifest(activeModelId)
+  const [selectedModelId, setSelectedModelId] = useState<ForecastModelId | null>(null)
+  const {
+    availabilityIndex,
+    loading: availabilityLoading,
+    error: availabilityError,
+    retry: retryAvailability,
+  } = useAvailabilityIndex()
+  const modelOptions = modelOptionsFromAvailabilityIndex(availabilityIndex)
+  const firstModelId = modelOptions[0]?.id ?? null
+  const activeModelId = availabilityIndex == null
+    ? null
+    : selectedModelId != null && availabilityIndex.models[selectedModelId]
+      ? selectedModelId
+      : firstModelId
+  const manifestPath = manifestPathForModel(availabilityIndex, activeModelId)
+  const manifestEnabled = availabilityIndex != null && modelOptions.length > 0 && manifestPath != null
+  const { manifest, loading, error, retry } = useManifest(manifestPath ?? null, {
+    enabled: manifestEnabled,
+  })
   const { setStatus, clearStatus } = useAppStatusActions()
-  const activeModelLabel = getForecastModelLabel(activeModelId)
+  const activeModelLabel = modelOptions.find((model) => model.id === activeModelId)?.label ?? 'forecast'
 
   useEffect(() => {
+    if (availabilityLoading) {
+      setStatus('manifest', {
+        mode: 'blocking',
+        level: 'loading',
+        title: 'Loading Forecast',
+        detail: 'Fetching forecast layer availability.',
+      })
+      return
+    }
+
+    if (availabilityError) {
+      setStatus('manifest', {
+        mode: 'blocking',
+        level: 'error',
+        title: 'Forecast Load Failed',
+        detail: availabilityError.message || 'Unable to load forecast availability.',
+        actionLabel: 'Retry',
+        onAction: retryAvailability,
+      })
+      return
+    }
+
+    if (availabilityIndex && modelOptions.length === 0) {
+      setStatus('manifest', {
+        mode: 'blocking',
+        level: 'error',
+        title: 'Forecast Load Failed',
+        detail: 'Forecast availability did not list any models.',
+        actionLabel: 'Retry',
+        onAction: retryAvailability,
+      })
+      return
+    }
+
+    if (availabilityIndex && !manifestPath) {
+      setStatus('manifest', {
+        mode: 'blocking',
+        level: 'error',
+        title: 'Forecast Load Failed',
+        detail: `No latest ${activeModelLabel} manifest is listed in forecast availability.`,
+        actionLabel: 'Retry',
+        onAction: retryAvailability,
+      })
+      return
+    }
+
     if (manifest) {
       clearStatus('manifest')
       return
@@ -73,15 +137,30 @@ function AppContent() {
       title: 'Loading Forecast',
       detail: `Waiting for ${activeModelLabel} forecast manifest.`,
     })
-  }, [activeModelLabel, clearStatus, error, loading, manifest, retry, setStatus])
+  }, [
+    activeModelLabel,
+    availabilityError,
+    availabilityIndex,
+    availabilityLoading,
+    clearStatus,
+    error,
+    loading,
+    manifest,
+    manifestPath,
+    modelOptions.length,
+    retry,
+    retryAvailability,
+    setStatus,
+  ])
 
   return (
     <div className="app-root">
       <ForecastShell
         manifest={manifest}
+        availabilityIndex={availabilityIndex}
         activeModelId={activeModelId}
-        modelOptions={FORECAST_MODEL_OPTIONS}
-        onActiveModelChange={setActiveModelId}
+        modelOptions={modelOptions}
+        onActiveModelChange={setSelectedModelId}
       />
       <AppStatusHost />
     </div>

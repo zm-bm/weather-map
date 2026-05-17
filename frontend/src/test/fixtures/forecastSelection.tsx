@@ -6,10 +6,12 @@ import type { CycleManifest } from '../../manifest'
 import {
   asParticleLayerId,
   asLayerId,
-  getAvailableGroups,
-  getAvailableLayers,
+  FORECAST_LAYER_GROUPS,
+  FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
   getDefaultParticleLayer,
+  isLayerAvailableInManifest,
+  type LayerId,
 } from '../../forecast-catalog'
 import {
   ForecastSelectionProvider,
@@ -29,36 +31,52 @@ export function createForecastSelectionContextValue(
   options: ForecastSelectionContextOptions = {}
 ): ForecastSelectionContextValue {
   const shared = {
+    availabilityIndex: null,
     unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
+    setSelectedLayerGroup: vi.fn(),
     setSelectedLayer: vi.fn(),
     setSelectedParticleLayer: vi.fn(),
     setUnitSystem: vi.fn(),
     toggleUnitSystem: vi.fn(),
   }
-  const layers = manifest == null ? null : getAvailableLayers(manifest)
-  const groups = layers == null ? [] : getAvailableGroups(layers)
   const particleLayers = manifest == null ? null : getAvailableParticleLayers(manifest)
   const defaultParticleLayer = particleLayers == null ? null : getDefaultParticleLayer(particleLayers)
+  const selectedLayerId = options.selectedLayerId
+    ? asLayerId(options.selectedLayerId)
+    : FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
+  const selectedLayerHasRenderableArtifacts =
+    manifest != null && selectedLayerId != null
+      ? safeIsLayerAvailableInManifest(manifest, selectedLayerId)
+      : false
+  const selectedLayerGroupId = selectedLayerId == null
+    ? null
+    : FORECAST_LAYER_GROUPS.find((group) => group.layers.includes(selectedLayerId))?.id ?? null
 
   return (
     manifest == null
       ? {
           manifest: null,
+          activeModelId: null,
           groups: [],
           layers: null,
           particleLayers: null,
+          selectedLayerGroupId: null,
           selectedLayerId: null,
+          selectedLayerAvailability: null,
+          selectedLayerHasRenderableArtifacts: false,
           selectedParticleLayerId: null,
           ...shared,
         }
       : {
           manifest,
-          groups,
-          layers: layers!,
+          activeModelId: manifest.model.id,
+          groups: [...FORECAST_LAYER_GROUPS],
+          layers: FORECAST_LAYERS_BY_ID,
           particleLayers: particleLayers!,
-          selectedLayerId: options.selectedLayerId
-            ? asLayerId(options.selectedLayerId)
-            : groups[0]?.defaultLayer ?? null,
+          selectedLayerGroupId,
+          selectedLayerId,
+          selectedLayerAvailability: null,
+          selectedLayerHasRenderableArtifacts,
           selectedParticleLayerId: options.selectedParticleLayerId
             ? asParticleLayerId(options.selectedParticleLayerId)
             : defaultParticleLayer,
@@ -76,4 +94,14 @@ export function renderWithForecastSelection(
       {ui}
     </ForecastSelectionProvider>
   )
+}
+
+function safeIsLayerAvailableInManifest(manifest: CycleManifest, layerId: LayerId): boolean {
+  const layer = FORECAST_LAYERS_BY_ID[layerId]
+  if (!layer) return false
+  try {
+    return isLayerAvailableInManifest(manifest, layer)
+  } catch {
+    return false
+  }
 }

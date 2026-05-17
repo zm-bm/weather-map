@@ -33,7 +33,24 @@ def default_artifact_root_uri() -> str:
 
 def default_pipeline_config_uri() -> str:
     """Default pipeline config URI used when CLI/env does not provide one."""
-    return file_uri(default_etl_dir() / "forecast.etl_config.json")
+    for candidate in (
+        default_repo_dir() / "config" / "pipeline" / "base.json",
+        default_etl_dir() / "config" / "pipeline" / "base.json",
+    ):
+        if candidate.exists():
+            return file_uri(candidate)
+    return file_uri(default_repo_dir() / "config" / "pipeline" / "base.json")
+
+
+def default_forecast_catalog_uri() -> str:
+    """Default forecast catalog URI used by ETL availability generation."""
+    for candidate in (
+        default_repo_dir() / "config" / "forecast_catalog.json",
+        default_etl_dir() / "config" / "forecast_catalog.json",
+    ):
+        if candidate.exists():
+            return file_uri(candidate)
+    return file_uri(default_repo_dir() / "config" / "forecast_catalog.json")
 
 
 def join_uri(root_uri: str, parts: Iterable[str]) -> str:

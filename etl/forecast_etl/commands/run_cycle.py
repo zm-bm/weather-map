@@ -7,7 +7,7 @@ from multiprocessing import Pool
 from traceback import format_exc
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig
+from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig, PipelineConfig
 from ..cycles import parse_cycle
 from ..proc import RunFn, make_runner
 from ..runtime import ExecutionContext
@@ -38,6 +38,7 @@ def run_cycle(
     cycle: str,
     procs: int | None = None,
     publish: bool,
+    pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
     run: RunFn | None = None,
 ) -> None:
@@ -62,7 +63,7 @@ def run_cycle(
         raise SystemExit(str(exc)) from None
 
     if publish:
-        publish_cycle(ctx=ctx, model=model, cycle=cycle, store=store)
+        publish_cycle(ctx=ctx, model=model, cycle=cycle, pipeline_config=pipeline_config, store=store)
 
 
 def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunFn | None = None) -> None:

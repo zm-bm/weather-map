@@ -5,6 +5,7 @@ import {
   type ArtifactId,
 } from '../manifest'
 import type { Brand, NonEmptyArray } from '../types'
+import { RAW_FORECAST_CATALOG } from './catalog'
 
 export type LayerId = Brand<string, 'LayerId'>
 
@@ -102,6 +103,51 @@ export type LayerGroupSpec = {
   layers: NonEmptyArray<LayerId>
 }
 
+type RawLayerSource =
+  | {
+    kind: 'artifact'
+    artifactId: string
+  }
+  | {
+    kind: 'derived'
+    artifactId: string
+    recipe: 'wind-speed'
+  }
+  | {
+    kind: 'composite'
+    base: RawLayerSource
+    overlays: readonly {
+      id: string
+      source: Extract<RawLayerSource, { kind: 'artifact' }>
+      optional: boolean
+    }[]
+  }
+
+type RawLayerSpec = {
+  id: string
+  label: string
+  groupId: string
+  paletteId: string
+  displayRange: DisplayRangeSpec
+  unitBehavior: UnitBehaviorId
+  legendScale: LegendScaleId
+  source: RawLayerSource
+  parameter?: string
+  classifiedColoring?: ClassifiedColoringSpec
+}
+
+type RawLayerGroupSpec = {
+  id: string
+  label: string
+  defaultLayer: string
+  layers: string[]
+}
+
+type RawForecastCatalog = {
+  layers: readonly RawLayerSpec[]
+  groups: readonly RawLayerGroupSpec[]
+}
+
 export function layerSourceKey(source: LayerSource): string {
   if (source.kind === 'artifact') {
     return `artifact:${source.artifactId}`
@@ -123,101 +169,15 @@ export function layerSourceArtifactId(source: LayerSource): ArtifactId {
   return layerSourceArtifactId(source.base)
 }
 
-export const FORECAST_LAYERS: readonly LayerSpec[] = [
-  layer('temperature', 'Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature', {
-    source: artifactSource('tmp_surface'),
-  }),
-  layer('apparent_temperature', 'Apparent Temperature', 'temperature', 'temperature.air.c.v1', -35, 50, 'temperature', 'temperature', {
-    source: artifactSource('aptmp_surface'),
-  }),
-  layer('dew_point', 'Dew Point', 'temperature', 'temperature.dewpoint.c.v1', -60, 40, 'temperature', 'temperature', {
-    source: artifactSource('dewpoint_surface'),
-  }),
-  layer('relative_humidity', 'Relative Humidity', 'temperature', 'moisture.relative_humidity.percent.v1', 0, 100, 'percent', 'percent', {
-    source: artifactSource('rh_surface'),
-  }),
-  layer('wind_speed', 'Wind Speed', 'wind_pressure', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
-    source: {
-      kind: 'derived',
-      artifactId: asArtifactId('wind10m_uv'),
-      recipe: 'wind-speed',
-    },
-    parameter: 'wind_speed',
-  }),
-  layer('wind_gust', 'Wind Gust', 'wind_pressure', 'wind.gust.mps.v1', 0, 60, 'wind-speed', 'stop-based', {
-    source: artifactSource('gust_surface'),
-  }),
-  layer('air_pressure', 'Air Pressure', 'wind_pressure', 'pressure.msl.pa.v1', 98_000, 103_500, 'pressure', 'pressure', {
-    source: artifactSource('prmsl_msl'),
-  }),
-  layer('precipitation_rate', 'Precipitation Rate', 'precipitation', 'precip.rate.mm_hr.v1', 0, 30, 'precip-rate', 'precip-rate', {
-    source: {
-      kind: 'composite',
-      base: artifactSource('prate_surface'),
-      overlays: [
-        {
-          id: 'precip-type',
-          source: artifactSource('precip_type_surface'),
-          optional: true,
-        },
-      ],
-    },
-    classifiedColoring: {
-      classifierOverlayId: 'precip-type',
-      classes: [
-        { values: [1], paletteId: 'precip.rate.mm_hr.v1' },
-        { values: [4], paletteId: 'precip.rate.snow.mm_hr.v1' },
-        { values: [2, 3, 5], paletteId: 'precip.rate.wintry_mix.mm_hr.v1' },
-      ],
-    },
-  }),
-  layer('accumulated_precipitation', 'Accumulated Precipitation', 'precipitation', 'precip.total.mm.v1', 0, 254, 'precip-total', 'precip-total', {
-    source: artifactSource('precip_total_surface'),
-  }),
-  layer('snow_depth', 'Snow Depth', 'precipitation', 'snow.depth.m.v1', 0, 5, 'snow-depth', 'stop-based', {
-    source: artifactSource('snow_depth_surface'),
-  }),
-  layer('cloud_cover', 'Total Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
-    source: artifactSource('tcdc'),
-  }),
-  layer('low_cloud_cover', 'Low Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
-    source: artifactSource('low_clouds'),
-  }),
-  layer('middle_cloud_cover', 'Middle Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
-    source: artifactSource('medium_clouds'),
-  }),
-  layer('high_cloud_cover', 'High Cloud Cover', 'sky_visibility', 'cloud.cover.percent.v1', 0, 100, 'percent', 'percent', {
-    source: artifactSource('high_clouds'),
-  }),
-  layer('visibility', 'Visibility', 'sky_visibility', 'atmosphere.visibility.m.v1', 0, 50_000, 'visibility', 'stop-based', {
-    source: artifactSource('visibility_surface'),
-  }),
-  layer('freezing_level', 'Freezing Level', 'sky_visibility', 'atmosphere.freezing_level.m.v1', 0, 8_000, 'height', 'stop-based', {
-    source: artifactSource('freezing_level'),
-  }),
-  layer('precipitable_water', 'Precipitable Water', 'sky_visibility', 'atmosphere.precipitable_water.mm.v1', 0, 80, 'water-depth', 'stop-based', {
-    source: artifactSource('precipitable_water'),
-  }),
-  layer('cape', 'CAPE Index', 'severe_weather', 'severe.cape.jkg.v1', 0, 5_000, 'cape', 'stop-based', {
-    source: artifactSource('cape_index'),
-  }),
-]
+const rawCatalog = RAW_FORECAST_CATALOG as unknown as RawForecastCatalog
 
-export const FORECAST_LAYER_GROUPS: readonly LayerGroupSpec[] = [
-  group('temperature', 'Temperature', 'temperature', ['temperature', 'apparent_temperature', 'dew_point', 'relative_humidity']),
-  group('wind_pressure', 'Wind & Pressure', 'wind_gust', ['wind_speed', 'wind_gust', 'air_pressure']),
-  group('precipitation', 'Precipitation', 'precipitation_rate', ['precipitation_rate', 'accumulated_precipitation', 'snow_depth']),
-  group('sky_visibility', 'Sky & Visibility', 'cloud_cover', [
-    'cloud_cover',
-    'low_cloud_cover',
-    'middle_cloud_cover',
-    'high_cloud_cover',
-    'visibility',
-    'freezing_level',
-    'precipitable_water',
-  ]),
-  group('severe_weather', 'Severe Weather', 'cape', ['cape']),
-]
+export const FORECAST_LAYERS: readonly LayerSpec[] = rawCatalog.layers.map(layerFromRaw)
+
+export const FORECAST_LAYERS_BY_ID: Record<string, LayerSpec> = Object.fromEntries(
+  FORECAST_LAYERS.map((entry) => [entry.id, entry])
+)
+
+export const FORECAST_LAYER_GROUPS: readonly LayerGroupSpec[] = rawCatalog.groups.map(groupFromRaw)
 
 export function getLayerSpec(
   layerId: LayerId | string,
@@ -230,76 +190,52 @@ export function getLayerSpec(
   return layer
 }
 
-export function getAvailableLayers(manifest: CycleManifest): Record<string, LayerSpec> {
-  const layers: Record<string, LayerSpec> = {}
-
-  for (const entry of FORECAST_LAYERS) {
-    if (!isLayerAvailable(manifest, entry)) continue
-    layers[entry.id] = entry
-  }
-
-  return layers
-}
-
-export function getAvailableGroups(layers: Record<string, LayerSpec>): LayerGroupSpec[] {
-  return FORECAST_LAYER_GROUPS.flatMap((entry) => {
-    const availableLayers = entry.layers
-      .filter((layerId) => layers[layerId])
-    if (availableLayers.length === 0) return []
-
-    const defaultLayer = layers[entry.defaultLayer]
-      ? entry.defaultLayer
-      : availableLayers[0]!
-
-    return [{
-      id: entry.id,
-      label: entry.label,
-      defaultLayer,
-      layers: availableLayers as NonEmptyArray<LayerId>,
-    }]
-  })
-}
-
 export function layerSourceExpectedArtifactKind(source: LayerSource): ManifestArtifactSpec['kind'] {
   if (source.kind === 'artifact') return 'scalar'
   if (source.kind === 'derived') return 'vector'
   return layerSourceExpectedArtifactKind(source.base)
 }
 
-function layer(
-  id: string,
-  label: string,
-  groupId: string,
-  paletteId: string,
-  min: number,
-  max: number,
-  unitBehavior: UnitBehaviorId,
-  legendScale: LegendScaleId,
-  options: {
-    source: LayerSource
-    parameter?: string
-    classifiedColoring?: ClassifiedColoringSpec
-  }
-): LayerSpec {
+function layerFromRaw(raw: RawLayerSpec): LayerSpec {
   return {
-    id: asLayerId(id),
-    label,
-    groupId: asLayerGroupId(groupId),
-    paletteId,
-    displayRange: { min, max },
-    unitBehavior,
-    legendScale,
-    source: options.source,
-    parameter: options.parameter,
-    classifiedColoring: options.classifiedColoring,
+    id: asLayerId(raw.id),
+    label: raw.label,
+    groupId: asLayerGroupId(raw.groupId),
+    paletteId: raw.paletteId,
+    displayRange: raw.displayRange,
+    unitBehavior: raw.unitBehavior,
+    legendScale: raw.legendScale,
+    source: layerSourceFromRaw(raw.source),
+    parameter: raw.parameter,
+    classifiedColoring: raw.classifiedColoring,
   }
 }
 
-function artifactSource(artifactId: string): ArtifactLayerSource {
-  return { kind: 'artifact', artifactId: asArtifactId(artifactId) }
+function layerSourceFromRaw(raw: RawLayerSource): LayerSource {
+  if (raw.kind === 'artifact') {
+    return { kind: 'artifact', artifactId: asArtifactId(raw.artifactId) }
+  }
+
+  if (raw.kind === 'derived') {
+    return {
+      kind: 'derived',
+      artifactId: asArtifactId(raw.artifactId),
+      recipe: raw.recipe,
+    }
+  }
+
+  return {
+    kind: 'composite',
+    base: layerSourceFromRaw(raw.base),
+    overlays: raw.overlays.map((overlay) => ({
+      id: overlay.id,
+      source: layerSourceFromRaw(overlay.source) as ArtifactLayerSource,
+      optional: overlay.optional,
+    })),
+  }
 }
 
-function isLayerAvailable(manifest: CycleManifest, layer: LayerSpec): boolean {
+export function isLayerAvailableInManifest(manifest: CycleManifest, layer: LayerSpec): boolean {
   return isLayerSourceAvailable(manifest, layer.source, `Layer ${layer.id}`)
 }
 
@@ -348,16 +284,11 @@ function hasOrderedComponents(
     components.every((component, index) => artifact.components[index] === component)
 }
 
-function group(
-  id: string,
-  label: string,
-  defaultLayer: string,
-  layers: NonEmptyArray<string>
-): LayerGroupSpec {
+function groupFromRaw(raw: RawLayerGroupSpec): LayerGroupSpec {
   return {
-    id: asLayerGroupId(id),
-    label,
-    defaultLayer: asLayerId(defaultLayer),
-    layers: layers.map(asLayerId) as NonEmptyArray<LayerId>,
+    id: asLayerGroupId(raw.id),
+    label: raw.label,
+    defaultLayer: asLayerId(raw.defaultLayer),
+    layers: raw.layers.map(asLayerId) as NonEmptyArray<LayerId>,
   }
 }

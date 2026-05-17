@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchCurrentManifest } from './fetch'
-import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
+import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
   createForecastDataPlan,
@@ -57,8 +57,7 @@ describe('manifest + data loading end-to-end', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const signal = createSignalFixture()
-    const manifest = await fetchCurrentManifest({ signal })
-    const layers = getAvailableLayers(manifest)
+    const manifest = await fetchCurrentManifest({ manifestPath: 'manifests/gfs/latest.json', signal })
     const particleLayers = getAvailableParticleLayers(manifest)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
@@ -66,8 +65,8 @@ describe('manifest + data loading end-to-end', () => {
 
     const target = createForecastDataTarget({
       manifest,
-      selectedLayerId: layers.temperature!.id,
-      selectedLayer: layers.temperature!,
+      selectedLayerId: FORECAST_LAYERS_BY_ID.temperature!.id,
+      selectedLayer: FORECAST_LAYERS_BY_ID.temperature!,
       selectedParticleLayerId: particleLayers.wind!.id,
       selectedParticleLayer: particleLayers.wind!,
       interpolationWindow: {

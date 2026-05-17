@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createArtifactLoader } from '../../forecast-artifacts'
 import {
   FORECAST_LAYERS,
-  getAvailableLayers,
+  FORECAST_LAYERS_BY_ID,
   type LayerSpec,
 } from '../../forecast-catalog'
 import {
@@ -35,14 +35,11 @@ beforeEach(() => {
   clearFieldTimeSliceCache()
 })
 
-function layer(manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'temperature') {
-  try {
-    return getAvailableLayers(manifest)[layerId]!
-  } catch {
-    const catalogLayer = FORECAST_LAYERS.find((entry) => entry.id === layerId)
-    if (!catalogLayer) throw new Error(`Missing fixture layer ${layerId}`)
-    return catalogLayer
-  }
+function layer(_manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'temperature') {
+  const catalogLayer = FORECAST_LAYERS_BY_ID[layerId] ??
+    FORECAST_LAYERS.find((entry) => entry.id === layerId)
+  if (!catalogLayer) throw new Error(`Missing fixture layer ${layerId}`)
+  return catalogLayer
 }
 
 function fieldChannel(args: {

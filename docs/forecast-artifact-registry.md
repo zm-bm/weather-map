@@ -1,8 +1,7 @@
 # Forecast Artifact Registry
 
 Canonical registry of ETL-produced forecast artifacts. Keep this document in
-sync with the `artifact_catalog` entries in both `etl/forecast.etl_config.json`
-and `infra/config/forecast.etl_config.json`.
+sync with the `artifact_catalog` entries in `config/pipeline/base.json`.
 
 This document defines what ETL can publish and what each payload means.
 
@@ -111,7 +110,7 @@ themselves.
 
 When adding or changing an ETL artifact:
 
-1. Update `artifact_catalog` in both ETL config copies.
+1. Update `artifact_catalog` in `config/pipeline/base.json`.
 2. Update this registry.
 3. Update `forecast-model-mapping.md` if model support, upstream selection, or derivation changes.
 4. Update the frontend catalog only if user-facing behavior changes.

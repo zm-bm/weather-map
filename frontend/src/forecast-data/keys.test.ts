@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  getAvailableLayers,
+  FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
 } from '../forecast-catalog'
 import { createFrameManifestFixture } from '../test/fixtures'
@@ -17,7 +17,7 @@ describe('forecast data keys', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
     })
-    const selectedLayer = getAvailableLayers(manifest).wind_speed!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.wind_speed!
     const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
 
     expect(createForecastDataRequestKey({
@@ -44,7 +44,7 @@ describe('forecast data keys', () => {
     const manifest = createFrameManifestFixture({
       cycle: '2026040900',
     })
-    const selectedLayer = getAvailableLayers(manifest).temperature!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
 
     expect(createFieldTimeSliceCacheKey({
       manifest,

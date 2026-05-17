@@ -100,4 +100,30 @@ describe('useSyncTarget', () => {
       requestKey: expect.stringContaining(':particles:none:003:006:30:0'),
     }))
   })
+
+  it('returns null when the selected layer is missing from the loaded manifest', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      forecastHours: ['000', '003', '006'],
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: [],
+    })
+    mocks.useForecastSelectionContext.mockReturnValue(createForecastSelectionContextValue(
+      manifest,
+      { selectedLayerId: 'visibility' }
+    ))
+    mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(
+      manifest,
+      {
+        state: {
+          appliedTimeMs: Date.UTC(2026, 3, 9, 3, 30),
+          targetTimeMs: Date.UTC(2026, 3, 9, 3, 30),
+        },
+      }
+    ))
+
+    const { result } = renderHook(() => useSyncTarget(0))
+
+    expect(result.current).toBeNull()
+  })
 })

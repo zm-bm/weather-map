@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
+import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import {
   createFrameManifestFixture,
   createSignalFixture,
@@ -34,7 +34,7 @@ function createPlan(args: {
     forecastHours: args.forecastHours ?? ['000', '003', '006', '009'],
     vectorArtifactIds: args.includeParticles === false ? [] : ['wind10m_uv'],
   })
-  const selectedLayer = getAvailableLayers(manifest).temperature!
+  const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
   const selectedParticleLayer = args.includeParticles === false
     ? null
     : getAvailableParticleLayers(manifest).wind!

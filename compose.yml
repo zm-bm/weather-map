@@ -9,13 +9,15 @@ services:
 
   frontend:
     build:
-      context: frontend
+      context: .
+      dockerfile: frontend/Dockerfile
       network: host
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts:ro
+      - ./config:/app/config:ro
     environment:
       - VITE_ARTIFACT_BASE_URL=${VITE_ARTIFACT_BASE_URL:-http://localhost:5173}
       - VITE_BASEMAP_FILENAME=${VITE_BASEMAP_FILENAME:-}
@@ -36,7 +38,7 @@ services:
     volumes:
       - ./artifacts:/artifacts:ro
       - ./backend/weather_map_backend:/app/backend/weather_map_backend:ro
-      - ./infra/config/forecast.etl_config.json:/config/forecast.etl_config.json:ro
+      - ./etl/forecast_etl:/app/etl/forecast_etl:ro
+      - ./config:/app/config:ro
     environment:
       - ARTIFACT_ROOT_URI=file:///artifacts
-      - PIPELINE_CONFIG_URI=file:///config/forecast.etl_config.json

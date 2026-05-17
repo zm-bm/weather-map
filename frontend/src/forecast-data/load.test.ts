@@ -4,8 +4,8 @@ import {
   createManifestFixture,
 } from '../test/fixtures'
 import {
+  FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
-  getAvailableLayers,
   type LayerSpec,
   type ParticleLayerSpec,
 } from '../forecast-catalog'
@@ -27,7 +27,7 @@ function createTarget(args: {
   upperHourToken?: string
   mix?: number
 }): ForecastDataTarget {
-  const selectedLayer = args.selectedLayer ?? getAvailableLayers(args.manifest).temperature!
+  const selectedLayer = args.selectedLayer ?? FORECAST_LAYERS_BY_ID.temperature!
   const selectedParticleLayer = args.selectedParticleLayer === undefined
     ? (getAvailableParticleLayers(args.manifest).wind ?? null)
     : args.selectedParticleLayer
@@ -93,7 +93,7 @@ describe('loadForecastData', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
-    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const particleLayer = getAvailableParticleLayers(manifest).wind!
     const target = createTarget({
       manifest,
@@ -132,7 +132,7 @@ describe('loadForecastData', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const target = createTarget({
       manifest,
       selectedLayer,

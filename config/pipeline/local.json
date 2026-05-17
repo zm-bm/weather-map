@@ -1,0 +1,14 @@
+{
+  "models": {
+    "gfs": {
+      "workload": {
+        "forecast_hour_end": 24
+      }
+    },
+    "icon": {
+      "workload": {
+        "forecast_hour_end": 24
+      }
+    }
+  }
+}

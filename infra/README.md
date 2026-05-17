@@ -7,7 +7,7 @@ This directory contains infrastructure owned by the weather-map project.
 - `terraform/weather-etl`: production forecast ETL stack for GFS and ICON.
 - `terraform/site`: static site and CloudFront infrastructure for
   `weather.zmbm.dev`.
-- `config/forecast.etl_config.json`: production ETL runtime config uploaded by
+- `../config/pipeline/base.json`: production ETL runtime config uploaded by
   the weather-etl stack.
 - `scripts/weather-etl/release`: production build and upload helpers.
 - `scripts/weather-etl/ops`: production smoke and manual ETL job helpers.

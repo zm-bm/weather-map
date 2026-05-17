@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import json
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from ..storage.base import UriStore
-from ..storage.routing import make_store
 from ._types import parse_config_model
 from .input import ModelConfigInput, PipelineConfigInput
 from .resolved import ArtifactCatalogSpec, ModelConfig, PipelineConfig
@@ -19,6 +18,9 @@ from .validate import (
     validate_model_artifacts_for_source,
     validate_workload_artifacts,
 )
+
+if TYPE_CHECKING:
+    from ..storage.base import UriStore
 
 
 def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
@@ -41,6 +43,17 @@ def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
             for model_id, model_cfg in raw.models.items()
         },
     )
+
+
+def merge_pipeline_config_overlay(base: Any, overlay: Any) -> Any:
+    """Merge a pipeline config overlay into a base JSON object."""
+
+    if isinstance(base, dict) and isinstance(overlay, dict):
+        result = copy.deepcopy(base)
+        for key, value in overlay.items():
+            result[key] = merge_pipeline_config_overlay(result[key], value) if key in result else copy.deepcopy(value)
+        return result
+    return copy.deepcopy(overlay)
 
 
 def _parse_model_config(
@@ -92,14 +105,33 @@ def _parse_model_config(
     )
 
 
-def load_pipeline_config(pipeline_config_uri: str, *, store: UriStore | None = None) -> PipelineConfig:
+def load_pipeline_config(
+    pipeline_config_uri: str,
+    *,
+    overlay_uri: str | None = None,
+    store: "UriStore | None" = None,
+) -> PipelineConfig:
     """Read and parse pipeline config JSON from a URI-backed store."""
 
+    from ..storage.routing import make_store
+
     resolved_store = store if store is not None else make_store()
-    raw = resolved_store.read_bytes(uri=pipeline_config_uri)
+    obj = _read_config_json(uri=pipeline_config_uri, store=resolved_store)
+    if overlay_uri is not None and overlay_uri.strip():
+        obj = merge_pipeline_config_overlay(
+            obj,
+            _read_config_json(uri=overlay_uri, store=resolved_store),
+        )
+
+    return parse_pipeline_config(obj)
+
+
+def _read_config_json(*, uri: str, store: "UriStore") -> dict[str, Any]:
+    raw = store.read_bytes(uri=uri)
     try:
         obj = json.loads(raw.decode("utf-8"))
     except Exception as exc:
-        raise SystemExit(f"Failed to parse pipeline config {pipeline_config_uri}: {exc}") from exc
-
-    return parse_pipeline_config(obj)
+        raise SystemExit(f"Failed to parse pipeline config {uri}: {exc}") from exc
+    if not isinstance(obj, dict):
+        raise SystemExit(f"Pipeline config {uri} must be a JSON object")
+    return obj

@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { FORECAST_MODEL_OPTIONS } from '../../forecast-models'
+import type { ForecastModelOption } from '../../forecast-availability'
 import {
   createManifestFixture,
   createScalarArtifactFixture,
@@ -9,6 +9,11 @@ import {
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
+
+const MODEL_OPTIONS: readonly ForecastModelOption[] = [
+  { id: 'gfs', label: 'GFS' },
+  { id: 'icon', label: 'ICON' },
+]
 
 function createLegendSelectionManifest(
   selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds'
@@ -42,17 +47,35 @@ function createLegendSelectionManifest(
 }
 
 function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
-  return renderWithForecastSelection(
+  const result = renderWithForecastSelection(
     <>
       <ForecastPanel
         activeModelId="gfs"
-        modelOptions={FORECAST_MODEL_OPTIONS}
+        modelOptions={MODEL_OPTIONS}
         onActiveModelChange={() => undefined}
       />
       <LegendPanel />
     </>,
     createLegendSelectionManifest(selectedArtifactId)
   )
+
+  if (selectedArtifactId === 'prmsl_msl') {
+    fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'air_pressure' },
+    })
+  }
+  if (selectedArtifactId === 'prate_surface') {
+    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
+  }
+  if (selectedArtifactId === 'low_clouds') {
+    fireEvent.click(screen.getByRole('button', { name: 'Sky & Visibility' }))
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'low_cloud_cover' },
+    })
+  }
+
+  return result
 }
 
 describe('LegendPanel', () => {

@@ -20,14 +20,17 @@ describe('fetchCurrentManifest', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
-      fetchCurrentManifest({ signal: createSignalFixture() })
+      fetchCurrentManifest({ manifestPath: 'manifests/gfs/latest.json', signal: createSignalFixture() })
     ).rejects.toThrow('Failed to fetch current manifest: 503 Service Unavailable')
   })
 
   it('parses latest.json as the current cycle manifest', async () => {
     const fetchMock = stubFetchJsonOnce(createCycleManifestPayloadFixture())
 
-    const manifest = await fetchCurrentManifest({ signal: createSignalFixture() })
+    const manifest = await fetchCurrentManifest({
+      manifestPath: 'manifests/gfs/latest.json',
+      signal: createSignalFixture(),
+    })
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3000/manifests/gfs/latest.json',
       expect.any(Object)
@@ -37,10 +40,13 @@ describe('fetchCurrentManifest', () => {
     expect(manifest.artifactsByKind.vector).toEqual(['wind10m_uv'])
   })
 
-  it('fetches the selected model manifest', async () => {
+  it('fetches the manifest path from the availability index', async () => {
     const fetchMock = stubFetchJsonOnce(createCycleManifestPayloadFixture())
 
-    await fetchCurrentManifest({ modelId: 'icon', signal: createSignalFixture() })
+    await fetchCurrentManifest({
+      manifestPath: 'manifests/icon/latest.json',
+      signal: createSignalFixture(),
+    })
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3000/manifests/icon/latest.json',

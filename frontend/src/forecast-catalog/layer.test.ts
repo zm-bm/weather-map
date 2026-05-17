@@ -10,8 +10,8 @@ import { PARTICLE_LAYERS } from './particle'
 import {
   FORECAST_LAYER_GROUPS,
   FORECAST_LAYERS,
-  getAvailableGroups,
-  getAvailableLayers,
+  FORECAST_LAYERS_BY_ID,
+  isLayerAvailableInManifest,
   type LayerSource,
 } from './layer'
 
@@ -70,35 +70,33 @@ describe('layer catalog', () => {
     }
   })
 
-  it('filters layers whose artifacts are unavailable and falls back group defaults', () => {
+  it('checks layer renderability against cycle manifest artifacts', () => {
     const manifest = createFrameManifestFixture({
       scalarArtifactIds: ['tmp_surface', 'prmsl_msl', 'tcdc', 'low_clouds'],
       vectorArtifactIds: [],
     })
 
-    const layers = getAvailableLayers(manifest)
-    const groups = getAvailableGroups(layers)
-
-    expect(layers.visibility).toBeUndefined()
-    expect(groups.map((group) => group.id)).toEqual(['temperature', 'wind_pressure', 'sky_visibility'])
-    expect(groups.find((group) => group.id === 'wind_pressure')?.defaultLayer).toBe('air_pressure')
-    expect(groups.find((group) => group.id === 'sky_visibility')?.layers).toEqual(['cloud_cover', 'low_cloud_cover'])
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.temperature!)).toBe(true)
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.visibility!)).toBe(false)
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.air_pressure!)).toBe(true)
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.cloud_cover!)).toBe(true)
   })
 
-  it('includes frontend-derived wind speed when vector wind is available and keeps gust as default', () => {
+  it('accepts frontend-derived wind speed when vector wind is available', () => {
     const manifest = createFrameManifestFixture({
       scalarArtifactIds: ['gust_surface', 'prmsl_msl'],
       vectorArtifactIds: ['wind10m_uv'],
     })
 
-    const layers = getAvailableLayers(manifest)
-    const windGroup = getAvailableGroups(layers).find((group) => group.id === 'wind_pressure')
+    const windSpeed = FORECAST_LAYERS_BY_ID.wind_speed!
+    const windGroup = FORECAST_LAYER_GROUPS.find((group) => group.id === 'wind_pressure')
 
-    expect(layers.wind_speed?.source).toMatchObject({
+    expect(windSpeed.source).toMatchObject({
       kind: 'derived',
       artifactId: 'wind10m_uv',
       recipe: 'wind-speed',
     })
+    expect(isLayerAvailableInManifest(manifest, windSpeed)).toBe(true)
     expect(windGroup?.defaultLayer).toBe('wind_gust')
     expect(windGroup?.layers).toEqual(['wind_speed', 'wind_gust', 'air_pressure'])
   })
@@ -117,10 +115,8 @@ describe('layer catalog', () => {
       vectorArtifactIds: ['wind10m_uv'],
     })
 
-    const layers = getAvailableLayers(manifest)
-
-    expect(layers.wind_speed).toBeUndefined()
-    expect(getAvailableGroups(layers).find((group) => group.id === 'wind_pressure')?.layers).toEqual(['wind_gust'])
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.wind_speed!)).toBe(false)
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.wind_gust!)).toBe(true)
   })
 
   it('rejects catalog layers backed by non-scalar artifacts', () => {
@@ -135,7 +131,7 @@ describe('layer catalog', () => {
       vectorArtifactIds: [],
     })
 
-    expect(() => getAvailableLayers(manifest)).toThrow(
+    expect(() => isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.temperature!)).toThrow(
       'Layer temperature requires scalar artifact tmp_surface, got vector'
     )
   })
@@ -151,16 +147,14 @@ describe('layer catalog', () => {
       },
     })
 
-    const layers = getAvailableLayers(manifest)
-    const precipLayer = layers.precipitation_rate
+    const precipLayer = FORECAST_LAYERS_BY_ID.precipitation_rate!
 
-    expect(precipLayer?.source).toMatchObject({
+    expect(precipLayer.source).toMatchObject({
       kind: 'composite',
       base: { kind: 'artifact', artifactId: 'prate_surface' },
     })
-    expect(getAvailableGroups(layers).find((group) => group.id === 'precipitation')?.defaultLayer)
-      .toBe('precipitation_rate')
-    expect(getLayerMeta('precipitation_rate', layers, manifest)).toMatchObject({
+    expect(isLayerAvailableInManifest(manifest, precipLayer)).toBe(true)
+    expect(getLayerMeta('precipitation_rate', FORECAST_LAYERS_BY_ID, manifest)).toMatchObject({
       units: 'kg m^-2 s^-1',
       parameter: 'prate',
     })
@@ -185,7 +179,7 @@ describe('layer catalog', () => {
       vectorArtifactIds: [],
     })
 
-    expect(getAvailableLayers(manifest).precipitation_rate).toBeDefined()
+    expect(isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.precipitation_rate!)).toBe(true)
   })
 
   it('rejects optional composite overlays backed by non-scalar artifacts', () => {
@@ -200,7 +194,7 @@ describe('layer catalog', () => {
       },
     })
 
-    expect(() => getAvailableLayers(manifest)).toThrow(
+    expect(() => isLayerAvailableInManifest(manifest, FORECAST_LAYERS_BY_ID.precipitation_rate!)).toThrow(
       'Layer precipitation_rate overlay precip-type requires scalar artifact precip_type_surface, got vector'
     )
   })

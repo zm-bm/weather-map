@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from forecast_etl.config.load import parse_pipeline_config
+from forecast_etl.config.load import load_pipeline_config, merge_pipeline_config_overlay, parse_pipeline_config
 from forecast_etl.config.resolved import IconDwdSourceConfig
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_cover_config,
@@ -27,9 +27,12 @@ def _gfs(cfg: dict) -> dict:
 
 
 class ConfigValidationTest(unittest.TestCase):
-    def test_default_config_parses_icon_dwd_v1_artifacts(self) -> None:
-        cfg_path = Path(__file__).resolve().parents[2] / "forecast.etl_config.json"
-        parsed = parse_pipeline_config(json.loads(cfg_path.read_text(encoding="utf-8")))
+    def test_local_config_overlay_parses_icon_dwd_v1_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[3]
+        parsed = load_pipeline_config(
+            (repo_root / "config" / "pipeline" / "base.json").as_uri(),
+            overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
+        )
         icon = parsed.model("icon")
 
         expected_icon_artifacts = (
@@ -144,21 +147,33 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs.source.nomads.vars_levels["lev_180-0_mb_above_ground"], "on")
         self.assertEqual(gfs.source.nomads.vars_levels["lev_entire_atmosphere_(considered_as_a_single_layer)"], "on")
 
-    def test_infra_config_matches_local_config_except_forecast_horizon(self) -> None:
+    def test_prod_base_config_matches_local_overlay_except_forecast_horizon(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
-        local_path = repo_root / "etl" / "forecast.etl_config.json"
-        infra_path = repo_root / "infra" / "config" / "forecast.etl_config.json"
-        local_config = json.loads(local_path.read_text(encoding="utf-8"))
-        infra_config = json.loads(infra_path.read_text(encoding="utf-8"))
+        prod_path = repo_root / "config" / "pipeline" / "base.json"
+        local_override_path = repo_root / "config" / "pipeline" / "local.json"
+        prod_config = json.loads(prod_path.read_text(encoding="utf-8"))
+        local_override = json.loads(local_override_path.read_text(encoding="utf-8"))
+        local_config = merge_pipeline_config_overlay(prod_config, local_override)
+        parse_pipeline_config(prod_config)
+        parse_pipeline_config(local_config)
 
-        self.assertEqual(infra_config["models"]["gfs"]["workload"]["forecast_hour_end"], 72)
-        self.assertEqual(infra_config["models"]["icon"]["workload"]["forecast_hour_end"], 72)
+        self.assertEqual(prod_config["models"]["gfs"]["workload"]["forecast_hour_end"], 72)
+        self.assertEqual(prod_config["models"]["icon"]["workload"]["forecast_hour_end"], 72)
+        self.assertEqual(
+            local_override,
+            {
+                "models": {
+                    "gfs": {"workload": {"forecast_hour_end": 24}},
+                    "icon": {"workload": {"forecast_hour_end": 24}},
+                }
+            },
+        )
 
         for model_id in ("gfs", "icon"):
-            infra_config["models"][model_id]["workload"]["forecast_hour_end"] = (
+            prod_config["models"][model_id]["workload"]["forecast_hour_end"] = (
                 local_config["models"][model_id]["workload"]["forecast_hour_end"]
             )
-        self.assertEqual(infra_config, local_config)
+        self.assertEqual(prod_config, local_config)
 
     def test_pipeline_config_parses_forecast_hour_range(self) -> None:
         parsed = parse_pipeline_config(minimal_pipeline_config())

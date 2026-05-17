@@ -34,6 +34,11 @@ function devArtifactDelay(): Plugin {
 export default defineConfig({
   plugins: [devArtifactDelay(), react()],
   server: {
+    fs: {
+      allow: [
+        path.resolve(__dirname, '..'),
+      ],
+    },
     proxy: {
       '/manifests': {
         target: DEV_ARTIFACT_ORIGIN,

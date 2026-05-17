@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getAvailableLayers, getAvailableParticleLayers } from '../forecast-catalog'
+import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createManifestFixture } from '../test/fixtures'
 import { createForecastDataTarget } from './target'
 
@@ -10,7 +10,7 @@ describe('createForecastDataTarget', () => {
       cycle: '2026040900',
       forecastHours: ['003', '006'],
     })
-    const selectedLayer = getAvailableLayers(manifest).wind_speed!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.wind_speed!
     const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
 
     const target = createForecastDataTarget({
@@ -41,7 +41,7 @@ describe('createForecastDataTarget', () => {
       forecastHours: ['003', '006'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).temperature!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
 
     const target = createForecastDataTarget({
       manifest,

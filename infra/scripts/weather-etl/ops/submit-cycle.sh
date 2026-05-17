@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$INFRA_DIR/.." && pwd)"
 STACK_DIR="$INFRA_DIR/terraform/weather-etl"
 
 usage() {
@@ -19,7 +20,7 @@ Options:
   --cycle <cycle>                 Forecast cycle string, e.g. 2026021600.
   --model <model>                 Forecast model id. Default: gfs.
   --fhours <hours>                Forecast-hour override, e.g. "000 001 006" or "000,001,006".
-  --config-file <path>            Config to read. Default: infra/config/forecast.etl_config.json.
+  --config-file <path>            Config to read. Default: config/pipeline/base.json.
   --source-bucket <bucket>        NOAA GFS source bucket. Default: noaa-gfs-bdp-pds.
   --job-name-prefix <prefix>      Batch job name prefix. Default: weather-etl-manual.
   --submit-delay-seconds <n>      Delay between submissions. Default: 0.
@@ -55,7 +56,7 @@ require_value() {
 CYCLE="${CYCLE:-}"
 MODEL="${MODEL:-gfs}"
 FHOURS_ARG="${FHOURS:-}"
-CONFIG_FILE="${CONFIG_FILE:-$INFRA_DIR/config/forecast.etl_config.json}"
+CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/config/pipeline/base.json}"
 SOURCE_BUCKET="${SOURCE_BUCKET:-noaa-gfs-bdp-pds}"
 JOB_NAME_PREFIX="${JOB_NAME_PREFIX:-weather-etl-manual}"
 SUBMIT_DELAY_SECONDS="${SUBMIT_DELAY_SECONDS:-0}"
@@ -287,15 +288,12 @@ config_path, model_id = sys.argv[1:]
 with open(config_path, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
-if isinstance(cfg.get("models"), dict):
-    model = cfg["models"].get(model_id)
-    if not isinstance(model, dict):
-        raise SystemExit(f"config missing models.{model_id}")
-    workload = model.get("workload")
-else:
-    if model_id != "gfs":
-        raise SystemExit("legacy config shape only supports model gfs")
-    workload = cfg.get("workload")
+if not isinstance(cfg.get("models"), dict):
+    raise SystemExit("config missing models")
+model = cfg["models"].get(model_id)
+if not isinstance(model, dict):
+    raise SystemExit(f"config missing models.{model_id}")
+workload = model.get("workload")
 
 if not isinstance(workload, dict):
     raise SystemExit(f"config missing workload for model {model_id}")

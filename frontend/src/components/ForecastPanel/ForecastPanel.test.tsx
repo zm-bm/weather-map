@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { FORECAST_MODEL_OPTIONS, type ForecastModelId } from '../../forecast-models'
+import type { ForecastModelId, ForecastModelOption } from '../../forecast-availability'
 import {
   createManifestFixture,
   createScalarArtifactFixture,
@@ -9,13 +9,18 @@ import {
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import ForecastPanel from './ForecastPanel'
 
+const MODEL_OPTIONS: readonly ForecastModelOption[] = [
+  { id: 'gfs', label: 'GFS' },
+  { id: 'icon', label: 'ICON' },
+]
+
 function createForecastPanelProps(overrides: {
   activeModelId?: ForecastModelId
   onActiveModelChange?: (modelId: ForecastModelId) => void
 } = {}) {
   return {
     activeModelId: overrides.activeModelId ?? 'gfs',
-    modelOptions: FORECAST_MODEL_OPTIONS,
+    modelOptions: MODEL_OPTIONS,
     onActiveModelChange: overrides.onActiveModelChange ?? vi.fn(),
   }
 }
@@ -142,8 +147,9 @@ describe('ForecastPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
     expect(screen.getByRole('button', { name: 'Wind & Pressure' })).toHaveAttribute('aria-pressed', 'true')
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_speed')
+    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_gust')
     expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed')
+    expect(screen.getByRole('option', { name: 'Wind Gust' })).toHaveValue('wind_gust')
     expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('air_pressure')
 
     fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
@@ -195,6 +201,7 @@ describe('ForecastPanel', () => {
     )
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    fireEvent.click(screen.getByRole('button', { name: 'Sky & Visibility' }))
     expect(screen.getByRole('button', { name: 'Sky & Visibility' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('option', { name: 'Low Cloud Cover' })).toHaveValue('low_cloud_cover')
     expect(screen.getByRole('option', { name: 'Middle Cloud Cover' })).toHaveValue('middle_cloud_cover')

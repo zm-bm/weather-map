@@ -9,7 +9,7 @@ from typing import Iterable, Mapping
 from ..artifacts.markers_schema import build_artifact_marker_payload
 from ..artifacts.paths import WorkItem
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ArtifactSpec, ModelConfig
+from ..config.resolved import ArtifactSpec, ModelConfig, PipelineConfig
 from ..encoding.artifact_payload import encode_artifact_payload
 from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
@@ -102,6 +102,7 @@ def run_hour(
     fhour: str,
     source_uri: str | None,
     publish: bool,
+    pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
     run: RunFn | None = None,
 ) -> None:
@@ -123,4 +124,4 @@ def run_hour(
         run=resolved_run,
     )
     if publish:
-        publish_cycle(ctx=ctx, model=model, cycle=cycle, store=resolved_store)
+        publish_cycle(ctx=ctx, model=model, cycle=cycle, pipeline_config=pipeline_config, store=resolved_store)

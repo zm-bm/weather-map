@@ -1,6 +1,10 @@
 import { useLayoutEffect, useRef } from 'react'
 
-import type { ForecastModelId, ForecastModelOption } from '../../forecast-models'
+import type {
+  ForecastModelId,
+  ForecastModelOption,
+  ModelLayerAvailabilityIndex,
+} from '../../forecast-availability'
 import type { CycleManifest } from '../../manifest'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import { ForecastTimeProvider } from '../../forecast-time'
@@ -12,7 +16,8 @@ import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
   manifest: CycleManifest | null
-  activeModelId: ForecastModelId
+  availabilityIndex: ModelLayerAvailabilityIndex | null
+  activeModelId: ForecastModelId | null
   modelOptions: readonly ForecastModelOption[]
   onActiveModelChange: (modelId: ForecastModelId) => void
 }
@@ -22,6 +27,7 @@ const MAP_CONTROL_PANEL_GAP_PX = 8
 
 export default function ForecastShell({
   manifest,
+  availabilityIndex,
   activeModelId,
   modelOptions,
   onActiveModelChange,
@@ -73,12 +79,17 @@ export default function ForecastShell({
 
   return (
     <main className="forecast-screen">
-      <ForecastSelectionProvider manifest={manifest}>
+      <ForecastSelectionProvider
+        manifest={manifest}
+        availabilityIndex={availabilityIndex}
+        activeModelId={activeModelId}
+        onActiveModelChange={onActiveModelChange}
+      >
         <ForecastTimeProvider key={forecastTimeProviderKey} manifest={manifest}>
           <div ref={forecastStageRef} className="forecast-stage">
             <ForecastMap />
 
-            {manifest && !DEBUG_BASEMAP_ONLY && (
+            {manifest && activeModelId != null && !DEBUG_BASEMAP_ONLY && (
               <>
                 <MapSyncIndicator />
                 <ForecastPanel

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 from forecast_etl.artifacts.health import ArtifactHealthStatus, ModelArtifactHealth
 from forecast_etl.artifacts.snapshot import PublishLagEstimate
@@ -90,6 +91,24 @@ def test_health_falls_back_when_config_load_fails(monkeypatch) -> None:
     assert all("Unable to load ETL config: config missing" == model["reason"] for model in health["models"])
 
 
+def test_health_loads_real_prod_pipeline_config(monkeypatch) -> None:
+    monkeypatch.setattr(health_module, "make_store", object)
+    monkeypatch.setattr(
+        health_module,
+        "read_model_artifact_health",
+        lambda **kwargs: _artifact_health(status="fresh", reason="Latest expected cycle is published.", progress=None),
+    )
+
+    repo_root = Path(__file__).resolve().parents[2]
+    settings = _settings(pipeline_config_uri=(repo_root / "config" / "pipeline" / "base.json").as_uri())
+
+    health = build_health(settings, now=NOW)
+
+    assert health["status"] == "healthy"
+    assert [model["id"] for model in health["models"]] == ["gfs", "icon"]
+    assert all(model["status"] == "fresh" for model in health["models"])
+
+
 @dataclass(frozen=True)
 class _Model:
     id: str
@@ -138,10 +157,10 @@ def _progress() -> CycleProgress:
     )
 
 
-def _settings() -> Settings:
+def _settings(*, pipeline_config_uri: str = "file:///tmp/pipeline_config.json") -> Settings:
     return Settings(
         artifact_root_uri="file:///tmp/weather-map-artifacts",
-        pipeline_config_uri="file:///tmp/forecast.etl_config.json",
+        pipeline_config_uri=pipeline_config_uri,
         stale_fallback_hours=9,
         recent_progress_hours=2,
         publish_grace_cushion_hours=1,

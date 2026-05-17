@@ -31,7 +31,7 @@ locals {
   artifacts_bucket_name = aws_s3_bucket.artifacts.bucket
   config_bucket_name    = aws_s3_bucket.config.bucket
 
-  pipeline_config_path = abspath("${path.root}/../../config/forecast.etl_config.json")
+  pipeline_config_path = abspath("${path.root}/../../../config/pipeline/base.json")
   pipeline_config_key  = "weather-etl/pipeline_config.json"
   pipeline_config_uri  = "s3://${local.config_bucket_name}/${local.pipeline_config_key}"
 }

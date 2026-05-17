@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
-import { getAvailableParticleLayers, getAvailableLayers } from '../forecast-catalog'
+import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
 import type { StartupState, ForecastSyncTarget } from './types'
 import { useForecastSync } from './useForecastSync'
@@ -57,7 +57,7 @@ function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): Forecast
   const manifest = overrides.manifest ?? createManifestFixture()
   const hourToken = manifest.times[0].id
   const validTimeMs = Date.UTC(2026, 3, 13, 12)
-  const selectedLayer = getAvailableLayers(manifest).temperature!
+  const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
   const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
   return {
     ...createForecastDataTarget({

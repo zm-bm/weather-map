@@ -279,6 +279,18 @@
   font-size: 21px;
 }
 
+.forecast-controls__availability {
+  --wm-mono-caps-size: 11px;
+  --wm-mono-caps-spacing: 0;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 236, 197, 0.18);
+  border-radius: 2px;
+  background: rgba(77, 41, 14, 0.22);
+  color: rgba(255, 246, 224, 0.84);
+  line-height: 1.1;
+}
+
 .forecast-controls__category-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

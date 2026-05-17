@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CycleManifest } from '../manifest'
 import {
-  getAvailableGroups,
+  FORECAST_LAYER_GROUPS,
+  FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
-  getAvailableLayers,
   getDefaultParticleLayer,
   type ParticleLayerId,
   type ParticleLayerSpec,
@@ -119,9 +119,8 @@ function validTimeFor(manifest: CycleManifest, hourId: string): number {
 
 function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
   const manifest = overrides.manifest ?? createManifestFixture()
-  const layers = getAvailableLayers(manifest)
-  const defaultLayerId = getAvailableGroups(layers)[0]?.defaultLayer
-  const selectedLayer = defaultLayerId ? layers[defaultLayerId] : undefined
+  const defaultLayerId = FORECAST_LAYER_GROUPS[0]?.defaultLayer
+  const selectedLayer = defaultLayerId ? FORECAST_LAYERS_BY_ID[defaultLayerId] : undefined
   if (!selectedLayer) {
     throw new Error('Fixture manifest must include at least one catalog layer')
   }
@@ -517,7 +516,7 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
-    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
     const args = createBaseArgs({
       syncInput: createSyncInput({
@@ -549,7 +548,7 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
     })
-    const selectedLayer = getAvailableLayers(manifest).relative_humidity!
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const args = createBaseArgs({
       syncInput: createSyncInput({
         manifest,

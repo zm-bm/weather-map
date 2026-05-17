@@ -164,8 +164,6 @@ def artifact_marker_payload(*, payload_uri: str = "file:///payload.bin", **overr
         "units": "C",
         "parameter": "parameter",
         "level": "level",
-        "valid_min": 0,
-        "valid_max": 1,
         "grid_id": "grid",
         "grid": {
             "crs": "EPSG:4326",
@@ -181,10 +179,6 @@ def artifact_marker_payload(*, payload_uri: str = "file:///payload.bin", **overr
             "y_mode": "clamp",
         },
         "components": ["value"],
-        "style": {
-            "layer_id": "scalar",
-            "palette_id": "palette",
-        },
     }
     payload.update(overrides)
     return payload

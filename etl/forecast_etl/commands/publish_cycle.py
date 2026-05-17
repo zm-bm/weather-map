@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ModelConfig
+from ..config.resolved import ModelConfig, PipelineConfig
 from ..manifest.publish import run_publish
 from ..runtime import ExecutionContext
 from ..storage.base import UriStore
 from ..storage.routing import make_store
 
 
-def publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str, store: UriStore | None = None) -> None:
+def publish_cycle(
+    *,
+    ctx: ExecutionContext,
+    model: ModelConfig,
+    cycle: str,
+    pipeline_config: PipelineConfig | None = None,
+    store: UriStore | None = None,
+) -> None:
     """Publish the manifest for a processed model cycle."""
 
     resolved_store = store if store is not None else make_store()
@@ -22,4 +29,5 @@ def publish_cycle(*, ctx: ExecutionContext, model: ModelConfig, cycle: str, stor
         artifact_ids=model.workload.artifacts,
         artifact_specs=model.artifacts,
         artifact_repo=artifact_repo,
+        pipeline_config=pipeline_config,
     )

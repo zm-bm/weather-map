@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { DEFAULT_FORECAST_MODEL_ID, type ForecastModelId } from '../forecast-models'
 import { fetchCurrentManifest } from './fetch'
 import type { CycleManifest } from './schema'
 import { isAbortError, normalizeError } from '../abort'
@@ -12,18 +11,26 @@ export type UseManifestResult = {
   retry: () => void
 }
 
+export type UseManifestOptions = {
+  enabled?: boolean
+}
+
 type ManifestRequestState = {
-  modelId: ForecastModelId
+  manifestPath: string | null
   manifest: CycleManifest | null
   loading: boolean
   error: Error | null
 }
 
-export function useManifest(modelId: ForecastModelId = DEFAULT_FORECAST_MODEL_ID): UseManifestResult {
+export function useManifest(
+  manifestPath: string | null,
+  opts: UseManifestOptions = {}
+): UseManifestResult {
+  const enabled = (opts.enabled ?? true) && manifestPath != null
   const [requestState, setRequestState] = useState<ManifestRequestState>(() => ({
-    modelId,
+    manifestPath,
     manifest: null,
-    loading: true,
+    loading: enabled,
     error: null,
   }))
   const [retryToken, setRetryToken] = useState(0)
@@ -33,20 +40,22 @@ export function useManifest(modelId: ForecastModelId = DEFAULT_FORECAST_MODEL_ID
   }, [])
 
   useEffect(() => {
+    if (!enabled || manifestPath == null) return
+
     const ac = new AbortController()
 
     const run = async () => {
       setRequestState({
-        modelId,
+        manifestPath,
         manifest: null,
         loading: true,
         error: null,
       })
 
-      const manifest = await fetchCurrentManifest({ modelId, signal: ac.signal })
+      const manifest = await fetchCurrentManifest({ manifestPath, signal: ac.signal })
       if (ac.signal.aborted) return
       setRequestState({
-        modelId,
+        manifestPath,
         manifest,
         loading: false,
         error: null,
@@ -57,7 +66,7 @@ export function useManifest(modelId: ForecastModelId = DEFAULT_FORECAST_MODEL_ID
       if (isAbortError(err)) return
       if (ac.signal.aborted) return
       setRequestState({
-        modelId,
+        manifestPath,
         manifest: null,
         loading: false,
         error: normalizeError(err),
@@ -65,12 +74,21 @@ export function useManifest(modelId: ForecastModelId = DEFAULT_FORECAST_MODEL_ID
     })
 
     return () => ac.abort()
-  }, [modelId, retryToken])
+  }, [enabled, manifestPath, retryToken])
 
-  const isCurrentModel = requestState.modelId === modelId
-  const manifest = isCurrentModel ? requestState.manifest : null
-  const loading = !isCurrentModel || requestState.loading
-  const error = isCurrentModel ? requestState.error : null
+  if (!enabled) {
+    return {
+      manifest: null,
+      loading: false,
+      error: null,
+      retry,
+    }
+  }
+
+  const isCurrentPath = requestState.manifestPath === manifestPath
+  const manifest = isCurrentPath ? requestState.manifest : null
+  const loading = !isCurrentPath || requestState.loading
+  const error = isCurrentPath ? requestState.error : null
 
   const normalizedError =
     error ??

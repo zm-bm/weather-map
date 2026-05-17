@@ -8,8 +8,9 @@ from typing import Iterable, Mapping
 
 from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ArtifactSpec
+from ..config.resolved import ArtifactSpec, PipelineConfig
 from ..runtime import ExecutionContext
+from .availability import publish_availability_index
 from .build import build_cycle_manifest, build_manifest_artifacts
 from .inspect import manifest_info_from_obj
 
@@ -31,6 +32,7 @@ def run_publish(
     artifact_ids: Iterable[str],
     artifact_specs: Mapping[str, ArtifactSpec],
     artifact_repo: ArtifactRepository,
+    pipeline_config: PipelineConfig | None = None,
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
 
@@ -99,6 +101,13 @@ def run_publish(
         cycle=cycle,
         manifest_obj=manifest_to_publish,
     )
+    if pipeline_config is not None:
+        availability_index_uri = publish_availability_index(
+            pipeline_config=pipeline_config,
+            artifact_repo=artifact_repo,
+            generated_at=generated_at,
+        )
+        print(f"Published availability index: {availability_index_uri}")
 
     if not already_published:
         artifact_repo.write_published_marker(

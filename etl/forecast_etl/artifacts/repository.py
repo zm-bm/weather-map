@@ -157,6 +157,23 @@ class ArtifactRepository:
 
         return self.store.exists(uri=self.paths.manifest_latest_uri(model_id=model_id))
 
+    def write_availability_index(self, *, index: Mapping[str, Any]) -> str:
+        """Write the model/layer availability index and return its artifact URI."""
+
+        uri = self.paths.availability_index_uri()
+        self._write_json(uri=uri, obj=dict(index), metadata=LATEST_MANIFEST_METADATA)
+        return uri
+
+    def read_availability_index(self) -> dict[str, Any]:
+        """Read the model/layer availability index."""
+
+        return self._read_json(uri=self.paths.availability_index_uri())
+
+    def availability_index_exists(self) -> bool:
+        """Return whether the model/layer availability index exists."""
+
+        return self.store.exists(uri=self.paths.availability_index_uri())
+
     def list_manifest_objects(self, *, model_id: str) -> list[UriObject]:
         """List manifest objects for a model."""
 

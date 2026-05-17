@@ -11,10 +11,11 @@ from typing import Any
 import boto3  # type: ignore
 
 from ..config.load import load_pipeline_config
+from ..uris import default_pipeline_config_uri
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
 ALLOWED_CYCLES = {"00", "06", "12", "18"}
-DEFAULT_PIPELINE_CONFIG_URI = "file:///var/task/forecast.etl_config.json"
+DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 MODEL_ID = "gfs"
 _FILTERS_CACHE_BY_URI: dict[str, dict[str, Any]] = {}
 

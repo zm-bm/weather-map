@@ -43,8 +43,8 @@ PIPELINE_CONFIG_URI=s3://<config-bucket>/weather-etl/pipeline_config.json
 ```
 
 Forecast hours and produced artifact ids come from `models.<model>.workload` in
-that config. Changes to `infra/config/forecast.etl_config.json` are deployed
-through this stack so the S3 config object is updated.
+that config. Changes to `config/pipeline/base.json` are deployed through this
+stack so the S3 config object is updated.
 
 ## Deploy
 

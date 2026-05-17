@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 ETL_DIR="$REPO_ROOT/etl"
+CONFIG_FILE="$REPO_ROOT/config/pipeline/base.json"
+FORECAST_CATALOG_FILE="$REPO_ROOT/config/forecast_catalog.json"
 DIST_DIR="${DIST_DIR:-$ETL_DIR/dist}"
 OUTPUT_ZIP="${OUTPUT_ZIP:-$DIST_DIR/weather-etl-ingest-lambda.zip}"
 PYTHON_BIN="${PYTHON_BIN:-python3.12}"
@@ -39,10 +41,12 @@ BUILD_SRC="$TMP_DIR/src"
 
 mkdir -p "$STAGE_DIR" "$DIST_DIR" "$BUILD_SRC"
 
-if [[ ! -f "$ETL_DIR/forecast.etl_config.json" ]]; then
-  echo "Missing required file for Lambda bundle: $ETL_DIR/forecast.etl_config.json" >&2
-  exit 1
-fi
+for required_file in "$CONFIG_FILE" "$FORECAST_CATALOG_FILE"; do
+  if [[ ! -f "$required_file" ]]; then
+    echo "Missing required file for Lambda bundle: $required_file" >&2
+    exit 1
+  fi
+done
 
 PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" -m venv "$BUILD_VENV"
 
@@ -63,7 +67,9 @@ PYTHONDONTWRITEBYTECODE=1 "$BUILD_PYTHON" -m pip --isolated install \
   --target "$STAGE_DIR" \
   "$BUILD_SRC" >/dev/null
 
-cp "$ETL_DIR/forecast.etl_config.json" "$STAGE_DIR/forecast.etl_config.json"
+mkdir -p "$STAGE_DIR/config/pipeline"
+cp "$CONFIG_FILE" "$STAGE_DIR/config/pipeline/base.json"
+cp "$FORECAST_CATALOG_FILE" "$STAGE_DIR/config/forecast_catalog.json"
 
 find "$STAGE_DIR" -type d -name '__pycache__' -prune -exec rm -rf {} +
 find "$STAGE_DIR" -type f -name '*.pyc' -delete

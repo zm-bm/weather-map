@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
-  getAvailableLayers,
+  FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
 } from '../forecast-catalog'
 import {
@@ -18,7 +18,7 @@ function dataPlan(args: {
   layerId?: string
   includeParticles?: boolean
 }) {
-  const selectedLayer = getAvailableLayers(args.manifest)[args.layerId ?? 'temperature']!
+  const selectedLayer = FORECAST_LAYERS_BY_ID[args.layerId ?? 'temperature']!
   const selectedParticleLayer = args.includeParticles === false
     ? null
     : getAvailableParticleLayers(args.manifest).wind!

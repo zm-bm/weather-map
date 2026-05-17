@@ -14,7 +14,7 @@ import boto3  # type: ignore
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
 from ..config.load import load_pipeline_config
-from ..config.resolved import IconDwdSourceConfig, ModelConfig
+from ..config.resolved import IconDwdSourceConfig, ModelConfig, PipelineConfig
 from ..cycles import latest_synoptic_cycles
 from ..manifest.publish import run_publish
 from ..runtime import execution_context_for_model
@@ -26,8 +26,9 @@ from ..source_adapters.icon_dwd import (
 )
 from ..storage.base import UriStore
 from ..storage.routing import make_store
+from ..uris import default_pipeline_config_uri
 
-DEFAULT_PIPELINE_CONFIG_URI = "file:///var/task/forecast.etl_config.json"
+DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_POLL_CYCLE_COUNT = 1
 DEFAULT_LEASE_SECONDS = 14400
 DEFAULT_STATE_TTL_SECONDS = 14 * 24 * 60 * 60
@@ -36,7 +37,7 @@ MODEL_ID = "icon"
 DEFAULT_SENTINEL_PARAMS = ("t_2m", "u_10m", "v_10m", "pmsl", "clct")
 RETRYABLE_HTTP_CODES = {403, 404, 408, 409, 425, 429, 500, 502, 503, 504}
 
-_CONFIG_CACHE_BY_URI: dict[str, ModelConfig] = {}
+_CONFIG_CACHE_BY_URI: dict[str, PipelineConfig] = {}
 
 
 def _int_env(name: str, default: int) -> int:
@@ -54,15 +55,20 @@ def _positive_int_env(name: str, default: int) -> int:
     return max(1, _int_env(name, default))
 
 
-def _model(pipeline_config_uri: str) -> ModelConfig:
+def _pipeline_config(pipeline_config_uri: str) -> PipelineConfig:
     cached = _CONFIG_CACHE_BY_URI.get(pipeline_config_uri)
     if cached is not None:
         return cached
 
     cfg = load_pipeline_config(pipeline_config_uri)
-    model = cfg.model(MODEL_ID)
-    _CONFIG_CACHE_BY_URI[pipeline_config_uri] = model
+    _CONFIG_CACHE_BY_URI[pipeline_config_uri] = cfg
     print(f"Loaded ICON pipeline config from: {pipeline_config_uri}", flush=True)
+    return cfg
+
+
+def _model(pipeline_config_uri: str) -> ModelConfig:
+    cfg = _pipeline_config(pipeline_config_uri)
+    model = cfg.model(MODEL_ID)
     return model
 
 
@@ -277,7 +283,20 @@ def _submit_job(
     return job_id
 
 
-def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: str, store: UriStore | None = None) -> bool:
+def _publish_if_complete(
+    *,
+    model: ModelConfig,
+    artifact_root_uri: str,
+    cycle: str,
+    pipeline_config: PipelineConfig | None = None,
+    pipeline_config_uri: str | None = None,
+    store: UriStore | None = None,
+) -> bool:
+    resolved_pipeline_config = pipeline_config
+    if resolved_pipeline_config is None:
+        resolved_pipeline_config = _pipeline_config(
+            pipeline_config_uri or os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
+        )
     ctx = execution_context_for_model(model, artifact_root_uri)
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=artifact_root_uri)
@@ -288,6 +307,7 @@ def _publish_if_complete(*, model: ModelConfig, artifact_root_uri: str, cycle: s
         artifact_ids=model.workload.artifacts,
         artifact_specs=model.artifacts,
         artifact_repo=artifact_repo,
+        pipeline_config=resolved_pipeline_config,
     )
     return result.ready
 
@@ -391,7 +411,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             submitted += 1
 
         if _cycle_complete(paths=paths, existing_markers=existing_markers, model=model, cycle=cycle):
-            if _publish_if_complete(model=model, artifact_root_uri=artifact_root_uri, cycle=cycle, store=store):
+            if _publish_if_complete(
+                model=model,
+                artifact_root_uri=artifact_root_uri,
+                cycle=cycle,
+                pipeline_config_uri=pipeline_config_uri,
+                store=store,
+            ):
                 published += 1
 
     return {

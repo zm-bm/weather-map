@@ -1,12 +1,13 @@
 FROM node:24-bookworm
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 RUN npm install
 
-COPY . .
+COPY frontend ./
+COPY config /app/config
 
 EXPOSE 5173
 
