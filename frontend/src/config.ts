@@ -11,14 +11,12 @@ const config: WeatherMapConfig = {
   frontendBaseUrl,
   artifactBaseUrl,
   basemapUrl: basemapHttpUrl ? `pmtiles://${basemapHttpUrl}` : undefined,
-  verifyPayloadSha256: import.meta.env.VITE_VERIFY_PAYLOAD_SHA256 === 'true',
 }
 
 export type WeatherMapConfig = {
   frontendBaseUrl: string
   artifactBaseUrl: string
   basemapUrl?: string
-  verifyPayloadSha256: boolean
 }
 
 export default config

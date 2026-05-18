@@ -145,7 +145,6 @@ export function createFrameRefFixture(overrides: Partial<FramePayloadRef> = {}):
   return {
     path: `fields/${FIXTURE_CYCLE}/${FIXTURE_HOUR_TOKEN}/payload.bin`,
     byteLength: 8,
-    sha256: 'x',
     ...overrides,
   }
 }

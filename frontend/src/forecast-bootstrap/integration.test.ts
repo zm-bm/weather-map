@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchCurrentManifest } from './fetch'
+import { fetchAvailabilityIndex } from '../forecast-availability'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
@@ -9,8 +9,9 @@ import {
   loadForecastData,
 } from '../forecast-data'
 import {
+  createAvailabilityIndexFixture,
   createConfigFixture,
-  createCycleManifestPayloadFixture,
+  createFrameManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
@@ -20,6 +21,7 @@ import {
   createFetchErrorResponse,
   createFetchJsonResponse,
 } from '../test/fetch'
+import { createCycleManifestFromAvailability } from './availabilityManifest'
 
 function toUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
@@ -31,23 +33,30 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('manifest + data loading end-to-end', () => {
-  it('fetches current manifest and loads scalar/vector frames from it', async () => {
+describe('availability bootstrap + data loading end-to-end', () => {
+  it('fetches availability once, synthesizes a manifest, and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
+    const availabilityPayload = createAvailabilityIndexFixture({
+      gfsManifest: createFrameManifestFixture({
+        model: { id: 'gfs', label: 'GFS' },
+        cycle: '2026041312',
+      }),
+      iconManifest: null,
+    })
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = toUrl(input)
 
-      if (url.endsWith('/latest.json')) {
-        return createFetchJsonResponse(createCycleManifestPayloadFixture())
+      if (url.endsWith('/manifests/availability-index.json')) {
+        return createFetchJsonResponse(availabilityPayload)
       }
 
-      if (url.endsWith('/tmp_surface.field.i16.bin')) {
+      if (url.endsWith('/fields/gfs/2026041312/000/tmp_surface.field.i16.bin')) {
         return createFetchArrayBufferResponse(scalarPayload)
       }
 
-      if (url.endsWith('/wind10m_uv.field.i8.bin')) {
+      if (url.endsWith('/fields/gfs/2026041312/000/wind10m_uv.field.i8.bin')) {
         return createFetchArrayBufferResponse(vectorPayload)
       }
 
@@ -57,7 +66,8 @@ describe('manifest + data loading end-to-end', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const signal = createSignalFixture()
-    const manifest = await fetchCurrentManifest({ manifestPath: 'manifests/gfs/latest.json', signal })
+    const availabilityIndex = await fetchAvailabilityIndex({ signal })
+    const manifest = createCycleManifestFromAvailability({ availabilityIndex, modelId: 'gfs' })
     const particleLayers = getAvailableParticleLayers(manifest)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
@@ -91,5 +101,7 @@ describe('manifest + data loading end-to-end', () => {
     expect(Array.from(renderData.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
     expect(Array.from(renderData.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls.map(([input]) => toUrl(input)).some((url) => url.endsWith('/latest.json')))
+      .toBe(false)
   })
 })

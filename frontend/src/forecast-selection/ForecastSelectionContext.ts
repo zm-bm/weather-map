@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 
 import type {
   ForecastModelId,
+  ForecastModelOption,
   LayerModelAvailability,
   ModelLayerAvailabilityIndex,
 } from '../forecast-availability'
@@ -16,19 +17,12 @@ import type {
 } from '../forecast-catalog'
 import type { UnitSystem } from '../units'
 
-type ForecastSelectionContextLoadedValue = {
-  manifest: CycleManifest
+type ForecastSelectionBaseValue = {
   availabilityIndex: ModelLayerAvailabilityIndex | null
   activeModelId: ForecastModelId | null
-  groups: LayerGroupSpec[]
-  layers: Record<string, LayerSpec>
-  particleLayers: Record<string, ParticleLayerSpec>
-  selectedLayerGroupId: LayerGroupId | null
-  selectedLayerId: LayerId | null
-  selectedLayerAvailability: LayerModelAvailability | null
-  selectedLayerHasRenderableArtifacts: boolean
-  selectedParticleLayerId: ParticleLayerId | null
+  modelOptions: readonly ForecastModelOption[]
   unitSystem: UnitSystem
+  setActiveModel: (value: ForecastModelId) => void
   setSelectedLayerGroup: (value: LayerGroupId) => void
   setSelectedLayer: (value: LayerId) => void
   setSelectedParticleLayer: (value: ParticleLayerId) => void
@@ -36,24 +30,28 @@ type ForecastSelectionContextLoadedValue = {
   toggleUnitSystem: () => void
 }
 
-type ForecastSelectionContextUnloadedValue = {
+type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
+  manifest: CycleManifest
+  groups: readonly LayerGroupSpec[]
+  layers: Record<string, LayerSpec>
+  particleLayers: Record<string, ParticleLayerSpec>
+  selectedLayerGroupId: LayerGroupId | null
+  selectedLayerId: LayerId | null
+  selectedLayerAvailability: LayerModelAvailability | null
+  selectedLayerIsRenderable: boolean
+  selectedParticleLayerId: ParticleLayerId | null
+}
+
+type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
   manifest: null
-  availabilityIndex: ModelLayerAvailabilityIndex | null
-  activeModelId: ForecastModelId | null
   groups: []
   layers: null
   particleLayers: null
   selectedLayerGroupId: null
   selectedLayerId: null
   selectedLayerAvailability: null
-  selectedLayerHasRenderableArtifacts: false
+  selectedLayerIsRenderable: false
   selectedParticleLayerId: null
-  unitSystem: UnitSystem
-  setSelectedLayerGroup: (value: LayerGroupId) => void
-  setSelectedLayer: (value: LayerId) => void
-  setSelectedParticleLayer: (value: ParticleLayerId) => void
-  setUnitSystem: (value: UnitSystem) => void
-  toggleUnitSystem: () => void
 }
 
 export type ForecastSelectionContextValue =

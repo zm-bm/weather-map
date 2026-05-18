@@ -17,6 +17,7 @@ import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
 } from '../../forecast-selection'
+import type { ForecastModelId } from '../../forecast-availability'
 import type { UnitSystem } from '../../units'
 
 
@@ -32,7 +33,14 @@ export function createForecastSelectionContextValue(
 ): ForecastSelectionContextValue {
   const shared = {
     availabilityIndex: null,
+    modelOptions: manifest == null ? [] : [
+      {
+        id: manifest.model.id as ForecastModelId,
+        label: manifest.model.label,
+      },
+    ],
     unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
+    setActiveModel: vi.fn(),
     setSelectedLayerGroup: vi.fn(),
     setSelectedLayer: vi.fn(),
     setSelectedParticleLayer: vi.fn(),
@@ -44,7 +52,7 @@ export function createForecastSelectionContextValue(
   const selectedLayerId = options.selectedLayerId
     ? asLayerId(options.selectedLayerId)
     : FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
-  const selectedLayerHasRenderableArtifacts =
+  const selectedLayerIsRenderable =
     manifest != null && selectedLayerId != null
       ? safeIsLayerAvailableInManifest(manifest, selectedLayerId)
       : false
@@ -63,7 +71,7 @@ export function createForecastSelectionContextValue(
           selectedLayerGroupId: null,
           selectedLayerId: null,
           selectedLayerAvailability: null,
-          selectedLayerHasRenderableArtifacts: false,
+          selectedLayerIsRenderable: false,
           selectedParticleLayerId: null,
           ...shared,
         }
@@ -76,7 +84,7 @@ export function createForecastSelectionContextValue(
           selectedLayerGroupId,
           selectedLayerId,
           selectedLayerAvailability: null,
-          selectedLayerHasRenderableArtifacts,
+          selectedLayerIsRenderable,
           selectedParticleLayerId: options.selectedParticleLayerId
             ? asParticleLayerId(options.selectedParticleLayerId)
             : defaultParticleLayer,
@@ -90,7 +98,14 @@ export function renderWithForecastSelection(
   manifest: CycleManifest
 ) {
   return render(
-    <ForecastSelectionProvider manifest={manifest}>
+    <ForecastSelectionProvider
+      manifest={manifest}
+      activeModelId={manifest.model.id as ForecastModelId}
+      modelOptions={[{
+        id: manifest.model.id as ForecastModelId,
+        label: manifest.model.label,
+      }]}
+    >
       {ui}
     </ForecastSelectionProvider>
   )

@@ -34,18 +34,6 @@ export function isLayerAvailableForModel(
   return getLayerModelAvailability(availabilityIndex, layerId, modelId)?.state === 'available'
 }
 
-export function availableModelIdsForLayer(
-  availabilityIndex: ModelLayerAvailabilityIndex | null,
-  layerId: LayerId | string | null
-): ForecastModelId[] {
-  if (!availabilityIndex || layerId == null) return []
-  const layer = availabilityIndex.layers[String(layerId)]
-  if (!layer) return []
-
-  return Object.keys(availabilityIndex.models)
-    .filter((modelId) => layer.models[modelId]?.state === 'available')
-}
-
 export function resolveCompatibleModelId(
   availabilityIndex: ModelLayerAvailabilityIndex | null,
   layerId: LayerId | string | null,
@@ -56,20 +44,14 @@ export function resolveCompatibleModelId(
     return preferredModelId
   }
 
-  return availableModelIdsForLayer(availabilityIndex, layerId)[0] ?? null
+  return Object.keys(availabilityIndex.models)
+    .find((modelId) => isLayerAvailableForModel(availabilityIndex, layerId, modelId)) ?? null
 }
 
 export function hasAnyAvailableModelForLayer(
   availabilityIndex: ModelLayerAvailabilityIndex | null,
   layerId: LayerId | string | null
 ): boolean {
-  return availableModelIdsForLayer(availabilityIndex, layerId).length > 0
-}
-
-export function manifestPathForModel(
-  availabilityIndex: ModelLayerAvailabilityIndex | null,
-  modelId: ForecastModelId | string | null
-): string | undefined {
-  if (modelId == null) return undefined
-  return availabilityIndex?.models[String(modelId)]?.latestManifestPath
+  return Object.keys(availabilityIndex?.models ?? {})
+    .some((modelId) => isLayerAvailableForModel(availabilityIndex, layerId, modelId))
 }

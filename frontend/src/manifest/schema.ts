@@ -101,7 +101,6 @@ export const vectorEncodingSchema = z.object({
 export const frameRefSchema = z.object({
   path: z.string(),
   byteLength: finiteNumberSchema,
-  sha256: z.string(),
 })
 
 const artifactCommonSchema = {

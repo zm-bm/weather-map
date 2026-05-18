@@ -117,6 +117,16 @@ describe('parseCycleManifest', () => {
     )
   })
 
+  it('strips ignored legacy frame sha metadata', () => {
+    const payload = createCycleManifestPayloadFixture()
+    const frame = (tmpArtifact(payload).frames as Record<string, Record<string, unknown>>)['000']!
+    frame.sha256 = 'a'.repeat(64)
+
+    const manifest = parseCycleManifest(payload)
+
+    expect(manifest.artifacts.tmp_surface.frames['000']).not.toHaveProperty('sha256')
+  })
+
   it('accepts fixed temperature piecewise scalar encodings', () => {
     const payload = createCycleManifestPayloadFixture()
     tmpArtifact(payload).encoding = {

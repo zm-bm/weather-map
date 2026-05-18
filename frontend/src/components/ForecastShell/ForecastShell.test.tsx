@@ -2,8 +2,12 @@ import { render, screen, within } from '@testing-library/react'
 import type { Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ForecastBootstrapData } from '../../forecast-bootstrap'
 import type { ForecastModelId, ForecastModelOption } from '../../forecast-availability'
-import { createManifestFixture } from '../../test/fixtures'
+import {
+  createAvailabilityIndexFixture,
+  createManifestFixture,
+} from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
 
 const MODEL_OPTIONS: readonly ForecastModelOption[] = [
@@ -12,15 +16,9 @@ const MODEL_OPTIONS: readonly ForecastModelOption[] = [
 ]
 
 vi.mock('../ForecastPanel', () => ({
-  default: ({
-    ref,
-    activeModelId,
-  }: {
-    ref?: Ref<HTMLDivElement>
-    activeModelId: ForecastModelId
-    modelOptions: readonly ForecastModelOption[]
-    onActiveModelChange: (modelId: ForecastModelId) => void
-  }) => <div ref={ref} data-testid="forecast-panel" data-active-model-id={activeModelId} />,
+  default: ({ ref }: { ref?: Ref<HTMLDivElement> }) => (
+    <div ref={ref} data-testid="forecast-panel" />
+  ),
 }))
 
 vi.mock('../LegendPanel', () => ({
@@ -41,16 +39,21 @@ vi.mock('../ForecastMap/ForecastMap', () => ({
 }))
 
 function createForecastShellProps(overrides: {
-  manifest?: Parameters<typeof ForecastShell>[0]['manifest']
+  manifest?: ForecastBootstrapData['manifest'] | null
   activeModelId?: ForecastModelId
   onActiveModelChange?: (modelId: ForecastModelId) => void
 } = {}): Parameters<typeof ForecastShell>[0] {
+  const manifest = overrides.manifest ?? null
   return {
-    manifest: overrides.manifest ?? null,
-    availabilityIndex: null,
-    activeModelId: overrides.activeModelId ?? 'gfs',
-    modelOptions: MODEL_OPTIONS,
-    onActiveModelChange: overrides.onActiveModelChange ?? vi.fn(),
+    forecast: manifest == null
+      ? null
+      : {
+          manifest,
+          availabilityIndex: createAvailabilityIndexFixture({ gfsManifest: manifest }),
+          activeModelId: overrides.activeModelId ?? 'gfs',
+          modelOptions: MODEL_OPTIONS,
+          setActiveModel: overrides.onActiveModelChange ?? vi.fn(),
+        },
   }
 }
 
@@ -78,7 +81,7 @@ describe('ForecastShell', () => {
     const { container } = render(<ForecastShell {...createForecastShellProps({ manifest, activeModelId: 'icon' })} />)
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
-    expect(screen.getByTestId('forecast-panel')).toHaveAttribute('data-active-model-id', 'icon')
+    expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
 
     const forecastStage = container.querySelector('.forecast-stage')

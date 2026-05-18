@@ -1,8 +1,8 @@
 # Frontend
 
-React/Vite frontend for the weather map. The app loads artifact-only forecast
-manifests from `/manifests/*`, renders payloads from `/fields/*` through the
-frontend forecast catalog, loads optional PMTiles basemaps from `/pmtiles/*`,
+React/Vite frontend for the weather map. The app boots forecast metadata from
+`/manifests/availability-index.json`, renders payloads from `/fields/*` through
+the frontend forecast catalog, loads optional PMTiles basemaps from `/pmtiles/*`,
 and serves frontend-owned static assets from `public/`.
 
 ## Development
@@ -28,7 +28,6 @@ Runtime config is read from Vite env variables:
   before being proxied to nginx.
 - `VITE_BASEMAP_FILENAME` enables an optional PMTiles basemap served from
   `/pmtiles/<filename>`.
-- `VITE_VERIFY_PAYLOAD_SHA256=true` enables forecast payload hash checks.
 - `VITE_DEV_ARTIFACT_DELAY_MS=<ms>` delays proxied local `/fields/*` responses
   during `npm run dev`; use this to smoke-test loading and prefetch behavior.
 - `VITE_DEV_ARTIFACT_PROXY_TARGET` is the Vite proxy target. It defaults to

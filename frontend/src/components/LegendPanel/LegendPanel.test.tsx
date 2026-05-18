@@ -1,7 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import type { ForecastModelOption } from '../../forecast-availability'
 import {
   createManifestFixture,
   createScalarArtifactFixture,
@@ -9,11 +8,6 @@ import {
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
-
-const MODEL_OPTIONS: readonly ForecastModelOption[] = [
-  { id: 'gfs', label: 'GFS' },
-  { id: 'icon', label: 'ICON' },
-]
 
 function createLegendSelectionManifest(
   selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds'
@@ -49,11 +43,7 @@ function createLegendSelectionManifest(
 function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
   const result = renderWithForecastSelection(
     <>
-      <ForecastPanel
-        activeModelId="gfs"
-        modelOptions={MODEL_OPTIONS}
-        onActiveModelChange={() => undefined}
-      />
+      <ForecastPanel />
       <LegendPanel />
     </>,
     createLegendSelectionManifest(selectedArtifactId)

@@ -17,12 +17,11 @@ const payloadFrameCache = createPayloadCache({
 
 export function payloadFrameCacheKey(
   manifest: Pick<CycleManifest, 'run'>,
-  frameRef: Pick<FramePayloadRef, 'path' | 'sha256' | 'byteLength'>
+  frameRef: Pick<FramePayloadRef, 'path' | 'byteLength'>
 ): string {
   return [
     manifest.run.revision,
     frameRef.path,
-    frameRef.sha256.toLowerCase(),
     String(frameRef.byteLength),
   ].join(':')
 }

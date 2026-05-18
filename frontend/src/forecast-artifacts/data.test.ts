@@ -54,7 +54,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
               byteLength: 8,
-              sha256: 'x',
             }),
           },
         }),
@@ -89,7 +88,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
               byteLength: 8,
-              sha256: 'x',
             }),
           },
         }),
@@ -122,7 +120,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.temp-piecewise.field.i8.bin',
               byteLength: 4,
-              sha256: 'x',
             }),
           },
         }),
@@ -154,7 +151,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
               byteLength: 4,
-              sha256: 'x',
             }),
           },
         }),
@@ -187,7 +183,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
               byteLength: 12,
-              sha256: 'x',
             }),
           },
         }),
@@ -219,7 +214,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
               byteLength: 3,
-              sha256: 'x',
             }),
           },
         }),
@@ -247,7 +241,6 @@ describe('scalar payload', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
               byteLength: 4,
-              sha256: 'x',
             }),
           },
         }),

@@ -3,26 +3,16 @@ import { forwardRef } from 'react'
 import { formatCycleRunTimeLabel } from '../../forecast-time'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
-  type ForecastModelId,
-  type ForecastModelOption,
+  isLayerAvailableForModel,
+  hasAnyAvailableModelForLayer,
 } from '../../forecast-availability'
 import {
   type LayerGroupSpec,
   type LayerId,
 } from '../../forecast-catalog'
-import {
-  hasAnyAvailableModelForLayer,
-  isLayerAvailableForModel,
-} from '../../forecast-availability'
-
-type ForecastPanelProps = {
-  activeModelId: ForecastModelId
-  modelOptions: readonly ForecastModelOption[]
-  onActiveModelChange: (modelId: ForecastModelId) => void
-}
 
 function getSelectedLayerGroup(
-  groups: LayerGroupSpec[],
+  groups: readonly LayerGroupSpec[],
   selectedLayerId: LayerId | null
 ): LayerGroupSpec | null {
   if (selectedLayerId == null) return groups[0] ?? null
@@ -34,20 +24,19 @@ function formatModelRunLabel(runTime: string): string {
   return runTime === '--' ? 'CYCLE --' : `CYCLE ${runTime.replace(',', '').toUpperCase()}`
 }
 
-const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function ForecastPanel({
-  activeModelId,
-  modelOptions,
-  onActiveModelChange,
-}, ref) {
+const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
   const {
     manifest,
+    activeModelId,
+    modelOptions,
     groups,
     layers,
     availabilityIndex,
     selectedLayerId,
     selectedLayerGroupId,
     selectedLayerAvailability,
-    selectedLayerHasRenderableArtifacts,
+    selectedLayerIsRenderable,
+    setActiveModel,
     setSelectedLayer,
     setSelectedLayerGroup,
   } = useLoadedForecastSelectionContext()
@@ -60,7 +49,7 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
   const showUnavailableMessage = selectedLayer != null && (
     selectedLayerAvailability?.state === 'temporarily_unavailable' ||
     selectedLayerAvailability?.state === 'unsupported' ||
-    !selectedLayerHasRenderableArtifacts
+    !selectedLayerIsRenderable
   )
   const unavailableMessage = selectedLayer == null
     ? null
@@ -79,16 +68,24 @@ const ForecastPanel = forwardRef<HTMLElement, ForecastPanelProps>(function Forec
           <select
             className="forecast-controls__quiet-select forecast-controls__model-select"
             aria-label="Forecast model"
-            value={activeModelId}
-            onChange={(event) => onActiveModelChange(event.currentTarget.value as ForecastModelId)}
+            value={activeModelId ?? ''}
+            onChange={(event) => setActiveModel(event.currentTarget.value)}
           >
-            {modelOptions.map((model) => (
-              <option key={model.id} value={model.id}>
-                {selectedLayerId != null && availabilityIndex && !isLayerAvailableForModel(availabilityIndex, selectedLayerId, model.id)
-                  ? `${model.label} (unavailable)`
-                  : model.label}
-              </option>
-            ))}
+            {modelOptions.map((model) => {
+              const isUnavailableForSelectedLayer = selectedLayerId != null &&
+                availabilityIndex != null &&
+                !isLayerAvailableForModel(availabilityIndex, selectedLayerId, model.id)
+
+              return (
+                <option
+                  key={model.id}
+                  value={model.id}
+                  disabled={isUnavailableForSelectedLayer}
+                >
+                  {isUnavailableForSelectedLayer ? `${model.label} (unavailable)` : model.label}
+                </option>
+              )
+            })}
           </select>
           <span className="forecast-controls__run">{runLabel}</span>
         </div>

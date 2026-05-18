@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import {
   type ForecastModelId,
+  type ForecastModelOption,
   getLayerModelAvailability,
+  isLayerAvailableForModel,
   resolveCompatibleModelId,
   type ModelLayerAvailabilityIndex,
 } from '../forecast-availability'
@@ -25,6 +27,7 @@ import {
 } from './ForecastSelectionContext'
 
 const EMPTY_GROUPS: [] = []
+const DEFAULT_LAYER_ID = FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
 
 function availableParticleCatalog(manifest: CycleManifest | null) {
   if (!manifest) return { layers: null, defaultLayer: null }
@@ -48,10 +51,6 @@ function defaultLayerForGroupId(
   return groups.find((group) => group.id === groupId)?.defaultLayer ?? null
 }
 
-function resolveFallbackLayer(): LayerId | null {
-  return FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
-}
-
 function safeIsLayerAvailableInManifest(manifest: CycleManifest, layerId: LayerId | null): boolean {
   if (layerId == null) return false
   const layer = FORECAST_LAYERS_BY_ID[layerId]
@@ -68,31 +67,41 @@ export default function ForecastSelectionProvider({
   manifest,
   availabilityIndex = null,
   activeModelId = null,
+  modelOptions = [],
   onActiveModelChange = () => undefined,
   children,
 }: {
   manifest: CycleManifest | null
   availabilityIndex?: ModelLayerAvailabilityIndex | null
   activeModelId?: ForecastModelId | null
+  modelOptions?: readonly ForecastModelOption[]
   onActiveModelChange?: (modelId: ForecastModelId) => void
   children: ReactNode
 }) {
-  const [selectedLayerId, setSelectedLayerId] = useState<LayerId | null>(() => resolveFallbackLayer())
+  const [selectedLayerId, setSelectedLayerId] = useState<LayerId | null>(DEFAULT_LAYER_ID)
   const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<ParticleLayerId | null>(
     () => availableParticleCatalog(manifest).defaultLayer
   )
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
-  const setSelectedLayer = useCallback((value: LayerId) => {
-    setSelectedLayerId(value)
-  }, [])
+  const setActiveModel = useCallback((value: ForecastModelId) => {
+    if (
+      availabilityIndex != null &&
+      selectedLayerId != null &&
+      !isLayerAvailableForModel(availabilityIndex, selectedLayerId, value)
+    ) {
+      return
+    }
+
+    onActiveModelChange(value)
+  }, [
+    availabilityIndex,
+    onActiveModelChange,
+    selectedLayerId,
+  ])
 
   const setSelectedLayerGroup = useCallback((value: LayerGroupId) => {
     setSelectedLayerId(defaultLayerForGroupId(FORECAST_LAYER_GROUPS, value))
-  }, [])
-
-  const setSelectedParticleLayer = useCallback((value: ParticleLayerId) => {
-    setSelectedParticleLayerId(value)
   }, [])
 
   const toggleUnitSystem = useCallback(() => {
@@ -117,31 +126,37 @@ export default function ForecastSelectionProvider({
   ])
 
   const value = useMemo<ForecastSelectionContextValue>(() => {
+    const baseValue = {
+      availabilityIndex,
+      activeModelId,
+      modelOptions,
+      unitSystem,
+      setActiveModel,
+      setSelectedLayerGroup,
+      setSelectedLayer: setSelectedLayerId,
+      setSelectedParticleLayer: setSelectedParticleLayerId,
+      setUnitSystem,
+      toggleUnitSystem,
+    }
+
     if (!manifest) {
       return {
+        ...baseValue,
         manifest: null,
-        availabilityIndex,
-        activeModelId,
         groups: EMPTY_GROUPS,
         layers: null,
         particleLayers: null,
         selectedLayerGroupId: null,
         selectedLayerId: null,
         selectedLayerAvailability: null,
-        selectedLayerHasRenderableArtifacts: false,
+        selectedLayerIsRenderable: false,
         selectedParticleLayerId: null,
-        unitSystem,
-        setSelectedLayerGroup,
-        setSelectedLayer,
-        setSelectedParticleLayer,
-        setUnitSystem,
-        toggleUnitSystem,
       }
     }
 
     const particleCatalog = availableParticleCatalog(manifest)
     const particleLayerIds = Object.keys(particleCatalog.layers ?? {}) as ParticleLayerId[]
-    const resolvedSelectedLayerId = selectedLayerId ?? resolveFallbackLayer()
+    const resolvedSelectedLayerId = selectedLayerId ?? DEFAULT_LAYER_ID
     const resolvedSelectedParticleLayerId =
       selectedParticleLayerId != null
       && particleLayerIds.includes(selectedParticleLayerId)
@@ -152,36 +167,31 @@ export default function ForecastSelectionProvider({
       resolvedSelectedLayerId,
       activeModelId,
     )
-    const selectedLayerHasRenderableArtifacts = safeIsLayerAvailableInManifest(manifest, resolvedSelectedLayerId)
+    const selectedLayerIsRenderable = availabilityIndex == null
+      ? safeIsLayerAvailableInManifest(manifest, resolvedSelectedLayerId)
+      : selectedLayerAvailability?.state === 'available'
 
     return {
+      ...baseValue,
       manifest,
-      availabilityIndex,
-      activeModelId,
-      groups: [...FORECAST_LAYER_GROUPS],
+      groups: FORECAST_LAYER_GROUPS,
       layers: FORECAST_LAYERS_BY_ID,
       particleLayers: particleCatalog.layers ?? {},
       selectedLayerGroupId: findLayerGroupId(FORECAST_LAYER_GROUPS, resolvedSelectedLayerId),
       selectedLayerId: resolvedSelectedLayerId,
       selectedLayerAvailability,
-      selectedLayerHasRenderableArtifacts,
+      selectedLayerIsRenderable,
       selectedParticleLayerId: resolvedSelectedParticleLayerId,
-      unitSystem,
-      setSelectedLayerGroup,
-      setSelectedLayer,
-      setSelectedParticleLayer,
-      setUnitSystem,
-      toggleUnitSystem,
     }
   }, [
     activeModelId,
     availabilityIndex,
     manifest,
+    modelOptions,
     selectedLayerId,
     selectedParticleLayerId,
-    setSelectedLayer,
+    setActiveModel,
     setSelectedLayerGroup,
-    setSelectedParticleLayer,
     toggleUnitSystem,
     unitSystem,
   ])

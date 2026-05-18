@@ -4,13 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 const mocks = vi.hoisted(() => ({
-  useManifest: vi.fn(),
+  useForecastBootstrap: vi.fn(),
   forecastShell: vi.fn(() => <div data-testid="forecast-screen">forecast</div>),
 }))
 
-vi.mock('./manifest/useManifest', () => ({
-  useManifest: mocks.useManifest,
-}))
+vi.mock('./forecast-bootstrap', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./forecast-bootstrap')>()
+  return {
+    ...actual,
+    useForecastBootstrap: mocks.useForecastBootstrap,
+    AppStartupStatus: () => null,
+  }
+})
 
 vi.mock('./components/ForecastShell/ForecastShell', () => ({
   default: mocks.forecastShell,
@@ -19,7 +24,13 @@ vi.mock('./components/ForecastShell/ForecastShell', () => ({
 describe('App health route', () => {
   beforeEach(() => {
     window.history.pushState(null, '', '/')
-    mocks.useManifest.mockReset()
+    mocks.useForecastBootstrap.mockReset()
+    mocks.useForecastBootstrap.mockReturnValue({
+      phase: 'loading',
+      data: null,
+      error: null,
+      retry: vi.fn(),
+    })
     mocks.forecastShell.mockClear()
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -32,20 +43,7 @@ describe('App health route', () => {
 
     expect(await screen.findByText('Weather Map Health')).toBeInTheDocument()
     expect(screen.queryByTestId('forecast-screen')).not.toBeInTheDocument()
-    expect(mocks.useManifest).not.toHaveBeenCalled()
-  })
-
-  it('keeps / on the forecast shell', () => {
-    mocks.useManifest.mockReturnValue({
-      manifest: null,
-      loading: true,
-      error: null,
-      retry: vi.fn(),
-    })
-
-    render(<App />)
-
-    expect(screen.getByTestId('forecast-screen')).toBeInTheDocument()
+    expect(mocks.useForecastBootstrap).not.toHaveBeenCalled()
   })
 
   it('renders backend unavailable when the health request fails', async () => {
@@ -72,33 +70,7 @@ function createHealthPayload() {
     schema: 'weather-map.health',
     schemaVersion: 1,
     generatedAt: '2026-05-11T18:00:00Z',
-    status: 'degraded',
-    models: [
-      {
-        id: 'gfs',
-        label: 'GFS',
-        status: 'building',
-        reason: 'Expected cycle is still building with recent marker progress.',
-        expectedCycle: '2026051118',
-        expectedCycleDeadline: '2026-05-12T01:00:00Z',
-        latestObservedCycle: '2026051118',
-        latestPublishedCycle: '2026051112',
-        latestPublishedGeneratedAt: '2026-05-11T18:42:00Z',
-        progress: {
-          cycle: '2026051118',
-          published: false,
-          expectedMarkers: 10,
-          foundMarkers: 5,
-          missingMarkers: 5,
-          lastProgressAt: '2026-05-11T23:48:00Z',
-          missingSample: ['tmp_surface/041'],
-          invalidMarkerSample: [],
-        },
-        publishLag: {
-          graceHours: 7,
-          source: 'recent-history',
-        },
-      },
-    ],
+    status: 'healthy',
+    models: [],
   }
 }

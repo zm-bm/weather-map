@@ -85,7 +85,6 @@ describe('createFieldChannel', () => {
             '000': createFrameRefFixture({
               path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
               byteLength: 8,
-              sha256: 'x',
             }),
           },
         }),

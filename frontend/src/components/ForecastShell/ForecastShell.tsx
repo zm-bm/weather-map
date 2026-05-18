@@ -1,11 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 
-import type {
-  ForecastModelId,
-  ForecastModelOption,
-  ModelLayerAvailabilityIndex,
-} from '../../forecast-availability'
-import type { CycleManifest } from '../../manifest'
+import type { ForecastBootstrapData } from '../../forecast-bootstrap'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import { ForecastTimeProvider } from '../../forecast-time'
 import TimelineBar from '../TimelineBar'
@@ -15,32 +10,23 @@ import MapSyncIndicator from '../MapSyncIndicator'
 import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
-  manifest: CycleManifest | null
-  availabilityIndex: ModelLayerAvailabilityIndex | null
-  activeModelId: ForecastModelId | null
-  modelOptions: readonly ForecastModelOption[]
-  onActiveModelChange: (modelId: ForecastModelId) => void
+  forecast: ForecastBootstrapData | null
 }
 
-const DEBUG_BASEMAP_ONLY = false
 const MAP_CONTROL_PANEL_GAP_PX = 8
 
-export default function ForecastShell({
-  manifest,
-  availabilityIndex,
-  activeModelId,
-  modelOptions,
-  onActiveModelChange,
-}: ForecastShellProps) {
+export default function ForecastShell({ forecast }: ForecastShellProps) {
   const forecastStageRef = useRef<HTMLDivElement | null>(null)
   const forecastPanelRef = useRef<HTMLElement | null>(null)
+  const manifest = forecast?.manifest ?? null
+  const activeModelId = forecast?.activeModelId ?? null
 
   useLayoutEffect(() => {
     const stage = forecastStageRef.current
     const panel = forecastPanelRef.current
 
     if (stage == null) return
-    if (manifest == null || panel == null || DEBUG_BASEMAP_ONLY) {
+    if (manifest == null || panel == null) {
       stage.style.removeProperty('--wm-map-control-rail-top')
       return
     }
@@ -81,23 +67,19 @@ export default function ForecastShell({
     <main className="forecast-screen">
       <ForecastSelectionProvider
         manifest={manifest}
-        availabilityIndex={availabilityIndex}
+        availabilityIndex={forecast?.availabilityIndex ?? null}
         activeModelId={activeModelId}
-        onActiveModelChange={onActiveModelChange}
+        modelOptions={forecast?.modelOptions ?? []}
+        onActiveModelChange={forecast?.setActiveModel}
       >
         <ForecastTimeProvider key={forecastTimeProviderKey} manifest={manifest}>
           <div ref={forecastStageRef} className="forecast-stage">
             <ForecastMap />
 
-            {manifest && activeModelId != null && !DEBUG_BASEMAP_ONLY && (
+            {manifest && activeModelId != null && (
               <>
                 <MapSyncIndicator />
-                <ForecastPanel
-                  ref={forecastPanelRef}
-                  activeModelId={activeModelId}
-                  modelOptions={modelOptions}
-                  onActiveModelChange={onActiveModelChange}
-                />
+                <ForecastPanel ref={forecastPanelRef} />
                 <div className="forecast-stage__legend">
                   <LegendPanel />
                 </div>
@@ -105,7 +87,7 @@ export default function ForecastShell({
             )}
           </div>
 
-          {manifest && !DEBUG_BASEMAP_ONLY && (
+          {manifest && (
             <TimelineBar />
           )}
         </ForecastTimeProvider>

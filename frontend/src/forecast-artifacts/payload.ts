@@ -35,7 +35,6 @@ export async function readArtifactPayload(
 ): Promise<ArrayBuffer> {
   const {
     artifact,
-    artifactId,
     frameRef,
     hourToken,
   } = args.resolved
@@ -70,16 +69,6 @@ export async function readArtifactPayload(
     actualByteLength: payload.byteLength,
     expectedFrameByteLength: frameRef.byteLength,
   })
-
-  if (args.config.verifyPayloadSha256) {
-    await verifyPayloadSha({
-      artifactKind,
-      payload,
-      expectedSha: frameRef.sha256,
-      artifactId,
-      hourToken,
-    })
-  }
 
   return payload
 }
@@ -176,28 +165,4 @@ function assertPayloadSize(args: {
       `${artifact.kind} payload bytes do not match grid dimensions for ${artifactId}: got=${actualByteLength} expected=${expectedGridByteLength}`
     )
   }
-}
-
-async function verifyPayloadSha(args: {
-  artifactKind: ArtifactKind
-  payload: ArrayBuffer
-  expectedSha: string
-  artifactId: string
-  hourToken: string
-}) {
-  const actualSha = await computeSha256Hex(args.payload)
-  if (actualSha !== args.expectedSha.toLowerCase()) {
-    throw new Error(
-      `${args.artifactKind} SHA-256 mismatch for artifact=${args.artifactId} hour=${args.hourToken}: expected=${args.expectedSha} actual=${actualSha}`
-    )
-  }
-}
-
-async function computeSha256Hex(payload: ArrayBuffer): Promise<string> {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error('SHA-256 verification is unavailable: crypto.subtle is not supported')
-  }
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', payload)
-  const bytes = new Uint8Array(digest)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }

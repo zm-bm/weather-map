@@ -13,6 +13,11 @@ from forecast_etl.manifest.availability import (
     AVAILABILITY_INDEX_SCHEMA_VERSION,
     build_availability_index,
 )
+from forecast_etl.manifest.constants import (
+    FORECAST_BINARY_CONTRACT,
+    MANIFEST_SCHEMA,
+    MANIFEST_SCHEMA_VERSION,
+)
 from forecast_etl.storage.routing import make_store
 
 
@@ -25,23 +30,65 @@ def _pipeline_config() -> PipelineConfig:
 
 
 def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
+    fhours = ("000", "003")
     artifacts = {}
     for artifact_id in artifact_ids:
         artifact = model.artifacts[artifact_id]
+        dtype_suffix = "i16" if artifact.encoding.dtype == "int16" else "i8"
         artifacts[artifact_id] = {
             "id": artifact_id,
             "kind": artifact.kind,
+            "units": artifact.units,
+            "parameter": artifact.parameter,
+            "level": artifact.level,
             "components": list(artifact.component_ids),
+            "grid": {
+                "id": model.source.grid_id,
+                "crs": "EPSG:4326",
+                "nx": 2,
+                "ny": 2,
+                "lon0": 0,
+                "lat0": 0,
+                "dx": 1,
+                "dy": 1,
+                "origin": "cell_center",
+                "layout": "row_major",
+                "xWrap": "repeat",
+                "yMode": "clamp",
+            },
+            "encoding": {
+                "id": artifact.encoding.id,
+                "format": artifact.encoding.format,
+                "dtype": artifact.encoding.dtype,
+                "byteOrder": artifact.encoding.byte_order,
+            },
+            "frames": {
+                fhour: {
+                    "path": f"fields/{model.id}/{cycle}/{fhour}/{artifact_id}.field.{dtype_suffix}.bin",
+                    "byteLength": len(artifact.component_ids) * 4,
+                    "sha256": "a" * 64,
+                }
+                for fhour in fhours
+            },
         }
 
     return {
+        "schema": MANIFEST_SCHEMA,
+        "schemaVersion": MANIFEST_SCHEMA_VERSION,
+        "payloadContract": FORECAST_BINARY_CONTRACT,
         "model": {
             "id": model.id,
             "label": model.label,
         },
         "run": {
             "cycle": cycle,
+            "generatedAt": "2026-05-16T00:00:00Z",
+            "revision": f"{model.id}-{cycle}-revision",
         },
+        "times": [
+            {"id": fhour, "leadHours": int(fhour), "validAt": f"2026-05-16T{int(fhour):02d}:00:00Z"}
+            for fhour in fhours
+        ],
         "artifacts": artifacts,
     }
 
@@ -83,8 +130,20 @@ class AvailabilityIndexTest(unittest.TestCase):
         self.assertEqual(index["schema"], AVAILABILITY_INDEX_SCHEMA)
         self.assertEqual(index["schemaVersion"], AVAILABILITY_INDEX_SCHEMA_VERSION)
         self.assertEqual(index["catalogVersion"], "forecast-catalog-v1")
-        self.assertEqual(index["models"]["gfs"]["latestCycle"], "2026051606")
-        self.assertEqual(index["models"]["gfs"]["latestManifestPath"], "manifests/gfs/latest.json")
+        self.assertNotIn("latestCycle", index["models"]["gfs"])
+        self.assertNotIn("latestManifestPath", index["models"]["gfs"])
+        latest = index["models"]["gfs"]["latest"]
+        self.assertIsNotNone(latest)
+        self.assertEqual(latest["schema"], MANIFEST_SCHEMA)
+        self.assertEqual(latest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
+        self.assertEqual(latest["payloadContract"], FORECAST_BINARY_CONTRACT)
+        self.assertEqual(latest["run"]["cycle"], "2026051606")
+        self.assertEqual(latest["times"][0]["id"], "000")
+        temperature_artifact = latest["artifacts"]["tmp_surface"]
+        self.assertEqual(temperature_artifact["byteLength"], 4)
+        self.assertNotIn("frames", temperature_artifact)
+        self.assertNotIn("path", temperature_artifact)
+        self.assertNotIn("sha256", temperature_artifact)
 
         visibility = index["layers"]["visibility"]["models"]
         self.assertEqual(visibility["gfs"]["state"], "available")
@@ -107,6 +166,54 @@ class AvailabilityIndexTest(unittest.TestCase):
         self.assertEqual(precipitation_rate["icon"]["support"], "composite")
         self.assertEqual(precipitation_rate["icon"]["requiredArtifacts"], ["prate_surface"])
         self.assertEqual(precipitation_rate["icon"]["optionalArtifacts"], ["precip_type_surface"])
+
+    def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
+        cfg = _pipeline_config()
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-availability-no-latest-") as td:
+            repo = ArtifactRepository.for_root(
+                store=make_store(),
+                artifact_root_uri=f"file://{Path(td).as_posix()}",
+            )
+
+            index = build_availability_index(
+                pipeline_config=cfg,
+                artifact_repo=repo,
+                generated_at="2026-05-16T00:00:00Z",
+            )
+
+        self.assertIsNone(index["models"]["gfs"]["latest"])
+        self.assertIsNone(index["models"]["icon"]["latest"])
+
+    def test_rejects_embedded_latest_with_missing_or_inconsistent_frame_metadata(self) -> None:
+        cfg = _pipeline_config()
+
+        cases = (
+            ("missing", "must be an object"),
+            ("inconsistent", "byteLength mismatch"),
+        )
+        for case, expected_error in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory(
+                prefix="weather-map-availability-invalid-latest-"
+            ) as td:
+                repo = ArtifactRepository.for_root(
+                    store=make_store(),
+                    artifact_root_uri=f"file://{Path(td).as_posix()}",
+                )
+                gfs = cfg.model("gfs")
+                manifest = _latest_manifest(gfs, cycle="2026051606", artifact_ids=("tmp_surface",))
+                if case == "missing":
+                    del manifest["artifacts"]["tmp_surface"]["frames"]["003"]
+                else:
+                    manifest["artifacts"]["tmp_surface"]["frames"]["003"]["byteLength"] = 8
+                repo.write_latest_manifest(model_id="gfs", manifest=manifest)
+
+                with self.assertRaisesRegex(SystemExit, expected_error):
+                    build_availability_index(
+                        pipeline_config=cfg,
+                        artifact_repo=repo,
+                        generated_at="2026-05-16T00:00:00Z",
+                    )
 
 
 if __name__ == "__main__":

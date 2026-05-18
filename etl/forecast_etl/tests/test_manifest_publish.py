@@ -207,6 +207,17 @@ class PublishManifestTest(unittest.TestCase):
             self.assertTrue(fx.artifacts.availability_index_exists())
             availability_index = fx.artifacts.read_availability_index()
             self.assertEqual(availability_index["schema"], "weather-map-model-layer-availability-index")
+            self.assertEqual(availability_index["schemaVersion"], 2)
+            self.assertNotIn("latestCycle", availability_index["models"]["gfs"])
+            self.assertNotIn("latestManifestPath", availability_index["models"]["gfs"])
+            latest = availability_index["models"]["gfs"]["latest"]
+            self.assertEqual(latest["run"]["cycle"], fx.cycle)
+            self.assertEqual(latest["times"][0]["id"], "000")
+            latest_artifact = latest["artifacts"]["tmp_surface"]
+            self.assertEqual(latest_artifact["byteLength"], fx.cell_count * 2)
+            self.assertNotIn("frames", latest_artifact)
+            self.assertNotIn("path", latest_artifact)
+            self.assertNotIn("sha256", latest_artifact)
             self.assertEqual(availability_index["layers"]["temperature"]["models"]["gfs"]["state"], "available")
             self.assertEqual(
                 availability_index["layers"]["visibility"]["models"]["gfs"]["state"],

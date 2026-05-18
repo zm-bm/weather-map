@@ -15,8 +15,8 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/src:/app/frontend/src
-      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts:ro
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
       - ./config:/app/config:ro
     environment:
       - VITE_ARTIFACT_BASE_URL=${VITE_ARTIFACT_BASE_URL:-http://localhost:5173}
@@ -24,6 +24,7 @@ services:
       - VITE_DEV_ARTIFACT_DELAY_MS=${VITE_DEV_ARTIFACT_DELAY_MS:-0}
       - VITE_DEV_ARTIFACT_PROXY_TARGET=${VITE_DEV_ARTIFACT_PROXY_TARGET:-http://nginx:3000}
       - VITE_DEV_API_PROXY_TARGET=${VITE_DEV_API_PROXY_TARGET:-http://backend:8000}
+      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-true}
     depends_on:
       - backend
       - nginx
@@ -42,3 +43,6 @@ services:
       - ./config:/app/config:ro
     environment:
       - ARTIFACT_ROOT_URI=file:///artifacts
+
+volumes:
+  frontend_node_modules:

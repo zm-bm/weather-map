@@ -1,4 +1,5 @@
 export * from './config'
+export * from './availability'
 export * from './forecastSelection'
 export * from './forecastTime'
 export * from './indexedDb'

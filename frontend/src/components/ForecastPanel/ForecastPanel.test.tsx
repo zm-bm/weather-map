@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ForecastModelId, ForecastModelOption } from '../../forecast-availability'
+import type { ForecastModelOption } from '../../forecast-availability'
 import {
+  createCatalogAvailabilityIndexFixture,
   createManifestFixture,
   createScalarArtifactFixture,
 } from '../../test/fixtures'
@@ -13,17 +14,6 @@ const MODEL_OPTIONS: readonly ForecastModelOption[] = [
   { id: 'gfs', label: 'GFS' },
   { id: 'icon', label: 'ICON' },
 ]
-
-function createForecastPanelProps(overrides: {
-  activeModelId?: ForecastModelId
-  onActiveModelChange?: (modelId: ForecastModelId) => void
-} = {}) {
-  return {
-    activeModelId: overrides.activeModelId ?? 'gfs',
-    modelOptions: MODEL_OPTIONS,
-    onActiveModelChange: overrides.onActiveModelChange ?? vi.fn(),
-  }
-}
 
 function createPanelManifest(
   scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
@@ -46,8 +36,12 @@ function createPanelManifest(
 
 function renderForecastPanel(scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   return render(
-    <ForecastSelectionProvider manifest={createPanelManifest(scalarArtifactIds)}>
-      <ForecastPanel {...createForecastPanelProps()} />
+    <ForecastSelectionProvider
+      manifest={createPanelManifest(scalarArtifactIds)}
+      activeModelId="gfs"
+      modelOptions={MODEL_OPTIONS}
+    >
+      <ForecastPanel />
     </ForecastSelectionProvider>
   )
 }
@@ -79,8 +73,12 @@ function renderInteractiveForecastPanel(
   cycle?: string
 ) {
   return render(
-    <ForecastSelectionProvider manifest={createInteractivePanelManifest(selectedArtifactId, cycle)}>
-      <ForecastPanel {...createForecastPanelProps()} />
+    <ForecastSelectionProvider
+      manifest={createInteractivePanelManifest(selectedArtifactId, cycle)}
+      activeModelId="gfs"
+      modelOptions={MODEL_OPTIONS}
+    >
+      <ForecastPanel />
     </ForecastSelectionProvider>
   )
 }
@@ -110,13 +108,11 @@ describe('ForecastPanel', () => {
         manifest={createPanelManifest(['tmp_surface', 'rh_surface'], {
           model: { id: 'icon', label: 'ICON' },
         })}
+        activeModelId="icon"
+        modelOptions={MODEL_OPTIONS}
+        onActiveModelChange={onActiveModelChange}
       >
-        <ForecastPanel
-          {...createForecastPanelProps({
-            activeModelId: 'icon',
-            onActiveModelChange,
-          })}
-        />
+        <ForecastPanel />
       </ForecastSelectionProvider>
     )
 
@@ -128,6 +124,42 @@ describe('ForecastPanel', () => {
     })
 
     expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
+  })
+
+  it('keeps model selection secondary to the selected measurement', () => {
+    const onActiveModelChange = vi.fn()
+
+    render(
+      <ForecastSelectionProvider
+        manifest={createManifestFixture({
+          cycle: '2026041118',
+          model: { id: 'icon', label: 'ICON' },
+          scalarArtifactIds: ['tmp_surface', 'prate_surface', 'precip_total_surface'],
+          vectorArtifactIds: [],
+        })}
+        availabilityIndex={createCatalogAvailabilityIndexFixture()}
+        activeModelId="icon"
+        modelOptions={MODEL_OPTIONS}
+        onActiveModelChange={onActiveModelChange}
+      >
+        <ForecastPanel />
+      </ForecastSelectionProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'accumulated_precipitation' },
+    })
+
+    expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
+    expect(screen.getByRole('option', { name: 'GFS (unavailable)' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Forecast model'), {
+      target: { value: 'gfs' },
+    })
+
+    expect(onActiveModelChange).not.toHaveBeenCalledWith('gfs')
+    expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
   })
 
   it('updates selected layer through category and measurement controls without rendering unit controls', () => {
@@ -195,8 +227,10 @@ describe('ForecastPanel', () => {
             }),
           },
         })}
+        activeModelId="gfs"
+        modelOptions={MODEL_OPTIONS}
       >
-        <ForecastPanel {...createForecastPanelProps()} />
+        <ForecastPanel />
       </ForecastSelectionProvider>
     )
 

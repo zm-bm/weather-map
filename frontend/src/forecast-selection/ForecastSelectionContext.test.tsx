@@ -1,9 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { asParticleLayerId, asLayerId } from '../forecast-catalog'
-import type { ModelLayerAvailabilityIndex } from '../forecast-availability'
-import { createManifestFixture } from '../test/fixtures'
+import {
+  createAvailabilityIndexFixture,
+  createAvailabilityLayerFixture,
+  createCatalogAvailabilityIndexFixture,
+  createLayerModelAvailabilityFixture,
+  createManifestFixture,
+} from '../test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
 
@@ -14,6 +20,7 @@ function ForecastSelectionProbe() {
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
+      <div data-testid="selected-layer-renderable">{String(context.selectedLayerIsRenderable)}</div>
       <div data-testid="unit-system">{context.unitSystem}</div>
       <button type="button" onClick={() => context.setSelectedLayer(asLayerId('relative_humidity'))}>
         set-layer-rh
@@ -26,6 +33,12 @@ function ForecastSelectionProbe() {
       </button>
       <button type="button" onClick={() => context.setSelectedLayer(asLayerId('visibility'))}>
         set-layer-visibility
+      </button>
+      <button type="button" onClick={() => context.setActiveModel('gfs')}>
+        set-model-gfs
+      </button>
+      <button type="button" onClick={() => context.setActiveModel('icon')}>
+        set-model-icon
       </button>
       <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind'))}>
         set-particle-wind
@@ -40,70 +53,18 @@ function ForecastSelectionProbe() {
   )
 }
 
-function createAvailabilityIndex(): ModelLayerAvailabilityIndex {
-  const available = (requiredArtifacts: string[]) => ({
-    state: 'available' as const,
-    support: 'native' as const,
-    requiredArtifacts,
-    optionalArtifacts: [],
-  })
-  const unsupported = (requiredArtifacts: string[]) => ({
-    state: 'unsupported' as const,
-    support: 'unavailable' as const,
-    requiredArtifacts,
-    optionalArtifacts: [],
-  })
+type SelectionProviderProps = Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children'>
 
-  return {
-    schema: 'weather-map-model-layer-availability-index',
-    schemaVersion: 1,
-    generatedAt: '2026-05-16T00:00:00Z',
-    catalogVersion: 'forecast-catalog-v1',
-    models: {
-      gfs: {
-        label: 'GFS',
-        latestCycle: '2026040900',
-        latestManifestPath: 'manifests/gfs/latest.json',
-      },
-      icon: {
-        label: 'ICON',
-        latestCycle: '2026040900',
-        latestManifestPath: 'manifests/icon/latest.json',
-      },
-    },
-    layers: {
-      temperature: {
-        models: {
-          gfs: available(['tmp_surface']),
-          icon: available(['tmp_surface']),
-        },
-      },
-      relative_humidity: {
-        models: {
-          gfs: available(['rh_surface']),
-          icon: available(['rh_surface']),
-        },
-      },
-      precipitation_rate: {
-        models: {
-          gfs: available(['prate_surface']),
-          icon: available(['prate_surface']),
-        },
-      },
-      accumulated_precipitation: {
-        models: {
-          gfs: unsupported(['precip_total_surface']),
-          icon: available(['precip_total_surface']),
-        },
-      },
-      visibility: {
-        models: {
-          gfs: available(['visibility_surface']),
-          icon: unsupported(['visibility_surface']),
-        },
-      },
-    },
-  }
+function selectionProvider(props: SelectionProviderProps) {
+  return (
+    <ForecastSelectionProvider {...props}>
+      <ForecastSelectionProbe />
+    </ForecastSelectionProvider>
+  )
+}
+
+function renderSelection(props: SelectionProviderProps) {
+  return render(selectionProvider(props))
 }
 
 describe('ForecastSelectionContext', () => {
@@ -114,11 +75,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     })
 
-    const { rerender } = render(
-      <ForecastSelectionProvider manifest={firstManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    const { rerender } = renderSelection({ manifest: firstManifest })
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
@@ -132,11 +89,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: ['gust10m_uv', 'wind10m_uv'],
     })
 
-    rerender(
-      <ForecastSelectionProvider manifest={secondManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    rerender(selectionProvider({ manifest: secondManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
@@ -149,11 +102,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     })
 
-    render(
-      <ForecastSelectionProvider manifest={manifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    renderSelection({ manifest })
 
     expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
 
@@ -164,6 +113,40 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
   })
 
+  it('uses availability renderability when loaded and manifest renderability as fallback', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: [],
+    })
+    const availabilityIndex = createAvailabilityIndexFixture({
+      gfsManifest: null,
+      iconManifest: null,
+      layers: {
+        temperature: createAvailabilityLayerFixture({
+          gfs: createLayerModelAvailabilityFixture({
+            state: 'temporarily_unavailable',
+            requiredArtifacts: ['tmp_surface'],
+          }),
+        }),
+      },
+    })
+
+    const { rerender } = renderSelection({
+      manifest,
+      availabilityIndex,
+      activeModelId: 'gfs',
+    })
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('false')
+
+    rerender(selectionProvider({ manifest }))
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('true')
+  })
+
   it('preserves selected layer and particle choices when the manifest changes within the same cycle', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
@@ -171,11 +154,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: ['gust10m_uv', 'wind10m_uv'],
     })
 
-    const { rerender } = render(
-      <ForecastSelectionProvider manifest={firstManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    const { rerender } = renderSelection({ manifest: firstManifest })
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
@@ -190,11 +169,7 @@ describe('ForecastSelectionContext', () => {
       revision: 'same-cycle-new-revision',
     })
 
-    rerender(
-      <ForecastSelectionProvider manifest={secondManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    rerender(selectionProvider({ manifest: secondManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
@@ -207,11 +182,7 @@ describe('ForecastSelectionContext', () => {
       scalarArtifactIds: ['tmp_surface', 'prate_surface'],
     })
 
-    const { rerender } = render(
-      <ForecastSelectionProvider manifest={gfsManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    const { rerender } = renderSelection({ manifest: gfsManifest })
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-prate' }))
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('precipitation_rate')
@@ -222,66 +193,113 @@ describe('ForecastSelectionContext', () => {
       scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
     })
 
-    rerender(
-      <ForecastSelectionProvider manifest={iconManifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    rerender(selectionProvider({ manifest: iconManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('precipitation_rate')
   })
 
-  it('auto-switches to a compatible model when selecting an unsupported layer', async () => {
+  it.each([
+    {
+      activeModelId: 'gfs',
+      activeModelLabel: 'GFS',
+      buttonName: 'set-layer-accum',
+      expectedLayerId: 'accumulated_precipitation',
+      expectedModelId: 'icon',
+    },
+    {
+      activeModelId: 'icon',
+      activeModelLabel: 'ICON',
+      buttonName: 'set-layer-visibility',
+      expectedLayerId: 'visibility',
+      expectedModelId: 'gfs',
+    },
+  ] as const)('auto-switches to a compatible model for unavailable selected layers', async ({
+    activeModelId,
+    activeModelLabel,
+    buttonName,
+    expectedLayerId,
+    expectedModelId,
+  }) => {
     const onActiveModelChange = vi.fn()
-    const gfsManifest = createManifestFixture({
-      model: { id: 'gfs', label: 'GFS' },
+    const manifest = createManifestFixture({
+      model: { id: activeModelId, label: activeModelLabel },
       cycle: '2026040900',
       scalarArtifactIds: ['tmp_surface'],
     })
 
-    render(
-      <ForecastSelectionProvider
-        manifest={gfsManifest}
-        availabilityIndex={createAvailabilityIndex()}
-        activeModelId="gfs"
-        onActiveModelChange={onActiveModelChange}
-      >
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    renderSelection({
+      manifest,
+      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      activeModelId,
+      onActiveModelChange,
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
+    fireEvent.click(screen.getByRole('button', { name: buttonName }))
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent(expectedLayerId)
     await waitFor(() => {
-      expect(onActiveModelChange).toHaveBeenCalledWith('icon')
+      expect(onActiveModelChange).toHaveBeenCalledWith(expectedModelId)
     })
   })
 
-  it('auto-switches back to GFS for visibility when ICON is active', async () => {
+  it('does not let an incompatible model choice replace the selected layer', () => {
     const onActiveModelChange = vi.fn()
     const iconManifest = createManifestFixture({
       model: { id: 'icon', label: 'ICON' },
       cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface'],
+      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
     })
 
-    render(
-      <ForecastSelectionProvider
-        manifest={iconManifest}
-        availabilityIndex={createAvailabilityIndex()}
-        activeModelId="icon"
-        onActiveModelChange={onActiveModelChange}
-      >
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    renderSelection({
+      manifest: iconManifest,
+      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      activeModelId: 'icon',
+      onActiveModelChange,
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
+    fireEvent.click(screen.getByRole('button', { name: 'set-model-gfs' }))
+
+    expect(onActiveModelChange).not.toHaveBeenCalledWith('gfs')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+  })
+
+  it('preserves selected layer intent while repairing incompatible active model props', async () => {
+    const onActiveModelChange = vi.fn()
+    const iconManifest = createManifestFixture({
+      model: { id: 'icon', label: 'ICON' },
+      cycle: '2026040900',
+      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
+    })
+
+    const { rerender } = renderSelection({
+      manifest: iconManifest,
+      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      activeModelId: 'icon',
+      onActiveModelChange,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+
+    const gfsManifest = createManifestFixture({
+      model: { id: 'gfs', label: 'GFS' },
+      cycle: '2026040900',
+      scalarArtifactIds: ['tmp_surface', 'prate_surface'],
+    })
+
+    rerender(selectionProvider({
+      manifest: gfsManifest,
+      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      activeModelId: 'gfs',
+      onActiveModelChange,
+    }))
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
     await waitFor(() => {
-      expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
+      expect(onActiveModelChange).toHaveBeenCalledWith('icon')
     })
   })
 
@@ -290,11 +308,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: ['wind10m_uv'],
     })
 
-    render(
-      <ForecastSelectionProvider manifest={manifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    renderSelection({ manifest })
 
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
@@ -304,11 +318,7 @@ describe('ForecastSelectionContext', () => {
       vectorArtifactIds: [],
     })
 
-    render(
-      <ForecastSelectionProvider manifest={manifest}>
-        <ForecastSelectionProbe />
-      </ForecastSelectionProvider>
-    )
+    renderSelection({ manifest })
 
     expect(screen.getByTestId('selected-particle')).toBeEmptyDOMElement()
   })

@@ -11,7 +11,7 @@ from ..catalog import load_forecast_catalog
 from ..config.resolved import ModelConfig, PipelineConfig
 
 AVAILABILITY_INDEX_SCHEMA = "weather-map-model-layer-availability-index"
-AVAILABILITY_INDEX_SCHEMA_VERSION = 1
+AVAILABILITY_INDEX_SCHEMA_VERSION = 2
 
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
 LayerSupport = Literal["native", "frontend-derived", "etl-derived", "composite", "unavailable"]
@@ -58,11 +58,10 @@ def build_availability_index(
         "generatedAt": generated_at,
         "catalogVersion": str(forecast_catalog["catalogVersion"]),
         "models": {
-            model_id: _model_index_entry(
-                artifact_repo=artifact_repo,
-                model=model,
-                latest_manifest=latest_manifests[model_id],
-            )
+            model_id: {
+                "label": model.label,
+                "latest": _embedded_latest_manifest(latest_manifests[model_id]),
+            }
             for model_id, model in pipeline_config.models.items()
         },
         "layers": {
@@ -107,19 +106,80 @@ def _catalog_layers(catalog: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
         yield layer
 
 
-def _model_index_entry(
-    *,
-    artifact_repo: ArtifactRepository,
-    model: ModelConfig,
-    latest_manifest: Mapping[str, Any] | None,
-) -> dict[str, Any]:
+def _embedded_latest_manifest(manifest: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if manifest is None:
+        return None
+
+    run = _required_mapping(manifest, "run", owner="latest manifest")
+    times = _required_list(manifest, "times", owner="latest manifest")
+    artifacts = _required_mapping(manifest, "artifacts", owner="latest manifest")
+    time_ids = tuple(_time_id(time, index=index) for index, time in enumerate(times))
+    if not time_ids:
+        raise SystemExit("Latest manifest must contain at least one time")
+
     return {
-        "label": model.label,
-        "latestCycle": _latest_cycle(latest_manifest),
-        "latestManifestPath": artifact_repo.paths.relative_key(
-            artifact_repo.paths.manifest_latest_uri(model_id=model.id)
-        ),
+        "schema": _required_value(manifest, "schema", owner="latest manifest"),
+        "schemaVersion": _required_value(manifest, "schemaVersion", owner="latest manifest"),
+        "payloadContract": _required_value(manifest, "payloadContract", owner="latest manifest"),
+        "run": dict(run),
+        "times": [
+            dict(_as_mapping(time, owner=f"latest manifest time {index}"))
+            for index, time in enumerate(times)
+        ],
+        "artifacts": {
+            str(artifact_id): _embedded_artifact(
+                artifact_id=str(artifact_id),
+                artifact=artifact,
+                time_ids=time_ids,
+            )
+            for artifact_id, artifact in artifacts.items()
+        },
     }
+
+
+def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, ...]) -> dict[str, Any]:
+    artifact_mapping = _as_mapping(artifact, owner=f"latest manifest artifact {artifact_id!r}")
+    artifact_entry = dict(artifact_mapping)
+    frames = _as_mapping(
+        artifact_entry.pop("frames", None),
+        owner=f"latest manifest artifact {artifact_id!r} frames",
+    )
+    artifact_entry["byteLength"] = _artifact_byte_length(
+        artifact_id=artifact_id,
+        frames=frames,
+        time_ids=time_ids,
+    )
+    return artifact_entry
+
+
+def _artifact_byte_length(
+    *,
+    artifact_id: str,
+    frames: Mapping[str, Any],
+    time_ids: tuple[str, ...],
+) -> int:
+    byte_length: int | None = None
+    for time_id in time_ids:
+        frame = _as_mapping(
+            frames.get(time_id),
+            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r}",
+        )
+        frame_byte_length = _positive_int(
+            frame.get("byteLength"),
+            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r} byteLength",
+        )
+        if byte_length is None:
+            byte_length = frame_byte_length
+            continue
+        if frame_byte_length != byte_length:
+            raise SystemExit(
+                "Latest manifest artifact frame byteLength mismatch: "
+                f"artifact={artifact_id!r} first={byte_length} {time_id}={frame_byte_length}"
+            )
+
+    if byte_length is None:
+        raise SystemExit(f"Latest manifest artifact {artifact_id!r} has no frames")
+    return byte_length
 
 
 def _layer_model_entry(
@@ -260,14 +320,43 @@ def _read_latest_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -
         return None
 
 
-def _latest_cycle(manifest: Mapping[str, Any] | None) -> str | None:
-    if manifest is None:
-        return None
-    run = manifest.get("run")
-    if not isinstance(run, dict):
-        return None
-    cycle = run.get("cycle")
-    return str(cycle) if cycle is not None else None
+def _required_value(mapping: Mapping[str, Any], key: str, *, owner: str) -> Any:
+    value = mapping.get(key)
+    if value is None:
+        raise SystemExit(f"{owner} must contain {key!r}")
+    return value
+
+
+def _required_mapping(mapping: Mapping[str, Any], key: str, *, owner: str) -> Mapping[str, Any]:
+    return _as_mapping(
+        _required_value(mapping, key, owner=owner),
+        owner=f"{owner} {key!r}",
+    )
+
+
+def _required_list(mapping: Mapping[str, Any], key: str, *, owner: str) -> list[Any]:
+    value = _required_value(mapping, key, owner=owner)
+    if not isinstance(value, list):
+        raise SystemExit(f"{owner} {key!r} must be a list")
+    return value
+
+
+def _as_mapping(value: Any, *, owner: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise SystemExit(f"{owner} must be an object")
+    return value
+
+
+def _time_id(time: Any, *, index: int) -> str:
+    time_mapping = _as_mapping(time, owner=f"latest manifest time {index}")
+    time_id = _required_value(time_mapping, "id", owner=f"latest manifest time {index}")
+    return str(time_id)
+
+
+def _positive_int(value: Any, *, owner: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise SystemExit(f"{owner} must be a positive integer")
+    return value
 
 
 def _utc_now_iso() -> str:

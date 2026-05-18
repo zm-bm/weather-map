@@ -199,36 +199,16 @@ describe('readArtifactPayload', () => {
     ).rejects.toThrow('vector payload bytes do not match grid dimensions')
   })
 
-  it('fails scalar and vector sha verification when enabled', async () => {
+  it('loads payloads from frame refs without sha metadata', async () => {
     stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
 
-    await expect(
-      readArtifactPayload({
-        config: createConfigFixture({ verifyPayloadSha256: true }),
-        manifest: BASE_MANIFEST,
-        resolved: resolvedArtifact({
-          frameRef: {
-            ...SCALAR_FRAME_REF,
-            sha256: 'deadbeef',
-          },
-        }),
-        signal: createSignalFixture(),
-      })
-    ).rejects.toThrow('scalar SHA-256 mismatch')
+    const payload = await readArtifactPayload({
+      config: createConfigFixture(),
+      manifest: BASE_MANIFEST,
+      resolved: resolvedArtifact({ frameRef: SCALAR_FRAME_REF }),
+      signal: createSignalFixture(),
+    })
 
-    await expect(
-      readArtifactPayload({
-        config: createConfigFixture({ verifyPayloadSha256: true }),
-        manifest: BASE_MANIFEST,
-        resolved: resolvedArtifact({
-          artifact: VECTOR_ARTIFACT,
-          frameRef: {
-            ...VECTOR_FRAME_REF,
-            sha256: 'cafebabe',
-          },
-        }),
-        signal: createSignalFixture(),
-      })
-    ).rejects.toThrow('vector SHA-256 mismatch')
+    expect(payload.byteLength).toBe(8)
   })
 })

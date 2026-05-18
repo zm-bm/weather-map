@@ -19,7 +19,7 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
     layers,
     selectedParticleLayerId,
     particleLayers,
-    selectedLayerHasRenderableArtifacts,
+    selectedLayerIsRenderable,
   } = useForecastSelectionContext()
   const {
     state: timelineState,
@@ -35,7 +35,7 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
       return null
     }
     const selectedLayer = getLayerSpec(selectedLayerId, layers)
-    if (!selectedLayerHasRenderableArtifacts) {
+    if (!selectedLayerIsRenderable) {
       return null
     }
     const selectedParticleLayer = selectedParticleLayerId == null
@@ -65,7 +65,7 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
     particleLayers,
     retryToken,
     selectedLayerId,
-    selectedLayerHasRenderableArtifacts,
+    selectedLayerIsRenderable,
     selectedParticleLayerId,
     sync,
     timelineState.targetTimeMs,
