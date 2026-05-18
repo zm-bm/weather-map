@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { asArtifactId } from '../manifest'
+import { asArtifactId } from '../forecast-manifest'
 import { asLayerGroupId, asLayerId, type LayerSpec } from './layer'
 import {
-  createFrameManifestFixture,
+  createActiveRunFixture,
+  createSingleTimeManifestFixture,
   createScalarArtifactFixture,
   createVectorArtifactFixture,
 } from '../test/fixtures'
@@ -27,9 +28,9 @@ describe('layer metadata palettes', () => {
       parameter: 'prmsl',
     })
 
-    const manifest = createFrameManifestFixture({ artifacts: { prmsl_msl: artifact } })
+    const manifest = createSingleTimeManifestFixture({ artifacts: { prmsl_msl: artifact } })
 
-    const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, manifest)
+    const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, createActiveRunFixture(manifest))
 
     expect(meta.label).toBe('Custom Pressure')
     expect(meta.paletteId).toBe('pressure.msl.pa.v1')
@@ -69,7 +70,7 @@ describe('layer metadata palettes', () => {
       parameter: 'wind_speed',
     }
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         wind10m_uv: createVectorArtifactFixture({
           units: 'm/s',
@@ -78,7 +79,7 @@ describe('layer metadata palettes', () => {
       },
     })
 
-    const meta = getLayerMeta('wind_speed', { wind_speed: layer }, manifest)
+    const meta = getLayerMeta('wind_speed', { wind_speed: layer }, createActiveRunFixture(manifest))
 
     expect(meta.label).toBe('Wind Speed')
     expect(meta.units).toBe('m/s')
@@ -98,13 +99,13 @@ describe('layer metadata palettes', () => {
       source: { kind: 'artifact', artifactId: asArtifactId('tmp_surface') },
     }
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture(),
       },
     })
 
-    expect(() => getLayerMeta('custom_layer', { custom_layer: layer }, manifest))
+    expect(() => getLayerMeta('custom_layer', { custom_layer: layer }, createActiveRunFixture(manifest)))
       .toThrow('Unknown layer paletteId: missing.palette.v1')
   })
 })

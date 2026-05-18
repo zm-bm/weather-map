@@ -2,7 +2,11 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { vi } from 'vitest'
 
-import type { CycleManifest } from '../../manifest'
+import {
+  activeForecastRunForModel,
+  type ForecastModelId,
+  type Manifest,
+} from '../../forecast-manifest'
 import {
   ForecastTimeProvider,
   type ForecastTimeContextValue,
@@ -17,10 +21,10 @@ type ForecastTimeContextOptions = Partial<{
 }>
 
 export function createForecastTimeContextValue(
-  manifest: CycleManifest | null,
+  manifest: Manifest | null,
   options: ForecastTimeContextOptions = {}
 ): ForecastTimeContextValue {
-  const times = options.times ?? manifest?.times ?? createForecastTimesFixture()
+  const times = options.times ?? activeForecastRunForModel(manifest, 'gfs')?.latest.times ?? createForecastTimesFixture()
   const defaultValidTimeMs = Date.parse(times[0]?.validAt ?? '2026-04-13T12:00:00Z')
 
   return {
@@ -50,10 +54,12 @@ export function createForecastTimeContextValue(
 
 export function renderWithForecastTime(
   ui: ReactNode,
-  manifest: CycleManifest | null
+  manifest: Manifest | null,
+  activeModelId: ForecastModelId | null = 'gfs'
 ) {
+  const activeRun = activeForecastRunForModel(manifest, activeModelId)
   return render(
-    <ForecastTimeProvider manifest={manifest}>
+    <ForecastTimeProvider activeRun={activeRun}>
       {ui}
     </ForecastTimeProvider>
   )

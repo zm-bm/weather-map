@@ -1,12 +1,15 @@
 import type {
-  CycleManifest,
+  ActiveForecastRun,
   FramePayloadRef,
-  ManifestArtifactSpec,
   ArtifactId,
   ScalarEncodingSpec,
   ScalarArtifactSpec,
   VectorArtifactSpec,
-} from '../manifest'
+} from '../forecast-manifest'
+import {
+  resolveActiveRunArtifact,
+  resolveActiveRunFrameRef,
+} from '../forecast-manifest'
 import { createAbortError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { readArtifactPayload } from './payload'
@@ -22,7 +25,7 @@ import {
 } from './types'
 
 type ResolveArtifactArgs<D extends ArtifactKind> = {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   hourToken: string
   artifactId: ArtifactId | string
   kind: D
@@ -31,7 +34,7 @@ type ResolveArtifactArgs<D extends ArtifactKind> = {
 
 type CreateArtifactLoaderArgs = {
   config: WeatherMapConfig
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   signal: AbortSignal
 }
 
@@ -54,41 +57,45 @@ type ResolvedArtifact<D extends ArtifactKind> = {
 
 export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLoader {
   return {
-    loadScalar: async (artifactId, hourToken) => {
-      const resolved = resolveArtifactForLoad({
-        manifest: args.manifest,
-        signal: args.signal,
-        artifactId,
-        hourToken,
-        kind: 'scalar',
-      })
-      assertSupportedScalarArtifact(resolved)
-      const payload = await readArtifactPayload({
-        config: args.config,
-        manifest: args.manifest,
-        resolved,
-        signal: args.signal,
-      })
-      return decodeScalarArtifact(resolved, payload)
-    },
-    loadVector: async (artifactId, hourToken) => {
-      const resolved = resolveArtifactForLoad({
-        manifest: args.manifest,
-        signal: args.signal,
-        artifactId,
-        hourToken,
-        kind: 'vector',
-      })
-      assertSupportedVectorArtifact(resolved)
-      const payload = await readArtifactPayload({
-        config: args.config,
-        manifest: args.manifest,
-        resolved,
-        signal: args.signal,
-      })
-      return decodeVectorArtifact(resolved, payload)
-    },
+    loadScalar: (artifactId, hourToken) => loadArtifact({
+      ...args,
+      artifactId,
+      hourToken,
+      kind: 'scalar',
+      assertSupported: assertSupportedScalarArtifact,
+      decode: decodeScalarArtifact,
+    }),
+    loadVector: (artifactId, hourToken) => loadArtifact({
+      ...args,
+      artifactId,
+      hourToken,
+      kind: 'vector',
+      assertSupported: assertSupportedVectorArtifact,
+      decode: decodeVectorArtifact,
+    }),
   }
+}
+
+async function loadArtifact<D extends ArtifactKind, T>(args: ResolveArtifactArgs<D> & {
+  config: WeatherMapConfig
+  assertSupported: (resolved: ResolvedArtifact<D>) => void
+  decode: (resolved: ResolvedArtifact<D>, payload: ArrayBuffer) => T
+}): Promise<T> {
+  const resolved = resolveArtifactForLoad({
+    activeRun: args.activeRun,
+    signal: args.signal,
+    artifactId: args.artifactId,
+    hourToken: args.hourToken,
+    kind: args.kind,
+  })
+  args.assertSupported(resolved)
+  const payload = await readArtifactPayload({
+    config: args.config,
+    activeRun: args.activeRun,
+    resolved,
+    signal: args.signal,
+  })
+  return args.decode(resolved, payload)
 }
 
 function resolveArtifactForLoad<D extends ArtifactKind>(
@@ -97,7 +104,7 @@ function resolveArtifactForLoad<D extends ArtifactKind>(
   if (args.signal.aborted) throw createAbortError()
 
   return resolveArtifact({
-    manifest: args.manifest,
+    activeRun: args.activeRun,
     hourToken: args.hourToken,
     artifactId: args.artifactId,
     kind: args.kind,
@@ -169,7 +176,7 @@ function decodeVectorArtifact(
 
 function resolveArtifact<D extends ArtifactKind>(
   args: {
-    manifest: CycleManifest
+    activeRun: ActiveForecastRun
     hourToken: string
     artifactId: ArtifactId | string
     kind: D
@@ -177,36 +184,14 @@ function resolveArtifact<D extends ArtifactKind>(
 ): ResolvedArtifact<D> {
   const hourToken = normalizeArtifactHourToken(args.hourToken)
   const artifactId = String(args.artifactId)
-  const artifact = resolveArtifactSpec(args.manifest, artifactId, args.kind)
-  const frameRef = resolveArtifactFrameRef(artifact, hourToken, artifactId, args.kind)
+  const artifact = resolveActiveRunArtifact(args.activeRun, artifactId, args.kind)
+  const frameRef = resolveActiveRunFrameRef({
+    activeRun: args.activeRun,
+    artifactId,
+    hourToken,
+    kind: args.kind,
+  })
   return { artifactId, hourToken, artifact, frameRef }
-}
-
-function resolveArtifactFrameRef(
-  artifact: ManifestArtifactSpec,
-  hourToken: string,
-  artifactId: string,
-  kind: ArtifactKind
-): FramePayloadRef {
-  return requiredValue(
-    artifact.frames[hourToken],
-    `No ${kind} frame ref for artifact=${artifactId} hour=${hourToken}`
-  )
-}
-
-function resolveArtifactSpec<D extends ArtifactKind>(
-  manifest: CycleManifest,
-  artifactId: string,
-  kind: D
-): ArtifactSpecByKind[D] {
-  const artifact = requiredValue(
-    manifest.artifacts[artifactId],
-    `No ${kind} artifact metadata for ${artifactId}`
-  )
-  if (artifact.kind !== kind) {
-    throw new Error(`Artifact ${artifactId} is not ${kind} (got ${artifact.kind})`)
-  }
-  return artifact as ArtifactSpecByKind[D]
 }
 
 function assertSupportedScalarArtifact(resolved: ResolvedArtifact<'scalar'>): void {
@@ -254,13 +239,6 @@ function assertSupportedVectorArtifact(resolved: ResolvedArtifact<'vector'>): vo
   ) {
     throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)
   }
-}
-
-function requiredValue<T>(value: T | undefined, message: string): T {
-  if (value == null) {
-    throw new Error(message)
-  }
-  return value
 }
 
 function decodeScalarPayload(

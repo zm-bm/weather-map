@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchAvailabilityIndex } from '../forecast-availability'
+import { fetchManifest, resolveActiveForecastRun } from '../forecast-manifest'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
@@ -9,9 +9,9 @@ import {
   loadForecastData,
 } from '../forecast-data'
 import {
-  createAvailabilityIndexFixture,
+  createMultiModelManifestFixture,
   createConfigFixture,
-  createFrameManifestFixture,
+  createSingleTimeManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
@@ -21,7 +21,6 @@ import {
   createFetchErrorResponse,
   createFetchJsonResponse,
 } from '../test/fetch'
-import { createCycleManifestFromAvailability } from './availabilityManifest'
 
 function toUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
@@ -33,12 +32,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('availability bootstrap + data loading end-to-end', () => {
-  it('fetches availability once, synthesizes a manifest, and loads scalar/vector frames from it', async () => {
+describe('forecast manifest + data loading end-to-end', () => {
+  it('fetches forecast manifest once and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
-    const availabilityPayload = createAvailabilityIndexFixture({
-      gfsManifest: createFrameManifestFixture({
+    const manifestPayload = createMultiModelManifestFixture({
+      gfsManifest: createSingleTimeManifestFixture({
         model: { id: 'gfs', label: 'GFS' },
         cycle: '2026041312',
       }),
@@ -48,8 +47,8 @@ describe('availability bootstrap + data loading end-to-end', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = toUrl(input)
 
-      if (url.endsWith('/manifests/availability-index.json')) {
-        return createFetchJsonResponse(availabilityPayload)
+      if (url.endsWith('/manifests/forecast-manifest.json')) {
+        return createFetchJsonResponse(manifestPayload)
       }
 
       if (url.endsWith('/fields/gfs/2026041312/000/tmp_surface.field.i16.bin')) {
@@ -66,15 +65,16 @@ describe('availability bootstrap + data loading end-to-end', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const signal = createSignalFixture()
-    const availabilityIndex = await fetchAvailabilityIndex({ signal })
-    const manifest = createCycleManifestFromAvailability({ availabilityIndex, modelId: 'gfs' })
-    const particleLayers = getAvailableParticleLayers(manifest)
+    const manifest = await fetchManifest({ signal })
+    const activeRun = resolveActiveForecastRun(manifest, 'gfs')
+    if (!activeRun) throw new Error('Expected active run fixture')
+    const particleLayers = getAvailableParticleLayers(activeRun)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
     })
 
     const target = createForecastDataTarget({
-      manifest,
+      activeRun,
       selectedLayerId: FORECAST_LAYERS_BY_ID.temperature!.id,
       selectedLayer: FORECAST_LAYERS_BY_ID.temperature!,
       selectedParticleLayerId: particleLayers.wind!.id,
@@ -92,11 +92,11 @@ describe('availability bootstrap + data loading end-to-end', () => {
     const renderData = await loadForecastData({
       plan: createForecastDataPlan({
         target,
-        artifacts: createArtifactLoader({ config, manifest, signal }),
+        artifacts: createArtifactLoader({ config, activeRun, signal }),
       }),
     })
 
-    expect(manifest.run.cycle).toBe('2026041312')
+    expect(activeRun.latest.run.cycle).toBe('2026041312')
     expect(Array.from(renderData.field.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(Array.from(renderData.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
     expect(Array.from(renderData.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])

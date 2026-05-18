@@ -1,9 +1,8 @@
 import {
   asArtifactId,
-  type CycleManifest,
   type ManifestArtifactSpec,
   type ArtifactId,
-} from '../manifest'
+} from '../forecast-manifest'
 import type { Brand, NonEmptyArray } from '../types'
 import { RAW_FORECAST_CATALOG } from './catalog'
 
@@ -233,55 +232,6 @@ function layerSourceFromRaw(raw: RawLayerSource): LayerSource {
       optional: overlay.optional,
     })),
   }
-}
-
-export function isLayerAvailableInManifest(manifest: CycleManifest, layer: LayerSpec): boolean {
-  return isLayerSourceAvailable(manifest, layer.source, `Layer ${layer.id}`)
-}
-
-function isLayerSourceAvailable(
-  manifest: CycleManifest,
-  source: LayerSource,
-  owner: string
-): boolean {
-  if (source.kind === 'composite') {
-    return isLayerSourceAvailable(manifest, source.base, owner) &&
-      source.overlays.every((overlay) => isCompositeOverlayAvailable(manifest, overlay, owner))
-  }
-
-  const expectedKind = layerSourceExpectedArtifactKind(source)
-  const artifact = manifest.artifacts[source.artifactId]
-  if (!artifact) return false
-  if (artifact.kind !== expectedKind) {
-    throw new Error(`${owner} requires ${expectedKind} artifact ${source.artifactId}, got ${artifact.kind}`)
-  }
-
-  if (source.kind === 'derived' && source.recipe === 'wind-speed') {
-    return hasOrderedComponents(artifact, ['u', 'v'])
-  }
-
-  return true
-}
-
-function isCompositeOverlayAvailable(
-  manifest: CycleManifest,
-  overlay: CompositeLayerOverlaySource,
-  owner: string
-): boolean {
-  const artifact = manifest.artifacts[overlay.source.artifactId]
-  if (!artifact) return overlay.optional
-  if (artifact.kind !== 'scalar') {
-    throw new Error(`${owner} overlay ${overlay.id} requires scalar artifact ${overlay.source.artifactId}, got ${artifact.kind}`)
-  }
-  return true
-}
-
-function hasOrderedComponents(
-  artifact: ManifestArtifactSpec,
-  components: readonly string[]
-): boolean {
-  return artifact.components.length === components.length &&
-    components.every((component, index) => artifact.components[index] === component)
 }
 
 function groupFromRaw(raw: RawLayerGroupSpec): LayerGroupSpec {

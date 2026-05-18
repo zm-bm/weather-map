@@ -1,12 +1,11 @@
 import { createContext, useContext } from 'react'
 
 import type {
+  ActiveForecastRun,
   ForecastModelId,
   ForecastModelOption,
   LayerModelAvailability,
-  ModelLayerAvailabilityIndex,
-} from '../forecast-availability'
-import type { CycleManifest } from '../manifest'
+} from '../forecast-manifest'
 import type {
   LayerGroupId,
   ParticleLayerId,
@@ -18,8 +17,7 @@ import type {
 import type { UnitSystem } from '../units'
 
 type ForecastSelectionBaseValue = {
-  availabilityIndex: ModelLayerAvailabilityIndex | null
-  activeModelId: ForecastModelId | null
+  activeRun: ActiveForecastRun | null
   modelOptions: readonly ForecastModelOption[]
   unitSystem: UnitSystem
   setActiveModel: (value: ForecastModelId) => void
@@ -31,7 +29,7 @@ type ForecastSelectionBaseValue = {
 }
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   groups: readonly LayerGroupSpec[]
   layers: Record<string, LayerSpec>
   particleLayers: Record<string, ParticleLayerSpec>
@@ -43,7 +41,7 @@ type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
 }
 
 type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
-  manifest: null
+  activeRun: null
   groups: []
   layers: null
   particleLayers: null
@@ -70,8 +68,8 @@ export function useForecastSelectionContext(): ForecastSelectionContextValue {
 
 export function useLoadedForecastSelectionContext(): ForecastSelectionContextLoadedValue {
   const value = useForecastSelectionContext()
-  if (value.manifest == null) {
-    throw new Error('useLoadedForecastSelectionContext requires a loaded manifest')
+  if (value.activeRun == null) {
+    throw new Error('useLoadedForecastSelectionContext requires a loaded forecast run')
   }
   return value
 }

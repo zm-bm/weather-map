@@ -2,11 +2,11 @@ import { AppStatusProvider } from './app-status'
 import ForecastShell from './components/ForecastShell/ForecastShell'
 import {
   AppStartupStatus,
-  useForecastBootstrap,
-} from './forecast-bootstrap'
+  useForecastManifest,
+} from './forecast-manifest'
 
 export default function ForecastApp() {
-  const forecast = useForecastBootstrap()
+  const forecast = useForecastManifest()
 
   return (
     <AppStatusProvider>

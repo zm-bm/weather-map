@@ -1,7 +1,8 @@
 import type {
-  CycleManifest,
+  ActiveForecastRun,
   LayerColortableStop,
-} from '../manifest'
+} from '../forecast-manifest'
+import { getActiveRunArtifact } from '../forecast-manifest'
 import {
   getLayerSpec,
   layerSourceArtifactId,
@@ -293,15 +294,12 @@ const LAYER_PALETTES: Record<string, LayerStyleEntry> = {
 
 export function getLayerMeta(
   layerId: LayerId | string,
-  layersById?: Record<string, LayerSpec> | null,
-  manifest?: CycleManifest | null,
+  layersById: Record<string, LayerSpec>,
+  activeRun: ActiveForecastRun,
 ): LayerMeta {
-  if (!layersById) {
-    throw new Error(`Missing layer catalog for ${layerId}`)
-  }
   const layer = getLayerSpec(layerId, layersById)
   const sourceArtifactId = layerSourceArtifactId(layer.source)
-  const sourceMeta = manifest?.artifacts[sourceArtifactId]
+  const sourceMeta = getActiveRunArtifact(activeRun, String(sourceArtifactId))
   const style = getLayerStyleByPaletteId(layer.paletteId)
 
   if (!sourceMeta) {

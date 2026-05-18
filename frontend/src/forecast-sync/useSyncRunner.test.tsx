@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CycleManifest } from '../manifest'
+import type { ActiveForecastRun } from '../forecast-manifest'
 import {
   FORECAST_LAYER_GROUPS,
   FORECAST_LAYERS_BY_ID,
@@ -16,7 +16,12 @@ import {
 import type { ForecastTimeSyncBridge } from '../forecast-time'
 import { resolveForecastInterpolationWindow } from '../forecast-time'
 import { createForecastDataTarget } from '../forecast-data'
-import { createConfigFixture, createManifestFixture, createMapFixture } from '../test/fixtures'
+import {
+  createActiveRunFixture,
+  createConfigFixture,
+  createManifestFixture,
+  createMapFixture,
+} from '../test/fixtures'
 import type { ForecastSyncTarget } from './types'
 import { useSyncRunner } from './useSyncRunner'
 import { useStartupState } from './useStartupState'
@@ -69,7 +74,7 @@ vi.mock('../forecast-probe', () => ({
 }))
 
 type SyncInput = {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   selectedLayerId: LayerId
   selectedLayer: LayerSpec
   selectedParticleLayerId: ParticleLayerId | null
@@ -111,34 +116,39 @@ function createSyncCallbacks(): ForecastTimeSyncBridge {
   }
 }
 
-function validTimeFor(manifest: CycleManifest, hourId: string): number {
-  const time = manifest.times.find((entry) => entry.id === hourId)
+function validTimeFor(activeRun: ActiveForecastRun, hourId: string): number {
+  const time = activeRun.latest.times.find((entry) => entry.id === hourId)
   if (!time) throw new Error(`Missing fixture time ${hourId}`)
   return Date.parse(time.validAt)
 }
 
 function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
-  const manifest = overrides.manifest ?? createManifestFixture()
+  const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
   const defaultLayerId = FORECAST_LAYER_GROUPS[0]?.defaultLayer
   const selectedLayer = defaultLayerId ? FORECAST_LAYERS_BY_ID[defaultLayerId] : undefined
   if (!selectedLayer) {
     throw new Error('Fixture manifest must include at least one catalog layer')
   }
-  const particleLayers = getAvailableParticleLayers(manifest)
+  const particleLayers = getAvailableParticleLayers(activeRun)
   const defaultParticleLayerId = getDefaultParticleLayer(particleLayers)
   const selectedParticleLayer = defaultParticleLayerId
     ? particleLayers[defaultParticleLayerId]
     : undefined
   return {
-    manifest,
+    activeRun,
     selectedLayerId: selectedLayer.id,
     selectedLayer,
     selectedParticleLayerId: selectedParticleLayer?.id ?? null,
     selectedParticleLayer: selectedParticleLayer ?? null,
-    targetTimeMs: validTimeFor(manifest, manifest.times[0]?.id ?? '000'),
+    targetTimeMs: validTimeFor(activeRun, activeRun.latest.times[0]?.id ?? '000'),
     sync: createSyncCallbacks(),
     ...overrides,
   }
+}
+
+function validTimeAt(input: SyncInput, index: number): number {
+  const hourId = input.activeRun.latest.times[index]?.id ?? '000'
+  return validTimeFor(input.activeRun, hourId)
 }
 
 function createBaseArgs(overrides: Partial<SyncHarnessArgs> = {}): SyncHarnessArgs {
@@ -168,13 +178,13 @@ function buildSyncTarget(
 ): ForecastSyncTarget | null {
   if (!syncInput) return null
   const interpolationWindow = resolveForecastInterpolationWindow(
-    syncInput.manifest.times,
+    syncInput.activeRun.latest.times,
     syncInput.targetTimeMs
   )
 
   return {
     ...createForecastDataTarget({
-      manifest: syncInput.manifest,
+      activeRun: syncInput.activeRun,
       selectedLayerId: syncInput.selectedLayerId,
       selectedLayer: syncInput.selectedLayer,
       selectedParticleLayerId: syncInput.selectedParticleLayerId,
@@ -360,10 +370,7 @@ describe('useSyncRunner + useStartupState', () => {
       ...args,
       syncInput: {
         ...(args.syncInput as SyncInput),
-        targetTimeMs: validTimeFor(
-          (args.syncInput as SyncInput).manifest,
-          (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
-        ),
+        targetTimeMs: validTimeAt(args.syncInput as SyncInput, 1),
       },
     })
 
@@ -491,10 +498,7 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('ready')
     })
 
-    const nextValidTimeMs = validTimeFor(
-      (args.syncInput as SyncInput).manifest,
-      (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
-    )
+    const nextValidTimeMs = validTimeAt(args.syncInput as SyncInput, 1)
 
     rerender({
       ...args,
@@ -516,11 +520,12 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
+    const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
-    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
+    const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
     const args = createBaseArgs({
       syncInput: createSyncInput({
-        manifest,
+        activeRun,
         selectedLayerId: selectedLayer.id,
         selectedLayer,
         selectedParticleLayerId: selectedParticleLayer.id,
@@ -548,10 +553,11 @@ describe('useSyncRunner + useStartupState', () => {
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
     })
+    const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const args = createBaseArgs({
       syncInput: createSyncInput({
-        manifest,
+        activeRun,
         selectedLayerId: selectedLayer.id,
         selectedLayer,
         selectedParticleLayerId: null,
@@ -642,10 +648,7 @@ describe('useSyncRunner + useStartupState', () => {
       ...args,
       syncInput: {
         ...syncInput,
-        targetTimeMs: validTimeFor(
-          syncInput.manifest,
-          syncInput.manifest.times[1]?.id ?? '000'
-        ),
+        targetTimeMs: validTimeAt(syncInput, 1),
       },
     })
 
@@ -711,10 +714,7 @@ describe('useSyncRunner + useStartupState', () => {
       return request.promise
     })
 
-    const nextValidTimeMs = validTimeFor(
-      (args.syncInput as SyncInput).manifest,
-      (args.syncInput as SyncInput).manifest.times[1]?.id ?? '000'
-    )
+    const nextValidTimeMs = validTimeAt(args.syncInput as SyncInput, 1)
 
     rerender({
       ...args,

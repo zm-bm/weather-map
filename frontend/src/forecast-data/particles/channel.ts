@@ -3,7 +3,7 @@ import {
   type ParticleLayerSpec,
 } from '../../forecast-catalog'
 import type { ArtifactLoader } from '../../forecast-artifacts'
-import type { CycleManifest } from '../../manifest'
+import type { ActiveForecastRun } from '../../forecast-manifest'
 import { createParticleChannelKey } from '../keys'
 import type {
   ForecastDataChannel,
@@ -12,7 +12,7 @@ import type {
 
 type CreateParticleChannelArgs = {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   particleLayer: ParticleLayerSpec
 }
 
@@ -21,7 +21,7 @@ export function createParticleChannel(
 ): ForecastDataChannel<ParticleTimeSliceData> {
   const artifactId = particleLayerSourceArtifactId(args.particleLayer)
   return {
-    key: createParticleChannelKey(args.manifest, args.particleLayer),
+    key: createParticleChannelKey(args.activeRun, args.particleLayer),
     load: (hourToken) => args.artifacts.loadVector(artifactId, hourToken),
   }
 }

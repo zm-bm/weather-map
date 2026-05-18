@@ -1,25 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createFetchErrorResponse, stubFetchJsonOnce } from '../test/fetch'
-import { fetchAvailabilityIndex } from './fetch'
+import { fetchManifest } from './fetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function createAvailabilityIndexPayload() {
+function createForecastManifestPayload() {
   return {
-    schema: 'weather-map-model-layer-availability-index',
-    schemaVersion: 2,
+    schema: 'weather-map.forecast-manifest',
+    schemaVersion: 1,
     generatedAt: '2026-05-16T00:00:00Z',
     catalogVersion: 'forecast-catalog-v1',
+    payloadContract: 'forecast-binary-v2',
     models: {
       gfs: {
         label: 'GFS',
         latest: {
-          schema: 'weather-map.cycle-manifest',
-          schemaVersion: 5,
-          payloadContract: 'forecast-binary-v2',
           run: {
             cycle: '2026040900',
             generatedAt: '2026-04-09T00:00:00Z',
@@ -85,17 +83,17 @@ function createAvailabilityIndexPayload() {
   }
 }
 
-describe('fetchAvailabilityIndex', () => {
-  it('fetches the global model/layer availability index', async () => {
-    const fetchMock = stubFetchJsonOnce(createAvailabilityIndexPayload())
+describe('fetchManifest', () => {
+  it('fetches the forecast manifest', async () => {
+    const fetchMock = stubFetchJsonOnce(createForecastManifestPayload())
 
-    const availabilityIndex = await fetchAvailabilityIndex()
+    const manifest = await fetchManifest()
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/manifests/availability-index.json',
+      'http://localhost:3000/manifests/forecast-manifest.json',
       expect.any(Object)
     )
-    const artifact = availabilityIndex.models.gfs?.latest?.artifacts.tmp_surface
+    const artifact = manifest.models.gfs?.latest?.artifacts.tmp_surface
     expect(artifact?.byteLength).toBe(8)
     expect(artifact).not.toHaveProperty('frames')
     expect(artifact).not.toHaveProperty('path')
@@ -106,17 +104,18 @@ describe('fetchAvailabilityIndex', () => {
     const fetchMock = vi.fn().mockResolvedValue(createFetchErrorResponse(404, 'Not Found'))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(fetchAvailabilityIndex()).rejects.toThrow(
-      'Failed to fetch availability index: 404 Not Found'
+    await expect(fetchManifest()).rejects.toThrow(
+      'Failed to fetch forecast manifest: 404 Not Found'
     )
   })
 
-  it('rejects legacy v1 availability payloads', async () => {
+  it('rejects legacy availability payloads', async () => {
     stubFetchJsonOnce({
-      ...createAvailabilityIndexPayload(),
-      schemaVersion: 1,
+      ...createForecastManifestPayload(),
+      schema: 'weather-map-model-layer-availability-index',
+      schemaVersion: 2,
     })
 
-    await expect(fetchAvailabilityIndex()).rejects.toThrow()
+    await expect(fetchManifest()).rejects.toThrow()
   })
 })

@@ -1,6 +1,6 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import type { LayerColortableStop } from '../../../manifest'
+import type { LayerColortableStop } from '../../../forecast-manifest'
 import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,

@@ -33,7 +33,7 @@ describe('AppStatusProvider', () => {
         mode: 'blocking',
         level: 'loading',
         title: 'Loading Forecast',
-        detail: 'Fetching manifest...',
+        detail: 'Fetching forecast manifest...',
       })
     })
 
@@ -46,7 +46,7 @@ describe('AppStatusProvider', () => {
         mode: 'blocking',
         level: 'error',
         title: 'Forecast Load Failed',
-        detail: 'manifest fetch failed',
+        detail: 'forecast manifest fetch failed',
       })
     })
 
@@ -95,7 +95,7 @@ describe('AppStatusProvider', () => {
         mode: 'blocking',
         level: 'loading',
         title: 'Loading Forecast',
-        detail: 'Fetching manifest...',
+        detail: 'Fetching forecast manifest...',
       })
     })
 
@@ -107,7 +107,7 @@ describe('AppStatusProvider', () => {
         mode: 'blocking',
         level: 'loading',
         title: 'Loading Forecast',
-        detail: 'Fetching manifest...',
+        detail: 'Fetching forecast manifest...',
       })
     })
 
@@ -149,7 +149,7 @@ describe('AppStatusProvider', () => {
         mode: 'blocking',
         level: 'loading',
         title: 'Loading Forecast',
-        detail: 'Fetching manifest...',
+        detail: 'Fetching forecast manifest...',
       })
     })
 

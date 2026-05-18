@@ -10,8 +10,8 @@ from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, PipelineConfig
 from ..runtime import ExecutionContext
-from .availability import publish_availability_index
 from .build import build_cycle_manifest, build_manifest_artifacts
+from .forecast_manifest import publish_forecast_manifest
 from .inspect import manifest_info_from_obj
 
 
@@ -102,12 +102,12 @@ def run_publish(
         manifest_obj=manifest_to_publish,
     )
     if pipeline_config is not None:
-        availability_index_uri = publish_availability_index(
+        forecast_manifest_uri = publish_forecast_manifest(
             pipeline_config=pipeline_config,
             artifact_repo=artifact_repo,
             generated_at=generated_at,
         )
-        print(f"Published availability index: {availability_index_uri}")
+        print(f"Published forecast manifest: {forecast_manifest_uri}")
 
     if not already_published:
         artifact_repo.write_published_marker(

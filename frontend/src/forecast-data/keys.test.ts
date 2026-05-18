@@ -4,7 +4,7 @@ import {
   FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
 } from '../forecast-catalog'
-import { createFrameManifestFixture } from '../test/fixtures'
+import { createSingleTimeManifestFixture, createActiveRunFixture } from '../test/fixtures'
 import {
   createFieldTimeSliceCacheKey,
   createFieldChannelKey,
@@ -14,14 +14,15 @@ import {
 
 describe('forecast data keys', () => {
   it('builds scoped request and channel keys from catalog sources', () => {
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026040900',
     })
+    const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.wind_speed!
-    const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
+    const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
 
     expect(createForecastDataRequestKey({
-      manifest,
+      activeRun,
       selectedLayer,
       selectedParticleLayer,
       interpolationWindow: {
@@ -33,23 +34,24 @@ describe('forecast data keys', () => {
         mix: 0.5,
       },
       retryToken: 2,
-    })).toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv:particles:wind:wind10m_uv:003:006:30:2')
-    expect(createFieldChannelKey(manifest, selectedLayer))
-      .toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
-    expect(createParticleChannelKey(manifest, selectedParticleLayer))
-      .toBe('2026040900:rev:wind:wind10m_uv')
+    })).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv:particles:wind:wind10m_uv:003:006:30:2')
+    expect(createFieldChannelKey(activeRun, selectedLayer))
+      .toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
+    expect(createParticleChannelKey(activeRun, selectedParticleLayer))
+      .toBe('gfs:2026040900:rev:wind:wind10m_uv')
   })
 
   it('builds decoded field cache keys by layer source and normalized hour', () => {
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026040900',
     })
+    const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
 
     expect(createFieldTimeSliceCacheKey({
-      manifest,
+      activeRun,
       layer: selectedLayer,
       hourToken: '3',
-    })).toBe('2026040900:rev:temperature:artifact:tmp_surface:003')
+    })).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface:003')
   })
 })

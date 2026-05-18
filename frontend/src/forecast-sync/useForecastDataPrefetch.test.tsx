@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createConfigFixture, createFrameManifestFixture } from '../test/fixtures'
+import { createConfigFixture, createSingleTimeManifestFixture, createActiveRunFixture } from '../test/fixtures'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
 import type { ForecastSyncTarget } from './types'
@@ -20,15 +20,15 @@ vi.mock('../forecast-data', async (importOriginal) => {
 })
 
 function createTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSyncTarget {
-  const manifest = overrides.manifest ?? createFrameManifestFixture({
+  const activeRun = overrides.activeRun ?? createActiveRunFixture(createSingleTimeManifestFixture({
     forecastHours: ['000', '003', '006', '009'],
-  })
+  }))
   const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
-  const selectedParticleLayer = getAvailableParticleLayers(manifest).wind!
+  const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
 
   return {
     ...createForecastDataTarget({
-      manifest,
+      activeRun,
       selectedLayerId: selectedLayer.id,
       selectedLayer,
       selectedParticleLayerId: selectedParticleLayer.id,

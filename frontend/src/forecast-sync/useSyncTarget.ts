@@ -14,7 +14,7 @@ import type { ForecastSyncTarget } from './types'
 
 export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
   const {
-    manifest,
+    activeRun,
     selectedLayerId,
     layers,
     selectedParticleLayerId,
@@ -28,7 +28,7 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
 
   return useMemo(() => {
     if (
-      manifest == null ||
+      activeRun == null ||
       selectedLayerId == null ||
       layers == null
     ) {
@@ -43,13 +43,13 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
       : getParticleLayerSpec(selectedParticleLayerId, particleLayers ?? {})
 
     const interpolationWindow = resolveForecastInterpolationWindow(
-      manifest.times,
+      activeRun.latest.times,
       timelineState.targetTimeMs
     )
 
     return {
       ...createForecastDataTarget({
-        manifest,
+        activeRun,
         selectedLayerId,
         selectedLayer,
         selectedParticleLayerId,
@@ -60,8 +60,8 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
       sync,
     }
   }, [
+    activeRun,
     layers,
-    manifest,
     particleLayers,
     retryToken,
     selectedLayerId,

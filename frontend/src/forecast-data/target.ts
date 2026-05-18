@@ -8,12 +8,12 @@ import {
   type ForecastTimeSliceSelection,
   type ForecastInterpolationWindow,
 } from '../forecast-time'
-import type { CycleManifest } from '../manifest'
+import type { ActiveForecastRun } from '../forecast-manifest'
 import { createForecastDataRequestKey } from './keys'
 import { normalizeHourToken } from './window'
 
 export type ForecastDataTarget = ForecastTimeSliceSelection & {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   selectedLayerId: LayerId
   selectedLayer: LayerSpec
   selectedParticleLayerId: ParticleLayerId | null
@@ -22,7 +22,7 @@ export type ForecastDataTarget = ForecastTimeSliceSelection & {
 }
 
 type CreateForecastDataTargetArgs = {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   selectedLayerId: LayerId
   selectedLayer: LayerSpec
   selectedParticleLayerId: ParticleLayerId | null
@@ -32,12 +32,12 @@ type CreateForecastDataTargetArgs = {
 }
 
 export function createForecastDataTarget(args: CreateForecastDataTargetArgs): ForecastDataTarget {
-  const { manifest, interpolationWindow } = args
+  const { activeRun, interpolationWindow } = args
   const lowerHourToken = normalizeHourToken(interpolationWindow.lowerHourToken)
   const upperHourToken = normalizeHourToken(interpolationWindow.upperHourToken)
 
   return {
-    manifest,
+    activeRun,
     selectedLayerId: args.selectedLayerId,
     selectedLayer: args.selectedLayer,
     selectedParticleLayerId: args.selectedParticleLayerId,
@@ -47,7 +47,7 @@ export function createForecastDataTarget(args: CreateForecastDataTargetArgs): Fo
     upperHourToken,
     mix: interpolationWindow.mix,
     requestKey: createForecastDataRequestKey({
-      manifest,
+      activeRun,
       selectedLayer: args.selectedLayer,
       selectedParticleLayer: args.selectedParticleLayer,
       interpolationWindow,

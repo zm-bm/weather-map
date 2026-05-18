@@ -7,9 +7,9 @@ import {
   type LayerSpec,
 } from '../../forecast-catalog'
 import {
+  createActiveRunFixture,
   createConfigFixture,
-  createFrameManifestFixture,
-  createFrameRefFixture,
+  createSingleTimeManifestFixture,
   createGridFixture,
   createScalarEncodingFixture,
   createScalarArtifactFixture,
@@ -35,7 +35,7 @@ beforeEach(() => {
   clearFieldTimeSliceCache()
 })
 
-function layer(_manifest: ReturnType<typeof createFrameManifestFixture>, layerId = 'temperature') {
+function layer(_manifest: ReturnType<typeof createSingleTimeManifestFixture>, layerId = 'temperature') {
   const catalogLayer = FORECAST_LAYERS_BY_ID[layerId] ??
     FORECAST_LAYERS.find((entry) => entry.id === layerId)
   if (!catalogLayer) throw new Error(`Missing fixture layer ${layerId}`)
@@ -43,16 +43,17 @@ function layer(_manifest: ReturnType<typeof createFrameManifestFixture>, layerId
 }
 
 function fieldChannel(args: {
-  manifest: ReturnType<typeof createFrameManifestFixture>
+  manifest: ReturnType<typeof createSingleTimeManifestFixture>
   layerId?: string
   layer?: LayerSpec
 }) {
+  const activeRun = createActiveRunFixture(args.manifest)
   return createFieldChannel({
-    manifest: args.manifest,
+    activeRun,
     layer: args.layer ?? layer(args.manifest, args.layerId),
     artifacts: createArtifactLoader({
       config: createConfigFixture(),
-      manifest: args.manifest,
+      activeRun,
       signal: createSignalFixture(),
     }),
   })
@@ -63,7 +64,7 @@ describe('createFieldChannel', () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041100',
       generatedAt: '2026-04-11T00:00:00Z',
       artifacts: {
@@ -81,12 +82,7 @@ describe('createFieldChannel', () => {
             xWrap: 'repeat',
             yMode: 'clamp',
           }),
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
-              byteLength: 8,
-            }),
-          },
+          byteLength: 8,
         }),
       },
     })
@@ -104,7 +100,7 @@ describe('createFieldChannel', () => {
   it('reuses decoded field frames from the in-memory frame cache', async () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture()
+    const manifest = createSingleTimeManifestFixture()
     const channel = fieldChannel({ manifest })
 
     const firstFrame = await channel.load('000')
@@ -117,7 +113,7 @@ describe('createFieldChannel', () => {
   it('derives wind speed fields from vector u/v components', async () => {
     const payload = createVectorPayloadFixture([6, 0, -6, 0], [8, 0, -8, 0])
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       scalarArtifactIds: [],
       vectorArtifactIds: ['wind10m_uv'],
     })
@@ -137,7 +133,7 @@ describe('createFieldChannel', () => {
   it('loads composite precipitation fields without optional overlays', async () => {
     const payload = createScalarPayloadFixture([100, 200, 300, 400])
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041200',
       scalarArtifactIds: ['prate_surface'],
       vectorArtifactIds: [],
@@ -163,7 +159,7 @@ describe('createFieldChannel', () => {
       .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([1, 4, 0, 5])))
     vi.stubGlobal('fetch', fetchMock)
     const categoricalEncoding = createScalarEncodingFixture({ scale: 1 })
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041206',
       artifacts: {
         prate_surface: createScalarArtifactFixture({
@@ -194,7 +190,7 @@ describe('createFieldChannel', () => {
       .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
       .mockResolvedValueOnce(createFetchErrorResponse(404, 'Not Found'))
     vi.stubGlobal('fetch', fetchMock)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041212',
       scalarArtifactIds: ['prate_surface', 'precip_type_surface'],
       vectorArtifactIds: [],

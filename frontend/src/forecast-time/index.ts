@@ -18,6 +18,7 @@ export {
   FORECAST_TIME_STEP_MINUTES,
   FORECAST_TIME_STEP_MS,
   forecastTimeBounds,
+  forecastTimeProviderKey,
   forecastValidTimeMsList,
   interpolationWindowMinuteOffset,
   initialForecastValidTimeMs,

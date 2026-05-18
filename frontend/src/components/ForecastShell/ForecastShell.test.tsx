@@ -2,12 +2,12 @@ import { render, screen, within } from '@testing-library/react'
 import type { Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ForecastBootstrapData } from '../../forecast-bootstrap'
-import type { ForecastModelId, ForecastModelOption } from '../../forecast-availability'
-import {
-  createAvailabilityIndexFixture,
-  createManifestFixture,
-} from '../../test/fixtures'
+import type {
+  Manifest,
+  ForecastModelId,
+  ForecastModelOption,
+} from '../../forecast-manifest'
+import { createManifestFixture, createActiveRunFixture } from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
 
 const MODEL_OPTIONS: readonly ForecastModelOption[] = [
@@ -39,7 +39,7 @@ vi.mock('../ForecastMap/ForecastMap', () => ({
 }))
 
 function createForecastShellProps(overrides: {
-  manifest?: ForecastBootstrapData['manifest'] | null
+  manifest?: Manifest | null
   activeModelId?: ForecastModelId
   onActiveModelChange?: (modelId: ForecastModelId) => void
 } = {}): Parameters<typeof ForecastShell>[0] {
@@ -48,9 +48,7 @@ function createForecastShellProps(overrides: {
     forecast: manifest == null
       ? null
       : {
-          manifest,
-          availabilityIndex: createAvailabilityIndexFixture({ gfsManifest: manifest }),
-          activeModelId: overrides.activeModelId ?? 'gfs',
+          activeRun: createActiveRunFixture(manifest, overrides.activeModelId ?? 'gfs'),
           modelOptions: MODEL_OPTIONS,
           setActiveModel: overrides.onActiveModelChange ?? vi.fn(),
         },
@@ -78,7 +76,7 @@ describe('ForecastShell', () => {
       forecastHours: ['000', '003'],
     })
 
-    const { container } = render(<ForecastShell {...createForecastShellProps({ manifest, activeModelId: 'icon' })} />)
+    const { container } = render(<ForecastShell {...createForecastShellProps({ manifest, activeModelId: 'gfs' })} />)
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()

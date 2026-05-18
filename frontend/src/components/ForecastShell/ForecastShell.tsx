@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef } from 'react'
 
-import type { ForecastBootstrapData } from '../../forecast-bootstrap'
+import type { ForecastManifestData } from '../../forecast-manifest'
 import { ForecastSelectionProvider } from '../../forecast-selection'
-import { ForecastTimeProvider } from '../../forecast-time'
+import { ForecastTimeProvider, forecastTimeProviderKey } from '../../forecast-time'
 import TimelineBar from '../TimelineBar'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
@@ -10,7 +10,7 @@ import MapSyncIndicator from '../MapSyncIndicator'
 import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
-  forecast: ForecastBootstrapData | null
+  forecast: ForecastManifestData | null
 }
 
 const MAP_CONTROL_PANEL_GAP_PX = 8
@@ -18,15 +18,14 @@ const MAP_CONTROL_PANEL_GAP_PX = 8
 export default function ForecastShell({ forecast }: ForecastShellProps) {
   const forecastStageRef = useRef<HTMLDivElement | null>(null)
   const forecastPanelRef = useRef<HTMLElement | null>(null)
-  const manifest = forecast?.manifest ?? null
-  const activeModelId = forecast?.activeModelId ?? null
+  const activeRun = forecast?.activeRun ?? null
 
   useLayoutEffect(() => {
     const stage = forecastStageRef.current
     const panel = forecastPanelRef.current
 
     if (stage == null) return
-    if (manifest == null || panel == null) {
+    if (activeRun == null || panel == null) {
       stage.style.removeProperty('--wm-map-control-rail-top')
       return
     }
@@ -55,28 +54,20 @@ export default function ForecastShell({ forecast }: ForecastShellProps) {
       window.removeEventListener('resize', updateMapControlOffset)
       stage.style.removeProperty('--wm-map-control-rail-top')
     }
-  }, [manifest])
-
-  // Remount forecast time state whenever the manifest timeline changes so initial index
-  // is computed from the new manifest synchronously during mount.
-  const forecastTimeProviderKey = manifest == null
-    ? 'forecast-time:none'
-    : `forecast-time:${manifest.run.cycle}:${manifest.times.map((time) => `${time.id}:${time.validAt}`).join(',')}`
+  }, [activeRun])
 
   return (
     <main className="forecast-screen">
       <ForecastSelectionProvider
-        manifest={manifest}
-        availabilityIndex={forecast?.availabilityIndex ?? null}
-        activeModelId={activeModelId}
+        activeRun={activeRun}
         modelOptions={forecast?.modelOptions ?? []}
         onActiveModelChange={forecast?.setActiveModel}
       >
-        <ForecastTimeProvider key={forecastTimeProviderKey} manifest={manifest}>
+        <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
           <div ref={forecastStageRef} className="forecast-stage">
             <ForecastMap />
 
-            {manifest && activeModelId != null && (
+            {activeRun && (
               <>
                 <MapSyncIndicator />
                 <ForecastPanel ref={forecastPanelRef} />
@@ -87,7 +78,7 @@ export default function ForecastShell({ forecast }: ForecastShellProps) {
             )}
           </div>
 
-          {manifest && (
+          {activeRun && (
             <TimelineBar />
           )}
         </ForecastTimeProvider>

@@ -6,7 +6,10 @@ import {
   type ReactNode,
 } from 'react'
 
-import type { CycleManifest } from '../manifest'
+import {
+  type ActiveForecastRun,
+  type ForecastTimeSpec,
+} from '../forecast-manifest'
 import {
   clampForecastValidTimeMs,
   initialForecastValidTimeMs,
@@ -20,16 +23,16 @@ import {
 } from './state'
 import { ForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 
-const EMPTY_TIMES: CycleManifest['times'] = []
+const EMPTY_TIMES: ForecastTimeSpec[] = []
 
 export default function ForecastTimeProvider({
-  manifest,
+  activeRun,
   children,
 }: {
-  manifest: CycleManifest | null
+  activeRun: ActiveForecastRun | null
   children: ReactNode
 }) {
-  const times = manifest?.times ?? EMPTY_TIMES
+  const times = activeRun?.latest.times ?? EMPTY_TIMES
   const forecastHourCount = times.length
   const initialTimeMs = initialForecastValidTimeMs(times)
 

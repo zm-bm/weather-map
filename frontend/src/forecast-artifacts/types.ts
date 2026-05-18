@@ -1,7 +1,7 @@
 import type {
   ScalarEncodingSpec,
   ScalarGridSpec,
-} from '../manifest'
+} from '../forecast-manifest'
 
 export type ArtifactKind = 'scalar' | 'vector'
 

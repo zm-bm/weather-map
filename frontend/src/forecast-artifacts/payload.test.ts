@@ -1,7 +1,14 @@
 import { waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createConfigFixture, createFrameManifestFixture, createSignalFixture } from '../test/fixtures'
+import type { FramePayloadRef } from '../forecast-manifest'
+import { resolveActiveRunFrameRef } from '../forecast-manifest'
+import {
+  createActiveRunFixture,
+  createConfigFixture,
+  createSingleTimeManifestFixture,
+  createSignalFixture,
+} from '../test/fixtures'
 import {
   createFetchErrorResponse,
   stubFetchArrayBufferOnce,
@@ -9,15 +16,27 @@ import {
 import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrameCache'
 import { readArtifactPayload } from './payload'
 
-const BASE_MANIFEST = createFrameManifestFixture({ forecastHours: ['000'] })
-const SCALAR_ARTIFACT = BASE_MANIFEST.artifacts.tmp_surface
-const VECTOR_ARTIFACT = BASE_MANIFEST.artifacts.wind10m_uv
-const SCALAR_FRAME_REF = BASE_MANIFEST.artifacts.tmp_surface.frames['000']!
-const VECTOR_FRAME_REF = BASE_MANIFEST.artifacts.wind10m_uv.frames['000']!
+const BASE_MANIFEST = createSingleTimeManifestFixture({ forecastHours: ['000'] })
+const BASE_ACTIVE_RUN = createActiveRunFixture(BASE_MANIFEST)
+const BASE_LATEST_RUN = BASE_ACTIVE_RUN.latest
+const SCALAR_ARTIFACT = BASE_LATEST_RUN.artifacts.tmp_surface
+const VECTOR_ARTIFACT = BASE_LATEST_RUN.artifacts.wind10m_uv
+const SCALAR_FRAME_REF = resolveActiveRunFrameRef({
+  activeRun: BASE_ACTIVE_RUN,
+  artifactId: 'tmp_surface',
+  hourToken: '000',
+  kind: 'scalar',
+})
+const VECTOR_FRAME_REF = resolveActiveRunFrameRef({
+  activeRun: BASE_ACTIVE_RUN,
+  artifactId: 'wind10m_uv',
+  hourToken: '000',
+  kind: 'vector',
+})
 
 function resolvedArtifact(args: {
   artifact?: typeof SCALAR_ARTIFACT | typeof VECTOR_ARTIFACT
-  frameRef?: typeof SCALAR_FRAME_REF
+  frameRef?: FramePayloadRef
   hourToken?: string
 } = {}) {
   const artifact = args.artifact ?? SCALAR_ARTIFACT
@@ -26,7 +45,12 @@ function resolvedArtifact(args: {
     artifactId: String(artifact.id),
     hourToken,
     artifact,
-    frameRef: args.frameRef ?? artifact.frames[hourToken]!,
+    frameRef: args.frameRef ?? resolveActiveRunFrameRef({
+      activeRun: BASE_ACTIVE_RUN,
+      artifactId: String(artifact.id),
+      hourToken,
+      kind: artifact.kind,
+    }),
   }
 }
 
@@ -51,7 +75,7 @@ describe('readArtifactPayload', () => {
 
     const payload = await readArtifactPayload({
       config: createConfigFixture(),
-      manifest: BASE_MANIFEST,
+      activeRun: BASE_ACTIVE_RUN,
       resolved: resolvedArtifact(),
       signal: createSignalFixture(),
     })
@@ -68,7 +92,7 @@ describe('readArtifactPayload', () => {
 
     const args = {
       config: createConfigFixture(),
-      manifest: BASE_MANIFEST,
+      activeRun: BASE_ACTIVE_RUN,
       resolved: resolvedArtifact(),
       signal: createSignalFixture(),
     }
@@ -90,7 +114,7 @@ describe('readArtifactPayload', () => {
 
     const args = {
       config: createConfigFixture(),
-      manifest: BASE_MANIFEST,
+      activeRun: BASE_ACTIVE_RUN,
       resolved: resolvedArtifact(),
       signal: createSignalFixture(),
     }
@@ -120,7 +144,7 @@ describe('readArtifactPayload', () => {
     const secondController = new AbortController()
     const baseArgs = {
       config: createConfigFixture(),
-      manifest: BASE_MANIFEST,
+      activeRun: BASE_ACTIVE_RUN,
       resolved: resolvedArtifact(),
     }
 
@@ -151,20 +175,20 @@ describe('readArtifactPayload', () => {
     await expect(
       readArtifactPayload({
         config: createConfigFixture(),
-        manifest: BASE_MANIFEST,
+        activeRun: BASE_ACTIVE_RUN,
         resolved: resolvedArtifact(),
         signal: createSignalFixture(),
       })
     ).rejects.toThrow('Failed to fetch scalar payload: 404 Not Found')
   })
 
-  it('fails when payload byte length does not match the frame manifest', async () => {
+  it('fails when payload byte length does not match the forecast manifest', async () => {
     stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
 
     await expect(
       readArtifactPayload({
         config: createConfigFixture(),
-        manifest: BASE_MANIFEST,
+        activeRun: BASE_ACTIVE_RUN,
         resolved: resolvedArtifact({
           frameRef: {
             ...SCALAR_FRAME_REF,
@@ -182,7 +206,7 @@ describe('readArtifactPayload', () => {
     await expect(
       readArtifactPayload({
         config: createConfigFixture(),
-        manifest: BASE_MANIFEST,
+        activeRun: BASE_ACTIVE_RUN,
         resolved: resolvedArtifact({
           artifact: {
             ...VECTOR_ARTIFACT,
@@ -204,7 +228,7 @@ describe('readArtifactPayload', () => {
 
     const payload = await readArtifactPayload({
       config: createConfigFixture(),
-      manifest: BASE_MANIFEST,
+      activeRun: BASE_ACTIVE_RUN,
       resolved: resolvedArtifact({ frameRef: SCALAR_FRAME_REF }),
       signal: createSignalFixture(),
     })

@@ -1,4 +1,8 @@
-import type { CycleManifest, FramePayloadRef } from '../manifest'
+import {
+  forecastRunScopeKey,
+  type ActiveForecastRun,
+  type FramePayloadRef,
+} from '../forecast-manifest'
 import {
   createPayloadCache,
   type PayloadCacheLimits,
@@ -16,20 +20,20 @@ const payloadFrameCache = createPayloadCache({
 })
 
 export function payloadFrameCacheKey(
-  manifest: Pick<CycleManifest, 'run'>,
+  activeRun: ActiveForecastRun,
   frameRef: Pick<FramePayloadRef, 'path' | 'byteLength'>
 ): string {
   return [
-    manifest.run.revision,
+    forecastRunScopeKey(activeRun),
     frameRef.path,
     String(frameRef.byteLength),
   ].join(':')
 }
 
 export async function ensurePayloadFrameCacheScope(
-  manifest: Pick<CycleManifest, 'run'>
+  activeRun: ActiveForecastRun
 ): Promise<void> {
-  await payloadFrameCache.activateScope(payloadFrameScopeKey(manifest))
+  await payloadFrameCache.activateScope(forecastRunScopeKey(activeRun))
 }
 
 export async function readCachedPayloadFrame(
@@ -39,12 +43,12 @@ export async function readCachedPayloadFrame(
 }
 
 export async function writeCachedPayloadFrame(args: {
-  manifest: Pick<CycleManifest, 'run'>
+  activeRun: ActiveForecastRun
   key: string
   payload: ArrayBuffer
 }): Promise<void> {
   await payloadFrameCache.write({
-    scopeKey: payloadFrameScopeKey(args.manifest),
+    scopeKey: forecastRunScopeKey(args.activeRun),
     key: args.key,
     payload: args.payload,
   })
@@ -63,10 +67,4 @@ export function __setPayloadFrameCacheLimitsForTests(limits: {
   persistedBytes?: number
 }) {
   payloadFrameCache.setLimitsForTests(limits)
-}
-
-function payloadFrameScopeKey(
-  manifest: Pick<CycleManifest, 'run'>
-): string {
-  return `${manifest.run.cycle}:${manifest.run.revision}`
 }

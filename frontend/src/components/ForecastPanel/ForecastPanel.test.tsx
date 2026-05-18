@@ -1,11 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ForecastModelOption } from '../../forecast-availability'
+import type { ForecastModelOption } from '../../forecast-manifest'
 import {
-  createCatalogAvailabilityIndexFixture,
+  createCatalogManifestFixture,
+  createMultiModelManifestFixture,
   createManifestFixture,
   createScalarArtifactFixture,
+  createActiveRunFixture,
 } from '../../test/fixtures'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import ForecastPanel from './ForecastPanel'
@@ -35,10 +37,10 @@ function createPanelManifest(
 }
 
 function renderForecastPanel(scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
+  const manifest = createPanelManifest(scalarArtifactIds)
   return render(
     <ForecastSelectionProvider
-      manifest={createPanelManifest(scalarArtifactIds)}
-      activeModelId="gfs"
+      activeRun={createActiveRunFixture(manifest, 'gfs')}
       modelOptions={MODEL_OPTIONS}
     >
       <ForecastPanel />
@@ -52,12 +54,16 @@ function createInteractivePanelManifest(
 ) {
   return createManifestFixture({
     cycle,
-    scalarArtifactIds: Array.from(new Set([selectedArtifactId, 'tmp_surface', 'aptmp_surface', 'prmsl_msl'])),
+    scalarArtifactIds: Array.from(new Set([selectedArtifactId, 'tmp_surface', 'aptmp_surface', 'gust_surface', 'prmsl_msl'])),
     vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
     artifacts: {
       tmp_surface: createScalarArtifactFixture(),
       aptmp_surface: createScalarArtifactFixture({
         parameter: 'aptmp',
+      }),
+      gust_surface: createScalarArtifactFixture({
+        id: 'gust_surface',
+        parameter: 'gust',
       }),
       prmsl_msl: createScalarArtifactFixture({
         id: 'prmsl_msl',
@@ -72,10 +78,10 @@ function renderInteractiveForecastPanel(
   selectedArtifactId: 'tmp_surface' | 'aptmp_surface' | 'prmsl_msl' = 'tmp_surface',
   cycle?: string
 ) {
+  const manifest = createInteractivePanelManifest(selectedArtifactId, cycle)
   return render(
     <ForecastSelectionProvider
-      manifest={createInteractivePanelManifest(selectedArtifactId, cycle)}
-      activeModelId="gfs"
+      activeRun={createActiveRunFixture(manifest, 'gfs')}
       modelOptions={MODEL_OPTIONS}
     >
       <ForecastPanel />
@@ -102,13 +108,20 @@ describe('ForecastPanel', () => {
 
   it('updates the active forecast model from the model selector', () => {
     const onActiveModelChange = vi.fn()
+    const catalogManifest = createCatalogManifestFixture()
+    const manifest = createMultiModelManifestFixture({
+      gfsManifest: createPanelManifest(['tmp_surface', 'rh_surface'], {
+        model: { id: 'gfs', label: 'GFS' },
+      }),
+      iconManifest: createPanelManifest(['tmp_surface', 'rh_surface'], {
+        model: { id: 'icon', label: 'ICON' },
+      }),
+      layers: catalogManifest.layers,
+    })
 
     render(
       <ForecastSelectionProvider
-        manifest={createPanelManifest(['tmp_surface', 'rh_surface'], {
-          model: { id: 'icon', label: 'ICON' },
-        })}
-        activeModelId="icon"
+        activeRun={createActiveRunFixture(manifest, 'icon')}
         modelOptions={MODEL_OPTIONS}
         onActiveModelChange={onActiveModelChange}
       >
@@ -128,17 +141,21 @@ describe('ForecastPanel', () => {
 
   it('keeps model selection secondary to the selected measurement', () => {
     const onActiveModelChange = vi.fn()
+    const catalogManifest = createCatalogManifestFixture()
+    const manifest = createMultiModelManifestFixture({
+      gfsManifest: null,
+      iconManifest: createManifestFixture({
+        cycle: '2026041118',
+        model: { id: 'icon', label: 'ICON' },
+        scalarArtifactIds: ['tmp_surface', 'prate_surface', 'precip_total_surface'],
+        vectorArtifactIds: [],
+      }),
+      layers: catalogManifest.layers,
+    })
 
     render(
       <ForecastSelectionProvider
-        manifest={createManifestFixture({
-          cycle: '2026041118',
-          model: { id: 'icon', label: 'ICON' },
-          scalarArtifactIds: ['tmp_surface', 'prate_surface', 'precip_total_surface'],
-          vectorArtifactIds: [],
-        })}
-        availabilityIndex={createCatalogAvailabilityIndexFixture()}
-        activeModelId="icon"
+        activeRun={createActiveRunFixture(manifest, 'icon')}
         modelOptions={MODEL_OPTIONS}
         onActiveModelChange={onActiveModelChange}
       >
@@ -199,35 +216,36 @@ describe('ForecastPanel', () => {
   })
 
   it('shows low, middle, and high cloud cover as Sky & Visibility measurement options', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026041118',
+      scalarArtifactIds: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
+      vectorArtifactIds: [],
+      artifacts: {
+        tcdc: createScalarArtifactFixture({
+          units: '%',
+          parameter: 'tcdc',
+        }),
+        low_clouds: createScalarArtifactFixture({
+          id: 'low_clouds',
+          units: '%',
+          parameter: 'low_clouds',
+        }),
+        medium_clouds: createScalarArtifactFixture({
+          id: 'medium_clouds',
+          units: '%',
+          parameter: 'medium_clouds',
+        }),
+        high_clouds: createScalarArtifactFixture({
+          id: 'high_clouds',
+          units: '%',
+          parameter: 'high_clouds',
+        }),
+      },
+    })
+
     render(
       <ForecastSelectionProvider
-        manifest={createManifestFixture({
-          cycle: '2026041118',
-          scalarArtifactIds: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
-          vectorArtifactIds: [],
-          artifacts: {
-            tcdc: createScalarArtifactFixture({
-              units: '%',
-              parameter: 'tcdc',
-            }),
-            low_clouds: createScalarArtifactFixture({
-              id: 'low_clouds',
-              units: '%',
-              parameter: 'low_clouds',
-            }),
-            medium_clouds: createScalarArtifactFixture({
-              id: 'medium_clouds',
-              units: '%',
-              parameter: 'medium_clouds',
-            }),
-            high_clouds: createScalarArtifactFixture({
-              id: 'high_clouds',
-              units: '%',
-              parameter: 'high_clouds',
-            }),
-          },
-        })}
-        activeModelId="gfs"
+        activeRun={createActiveRunFixture(manifest, 'gfs')}
         modelOptions={MODEL_OPTIONS}
       >
         <ForecastPanel />

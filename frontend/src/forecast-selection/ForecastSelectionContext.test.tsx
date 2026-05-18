@@ -2,11 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ForecastModelId, Manifest } from '../forecast-manifest'
+import { activeForecastRunForModel, modelOptionsFromManifest } from '../forecast-manifest'
 import { asParticleLayerId, asLayerId } from '../forecast-catalog'
 import {
-  createAvailabilityIndexFixture,
-  createAvailabilityLayerFixture,
-  createCatalogAvailabilityIndexFixture,
+  createCatalogManifestFixture,
   createLayerModelAvailabilityFixture,
   createManifestFixture,
 } from '../test/fixtures'
@@ -53,11 +53,26 @@ function ForecastSelectionProbe() {
   )
 }
 
-type SelectionProviderProps = Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children'>
+type SelectionProviderProps =
+  Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children' | 'activeRun'> & {
+    manifest: Manifest | null
+    activeModelId?: ForecastModelId | null
+  }
 
 function selectionProvider(props: SelectionProviderProps) {
+  const activeModelId = props.activeModelId ?? firstLatestModelId(props.manifest)
+  const {
+    manifest,
+    activeModelId: _activeModelId,
+    modelOptions,
+    ...providerProps
+  } = props
   return (
-    <ForecastSelectionProvider {...props}>
+    <ForecastSelectionProvider
+      {...providerProps}
+      activeRun={activeForecastRunForModel(manifest, activeModelId)}
+      modelOptions={modelOptions ?? modelOptionsFromManifest(manifest)}
+    >
       <ForecastSelectionProbe />
     </ForecastSelectionProvider>
   )
@@ -65,6 +80,11 @@ function selectionProvider(props: SelectionProviderProps) {
 
 function renderSelection(props: SelectionProviderProps) {
   return render(selectionProvider(props))
+}
+
+function firstLatestModelId(manifest: Manifest | null): ForecastModelId | null {
+  return Object.keys(manifest?.models ?? {})
+    .find((modelId) => manifest?.models[modelId]?.latest) ?? null
 }
 
 describe('ForecastSelectionContext', () => {
@@ -113,35 +133,36 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
   })
 
-  it('uses availability renderability when loaded and manifest renderability as fallback', () => {
-    const manifest = createManifestFixture({
+  it('uses forecast manifest layer availability for renderability', () => {
+    const unavailableManifest = createManifestFixture({
       cycle: '2026040900',
       scalarArtifactIds: ['tmp_surface'],
       vectorArtifactIds: [],
-    })
-    const availabilityIndex = createAvailabilityIndexFixture({
-      gfsManifest: null,
-      iconManifest: null,
       layers: {
-        temperature: createAvailabilityLayerFixture({
+        temperature: { models: {
           gfs: createLayerModelAvailabilityFixture({
             state: 'temporarily_unavailable',
             requiredArtifacts: ['tmp_surface'],
           }),
-        }),
+        } },
       },
     })
 
     const { rerender } = renderSelection({
-      manifest,
-      availabilityIndex,
+      manifest: unavailableManifest,
       activeModelId: 'gfs',
     })
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
     expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('false')
 
-    rerender(selectionProvider({ manifest }))
+    const availableManifest = createManifestFixture({
+      cycle: '2026040900',
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: [],
+    })
+
+    rerender(selectionProvider({ manifest: availableManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
     expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('true')
@@ -221,15 +242,11 @@ describe('ForecastSelectionContext', () => {
     expectedModelId,
   }) => {
     const onActiveModelChange = vi.fn()
-    const manifest = createManifestFixture({
-      model: { id: activeModelId, label: activeModelLabel },
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface'],
-    })
+    void activeModelLabel
+    const manifest = createCatalogManifestFixture()
 
     renderSelection({
       manifest,
-      availabilityIndex: createCatalogAvailabilityIndexFixture(),
       activeModelId,
       onActiveModelChange,
     })
@@ -244,15 +261,10 @@ describe('ForecastSelectionContext', () => {
 
   it('does not let an incompatible model choice replace the selected layer', () => {
     const onActiveModelChange = vi.fn()
-    const iconManifest = createManifestFixture({
-      model: { id: 'icon', label: 'ICON' },
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
-    })
+    const manifest = createCatalogManifestFixture()
 
     renderSelection({
-      manifest: iconManifest,
-      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      manifest,
       activeModelId: 'icon',
       onActiveModelChange,
     })
@@ -268,15 +280,10 @@ describe('ForecastSelectionContext', () => {
 
   it('preserves selected layer intent while repairing incompatible active model props', async () => {
     const onActiveModelChange = vi.fn()
-    const iconManifest = createManifestFixture({
-      model: { id: 'icon', label: 'ICON' },
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
-    })
+    const manifest = createCatalogManifestFixture()
 
     const { rerender } = renderSelection({
-      manifest: iconManifest,
-      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      manifest,
       activeModelId: 'icon',
       onActiveModelChange,
     })
@@ -284,15 +291,8 @@ describe('ForecastSelectionContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
 
-    const gfsManifest = createManifestFixture({
-      model: { id: 'gfs', label: 'GFS' },
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface', 'prate_surface'],
-    })
-
     rerender(selectionProvider({
-      manifest: gfsManifest,
-      availabilityIndex: createCatalogAvailabilityIndexFixture(),
+      manifest,
       activeModelId: 'gfs',
       onActiveModelChange,
     }))

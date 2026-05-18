@@ -27,7 +27,7 @@ export function useForecastDataPrefetch({
       target,
       artifacts: createArtifactLoader({
         config,
-        manifest: target.manifest,
+        activeRun: target.activeRun,
         signal: controller.signal,
       }),
     })

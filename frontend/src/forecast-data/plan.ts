@@ -1,5 +1,5 @@
 import type { ArtifactLoader } from '../forecast-artifacts'
-import type { CycleManifest } from '../manifest'
+import type { ActiveForecastRun } from '../forecast-manifest'
 import { createFieldChannel } from './field'
 import { createParticleChannel } from './particles'
 import type { ForecastDataTarget } from './target'
@@ -10,7 +10,7 @@ import type {
 } from './types'
 
 export type ForecastDataPlan = {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   selectedValidTimeMs: number
   lowerHourToken: string
   upperHourToken: string
@@ -27,19 +27,19 @@ type CreateForecastDataPlanArgs = {
 export function createForecastDataPlan(args: CreateForecastDataPlanArgs): ForecastDataPlan {
   const field = createFieldChannel({
     artifacts: args.artifacts,
-    manifest: args.target.manifest,
+    activeRun: args.target.activeRun,
     layer: args.target.selectedLayer,
   })
   const particles = args.target.selectedParticleLayer == null
     ? null
     : createParticleChannel({
       artifacts: args.artifacts,
-      manifest: args.target.manifest,
+      activeRun: args.target.activeRun,
       particleLayer: args.target.selectedParticleLayer,
     })
 
   return {
-    manifest: args.target.manifest,
+    activeRun: args.target.activeRun,
     selectedValidTimeMs: args.target.selectedValidTimeMs,
     lowerHourToken: args.target.lowerHourToken,
     upperHourToken: args.target.upperHourToken,

@@ -119,7 +119,7 @@ export function useSyncRunner({
       target: syncTarget,
       artifacts: createArtifactLoader({
         config,
-        manifest: syncTarget.manifest,
+        activeRun: syncTarget.activeRun,
         signal: activeRequest.controller.signal,
       }),
     })

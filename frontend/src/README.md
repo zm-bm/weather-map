@@ -12,9 +12,9 @@ when naming new modules, docs, types, and UI/domain concepts.
 ## Top-Level Flow
 
 `App.tsx` owns routing. The forecast route calls
-`forecast-bootstrap/useForecastBootstrap`, which fetches
-`manifests/availability-index.json`, converts embedded latest data into a
-renderable manifest, projects startup state into `app-status`, then renders
+`forecast-manifest/useForecastManifest`, which fetches
+`manifests/forecast-manifest.json`, selects the active model, projects startup
+state into `app-status`, then renders
 `components/ForecastShell`.
 
 `ForecastShell` wires the main providers:
@@ -38,11 +38,7 @@ payload loading, and layer application.
 
 - `forecast-time/*`: valid-time selection, playback state, manifest time bounds, and formatting helpers. This layer should not know about artifact payload decoding or MapLibre runtime details.
 
-- `forecast-availability/*`: fetch, parse, validate, and expose the global model/layer availability index. This is the only startup network request for forecast metadata.
-
-- `forecast-bootstrap/*`: forecast app initialization, availability request state, availability-to-manifest conversion, active model state, and startup status projection.
-
-- `manifest/*`: parse, validate, and expose renderable forecast manifests. Manifests describe artifact availability, decode metadata, time-slice payload refs, and model/run identity, not UI layer taxonomy.
+- `forecast-manifest/*`: fetch, parse, validate, and expose the public forecast manifest. This owns startup request state, active model state, model/layer availability helpers, artifact payload path resolution, and startup status projection. It is the only startup network request for forecast metadata.
 
 - `forecast-artifacts/*`: manifest artifact I/O and decoding. This module resolves artifact payload refs, fetches and caches payload bytes, validates payload size, and decodes scalar/vector artifact data.
 
@@ -70,7 +66,7 @@ payload loading, and layer application.
 
 Preferred orchestration shape:
 
-1. `ForecastApp` loads availability through `useForecastBootstrap` and owns top-level app status projection for startup.
+1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection for startup.
 2. `ForecastShell` installs selection and time providers around map and panel UI.
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap`.
 4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`.

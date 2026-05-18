@@ -17,9 +17,9 @@ function ForecastPlaceProbes({
   mapRef,
   mapReadyVersion,
 }: ForecastPlaceProbesProps) {
-  const { selectedLayerId, manifest } = useForecastSelectionContext()
+  const { selectedLayerId, activeRun } = useForecastSelectionContext()
 
-  if (manifest == null || selectedLayerId == null) return null
+  if (activeRun == null || selectedLayerId == null) return null
 
   return (
     <ForecastPlaceProbeLayer

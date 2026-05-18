@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createActiveRunFixture,
   createManifestFixture,
 } from '../test/fixtures'
 import {
@@ -27,13 +28,14 @@ function createTarget(args: {
   upperHourToken?: string
   mix?: number
 }): ForecastDataTarget {
+  const activeRun = createActiveRunFixture(args.manifest)
   const selectedLayer = args.selectedLayer ?? FORECAST_LAYERS_BY_ID.temperature!
   const selectedParticleLayer = args.selectedParticleLayer === undefined
-    ? (getAvailableParticleLayers(args.manifest).wind ?? null)
+    ? (getAvailableParticleLayers(activeRun).wind ?? null)
     : args.selectedParticleLayer
 
   return createForecastDataTarget({
-    manifest: args.manifest,
+    activeRun,
     selectedLayerId: selectedLayer.id,
     selectedLayer,
     selectedParticleLayerId: selectedParticleLayer?.id ?? null,
@@ -65,7 +67,7 @@ function createPlan(target: ForecastDataTarget, args: {
     }
 
   return {
-    manifest: target.manifest,
+    activeRun: target.activeRun,
     selectedValidTimeMs: target.selectedValidTimeMs,
     lowerHourToken: target.lowerHourToken,
     upperHourToken: target.upperHourToken,
@@ -94,7 +96,7 @@ describe('loadForecastData', () => {
       vectorArtifactIds: ['wind10m_uv'],
     })
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
-    const particleLayer = getAvailableParticleLayers(manifest).wind!
+    const particleLayer = getAvailableParticleLayers(createActiveRunFixture(manifest)).wind!
     const target = createTarget({
       manifest,
       selectedLayer,

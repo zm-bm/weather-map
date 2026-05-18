@@ -59,9 +59,9 @@ function nextHourTokensAfterUpper(
   plan: ForecastDataPlan,
   count: number
 ): string[] {
-  if (plan.manifest.times.length === 0 || count <= 0) return []
+  if (plan.activeRun.latest.times.length === 0 || count <= 0) return []
 
-  const normalizedHours = plan.manifest.times.map((time) => normalizeHourToken(time.id))
+  const normalizedHours = plan.activeRun.latest.times.map((time) => normalizeHourToken(time.id))
   const normalizedUpper = normalizeHourToken(plan.upperHourToken)
   const upperIndex = normalizedHours.indexOf(normalizedUpper)
   const startIndex = upperIndex < 0 ? -1 : upperIndex

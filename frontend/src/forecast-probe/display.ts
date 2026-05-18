@@ -24,8 +24,8 @@ export type ForecastProbeValueDisplay = {
 }
 
 export function useForecastProbeValueFormatter() {
-  const { manifest, selectedLayerId, layers, unitSystem } = useLoadedForecastSelectionContext()
-  const probeMeta = selectedLayerId == null ? null : getLayerMeta(selectedLayerId, layers, manifest)
+  const { activeRun, selectedLayerId, layers, unitSystem } = useLoadedForecastSelectionContext()
+  const probeMeta = selectedLayerId == null ? null : getLayerMeta(selectedLayerId, layers, activeRun)
   const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
 
   const probeUnitOption = probeMeta == null || probeUnitDisplay == null

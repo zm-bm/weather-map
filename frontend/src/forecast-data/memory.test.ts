@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { createFrameManifestFixture } from '../test/fixtures'
+import { createSingleTimeManifestFixture, createActiveRunFixture } from '../test/fixtures'
 import type { ForecastDataPlan } from './plan'
 import { createForecastDataMemory } from './memory'
 import type { ForecastRenderData } from './types'
 
 function createPlan(fieldKey = 'field:temperature', particleKey = 'particles:wind:wind10m_uv'): ForecastDataPlan {
   return {
-    manifest: createFrameManifestFixture(),
+    activeRun: createActiveRunFixture(createSingleTimeManifestFixture()),
     selectedValidTimeMs: 0,
     lowerHourToken: '000',
     upperHourToken: '000',

@@ -8,15 +8,15 @@ from typing import Iterable
 from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.config.load import load_pipeline_config
 from forecast_etl.config.resolved import ModelConfig, PipelineConfig
-from forecast_etl.manifest.availability import (
-    AVAILABILITY_INDEX_SCHEMA,
-    AVAILABILITY_INDEX_SCHEMA_VERSION,
-    build_availability_index,
-)
 from forecast_etl.manifest.constants import (
     FORECAST_BINARY_CONTRACT,
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
+)
+from forecast_etl.manifest.forecast_manifest import (
+    FORECAST_MANIFEST_SCHEMA,
+    FORECAST_MANIFEST_SCHEMA_VERSION,
+    build_forecast_manifest,
 )
 from forecast_etl.storage.routing import make_store
 
@@ -62,6 +62,8 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
                 "dtype": artifact.encoding.dtype,
                 "byteOrder": artifact.encoding.byte_order,
             },
+            "path": "legacy-artifact-path",
+            "sha256": "b" * 64,
             "frames": {
                 fhour: {
                     "path": f"fields/{model.id}/{cycle}/{fhour}/{artifact_id}.field.{dtype_suffix}.bin",
@@ -93,11 +95,11 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
     }
 
 
-class AvailabilityIndexTest(unittest.TestCase):
+class ForecastManifestTest(unittest.TestCase):
     def test_builds_layer_model_availability_from_config_and_latest_manifests(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-availability-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
@@ -121,22 +123,23 @@ class AvailabilityIndexTest(unittest.TestCase):
                 ),
             )
 
-            index = build_availability_index(
+            manifest = build_forecast_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
             )
 
-        self.assertEqual(index["schema"], AVAILABILITY_INDEX_SCHEMA)
-        self.assertEqual(index["schemaVersion"], AVAILABILITY_INDEX_SCHEMA_VERSION)
-        self.assertEqual(index["catalogVersion"], "forecast-catalog-v1")
-        self.assertNotIn("latestCycle", index["models"]["gfs"])
-        self.assertNotIn("latestManifestPath", index["models"]["gfs"])
-        latest = index["models"]["gfs"]["latest"]
+        self.assertEqual(manifest["schema"], FORECAST_MANIFEST_SCHEMA)
+        self.assertEqual(manifest["schemaVersion"], FORECAST_MANIFEST_SCHEMA_VERSION)
+        self.assertEqual(manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
+        self.assertEqual(manifest["catalogVersion"], "forecast-catalog-v1")
+        self.assertNotIn("latestCycle", manifest["models"]["gfs"])
+        self.assertNotIn("latestManifestPath", manifest["models"]["gfs"])
+        latest = manifest["models"]["gfs"]["latest"]
         self.assertIsNotNone(latest)
-        self.assertEqual(latest["schema"], MANIFEST_SCHEMA)
-        self.assertEqual(latest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
-        self.assertEqual(latest["payloadContract"], FORECAST_BINARY_CONTRACT)
+        self.assertNotIn("schema", latest)
+        self.assertNotIn("schemaVersion", latest)
+        self.assertNotIn("payloadContract", latest)
         self.assertEqual(latest["run"]["cycle"], "2026051606")
         self.assertEqual(latest["times"][0]["id"], "000")
         temperature_artifact = latest["artifacts"]["tmp_surface"]
@@ -145,23 +148,23 @@ class AvailabilityIndexTest(unittest.TestCase):
         self.assertNotIn("path", temperature_artifact)
         self.assertNotIn("sha256", temperature_artifact)
 
-        visibility = index["layers"]["visibility"]["models"]
+        visibility = manifest["layers"]["visibility"]["models"]
         self.assertEqual(visibility["gfs"]["state"], "available")
         self.assertEqual(visibility["gfs"]["support"], "native")
         self.assertEqual(visibility["gfs"]["requiredArtifacts"], ["visibility_surface"])
         self.assertEqual(visibility["icon"]["state"], "unsupported")
         self.assertEqual(visibility["icon"]["support"], "unavailable")
 
-        accumulated_precipitation = index["layers"]["accumulated_precipitation"]["models"]
+        accumulated_precipitation = manifest["layers"]["accumulated_precipitation"]["models"]
         self.assertEqual(accumulated_precipitation["gfs"]["state"], "unsupported")
         self.assertEqual(accumulated_precipitation["icon"]["state"], "available")
         self.assertEqual(accumulated_precipitation["icon"]["requiredArtifacts"], ["precip_total_surface"])
 
-        cape = index["layers"]["cape"]["models"]
+        cape = manifest["layers"]["cape"]["models"]
         self.assertEqual(cape["icon"]["state"], "temporarily_unavailable")
         self.assertEqual(cape["icon"]["requiredArtifacts"], ["cape_index"])
 
-        precipitation_rate = index["layers"]["precipitation_rate"]["models"]
+        precipitation_rate = manifest["layers"]["precipitation_rate"]["models"]
         self.assertEqual(precipitation_rate["icon"]["state"], "available")
         self.assertEqual(precipitation_rate["icon"]["support"], "composite")
         self.assertEqual(precipitation_rate["icon"]["requiredArtifacts"], ["prate_surface"])
@@ -170,20 +173,20 @@ class AvailabilityIndexTest(unittest.TestCase):
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-availability-no-latest-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-no-latest-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
 
-            index = build_availability_index(
+            manifest = build_forecast_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
             )
 
-        self.assertIsNone(index["models"]["gfs"]["latest"])
-        self.assertIsNone(index["models"]["icon"]["latest"])
+        self.assertIsNone(manifest["models"]["gfs"]["latest"])
+        self.assertIsNone(manifest["models"]["icon"]["latest"])
 
     def test_rejects_embedded_latest_with_missing_or_inconsistent_frame_metadata(self) -> None:
         cfg = _pipeline_config()
@@ -194,7 +197,7 @@ class AvailabilityIndexTest(unittest.TestCase):
         )
         for case, expected_error in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
-                prefix="weather-map-availability-invalid-latest-"
+                prefix="weather-map-forecast-manifest-invalid-latest-"
             ) as td:
                 repo = ArtifactRepository.for_root(
                     store=make_store(),
@@ -209,7 +212,7 @@ class AvailabilityIndexTest(unittest.TestCase):
                 repo.write_latest_manifest(model_id="gfs", manifest=manifest)
 
                 with self.assertRaisesRegex(SystemExit, expected_error):
-                    build_availability_index(
+                    build_forecast_manifest(
                         pipeline_config=cfg,
                         artifact_repo=repo,
                         generated_at="2026-05-16T00:00:00Z",

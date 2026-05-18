@@ -8,10 +8,10 @@ import {
 import { LegendPanelView } from './LegendPanelView'
 
 export default function LegendPanel() {
-  const { manifest, selectedLayerId, layers, unitSystem, toggleUnitSystem } = useLoadedForecastSelectionContext()
+  const { activeRun, selectedLayerId, layers, unitSystem, toggleUnitSystem } = useLoadedForecastSelectionContext()
   if (selectedLayerId == null) return null
 
-  const meta = getLayerMeta(selectedLayerId, layers, manifest)
+  const meta = getLayerMeta(selectedLayerId, layers, activeRun)
   const unitDisplay = getUnitDisplay(meta)
   const selectedOption = getUnitOptionForSystem(unitDisplay, unitSystem)
   const canCycleUnits = canToggleUnitSystem(unitDisplay)

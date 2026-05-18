@@ -9,9 +9,11 @@ import {
   readCachedPayloadFrame,
   writeCachedPayloadFrame,
 } from './payloadFrameCache'
+import { resolveActiveRunFrameRef } from '../forecast-manifest'
 import {
+  createActiveRunFixture,
   createFakeIndexedDb,
-  createFrameManifestFixture,
+  createSingleTimeManifestFixture,
 } from '../test/fixtures'
 
 function payloadBuffer(...bytes: number[]) {
@@ -24,9 +26,16 @@ async function reloadPayloadFrameCache() {
 }
 
 describe('payload frame cache', () => {
-  const manifest = createFrameManifestFixture({ revision: 'rev-a' })
-  const nextManifest = createFrameManifestFixture({ revision: 'rev-b' })
-  const frameRef = manifest.artifacts.tmp_surface.frames['000']!
+  const manifest = createSingleTimeManifestFixture({ revision: 'rev-a' })
+  const nextManifest = createSingleTimeManifestFixture({ revision: 'rev-b' })
+  const activeRun = createActiveRunFixture(manifest)
+  const nextActiveRun = createActiveRunFixture(nextManifest)
+  const frameRef = resolveActiveRunFrameRef({
+    activeRun,
+    artifactId: 'tmp_surface',
+    hourToken: '000',
+    kind: 'scalar',
+  })
   const payload = payloadBuffer(1, 2, 3, 4)
 
   beforeEach(() => {
@@ -48,26 +57,26 @@ describe('payload frame cache', () => {
       persistedBytes: 0,
     })
 
-    const keyA = `${payloadFrameCacheKey(manifest, frameRef)}:a`
-    const keyB = `${payloadFrameCacheKey(manifest, frameRef)}:b`
-    const keyC = `${payloadFrameCacheKey(manifest, frameRef)}:c`
+    const keyA = `${payloadFrameCacheKey(activeRun, frameRef)}:a`
+    const keyB = `${payloadFrameCacheKey(activeRun, frameRef)}:b`
+    const keyC = `${payloadFrameCacheKey(activeRun, frameRef)}:c`
 
-    await ensurePayloadFrameCacheScope(manifest)
+    await ensurePayloadFrameCacheScope(activeRun)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyA,
       payload: payloadBuffer(1, 2, 3, 4),
     })
     vi.advanceTimersByTime(1)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyB,
       payload: payloadBuffer(5, 6, 7, 8),
     })
 
     vi.advanceTimersByTime(60_000)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyA,
       payload: payloadBuffer(1, 2, 3, 4),
     })
@@ -75,7 +84,7 @@ describe('payload frame cache', () => {
 
     vi.advanceTimersByTime(1)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyC,
       payload: payloadBuffer(9, 10, 11, 12),
     })
@@ -86,11 +95,11 @@ describe('payload frame cache', () => {
   })
 
   it('reads cached payloads back from IndexedDB after the in-memory cache is reset', async () => {
-    const key = payloadFrameCacheKey(manifest, frameRef)
+    const key = payloadFrameCacheKey(activeRun, frameRef)
 
-    await ensurePayloadFrameCacheScope(manifest)
+    await ensurePayloadFrameCacheScope(activeRun)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key,
       payload,
     })
@@ -98,23 +107,23 @@ describe('payload frame cache', () => {
 
     const reloadedCache = await reloadPayloadFrameCache()
 
-    await reloadedCache.ensurePayloadFrameCacheScope(manifest)
+    await reloadedCache.ensurePayloadFrameCacheScope(activeRun)
     expect(await reloadedCache.readCachedPayloadFrame(key)).toEqual(payload)
   })
 
   it('coalesces repeated persisted writes for the same cache key', async () => {
-    const key = payloadFrameCacheKey(manifest, frameRef)
+    const key = payloadFrameCacheKey(activeRun, frameRef)
     const firstPayload = payloadBuffer(1, 2, 3, 4)
     const secondPayload = payloadBuffer(9, 8, 7, 6)
 
-    await ensurePayloadFrameCacheScope(manifest)
+    await ensurePayloadFrameCacheScope(activeRun)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key,
       payload: firstPayload,
     })
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key,
       payload: secondPayload,
     })
@@ -122,24 +131,24 @@ describe('payload frame cache', () => {
 
     const reloadedCache = await reloadPayloadFrameCache()
 
-    await reloadedCache.ensurePayloadFrameCacheScope(manifest)
+    await reloadedCache.ensurePayloadFrameCacheScope(activeRun)
     expect(await reloadedCache.readCachedPayloadFrame(key)).toEqual(secondPayload)
   })
 
   it('prunes entries that do not match the active cycle revision', async () => {
-    const staleKey = payloadFrameCacheKey(manifest, frameRef)
-    const freshKey = payloadFrameCacheKey(nextManifest, frameRef)
+    const staleKey = payloadFrameCacheKey(activeRun, frameRef)
+    const freshKey = payloadFrameCacheKey(nextActiveRun, frameRef)
 
-    await ensurePayloadFrameCacheScope(manifest)
+    await ensurePayloadFrameCacheScope(activeRun)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: staleKey,
       payload,
     })
 
-    await ensurePayloadFrameCacheScope(nextManifest)
+    await ensurePayloadFrameCacheScope(nextActiveRun)
     await writeCachedPayloadFrame({
-      manifest: nextManifest,
+      activeRun: nextActiveRun,
       key: freshKey,
       payload,
     })
@@ -154,26 +163,26 @@ describe('payload frame cache', () => {
       persistedBytes: 8,
     })
 
-    const keyA = `${payloadFrameCacheKey(manifest, frameRef)}:a`
-    const keyB = `${payloadFrameCacheKey(manifest, frameRef)}:b`
-    const keyC = `${payloadFrameCacheKey(manifest, frameRef)}:c`
+    const keyA = `${payloadFrameCacheKey(activeRun, frameRef)}:a`
+    const keyB = `${payloadFrameCacheKey(activeRun, frameRef)}:b`
+    const keyC = `${payloadFrameCacheKey(activeRun, frameRef)}:c`
 
-    await ensurePayloadFrameCacheScope(manifest)
+    await ensurePayloadFrameCacheScope(activeRun)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyA,
       payload: payloadBuffer(1, 2, 3, 4),
     })
     vi.advanceTimersByTime(1)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyB,
       payload: payloadBuffer(5, 6, 7, 8),
     })
 
     vi.advanceTimersByTime(60_000)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyA,
       payload: payloadBuffer(1, 2, 3, 4),
     })
@@ -181,7 +190,7 @@ describe('payload frame cache', () => {
 
     vi.advanceTimersByTime(1)
     await writeCachedPayloadFrame({
-      manifest,
+      activeRun,
       key: keyC,
       payload: payloadBuffer(9, 10, 11, 12),
     })
@@ -193,7 +202,7 @@ describe('payload frame cache', () => {
       memoryBytes: 0,
       persistedBytes: 8,
     })
-    await reloadedCache.ensurePayloadFrameCacheScope(manifest)
+    await reloadedCache.ensurePayloadFrameCacheScope(activeRun)
 
     expect(await reloadedCache.readCachedPayloadFrame(keyA))
       .toEqual(payloadBuffer(1, 2, 3, 4))

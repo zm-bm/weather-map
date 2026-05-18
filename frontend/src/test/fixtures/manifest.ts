@@ -1,25 +1,29 @@
 import type {
-  CycleManifest,
-  ForecastTimeSpec,
-  FramePayloadRef,
-  ManifestArtifactSpec,
+  ActiveForecastRun,
   ArtifactId,
+  ForecastModelId,
+  ForecastTimeSpec,
+  LatestForecastRun,
+  Manifest,
+  ManifestArtifactSpec,
+  ScalarArtifactSpec,
   ScalarEncodingSpec,
   ScalarGridSpec,
-  ScalarArtifactSpec,
-  VectorEncodingSpec,
   VectorArtifactId,
   VectorArtifactSpec,
-} from '../../manifest'
+  VectorEncodingSpec,
+} from '../../forecast-manifest'
 import {
   asArtifactId,
   asVectorArtifactId,
-  MANIFEST_PAYLOAD_CONTRACT,
-  MANIFEST_SCHEMA,
-  MANIFEST_SCHEMA_VERSION,
-} from '../../manifest'
-import type { NonEmptyArray } from '../../types'
+  FORECAST_MANIFEST_SCHEMA,
+  FORECAST_MANIFEST_SCHEMA_VERSION,
+  FORECAST_PAYLOAD_CONTRACT,
+  activeForecastRunForModel,
+} from '../../forecast-manifest'
 
+export const FIXTURE_MODEL_ID = 'gfs'
+export const FIXTURE_MODEL_LABEL = 'GFS'
 export const FIXTURE_CYCLE = '2026041312'
 export const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'
 export const FIXTURE_REVISION = 'rev'
@@ -31,31 +35,31 @@ export const FIXTURE_SCALAR_ID = asArtifactId('tmp_surface')
 export const FIXTURE_VECTOR_ID = asVectorArtifactId('wind10m_uv')
 export const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
 
-export type ManifestFixtureOverrides =
-  Partial<Pick<CycleManifest, 'model' | 'run' | 'times' | 'artifacts'>> & {
-    cycle?: string
-    generatedAt?: string
-    revision?: string
-    forecastHours?: string[]
-    scalarArtifactIds?: string[]
-    vectorArtifactIds?: string[]
-  }
+export type ManifestFixtureOverrides = {
+  model?: { id: ForecastModelId; label: string }
+  run?: LatestForecastRun['run']
+  times?: ForecastTimeSpec[]
+  artifacts?: Record<string, ManifestArtifactSpec>
+  layers?: Manifest['layers']
+  cycle?: string
+  generatedAt?: string
+  revision?: string
+  forecastHours?: string[]
+  scalarArtifactIds?: string[]
+  vectorArtifactIds?: string[]
+}
 
-export type ScalarArtifactFixtureOverrides =
-  Partial<Omit<ScalarArtifactSpec, 'frames'>> & {
-    cycle?: string
-    forecastHours?: string[]
-    times?: ForecastTimeSpec[]
-    frames?: Record<string, FramePayloadRef>
-  }
+export type ScalarArtifactFixtureOverrides = Partial<ScalarArtifactSpec> & {
+  cycle?: string
+  forecastHours?: string[]
+  times?: ForecastTimeSpec[]
+}
 
-export type VectorArtifactFixtureOverrides =
-  Partial<Omit<VectorArtifactSpec, 'frames'>> & {
-    cycle?: string
-    forecastHours?: string[]
-    times?: ForecastTimeSpec[]
-    frames?: Record<string, FramePayloadRef>
-  }
+export type VectorArtifactFixtureOverrides = Partial<VectorArtifactSpec> & {
+  cycle?: string
+  forecastHours?: string[]
+  times?: ForecastTimeSpec[]
+}
 
 function toArtifactIds<T>(
   values: string[],
@@ -131,85 +135,66 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
   }
 }
 
-function createFramePath(
-  artifactId: string,
-  dtype: ManifestArtifactSpec['encoding']['dtype'],
-  cycle = FIXTURE_CYCLE,
-  hourToken = FIXTURE_HOUR_TOKEN
-): string {
-  const extension = dtype === 'int16' ? 'field.i16.bin' : 'field.i8.bin'
-  return `fields/${cycle}/${hourToken}/${artifactId}.${extension}`
-}
-
-export function createFrameRefFixture(overrides: Partial<FramePayloadRef> = {}): FramePayloadRef {
-  return {
-    path: `fields/${FIXTURE_CYCLE}/${FIXTURE_HOUR_TOKEN}/payload.bin`,
-    byteLength: 8,
-    ...overrides,
-  }
-}
-
-function createArtifactFrames(
-  artifact: Pick<ManifestArtifactSpec, 'id' | 'encoding'>,
-  times: ForecastTimeSpec[],
-  cycle: string,
-  overrides: Record<string, FramePayloadRef> = {}
-): Record<string, FramePayloadRef> {
-  return Object.fromEntries(
-    times.map((time) => [
-      time.id,
-      overrides[time.id] ?? createFrameRefFixture({
-        path: createFramePath(artifact.id, artifact.encoding.dtype, cycle, time.id),
-      }),
-    ])
-  )
+function payloadByteLength(args: {
+  grid: ScalarGridSpec
+  components: readonly string[]
+  dtype: ManifestArtifactSpec['encoding']['dtype']
+}): number {
+  const bytesPerValue = args.dtype === 'int16' ? 2 : 1
+  return args.grid.nx * args.grid.ny * args.components.length * bytesPerValue
 }
 
 export function createScalarArtifactFixture(
   overrides: ScalarArtifactFixtureOverrides = {}
 ): ScalarArtifactSpec {
-  const cycle = overrides.cycle ?? FIXTURE_CYCLE
-  const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_SCALAR_ID
+  const grid = overrides.grid ?? createGridFixture()
+  const encoding = overrides.encoding ?? createScalarEncodingFixture()
+  const components = overrides.components ?? ['value']
 
-  const artifact: Omit<ScalarArtifactSpec, 'frames'> = {
+  return {
     id,
     kind: 'scalar',
     units: overrides.units ?? 'C',
     parameter: overrides.parameter ?? 'tmp',
     level: overrides.level ?? 'surface',
-    components: overrides.components ?? ['value'],
-    grid: overrides.grid ?? createGridFixture(),
-    encoding: overrides.encoding ?? createScalarEncodingFixture(),
-  }
-
-  return {
-    ...artifact,
-    frames: overrides.frames ?? createArtifactFrames(artifact, times, cycle),
+    components,
+    grid,
+    encoding,
+    byteLength: overrides.byteLength ?? payloadByteLength({
+      grid,
+      components,
+      dtype: encoding.dtype,
+    }),
+    temporalKind: overrides.temporalKind,
+    sourceIntervalHours: overrides.sourceIntervalHours,
   }
 }
 
 export function createVectorArtifactFixture(
   overrides: VectorArtifactFixtureOverrides = {}
 ): VectorArtifactSpec {
-  const cycle = overrides.cycle ?? FIXTURE_CYCLE
-  const times = overrides.times ?? createForecastTimesFixture(overrides.forecastHours, cycle)
   const id = overrides.id ?? FIXTURE_VECTOR_ID
+  const grid = overrides.grid ?? createGridFixture()
+  const encoding = overrides.encoding ?? createVectorEncodingFixture()
+  const components = overrides.components ?? ['u', 'v']
 
-  const artifact: Omit<VectorArtifactSpec, 'frames'> = {
+  return {
     id,
     kind: 'vector',
     units: overrides.units ?? 'm/s',
     parameter: overrides.parameter ?? 'vector',
     level: overrides.level ?? '10m_above_ground',
-    components: overrides.components ?? ['u', 'v'],
-    grid: overrides.grid ?? createGridFixture(),
-    encoding: overrides.encoding ?? createVectorEncodingFixture(),
-  }
-
-  return {
-    ...artifact,
-    frames: overrides.frames ?? createArtifactFrames(artifact, times, cycle),
+    components,
+    grid,
+    encoding,
+    byteLength: overrides.byteLength ?? payloadByteLength({
+      grid,
+      components,
+      dtype: encoding.dtype,
+    }),
+    temporalKind: overrides.temporalKind,
+    sourceIntervalHours: overrides.sourceIntervalHours,
   }
 }
 
@@ -222,45 +207,25 @@ function artifactIdsByKind(
     .map((artifact) => artifact.id)
 }
 
-function completeArtifactFrames(
-  artifact: ManifestArtifactSpec,
-  times: ForecastTimeSpec[],
-  cycle: string
-): ManifestArtifactSpec {
-  const frames = createArtifactFrames(artifact, times, cycle, artifact.frames)
-  return {
-    ...artifact,
-    frames,
-  }
-}
-
 function createManifestArtifacts(args: {
   scalarArtifactIds: ArtifactId[]
   vectorArtifactIds: VectorArtifactId[]
   overrides?: Record<string, ManifestArtifactSpec>
-  times: ForecastTimeSpec[]
-  cycle: string
 }): Record<string, ManifestArtifactSpec> {
   const manifestArtifacts: Record<string, ManifestArtifactSpec> = {}
 
   for (const artifactId of args.scalarArtifactIds) {
     const override = args.overrides?.[artifactId]
-    const artifact = override ? retargetArtifactOverride(override, artifactId) : createScalarArtifactFixture({
-      id: artifactId,
-      times: args.times,
-      cycle: args.cycle,
-    })
-    manifestArtifacts[artifactId] = completeArtifactFrames(artifact, args.times, args.cycle)
+    manifestArtifacts[artifactId] = override
+      ? retargetArtifactOverride(override, artifactId)
+      : createScalarArtifactFixture({ id: artifactId })
   }
 
   for (const artifactId of args.vectorArtifactIds) {
     const override = args.overrides?.[artifactId]
-    const artifact = override ? retargetArtifactOverride(override, artifactId) : createVectorArtifactFixture({
-      id: artifactId,
-      times: args.times,
-      cycle: args.cycle,
-    })
-    manifestArtifacts[artifactId] = completeArtifactFrames(artifact, args.times, args.cycle)
+    manifestArtifacts[artifactId] = override
+      ? retargetArtifactOverride(override, artifactId)
+      : createVectorArtifactFixture({ id: artifactId })
   }
 
   return manifestArtifacts
@@ -276,9 +241,9 @@ function retargetArtifactOverride(
   }
 }
 
-export function createManifestFixture(
+export function createLatestRunFixture(
   overrides: ManifestFixtureOverrides = {}
-): CycleManifest {
+): LatestForecastRun {
   const cycle = overrides.cycle ?? overrides.run?.cycle ?? FIXTURE_CYCLE
   const generatedAt = overrides.generatedAt ?? overrides.run?.generatedAt ?? FIXTURE_GENERATED_AT
   const revision = overrides.revision ?? overrides.run?.revision ?? FIXTURE_REVISION
@@ -305,77 +270,152 @@ export function createManifestFixture(
   if (defaultScalarArtifactIdValues.length + defaultVectorArtifactIdValues.length < 1) {
     throw new Error('createManifestFixture requires at least one artifact id')
   }
-  const scalarArtifactIds = toArtifactIds<ArtifactId>(
-    defaultScalarArtifactIdValues,
-    asArtifactId,
-  )
-  const vectorArtifactIds = toArtifactIds<VectorArtifactId>(
-    defaultVectorArtifactIdValues,
-    asVectorArtifactId,
-  )
-  const manifestArtifacts = createManifestArtifacts({
-    scalarArtifactIds,
-    vectorArtifactIds,
-    overrides: overrides.artifacts,
-    times,
-    cycle,
-  })
-  const artifactsByKind = deriveArtifactsByKind(manifestArtifacts)
 
   return {
-    schema: MANIFEST_SCHEMA,
-    schemaVersion: MANIFEST_SCHEMA_VERSION,
-    payloadContract: MANIFEST_PAYLOAD_CONTRACT,
-    model: overrides.model ?? { id: 'gfs', label: 'GFS' },
     run: {
       cycle,
       generatedAt,
       revision,
     },
     times,
-    artifacts: manifestArtifacts,
-    artifactsByKind,
+    artifacts: createManifestArtifacts({
+      scalarArtifactIds: toArtifactIds(defaultScalarArtifactIdValues, asArtifactId),
+      vectorArtifactIds: toArtifactIds(defaultVectorArtifactIdValues, asVectorArtifactId),
+      overrides: overrides.artifacts,
+    }),
   }
 }
 
-export function createFrameManifestFixture(
+export function createManifestLayersFixture(
+  artifacts: Record<string, ManifestArtifactSpec> = {},
+  modelId: ForecastModelId = FIXTURE_MODEL_ID
+): Manifest['layers'] {
+  const has = (artifactId: string) => artifactId in artifacts
+  const available = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({ requiredArtifacts })
+  const unavailable = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({
+    state: 'temporarily_unavailable',
+    requiredArtifacts,
+  })
+
+  return {
+    temperature: createManifestLayerFixture({
+      [modelId]: has('tmp_surface') ? available(['tmp_surface']) : unavailable(['tmp_surface']),
+    }),
+    apparent_temperature: createManifestLayerFixture({
+      [modelId]: has('aptmp_surface') ? available(['aptmp_surface']) : unavailable(['aptmp_surface']),
+    }),
+    dew_point: createManifestLayerFixture({
+      [modelId]: has('dewpoint_surface') ? available(['dewpoint_surface']) : unavailable(['dewpoint_surface']),
+    }),
+    wind_gust: createManifestLayerFixture({
+      [modelId]: has('gust_surface') ? available(['gust_surface']) : unavailable(['gust_surface']),
+    }),
+    air_pressure: createManifestLayerFixture({
+      [modelId]: has('prmsl_msl') ? available(['prmsl_msl']) : unavailable(['prmsl_msl']),
+    }),
+    wind_speed: createManifestLayerFixture({
+      [modelId]: has('wind10m_uv') ? available(['wind10m_uv']) : unavailable(['wind10m_uv']),
+    }),
+    precipitation_rate: createManifestLayerFixture({
+      [modelId]: has('prate_surface') ? available(['prate_surface']) : unavailable(['prate_surface']),
+    }),
+    snow_depth: createManifestLayerFixture({
+      [modelId]: has('snow_depth_surface') ? available(['snow_depth_surface']) : unavailable(['snow_depth_surface']),
+    }),
+    relative_humidity: createManifestLayerFixture({
+      [modelId]: has('rh_surface') ? available(['rh_surface']) : unavailable(['rh_surface']),
+    }),
+    cloud_cover: createManifestLayerFixture({
+      [modelId]: has('tcdc') ? available(['tcdc']) : unavailable(['tcdc']),
+    }),
+    low_cloud_cover: createManifestLayerFixture({
+      [modelId]: has('low_clouds') ? available(['low_clouds']) : unavailable(['low_clouds']),
+    }),
+    middle_cloud_cover: createManifestLayerFixture({
+      [modelId]: has('medium_clouds') ? available(['medium_clouds']) : unavailable(['medium_clouds']),
+    }),
+    high_cloud_cover: createManifestLayerFixture({
+      [modelId]: has('high_clouds') ? available(['high_clouds']) : unavailable(['high_clouds']),
+    }),
+    visibility: createManifestLayerFixture({
+      [modelId]: has('visibility_surface') ? available(['visibility_surface']) : unavailable(['visibility_surface']),
+    }),
+    freezing_level: createManifestLayerFixture({
+      [modelId]: has('freezing_level') ? available(['freezing_level']) : unavailable(['freezing_level']),
+    }),
+    precipitable_water: createManifestLayerFixture({
+      [modelId]: has('precipitable_water') ? available(['precipitable_water']) : unavailable(['precipitable_water']),
+    }),
+    accumulated_precipitation: createManifestLayerFixture({
+      [modelId]: has('precip_total_surface') ? available(['precip_total_surface']) : unavailable(['precip_total_surface']),
+    }),
+    cape: createManifestLayerFixture({
+      [modelId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
+    }),
+  }
+}
+
+export function createLayerModelAvailabilityFixture(
+  overrides: Partial<Manifest['layers'][string]['models'][string]> = {}
+): Manifest['layers'][string]['models'][string] {
+  return {
+    state: 'available',
+    support: 'native',
+    requiredArtifacts: [],
+    optionalArtifacts: [],
+    ...overrides,
+  }
+}
+
+export function createManifestLayerFixture(
+  models: Record<string, Manifest['layers'][string]['models'][string]>
+): Manifest['layers'][string] {
+  return { models }
+}
+
+export function createManifestFixture(
   overrides: ManifestFixtureOverrides = {}
-): CycleManifest {
+): Manifest {
+  const model = overrides.model ?? { id: FIXTURE_MODEL_ID, label: FIXTURE_MODEL_LABEL }
+  const latest = createLatestRunFixture(overrides)
+  return {
+    schema: FORECAST_MANIFEST_SCHEMA,
+    schemaVersion: FORECAST_MANIFEST_SCHEMA_VERSION,
+    generatedAt: overrides.generatedAt ?? FIXTURE_GENERATED_AT,
+    catalogVersion: 'forecast-catalog-v1',
+    payloadContract: FORECAST_PAYLOAD_CONTRACT,
+    models: {
+      [model.id]: {
+        label: model.label,
+        latest,
+      },
+    },
+    layers: overrides.layers ?? createManifestLayersFixture(latest.artifacts, model.id),
+  }
+}
+
+export function createSingleTimeManifestFixture(
+  overrides: ManifestFixtureOverrides = {}
+): Manifest {
   return createManifestFixture({
     forecastHours: [FIXTURE_HOUR_TOKEN],
     ...overrides,
   })
 }
 
-function toCycleManifestPayload(
-  manifest: CycleManifest
-): Record<string, unknown> {
-  return {
-    schema: manifest.schema,
-    schemaVersion: manifest.schemaVersion,
-    payloadContract: manifest.payloadContract,
-    model: manifest.model,
-    run: manifest.run,
-    times: manifest.times,
-    artifacts: manifest.artifacts,
+export function createActiveRunFixture(
+  manifest: Manifest,
+  modelId: ForecastModelId = FIXTURE_MODEL_ID
+): ActiveForecastRun {
+  const activeRun = activeForecastRunForModel(manifest, modelId)
+  if (!activeRun) {
+    throw new Error(`Missing active run fixture for model ${modelId}`)
   }
+  return activeRun
 }
 
-export function createCycleManifestPayloadFixture(
+export function createManifestPayloadFixture(
   overrides: ManifestFixtureOverrides = {}
 ): Record<string, unknown> {
-  return toCycleManifestPayload(createFrameManifestFixture(overrides))
-}
-
-function deriveArtifactsByKind(
-  artifacts: Record<string, ManifestArtifactSpec>
-): Record<string, NonEmptyArray<ArtifactId>> {
-  const byKind: Record<string, ArtifactId[]> = {}
-  for (const artifact of Object.values(artifacts)) {
-    byKind[artifact.kind] ??= []
-    byKind[artifact.kind].push(asArtifactId(artifact.id))
-  }
-  return Object.fromEntries(
-    Object.entries(byKind).map(([kind, ids]) => [kind, ids as NonEmptyArray<ArtifactId>])
-  )
+  return createSingleTimeManifestFixture(overrides)
 }

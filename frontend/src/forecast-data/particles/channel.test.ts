@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createArtifactLoader } from '../../forecast-artifacts'
 import { PARTICLE_LAYERS } from '../../forecast-catalog'
-import type { VectorEncodingSpec } from '../../manifest'
+import type { VectorEncodingSpec } from '../../forecast-manifest'
 import {
+  createActiveRunFixture,
   createConfigFixture,
-  createFrameManifestFixture,
+  createSingleTimeManifestFixture,
   createScalarArtifactFixture,
   createSignalFixture,
   createVectorArtifactFixture,
@@ -18,13 +19,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function particleChannel(manifest: ReturnType<typeof createFrameManifestFixture>) {
+function particleChannel(manifest: ReturnType<typeof createSingleTimeManifestFixture>) {
+  const activeRun = createActiveRunFixture(manifest)
   return createParticleChannel({
-    manifest,
+    activeRun,
     particleLayer: PARTICLE_LAYERS[0]!,
     artifacts: createArtifactLoader({
       config: createConfigFixture(),
-      manifest,
+      activeRun,
       signal: createSignalFixture(),
     }),
   })
@@ -34,7 +36,7 @@ describe('createParticleChannel', () => {
   it('loads particle channels from vector artifacts', async () => {
     const payload = createVectorPayloadFixture([1, -2, 3, -4], [-5, 6, -7, 8])
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041200',
     })
 
@@ -52,7 +54,7 @@ describe('createParticleChannel', () => {
     const baseEncoding = createVectorArtifactFixture().encoding
 
     await expect(
-      particleChannel(createFrameManifestFixture({
+      particleChannel(createSingleTimeManifestFixture({
         artifacts: {
           tmp_surface: createScalarArtifactFixture(),
           wind10m_uv: createVectorArtifactFixture({
@@ -70,7 +72,7 @@ describe('createParticleChannel', () => {
 
   it('rejects particle channel loads for artifacts assigned to another kind', async () => {
     await expect(
-      particleChannel(createFrameManifestFixture({
+      particleChannel(createSingleTimeManifestFixture({
         artifacts: {
           tmp_surface: createScalarArtifactFixture(),
           wind10m_uv: {

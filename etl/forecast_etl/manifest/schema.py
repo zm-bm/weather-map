@@ -98,7 +98,7 @@ class ManifestModelIdentity(FrozenAliasModel):
 
 
 class CycleManifest(FrozenAliasModel):
-    """Top-level frontend cycle manifest."""
+    """Top-level internal cycle manifest."""
 
     schema_name: Literal["weather-map.cycle-manifest"] = Field(alias="schema")
     schema_version: Literal[5] = Field(alias="schemaVersion")

@@ -4,15 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 const mocks = vi.hoisted(() => ({
-  useForecastBootstrap: vi.fn(),
+  useForecastManifest: vi.fn(),
   forecastShell: vi.fn(() => <div data-testid="forecast-screen">forecast</div>),
 }))
 
-vi.mock('./forecast-bootstrap', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./forecast-bootstrap')>()
+vi.mock('./forecast-manifest', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./forecast-manifest')>()
   return {
     ...actual,
-    useForecastBootstrap: mocks.useForecastBootstrap,
+    useForecastManifest: mocks.useForecastManifest,
     AppStartupStatus: () => null,
   }
 })
@@ -24,8 +24,8 @@ vi.mock('./components/ForecastShell/ForecastShell', () => ({
 describe('App health route', () => {
   beforeEach(() => {
     window.history.pushState(null, '', '/')
-    mocks.useForecastBootstrap.mockReset()
-    mocks.useForecastBootstrap.mockReturnValue({
+    mocks.useForecastManifest.mockReset()
+    mocks.useForecastManifest.mockReturnValue({
       phase: 'loading',
       data: null,
       error: null,
@@ -43,7 +43,7 @@ describe('App health route', () => {
 
     expect(await screen.findByText('Weather Map Health')).toBeInTheDocument()
     expect(screen.queryByTestId('forecast-screen')).not.toBeInTheDocument()
-    expect(mocks.useForecastBootstrap).not.toHaveBeenCalled()
+    expect(mocks.useForecastManifest).not.toHaveBeenCalled()
   })
 
   it('renders backend unavailable when the health request fails', async () => {

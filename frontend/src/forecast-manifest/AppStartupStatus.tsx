@@ -2,19 +2,19 @@ import { useEffect } from 'react'
 
 import { useAppStatusActions } from '../app-status'
 import AppStatusHost from '../components/AppStatusHost'
-import type { ForecastBootstrapState } from './types'
+import type { ForecastManifestState } from './types'
 
-export default function AppStartupStatus({ state }: { state: ForecastBootstrapState }) {
+export default function AppStartupStatus({ state }: { state: ForecastManifestState }) {
   const { setStatus, clearStatus } = useAppStatusActions()
 
   useEffect(() => {
     if (state.phase === 'ready') {
-      clearStatus('forecastBootstrap')
+      clearStatus('forecastManifest')
       return
     }
 
     if (state.phase === 'error') {
-      setStatus('forecastBootstrap', {
+      setStatus('forecastManifest', {
         mode: 'blocking',
         level: 'error',
         title: 'Forecast Load Failed',
@@ -25,11 +25,11 @@ export default function AppStartupStatus({ state }: { state: ForecastBootstrapSt
       return
     }
 
-    setStatus('forecastBootstrap', {
+    setStatus('forecastManifest', {
       mode: 'blocking',
       level: 'loading',
       title: 'Loading Forecast',
-      detail: 'Fetching forecast layer availability.',
+      detail: 'Fetching forecast manifest.',
     })
   }, [
     clearStatus,
@@ -41,7 +41,7 @@ export default function AppStartupStatus({ state }: { state: ForecastBootstrapSt
 
   useEffect(() => {
     return () => {
-      clearStatus('forecastBootstrap')
+      clearStatus('forecastManifest')
     }
   }, [clearStatus])
 

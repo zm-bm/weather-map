@@ -6,24 +6,26 @@ import {
   getAvailableParticleLayers,
 } from '../forecast-catalog'
 import {
+  createActiveRunFixture,
   createConfigFixture,
-  createFrameManifestFixture,
+  createSingleTimeManifestFixture,
   createSignalFixture,
 } from '../test/fixtures'
 import { createForecastDataTarget } from './target'
 import { createForecastDataPlan } from './plan'
 
 function dataPlan(args: {
-  manifest: ReturnType<typeof createFrameManifestFixture>
+  manifest: ReturnType<typeof createSingleTimeManifestFixture>
   layerId?: string
   includeParticles?: boolean
 }) {
+  const activeRun = createActiveRunFixture(args.manifest)
   const selectedLayer = FORECAST_LAYERS_BY_ID[args.layerId ?? 'temperature']!
   const selectedParticleLayer = args.includeParticles === false
     ? null
-    : getAvailableParticleLayers(args.manifest).wind!
+    : getAvailableParticleLayers(activeRun).wind!
   const target = createForecastDataTarget({
-    manifest: args.manifest,
+    activeRun,
     selectedLayerId: selectedLayer.id,
     selectedLayer,
     selectedParticleLayerId: selectedParticleLayer?.id ?? null,
@@ -43,7 +45,7 @@ function dataPlan(args: {
     target,
     artifacts: createArtifactLoader({
       config: createConfigFixture(),
-      manifest: args.manifest,
+      activeRun,
       signal: createSignalFixture(),
     }),
   })
@@ -52,29 +54,29 @@ function dataPlan(args: {
 describe('createForecastDataPlan', () => {
   it('builds selected field and particle channels', () => {
     const plan = dataPlan({
-      manifest: createFrameManifestFixture({
+      manifest: createSingleTimeManifestFixture({
         cycle: '2026040900',
         forecastHours: ['003', '006'],
       }),
       layerId: 'wind_speed',
     })
 
-    expect(plan.field.key).toBe('2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
-    expect(plan.particles?.key).toBe('2026040900:rev:wind:wind10m_uv')
+    expect(plan.field.key).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
+    expect(plan.particles?.key).toBe('gfs:2026040900:rev:wind:wind10m_uv')
     expect(plan.lowerHourToken).toBe('000')
     expect(plan.upperHourToken).toBe('000')
   })
 
   it('omits the particle channel when no particle layer is selected', () => {
     const plan = dataPlan({
-      manifest: createFrameManifestFixture({
+      manifest: createSingleTimeManifestFixture({
         cycle: '2026040900',
         vectorArtifactIds: [],
       }),
       includeParticles: false,
     })
 
-    expect(plan.field.key).toBe('2026040900:rev:temperature:artifact:tmp_surface')
+    expect(plan.field.key).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface')
     expect(plan.particles).toBeNull()
   })
 })

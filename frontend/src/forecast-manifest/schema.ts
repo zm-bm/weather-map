@@ -1,15 +1,10 @@
 import { z } from 'zod'
 
 import {
-  MANIFEST_PAYLOAD_CONTRACT,
-  MANIFEST_SCHEMA,
-  MANIFEST_SCHEMA_VERSION,
+  FORECAST_MANIFEST_SCHEMA,
+  FORECAST_MANIFEST_SCHEMA_VERSION,
+  FORECAST_PAYLOAD_CONTRACT,
 } from './constants'
-import {
-  asArtifactId,
-  type ArtifactId,
-} from './ids'
-import type { NonEmptyArray } from '../types'
 
 export type LayerColortableStop = [number, number, number, number] | [number, number, number]
 
@@ -20,24 +15,19 @@ const componentNameSchema = z.string().trim().min(1)
 const optionalTemporalKindSchema = z.enum(ARTIFACT_TEMPORAL_KINDS).optional()
 const optionalSourceIntervalHoursSchema = finiteNumberSchema.positive().optional()
 
-export const modelSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-})
-
-export const runSchema = z.object({
+const runSchema = z.object({
   cycle: z.string(),
   generatedAt: z.string(),
   revision: z.string(),
 })
 
-export const timeSchema = z.object({
+const timeSchema = z.object({
   id: z.string(),
   leadHours: finiteNumberSchema,
   validAt: z.string(),
 })
 
-export const gridSchema = z.object({
+const gridSchema = z.object({
   id: z.string(),
   crs: z.string(),
   nx: finiteNumberSchema,
@@ -52,7 +42,7 @@ export const gridSchema = z.object({
   yMode: z.literal('clamp'),
 })
 
-export const scalarLinearInt16EncodingSchema = z.object({
+const scalarLinearInt16EncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i16-v1'),
   dtype: z.literal('int16'),
@@ -63,7 +53,7 @@ export const scalarLinearInt16EncodingSchema = z.object({
   decodeFormula: z.string(),
 })
 
-export const scalarLinearInt8EncodingSchema = z.object({
+const scalarLinearInt8EncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i8-v1'),
   dtype: z.literal('int8'),
@@ -74,7 +64,7 @@ export const scalarLinearInt8EncodingSchema = z.object({
   decodeFormula: z.string(),
 })
 
-export const scalarTempCPiecewiseEncodingSchema = z.object({
+const scalarTempCPiecewiseEncodingSchema = z.object({
   id: z.string(),
   format: z.literal('temp-c-piecewise-i8-v1'),
   dtype: z.literal('int8'),
@@ -82,13 +72,13 @@ export const scalarTempCPiecewiseEncodingSchema = z.object({
   nodata: z.literal(-128),
 })
 
-export const scalarEncodingSchema = z.discriminatedUnion('format', [
+const scalarEncodingSchema = z.discriminatedUnion('format', [
   scalarLinearInt16EncodingSchema,
   scalarLinearInt8EncodingSchema,
   scalarTempCPiecewiseEncodingSchema,
 ])
 
-export const vectorEncodingSchema = z.object({
+const vectorEncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i8-v1'),
   dtype: z.literal('int8'),
@@ -98,54 +88,64 @@ export const vectorEncodingSchema = z.object({
   decodeFormula: z.string(),
 })
 
-export const frameRefSchema = z.object({
-  path: z.string(),
-  byteLength: finiteNumberSchema,
+const layerAvailabilityStateSchema = z.enum([
+  'available',
+  'unsupported',
+  'temporarily_unavailable',
+])
+
+const layerSupportSchema = z.enum([
+  'native',
+  'frontend-derived',
+  'etl-derived',
+  'composite',
+  'unavailable',
+])
+
+const layerModelAvailabilitySchema = z.object({
+  state: layerAvailabilityStateSchema,
+  support: layerSupportSchema,
+  requiredArtifacts: z.array(z.string()),
+  optionalArtifacts: z.array(z.string()).default([]),
 })
 
-const artifactCommonSchema = {
+const manifestArtifactCommonSchema = {
   id: z.string(),
   units: z.string(),
   parameter: z.string(),
   level: z.string(),
   components: z.array(componentNameSchema).nonempty(),
   grid: gridSchema,
-  frames: z.record(z.string(), frameRefSchema),
+  byteLength: finiteNumberSchema.positive(),
   temporalKind: optionalTemporalKindSchema,
   sourceIntervalHours: optionalSourceIntervalHoursSchema,
 }
 
-export const scalarArtifactSchema = z.object({
-  ...artifactCommonSchema,
+const scalarArtifactSchema = z.object({
+  ...manifestArtifactCommonSchema,
   kind: z.literal('scalar'),
   encoding: scalarEncodingSchema,
 })
 
-export const vectorArtifactSchema = z.object({
-  ...artifactCommonSchema,
+const vectorArtifactSchema = z.object({
+  ...manifestArtifactCommonSchema,
   kind: z.literal('vector'),
   encoding: vectorEncodingSchema,
 })
 
-export const manifestArtifactSchema = z.discriminatedUnion('kind', [
+const manifestArtifactSchema = z.discriminatedUnion('kind', [
   scalarArtifactSchema,
   vectorArtifactSchema,
 ])
 
-const cycleManifestPayloadSchema = z.object({
-  schema: z.literal(MANIFEST_SCHEMA),
-  schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
-  payloadContract: z.literal(MANIFEST_PAYLOAD_CONTRACT),
-  model: modelSchema,
+const latestForecastRunSchema = z.object({
   run: runSchema,
   times: z.array(timeSchema).nonempty('expected at least one time'),
   artifacts: z.record(z.string(), manifestArtifactSchema),
 })
-
-export const cycleManifestSchema = cycleManifestPayloadSchema
-  .superRefine((manifest, ctx) => {
+  .superRefine((latest, ctx) => {
     const seenTimes = new Set<string>()
-    for (const [timeIndex, time] of manifest.times.entries()) {
+    for (const [timeIndex, time] of latest.times.entries()) {
       if (!seenTimes.has(time.id)) {
         seenTimes.add(time.id)
         continue
@@ -157,7 +157,7 @@ export const cycleManifestSchema = cycleManifestPayloadSchema
       })
     }
 
-    const artifactEntries = Object.entries(manifest.artifacts)
+    const artifactEntries = Object.entries(latest.artifacts)
     if (artifactEntries.length < 1) {
       ctx.addIssue({
         code: 'custom',
@@ -174,23 +174,28 @@ export const cycleManifestSchema = cycleManifestPayloadSchema
           message: `artifact key ${artifactId} does not match id ${artifact.id}`,
         })
       }
-
-      for (const time of manifest.times) {
-        if (artifact.frames[time.id]) continue
-        ctx.addIssue({
-          code: 'custom',
-          path: ['artifacts', artifactId, 'frames', time.id],
-          message: `missing frame for hour ${time.id}`,
-        })
-      }
     }
   })
-  .transform((manifest): CycleManifest => ({
-    ...manifest,
-    artifactsByKind: deriveArtifactsByKind(manifest.artifacts),
-  }))
 
-export type ForecastModelSpec = z.infer<typeof modelSchema>
+const manifestModelSchema = z.object({
+  label: z.string(),
+  latest: latestForecastRunSchema.nullable(),
+})
+
+const manifestLayerSchema = z.object({
+  models: z.record(z.string(), layerModelAvailabilitySchema),
+})
+
+export const manifestSchema = z.object({
+  schema: z.literal(FORECAST_MANIFEST_SCHEMA),
+  schemaVersion: z.literal(FORECAST_MANIFEST_SCHEMA_VERSION),
+  generatedAt: z.string(),
+  catalogVersion: z.string(),
+  payloadContract: z.literal(FORECAST_PAYLOAD_CONTRACT),
+  models: z.record(z.string(), manifestModelSchema),
+  layers: z.record(z.string(), manifestLayerSchema),
+})
+
 export type ForecastRunSpec = z.infer<typeof runSchema>
 export type ForecastTimeSpec = z.infer<typeof timeSchema>
 export type ScalarGridSpec = z.infer<typeof gridSchema>
@@ -200,29 +205,28 @@ export type ScalarTempCPiecewiseEncodingSpec = z.infer<typeof scalarTempCPiecewi
 export type ScalarEncodingSpec = z.infer<typeof scalarEncodingSchema>
 export type VectorEncodingSpec = z.infer<typeof vectorEncodingSchema>
 export type ManifestEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
-export type FramePayloadRef = z.infer<typeof frameRefSchema>
+export type FramePayloadRef = {
+  path: string
+  byteLength: number
+}
 export type ArtifactTemporalKind = typeof ARTIFACT_TEMPORAL_KINDS[number]
 export type ArtifactKind = ManifestArtifactSpec['kind']
 export type ScalarArtifactSpec = z.infer<typeof scalarArtifactSchema>
 export type VectorArtifactSpec = z.infer<typeof vectorArtifactSchema>
 export type ManifestArtifactSpec = z.infer<typeof manifestArtifactSchema>
-export type CycleManifest = z.infer<typeof cycleManifestPayloadSchema> & {
-  artifactsByKind: Record<string, NonEmptyArray<ArtifactId>>
+export type LayerAvailabilityState = z.infer<typeof layerAvailabilityStateSchema>
+export type LayerSupport = z.infer<typeof layerSupportSchema>
+export type LayerModelAvailability = z.infer<typeof layerModelAvailabilitySchema>
+export type LatestForecastRun = z.infer<typeof latestForecastRunSchema>
+export type Manifest = z.infer<typeof manifestSchema>
+export type ForecastModelId = string
+export type ActiveForecastRun = {
+  manifest: Manifest
+  modelId: ForecastModelId
+  label: string
+  latest: LatestForecastRun
 }
-
-function deriveArtifactsByKind(artifacts: Record<string, ManifestArtifactSpec>): Record<string, NonEmptyArray<ArtifactId>> {
-  const artifactIdsByKind: Record<string, ArtifactId[]> = {}
-
-  for (const artifact of Object.values(artifacts)) {
-    const artifactId = asArtifactId(artifact.id)
-    artifactIdsByKind[artifact.kind] ??= []
-    artifactIdsByKind[artifact.kind].push(artifactId)
-  }
-
-  const artifactsByKind: Record<string, NonEmptyArray<ArtifactId>> = {}
-  for (const [kind, artifactIds] of Object.entries(artifactIdsByKind)) {
-    artifactsByKind[kind] = artifactIds as NonEmptyArray<ArtifactId>
-  }
-
-  return artifactsByKind
+export type ForecastModelOption = {
+  id: ForecastModelId
+  label: string
 }

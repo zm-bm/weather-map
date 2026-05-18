@@ -72,7 +72,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../forecast-selection', () => ({
   useForecastSelectionContext: () => ({
     selectedLayerId: mocks.forecastLoaded ? mocks.selectedLayerId : null,
-    manifest: mocks.forecastLoaded ? {} : null,
+    activeRun: mocks.forecastLoaded ? {} : null,
   }),
 }))
 

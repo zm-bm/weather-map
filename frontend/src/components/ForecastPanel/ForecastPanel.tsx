@@ -5,7 +5,7 @@ import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
   isLayerAvailableForModel,
   hasAnyAvailableModelForLayer,
-} from '../../forecast-availability'
+} from '../../forecast-manifest'
 import {
   type LayerGroupSpec,
   type LayerId,
@@ -26,12 +26,10 @@ function formatModelRunLabel(runTime: string): string {
 
 const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
   const {
-    manifest,
-    activeModelId,
+    activeRun,
     modelOptions,
     groups,
     layers,
-    availabilityIndex,
     selectedLayerId,
     selectedLayerGroupId,
     selectedLayerAvailability,
@@ -40,11 +38,12 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
     setSelectedLayer,
     setSelectedLayerGroup,
   } = useLoadedForecastSelectionContext()
-  const runTime = formatCycleRunTimeLabel(manifest.run.cycle) ?? '--'
+  const manifest = activeRun.manifest
+  const runTime = formatCycleRunTimeLabel(activeRun.latest.run.cycle) ?? '--'
   const runLabel = formatModelRunLabel(runTime)
   const selectedLayerGroup = groups.find((group) => group.id === selectedLayerGroupId) ??
     getSelectedLayerGroup(groups, selectedLayerId)
-  const activeModelLabel = manifest.model.label
+  const activeModelLabel = activeRun.label
   const selectedLayer = selectedLayerId == null ? null : layers[selectedLayerId]
   const showUnavailableMessage = selectedLayer != null && (
     selectedLayerAvailability?.state === 'temporarily_unavailable' ||
@@ -68,13 +67,12 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
           <select
             className="forecast-controls__quiet-select forecast-controls__model-select"
             aria-label="Forecast model"
-            value={activeModelId ?? ''}
+            value={activeRun.modelId}
             onChange={(event) => setActiveModel(event.currentTarget.value)}
           >
             {modelOptions.map((model) => {
               const isUnavailableForSelectedLayer = selectedLayerId != null &&
-                availabilityIndex != null &&
-                !isLayerAvailableForModel(availabilityIndex, selectedLayerId, model.id)
+                !isLayerAvailableForModel(manifest, selectedLayerId, model.id)
 
               return (
                 <option
@@ -123,12 +121,12 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
             >
               {selectedLayerGroup.layers.map((layerId) => {
                 const layer = layers[layerId]
-                const hasSource = hasAnyAvailableModelForLayer(availabilityIndex, layerId)
+                const hasSource = hasAnyAvailableModelForLayer(manifest, layerId)
                 const label = layer?.label ?? String(layerId)
 
                 return (
-                  <option key={layerId} value={layerId} disabled={availabilityIndex != null && !hasSource}>
-                    {availabilityIndex != null && !hasSource ? `${label} (Unavailable)` : label}
+                  <option key={layerId} value={layerId} disabled={!hasSource}>
+                    {!hasSource ? `${label} (Unavailable)` : label}
                   </option>
                 )
               })}

@@ -1,9 +1,10 @@
 import {
   asVectorArtifactId,
-  type CycleManifest,
+  getActiveRunArtifact,
+  type ActiveForecastRun,
   type ManifestArtifactSpec,
   type VectorArtifactId,
-} from '../manifest'
+} from '../forecast-manifest'
 import type { Brand } from '../types'
 import { RAW_FORECAST_CATALOG } from './catalog'
 
@@ -41,11 +42,13 @@ const rawCatalog = RAW_FORECAST_CATALOG as RawForecastCatalog
 
 export const PARTICLE_LAYERS: readonly ParticleLayerSpec[] = rawCatalog.particleLayers.map(particleLayerFromRaw)
 
-export function getAvailableParticleLayers(manifest: CycleManifest): Record<string, ParticleLayerSpec> {
+export function getAvailableParticleLayers(
+  activeRun: ActiveForecastRun
+): Record<string, ParticleLayerSpec> {
   const layers: Record<string, ParticleLayerSpec> = {}
 
   for (const entry of PARTICLE_LAYERS) {
-    if (!isParticleLayerAvailable(manifest, entry)) continue
+    if (!isParticleLayerAvailable(activeRun, entry)) continue
     layers[entry.id] = entry
   }
 
@@ -72,10 +75,10 @@ export function particleLayerSourceArtifactId(layer: ParticleLayerSpec): VectorA
 }
 
 function isParticleLayerAvailable(
-  manifest: CycleManifest,
+  activeRun: ActiveForecastRun,
   layer: ParticleLayerSpec
 ): boolean {
-  const artifact = manifest.artifacts[layer.source.artifactId]
+  const artifact = getActiveRunArtifact(activeRun, String(layer.source.artifactId))
   if (!artifact) return false
   if (artifact.kind !== 'vector') {
     throw new Error(`Particle layer ${layer.id} requires vector artifact ${layer.source.artifactId}, got ${artifact.kind}`)

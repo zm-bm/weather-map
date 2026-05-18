@@ -2,7 +2,7 @@ import type {
   LayerColortableStop,
   ScalarEncodingSpec,
   ScalarGridSpec,
-} from '../manifest'
+} from '../forecast-manifest'
 import type {
   ScalarArtifactData,
   VectorArtifactData,

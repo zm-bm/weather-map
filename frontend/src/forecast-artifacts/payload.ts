@@ -1,8 +1,8 @@
 import type {
-  CycleManifest,
+  ActiveForecastRun,
   FramePayloadRef,
   ManifestArtifactSpec,
-} from '../manifest'
+} from '../forecast-manifest'
 import type { WeatherMapConfig } from '../config'
 import { createAbortError } from '../abort'
 import { joinUrl } from '../url/joinUrl'
@@ -23,7 +23,7 @@ type ResolvedArtifactPayload = {
 
 type ReadArtifactPayloadArgs = {
   config: WeatherMapConfig
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   resolved: ResolvedArtifactPayload
   signal: AbortSignal
 }
@@ -40,8 +40,8 @@ export async function readArtifactPayload(
   } = args.resolved
   const artifactKind = artifact.kind
 
-  await ensurePayloadFrameCacheScope(args.manifest)
-  const cacheKey = payloadFrameCacheKey(args.manifest, frameRef)
+  await ensurePayloadFrameCacheScope(args.activeRun)
+  const cacheKey = payloadFrameCacheKey(args.activeRun, frameRef)
   const cachedPayload = await readCachedPayloadFrame(cacheKey)
   const payload = cachedPayload ?? await waitForSharedPayloadFetch({
     cacheKey,
@@ -54,7 +54,7 @@ export async function readArtifactPayload(
       })
 
       await writeCachedPayloadFrame({
-        manifest: args.manifest,
+        activeRun: args.activeRun,
         key: cacheKey,
         payload: fetchedPayload,
       })

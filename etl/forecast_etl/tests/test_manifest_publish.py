@@ -182,14 +182,14 @@ class PublishManifestTest(unittest.TestCase):
             self.assertTrue(result_second.ready)
             self.assertTrue(result_second.already_published)
 
-    def test_publish_writes_availability_index_when_pipeline_config_is_provided(self) -> None:
+    def test_publish_writes_forecast_manifest_when_pipeline_config_is_provided(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
         cfg = load_pipeline_config(
             (repo_root / "config" / "pipeline" / "base.json").as_uri(),
             overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
         )
 
-        with publish_fixture(prefix="weather-map-publish-availability-") as fx:
+        with publish_fixture(prefix="weather-map-publish-forecast-manifest-") as fx:
             artifact_id = "tmp_surface"
             artifact_cfg = minimal_artifact_config()
             fx.write_scalar_marker(
@@ -204,23 +204,27 @@ class PublishManifestTest(unittest.TestCase):
             )
 
             self.assertTrue(result.ready)
-            self.assertTrue(fx.artifacts.availability_index_exists())
-            availability_index = fx.artifacts.read_availability_index()
-            self.assertEqual(availability_index["schema"], "weather-map-model-layer-availability-index")
-            self.assertEqual(availability_index["schemaVersion"], 2)
-            self.assertNotIn("latestCycle", availability_index["models"]["gfs"])
-            self.assertNotIn("latestManifestPath", availability_index["models"]["gfs"])
-            latest = availability_index["models"]["gfs"]["latest"]
+            self.assertTrue(fx.artifacts.forecast_manifest_exists())
+            forecast_manifest = fx.artifacts.read_forecast_manifest()
+            self.assertEqual(forecast_manifest["schema"], "weather-map.forecast-manifest")
+            self.assertEqual(forecast_manifest["schemaVersion"], 1)
+            self.assertEqual(forecast_manifest["payloadContract"], "forecast-binary-v2")
+            self.assertNotIn("latestCycle", forecast_manifest["models"]["gfs"])
+            self.assertNotIn("latestManifestPath", forecast_manifest["models"]["gfs"])
+            latest = forecast_manifest["models"]["gfs"]["latest"]
             self.assertEqual(latest["run"]["cycle"], fx.cycle)
             self.assertEqual(latest["times"][0]["id"], "000")
+            self.assertNotIn("schema", latest)
+            self.assertNotIn("schemaVersion", latest)
+            self.assertNotIn("payloadContract", latest)
             latest_artifact = latest["artifacts"]["tmp_surface"]
             self.assertEqual(latest_artifact["byteLength"], fx.cell_count * 2)
             self.assertNotIn("frames", latest_artifact)
             self.assertNotIn("path", latest_artifact)
             self.assertNotIn("sha256", latest_artifact)
-            self.assertEqual(availability_index["layers"]["temperature"]["models"]["gfs"]["state"], "available")
+            self.assertEqual(forecast_manifest["layers"]["temperature"]["models"]["gfs"]["state"], "available")
             self.assertEqual(
-                availability_index["layers"]["visibility"]["models"]["gfs"]["state"],
+                forecast_manifest["layers"]["visibility"]["models"]["gfs"]["state"],
                 "temporarily_unavailable",
             )
             self.assertNotIn("groups", fx.cycle_manifest())

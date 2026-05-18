@@ -2,27 +2,27 @@ import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
-  ForecastBootstrapData,
-  ForecastBootstrapState,
-} from './forecast-bootstrap'
+  ForecastManifestData,
+  ForecastManifestState,
+} from './forecast-manifest'
 import ForecastApp from './ForecastApp'
 
 const mocks = vi.hoisted(() => ({
-  bootstrapState: null as ForecastBootstrapState | null,
-  shellForecast: undefined as ForecastBootstrapData | null | undefined,
-  startupState: null as ForecastBootstrapState | null,
+  manifestState: null as ForecastManifestState | null,
+  shellForecast: undefined as ForecastManifestData | null | undefined,
+  startupState: null as ForecastManifestState | null,
 }))
 
-vi.mock('./forecast-bootstrap', () => ({
-  useForecastBootstrap: () => mocks.bootstrapState,
-  AppStartupStatus: ({ state }: { state: ForecastBootstrapState }) => {
+vi.mock('./forecast-manifest', () => ({
+  useForecastManifest: () => mocks.manifestState,
+  AppStartupStatus: ({ state }: { state: ForecastManifestState }) => {
     mocks.startupState = state
     return null
   },
 }))
 
 vi.mock('./components/ForecastShell/ForecastShell', () => ({
-  default: ({ forecast }: { forecast: ForecastBootstrapData | null }) => {
+  default: ({ forecast }: { forecast: ForecastManifestData | null }) => {
     mocks.shellForecast = forecast
     return null
   },
@@ -30,7 +30,7 @@ vi.mock('./components/ForecastShell/ForecastShell', () => ({
 
 describe('ForecastApp', () => {
   beforeEach(() => {
-    mocks.bootstrapState = {
+    mocks.manifestState = {
       phase: 'loading',
       data: null,
       error: null,
@@ -40,9 +40,9 @@ describe('ForecastApp', () => {
     mocks.startupState = null
   })
 
-  it('passes bootstrap data to the shell and startup state to status projection', () => {
-    const data = { marker: 'forecast' } as unknown as ForecastBootstrapData
-    mocks.bootstrapState = {
+  it('passes forecast manifest data to the shell and startup state to status projection', () => {
+    const data = { marker: 'forecast' } as unknown as ForecastManifestData
+    mocks.manifestState = {
       phase: 'ready',
       data,
       error: null,
@@ -52,13 +52,13 @@ describe('ForecastApp', () => {
     render(<ForecastApp />)
 
     expect(mocks.shellForecast).toBe(data)
-    expect(mocks.startupState).toBe(mocks.bootstrapState)
+    expect(mocks.startupState).toBe(mocks.manifestState)
   })
 
   it('passes null forecast data while startup is still blocked', () => {
     render(<ForecastApp />)
 
     expect(mocks.shellForecast).toBeNull()
-    expect(mocks.startupState).toBe(mocks.bootstrapState)
+    expect(mocks.startupState).toBe(mocks.manifestState)
   })
 })

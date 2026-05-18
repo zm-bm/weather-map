@@ -5,13 +5,16 @@ import {
   particleLayerSourceArtifactId,
 } from '../forecast-catalog'
 import { interpolationWindowMinuteOffset, type ForecastInterpolationWindow } from '../forecast-time'
-import type { CycleManifest } from '../manifest'
+import {
+  forecastRunScopeKey,
+  type ActiveForecastRun,
+} from '../forecast-manifest'
 import { normalizeHourToken } from './window'
 
 export const NO_PARTICLES_KEY = 'particles:none'
 
 export function createForecastDataRequestKey(args: {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   selectedLayer: LayerSpec
   selectedParticleLayer: ParticleLayerSpec | null
   interpolationWindow: ForecastInterpolationWindow
@@ -21,7 +24,7 @@ export function createForecastDataRequestKey(args: {
   const upperHourToken = normalizeHourToken(args.interpolationWindow.upperHourToken)
   const minuteOffset = interpolationWindowMinuteOffset(args.interpolationWindow)
   return scopeForecastDataKey(
-    args.manifest,
+    args.activeRun,
     [
       createLayerRequestKey(args.selectedLayer),
       createParticleRequestKey(args.selectedParticleLayer),
@@ -34,38 +37,38 @@ export function createForecastDataRequestKey(args: {
 }
 
 export function createFieldChannelKey(
-  manifest: CycleManifest,
+  activeRun: ActiveForecastRun,
   layer: LayerSpec
 ): string {
-  return scopeForecastDataKey(manifest, createLayerRequestKey(layer))
+  return scopeForecastDataKey(activeRun, createLayerRequestKey(layer))
 }
 
 export function createParticleChannelKey(
-  manifest: CycleManifest,
+  activeRun: ActiveForecastRun,
   particleLayer: ParticleLayerSpec
 ): string {
   return scopeForecastDataKey(
-    manifest,
+    activeRun,
     createParticleLayerRequestKey(particleLayer)
   )
 }
 
 export function createFieldTimeSliceCacheKey(args: {
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   layer: LayerSpec
   hourToken: string
 }): string {
   return scopeForecastDataKey(
-    args.manifest,
+    args.activeRun,
     `${createLayerRequestKey(args.layer)}:${normalizeHourToken(args.hourToken)}`
   )
 }
 
 function scopeForecastDataKey(
-  manifest: CycleManifest,
+  activeRun: ActiveForecastRun,
   value: string
 ): string {
-  return `${manifest.run.cycle}:${manifest.run.revision}:${value}`
+  return `${forecastRunScopeKey(activeRun)}:${value}`
 }
 
 function createLayerRequestKey(layer: LayerSpec): string {

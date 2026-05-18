@@ -1,6 +1,6 @@
 import type { ArtifactLoader } from '../../forecast-artifacts'
 import type { LayerSpec } from '../../forecast-catalog'
-import type { CycleManifest } from '../../manifest'
+import type { ActiveForecastRun } from '../../forecast-manifest'
 import {
   createFieldTimeSliceCacheKey,
   createFieldChannelKey,
@@ -19,16 +19,16 @@ import { loadFieldSourceData } from './source'
 
 type CreateFieldChannelArgs = {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   layer: LayerSpec
 }
 
 export function createFieldChannel(args: CreateFieldChannelArgs): ForecastDataChannel<FieldTimeSliceData> {
   return {
-    key: createFieldChannelKey(args.manifest, args.layer),
+    key: createFieldChannelKey(args.activeRun, args.layer),
     load: (hourToken) => loadFieldTimeSlice({
       artifacts: args.artifacts,
-      manifest: args.manifest,
+      activeRun: args.activeRun,
       layer: args.layer,
       hourToken,
     }),
@@ -37,13 +37,13 @@ export function createFieldChannel(args: CreateFieldChannelArgs): ForecastDataCh
 
 async function loadFieldTimeSlice(args: {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   hourToken: string
   layer: LayerSpec
 }): Promise<FieldTimeSliceData> {
   const normalizedHourToken = normalizeHourToken(args.hourToken)
   const cacheKey = createFieldTimeSliceCacheKey({
-    manifest: args.manifest,
+    activeRun: args.activeRun,
     layer: args.layer,
     hourToken: normalizedHourToken,
   })
@@ -52,7 +52,7 @@ async function loadFieldTimeSlice(args: {
 
   const sourceData = await loadFieldSourceData({
     artifacts: args.artifacts,
-    manifest: args.manifest,
+    activeRun: args.activeRun,
     layer: args.layer,
     hourToken: normalizedHourToken,
   })

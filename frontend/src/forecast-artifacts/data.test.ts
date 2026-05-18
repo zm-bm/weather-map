@@ -1,28 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { ScalarEncodingSpec, VectorEncodingSpec } from '../manifest'
+import type { ScalarEncodingSpec, VectorEncodingSpec } from '../forecast-manifest'
+import { __resetPayloadFrameCacheForTests } from '../forecast-cache/payloadFrameCache'
 import { createArtifactLoader } from './data'
 import {
   createConfigFixture,
-  createFrameRefFixture,
-  createFrameManifestFixture,
+  createSingleTimeManifestFixture,
   createGridFixture,
   createScalarArtifactFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorArtifactFixture,
   createVectorPayloadFixture,
+  createActiveRunFixture,
 } from '../test/fixtures'
 import { stubFetchArrayBufferOnce } from '../test/fetch'
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals()
+  await __resetPayloadFrameCacheForTests()
 })
 
-function artifacts(manifest: ReturnType<typeof createFrameManifestFixture>) {
+function artifacts(manifest: ReturnType<typeof createSingleTimeManifestFixture>) {
   return createArtifactLoader({
     config: createConfigFixture(),
-    manifest,
+    activeRun: createActiveRunFixture(manifest),
     signal: createSignalFixture(),
   })
 }
@@ -32,7 +34,7 @@ describe('scalar payload', () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       cycle: '2026041100',
       generatedAt: '2026-04-11T00:00:00Z',
       artifacts: {
@@ -50,12 +52,7 @@ describe('scalar payload', () => {
             xWrap: 'repeat',
             yMode: 'clamp',
           }),
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
-              byteLength: 8,
-            }),
-          },
+          byteLength: 8,
         }),
       },
     })
@@ -65,13 +62,16 @@ describe('scalar payload', () => {
     expect(frame.grid.nx).toBe(2)
     expect(Array.from(frame.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/fields/gfs/2026041100/000/tmp_surface.field.i16.bin'
+    )
   })
 
   it('maps loaded big-endian int16 scalar payloads into frame data', async () => {
     const payload = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x01, 0x2c, 0xfe, 0x70]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           encoding: {
@@ -84,12 +84,7 @@ describe('scalar payload', () => {
             offset: 0,
             decodeFormula: 'value = stored * scale + offset',
           },
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i16.bin',
-              byteLength: 8,
-            }),
-          },
+          byteLength: 8,
         }),
       },
     })
@@ -103,7 +98,7 @@ describe('scalar payload', () => {
     const payload = new Int8Array([-100, 0, 100, -128]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           encoding: {
@@ -116,12 +111,7 @@ describe('scalar payload', () => {
             offset: 50,
             decodeFormula: 'value = stored * scale + offset',
           },
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.temp-piecewise.field.i8.bin',
-              byteLength: 4,
-            }),
-          },
+          byteLength: 4,
         }),
       },
     })
@@ -137,7 +127,7 @@ describe('scalar payload', () => {
     const payload = new Int8Array([-127, -73, -72, 95]).buffer
     const fetchMock = stubFetchArrayBufferOnce(payload)
 
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           encoding: {
@@ -147,12 +137,7 @@ describe('scalar payload', () => {
             byteOrder: 'none',
             nodata: -128,
           },
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-              byteLength: 4,
-            }),
-          },
+          byteLength: 4,
         }),
       },
     })
@@ -165,7 +150,7 @@ describe('scalar payload', () => {
 
   it('rejects scalar payloads with non-value components', async () => {
     stubFetchArrayBufferOnce(new Int8Array(12).buffer)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           components: ['low', 'medium', 'high'],
@@ -179,12 +164,7 @@ describe('scalar payload', () => {
             offset: 0,
             decodeFormula: 'value = stored * scale + offset',
           },
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-              byteLength: 12,
-            }),
-          },
+          byteLength: 12,
         }),
       },
     })
@@ -197,7 +177,7 @@ describe('scalar payload', () => {
   it('rejects scalar payloads with the wrong byte length', async () => {
     const payload = new Int8Array([1, 2, 3]).buffer
     stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           encoding: {
@@ -210,12 +190,7 @@ describe('scalar payload', () => {
             offset: 50,
             decodeFormula: 'value = stored * scale + offset',
           },
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-              byteLength: 3,
-            }),
-          },
+          byteLength: 3,
         }),
       },
     })
@@ -227,7 +202,7 @@ describe('scalar payload', () => {
 
   it('rejects unsupported scalar encodings in artifact loads', async () => {
     stubFetchArrayBufferOnce(new Int8Array([0, 1, 2, 3]).buffer)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           encoding: {
@@ -237,12 +212,7 @@ describe('scalar payload', () => {
             byteOrder: 'none',
             nodata: -128,
           } as unknown as ScalarEncodingSpec,
-          frames: {
-            '000': createFrameRefFixture({
-              path: 'fields/2026041100/000/tmp_surface.field.i8.bin',
-              byteLength: 4,
-            }),
-          },
+          byteLength: 4,
         }),
       },
     })
@@ -253,7 +223,7 @@ describe('scalar payload', () => {
   })
 
   it('rejects scalar artifact loads for artifacts assigned to another kind', async () => {
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: {
           ...createVectorArtifactFixture(),
@@ -273,7 +243,7 @@ describe('vector payload', () => {
   it('maps loaded vector payloads into artifact data', async () => {
     const payload = createVectorPayloadFixture([1, -2, 3, -4], [-5, 6, -7, 8])
     const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         wind10m_uv: createVectorArtifactFixture(),
       },
@@ -292,7 +262,7 @@ describe('vector payload', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const baseEncoding = createVectorArtifactFixture().encoding
-    const manifest = createFrameManifestFixture({
+    const manifest = createSingleTimeManifestFixture({
       artifacts: {
         wind10m_uv: createVectorArtifactFixture({
           encoding: {
@@ -311,21 +281,21 @@ describe('vector payload', () => {
 
   it('rejects vector loads for missing artifacts, missing frames, and wrong artifact kind', async () => {
     await expect(
-      artifacts(createFrameManifestFixture()).loadVector('missing_wind', '000')
-    ).rejects.toThrow('No vector artifact metadata for missing_wind')
+      artifacts(createSingleTimeManifestFixture()).loadVector('missing_wind', '000')
+    ).rejects.toThrow('No vector artifact metadata for model=gfs artifact=missing_wind')
 
-    const missingFrameManifest = createFrameManifestFixture({
+    const missingTimeManifest = createSingleTimeManifestFixture({
+      forecastHours: ['003'],
       artifacts: {
         wind10m_uv: createVectorArtifactFixture(),
       },
     })
-    delete missingFrameManifest.artifacts.wind10m_uv.frames['000']
     await expect(
-      artifacts(missingFrameManifest).loadVector('wind10m_uv', '000')
-    ).rejects.toThrow('No vector frame ref for artifact=wind10m_uv hour=000')
+      artifacts(missingTimeManifest).loadVector('wind10m_uv', '000')
+    ).rejects.toThrow('No vector frame ref for model=gfs artifact=wind10m_uv hour=000')
 
     await expect(
-      artifacts(createFrameManifestFixture({
+      artifacts(createSingleTimeManifestFixture({
         artifacts: {
           wind10m_uv: {
             ...createScalarArtifactFixture(),

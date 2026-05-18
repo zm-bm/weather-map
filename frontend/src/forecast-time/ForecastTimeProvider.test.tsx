@@ -2,9 +2,14 @@ import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect } from 'react'
 
-import { createManifestFixture, type ManifestFixtureOverrides } from '../test/fixtures'
+import {
+  createActiveRunFixture,
+  createManifestFixture,
+  type ManifestFixtureOverrides,
+} from '../test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
+import { forecastTimeProviderKey } from './time'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
@@ -18,13 +23,8 @@ function createTimelineManifest(
   })
 }
 
-function forecastTimeProviderKey(manifest: ReturnType<typeof createManifestFixture> | null): string {
-  if (manifest == null) return 'forecast-time:none'
-  return `forecast-time:${manifest.run.cycle}:${manifest.times.map((time) => `${time.id}:${time.validAt}`).join(',')}`
-}
-
 function validTimeFor(manifest: ReturnType<typeof createManifestFixture>, hourId: string): number {
-  const time = manifest.times.find((entry) => entry.id === hourId)
+  const time = createActiveRunFixture(manifest).latest.times.find((entry) => entry.id === hourId)
   if (!time) throw new Error(`Missing fixture time ${hourId}`)
   return Date.parse(time.validAt)
 }
@@ -45,11 +45,14 @@ function renderForecastTimeProvider(initialManifest: ReturnType<typeof createMan
     )
   }
 
-  const ui = (manifest: ReturnType<typeof createManifestFixture> | null) => (
-    <ForecastTimeProvider key={forecastTimeProviderKey(manifest)} manifest={manifest}>
-      <Probe />
-    </ForecastTimeProvider>
-  )
+  const ui = (manifest: ReturnType<typeof createManifestFixture> | null) => {
+    const activeRun = manifest ? createActiveRunFixture(manifest) : null
+    return (
+      <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
+        <Probe />
+      </ForecastTimeProvider>
+    )
+  }
 
   const renderResult = render(ui(initialManifest))
 

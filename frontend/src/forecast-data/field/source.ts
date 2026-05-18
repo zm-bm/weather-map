@@ -5,9 +5,10 @@ import type {
   LayerSpec,
 } from '../../forecast-catalog'
 import type {
-  CycleManifest,
+  ActiveForecastRun,
   ScalarGridSpec,
-} from '../../manifest'
+} from '../../forecast-manifest'
+import { hasActiveRunArtifact } from '../../forecast-manifest'
 import { isAbortError } from '../../abort'
 import type {
   FieldEncodingSpec,
@@ -25,11 +26,11 @@ export type FieldSourceData = {
 
 export async function loadFieldSourceData(args: {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   hourToken: string
   layer: LayerSpec
 }): Promise<FieldSourceData> {
-  const { artifacts, manifest, hourToken, layer } = args
+  const { artifacts, activeRun, hourToken, layer } = args
   if (layer.source.kind !== 'composite') {
     return loadSingleFieldSourceData({ artifacts, hourToken, source: layer.source })
   }
@@ -41,7 +42,7 @@ export async function loadFieldSourceData(args: {
   })
   const overlays = await loadCompositeOverlays({
     artifacts,
-    manifest,
+    activeRun,
     hourToken,
     overlays: layer.source.overlays,
   })
@@ -75,14 +76,14 @@ async function loadSingleFieldSourceData(args: {
 
 async function loadCompositeOverlays(args: {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   hourToken: string
   overlays: readonly CompositeLayerOverlaySource[]
 }): Promise<FieldOverlayData[]> {
   const loaded = await Promise.all(
     args.overlays.map((overlay) => loadCompositeOverlay({
       artifacts: args.artifacts,
-      manifest: args.manifest,
+      activeRun: args.activeRun,
       hourToken: args.hourToken,
       overlay,
     }))
@@ -92,11 +93,11 @@ async function loadCompositeOverlays(args: {
 
 async function loadCompositeOverlay(args: {
   artifacts: ArtifactLoader
-  manifest: CycleManifest
+  activeRun: ActiveForecastRun
   hourToken: string
   overlay: CompositeLayerOverlaySource
 }): Promise<FieldOverlayData | null> {
-  if (!args.manifest.artifacts[args.overlay.source.artifactId]) {
+  if (!hasActiveRunArtifact(args.activeRun, String(args.overlay.source.artifactId))) {
     if (args.overlay.optional) return null
     throw new Error(`Missing required overlay artifact ${args.overlay.source.artifactId}`)
   }

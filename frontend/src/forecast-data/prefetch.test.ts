@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import {
-  createFrameManifestFixture,
+  createActiveRunFixture,
+  createSingleTimeManifestFixture,
   createSignalFixture,
 } from '../test/fixtures'
 import { createForecastDataTarget } from './target'
@@ -30,16 +31,17 @@ function createPlan(args: {
   lowerHourToken?: string
   upperHourToken?: string
 } = {}): ForecastDataPlan {
-  const manifest = createFrameManifestFixture({
+  const manifest = createSingleTimeManifestFixture({
     forecastHours: args.forecastHours ?? ['000', '003', '006', '009'],
     vectorArtifactIds: args.includeParticles === false ? [] : ['wind10m_uv'],
   })
+  const activeRun = createActiveRunFixture(manifest)
   const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
   const selectedParticleLayer = args.includeParticles === false
     ? null
-    : getAvailableParticleLayers(manifest).wind!
+    : getAvailableParticleLayers(activeRun).wind!
   const target = createForecastDataTarget({
-    manifest,
+    activeRun,
     selectedLayerId: selectedLayer.id,
     selectedLayer,
     selectedParticleLayerId: selectedParticleLayer?.id ?? null,
@@ -56,7 +58,7 @@ function createPlan(args: {
   })
 
   return {
-    manifest: target.manifest,
+    activeRun: target.activeRun,
     selectedValidTimeMs: target.selectedValidTimeMs,
     lowerHourToken: target.lowerHourToken,
     upperHourToken: target.upperHourToken,

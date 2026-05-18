@@ -1,4 +1,4 @@
-"""Model/layer availability index generation."""
+"""Forecast manifest generation."""
 
 from __future__ import annotations
 
@@ -9,9 +9,10 @@ from typing import Any, Iterable, Literal, Mapping
 from ..artifacts.repository import ArtifactRepository
 from ..catalog import load_forecast_catalog
 from ..config.resolved import ModelConfig, PipelineConfig
+from .constants import FORECAST_BINARY_CONTRACT
 
-AVAILABILITY_INDEX_SCHEMA = "weather-map-model-layer-availability-index"
-AVAILABILITY_INDEX_SCHEMA_VERSION = 2
+FORECAST_MANIFEST_SCHEMA = "weather-map.forecast-manifest"
+FORECAST_MANIFEST_SCHEMA_VERSION = 1
 
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
 LayerSupport = Literal["native", "frontend-derived", "etl-derived", "composite", "unavailable"]
@@ -36,14 +37,14 @@ class LayerRequirements:
     support_hint: LayerSupport
 
 
-def build_availability_index(
+def build_forecast_manifest(
     *,
     pipeline_config: PipelineConfig,
     artifact_repo: ArtifactRepository,
     generated_at: str | None = None,
     catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a model/layer availability index from config and latest manifests."""
+    """Build the frontend forecast manifest from config and latest manifests."""
 
     forecast_catalog = dict(catalog) if catalog is not None else load_forecast_catalog()
     generated_at = generated_at or _utc_now_iso()
@@ -53,10 +54,11 @@ def build_availability_index(
     }
 
     return {
-        "schema": AVAILABILITY_INDEX_SCHEMA,
-        "schemaVersion": AVAILABILITY_INDEX_SCHEMA_VERSION,
+        "schema": FORECAST_MANIFEST_SCHEMA,
+        "schemaVersion": FORECAST_MANIFEST_SCHEMA_VERSION,
         "generatedAt": generated_at,
         "catalogVersion": str(forecast_catalog["catalogVersion"]),
+        "payloadContract": FORECAST_BINARY_CONTRACT,
         "models": {
             model_id: {
                 "label": model.label,
@@ -80,20 +82,20 @@ def build_availability_index(
     }
 
 
-def publish_availability_index(
+def publish_forecast_manifest(
     *,
     pipeline_config: PipelineConfig,
     artifact_repo: ArtifactRepository,
     generated_at: str | None = None,
 ) -> str:
-    """Generate and publish the current model/layer availability index."""
+    """Generate and publish the current frontend forecast manifest."""
 
-    index = build_availability_index(
+    manifest = build_forecast_manifest(
         pipeline_config=pipeline_config,
         artifact_repo=artifact_repo,
         generated_at=generated_at,
     )
-    return artifact_repo.write_availability_index(index=index)
+    return artifact_repo.write_forecast_manifest(manifest=manifest)
 
 
 def _catalog_layers(catalog: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
@@ -118,9 +120,6 @@ def _embedded_latest_manifest(manifest: Mapping[str, Any] | None) -> dict[str, A
         raise SystemExit("Latest manifest must contain at least one time")
 
     return {
-        "schema": _required_value(manifest, "schema", owner="latest manifest"),
-        "schemaVersion": _required_value(manifest, "schemaVersion", owner="latest manifest"),
-        "payloadContract": _required_value(manifest, "payloadContract", owner="latest manifest"),
         "run": dict(run),
         "times": [
             dict(_as_mapping(time, owner=f"latest manifest time {index}"))
@@ -144,6 +143,8 @@ def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, 
         artifact_entry.pop("frames", None),
         owner=f"latest manifest artifact {artifact_id!r} frames",
     )
+    artifact_entry.pop("path", None)
+    artifact_entry.pop("sha256", None)
     artifact_entry["byteLength"] = _artifact_byte_length(
         artifact_id=artifact_id,
         frames=frames,
@@ -316,7 +317,7 @@ def _read_latest_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -
     try:
         return artifact_repo.read_latest_manifest(model_id=model_id)
     except Exception as exc:
-        print(f"Unable to read latest manifest for availability index model={model_id}: {exc}")
+        print(f"Unable to read latest manifest for forecast manifest model={model_id}: {exc}")
         return None
 
 

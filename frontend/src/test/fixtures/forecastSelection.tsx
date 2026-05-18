@@ -2,7 +2,13 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { vi } from 'vitest'
 
-import type { CycleManifest } from '../../manifest'
+import {
+  activeForecastRunForModel,
+  getLayerModelAvailability,
+  modelOptionsFromManifest,
+  type ForecastModelId,
+  type Manifest,
+} from '../../forecast-manifest'
 import {
   asParticleLayerId,
   asLayerId,
@@ -10,15 +16,13 @@ import {
   FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
   getDefaultParticleLayer,
-  isLayerAvailableInManifest,
-  type LayerId,
 } from '../../forecast-catalog'
 import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
 } from '../../forecast-selection'
-import type { ForecastModelId } from '../../forecast-availability'
 import type { UnitSystem } from '../../units'
+import { createActiveRunFixture } from './manifest'
 
 
 type ForecastSelectionContextOptions = Partial<{
@@ -28,17 +32,13 @@ type ForecastSelectionContextOptions = Partial<{
 }>
 
 export function createForecastSelectionContextValue(
-  manifest: CycleManifest | null,
-  options: ForecastSelectionContextOptions = {}
+  manifest: Manifest | null,
+  options: ForecastSelectionContextOptions = {},
+  activeModelId: ForecastModelId | null = 'gfs',
 ): ForecastSelectionContextValue {
+  const activeRun = activeForecastRunForModel(manifest, activeModelId)
   const shared = {
-    availabilityIndex: null,
-    modelOptions: manifest == null ? [] : [
-      {
-        id: manifest.model.id as ForecastModelId,
-        label: manifest.model.label,
-      },
-    ],
+    modelOptions: modelOptionsFromManifest(manifest),
     unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
     setActiveModel: vi.fn(),
     setSelectedLayerGroup: vi.fn(),
@@ -47,24 +47,24 @@ export function createForecastSelectionContextValue(
     setUnitSystem: vi.fn(),
     toggleUnitSystem: vi.fn(),
   }
-  const particleLayers = manifest == null ? null : getAvailableParticleLayers(manifest)
+  const particleLayers = activeRun == null ? null : getAvailableParticleLayers(activeRun)
   const defaultParticleLayer = particleLayers == null ? null : getDefaultParticleLayer(particleLayers)
   const selectedLayerId = options.selectedLayerId
     ? asLayerId(options.selectedLayerId)
     : FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
-  const selectedLayerIsRenderable =
-    manifest != null && selectedLayerId != null
-      ? safeIsLayerAvailableInManifest(manifest, selectedLayerId)
-      : false
+  const selectedLayerAvailability =
+    activeRun != null && selectedLayerId != null
+      ? getLayerModelAvailability(activeRun.manifest, selectedLayerId, activeRun.modelId)
+      : null
+  const selectedLayerIsRenderable = selectedLayerAvailability?.state === 'available'
   const selectedLayerGroupId = selectedLayerId == null
     ? null
     : FORECAST_LAYER_GROUPS.find((group) => group.layers.includes(selectedLayerId))?.id ?? null
 
   return (
-    manifest == null
+    activeRun == null
       ? {
-          manifest: null,
-          activeModelId: null,
+          activeRun: null,
           groups: [],
           layers: null,
           particleLayers: null,
@@ -76,14 +76,13 @@ export function createForecastSelectionContextValue(
           ...shared,
         }
       : {
-          manifest,
-          activeModelId: manifest.model.id,
+          activeRun,
           groups: [...FORECAST_LAYER_GROUPS],
           layers: FORECAST_LAYERS_BY_ID,
           particleLayers: particleLayers!,
           selectedLayerGroupId,
           selectedLayerId,
-          selectedLayerAvailability: null,
+          selectedLayerAvailability,
           selectedLayerIsRenderable,
           selectedParticleLayerId: options.selectedParticleLayerId
             ? asParticleLayerId(options.selectedParticleLayerId)
@@ -95,28 +94,19 @@ export function createForecastSelectionContextValue(
 
 export function renderWithForecastSelection(
   ui: ReactNode,
-  manifest: CycleManifest
+  manifest: Manifest,
+  activeModelId: ForecastModelId = 'gfs'
 ) {
+  const activeRun = createActiveRunFixture(manifest, activeModelId)
   return render(
     <ForecastSelectionProvider
-      manifest={manifest}
-      activeModelId={manifest.model.id as ForecastModelId}
+      activeRun={activeRun}
       modelOptions={[{
-        id: manifest.model.id as ForecastModelId,
-        label: manifest.model.label,
+        id: activeModelId,
+        label: activeRun.label,
       }]}
     >
       {ui}
     </ForecastSelectionProvider>
   )
-}
-
-function safeIsLayerAvailableInManifest(manifest: CycleManifest, layerId: LayerId): boolean {
-  const layer = FORECAST_LAYERS_BY_ID[layerId]
-  if (!layer) return false
-  try {
-    return isLayerAvailableInManifest(manifest, layer)
-  } catch {
-    return false
-  }
 }
