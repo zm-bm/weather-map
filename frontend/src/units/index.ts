@@ -323,6 +323,19 @@ const UNIT_DISPLAYS: Record<LayerMeta['unitBehavior'], UnitDisplay> = {
       },
     ],
   },
+  reflectivity: {
+    defaultOptionId: 'dbz',
+    options: [
+      {
+        id: 'dbz',
+        buttonLabel: 'dBZ',
+        units: 'dBZ',
+        convert: (value) => value,
+        casing: 'literal',
+        valueFormat: WHOLE_VALUE_FORMAT,
+      },
+    ],
+  },
 }
 
 export function getUnitDisplay(meta: LayerMeta): UnitDisplay {

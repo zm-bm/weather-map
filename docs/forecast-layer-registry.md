@@ -39,7 +39,7 @@ Related docs:
 | `wind_pressure` | Wind & Pressure | `wind_gust` | `wind_speed`, `wind_gust`, `air_pressure` |
 | `precipitation` | Precipitation | `precipitation_rate` | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
 | `clouds_visibility` | Clouds & Visibility | `cloud_cover` | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility` |
-| `radar_storms` | Radar & Storms | `cape` | `cape` |
+| `radar_storms` | Radar & Storms | `cape` | `composite_reflectivity`, `cape` |
 
 In field-layer tables, `Display` is `units; display_range; palette_id;
 unit_behavior/legend_scale`. These values mirror frontend display metadata, not
@@ -88,6 +88,7 @@ ETL encoding ranges.
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
+| `composite_reflectivity` | Simulated Radar | direct scalar artifact `refc_entire_atmosphere` | instantaneous | `dBZ`; `0..75`; `radar.reflectivity.dbz.v1`; `reflectivity/stop-based` | Forecast model composite reflectivity. This is simulated radar, not observed radar. |
 | `cape` | CAPE Index | direct scalar artifact `cape_index` | instantaneous | `J/kg`; `0..5000`; `severe.cape.jkg.v1`; `cape/stop-based` | Mixed-layer convective available potential energy. |
 
 ## Particle Layers
@@ -99,4 +100,4 @@ ETL encoding ranges.
 ## Candidate Future Layers
 
 This registry lists implemented catalog entries only. Track unimplemented
-candidates in `roadmap.md`, not here.
+candidates in `forecast-catalog-candidates.md`, not here.

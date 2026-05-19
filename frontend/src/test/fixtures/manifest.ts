@@ -349,6 +349,9 @@ export function createManifestLayersFixture(
     accumulated_precipitation: createManifestLayerFixture({
       [modelId]: has('precip_total_surface') ? available(['precip_total_surface']) : unavailable(['precip_total_surface']),
     }),
+    composite_reflectivity: createManifestLayerFixture({
+      [modelId]: has('refc_entire_atmosphere') ? available(['refc_entire_atmosphere']) : unavailable(['refc_entire_atmosphere']),
+    }),
     cape: createManifestLayerFixture({
       [modelId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
     }),

@@ -15,6 +15,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     precip_rate_config,
     precip_total_config,
     precip_type_config,
+    reflectivity_config,
     thunderstorm_mask_config,
     wind_artifact_config,
 )
@@ -66,6 +67,43 @@ class ScalarArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["sha256"], hashlib.sha256(payload_bytes).hexdigest())
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
+
+    def test_reflectivity_artifact_writes_dbz_payload(self) -> None:
+        with artifact_run_fixture(prefix="weather-map-reflectivity-artifact-") as fx:
+            source_grib = fx.single_grib_source()
+            source = pack_f32([0.0, 31.5, 75.0, float("nan")], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"GRIB_ELEMENT": "REFC", "GRIB_SHORT_NAME": "0-EATM"}),
+                ) as find_band,
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(source, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=small_grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_artifact(
+                    artifact_id="refc_entire_atmosphere",
+                    artifact_config=reflectivity_config(),
+                    source=source_grib,
+                    run=_unused_run,
+                )
+
+            find_band.assert_called_once_with(
+                source_grib.reference_grib_path(),
+                {"GRIB_ELEMENT": "REFC", "GRIB_SHORT_NAME": "0-EATM"},
+                run=_unused_run,
+            )
+            payload_bytes = fx.payload_bytes(artifact_id="refc_entire_atmosphere", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbb", -63, 0, 87, -128))
+            self.assertEqual(result["encoding_id"], "refc_entire_atmosphere_i8_0p5dbz_v1")
+            self.assertEqual(result["units"], "dBZ")
+            self.assertEqual(result["parameter"], "refc")
 
     def test_cloud_cover_artifact_writes_single_component_scalar_payload(self) -> None:
         with artifact_run_fixture(prefix="weather-map-cloud-artifact-") as fx:

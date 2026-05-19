@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import unittest
-from pathlib import Path
+from unittest.mock import patch
 
-from forecast_etl.config.load import load_pipeline_config
+from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.manifest.build import build_cycle_manifest
 from forecast_etl.manifest.constants import (
     FORECAST_BINARY_CONTRACT,
@@ -20,6 +20,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     wind_artifact_config,
 )
 from forecast_etl.tests.fixtures.markers import write_json
+from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.publish import publish_fixture
 
 
@@ -183,11 +184,14 @@ class PublishManifestTest(unittest.TestCase):
             self.assertTrue(result_second.already_published)
 
     def test_publish_writes_forecast_manifest_when_pipeline_config_is_provided(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
-        cfg = load_pipeline_config(
-            (repo_root / "config" / "pipeline" / "base.json").as_uri(),
-            overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
-        )
+        cfg = parse_pipeline_config(minimal_pipeline_config())
+        catalog = {
+            "catalogVersion": "test-forecast-catalog",
+            "layers": [
+                {"id": "published_artifact", "source": {"kind": "artifact", "artifactId": "tmp_surface"}},
+                {"id": "unsupported_artifact", "source": {"kind": "artifact", "artifactId": "rh_surface"}},
+            ],
+        }
 
         with publish_fixture(prefix="weather-map-publish-forecast-manifest-") as fx:
             artifact_id = "tmp_surface"
@@ -197,11 +201,12 @@ class PublishManifestTest(unittest.TestCase):
                 artifact_config=artifact_cfg,
             )
 
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                pipeline_config=cfg,
-            )
+            with patch("forecast_etl.manifest.forecast_manifest.load_forecast_catalog", return_value=catalog):
+                result = fx.publish(
+                    artifact_ids=(artifact_id,),
+                    artifacts_cfg={artifact_id: artifact_cfg},
+                    pipeline_config=cfg,
+                )
 
             self.assertTrue(result.ready)
             self.assertTrue(fx.artifacts.forecast_manifest_exists())
@@ -209,6 +214,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(forecast_manifest["schema"], "weather-map.forecast-manifest")
             self.assertEqual(forecast_manifest["schemaVersion"], 1)
             self.assertEqual(forecast_manifest["payloadContract"], "forecast-binary-v2")
+            self.assertEqual(forecast_manifest["catalogVersion"], "test-forecast-catalog")
             self.assertNotIn("latestCycle", forecast_manifest["models"]["gfs"])
             self.assertNotIn("latestManifestPath", forecast_manifest["models"]["gfs"])
             latest = forecast_manifest["models"]["gfs"]["latest"]
@@ -222,10 +228,10 @@ class PublishManifestTest(unittest.TestCase):
             self.assertNotIn("frames", latest_artifact)
             self.assertNotIn("path", latest_artifact)
             self.assertNotIn("sha256", latest_artifact)
-            self.assertEqual(forecast_manifest["layers"]["temperature"]["models"]["gfs"]["state"], "available")
+            self.assertEqual(forecast_manifest["layers"]["published_artifact"]["models"]["gfs"]["state"], "available")
             self.assertEqual(
-                forecast_manifest["layers"]["visibility"]["models"]["gfs"]["state"],
-                "temporarily_unavailable",
+                forecast_manifest["layers"]["unsupported_artifact"]["models"]["gfs"]["state"],
+                "unsupported",
             )
             self.assertNotIn("groups", fx.cycle_manifest())
 

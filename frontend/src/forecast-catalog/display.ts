@@ -290,6 +290,20 @@ const LAYER_PALETTES: Record<string, LayerStyleEntry> = {
       [5000, 104, 50, 156],
     ],
   },
+  'radar.reflectivity.dbz.v1': {
+    colortable: [
+      [0, 180, 180, 180],
+      [5, 110, 225, 110],
+      [10, 60, 205, 75],
+      [20, 35, 155, 55],
+      [30, 238, 226, 65],
+      [40, 236, 150, 55],
+      [50, 214, 64, 64],
+      [60, 166, 56, 146],
+      [70, 112, 48, 150],
+      [75, 245, 245, 245],
+    ],
+  },
 }
 
 export function getLayerMeta(

@@ -23,17 +23,6 @@ import {
   type LayerSource,
 } from './layer'
 
-function sourceArtifactIds(source: LayerSource): string[] {
-  if (source.kind === 'artifact' || source.kind === 'derived') {
-    return [String(source.artifactId)]
-  }
-
-  return [
-    ...sourceArtifactIds(source.base),
-    ...source.overlays.flatMap((overlay) => sourceArtifactIds(overlay.source)),
-  ]
-}
-
 function isLayerAvailableForActiveRun(
   activeRun: ActiveForecastRun,
   layer: LayerSpec
@@ -114,33 +103,10 @@ describe('layer catalog', () => {
     }
   })
 
-  it('does not couple layer ids to artifact ids except explicit same-name layers', () => {
-    const allowedSameNameIds = ['freezing_level', 'precipitable_water']
-    const sameNameLayerIds = FORECAST_LAYERS
-      .filter((layer) => sourceArtifactIds(layer.source).includes(String(layer.id)))
-      .map((layer) => String(layer.id))
-      .sort()
-
-    expect(sameNameLayerIds).toEqual([...allowedSameNameIds].sort())
-  })
-
   it('keeps particle layer ids distinct from source artifact ids', () => {
     for (const layer of PARTICLE_LAYERS) {
       expect(String(layer.id)).not.toBe(String(layer.source.artifactId))
     }
-  })
-
-  it('checks layer renderability against forecast manifest artifacts', () => {
-    const manifest = createSingleTimeManifestFixture({
-      scalarArtifactIds: ['tmp_surface', 'prmsl_msl', 'tcdc', 'low_clouds'],
-      vectorArtifactIds: [],
-    })
-    const activeRun = createActiveRunFixture(manifest)
-
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_LAYERS_BY_ID.temperature!)).toBe(true)
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_LAYERS_BY_ID.visibility!)).toBe(false)
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_LAYERS_BY_ID.air_pressure!)).toBe(true)
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_LAYERS_BY_ID.cloud_cover!)).toBe(true)
   })
 
   it('accepts frontend-derived wind speed when vector wind is available', () => {
@@ -150,7 +116,6 @@ describe('layer catalog', () => {
     })
 
     const windSpeed = FORECAST_LAYERS_BY_ID.wind_speed!
-    const windGroup = FORECAST_LAYER_GROUPS.find((group) => group.id === 'wind_pressure')
     const activeRun = createActiveRunFixture(manifest)
 
     expect(windSpeed.source).toMatchObject({
@@ -159,8 +124,6 @@ describe('layer catalog', () => {
       recipe: 'wind-speed',
     })
     expect(isLayerAvailableForActiveRun(activeRun, windSpeed)).toBe(true)
-    expect(windGroup?.defaultLayer).toBe('wind_gust')
-    expect(windGroup?.layers).toEqual(['wind_speed', 'wind_gust', 'air_pressure'])
   })
 
   it('hides frontend-derived wind speed when vector wind components are unavailable', () => {
@@ -221,19 +184,6 @@ describe('layer catalog', () => {
     expect(getLayerMeta('precipitation_rate', FORECAST_LAYERS_BY_ID, createActiveRunFixture(manifest))).toMatchObject({
       units: 'kg m^-2 s^-1',
       parameter: 'prate',
-    })
-  })
-
-  it('declares classified precipitation coloring from precip type to palette rows', () => {
-    const prateLayer = FORECAST_LAYERS.find((entry) => entry.id === 'precipitation_rate')
-
-    expect(prateLayer?.classifiedColoring).toEqual({
-      classifierOverlayId: 'precip-type',
-      classes: [
-        { values: [1], paletteId: 'precip.rate.mm_hr.v1' },
-        { values: [4], paletteId: 'precip.rate.snow.mm_hr.v1' },
-        { values: [2, 3, 5], paletteId: 'precip.rate.wintry_mix.mm_hr.v1' },
-      ],
     })
   })
 

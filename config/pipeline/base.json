@@ -396,6 +396,27 @@
         }
       ]
     },
+    "refc_entire_atmosphere": {
+      "kind": "scalar",
+      "parameter": "refc",
+      "level": "entire atmosphere",
+      "units": "dBZ",
+      "source_transform": "identity",
+      "encoding": {
+        "id": "refc_entire_atmosphere_i8_0p5dbz_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 0.5,
+        "offset": 31.5,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
     "wind10m_uv": {
       "kind": "vector",
       "units": "m/s",
@@ -464,6 +485,7 @@
           "freezing_level",
           "precipitable_water",
           "cape_index",
+          "refc_entire_atmosphere",
           "wind10m_uv"
         ]
       },
@@ -681,6 +703,17 @@
               "grib_match": {
                 "GRIB_ELEMENT": "CAPE",
                 "GRIB_SHORT_NAME": "18000-0-SPDL"
+              }
+            }
+          ]
+        },
+        "refc_entire_atmosphere": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "REFC",
+                "GRIB_SHORT_NAME": "0-EATM"
               }
             }
           ]

@@ -171,6 +171,23 @@ describe('getUnitDisplay', () => {
     expect(formatUnitValue(1250.4, getUnitOption(display))).toBe('1250')
   })
 
+  it('keeps reflectivity as a static dBZ display', () => {
+    const display = getUnitDisplay(createLayerMeta({
+      id: 'composite_reflectivity',
+      label: 'Simulated Radar',
+      units: 'dBZ',
+      parameter: 'refc',
+      min: 0,
+      max: 75,
+      paletteId: 'radar.reflectivity.dbz.v1',
+      unitBehavior: 'reflectivity',
+    }))
+
+    expect(canToggleUnitSystem(display)).toBe(false)
+    expect(getUnitOption(display).id).toBe('dbz')
+    expect(formatUnitValue(42.4, getUnitOption(display))).toBe('42')
+  })
+
   it('uses whole-number formatting for percentage values', () => {
     const display = getUnitDisplay(createLayerMeta({
       id: 'relative_humidity',

@@ -35,6 +35,7 @@ export type UnitBehaviorId =
   | 'height'
   | 'water-depth'
   | 'cape'
+  | 'reflectivity'
 
 export type LegendScaleId =
   | 'temperature'

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { asArtifactId } from '../forecast-manifest'
-import { asLayerGroupId, asLayerId, type LayerSpec } from './layer'
+import { FORECAST_LAYERS, asLayerGroupId, asLayerId, type LayerSpec } from './layer'
 import {
   createActiveRunFixture,
   createSingleTimeManifestFixture,
@@ -39,12 +39,10 @@ describe('layer metadata palettes', () => {
     expect(meta.colortable).toBe(getLayerStyleByPaletteId('pressure.msl.pa.v1').colortable)
   })
 
-  it('resolves first-pass direct-band layer palettes', () => {
-    expect(getLayerStyleByPaletteId('snow.depth.m.v1').colortable.length).toBeGreaterThan(0)
-    expect(getLayerStyleByPaletteId('atmosphere.visibility.m.v1').colortable.length).toBeGreaterThan(0)
-    expect(getLayerStyleByPaletteId('atmosphere.freezing_level.m.v1').colortable.length).toBeGreaterThan(0)
-    expect(getLayerStyleByPaletteId('atmosphere.precipitable_water.mm.v1').colortable.length).toBeGreaterThan(0)
-    expect(getLayerStyleByPaletteId('severe.cape.jkg.v1').colortable.length).toBeGreaterThan(0)
+  it('resolves every catalog layer palette', () => {
+    for (const layer of FORECAST_LAYERS) {
+      expect(getLayerStyleByPaletteId(layer.paletteId).colortable.length).toBeGreaterThan(0)
+    }
   })
 
   it('resolves classified precipitation rate palettes with matching breakpoints', () => {

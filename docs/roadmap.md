@@ -34,21 +34,9 @@ Treat this as app design plus renderer validation, not just adding toggles.
 
 ### Proposed Catalog Items
 
-Candidate additions to the canonical forecast layer registry belong here until
-they are implemented and promoted into `forecast-layer-registry.md`.
-
-- Fixed-window precipitation accumulation layers: `precip_accum_1h`,
-  `precip_accum_3h`, `precip_accum_6h`, `precip_accum_12h`,
-  `precip_accum_24h`.
-- Explicit run-total precipitation layer if `accumulated_precipitation` remains
-  useful after fixed-window accumulations exist.
-- Pressure contours sourced from `prmsl_msl`.
-- Fog or low-visibility emphasis layer using `visibility_surface` plus future
-  supporting fields if needed.
-- Upper-air layers at standard pressure levels: temperature, wind, height,
-  humidity, and vorticity.
-- External-source layer families: radar, satellite, air quality, watches and
-  warnings, observed lightning, and waves.
+Candidate additions and unsettled catalog choices live in
+`forecast-catalog-candidates.md` until they are implemented and promoted into
+`forecast-layer-registry.md`.
 
 ### Thunderstorm Rendering
 

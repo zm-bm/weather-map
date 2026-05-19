@@ -53,6 +53,7 @@ These requirements come from the frontend layer and particle catalogs.
 | `freezing_level` | layer | `freezing_level` | - | direct scalar |
 | `precipitable_water` | layer | `precipitable_water` | - | direct scalar |
 | `cape` | layer | `cape_index` | - | direct scalar |
+| `composite_reflectivity` | layer | `refc_entire_atmosphere` | - | direct scalar |
 | `wind` | particle layer | `wind10m_uv` | - | direct vector particles |
 
 ## Support Matrix
@@ -77,6 +78,7 @@ These requirements come from the frontend layer and particle catalogs.
 | `freezing_level` | `native` | `native` | Both models publish freezing-level height. |
 | `precipitable_water` | `native` | `native` | Both models publish precipitable water. |
 | `cape` | `native` | `native` | Both models publish mixed-layer CAPE. |
+| `composite_reflectivity` | `native` | `unavailable` | GFS publishes composite reflectivity; ICON has no configured equivalent. |
 | `wind` | `native` | `native` | Particle layer uses `wind10m_uv`. |
 
 ## GFS Mapping
@@ -103,6 +105,7 @@ GFS model id: `gfs`.
 | `freezing_level` | `native` | `freezing_level` | `HGT`, `0-0DEG` | direct scalar | - |
 | `precipitable_water` | `native` | `precipitable_water` | `PWAT`, `0-EATM` | direct scalar | - |
 | `cape` | `native` | `cape_index` | `CAPE`, `18000-0-SPDL` | direct scalar | Mixed-layer CAPE. |
+| `composite_reflectivity` | `native` | `refc_entire_atmosphere` | `REFC`, `0-EATM` | direct scalar | Forecast composite reflectivity for simulated radar. |
 | `wind` | `native` | `wind10m_uv` | `UGRD`/`VGRD`, `10-HTGL` | direct vector particles | Requires ordered `u`, `v` components. |
 
 ## ICON Mapping
@@ -129,6 +132,7 @@ ICON model id: `icon`.
 | `freezing_level` | `native` | `freezing_level` | `hzerocl` | direct scalar | - |
 | `precipitable_water` | `native` | `precipitable_water` | `tqv` | direct scalar | - |
 | `cape` | `native` | `cape_index` | `cape_ml` | direct scalar | Mixed-layer CAPE. |
+| `composite_reflectivity` | `unavailable` | - | - | - | No ICON reflectivity equivalent is configured. |
 | `wind` | `native` | `wind10m_uv` | `u_10m`/`v_10m` | direct vector particles | Requires ordered `u`, `v` components. |
 
 ## Supporting Artifacts

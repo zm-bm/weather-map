@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable
 
 from forecast_etl.artifacts.repository import ArtifactRepository
-from forecast_etl.config.load import load_pipeline_config
+from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.config.resolved import ModelConfig, PipelineConfig
 from forecast_etl.manifest.constants import (
     FORECAST_BINARY_CONTRACT,
@@ -19,14 +19,87 @@ from forecast_etl.manifest.forecast_manifest import (
     build_forecast_manifest,
 )
 from forecast_etl.storage.routing import make_store
+from forecast_etl.tests.fixtures.artifact_configs import (
+    minimal_artifact_config,
+    precip_rate_config,
+    precip_type_config,
+    wind_artifact_config,
+)
+from forecast_etl.tests.fixtures.pipeline import catalog_artifact, minimal_pipeline_config, model_artifact
 
 
 def _pipeline_config() -> PipelineConfig:
-    repo_root = Path(__file__).resolve().parents[3]
-    return load_pipeline_config(
-        (repo_root / "config" / "pipeline" / "base.json").as_uri(),
-        overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
+    tmp = minimal_artifact_config()
+    precip_rate = precip_rate_config()
+    precip_type = precip_type_config()
+    wind = wind_artifact_config()
+    cfg = minimal_pipeline_config()
+    cfg["artifact_catalog"].update(
+        {
+            "prate_surface": catalog_artifact(precip_rate),
+            "precip_type_surface": catalog_artifact(precip_type),
+            "wind10m_uv": catalog_artifact(wind),
+        }
     )
+    cfg["models"]["gfs"]["workload"]["artifacts"] = [
+        "tmp_surface",
+        "precip_type_surface",
+        "wind10m_uv",
+    ]
+    cfg["models"]["gfs"]["artifacts"] = {
+        "tmp_surface": model_artifact(tmp),
+        "precip_type_surface": model_artifact(precip_type),
+        "wind10m_uv": model_artifact(wind),
+    }
+    cfg["models"]["icon"] = {
+        "label": "ICON",
+        "source": {
+            "type": "icon_dwd_icosahedral",
+            "grid_id": "icon_global_regridded_0p125",
+            "base_url": "https://example.test/icon",
+            "rate_limit_seconds": 0.0,
+        },
+        "workload": {
+            "forecast_hour_start": 0,
+            "forecast_hour_end": 0,
+            "artifacts": ["tmp_surface", "prate_surface"],
+        },
+        "artifacts": {
+            "tmp_surface": {
+                "components": [{"id": "value", "grib_match": {"ICON_PARAM": "t_2m"}}],
+            },
+            "prate_surface": model_artifact(precip_rate),
+        },
+    }
+    return parse_pipeline_config(cfg)
+
+
+def _forecast_catalog() -> dict:
+    return {
+        "catalogVersion": "test-forecast-catalog",
+        "layers": [
+            {"id": "native_scalar", "source": {"kind": "artifact", "artifactId": "tmp_surface"}},
+            {"id": "unsupported_scalar", "source": {"kind": "artifact", "artifactId": "prate_surface"}},
+            {"id": "etl_derived", "source": {"kind": "artifact", "artifactId": "precip_type_surface"}},
+            {
+                "id": "frontend_derived",
+                "source": {"kind": "derived", "artifactId": "wind10m_uv", "recipe": "wind-speed"},
+            },
+            {
+                "id": "composite_with_optional_overlay",
+                "source": {
+                    "kind": "composite",
+                    "base": {"kind": "artifact", "artifactId": "tmp_surface"},
+                    "overlays": [
+                        {
+                            "source": {"kind": "artifact", "artifactId": "precip_type_surface"},
+                            "optional": True,
+                        }
+                    ],
+                },
+            },
+        ],
+    }
 
 
 def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
@@ -108,18 +181,18 @@ class ForecastManifestTest(unittest.TestCase):
             icon = cfg.model("icon")
             repo.write_latest_manifest(
                 model_id="gfs",
-                manifest=_latest_manifest(gfs, cycle="2026051606", artifact_ids=gfs.workload.artifacts),
+                manifest=_latest_manifest(
+                    gfs,
+                    cycle="2026051606",
+                    artifact_ids=("tmp_surface", "wind10m_uv"),
+                ),
             )
             repo.write_latest_manifest(
                 model_id="icon",
                 manifest=_latest_manifest(
                     icon,
                     cycle="2026051606",
-                    artifact_ids=(
-                        artifact_id
-                        for artifact_id in icon.workload.artifacts
-                        if artifact_id not in {"cape_index", "precip_type_surface"}
-                    ),
+                    artifact_ids=("tmp_surface",),
                 ),
             )
 
@@ -127,12 +200,13 @@ class ForecastManifestTest(unittest.TestCase):
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
+                catalog=_forecast_catalog(),
             )
 
         self.assertEqual(manifest["schema"], FORECAST_MANIFEST_SCHEMA)
         self.assertEqual(manifest["schemaVersion"], FORECAST_MANIFEST_SCHEMA_VERSION)
         self.assertEqual(manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
-        self.assertEqual(manifest["catalogVersion"], "forecast-catalog-v1")
+        self.assertEqual(manifest["catalogVersion"], "test-forecast-catalog")
         self.assertNotIn("latestCycle", manifest["models"]["gfs"])
         self.assertNotIn("latestManifestPath", manifest["models"]["gfs"])
         latest = manifest["models"]["gfs"]["latest"]
@@ -142,33 +216,35 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertNotIn("payloadContract", latest)
         self.assertEqual(latest["run"]["cycle"], "2026051606")
         self.assertEqual(latest["times"][0]["id"], "000")
-        temperature_artifact = latest["artifacts"]["tmp_surface"]
-        self.assertEqual(temperature_artifact["byteLength"], 4)
-        self.assertNotIn("frames", temperature_artifact)
-        self.assertNotIn("path", temperature_artifact)
-        self.assertNotIn("sha256", temperature_artifact)
+        latest_artifact = latest["artifacts"]["tmp_surface"]
+        self.assertEqual(latest_artifact["byteLength"], 4)
+        self.assertNotIn("frames", latest_artifact)
+        self.assertNotIn("path", latest_artifact)
+        self.assertNotIn("sha256", latest_artifact)
 
-        visibility = manifest["layers"]["visibility"]["models"]
-        self.assertEqual(visibility["gfs"]["state"], "available")
-        self.assertEqual(visibility["gfs"]["support"], "native")
-        self.assertEqual(visibility["gfs"]["requiredArtifacts"], ["visibility_surface"])
-        self.assertEqual(visibility["icon"]["state"], "unsupported")
-        self.assertEqual(visibility["icon"]["support"], "unavailable")
+        native_scalar = manifest["layers"]["native_scalar"]["models"]
+        self.assertEqual(native_scalar["gfs"]["state"], "available")
+        self.assertEqual(native_scalar["gfs"]["support"], "native")
 
-        accumulated_precipitation = manifest["layers"]["accumulated_precipitation"]["models"]
-        self.assertEqual(accumulated_precipitation["gfs"]["state"], "unsupported")
-        self.assertEqual(accumulated_precipitation["icon"]["state"], "available")
-        self.assertEqual(accumulated_precipitation["icon"]["requiredArtifacts"], ["precip_total_surface"])
+        unsupported_scalar = manifest["layers"]["unsupported_scalar"]["models"]
+        self.assertEqual(unsupported_scalar["gfs"]["state"], "unsupported")
+        self.assertEqual(unsupported_scalar["gfs"]["support"], "unavailable")
+        self.assertEqual(unsupported_scalar["icon"]["state"], "temporarily_unavailable")
 
-        cape = manifest["layers"]["cape"]["models"]
-        self.assertEqual(cape["icon"]["state"], "temporarily_unavailable")
-        self.assertEqual(cape["icon"]["requiredArtifacts"], ["cape_index"])
+        etl_derived = manifest["layers"]["etl_derived"]["models"]
+        self.assertEqual(etl_derived["gfs"]["state"], "temporarily_unavailable")
+        self.assertEqual(etl_derived["gfs"]["support"], "etl-derived")
 
-        precipitation_rate = manifest["layers"]["precipitation_rate"]["models"]
-        self.assertEqual(precipitation_rate["icon"]["state"], "available")
-        self.assertEqual(precipitation_rate["icon"]["support"], "composite")
-        self.assertEqual(precipitation_rate["icon"]["requiredArtifacts"], ["prate_surface"])
-        self.assertEqual(precipitation_rate["icon"]["optionalArtifacts"], ["precip_type_surface"])
+        frontend_derived = manifest["layers"]["frontend_derived"]["models"]
+        self.assertEqual(frontend_derived["gfs"]["state"], "available")
+        self.assertEqual(frontend_derived["gfs"]["support"], "frontend-derived")
+        self.assertEqual(frontend_derived["gfs"]["requiredArtifacts"], ["wind10m_uv"])
+
+        composite = manifest["layers"]["composite_with_optional_overlay"]["models"]["gfs"]
+        self.assertEqual(composite["state"], "available")
+        self.assertEqual(composite["support"], "composite")
+        self.assertEqual(composite["requiredArtifacts"], ["tmp_surface"])
+        self.assertEqual(composite["optionalArtifacts"], ["precip_type_surface"])
 
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()
@@ -183,6 +259,7 @@ class ForecastManifestTest(unittest.TestCase):
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
+                catalog=_forecast_catalog(),
             )
 
         self.assertIsNone(manifest["models"]["gfs"]["latest"])
@@ -216,6 +293,7 @@ class ForecastManifestTest(unittest.TestCase):
                         pipeline_config=cfg,
                         artifact_repo=repo,
                         generated_at="2026-05-16T00:00:00Z",
+                        catalog=_forecast_catalog(),
                     )
 
 

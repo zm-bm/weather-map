@@ -211,3 +211,31 @@ def thunderstorm_mask_config() -> dict:
             ],
         },
     }
+
+
+def reflectivity_config() -> dict:
+    return {
+        "kind": "scalar",
+        "parameter": "refc",
+        "level": "entire atmosphere",
+        "units": "dBZ",
+        "source_transform": "identity",
+        "encoding": {
+            "id": "refc_entire_atmosphere_i8_0p5dbz_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 0.5,
+            "offset": 31.5,
+            "nodata": -128,
+        },
+        "components": [
+            {
+                "id": "value",
+                "grib_match": {
+                    "GRIB_ELEMENT": "REFC",
+                    "GRIB_SHORT_NAME": "0-EATM",
+                },
+            }
+        ],
+    }
