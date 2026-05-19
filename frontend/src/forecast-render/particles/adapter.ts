@@ -9,10 +9,18 @@ import type { ParticleInterpolationWindowData } from '../../forecast-data'
 export const PARTICLE_RENDERER_LAYER_ID = 'particle-renderer-layer-id'
 
 export const particleRenderer: ForecastRenderer = {
+  id: 'particles',
   layerId: PARTICLE_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return
     map.addLayer(createParticleCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+  },
+  uninstall(map) {
+    if (!map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return
+    map.removeLayer(PARTICLE_RENDERER_LAYER_ID)
+  },
+  apply(map, data) {
+    applyParticleInterpolationWindow(map, data.particles)
   },
 }
 

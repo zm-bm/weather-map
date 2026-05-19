@@ -35,8 +35,10 @@ export type MapControlRailProps = {
   random?: () => number
   layerColorOptions?: FieldRuntimeOptions
   particleOptions?: ParticleRuntimeOptions
+  particlesEnabled?: boolean
   onLayerColorSamplingModeChange?: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange?: (nextValue: boolean) => void
+  onParticlesEnabledChange?: (nextValue: boolean) => void
 }
 
 const ZOOM_EDGE_EPSILON = 0.0001
@@ -52,6 +54,8 @@ function setLayerColorSamplingMode(nextValue: FieldColorSamplingMode) {
 function setParticleClearTrailsOnViewChange(nextValue: boolean) {
   particleRuntimeOptions.clearTrailsOnViewChange = nextValue
 }
+
+const ignoreParticlesEnabledChange: (nextValue: boolean) => void = () => undefined
 
 function readMapNumber(readValue: () => number): number | null {
   try {
@@ -89,8 +93,10 @@ export default function MapControlRail({
   random,
   layerColorOptions = fieldRuntimeOptions,
   particleOptions = particleRuntimeOptions,
+  particlesEnabled = true,
   onLayerColorSamplingModeChange = setLayerColorSamplingMode,
   onClearTrailsOnViewChange = setParticleClearTrailsOnViewChange,
+  onParticlesEnabledChange = ignoreParticlesEnabledChange,
 }: MapControlRailProps) {
   const resolvedPlaylistUrl = useMemo(
     () => playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json'),
@@ -169,8 +175,10 @@ export default function MapControlRail({
       <MapOptionsButton
         layerColorOptions={layerColorOptions}
         particleOptions={particleOptions}
+        particlesEnabled={particlesEnabled}
         onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
         onClearTrailsOnViewChange={onClearTrailsOnViewChange}
+        onParticlesEnabledChange={onParticlesEnabledChange}
       />
     </div>
   )

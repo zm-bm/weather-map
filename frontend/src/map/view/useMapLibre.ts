@@ -4,9 +4,7 @@ import maplibregl, {
 } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 
-import { normalizeError } from '../../abort'
 import config from '../../config'
-import { installForecastRenderers } from '../../forecast-render'
 import { buildMapStyle } from './buildMapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
 
@@ -71,14 +69,7 @@ export function useMapLibre({
     mapRef.current = m
 
     const handleStyleLoad = () => {
-      try {
-        installForecastRenderers(m)
-      } catch (error) {
-        const normalizedError = normalizeError(error)
-        console.error('[map] startup overlay initialization failed', normalizedError)
-      } finally {
-        setMapReadyVersion((value) => value + 1)
-      }
+      setMapReadyVersion((value) => value + 1)
     }
 
     const handleMapError = (event: { error?: unknown }) => {

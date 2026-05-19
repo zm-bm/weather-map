@@ -60,13 +60,14 @@ type SelectionProviderProps =
   }
 
 function selectionProvider(props: SelectionProviderProps) {
-  const activeModelId = props.activeModelId ?? firstLatestModelId(props.manifest)
   const {
     manifest,
-    activeModelId: _activeModelId,
+    activeModelId: requestedActiveModelId,
     modelOptions,
     ...providerProps
   } = props
+  const activeModelId = requestedActiveModelId ?? firstLatestModelId(manifest)
+
   return (
     <ForecastSelectionProvider
       {...providerProps}

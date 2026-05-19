@@ -21,7 +21,7 @@ type ImportReference = {
 }
 
 const sourceFiles: SourceFile[] = Object.entries(sourceModules)
-  .filter(([path]) => !path.endsWith('/architecture/importBoundaries.test.ts'))
+  .filter(([path]) => !path.endsWith('/test/importBoundaries.test.ts'))
   .map(([path, source]) => ({
     path,
     source,
@@ -46,6 +46,27 @@ describe('frontend import boundaries', () => {
         'forecast-render must not import forecast-probe',
         (file) => isForecastRenderFile(file.path) &&
           file.imports.some((reference) => isForecastProbeImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'Production map modules must not import forecast-render',
+        (file) => isProductionMapFile(file.path) &&
+          file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'forecast-sync must not import MapLibre or forecast-render internals',
+        (file) => isForecastSyncFile(file.path) &&
+          file.imports.some((reference) => (
+            reference.resolvedPath === '/maplibre-gl' ||
+            isForecastRenderSubmoduleImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-render through its public module or options module',
+        (file) => !isForecastRenderFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastRenderSubmoduleImport(reference.resolvedPath) &&
+            reference.resolvedPath !== '/forecast-render/options'
+          ))
       ),
       ...findSourceImportViolations(
         'Import forecast-probe through its public module',
@@ -76,14 +97,6 @@ describe('frontend import boundaries', () => {
         'Import forecast-time through its public module',
         (file) => !file.path.includes('/forecast-time/') &&
           file.imports.some((reference) => isForecastTimeInternalImport(reference.resolvedPath))
-      ),
-      ...findSourceImportViolations(
-        'Import forecast renderer runtime options through forecast-render/options',
-        (file) => isUiControlFile(file.path) &&
-          file.imports.some((reference) => (
-            reference.resolvedPath === '/forecast-render/field' ||
-            reference.resolvedPath === '/forecast-render/particles'
-          ))
       ),
       ...findSourceImportViolations(
         'Use grouped map layer ids outside map view internals',
@@ -161,6 +174,22 @@ function isForecastRenderFile(path: string): boolean {
   return path.includes('/forecast-render/')
 }
 
+function isForecastSyncFile(path: string): boolean {
+  return path.includes('/forecast-sync/')
+}
+
+function isProductionMapFile(path: string): boolean {
+  return path.includes('/map/') && !/\.(test|spec)\.tsx?$/.test(path)
+}
+
+function isForecastRenderImport(path: string): boolean {
+  return path === '/forecast-render' || path.includes('/forecast-render/')
+}
+
+function isForecastRenderSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-render/')
+}
+
 function isMapProbeImport(path: string): boolean {
   return path === '/map-probe' || path.includes('/map-probe/')
 }
@@ -210,8 +239,4 @@ function isForecastTimeInternalImport(path: string): boolean {
     path.includes('/forecast-time/state') ||
     path.includes('/forecast-time/time') ||
     path.includes('/forecast-time/types')
-}
-
-function isUiControlFile(path: string): boolean {
-  return path.includes('/components/MapControlRail/') || path.includes('/map/controls/')
 }

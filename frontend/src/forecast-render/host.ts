@@ -3,22 +3,75 @@ import type {
 } from 'maplibre-gl'
 
 import type { ForecastRenderData } from '../forecast-data'
-import type { ForecastRenderer } from './types'
-import { applyFieldInterpolationWindow, fieldRenderer } from './field'
-import { applyParticleInterpolationWindow, particleRenderer } from './particles'
+import type {
+  ForecastRenderProfile,
+  ForecastRenderer,
+  ForecastRendererId,
+} from './types'
+import { fieldRenderer } from './field'
+import { particleRenderer } from './particles'
 
-export const forecastRenderers: readonly ForecastRenderer[] = [
+const forecastRenderers: readonly ForecastRenderer[] = [
   fieldRenderer,
   particleRenderer,
 ] as const
+const forecastRenderersById = new Map<ForecastRendererId, ForecastRenderer>(
+  forecastRenderers.map((renderer) => [renderer.id, renderer])
+)
 
-export function installForecastRenderers(map: MapLibreMap): void {
-  for (const renderer of forecastRenderers) {
+export function reconcileForecastRenderers(
+  map: MapLibreMap,
+  profile: ForecastRenderProfile,
+): void {
+  const activeRenderers = renderersForProfile(profile)
+  const activeRendererIds = new Set(activeRenderers.map((renderer) => renderer.id))
+
+  for (const renderer of [...forecastRenderers].reverse()) {
+    if (activeRendererIds.has(renderer.id)) continue
+    uninstallRenderer(map, renderer)
+  }
+
+  for (const renderer of activeRenderers) {
     renderer.install(map)
   }
 }
 
-export function applyForecastRenderData(map: MapLibreMap, frames: ForecastRenderData): void {
-  applyFieldInterpolationWindow(map, frames.field)
-  applyParticleInterpolationWindow(map, frames.particles)
+export function applyForecastRenderProfileData(
+  map: MapLibreMap,
+  profile: ForecastRenderProfile,
+  data: ForecastRenderData,
+): void {
+  for (const renderer of renderersForProfile(profile)) {
+    renderer.apply(map, data)
+  }
+}
+
+function renderersForProfile(profile: ForecastRenderProfile): ForecastRenderer[] {
+  const rendererIds = new Set<ForecastRendererId>()
+  const renderers: ForecastRenderer[] = []
+
+  for (const rendererId of profile.rendererIds) {
+    if (rendererIds.has(rendererId)) continue
+    rendererIds.add(rendererId)
+    renderers.push(rendererForId(rendererId))
+  }
+
+  return renderers
+}
+
+function rendererForId(rendererId: ForecastRendererId): ForecastRenderer {
+  const renderer = forecastRenderersById.get(rendererId)
+  if (!renderer) {
+    throw new Error(`Unknown forecast renderer ${rendererId}`)
+  }
+  return renderer
+}
+
+function uninstallRenderer(map: MapLibreMap, renderer: ForecastRenderer): void {
+  if (!map.getLayer(renderer.layerId)) return
+  if (renderer.uninstall) {
+    renderer.uninstall(map)
+    return
+  }
+  map.removeLayer(renderer.layerId)
 }

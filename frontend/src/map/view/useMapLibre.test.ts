@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => {
   return {
     addProtocol: vi.fn(),
     Map: MockMapConstructor,
-    installForecastRenderers: vi.fn(),
     loadStoredViewport: vi.fn(() => null),
     saveStoredViewport: vi.fn(),
     getMap: () => map,
@@ -63,10 +62,6 @@ vi.mock('pmtiles', () => ({
 
 vi.mock('../../config', () => ({
   default: createConfigFixture(),
-}))
-
-vi.mock('../../forecast-render', () => ({
-  installForecastRenderers: (map: unknown) => mocks.installForecastRenderers(map),
 }))
 
 vi.mock('./viewportPersistence', () => ({
@@ -142,7 +137,7 @@ describe('useMapLibre', () => {
     expect((style.layers ?? []).map((layer) => layer.id)).toEqual(['background'])
   })
 
-  it('installs forecast renderers on style load and bumps readiness', () => {
+  it('bumps readiness on style load', () => {
     const { result } = renderHook(() => useMapLibre({
       center: [-95, 39],
       zoom: 4,
@@ -156,12 +151,10 @@ describe('useMapLibre', () => {
       mocks.emit('style.load')
     })
 
-    expect(mocks.installForecastRenderers).toHaveBeenCalledTimes(1)
-    expect(mocks.installForecastRenderers).toHaveBeenCalledWith(mocks.getMap())
     expect(result.current.mapReadyVersion).toBe(1)
   })
 
-  it('installs forecast renderers immediately when the style is already loaded', async () => {
+  it('bumps readiness immediately when the style is already loaded', async () => {
     mocks.setStyleLoaded(true)
 
     const { result } = renderHook(() => useMapLibre({
@@ -172,7 +165,6 @@ describe('useMapLibre', () => {
     }))
 
     await waitFor(() => {
-      expect(mocks.installForecastRenderers).toHaveBeenCalledTimes(1)
       expect(result.current.mapReadyVersion).toBe(1)
     })
   })

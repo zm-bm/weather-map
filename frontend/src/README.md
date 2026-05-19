@@ -22,9 +22,10 @@ state into `app-status`, then renders
 - `forecast-selection`: selected layer, selected particle layer, and unit options.
 - `forecast-time`: selected valid time and playback state.
 
-`components/ForecastMap` owns the MapLibre host instance and calls
-`forecast-sync/useForecastSync`, which coordinates startup, request building,
-payload loading, and layer application.
+`components/ForecastMap` owns the MapLibre host instance, installs the forecast
+renderer host after map style readiness, and calls `forecast-sync/useForecastSync`,
+which coordinates startup, request building, payload loading, and layer
+application.
 
 ## Module Ownership
 
@@ -46,9 +47,9 @@ payload loading, and layer application.
 
 - `forecast-cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so data/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast-sync/*`: orchestration layer for startup policy, forecast target composition, abort/dedupe, data loading, layer updates, field-data publication, and app-status projection. It should coordinate modules, not decode payload formats or own interpolation-window reuse bookkeeping itself.
+- `forecast-sync/*`: orchestration layer for startup policy, forecast target composition, abort/dedupe, data loading, render-host application, field-data publication, and app-status projection. It should coordinate modules, not decode payload formats, know about MapLibre, or own interpolation-window reuse bookkeeping itself.
 
-- `forecast-render/*`: forecast renderer adapters, controllers, shaders, and renderer-specific options. This module should install MapLibre custom layers and apply already-loaded interpolation windows only; data loading and probe behavior live elsewhere.
+- `forecast-render/*`: forecast render host, renderer profiles, adapters, controllers, shaders, and renderer-specific options. This module owns MapLibre custom layer reconciliation and exposes a render-host apply capability; data loading and probe behavior live elsewhere.
 
 - `map/*`: MapLibre host platform, style construction, viewport persistence, map controls, and base map interactions. Keep forecast domain logic out of this layer.
 
@@ -68,10 +69,12 @@ Preferred orchestration shape:
 
 1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection for startup.
 2. `ForecastShell` installs selection and time providers around map and panel UI.
-3. `ForecastMap` owns MapLibre lifecycle through `map/useMap`.
-4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`.
-5. `forecast-sync/useSyncRunner` loads target data through `forecast-data`, applies it through `forecast-render`, then publishes the applied field interpolation window through `forecast-probe`.
-6. `forecast-render/*` adapters/controllers apply forecast renderer changes to the map host.
+3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and installs the
+   active forecast render profile through `forecast-render`.
+4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`
+   and waits for a render host capability.
+5. `forecast-sync/useSyncRunner` loads target data through `forecast-data`, applies it through the render host, then publishes the applied field interpolation window through `forecast-probe`.
+6. `forecast-render/*` reconciles active renderer profiles and applies already-loaded render data to MapLibre custom layers.
 
 Guideline: keep durable domain state in the relevant provider module, use
 `forecast-sync` for cross-domain coordination, keep forecast data loading inside

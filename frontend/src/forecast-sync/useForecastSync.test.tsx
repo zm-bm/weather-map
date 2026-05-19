@@ -5,10 +5,10 @@ import {
   createActiveRunFixture,
   createConfigFixture,
   createManifestFixture,
-  createMapFixture,
 } from '../test/fixtures'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
+import type { ForecastRenderHost } from '../forecast-render'
 import type { StartupState, ForecastSyncTarget } from './types'
 import { useForecastSync } from './useForecastSync'
 
@@ -96,8 +96,7 @@ describe('useForecastSync', () => {
   })
 
   it('wires startup state into target composition, runner execution, and app status', () => {
-    const map = createMapFixture()
-    const getMap = () => map
+    const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
     const target = createSyncTarget()
@@ -106,16 +105,14 @@ describe('useForecastSync', () => {
     mocks.useSyncTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
-      getMap,
-      mapReadyVersion: 3,
+      renderHost,
       config,
     }))
 
     expect(mocks.useStartupState).toHaveBeenCalledTimes(1)
     expect(mocks.useSyncTarget).toHaveBeenCalledWith(2)
     expect(mocks.useSyncRunner).toHaveBeenCalledWith({
-      getMap,
-      mapReadyVersion: 3,
+      renderHost,
       config,
       target,
       startup,
@@ -129,8 +126,7 @@ describe('useForecastSync', () => {
   })
 
   it('passes null targets through to the sync runner', () => {
-    const map = createMapFixture()
-    const getMap = () => map
+    const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState()
 
@@ -138,8 +134,7 @@ describe('useForecastSync', () => {
     mocks.useSyncTarget.mockReturnValue(null)
 
     renderHook(() => useForecastSync({
-      getMap,
-      mapReadyVersion: 1,
+      renderHost,
       config,
     }))
 
@@ -155,8 +150,7 @@ describe('useForecastSync', () => {
   })
 
   it('disables frame prefetch while startup is blocked', () => {
-    const map = createMapFixture()
-    const getMap = () => map
+    const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ isBlocked: true })
     const target = createSyncTarget()
@@ -165,8 +159,7 @@ describe('useForecastSync', () => {
     mocks.useSyncTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
-      getMap,
-      mapReadyVersion: 1,
+      renderHost,
       config,
     }))
 

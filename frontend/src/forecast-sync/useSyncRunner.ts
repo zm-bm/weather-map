@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
@@ -9,13 +8,12 @@ import {
   createForecastDataMemory,
   loadForecastData,
 } from '../forecast-data'
-import { applyForecastRenderData } from '../forecast-render'
+import type { ForecastRenderHost } from '../forecast-render'
 import { forecastFieldDataStore } from '../forecast-probe'
 import type { StartupState, ForecastSyncTarget } from './types'
 
 type UseSyncRunnerArgs = {
-  getMap: () => MapLibreMap | null
-  mapReadyVersion: number
+  renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
   target: ForecastSyncTarget | null
   startup: StartupState
@@ -25,7 +23,7 @@ type RunnerDecision =
   | { kind: 'disabled' }
   | { kind: 'blocked' }
   | { kind: 'pending' }
-  | { kind: 'run'; map: MapLibreMap; target: ForecastSyncTarget }
+  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastSyncTarget }
 
 type ActiveRequest = {
   key: string
@@ -35,8 +33,7 @@ type ActiveRequest = {
 type RunnerMachine = {
   prepare: (args: {
     isBlocked: boolean
-    getMap: () => MapLibreMap | null
-    mapReadyVersion: number
+    renderHost: ForecastRenderHost | null
     target: ForecastSyncTarget | null
   }) => RunnerDecision
   reset: () => void
@@ -50,8 +47,7 @@ type RunnerMachine = {
 }
 
 export function useSyncRunner({
-  getMap,
-  mapReadyVersion,
+  renderHost,
   config,
   target,
   startup,
@@ -79,8 +75,7 @@ export function useSyncRunner({
 
     const decision = machine.prepare({
       isBlocked,
-      getMap,
-      mapReadyVersion,
+      renderHost,
       target,
     })
 
@@ -99,22 +94,23 @@ export function useSyncRunner({
         break
     }
 
-    const { map, target: syncTarget } = decision
+    const { renderHost: activeRenderHost, target: syncTarget } = decision
     const {
       selectedValidTimeMs,
       requestKey,
       sync,
     } = syncTarget
+    const renderRequestKey = `${activeRenderHost.version}:${requestKey}`
     const dataMemory = dataMemoryRef.current
     if (dataMemory == null) return
 
-    if (machine.isApplied(requestKey)) {
+    if (machine.isApplied(renderRequestKey)) {
       machine.abort()
       return
     }
-    if (machine.isActive(requestKey)) return
+    if (machine.isActive(renderRequestKey)) return
 
-    const activeRequest = machine.start(requestKey)
+    const activeRequest = machine.start(renderRequestKey)
     const dataPlan = createForecastDataPlan({
       target: syncTarget,
       artifacts: createArtifactLoader({
@@ -139,7 +135,7 @@ export function useSyncRunner({
         })
 
         if (isRequestStale(machine, activeRequest)) return
-        applyForecastRenderData(map, renderData)
+        activeRenderHost.apply(renderData)
         if (isRequestStale(machine, activeRequest)) return
 
         forecastFieldDataStore.publish(renderData.field)
@@ -161,13 +157,12 @@ export function useSyncRunner({
     void runRequest()
   }, [
     config,
-    getMap,
     handleApplied,
     handleDisabled,
     handleError,
     handlePending,
     isBlocked,
-    mapReadyVersion,
+    renderHost,
     target,
   ])
 }
@@ -177,7 +172,7 @@ function createRunnerMachine(): RunnerMachine {
   let active: ActiveRequest | null = null
 
   const machine: RunnerMachine = {
-    prepare({ isBlocked, getMap, mapReadyVersion, target }) {
+    prepare({ isBlocked, renderHost, target }) {
       if (target == null) {
         machine.reset()
         return { kind: 'disabled' }
@@ -186,18 +181,12 @@ function createRunnerMachine(): RunnerMachine {
         machine.abort()
         return { kind: 'blocked' }
       }
-      if (mapReadyVersion < 1) {
+      if (renderHost == null) {
         machine.abort()
         return { kind: 'pending' }
       }
 
-      const map = getMap()
-      if (!map) {
-        machine.abort()
-        return { kind: 'pending' }
-      }
-
-      return { kind: 'run', map, target }
+      return { kind: 'run', renderHost, target }
     },
     reset() {
       active?.controller.abort()

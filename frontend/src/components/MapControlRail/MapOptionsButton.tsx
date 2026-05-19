@@ -11,15 +11,19 @@ import {
 export type MapOptionsButtonProps = {
   layerColorOptions: FieldRuntimeOptions,
   particleOptions: ParticleRuntimeOptions,
+  particlesEnabled: boolean
   onLayerColorSamplingModeChange: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange: (nextValue: boolean) => void
+  onParticlesEnabledChange: (nextValue: boolean) => void
 }
 
 export default function MapOptionsButton({
   layerColorOptions,
   particleOptions,
+  particlesEnabled,
   onLayerColorSamplingModeChange,
   onClearTrailsOnViewChange,
+  onParticlesEnabledChange,
 }: MapOptionsButtonProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -52,6 +56,11 @@ export default function MapOptionsButton({
     const nextValue = event.currentTarget.checked
     setClearTrailsOnViewChange(nextValue)
     onClearTrailsOnViewChange(nextValue)
+  }
+
+  const handleParticlesEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.currentTarget.checked
+    onParticlesEnabledChange(nextValue)
   }
 
   const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +103,14 @@ export default function MapOptionsButton({
         <div className="map-control-options-divider" />
         <div className="map-control-options-section">
           <div className="map-control-options-heading wm-mono-caps">Particles</div>
+          <label className="map-control-options-row wm-mono-caps">
+            <input
+              type="checkbox"
+              checked={particlesEnabled}
+              onChange={handleParticlesEnabledChange}
+            />
+            <span>Show particles</span>
+          </label>
           <label className="map-control-options-row wm-mono-caps">
             <input
               type="checkbox"

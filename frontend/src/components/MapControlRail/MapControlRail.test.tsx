@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   fieldRuntimeOptions,
@@ -58,6 +58,7 @@ describe('MapControlRail', () => {
   it('updates layer color and particle runtime options from the options panel', () => {
     const previousColorSamplingMode = fieldRuntimeOptions.colorSamplingMode
     const previousClearTrailsOnViewChange = particleRuntimeOptions.clearTrailsOnViewChange
+    const onParticlesEnabledChange = vi.fn()
     fieldRuntimeOptions.colorSamplingMode = 'interpolated'
     particleRuntimeOptions.clearTrailsOnViewChange = true
 
@@ -67,13 +68,17 @@ describe('MapControlRail', () => {
           mapRef={{ current: createMapFixture() }}
           mapReadyVersion={1}
           playlistUrl={PLAYLIST_URL}
+          particlesEnabled
+          onParticlesEnabledChange={onParticlesEnabledChange}
         />
       )
 
       fireEvent.click(screen.getByRole('button', { name: 'Map options' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
       fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
 
+      expect(onParticlesEnabledChange).toHaveBeenCalledWith(false)
       expect(fieldRuntimeOptions.colorSamplingMode).toBe('banded')
       expect(particleRuntimeOptions.clearTrailsOnViewChange).toBe(false)
     } finally {

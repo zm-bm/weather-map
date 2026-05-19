@@ -84,15 +84,6 @@ unless they are opt-in or otherwise low-noise.
 
 ## Architecture Follow-Ups
 
-### Decouple Map Host From Forecast Rendering
-
-`map/*` should stay focused on MapLibre lifecycle, style construction, viewport
-persistence, and base map interactions. Today the MapLibre hook also installs
-forecast renderers, which makes the generic map host forecast-aware.
-
-Move forecast renderer installation into `ForecastMap`, `forecast-sync`, or a
-small forecast-render host hook that runs after the map style is ready.
-
 ### Replace Mutable Renderer Option Singletons
 
 Runtime renderer options are currently mutated through shared module-level

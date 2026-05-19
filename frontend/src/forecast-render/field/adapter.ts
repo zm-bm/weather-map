@@ -9,10 +9,18 @@ import type { FieldInterpolationWindowData } from '../../forecast-data'
 export const FIELD_RENDERER_LAYER_ID = 'field-renderer-layer-id'
 
 export const fieldRenderer: ForecastRenderer = {
+  id: 'field',
   layerId: FIELD_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(FIELD_RENDERER_LAYER_ID)) return
     map.addLayer(createFieldCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+  },
+  uninstall(map) {
+    if (!map.getLayer(FIELD_RENDERER_LAYER_ID)) return
+    map.removeLayer(FIELD_RENDERER_LAYER_ID)
+  },
+  apply(map, data) {
+    applyFieldInterpolationWindow(map, data.field)
   },
 }
 
