@@ -52,7 +52,8 @@
       "defaultLayer": "cape",
       "layers": [
         "composite_reflectivity",
-        "cape"
+        "cape",
+        "cin"
       ]
     }
   ],
@@ -266,9 +267,19 @@
       "groupId": "radar_storms",
       "paletteId": "severe.cape.jkg.v1",
       "displayRange": { "min": 0, "max": 5000 },
-      "unitBehavior": "cape",
+      "unitBehavior": "energy-per-mass",
       "legendScale": "stop-based",
       "source": { "kind": "artifact", "artifactId": "cape_index" }
+    },
+    {
+      "id": "cin",
+      "label": "CIN",
+      "groupId": "radar_storms",
+      "paletteId": "severe.cin.jkg.v1",
+      "displayRange": { "min": 0, "max": 500 },
+      "unitBehavior": "energy-per-mass",
+      "legendScale": "stop-based",
+      "source": { "kind": "artifact", "artifactId": "cin_index" }
     }
   ],
   "particleLayers": [

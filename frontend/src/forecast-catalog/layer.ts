@@ -34,7 +34,7 @@ export type UnitBehaviorId =
   | 'visibility'
   | 'height'
   | 'water-depth'
-  | 'cape'
+  | 'energy-per-mass'
   | 'reflectivity'
 
 export type LegendScaleId =

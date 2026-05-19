@@ -10,6 +10,7 @@ from forecast_etl.encoding.codecs import FORMAT_LINEAR_I8, encode_component_payl
 from forecast_etl.proc import RunResult
 from forecast_etl.tests.fixtures.artifact_configs import (
     artifact_spec,
+    cin_index_config,
     cloud_cover_config,
     minimal_artifact_config,
     precip_rate_config,
@@ -104,6 +105,43 @@ class ScalarArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["encoding_id"], "refc_entire_atmosphere_i8_0p5dbz_v1")
             self.assertEqual(result["units"], "dBZ")
             self.assertEqual(result["parameter"], "refc")
+
+    def test_cin_artifact_writes_positive_magnitude_payload(self) -> None:
+        with artifact_run_fixture(prefix="weather-map-cin-artifact-") as fx:
+            source_grib = fx.single_grib_source()
+            source = pack_f32([-50.0, 100.0, 500.0, float("nan")], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"GRIB_ELEMENT": "CIN", "GRIB_SHORT_NAME": "18000-0-SPDL"}),
+                ) as find_band,
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(source, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=small_grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_artifact(
+                    artifact_id="cin_index",
+                    artifact_config=cin_index_config(),
+                    source=source_grib,
+                    run=_unused_run,
+                )
+
+            find_band.assert_called_once_with(
+                source_grib.reference_grib_path(),
+                {"GRIB_ELEMENT": "CIN", "GRIB_SHORT_NAME": "18000-0-SPDL"},
+                run=_unused_run,
+            )
+            payload_bytes = fx.payload_bytes(artifact_id="cin_index", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbb", -102, -77, 123, -128))
+            self.assertEqual(result["encoding_id"], "cin_index_i8_2jkg_v1")
+            self.assertEqual(result["units"], "J/kg")
+            self.assertEqual(result["parameter"], "cin")
 
     def test_cloud_cover_artifact_writes_single_component_scalar_payload(self) -> None:
         with artifact_run_fixture(prefix="weather-map-cloud-artifact-") as fx:

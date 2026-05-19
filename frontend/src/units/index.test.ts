@@ -154,7 +154,7 @@ describe('getUnitDisplay', () => {
     expect(getUnitOption(display, 'inches').convert(25.4)).toBe(1)
   })
 
-  it('keeps CAPE as a static J/kg display', () => {
+  it('keeps energy per mass as a static J/kg display', () => {
     const display = getUnitDisplay(createLayerMeta({
       id: 'cape',
       label: 'CAPE Index',
@@ -163,7 +163,7 @@ describe('getUnitDisplay', () => {
       min: 0,
       max: 5000,
       paletteId: 'severe.cape.jkg.v1',
-      unitBehavior: 'cape',
+      unitBehavior: 'energy-per-mass',
     }))
 
     expect(canToggleUnitSystem(display)).toBe(false)

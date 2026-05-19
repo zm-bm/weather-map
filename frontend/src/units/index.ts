@@ -310,7 +310,7 @@ const UNIT_DISPLAYS: Record<LayerMeta['unitBehavior'], UnitDisplay> = {
       },
     ],
   },
-  cape: {
+  'energy-per-mass': {
     defaultOptionId: 'joules_per_kilogram',
     options: [
       {

@@ -396,6 +396,27 @@
         }
       ]
     },
+    "cin_index": {
+      "kind": "scalar",
+      "parameter": "cin",
+      "level": "mixed layer",
+      "units": "J/kg",
+      "source_transform": "cin_magnitude",
+      "encoding": {
+        "id": "cin_index_i8_2jkg_v1",
+        "format": "linear-i8-v1",
+        "dtype": "int8",
+        "byte_order": "none",
+        "scale": 2,
+        "offset": 254,
+        "nodata": -128
+      },
+      "components": [
+        {
+          "id": "value"
+        }
+      ]
+    },
     "refc_entire_atmosphere": {
       "kind": "scalar",
       "parameter": "refc",
@@ -485,6 +506,7 @@
           "freezing_level",
           "precipitable_water",
           "cape_index",
+          "cin_index",
           "refc_entire_atmosphere",
           "wind10m_uv"
         ]
@@ -702,6 +724,17 @@
               "id": "value",
               "grib_match": {
                 "GRIB_ELEMENT": "CAPE",
+                "GRIB_SHORT_NAME": "18000-0-SPDL"
+              }
+            }
+          ]
+        },
+        "cin_index": {
+          "components": [
+            {
+              "id": "value",
+              "grib_match": {
+                "GRIB_ELEMENT": "CIN",
                 "GRIB_SHORT_NAME": "18000-0-SPDL"
               }
             }

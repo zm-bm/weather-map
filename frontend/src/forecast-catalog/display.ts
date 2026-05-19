@@ -290,6 +290,17 @@ const LAYER_PALETTES: Record<string, LayerStyleEntry> = {
       [5000, 104, 50, 156],
     ],
   },
+  'severe.cin.jkg.v1': {
+    colortable: [
+      [0, 180, 186, 182],
+      [25, 158, 204, 172],
+      [50, 214, 216, 112],
+      [100, 238, 180, 78],
+      [200, 222, 104, 70],
+      [300, 172, 70, 128],
+      [500, 96, 58, 148],
+    ],
+  },
   'radar.reflectivity.dbz.v1': {
     colortable: [
       [0, 180, 180, 180],

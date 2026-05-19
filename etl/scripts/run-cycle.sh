@@ -226,6 +226,7 @@ worker_cmd_for_hour() {
 	local fhour="$1"
 	local cmd=(
 		docker run --rm
+		--network host
 		--user "$(id -u):$(id -g)"
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--volume "$CACHE_DIR:/app/etl/cache"

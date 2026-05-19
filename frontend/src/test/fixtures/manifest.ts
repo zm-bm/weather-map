@@ -355,6 +355,9 @@ export function createManifestLayersFixture(
     cape: createManifestLayerFixture({
       [modelId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
     }),
+    cin: createManifestLayerFixture({
+      [modelId]: has('cin_index') ? available(['cin_index']) : unavailable(['cin_index']),
+    }),
   }
 }
 

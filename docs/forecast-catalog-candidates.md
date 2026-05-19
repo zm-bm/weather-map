@@ -25,7 +25,7 @@ Scope rules:
 | `wind_pressure` | Wind & Pressure | `wind_speed`, `wind_gust`, `air_pressure` |
 | `precipitation` | Precipitation | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
 | `clouds_visibility` | Clouds & Visibility | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility` |
-| `radar_storms` | Radar & Storms | `composite_reflectivity`, `cape` |
+| `radar_storms` | Radar & Storms | `composite_reflectivity`, `cape`, `cin` |
 
 ## GFS/ICON-First Candidates
 
@@ -53,7 +53,6 @@ more catalog design before implementation.
 | `geopotential_height_500mb` | Upper-Level Pattern / 500mb Heights | `wind_pressure` | Direct 500mb geopotential height scalar such as `hgt_500mb`. | GFS/ICON target after upper-air height artifacts exist. | Next | Classic trough/ridge and steering-pattern layer. |
 | `upper_air_standard_levels` | Upper-Air Layers | Varies; likely `wind_pressure` first | Family covering standard pressure-level temperature, wind, height, humidity, and vorticity. | GFS/ICON target after exact levels and artifact ids are chosen. | Next | This is a family placeholder. Settle concrete layer ids before implementation. |
 | `cloud_ceiling` | Cloud Ceiling | `clouds_visibility` | Lowest significant cloud ceiling or cloud-base height artifact. | GFS/ICON target if native or equivalent fields are available. | Next | Pairs with visibility and future fog/aviation-style views. |
-| `cin` | CIN / Cap Strength | `radar_storms` | Direct convective inhibition scalar such as `cin_surface`. | GFS/ICON target if source fields are available. | Next | Complements `cape`; useful for storm suppression context. |
 | `storm_relative_helicity` | Storm Helicity | `radar_storms` | Storm-relative helicity scalar such as `srh_0_3km`. | GFS/ICON target if source fields are available. | Next | More advanced severe-weather context; add after core precipitation and wind additions. |
 
 ## Later Radar And External Sources

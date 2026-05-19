@@ -65,6 +65,7 @@ consumer column names the artifact's role in that frontend recipe.
 | `freezing_level` | `scalar` | Height of the 0C isotherm. | `m` | `value` | instantaneous | `freezing_level_i8_32m_v1`; linear-i8-v1; int8; scale `32`; offset `4064`; nodata `-128` | layer `freezing_level` | — |
 | `precipitable_water` | `scalar` | Column-integrated water vapor as liquid water depth. | `mm` | `value` | instantaneous | `precipitable_water_i8_0p32mm_v1`; linear-i8-v1; int8; scale `0.32`; offset `40.64`; nodata `-128` | layer `precipitable_water` | — |
 | `cape_index` | `scalar` | Mixed-layer convective available potential energy. | `J/kg` | `value` | instantaneous | `cape_index_i8_20jkg_v1`; linear-i8-v1; int8; scale `20`; offset `2540`; nodata `-128` | layer `cape` | — |
+| `cin_index` | `scalar` | Mixed-layer convective inhibition displayed as positive cap-strength magnitude. | `J/kg` | `value` | instantaneous | `cin_index_i8_2jkg_v1`; linear-i8-v1; int8; scale `2`; offset `254`; nodata `-128` | layer `cin` | Source transform converts signed CIN to positive magnitude. Currently configured for GFS only. |
 | `refc_entire_atmosphere` | `scalar` | Forecast composite reflectivity across the atmospheric column. | `dBZ` | `value` | instantaneous | `refc_entire_atmosphere_i8_0p5dbz_v1`; linear-i8-v1; int8; scale `0.5`; offset `31.5`; nodata `-128` | layer `composite_reflectivity` | Model output for simulated radar, not observed radar. |
 
 ## Particle And Derived Field Sources

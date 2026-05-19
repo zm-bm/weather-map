@@ -6,7 +6,9 @@ from typing import Any, Callable
 
 SOURCE_TRANSFORM_IDENTITY = "identity"
 SOURCE_TRANSFORM_KG_M2_S_TO_MM_HR = "kg_m2_s_to_mm_hr"
+SOURCE_TRANSFORM_CIN_MAGNITUDE = "cin_magnitude"
 SOURCE_TRANSFORMS = {
+    SOURCE_TRANSFORM_CIN_MAGNITUDE,
     SOURCE_TRANSFORM_IDENTITY,
     SOURCE_TRANSFORM_KG_M2_S_TO_MM_HR,
 }
@@ -34,6 +36,8 @@ def source_value_transform(source_transform: str) -> SourceValueTransform:
         return _identity
     if normalized == SOURCE_TRANSFORM_KG_M2_S_TO_MM_HR:
         return _kg_m2_s_to_mm_hr
+    if normalized == SOURCE_TRANSFORM_CIN_MAGNITUDE:
+        return _cin_magnitude
     raise SystemExit(f"Unsupported source transform: {source_transform!r}")
 
 
@@ -43,3 +47,7 @@ def _identity(value: float) -> float:
 
 def _kg_m2_s_to_mm_hr(value: float) -> float:
     return value * 3600.0
+
+
+def _cin_magnitude(value: float) -> float:
+    return abs(value)

@@ -239,3 +239,31 @@ def reflectivity_config() -> dict:
             }
         ],
     }
+
+
+def cin_index_config() -> dict:
+    return {
+        "kind": "scalar",
+        "parameter": "cin",
+        "level": "mixed layer",
+        "units": "J/kg",
+        "source_transform": "cin_magnitude",
+        "encoding": {
+            "id": "cin_index_i8_2jkg_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 2,
+            "offset": 254,
+            "nodata": -128,
+        },
+        "components": [
+            {
+                "id": "value",
+                "grib_match": {
+                    "GRIB_ELEMENT": "CIN",
+                    "GRIB_SHORT_NAME": "18000-0-SPDL",
+                },
+            }
+        ],
+    }
