@@ -166,9 +166,9 @@ describe('TimelineScrubber', () => {
     render(<TimelineScrubber />)
 
     expect(screen.getByText(formatValidTimeLabel(Date.UTC(2026, 3, 9, 0, 40)) ?? '')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step back one hour' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Step back ten minutes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Play forecast timeline' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step forward one hour' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Step forward ten minutes' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Previous forecast minute')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Next forecast minute')).not.toBeInTheDocument()
     expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()

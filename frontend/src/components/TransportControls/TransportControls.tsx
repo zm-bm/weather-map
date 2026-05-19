@@ -1,28 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { FaPause, FaPlay, FaStepBackward, FaStepForward } from 'react-icons/fa'
 
-import { allowsSpaceShortcut, isSpaceKey } from '../../keyboard'
+import {
+  clearPointerShortcut,
+  isSpaceKey,
+  markPointerShortcut,
+  shouldIgnoreSpaceShortcut,
+} from '../../keyboard'
 import { useForecastTimeContext } from '../../forecast-time'
 import { forecastTimeBounds } from '../../forecast-time'
-
-function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-
-  const interactiveTarget = target.closest(
-    'a[href], button, input, select, textarea, [contenteditable="true"], [role="textbox"]'
-  )
-  if (interactiveTarget instanceof HTMLSelectElement) {
-    return !allowsSpaceShortcut(interactiveTarget)
-  }
-
-  return Boolean(interactiveTarget)
-}
 
 function TransportControls() {
   const {
     times,
     state: { isPlaying },
-    controls: { togglePlay },
+    controls: {
+      requestNext,
+      requestPrev,
+      togglePlay,
+    },
   } = useForecastTimeContext()
   const transportDisabled = times.length <= 1 || forecastTimeBounds(times) == null
   const playButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -31,15 +27,29 @@ function TransportControls() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isSpaceKey(event)) return
       if (event.repeat || event.defaultPrevented) return
-      if (shouldIgnoreShortcutTarget(event.target)) return
+      if (shouldIgnoreSpaceShortcut(event.target)) return
       if (transportDisabled) return
 
       event.preventDefault()
       playButtonRef.current?.click()
     }
 
+    const handlePointerDown = (event: PointerEvent) => {
+      markPointerShortcut(event.target)
+    }
+
+    const handleFocusOut = (event: FocusEvent) => {
+      clearPointerShortcut(event.target)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    document.addEventListener('focusout', handleFocusOut, true)
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+      document.removeEventListener('focusout', handleFocusOut, true)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [transportDisabled])
 
   return (
@@ -48,8 +58,9 @@ function TransportControls() {
         <button
           className="panel-button wm-bevel-button transport-controls__button transport-controls__step-button"
           type="button"
-          disabled
-          aria-label="Step back one hour"
+          onClick={requestPrev}
+          disabled={transportDisabled}
+          aria-label="Step back ten minutes"
         >
           <FaStepBackward aria-hidden="true" />
         </button>
@@ -68,8 +79,9 @@ function TransportControls() {
         <button
           className="panel-button wm-bevel-button transport-controls__button transport-controls__step-button"
           type="button"
-          disabled
-          aria-label="Step forward one hour"
+          onClick={requestNext}
+          disabled={transportDisabled}
+          aria-label="Step forward ten minutes"
         >
           <FaStepForward aria-hidden="true" />
         </button>
