@@ -50,16 +50,16 @@ function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | '
   )
 
   if (selectedArtifactId === 'prmsl_msl') {
-    fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
     fireEvent.change(screen.getByLabelText('Measurement'), {
       target: { value: 'air_pressure' },
     })
   }
   if (selectedArtifactId === 'prate_surface') {
-    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'precipitation_rate' },
+    })
   }
   if (selectedArtifactId === 'low_clouds') {
-    fireEvent.click(screen.getByRole('button', { name: 'Sky & Visibility' }))
     fireEvent.change(screen.getByLabelText('Measurement'), {
       target: { value: 'low_cloud_cover' },
     })
@@ -83,7 +83,9 @@ describe('LegendPanel', () => {
     expect(tickLabelsAfterSelect).toContain('50')
     expect(tickLabelsAfterSelect).not.toContain(' C')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'precipitation_rate' },
+    })
     expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('mm/hr')
 
     fireEvent.click(screen.getByRole('button', { name: /cycle precipitation rate units/i }))

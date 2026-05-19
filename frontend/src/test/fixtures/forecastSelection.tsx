@@ -9,6 +9,7 @@ import {
   type ForecastModelId,
   type Manifest,
 } from '../../forecast-manifest'
+import { ForecastTimeProvider } from '../../forecast-time'
 import {
   asParticleLayerId,
   asLayerId,
@@ -106,7 +107,9 @@ export function renderWithForecastSelection(
         label: activeRun.label,
       }]}
     >
-      {ui}
+      <ForecastTimeProvider activeRun={activeRun}>
+        {ui}
+      </ForecastTimeProvider>
     </ForecastSelectionProvider>
   )
 }

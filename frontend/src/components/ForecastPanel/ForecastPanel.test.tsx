@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ForecastModelOption } from '../../forecast-manifest'
+import type { ForecastModelId, ForecastModelOption, Manifest } from '../../forecast-manifest'
+import {
+  ForecastTimeProvider,
+  formatCycleRunTimeLabel,
+  formatValidTimeTickLabel,
+  initialForecastValidTimeMs,
+} from '../../forecast-time'
 import {
   createCatalogManifestFixture,
   createMultiModelManifestFixture,
@@ -16,6 +22,34 @@ const MODEL_OPTIONS: readonly ForecastModelOption[] = [
   { id: 'gfs', label: 'GFS' },
   { id: 'icon', label: 'ICON' },
 ]
+
+function expectedValidTimeLabel(manifest: Manifest, modelId: ForecastModelId = 'gfs'): string {
+  const activeRun = createActiveRunFixture(manifest, modelId)
+  return formatValidTimeTickLabel(initialForecastValidTimeMs(activeRun.latest.times)) ?? '--'
+}
+
+function renderPanelWithManifest(
+  manifest: Manifest,
+  options: {
+    activeModelId?: ForecastModelId
+    modelOptions?: readonly ForecastModelOption[]
+    onActiveModelChange?: (modelId: ForecastModelId) => void
+  } = {}
+) {
+  const activeRun = createActiveRunFixture(manifest, options.activeModelId ?? 'gfs')
+
+  return render(
+    <ForecastSelectionProvider
+      activeRun={activeRun}
+      modelOptions={options.modelOptions ?? MODEL_OPTIONS}
+      onActiveModelChange={options.onActiveModelChange}
+    >
+      <ForecastTimeProvider activeRun={activeRun}>
+        <ForecastPanel />
+      </ForecastTimeProvider>
+    </ForecastSelectionProvider>
+  )
+}
 
 function createPanelManifest(
   scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
@@ -38,14 +72,7 @@ function createPanelManifest(
 
 function renderForecastPanel(scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface']) {
   const manifest = createPanelManifest(scalarArtifactIds)
-  return render(
-    <ForecastSelectionProvider
-      activeRun={createActiveRunFixture(manifest, 'gfs')}
-      modelOptions={MODEL_OPTIONS}
-    >
-      <ForecastPanel />
-    </ForecastSelectionProvider>
-  )
+  return renderPanelWithManifest(manifest)
 }
 
 function createInteractivePanelManifest(
@@ -79,25 +106,30 @@ function renderInteractiveForecastPanel(
   cycle?: string
 ) {
   const manifest = createInteractivePanelManifest(selectedArtifactId, cycle)
-  return render(
-    <ForecastSelectionProvider
-      activeRun={createActiveRunFixture(manifest, 'gfs')}
-      modelOptions={MODEL_OPTIONS}
-    >
-      <ForecastPanel />
-    </ForecastSelectionProvider>
-  )
+  return renderPanelWithManifest(manifest)
 }
 
 describe('ForecastPanel', () => {
   it('renders forecast controls without probe readouts', () => {
-    renderForecastPanel(['tmp_surface', 'rh_surface'])
+    const manifest = createPanelManifest(['tmp_surface', 'rh_surface'])
+    renderPanelWithManifest(manifest)
 
-    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Measurement')).toHaveValue('temperature')
-    expect(screen.getByLabelText('Forecast model GFS, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/CYCLE APR 11 00Z/)
-    expect(screen.getByLabelText('Forecast model')).toHaveValue('gfs')
-    expect(screen.getByText('CYCLE APR 11 00Z')).toBeInTheDocument()
+    const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    expect(measurement).toHaveValue('temperature')
+    expect(Array.from(measurement.querySelectorAll('optgroup')).map((group) => group.label))
+      .toEqual([
+        'Temperature',
+        'Wind & Pressure',
+        'Precipitation',
+        'Sky & Visibility',
+        'Severe Weather',
+      ])
+    expect(screen.getByLabelText('Forecast source GFS, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
+    expect(screen.getByLabelText('Forecast source')).toHaveValue('gfs')
+    expect(screen.getByText('Source')).toBeInTheDocument()
+    expect(screen.getByText('Cycle')).toBeInTheDocument()
+    expect(screen.getByText(formatCycleRunTimeLabel('2026041100') ?? '')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Forecast valid time/)).toHaveTextContent(expectedValidTimeLabel(manifest))
     expect(screen.queryByLabelText('Forecast level')).not.toBeInTheDocument()
     expect(screen.queryByText('Time')).not.toBeInTheDocument()
     expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
@@ -119,20 +151,15 @@ describe('ForecastPanel', () => {
       layers: catalogManifest.layers,
     })
 
-    render(
-      <ForecastSelectionProvider
-        activeRun={createActiveRunFixture(manifest, 'icon')}
-        modelOptions={MODEL_OPTIONS}
-        onActiveModelChange={onActiveModelChange}
-      >
-        <ForecastPanel />
-      </ForecastSelectionProvider>
-    )
+    renderPanelWithManifest(manifest, {
+      activeModelId: 'icon',
+      onActiveModelChange,
+    })
 
-    expect(screen.getByLabelText('Forecast model ICON, forecast cycle initialized Apr 11, 00Z')).toHaveTextContent(/ICONCYCLE APR 11 00Z/)
-    expect(screen.getByLabelText('Forecast model')).toHaveValue('icon')
+    expect(screen.getByLabelText('Forecast source ICON, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
+    expect(screen.getByLabelText('Forecast source')).toHaveValue('icon')
 
-    fireEvent.change(screen.getByLabelText('Forecast model'), {
+    fireEvent.change(screen.getByLabelText('Forecast source'), {
       target: { value: 'gfs' },
     })
 
@@ -153,17 +180,11 @@ describe('ForecastPanel', () => {
       layers: catalogManifest.layers,
     })
 
-    render(
-      <ForecastSelectionProvider
-        activeRun={createActiveRunFixture(manifest, 'icon')}
-        modelOptions={MODEL_OPTIONS}
-        onActiveModelChange={onActiveModelChange}
-      >
-        <ForecastPanel />
-      </ForecastSelectionProvider>
-    )
+    renderPanelWithManifest(manifest, {
+      activeModelId: 'icon',
+      onActiveModelChange,
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Precipitation' }))
     fireEvent.change(screen.getByLabelText('Measurement'), {
       target: { value: 'accumulated_precipitation' },
     })
@@ -171,7 +192,7 @@ describe('ForecastPanel', () => {
     expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
     expect(screen.getByRole('option', { name: 'GFS (unavailable)' })).toBeDisabled()
 
-    fireEvent.change(screen.getByLabelText('Forecast model'), {
+    fireEvent.change(screen.getByLabelText('Forecast source'), {
       target: { value: 'gfs' },
     })
 
@@ -179,30 +200,31 @@ describe('ForecastPanel', () => {
     expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
   })
 
-  it('updates selected layer through category and measurement controls without rendering unit controls', () => {
+  it('updates selected layer through the grouped measurement control without rendering unit controls', () => {
     renderInteractiveForecastPanel('tmp_surface')
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
-    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveTextContent('Temperature')
     expect(measurement.value).toBe('temperature')
     expect(screen.getByRole('option', { name: 'Temperature' })).toHaveValue('temperature')
     expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('apparent_temperature')
+    expect(screen.queryByLabelText('Category')).not.toBeInTheDocument()
 
     fireEvent.change(measurement, {
       target: { value: 'apparent_temperature' },
     })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('apparent_temperature')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Wind & Pressure' }))
-    expect(screen.getByRole('button', { name: 'Wind & Pressure' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.change(measurement, {
+      target: { value: 'wind_gust' },
+    })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_gust')
     expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed')
     expect(screen.getByRole('option', { name: 'Wind Gust' })).toHaveValue('wind_gust')
     expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('air_pressure')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
-    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.change(measurement, {
+      target: { value: 'temperature' },
+    })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('temperature')
 
   })
@@ -243,18 +265,9 @@ describe('ForecastPanel', () => {
       },
     })
 
-    render(
-      <ForecastSelectionProvider
-        activeRun={createActiveRunFixture(manifest, 'gfs')}
-        modelOptions={MODEL_OPTIONS}
-      >
-        <ForecastPanel />
-      </ForecastSelectionProvider>
-    )
+    renderPanelWithManifest(manifest)
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
-    fireEvent.click(screen.getByRole('button', { name: 'Sky & Visibility' }))
-    expect(screen.getByRole('button', { name: 'Sky & Visibility' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('option', { name: 'Low Cloud Cover' })).toHaveValue('low_cloud_cover')
     expect(screen.getByRole('option', { name: 'Middle Cloud Cover' })).toHaveValue('middle_cloud_cover')
     expect(screen.getByRole('option', { name: 'High Cloud Cover' })).toHaveValue('high_cloud_cover')
