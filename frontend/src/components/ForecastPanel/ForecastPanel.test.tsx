@@ -16,6 +16,7 @@ import {
   createActiveRunFixture,
 } from '../../test/fixtures'
 import { ForecastSelectionProvider } from '../../forecast-selection'
+import { ALLOW_SPACE_SHORTCUT_ATTR } from '../../keyboard'
 import ForecastPanel from './ForecastPanel'
 
 const MODEL_OPTIONS: readonly ForecastModelOption[] = [
@@ -157,13 +158,20 @@ describe('ForecastPanel', () => {
     })
 
     expect(screen.getByLabelText('Forecast source ICON, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
-    expect(screen.getByLabelText('Forecast source')).toHaveValue('icon')
+    const source = screen.getByLabelText('Forecast source') as HTMLSelectElement
+    expect(source).toHaveValue('icon')
 
-    fireEvent.change(screen.getByLabelText('Forecast source'), {
+    source.focus()
+    expect(source).toHaveFocus()
+    fireEvent.pointerDown(source)
+    expect(source).toHaveAttribute(ALLOW_SPACE_SHORTCUT_ATTR, 'true')
+    fireEvent.change(source, {
       target: { value: 'gfs' },
     })
 
     expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
+    expect(source).not.toHaveFocus()
+    expect(source).not.toHaveAttribute(ALLOW_SPACE_SHORTCUT_ATTR)
   })
 
   it('keeps model selection secondary to the selected measurement', () => {
@@ -209,10 +217,16 @@ describe('ForecastPanel', () => {
     expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('apparent_temperature')
     expect(screen.queryByLabelText('Category')).not.toBeInTheDocument()
 
+    measurement.focus()
+    expect(measurement).toHaveFocus()
+    fireEvent.pointerDown(measurement)
+    expect(measurement).toHaveAttribute(ALLOW_SPACE_SHORTCUT_ATTR, 'true')
     fireEvent.change(measurement, {
       target: { value: 'apparent_temperature' },
     })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('apparent_temperature')
+    expect(measurement).not.toHaveFocus()
+    expect(measurement).not.toHaveAttribute(ALLOW_SPACE_SHORTCUT_ATTR)
 
     fireEvent.change(measurement, {
       target: { value: 'wind_gust' },

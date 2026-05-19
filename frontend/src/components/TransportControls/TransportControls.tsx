@@ -1,21 +1,21 @@
 import { useEffect, useRef } from 'react'
 import { FaPause, FaPlay, FaStepBackward, FaStepForward } from 'react-icons/fa'
 
+import { allowsSpaceShortcut, isSpaceKey } from '../../keyboard'
 import { useForecastTimeContext } from '../../forecast-time'
 import { forecastTimeBounds } from '../../forecast-time'
-
-function isSpaceKey(event: KeyboardEvent): boolean {
-  return event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar'
-}
 
 function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
 
-  return Boolean(
-    target.closest(
-      'a[href], button, input, select, textarea, [contenteditable="true"], [role="textbox"]'
-    )
+  const interactiveTarget = target.closest(
+    'a[href], button, input, select, textarea, [contenteditable="true"], [role="textbox"]'
   )
+  if (interactiveTarget instanceof HTMLSelectElement) {
+    return !allowsSpaceShortcut(interactiveTarget)
+  }
+
+  return Boolean(interactiveTarget)
 }
 
 function TransportControls() {

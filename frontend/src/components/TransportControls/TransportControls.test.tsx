@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ALLOW_SPACE_SHORTCUT_ATTR } from '../../keyboard'
 import TransportControls from './TransportControls'
 
 const mocks = vi.hoisted(() => ({
@@ -89,6 +90,55 @@ describe('TransportControls', () => {
     fireEvent.keyDown(input, { key: ' ', code: 'Space' })
 
     expect(mocks.togglePlay).not.toHaveBeenCalled()
+  })
+
+  it('toggles playback after a committed select change blurs the control', () => {
+    render(
+      <>
+        <select
+          aria-label="Layer"
+          defaultValue="temperature"
+          onChange={(event) => event.currentTarget.blur()}
+        >
+          <option value="temperature">Temperature</option>
+          <option value="wind_speed">Wind Speed</option>
+        </select>
+        <TransportControls />
+      </>
+    )
+
+    const layer = screen.getByLabelText('Layer') as HTMLSelectElement
+    layer.focus()
+    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+    expect(mocks.togglePlay).not.toHaveBeenCalled()
+
+    fireEvent.change(layer, { target: { value: 'wind_speed' } })
+    expect(layer).not.toHaveFocus()
+
+    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+    expect(mocks.togglePlay).toHaveBeenCalledOnce()
+  })
+
+  it('toggles playback when a mouse-used select keeps focus without a value change', () => {
+    render(
+      <>
+        <select
+          aria-label="Layer"
+          defaultValue="temperature"
+          {...{ [ALLOW_SPACE_SHORTCUT_ATTR]: 'true' }}
+        >
+          <option value="temperature">Temperature</option>
+          <option value="wind_speed">Wind Speed</option>
+        </select>
+        <TransportControls />
+      </>
+    )
+
+    const layer = screen.getByLabelText('Layer')
+    layer.focus()
+    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+
+    expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
   it('renders pause state and disables playback when timeline has one frame', () => {

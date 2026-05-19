@@ -8,6 +8,10 @@ import {
 } from '../../forecast-time'
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
 import {
+  clearSpaceShortcutAllowed,
+  markSpaceShortcutAllowed,
+} from '../../keyboard'
+import {
   isLayerAvailableForModel,
   hasAnyAvailableModelForLayer,
 } from '../../forecast-manifest'
@@ -66,7 +70,12 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                 className="forecast-controls__select forecast-controls__measurement-select"
                 aria-label="Measurement"
                 value={selectedLayerId ?? ''}
-                onChange={(event) => setSelectedLayer(event.currentTarget.value as LayerId)}
+                onPointerDown={(event) => markSpaceShortcutAllowed(event.currentTarget)}
+                onChange={(event) => {
+                  setSelectedLayer(event.currentTarget.value as LayerId)
+                  event.currentTarget.blur()
+                }}
+                onBlur={(event) => clearSpaceShortcutAllowed(event.currentTarget)}
               >
                 {groups.map((group) => (
                   <optgroup key={group.id} label={group.label}>
@@ -105,7 +114,12 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                   className="forecast-controls__quiet-select forecast-controls__model-select"
                   aria-label="Forecast source"
                   value={activeRun.modelId}
-                  onChange={(event) => setActiveModel(event.currentTarget.value)}
+                  onPointerDown={(event) => markSpaceShortcutAllowed(event.currentTarget)}
+                  onChange={(event) => {
+                    setActiveModel(event.currentTarget.value)
+                    event.currentTarget.blur()
+                  }}
+                  onBlur={(event) => clearSpaceShortcutAllowed(event.currentTarget)}
                 >
                   {modelOptions.map((model) => {
                     const isUnavailableForSelectedLayer = selectedLayerId != null &&
