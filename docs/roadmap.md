@@ -67,6 +67,11 @@ recipe over `low_clouds`, `medium_clouds`, and `high_clouds`.
 Do not bring back packed scalar artifacts. The individual cloud layers should
 remain available even if a combined view is added.
 
+### Precipitation Type Legend
+
+Add a legend for the `Precipitation Type` layer that clearly indicates which colors
+correspond to which precipitation types.
+
 ## Operational Follow-Ups
 
 ### ETL Health Notifications
