@@ -37,9 +37,9 @@ Related docs:
 | --- | --- | --- | --- |
 | `temperature` | Temperature | `temperature` | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
 | `wind_pressure` | Wind & Pressure | `wind_gust` | `wind_speed`, `wind_gust`, `air_pressure` |
-| `precipitation` | Precipitation | `precipitation_rate` | `precipitation_rate`, `accumulated_precipitation`, `snow_depth` |
-| `sky_visibility` | Sky & Visibility | `cloud_cover` | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility`, `freezing_level`, `precipitable_water` |
-| `severe_weather` | Severe Weather | `cape` | `cape` |
+| `precipitation` | Precipitation | `precipitation_rate` | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
+| `clouds_visibility` | Clouds & Visibility | `cloud_cover` | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility` |
+| `radar_storms` | Radar & Storms | `cape` | `cape` |
 
 In field-layer tables, `Display` is `units; display_range; palette_id;
 unit_behavior/legend_scale`. These values mirror frontend display metadata, not
@@ -70,9 +70,11 @@ ETL encoding ranges.
 | --- | --- | --- | --- | --- | --- |
 | `precipitation_rate` | Precipitation Rate | composite field with base scalar artifact `prate_surface` and optional classifier overlay `precip_type_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Magnitude comes from `prate_surface`; `precip_type_surface` only selects rain, snow, or wintry-mix coloring when available. |
 | `accumulated_precipitation` | Accumulated Precipitation | direct scalar artifact `precip_total_surface` | run total unless a future artifact declares a fixed window | `mm`; `0..254`; `precip.total.mm.v1`; `precip-total/precip-total` | Not a rolling 1h/3h/24h accumulation layer. |
+| `precipitable_water` | Precipitable Water | direct scalar artifact `precipitable_water` | instantaneous | `mm`; `0..80`; `atmosphere.precipitable_water.mm.v1`; `water-depth/stop-based` | Column-integrated water vapor expressed as liquid water depth. |
 | `snow_depth` | Snow Depth | direct scalar artifact `snow_depth_surface` | instantaneous | `m`; `0..5`; `snow.depth.m.v1`; `snow-depth/stop-based` | Snow depth on the ground, not snowfall rate or new snow accumulation. |
+| `freezing_level` | Freezing Level | direct scalar artifact `freezing_level` | instantaneous | `m`; `0..8000`; `atmosphere.freezing_level.m.v1`; `height/stop-based` | Height of the 0C isotherm. |
 
-### Sky & Visibility
+### Clouds & Visibility
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -81,10 +83,8 @@ ETL encoding ranges.
 | `middle_cloud_cover` | Middle Cloud Cover | direct scalar artifact `medium_clouds` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Middle cloud layer cover. |
 | `high_cloud_cover` | High Cloud Cover | direct scalar artifact `high_clouds` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | High cloud layer cover. |
 | `visibility` | Visibility | direct scalar artifact `visibility_surface` | instantaneous | `m`; `0..50000`; `atmosphere.visibility.m.v1`; `visibility/stop-based` | Horizontal surface visibility. |
-| `freezing_level` | Freezing Level | direct scalar artifact `freezing_level` | instantaneous | `m`; `0..8000`; `atmosphere.freezing_level.m.v1`; `height/stop-based` | Height of the 0C isotherm. |
-| `precipitable_water` | Precipitable Water | direct scalar artifact `precipitable_water` | instantaneous | `mm`; `0..80`; `atmosphere.precipitable_water.mm.v1`; `water-depth/stop-based` | Column-integrated water vapor expressed as liquid water depth. |
 
-### Severe Weather
+### Radar & Storms
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |

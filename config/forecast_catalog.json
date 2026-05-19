@@ -29,26 +29,26 @@
       "layers": [
         "precipitation_rate",
         "accumulated_precipitation",
-        "snow_depth"
+        "precipitable_water",
+        "snow_depth",
+        "freezing_level"
       ]
     },
     {
-      "id": "sky_visibility",
-      "label": "Sky & Visibility",
+      "id": "clouds_visibility",
+      "label": "Clouds & Visibility",
       "defaultLayer": "cloud_cover",
       "layers": [
         "cloud_cover",
         "low_cloud_cover",
         "middle_cloud_cover",
         "high_cloud_cover",
-        "visibility",
-        "freezing_level",
-        "precipitable_water"
+        "visibility"
       ]
     },
     {
-      "id": "severe_weather",
-      "label": "Severe Weather",
+      "id": "radar_storms",
+      "label": "Radar & Storms",
       "defaultLayer": "cape",
       "layers": [
         "cape"
@@ -182,7 +182,7 @@
     {
       "id": "cloud_cover",
       "label": "Total Cloud Cover",
-      "groupId": "sky_visibility",
+      "groupId": "clouds_visibility",
       "paletteId": "cloud.cover.percent.v1",
       "displayRange": { "min": 0, "max": 100 },
       "unitBehavior": "percent",
@@ -192,7 +192,7 @@
     {
       "id": "low_cloud_cover",
       "label": "Low Cloud Cover",
-      "groupId": "sky_visibility",
+      "groupId": "clouds_visibility",
       "paletteId": "cloud.cover.percent.v1",
       "displayRange": { "min": 0, "max": 100 },
       "unitBehavior": "percent",
@@ -202,7 +202,7 @@
     {
       "id": "middle_cloud_cover",
       "label": "Middle Cloud Cover",
-      "groupId": "sky_visibility",
+      "groupId": "clouds_visibility",
       "paletteId": "cloud.cover.percent.v1",
       "displayRange": { "min": 0, "max": 100 },
       "unitBehavior": "percent",
@@ -212,7 +212,7 @@
     {
       "id": "high_cloud_cover",
       "label": "High Cloud Cover",
-      "groupId": "sky_visibility",
+      "groupId": "clouds_visibility",
       "paletteId": "cloud.cover.percent.v1",
       "displayRange": { "min": 0, "max": 100 },
       "unitBehavior": "percent",
@@ -222,7 +222,7 @@
     {
       "id": "visibility",
       "label": "Visibility",
-      "groupId": "sky_visibility",
+      "groupId": "clouds_visibility",
       "paletteId": "atmosphere.visibility.m.v1",
       "displayRange": { "min": 0, "max": 50000 },
       "unitBehavior": "visibility",
@@ -232,7 +232,7 @@
     {
       "id": "freezing_level",
       "label": "Freezing Level",
-      "groupId": "sky_visibility",
+      "groupId": "precipitation",
       "paletteId": "atmosphere.freezing_level.m.v1",
       "displayRange": { "min": 0, "max": 8000 },
       "unitBehavior": "height",
@@ -242,7 +242,7 @@
     {
       "id": "precipitable_water",
       "label": "Precipitable Water",
-      "groupId": "sky_visibility",
+      "groupId": "precipitation",
       "paletteId": "atmosphere.precipitable_water.mm.v1",
       "displayRange": { "min": 0, "max": 80 },
       "unitBehavior": "water-depth",
@@ -252,7 +252,7 @@
     {
       "id": "cape",
       "label": "CAPE Index",
-      "groupId": "severe_weather",
+      "groupId": "radar_storms",
       "paletteId": "severe.cape.jkg.v1",
       "displayRange": { "min": 0, "max": 5000 },
       "unitBehavior": "cape",

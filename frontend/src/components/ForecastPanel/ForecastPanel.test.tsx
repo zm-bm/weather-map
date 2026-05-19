@@ -15,6 +15,7 @@ import {
   createScalarArtifactFixture,
   createActiveRunFixture,
 } from '../../test/fixtures'
+import { FORECAST_LAYER_GROUPS } from '../../forecast-catalog'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import { shouldIgnoreSpaceShortcut } from '../../keyboard'
 import ForecastPanel from './ForecastPanel'
@@ -118,13 +119,7 @@ describe('ForecastPanel', () => {
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
     expect(measurement).toHaveValue('temperature')
     expect(Array.from(measurement.querySelectorAll('optgroup')).map((group) => group.label))
-      .toEqual([
-        'Temperature',
-        'Wind & Pressure',
-        'Precipitation',
-        'Sky & Visibility',
-        'Severe Weather',
-      ])
+      .toEqual(FORECAST_LAYER_GROUPS.map((group) => group.label))
     expect(screen.getByLabelText('Forecast source GFS, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
     expect(screen.getByLabelText('Forecast source')).toHaveValue('gfs')
     expect(screen.getByText('Source')).toBeInTheDocument()
@@ -264,7 +259,7 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
 
-  it('shows low, middle, and high cloud cover as Sky & Visibility measurement options', () => {
+  it('shows low, middle, and high cloud cover as Clouds & Visibility measurement options', () => {
     const manifest = createManifestFixture({
       cycle: '2026041118',
       scalarArtifactIds: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
