@@ -7,12 +7,12 @@ import ForecastMap from './ForecastMap'
 
 const DEFAULT_RENDER_PROFILE = {
   key: 'default',
-  rendererIds: ['field', 'particles'],
+  rendererIds: ['field', 'field-overlay', 'particles'],
 }
 
 const FIELD_ONLY_RENDER_PROFILE = {
   key: 'field-only',
-  rendererIds: ['field'],
+  rendererIds: ['field', 'field-overlay'],
 }
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ vi.mock('../../map/useMap', () => ({
 vi.mock('../../forecast-render', () => ({
   DEFAULT_FORECAST_RENDER_PROFILE: {
     key: 'default',
-    rendererIds: ['field', 'particles'],
+    rendererIds: ['field', 'field-overlay', 'particles'],
   },
   useForecastRenderHost: (args: unknown) => mocks.useForecastRenderHost(args),
 }))

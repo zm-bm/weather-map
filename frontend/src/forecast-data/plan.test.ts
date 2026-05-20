@@ -8,7 +8,9 @@ import {
 import {
   createActiveRunFixture,
   createConfigFixture,
+  createScalarArtifactFixture,
   createSingleTimeManifestFixture,
+  createVectorArtifactFixture,
   createSignalFixture,
 } from '../test/fixtures'
 import { createForecastDataTarget } from './target'
@@ -63,6 +65,7 @@ describe('createForecastDataPlan', () => {
 
     expect(plan.field.key).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
     expect(plan.particles?.key).toBe('gfs:2026040900:rev:wind:wind10m_uv')
+    expect(plan.precipTypeOverlay).toBeNull()
     expect(plan.lowerHourToken).toBe('000')
     expect(plan.upperHourToken).toBe('000')
   })
@@ -78,5 +81,79 @@ describe('createForecastDataPlan', () => {
 
     expect(plan.field.key).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface')
     expect(plan.particles).toBeNull()
+    expect(plan.precipTypeOverlay).toBeNull()
+  })
+
+  it('builds a precipitation type overlay channel when the optional artifact exists', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          prate_surface: createScalarArtifactFixture({ id: 'prate_surface' }),
+          precip_type_surface: createVectorArtifactFixture({
+            id: 'precip_type_surface',
+            components: ['snow_frac', 'mix_frac'],
+          }),
+        },
+      }),
+      layerId: 'precipitation_rate',
+      includeParticles: false,
+    })
+
+    expect(plan.field.key).toBe('gfs:2026040900:rev:precipitation_rate:artifact:prate_surface')
+    expect(plan.precipTypeOverlay).not.toBeNull()
+  })
+
+  it('omits the precipitation type overlay channel for layers without that overlay', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
+          precip_type_surface: createVectorArtifactFixture({
+            id: 'precip_type_surface',
+            components: ['snow_frac', 'mix_frac'],
+          }),
+        },
+      }),
+      layerId: 'temperature',
+      includeParticles: false,
+    })
+
+    expect(plan.precipTypeOverlay).toBeNull()
+  })
+
+  it('omits the precipitation type overlay channel when the optional artifact is missing', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          prate_surface: createScalarArtifactFixture({ id: 'prate_surface' }),
+        },
+      }),
+      layerId: 'precipitation_rate',
+      includeParticles: false,
+    })
+
+    expect(plan.precipTypeOverlay).toBeNull()
+  })
+
+  it('omits the precipitation type overlay channel when the artifact lacks overlay components', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          prate_surface: createScalarArtifactFixture({ id: 'prate_surface' }),
+          precip_type_surface: createVectorArtifactFixture({
+            id: 'precip_type_surface',
+            components: ['u', 'v'],
+          }),
+        },
+      }),
+      layerId: 'precipitation_rate',
+      includeParticles: false,
+    })
+
+    expect(plan.precipTypeOverlay).toBeNull()
   })
 })

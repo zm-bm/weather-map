@@ -57,8 +57,9 @@ remain available even if a combined view is added.
 
 ### Precipitation Type Legend
 
-Add legend/support UI for future precipitation type overlay rendering once the
-frontend consumes `snow_frac` and `mix_frac`.
+Add legend/support UI for the automatic precipitation type overlay. It should
+explain the snowflake and winter-mix ice-dash glyphs without turning
+`precip_type_surface` into a separate selectable layer.
 
 ## Operational Follow-Ups
 

@@ -27,7 +27,7 @@ Related docs:
 2. A particle layer is a separate user-facing render choice, not a field layer.
 3. A group is a browsing category for layers, not an artifact family.
 4. Time semantics must be explicit: instantaneous, rate, fixed-window accumulation, or run total.
-5. Source descriptions here stay at the frontend recipe level: direct artifact, derived artifact recipe, or composite recipe.
+5. Source descriptions here stay at the frontend recipe level: direct artifact, derived artifact recipe, or optional overlay.
 6. Model-specific availability, upstream field selection, and derivation details belong in `forecast-model-mapping.md`.
 7. ETL payload kinds, components, and encodings belong in `forecast-artifact-registry.md`.
 
@@ -68,11 +68,20 @@ ETL encoding ranges.
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `precipitation_rate` | Precipitation Rate | direct scalar artifact `prate_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Simple liquid-water-equivalent precipitation intensity. Type overlays are staged separately and are not rendered by this layer yet. |
+| `precipitation_rate` | Precipitation Rate | direct scalar artifact `prate_surface`; optional overlay artifact `precip_type_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Liquid-water-equivalent precipitation intensity with automatic snowflake / pale alternating snowflake-ice-dash winter-mix glyph overlays that fade during map zoom when `precip_type_surface` is available. |
 | `accumulated_precipitation` | Accumulated Precipitation | direct scalar artifact `precip_total_surface` | run total unless a future artifact declares a fixed window | `mm`; `0..254`; `precip.total.mm.v1`; `precip-total/precip-total` | Not a rolling 1h/3h/24h accumulation layer. |
 | `precipitable_water` | Precipitable Water | direct scalar artifact `precipitable_water` | instantaneous | `mm`; `0..80`; `atmosphere.precipitable_water.mm.v1`; `water-depth/stop-based` | Column-integrated water vapor expressed as liquid water depth. |
 | `snow_depth` | Snow Depth | direct scalar artifact `snow_depth_surface` | instantaneous | `m`; `0..5`; `snow.depth.m.v1`; `snow-depth/stop-based` | Snow depth on the ground, not snowfall rate or new snow accumulation. |
 | `freezing_level` | Freezing Level | direct scalar artifact `freezing_level` | instantaneous | `m`; `0..8000`; `atmosphere.freezing_level.m.v1`; `height/stop-based` | Height of the 0C isotherm. |
+
+`precipitation_rate` answers how much liquid-water-equivalent precipitation is
+falling. When the optional `precip_type_surface` artifact is available, a
+separate overlay pass answers what frozen type is present: `snow_frac` renders a
+snowflake lattice, `mix_frac` renders alternating snowflake / diagonal ice-dash
+glyphs, and rain remains the base intensity ramp with no type glyph. The
+overlay uses soft masks equivalent to `smoothstep(0.35, 0.65, fraction)`, fades
+during active zoom, and keeps screen-sized spacing from `12px` at z2 to `30px`
+at z6.
 
 ### Clouds & Visibility
 

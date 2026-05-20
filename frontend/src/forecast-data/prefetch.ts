@@ -1,9 +1,13 @@
 import type { ForecastDataPlan } from './plan'
-import type { ForecastDataChannel } from './types'
 import { normalizeHourToken } from './window'
 
+type ForecastDataPrefetchChannel =
+  | ForecastDataPlan['field']
+  | NonNullable<ForecastDataPlan['precipTypeOverlay']>
+  | NonNullable<ForecastDataPlan['particles']>
+
 type ForecastDataPrefetchTask = {
-  channel: ForecastDataChannel
+  channel: ForecastDataPrefetchChannel
   hourToken: string
 }
 
@@ -37,8 +41,11 @@ function createForecastDataPrefetchTasks(args: PrefetchForecastDataArgs): Foreca
   })
 }
 
-function prefetchChannels(plan: ForecastDataPlan): ForecastDataChannel[] {
-  return plan.particles == null ? [plan.field] : [plan.field, plan.particles]
+function prefetchChannels(plan: ForecastDataPlan): ForecastDataPrefetchChannel[] {
+  const channels: ForecastDataPrefetchChannel[] = [plan.field]
+  if (plan.precipTypeOverlay) channels.push(plan.precipTypeOverlay)
+  if (plan.particles) channels.push(plan.particles)
+  return channels
 }
 
 function uniqueNormalizedHourTokens(hourTokens: readonly string[]): string[] {

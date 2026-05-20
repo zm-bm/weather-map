@@ -15,8 +15,9 @@ FORECAST_MANIFEST_SCHEMA = "weather-map.forecast-manifest"
 FORECAST_MANIFEST_SCHEMA_VERSION = 1
 
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
-LayerSupport = Literal["native", "frontend-derived", "etl-derived", "composite", "unavailable"]
+LayerSupport = Literal["native", "frontend-derived", "etl-derived", "unavailable"]
 ArtifactKind = Literal["scalar", "vector"]
+PRECIP_TYPE_OVERLAY_COMPONENTS = ("snow_frac", "mix_frac")
 
 
 @dataclass(frozen=True)
@@ -215,7 +216,7 @@ def _layer_model_entry(
 
 
 def _support_for_model(*, model: ModelConfig, layer_requirements: LayerRequirements) -> LayerSupport:
-    if layer_requirements.support_hint in {"frontend-derived", "composite"}:
+    if layer_requirements.support_hint == "frontend-derived":
         return layer_requirements.support_hint
 
     first_required = layer_requirements.required[0] if layer_requirements.required else None
@@ -254,7 +255,67 @@ def _layer_requirements(layer: Mapping[str, Any]) -> LayerRequirements:
     source = layer.get("source")
     if not isinstance(source, dict):
         raise SystemExit(f"Layer {layer.get('id')!r} must contain a source object")
-    return _source_requirements(source, optional=False)
+
+    requirements = _source_requirements(source, optional=False)
+    required = list(requirements.required)
+    optional_requirements = list(requirements.optional)
+
+    overlays = layer.get("overlays", [])
+    if not isinstance(overlays, list):
+        raise SystemExit(f"Layer {layer.get('id')!r} overlays must be a list")
+
+    for overlay in overlays:
+        if not isinstance(overlay, dict):
+            raise SystemExit(f"Layer {layer.get('id')!r} overlays must be objects")
+        overlay_requirements = _layer_overlay_requirements(
+            overlay,
+            optional=bool(overlay.get("optional")),
+        )
+        required.extend(overlay_requirements.required)
+        optional_requirements.extend(overlay_requirements.optional)
+
+    required_tuple = _dedupe_requirements(required)
+    optional_tuple = tuple(
+        requirement
+        for requirement in _dedupe_requirements(optional_requirements)
+        if requirement not in required_tuple
+    )
+    return LayerRequirements(
+        required=required_tuple,
+        optional=optional_tuple,
+        support_hint=requirements.support_hint,
+    )
+
+
+def _layer_overlay_requirements(overlay: Mapping[str, Any], *, optional: bool) -> LayerRequirements:
+    overlay_kind = overlay.get("kind")
+    if overlay_kind == "precipitation-type":
+        artifact_id = overlay.get("artifactId")
+        if artifact_id is None:
+            raise SystemExit("Precipitation-type layer overlay must contain artifactId")
+        requirement = ArtifactRequirement(
+            str(artifact_id),
+            "vector",
+            PRECIP_TYPE_OVERLAY_COMPONENTS,
+        )
+        return LayerRequirements(
+            required=() if optional else (requirement,),
+            optional=(requirement,) if optional else (),
+            support_hint="native",
+        )
+
+    raise SystemExit(f"Unsupported layer overlay kind: {overlay_kind!r}")
+
+
+def _dedupe_requirements(requirements: Iterable[ArtifactRequirement]) -> tuple[ArtifactRequirement, ...]:
+    seen: set[ArtifactRequirement] = set()
+    deduped: list[ArtifactRequirement] = []
+    for requirement in requirements:
+        if requirement in seen:
+            continue
+        seen.add(requirement)
+        deduped.append(requirement)
+    return tuple(deduped)
 
 
 def _source_requirements(source: Mapping[str, Any], *, optional: bool) -> LayerRequirements:
@@ -273,33 +334,6 @@ def _source_requirements(source: Mapping[str, Any], *, optional: bool) -> LayerR
             required=() if optional else (requirement,),
             optional=(requirement,) if optional else (),
             support_hint="frontend-derived",
-        )
-
-    if source_kind == "composite":
-        base = source.get("base")
-        overlays = source.get("overlays", [])
-        if not isinstance(base, dict) or not isinstance(overlays, list):
-            raise SystemExit("Composite layer sources must contain base and overlays")
-
-        required = list(_source_requirements(base, optional=optional).required)
-        optional_requirements = list(_source_requirements(base, optional=optional).optional)
-        for overlay in overlays:
-            if not isinstance(overlay, dict):
-                raise SystemExit("Composite layer overlays must be objects")
-            overlay_source = overlay.get("source")
-            if not isinstance(overlay_source, dict):
-                raise SystemExit("Composite layer overlay must contain a source object")
-            overlay_requirements = _source_requirements(
-                overlay_source,
-                optional=optional or bool(overlay.get("optional")),
-            )
-            required.extend(overlay_requirements.required)
-            optional_requirements.extend(overlay_requirements.optional)
-
-        return LayerRequirements(
-            required=tuple(required),
-            optional=tuple(optional_requirements),
-            support_hint="composite",
         )
 
     raise SystemExit(f"Unsupported layer source kind: {source_kind!r}")

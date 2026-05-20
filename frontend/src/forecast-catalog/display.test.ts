@@ -21,6 +21,7 @@ describe('layer metadata palettes', () => {
       unitBehavior: 'pressure',
       legendScale: 'pressure',
       source: { kind: 'artifact', artifactId: asArtifactId('prmsl_msl') },
+      overlays: [],
     }
     const artifact = createScalarArtifactFixture({
       id: 'prmsl_msl',
@@ -55,6 +56,7 @@ describe('layer metadata palettes', () => {
       unitBehavior: 'wind-speed',
       legendScale: 'stop-based',
       source: { kind: 'derived', artifactId: asArtifactId('wind10m_uv'), recipe: 'wind-speed' },
+      overlays: [],
       parameter: 'wind_speed',
     }
 
@@ -85,6 +87,7 @@ describe('layer metadata palettes', () => {
       unitBehavior: 'temperature',
       legendScale: 'temperature',
       source: { kind: 'artifact', artifactId: asArtifactId('tmp_surface') },
+      overlays: [],
     }
 
     const manifest = createSingleTimeManifestFixture({

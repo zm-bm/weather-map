@@ -5,7 +5,11 @@ import type { ForecastDataPlan } from './plan'
 import { createForecastDataMemory } from './memory'
 import type { ForecastRenderData } from './types'
 
-function createPlan(fieldKey = 'field:temperature', particleKey = 'particles:wind:wind10m_uv'): ForecastDataPlan {
+function createPlan(
+  fieldKey = 'field:temperature',
+  particleKey = 'particles:wind:wind10m_uv',
+  overlayKey: string | null = null
+): ForecastDataPlan {
   return {
     activeRun: createActiveRunFixture(createSingleTimeManifestFixture()),
     selectedValidTimeMs: 0,
@@ -18,6 +22,14 @@ function createPlan(fieldKey = 'field:temperature', particleKey = 'particles:win
         throw new Error('test plan field loader should not run')
       },
     },
+    precipTypeOverlay: overlayKey == null
+      ? null
+      : {
+        key: overlayKey,
+        load: async () => {
+          throw new Error('test plan overlay loader should not run')
+        },
+      },
     particles: particleKey === 'particles:none'
       ? null
       : {
@@ -35,6 +47,7 @@ describe('createForecastDataMemory', () => {
     const plan = createPlan()
     const frames = {
       field: { lower: { layerId: 'temperature' } },
+      precipTypeOverlay: null,
       particles: { lower: { artifactId: 'wind10m_uv' } },
     } as ForecastRenderData
 
@@ -44,6 +57,7 @@ describe('createForecastDataMemory', () => {
     memory.commit(plan, frames)
     expect(memory.reusableWindowsFor(plan)).toEqual({
       field: frames.field,
+      precipTypeOverlay: null,
       particles: frames.particles,
     })
 
@@ -51,6 +65,7 @@ describe('createForecastDataMemory', () => {
     expect(memory.shouldClearFieldProbe(nextLayerPlan)).toBe(true)
     expect(memory.reusableWindowsFor(nextLayerPlan)).toEqual({
       field: null,
+      precipTypeOverlay: null,
       particles: frames.particles,
     })
   })
@@ -60,6 +75,7 @@ describe('createForecastDataMemory', () => {
     const plan = createPlan()
     const frames = {
       field: { lower: { layerId: 'temperature' } },
+      precipTypeOverlay: null,
       particles: null,
     } as ForecastRenderData
 

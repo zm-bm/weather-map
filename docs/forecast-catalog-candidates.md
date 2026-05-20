@@ -34,7 +34,6 @@ or fit the current GFS/ICON forecast scope.
 
 | Candidate id | UI label | Group | Source or recipe | Current/future model support | Priority | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `precipitation_type` | Precipitation Type | `precipitation` | Future glyph overlay/render mode using soft `precip_type_surface` fractions. | GFS/ICON staged via `snow_frac`/`mix_frac`. | Settle now | Current `precipitation_rate` remains a simple intensity layer. Decide whether type appears as an overlay toggle, render mode, or separate layer. |
 | `wind_direction` | Wind Direction | `wind_pressure` | Derived degrees from `wind10m_uv`. | GFS/ICON current. | Settle now | May work better as readout, arrows, barbs, or a wind render mode than as a filled scalar layer. |
 | `pressure_contours` | Pressure Contours | `wind_pressure` | Contour overlay from `prmsl_msl`. | GFS/ICON current. | Settle now | Treat as an overlay/control or layer decision. Source is mean sea-level pressure. |
 | `fog_low_visibility` | Fog / Low Visibility | `clouds_visibility` | Emphasis recipe from `visibility_surface`; optionally combine with low cloud or ceiling later. | GFS current; ICON needs visibility or an equivalent field. | Settle now | This should emphasize meaningful low-visibility conditions, not duplicate the raw `visibility` layer. |

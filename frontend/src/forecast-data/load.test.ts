@@ -16,6 +16,7 @@ import { loadForecastData } from './load'
 
 const loaders = {
   field: vi.fn(),
+  precipTypeOverlay: vi.fn(),
   particles: vi.fn(),
 }
 
@@ -53,12 +54,19 @@ function createTarget(args: {
 }
 
 function createPlan(target: ForecastDataTarget, args: {
+  includeOverlay?: boolean
   includeParticles?: boolean
 } = {}): ForecastDataPlan {
   const field = {
     key: 'field:key',
     load: loaders.field,
   }
+  const precipTypeOverlay = args.includeOverlay === true
+    ? {
+      key: 'precip-type-overlay:key',
+      load: loaders.precipTypeOverlay,
+    }
+    : null
   const particles = args.includeParticles === false
     ? null
     : {
@@ -73,6 +81,7 @@ function createPlan(target: ForecastDataTarget, args: {
     upperHourToken: target.upperHourToken,
     mix: target.mix,
     field,
+    precipTypeOverlay,
     particles,
   }
 }
@@ -82,6 +91,10 @@ describe('loadForecastData', () => {
     vi.clearAllMocks()
     loaders.field.mockImplementation(async (hourToken: string) => ({
       layerId: 'relative_humidity',
+      hourToken,
+    }))
+    loaders.precipTypeOverlay.mockImplementation(async (hourToken: string) => ({
+      artifactId: 'precip_type_surface',
       hourToken,
     }))
     loaders.particles.mockImplementation(async (hourToken: string) => ({
@@ -102,7 +115,7 @@ describe('loadForecastData', () => {
       selectedLayer,
       selectedParticleLayer: particleLayer,
     })
-    const plan = createPlan(target)
+    const plan = createPlan(target, { includeOverlay: true })
 
     await expect(loadForecastData({
       plan,
@@ -110,6 +123,14 @@ describe('loadForecastData', () => {
       field: {
         lower: { layerId: 'relative_humidity', hourToken: '000' },
         upper: { layerId: 'relative_humidity', hourToken: '003' },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
+      precipTypeOverlay: {
+        lower: { artifactId: 'precip_type_surface', hourToken: '000' },
+        upper: { artifactId: 'precip_type_surface', hourToken: '003' },
         selectedValidTimeMs: 123,
         lowerHourToken: '000',
         upperHourToken: '003',
@@ -126,6 +147,7 @@ describe('loadForecastData', () => {
     })
 
     expect(loaders.field).toHaveBeenCalledTimes(2)
+    expect(loaders.precipTypeOverlay).toHaveBeenCalledTimes(2)
     expect(loaders.particles).toHaveBeenCalledTimes(2)
   })
 
@@ -153,10 +175,39 @@ describe('loadForecastData', () => {
         upperHourToken: '003',
         mix: 0.5,
       },
+      precipTypeOverlay: null,
       particles: null,
     })
 
     expect(loaders.field).toHaveBeenCalledTimes(2)
+    expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
+  })
+
+  it('falls back to plain field data when an optional overlay load fails', async () => {
+    const manifest = createManifestFixture({
+      scalarArtifactIds: ['prate_surface'],
+      vectorArtifactIds: [],
+    })
+    const selectedLayer = FORECAST_LAYERS_BY_ID.precipitation_rate!
+    const target = createTarget({
+      manifest,
+      selectedLayer,
+      selectedParticleLayer: null,
+    })
+    const plan = createPlan(target, { includeOverlay: true, includeParticles: false })
+    loaders.precipTypeOverlay.mockRejectedValue(new Error('overlay missing'))
+
+    await expect(loadForecastData({ plan })).resolves.toMatchObject({
+      field: {
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
+      },
+      precipTypeOverlay: null,
+      particles: null,
+    })
+
+    expect(loaders.field).toHaveBeenCalledTimes(2)
+    expect(loaders.precipTypeOverlay).toHaveBeenCalledTimes(2)
   })
 })

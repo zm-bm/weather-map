@@ -15,6 +15,7 @@ describe('reconcileForecastRenderers', () => {
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
+      { kind: 'layer', id: 'field-overlay-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
       { kind: 'layer', id: 'particle-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
     ])
   })
@@ -22,11 +23,12 @@ describe('reconcileForecastRenderers', () => {
   it('removes renderers that are omitted by a new profile', () => {
     const { map, operations } = createLayerMap([
       'field-renderer-layer-id',
+      'field-overlay-renderer-layer-id',
       'particle-renderer-layer-id',
     ])
     const fieldOnlyProfile = {
       key: 'field-only',
-      rendererIds: ['field'],
+      rendererIds: ['field', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
 
     reconcileForecastRenderers(map as never, fieldOnlyProfile)

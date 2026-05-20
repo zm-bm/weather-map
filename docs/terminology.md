@@ -14,8 +14,8 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
 - `layer`: a user-facing forecast choice from the frontend catalog, such as
   Temperature, Wind Speed, or Precipitation Rate.
 - `layer source`: a catalog recipe describing how a layer obtains data. A layer
-  source may map directly to one artifact, derive a field in the frontend, or
-  combine a base artifact with optional supporting artifacts.
+  source may map directly to one artifact or derive a field in the frontend.
+  Optional overlay artifacts are declared separately from the base layer source.
 - `particle layer`: a user-facing animated particle visualization choice,
   separate from field-rendered layers. The current particle layer is wind
   particles.
@@ -47,8 +47,9 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
 - `artifact payload`: the encoded binary bytes for one artifact at one time
   slice.
 - `scalar artifact`: an artifact containing one gridded value per cell.
-- `vector artifact`: an artifact containing paired vector components, currently
-  `u/v` wind.
+- `vector artifact`: an artifact containing multiple ordered component grids.
+  Some vectors are physical `u/v` vectors, while others are component bundles
+  such as `snow_frac` / `mix_frac`.
 - `manifest`: the artifact availability and decode contract for a model run. It
   describes artifacts, grids, encodings, time slices, frame refs, and run
   identity; it does not define the user-facing layer taxonomy.
@@ -61,12 +62,12 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
   field may come from a scalar artifact or a derived vector recipe. Vector wind
   is not a field unless converted into scalar field data for a layer such as
   Wind Speed.
-- `staged overlay artifact`: model data published for a future render overlay
-  but not currently loaded with a field, such as `precip_type_surface`.
+- `overlay artifact`: optional model data loaded with a base field for an
+  additional render pass, such as `precip_type_surface` on `precipitation_rate`.
 - `particle time-slice data`: decoded vector data prepared for the particle
   render channel at one time slice.
 - `render channel`: a top-level Weather Map rendering surface, currently
-  `field` and `particles`.
+  `field`, `field-overlay`, and `particles`.
 - `MapLibre layer`: a MapLibre style or custom-layer primitive. Do not use plain
   `layer` for this in app/domain docs.
 

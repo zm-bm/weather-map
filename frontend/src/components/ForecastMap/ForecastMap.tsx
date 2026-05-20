@@ -17,7 +17,7 @@ export type ForecastMapProps = {
 
 const FIELD_ONLY_RENDER_PROFILE = {
   key: 'field-only',
-  rendererIds: ['field'],
+  rendererIds: ['field', 'field-overlay'],
 } as const satisfies ForecastRenderProfile
 
 export default function ForecastMap({

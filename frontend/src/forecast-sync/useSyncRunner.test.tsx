@@ -58,6 +58,7 @@ vi.mock('../forecast-artifacts', () => ({
     return {
       loadScalar: vi.fn(),
       loadVector: vi.fn(),
+      loadVectorComponents: vi.fn(),
     }
   },
 }))
@@ -194,6 +195,7 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.artifactLoaderSignals.length = 0
     mocks.loadForecastData.mockResolvedValue({
       field: mocks.fieldWindow,
+      precipTypeOverlay: null,
       particles: mocks.particleWindow,
     })
     mocks.applyRenderData.mockReturnValue(undefined)
@@ -370,6 +372,7 @@ describe('useSyncRunner + useStartupState', () => {
   it('fires start then applied callbacks when engine succeeds', async () => {
     const frames = {
       field: mocks.fieldWindow,
+      precipTypeOverlay: null,
       particles: mocks.particleWindow,
     }
     const request = deferred<typeof frames>()

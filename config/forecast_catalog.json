@@ -141,7 +141,15 @@
       "displayRange": { "min": 0, "max": 30 },
       "unitBehavior": "precip-rate",
       "legendScale": "precip-rate",
-      "source": { "kind": "artifact", "artifactId": "prate_surface" }
+      "source": { "kind": "artifact", "artifactId": "prate_surface" },
+      "overlays": [
+        {
+          "id": "precipitation_type",
+          "kind": "precipitation-type",
+          "artifactId": "precip_type_surface",
+          "optional": true
+        }
+      ]
     },
     {
       "id": "accumulated_precipitation",

@@ -1,6 +1,7 @@
 import type { ForecastDataPlan } from './plan'
 import {
   NO_PARTICLES_KEY,
+  NO_PRECIP_TYPE_OVERLAY_KEY,
 } from './keys'
 import type {
   ForecastRenderData,
@@ -9,6 +10,7 @@ import type {
 
 type CommittedForecastRenderData = {
   fieldChannelKey: string
+  precipTypeOverlayChannelKey: string
   particleChannelKey: string
   bundle: ForecastRenderData
 }
@@ -29,6 +31,9 @@ export function createForecastDataMemory(): ForecastDataMemory {
 
       return {
         field: committed.fieldChannelKey === plan.field.key ? committed.bundle.field : null,
+        precipTypeOverlay: committed.precipTypeOverlayChannelKey === precipTypeOverlayKey(plan)
+          ? committed.bundle.precipTypeOverlay
+          : null,
         particles: committed.particleChannelKey === particleKey(plan) ? committed.bundle.particles : null,
       }
     },
@@ -38,6 +43,7 @@ export function createForecastDataMemory(): ForecastDataMemory {
     commit(plan, bundle) {
       committed = {
         fieldChannelKey: plan.field.key,
+        precipTypeOverlayChannelKey: precipTypeOverlayKey(plan),
         particleChannelKey: particleKey(plan),
         bundle,
       }
@@ -46,6 +52,10 @@ export function createForecastDataMemory(): ForecastDataMemory {
       committed = null
     },
   }
+}
+
+function precipTypeOverlayKey(plan: ForecastDataPlan): string {
+  return plan.precipTypeOverlay?.key ?? NO_PRECIP_TYPE_OVERLAY_KEY
 }
 
 function particleKey(plan: ForecastDataPlan): string {

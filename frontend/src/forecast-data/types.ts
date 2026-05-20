@@ -29,22 +29,33 @@ export type FieldTimeSliceData = {
   colortable: LayerColortableStop[]
 }
 
+export type PrecipTypeOverlayTimeSliceData = {
+  hourToken: string
+  artifactId: string
+  grid: ScalarGridSpec
+  snowFrac: Float32Array
+  mixFrac: Float32Array
+}
+
 export type ParticleTimeSliceData = VectorArtifactData
 
-export type ForecastDataChannel<T = FieldTimeSliceData | ParticleTimeSliceData> = {
+export type ForecastDataChannel<T = FieldTimeSliceData | ParticleTimeSliceData | PrecipTypeOverlayTimeSliceData> = {
   key: string
   load: (hourToken: string) => Promise<T>
 }
 
 export type FieldInterpolationWindowData = LoadedInterpolationWindow<FieldTimeSliceData>
+export type PrecipTypeOverlayInterpolationWindowData = LoadedInterpolationWindow<PrecipTypeOverlayTimeSliceData>
 export type ParticleInterpolationWindowData = LoadedInterpolationWindow<ParticleTimeSliceData>
 
 export type ForecastRenderData = {
   field: FieldInterpolationWindowData
+  precipTypeOverlay: PrecipTypeOverlayInterpolationWindowData | null
   particles: ParticleInterpolationWindowData | null
 }
 
 export type PreviousForecastInterpolationWindows = {
   field?: FieldInterpolationWindowData | null
+  precipTypeOverlay?: PrecipTypeOverlayInterpolationWindowData | null
   particles?: ParticleInterpolationWindowData | null
 }

@@ -83,6 +83,7 @@ const vectorEncodingSchema = z.object({
   format: z.literal('linear-i8-v1'),
   dtype: z.literal('int8'),
   byteOrder: z.literal('none'),
+  nodata: finiteNumberSchema.optional(),
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
   decodeFormula: z.string(),
@@ -98,7 +99,6 @@ const layerSupportSchema = z.enum([
   'native',
   'frontend-derived',
   'etl-derived',
-  'composite',
   'unavailable',
 ])
 

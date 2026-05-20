@@ -159,7 +159,7 @@ function assertPayloadSize(args: {
 
   if (artifact.kind !== 'vector') return
 
-  const expectedGridByteLength = artifact.grid.nx * artifact.grid.ny * 2
+  const expectedGridByteLength = artifact.grid.nx * artifact.grid.ny * artifact.components.length
   if (actualByteLength !== expectedGridByteLength) {
     throw new Error(
       `${artifact.kind} payload bytes do not match grid dimensions for ${artifactId}: got=${actualByteLength} expected=${expectedGridByteLength}`

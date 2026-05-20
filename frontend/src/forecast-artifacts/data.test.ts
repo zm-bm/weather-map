@@ -258,6 +258,69 @@ describe('vector payload', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('maps loaded generic vector components into decoded arrays', async () => {
+    const payload = createVectorPayloadFixture([-127, 0, 127, -128], [-127, -64, 0, 127])
+    const fetchMock = stubFetchArrayBufferOnce(payload)
+    const manifest = createSingleTimeManifestFixture({
+      artifacts: {
+        precip_type_surface: createVectorArtifactFixture({
+          id: 'precip_type_surface',
+          units: 'fraction',
+          components: ['snow_frac', 'mix_frac'],
+          encoding: {
+            id: 'precip_type_surface_i8_frac_v1',
+            format: 'linear-i8-v1',
+            dtype: 'int8',
+            byteOrder: 'none',
+            nodata: -128,
+            scale: 1 / 254,
+            offset: 0.5,
+            decodeFormula: 'value = stored * scale + offset',
+          },
+        }),
+      },
+    })
+
+    const frame = await artifacts(manifest).loadVectorComponents('precip_type_surface', '0')
+
+    expect(frame.artifactId).toBe('precip_type_surface')
+    expect(frame.componentIds).toEqual(['snow_frac', 'mix_frac'])
+    expect(Array.from(frame.components.snow_frac!, (value) => (Number.isNaN(value) ? value : Number(value.toFixed(2))))).toEqual([
+      0,
+      0.5,
+      1,
+      Number.NaN,
+    ])
+    expect(Array.from(frame.components.mix_frac!, (value) => Number(value.toFixed(2)))).toEqual([
+      0,
+      0.25,
+      0.5,
+      1,
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('sizes generic vector payloads by manifest component count', async () => {
+    const payload = new Int8Array([
+      0, 1, 2, 3,
+      4, 5, 6, 7,
+      8, 9, 10, 11,
+    ]).buffer
+    stubFetchArrayBufferOnce(payload)
+    const manifest = createSingleTimeManifestFixture({
+      artifacts: {
+        triple_vector: createVectorArtifactFixture({
+          id: 'triple_vector',
+          components: ['a', 'b', 'c'],
+        }),
+      },
+    })
+
+    const frame = await artifacts(manifest).loadVectorComponents('triple_vector', '000')
+
+    expect(Array.from(frame.components.c!)).toEqual([4, 4.5, 5, 5.5])
+  })
+
   it('validates vector metadata before fetching payloads', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)

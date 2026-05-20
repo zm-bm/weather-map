@@ -84,27 +84,55 @@ without being selectable by themselves.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `precip_type_surface` | `vector` | Soft precipitation-type overlay fractions derived from model precipitation-type inputs. | `fraction` | `snow_frac`, `mix_frac` | source-interval derived overlay | `precip_type_surface_i8_frac_v1`; linear-i8-v1; int8; scale `0.003937007874015748`; offset `0.5`; nodata `-128` | future precipitation type overlay rendering | Staged GFS/ICON artifact. It does not affect current `precipitation_rate` rendering. |
+| `precip_type_surface` | `vector` | Soft precipitation-type overlay fractions derived from model precipitation-type inputs. | `fraction` | `snow_frac`, `mix_frac` | source-interval derived overlay | `precip_type_surface_i8_frac_v1`; linear-i8-v1; int8; scale `0.003937007874015748`; offset `0.5`; nodata `-128` | automatic `precipitation_rate` pattern overlay | Optional GFS/ICON artifact; precipitation intensity still renders when this artifact is missing. |
 | `thunderstorm_mask` | `scalar` | Normalized thunderstorm flag mask. | `flag` | `value` | instantaneous | `thunderstorm_mask_i8_flag_v1`; linear-i8-v1; int8; scale `1`; offset `0`; nodata `-128` | future thunderstorm rendering; no current selectable layer | Published when configured by a model; not currently consumed by the frontend catalog. |
 
 ## Normalized Value Tables
 
 ### `precip_type_surface`
 
+The artifact stores soft precipitation-type fractions instead of hard
+categories such as `rain = 0`, `snow = 1`, `mix = 2`. Soft fields avoid blocky
+type boundaries on coarse model grids and let the frontend interpolate type
+transitions independently from precipitation intensity.
+
 | Component | Range | Meaning |
 | --- | --- | --- |
 | `snow_frac` | `0..1` | Snow overlay strength. |
 | `mix_frac` | `0..1` | Winter-mix overlay strength for freezing rain / ice pellets / mixed signals. |
 
-GFS derivation inputs are `PRATE`, `CPOFP`, `CRAIN`, `CSNOW`, `CFRZR`,
-and `CICEP` at the surface. `PRATE` gates overlays below `0.05 mm/hr`;
-freezing rain and ice pellets map to `mix_frac`, snow maps to `snow_frac`,
-and ambiguous cases fall back to `CPOFP`.
+The artifact is only an overlay contract. Total precipitation intensity remains
+`prate_surface`, normalized to liquid-water-equivalent `mm/hr`.
 
-ICON derivation inputs are `rain_gsp`, `rain_con`, `snow_gsp`, and
-`snow_con`. The ETL uses adjacent forecast-hour accumulation deltas, computes
-snow share of total precipitation, and maps middle snow/rain ratios to
-`mix_frac`.
+GFS derivation inputs are `PRATE`, `CPOFP`, `CRAIN`, `CSNOW`, `CFRZR`, and
+`CICEP` at the surface. `PRATE * 3600` gates overlays below `0.05 mm/hr`.
+Freezing rain and ice pellets map to `mix_frac = 1`; explicit snow plus rain
+maps to `snow_frac = 0.25`, `mix_frac = 0.75`; snow maps to `snow_frac = 1`;
+rain maps to no overlay. Ambiguous cases use `CPOFP / 100` as frozen fraction:
+
+```txt
+snow_frac = smoothstep(0.55, 0.85, frozen_fraction)
+mix_frac  = smoothBand(frozen_fraction, 0.25, 0.75)
+```
+
+ICON derivation inputs are `rain_gsp`, `rain_con`, `snow_gsp`, and `snow_con`.
+The ETL uses adjacent forecast-hour accumulation deltas and treats the first
+configured previous value as zero. It computes:
+
+```txt
+rain = delta(rain_gsp) + delta(rain_con)
+snow = delta(snow_gsp) + delta(snow_con)
+total = rain + snow
+snow_ratio = snow / total
+
+snow_frac = smoothstep(0.65, 0.95, snow_ratio)
+mix_frac  = smoothBand(snow_ratio, 0.25, 0.75)
+```
+
+Both derivations clamp `snow_frac` to `0..1` and `mix_frac` to
+`0..1 - snow_frac`; non-finite source values publish nodata for both
+components. `smoothBand(value, low, high)` rises from `low` to `0.5` and falls
+from `0.5` to `high`.
 
 ### `thunderstorm_mask`
 

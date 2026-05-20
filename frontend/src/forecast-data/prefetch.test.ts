@@ -12,6 +12,7 @@ import { prefetchForecastData } from './prefetch'
 
 const loaders = {
   field: vi.fn(),
+  precipTypeOverlay: vi.fn(),
   particles: vi.fn(),
 }
 
@@ -27,6 +28,7 @@ function deferred<T>() {
 
 function createPlan(args: {
   forecastHours?: string[]
+  includeOverlay?: boolean
   includeParticles?: boolean
   lowerHourToken?: string
   upperHourToken?: string
@@ -67,6 +69,12 @@ function createPlan(args: {
       key: 'field:key',
       load: loaders.field,
     },
+    precipTypeOverlay: args.includeOverlay === true
+      ? {
+        key: 'precip-type-overlay:key',
+        load: loaders.precipTypeOverlay,
+      }
+      : null,
     particles: args.includeParticles === false
       ? null
       : {
@@ -80,6 +88,7 @@ describe('prefetchForecastData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loaders.field.mockResolvedValue({ layerId: 'temperature' })
+    loaders.precipTypeOverlay.mockResolvedValue({ artifactId: 'precip_type_surface' })
     loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
   })
 
@@ -103,6 +112,7 @@ describe('prefetchForecastData', () => {
       '006',
       '009',
     ])
+    expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
   })
 
   it('limits prefetch concurrency across planned channels', async () => {
@@ -172,6 +182,7 @@ describe('prefetchForecastData', () => {
     })
 
     expect(loaders.field).toHaveBeenCalledTimes(3)
+    expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
   })
 })

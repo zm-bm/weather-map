@@ -291,10 +291,14 @@ export function createManifestLayersFixture(
   modelId: ForecastModelId = FIXTURE_MODEL_ID
 ): Manifest['layers'] {
   const has = (artifactId: string) => artifactId in artifacts
-  const available = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({ requiredArtifacts })
-  const unavailable = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({
+  const available = (requiredArtifacts: string[], optionalArtifacts: string[] = []) => createLayerModelAvailabilityFixture({
+    requiredArtifacts,
+    optionalArtifacts,
+  })
+  const unavailable = (requiredArtifacts: string[], optionalArtifacts: string[] = []) => createLayerModelAvailabilityFixture({
     state: 'temporarily_unavailable',
     requiredArtifacts,
+    optionalArtifacts,
   })
 
   return {
@@ -317,7 +321,9 @@ export function createManifestLayersFixture(
       [modelId]: has('wind10m_uv') ? available(['wind10m_uv']) : unavailable(['wind10m_uv']),
     }),
     precipitation_rate: createManifestLayerFixture({
-      [modelId]: has('prate_surface') ? available(['prate_surface']) : unavailable(['prate_surface']),
+      [modelId]: has('prate_surface')
+        ? available(['prate_surface'], ['precip_type_surface'])
+        : unavailable(['prate_surface'], ['precip_type_surface']),
     }),
     snow_depth: createManifestLayerFixture({
       [modelId]: has('snow_depth_surface') ? available(['snow_depth_surface']) : unavailable(['snow_depth_surface']),

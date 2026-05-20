@@ -9,7 +9,7 @@ export type ForecastRenderHost = {
   apply: (data: ForecastRenderData) => void
 }
 
-export type ForecastRendererId = 'field' | 'particles'
+export type ForecastRendererId = 'field' | 'field-overlay' | 'particles'
 
 export type ForecastRenderProfile = {
   key: string
@@ -18,7 +18,7 @@ export type ForecastRenderProfile = {
 
 export const DEFAULT_FORECAST_RENDER_PROFILE = {
   key: 'default',
-  rendererIds: ['field', 'particles'],
+  rendererIds: ['field', 'field-overlay', 'particles'],
 } as const satisfies ForecastRenderProfile
 
 export type ForecastRenderer = {

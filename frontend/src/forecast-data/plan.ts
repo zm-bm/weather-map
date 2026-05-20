@@ -2,11 +2,13 @@ import type { ArtifactLoader } from '../forecast-artifacts'
 import type { ActiveForecastRun } from '../forecast-manifest'
 import { createFieldChannel } from './field'
 import { createParticleChannel } from './particles'
+import { createPrecipTypeOverlayChannel } from './precip-type-overlay'
 import type { ForecastDataTarget } from './target'
 import type {
   FieldTimeSliceData,
   ForecastDataChannel,
   ParticleTimeSliceData,
+  PrecipTypeOverlayTimeSliceData,
 } from './types'
 
 export type ForecastDataPlan = {
@@ -16,6 +18,7 @@ export type ForecastDataPlan = {
   upperHourToken: string
   mix: number
   field: ForecastDataChannel<FieldTimeSliceData>
+  precipTypeOverlay: ForecastDataChannel<PrecipTypeOverlayTimeSliceData> | null
   particles: ForecastDataChannel<ParticleTimeSliceData> | null
 }
 
@@ -26,6 +29,11 @@ type CreateForecastDataPlanArgs = {
 
 export function createForecastDataPlan(args: CreateForecastDataPlanArgs): ForecastDataPlan {
   const field = createFieldChannel({
+    artifacts: args.artifacts,
+    activeRun: args.target.activeRun,
+    layer: args.target.selectedLayer,
+  })
+  const precipTypeOverlay = createPrecipTypeOverlayChannel({
     artifacts: args.artifacts,
     activeRun: args.target.activeRun,
     layer: args.target.selectedLayer,
@@ -45,6 +53,7 @@ export function createForecastDataPlan(args: CreateForecastDataPlanArgs): Foreca
     upperHourToken: args.target.upperHourToken,
     mix: args.target.mix,
     field,
+    precipTypeOverlay,
     particles,
   }
 }

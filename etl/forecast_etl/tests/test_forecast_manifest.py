@@ -86,17 +86,16 @@ def _forecast_catalog() -> dict:
                 "source": {"kind": "derived", "artifactId": "wind10m_uv", "recipe": "wind-speed"},
             },
             {
-                "id": "composite_with_optional_overlay",
-                "source": {
-                    "kind": "composite",
-                    "base": {"kind": "artifact", "artifactId": "tmp_surface"},
-                    "overlays": [
-                        {
-                            "source": {"kind": "artifact", "artifactId": "precip_type_surface"},
-                            "optional": True,
-                        }
-                    ],
-                },
+                "id": "top_level_optional_overlay",
+                "source": {"kind": "artifact", "artifactId": "tmp_surface"},
+                "overlays": [
+                    {
+                        "id": "precipitation_type",
+                        "kind": "precipitation-type",
+                        "artifactId": "precip_type_surface",
+                        "optional": True,
+                    }
+                ],
             },
         ],
     }
@@ -240,11 +239,11 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertEqual(frontend_derived["gfs"]["support"], "frontend-derived")
         self.assertEqual(frontend_derived["gfs"]["requiredArtifacts"], ["wind10m_uv"])
 
-        composite = manifest["layers"]["composite_with_optional_overlay"]["models"]["gfs"]
-        self.assertEqual(composite["state"], "available")
-        self.assertEqual(composite["support"], "composite")
-        self.assertEqual(composite["requiredArtifacts"], ["tmp_surface"])
-        self.assertEqual(composite["optionalArtifacts"], ["precip_type_surface"])
+        top_level = manifest["layers"]["top_level_optional_overlay"]["models"]["gfs"]
+        self.assertEqual(top_level["state"], "available")
+        self.assertEqual(top_level["support"], "native")
+        self.assertEqual(top_level["requiredArtifacts"], ["tmp_surface"])
+        self.assertEqual(top_level["optionalArtifacts"], ["precip_type_surface"])
 
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()

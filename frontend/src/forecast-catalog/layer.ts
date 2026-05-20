@@ -60,6 +60,15 @@ export type LayerSource =
   | ArtifactLayerSource
   | DerivedLayerSource
 
+export type PrecipitationTypeLayerOverlay = {
+  id: string
+  kind: 'precipitation-type'
+  artifactId: ArtifactId
+  optional: boolean
+}
+
+export type LayerOverlaySpec = PrecipitationTypeLayerOverlay
+
 export type LayerSpec = {
   id: LayerId
   label: string
@@ -69,6 +78,7 @@ export type LayerSpec = {
   unitBehavior: UnitBehaviorId
   legendScale: LegendScaleId
   source: LayerSource
+  overlays: readonly LayerOverlaySpec[]
   parameter?: string
 }
 
@@ -90,6 +100,13 @@ type RawLayerSource =
     recipe: 'wind-speed'
   }
 
+type RawLayerOverlaySpec = {
+  id: string
+  kind: 'precipitation-type'
+  artifactId: string
+  optional?: boolean
+}
+
 type RawLayerSpec = {
   id: string
   label: string
@@ -99,6 +116,7 @@ type RawLayerSpec = {
   unitBehavior: UnitBehaviorId
   legendScale: LegendScaleId
   source: RawLayerSource
+  overlays?: readonly RawLayerOverlaySpec[]
   parameter?: string
 }
 
@@ -161,7 +179,17 @@ function layerFromRaw(raw: RawLayerSpec): LayerSpec {
     unitBehavior: raw.unitBehavior,
     legendScale: raw.legendScale,
     source: layerSourceFromRaw(raw.source),
+    overlays: (raw.overlays ?? []).map(layerOverlayFromRaw),
     parameter: raw.parameter,
+  }
+}
+
+function layerOverlayFromRaw(raw: RawLayerOverlaySpec): LayerOverlaySpec {
+  return {
+    id: raw.id,
+    kind: raw.kind,
+    artifactId: asArtifactId(raw.artifactId),
+    optional: raw.optional ?? false,
   }
 }
 

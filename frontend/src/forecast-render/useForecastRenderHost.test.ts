@@ -149,7 +149,7 @@ describe('useForecastRenderHost', () => {
     const getMap = () => map as never
     const fieldOnlyProfile = {
       key: 'field-only',
-      rendererIds: ['field'],
+      rendererIds: ['field', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
     const { result, rerender } = renderHook(
       ({ profile }) => useForecastRenderHost({
@@ -181,11 +181,11 @@ describe('useForecastRenderHost', () => {
     const getMap = () => map as never
     const defaultKeyProfile = {
       key: 'dynamic',
-      rendererIds: ['field', 'particles'],
+      rendererIds: ['field', 'field-overlay', 'particles'],
     } as const satisfies ForecastRenderProfile
     const fieldOnlyProfile = {
       key: 'dynamic',
-      rendererIds: ['field'],
+      rendererIds: ['field', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
     const { result, rerender } = renderHook(
       ({ profile }) => useForecastRenderHost({

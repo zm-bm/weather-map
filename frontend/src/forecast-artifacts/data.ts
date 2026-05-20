@@ -15,11 +15,12 @@ import type { WeatherMapConfig } from '../config'
 import { readArtifactPayload } from './payload'
 import type {
   ArtifactKind,
+  VectorComponentArtifactData,
   ScalarArtifactData,
   VectorArtifactData,
 } from './types'
 import {
-  VECTOR_COMPONENTS as VECTOR_COMPONENT_NAMES,
+  WIND_VECTOR_COMPONENTS as WIND_VECTOR_COMPONENT_NAMES,
   VECTOR_DECODE_FORMULA as VECTOR_DECODE_FORMULA_VALUE,
   VECTOR_PAYLOAD_FORMAT as VECTOR_PAYLOAD_FORMAT_VALUE,
 } from './types'
@@ -41,6 +42,7 @@ type CreateArtifactLoaderArgs = {
 export type ArtifactLoader = {
   loadScalar: (artifactId: ArtifactId | string, hourToken: string) => Promise<ScalarArtifactData>
   loadVector: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorArtifactData>
+  loadVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorComponentArtifactData>
 }
 
 type ArtifactSpecByKind = {
@@ -70,8 +72,16 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       artifactId,
       hourToken,
       kind: 'vector',
-      assertSupported: assertSupportedVectorArtifact,
-      decode: decodeVectorArtifact,
+      assertSupported: assertSupportedWindVectorArtifact,
+      decode: decodeWindVectorArtifact,
+    }),
+    loadVectorComponents: (artifactId, hourToken) => loadArtifact({
+      ...args,
+      artifactId,
+      hourToken,
+      kind: 'vector',
+      assertSupported: assertSupportedVectorComponentArtifact,
+      decode: decodeVectorComponentArtifact,
     }),
   }
 }
@@ -151,7 +161,7 @@ function normalizeArtifactHourToken(value: string): string {
   return trimmed
 }
 
-function decodeVectorArtifact(
+function decodeWindVectorArtifact(
   resolved: ResolvedArtifact<'vector'>,
   payload: ArrayBuffer
 ): VectorArtifactData {
@@ -171,6 +181,39 @@ function decodeVectorArtifact(
     u: new Int8Array(u),
     v: new Int8Array(v),
     grid,
+  }
+}
+
+function decodeVectorComponentArtifact(
+  resolved: ResolvedArtifact<'vector'>,
+  payload: ArrayBuffer
+): VectorComponentArtifactData {
+  const { artifactId, artifact } = resolved
+  const { components: componentIds, encoding, grid } = artifact
+  const cellCount = grid.nx * grid.ny
+  const expectedByteLength = cellCount * componentIds.length
+
+  if (payload.byteLength !== expectedByteLength) {
+    throw new Error(
+      `Vector component payload byte length mismatch for ${artifactId} ${resolved.hourToken}: ` +
+      `got=${payload.byteLength} expected=${expectedByteLength}`
+    )
+  }
+
+  const components: Record<string, Float32Array> = {}
+  for (const [componentIndex, componentId] of componentIds.entries()) {
+    const componentOffset = componentIndex * cellCount
+    const raw = new Int8Array(payload, componentOffset, cellCount)
+    components[componentId] = decodeVectorComponentValues(raw, encoding)
+  }
+
+  return {
+    artifactId,
+    hourToken: resolved.hourToken,
+    grid,
+    encoding,
+    componentIds: [...componentIds],
+    components,
   }
 }
 
@@ -212,7 +255,28 @@ function assertSupportedScalarArtifact(resolved: ResolvedArtifact<'scalar'>): vo
   }
 }
 
-function assertSupportedVectorArtifact(resolved: ResolvedArtifact<'vector'>): void {
+function assertSupportedVectorComponentArtifact(resolved: ResolvedArtifact<'vector'>): void {
+  const { artifactId, artifact } = resolved
+  const { components, encoding } = artifact
+
+  if (encoding.format !== VECTOR_PAYLOAD_FORMAT_VALUE) {
+    throw new Error(`Unsupported vector format for ${artifactId}: ${encoding.format}`)
+  }
+  if (encoding.dtype !== 'int8') {
+    throw new Error(`Unsupported vector dtype for ${artifactId}: ${encoding.dtype}`)
+  }
+  if (encoding.byteOrder !== 'none') {
+    throw new Error(`Unsupported vector byte order for ${artifactId}: ${encoding.byteOrder}`)
+  }
+  if (encoding.decodeFormula !== VECTOR_DECODE_FORMULA_VALUE) {
+    throw new Error(`Unsupported vector decode formula for ${artifactId}: ${encoding.decodeFormula}`)
+  }
+  if (components.length < 1) {
+    throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)
+  }
+}
+
+function assertSupportedWindVectorArtifact(resolved: ResolvedArtifact<'vector'>): void {
   const { artifactId, artifact } = resolved
   const { components, encoding } = artifact
 
@@ -234,11 +298,25 @@ function assertSupportedVectorArtifact(resolved: ResolvedArtifact<'vector'>): vo
 
   if (
     components.length !== 2 ||
-    components[0] !== VECTOR_COMPONENT_NAMES[0] ||
-    components[1] !== VECTOR_COMPONENT_NAMES[1]
+    components[0] !== WIND_VECTOR_COMPONENT_NAMES[0] ||
+    components[1] !== WIND_VECTOR_COMPONENT_NAMES[1]
   ) {
     throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)
   }
+}
+
+function decodeVectorComponentValues(
+  raw: Int8Array,
+  encoding: ResolvedArtifact<'vector'>['artifact']['encoding']
+): Float32Array {
+  const out = new Float32Array(raw.length)
+  for (let i = 0; i < raw.length; i += 1) {
+    const stored = raw[i]
+    out[i] = encoding.nodata != null && stored === encoding.nodata
+      ? Number.NaN
+      : (stored * encoding.scale) + encoding.offset
+  }
+  return out
 }
 
 function decodeScalarPayload(
