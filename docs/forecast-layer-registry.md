@@ -68,7 +68,7 @@ ETL encoding ranges.
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `precipitation_rate` | Precipitation Rate | composite field with base scalar artifact `prate_surface` and optional classifier overlay `precip_type_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Magnitude comes from `prate_surface`; `precip_type_surface` only selects rain, snow, or wintry-mix coloring when available. |
+| `precipitation_rate` | Precipitation Rate | direct scalar artifact `prate_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Simple liquid-water-equivalent precipitation intensity. Type overlays are staged separately and are not rendered by this layer yet. |
 | `accumulated_precipitation` | Accumulated Precipitation | direct scalar artifact `precip_total_surface` | run total unless a future artifact declares a fixed window | `mm`; `0..254`; `precip.total.mm.v1`; `precip-total/precip-total` | Not a rolling 1h/3h/24h accumulation layer. |
 | `precipitable_water` | Precipitable Water | direct scalar artifact `precipitable_water` | instantaneous | `mm`; `0..80`; `atmosphere.precipitable_water.mm.v1`; `water-depth/stop-based` | Column-integrated water vapor expressed as liquid water depth. |
 | `snow_depth` | Snow Depth | direct scalar artifact `snow_depth_surface` | instantaneous | `m`; `0..5`; `snow.depth.m.v1`; `snow-depth/stop-based` | Snow depth on the ground, not snowfall rate or new snow accumulation. |

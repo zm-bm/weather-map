@@ -4,7 +4,6 @@ import type {
   ScalarGridSpec,
 } from '../forecast-manifest'
 import type {
-  ScalarArtifactData,
   VectorArtifactData,
 } from '../forecast-artifacts'
 import type { LoadedInterpolationWindow } from './window'
@@ -19,23 +18,6 @@ export type DerivedFieldEncodingSpec = {
 
 export type FieldEncodingSpec = ScalarEncodingSpec | DerivedFieldEncodingSpec
 
-export type FieldOverlayData = Pick<
-  ScalarArtifactData,
-  'artifactId' | 'hourToken' | 'grid' | 'encoding' | 'values'
-> & {
-  id: string
-}
-
-export type FieldClassifiedColoringClass = {
-  values: readonly number[]
-  colortable: LayerColortableStop[]
-}
-
-export type FieldClassifiedColoring = {
-  classifierOverlayId: string
-  classes: readonly FieldClassifiedColoringClass[]
-}
-
 export type FieldTimeSliceData = {
   hourToken: string
   layerId: string
@@ -45,8 +27,6 @@ export type FieldTimeSliceData = {
   values: Float32Array
   displayRange: [number, number]
   colortable: LayerColortableStop[]
-  overlays: readonly FieldOverlayData[]
-  classifiedColoring?: FieldClassifiedColoring
 }
 
 export type ParticleTimeSliceData = VectorArtifactData

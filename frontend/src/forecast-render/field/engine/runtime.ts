@@ -30,19 +30,6 @@ import {
 
 type NormalizedColortableStop = [number, number, number, number]
 
-export const MAX_CLASSIFIER_VALUE_MAPPINGS = 16
-
-type TexturePair = {
-  lower: WebGLTexture
-  upper: WebGLTexture
-}
-
-export type ClassifierRowMapping = {
-  values: Int32Array
-  rows: Int32Array
-  count: number
-}
-
 type FieldRendererState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
@@ -60,11 +47,8 @@ type FieldRendererState = {
   scalarTextureUpper: WebGLTexture | null
   scalarFrameLower: FieldTimeSliceData | null
   scalarFrameUpper: FieldTimeSliceData | null
-  classifierTexture: TexturePair | null
   colormapTextureInterpolated: WebGLTexture | null
   colormapTextureBanded: WebGLTexture | null
-  colormapRowCount: number
-  classifierMapping: ClassifierRowMapping
   // Colormap rebuild cache key.
   colormapKey: string | null
   // Grid shape and georeferencing for shader sampling.
@@ -83,13 +67,6 @@ type FieldRendererState = {
     scalarTex: WebGLUniformLocation | null
     scalarTexUpper: WebGLUniformLocation | null
     colormapTex: WebGLUniformLocation | null
-    classifierTex: WebGLUniformLocation | null
-    classifierTexUpper: WebGLUniformLocation | null
-    classifierEnabled: WebGLUniformLocation | null
-    classifierValueCount: WebGLUniformLocation | null
-    classifierValues: WebGLUniformLocation | null
-    classifierRows: WebGLUniformLocation | null
-    colormapRowCount: WebGLUniformLocation | null
     gridSize: WebGLUniformLocation | null
     displayRange: WebGLUniformLocation | null
     timeMix: WebGLUniformLocation | null
@@ -128,11 +105,8 @@ export function createFieldRuntime(
     scalarTextureUpper: null,
     scalarFrameLower: null,
     scalarFrameUpper: null,
-    classifierTexture: null,
     colormapTextureInterpolated: null,
     colormapTextureBanded: null,
-    colormapRowCount: 1,
-    classifierMapping: emptyClassifierRowMapping(),
     colormapKey: null,
     gridNx: 0,
     gridNy: 0,
@@ -147,13 +121,6 @@ export function createFieldRuntime(
       scalarTex: null,
       scalarTexUpper: null,
       colormapTex: null,
-      classifierTex: null,
-      classifierTexUpper: null,
-      classifierEnabled: null,
-      classifierValueCount: null,
-      classifierValues: null,
-      classifierRows: null,
-      colormapRowCount: null,
       gridSize: null,
       displayRange: null,
       timeMix: null,
@@ -184,7 +151,6 @@ export function createFieldRuntime(
 
       const previousScalarTexture = state.scalarTexture
       const previousScalarTextureUpper = state.scalarTextureUpper
-      const previousClassifierTexture = state.classifierTexture
       const reusableLowerTexture = findReusableScalarTexture(state, lowerFrame)
       const reusableUpperTexture = upperFrame === lowerFrame
         ? reusableLowerTexture
@@ -247,14 +213,8 @@ export function createFieldRuntime(
         }
       }
 
-      const nextClassifierTexture = createClassifierTexturePair(gl, lowerFrame, upperFrame)
-      const nextClassifierMapping = nextClassifierTexture
-        ? buildClassifierRowMapping(lowerFrame.classifiedColoring)
-        : emptyClassifierRowMapping()
-
       deleteUnusedScalarTexture(gl, previousScalarTexture, nextScalarTexture, nextScalarTextureUpper)
       deleteUnusedScalarTexture(gl, previousScalarTextureUpper, nextScalarTexture, nextScalarTextureUpper)
-      deleteTexturePair(gl, previousClassifierTexture)
       if (shouldRebuildColormap) {
         if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
         if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
@@ -264,14 +224,11 @@ export function createFieldRuntime(
       state.scalarTextureUpper = nextScalarTextureUpper
       state.scalarFrameLower = lowerFrame
       state.scalarFrameUpper = upperFrame
-      state.classifierTexture = nextClassifierTexture
-      state.classifierMapping = nextClassifierMapping
       if (shouldRebuildColormap) {
         state.colormapTextureInterpolated = nextColormapTextureInterpolated
         state.colormapTextureBanded = nextColormapTextureBanded
         state.colormapKey = nextColormapKey
       }
-      state.colormapRowCount = colormapRowsForFrame(lowerFrame).length
       state.gridNx = lowerFrame.grid.nx
       state.gridNy = lowerFrame.grid.ny
       state.lon0 = lowerFrame.grid.lon0
@@ -317,13 +274,6 @@ export function createFieldRuntime(
         scalarTex: gl2.getUniformLocation(state.program, 'u_scalar_tex'),
         scalarTexUpper: gl2.getUniformLocation(state.program, 'u_scalar_tex_upper'),
         colormapTex: gl2.getUniformLocation(state.program, 'u_colormap_tex'),
-        classifierTex: gl2.getUniformLocation(state.program, 'u_classifier_tex'),
-        classifierTexUpper: gl2.getUniformLocation(state.program, 'u_classifier_tex_upper'),
-        classifierEnabled: gl2.getUniformLocation(state.program, 'u_classifier_enabled'),
-        classifierValueCount: gl2.getUniformLocation(state.program, 'u_classifier_value_count'),
-        classifierValues: gl2.getUniformLocation(state.program, 'u_classifier_values'),
-        classifierRows: gl2.getUniformLocation(state.program, 'u_classifier_rows'),
-        colormapRowCount: gl2.getUniformLocation(state.program, 'u_colormap_row_count'),
         gridSize: gl2.getUniformLocation(state.program, 'u_grid_size'),
         displayRange: gl2.getUniformLocation(state.program, 'u_display_range'),
         timeMix: gl2.getUniformLocation(state.program, 'u_time_mix'),
@@ -364,21 +314,12 @@ export function createFieldRuntime(
         gl2.activeTexture(gl2.TEXTURE2)
         gl2.bindTexture(gl2.TEXTURE_2D, colormapTexture)
       }
-      bindTexturePair(gl2, 3, state.classifierTexture, state.scalarTexture, 'lower')
-      bindTexturePair(gl2, 4, state.classifierTexture, state.scalarTextureUpper, 'upper')
 
       gl2.uniform1i(state.uniforms.scalarTex, 0)
       gl2.uniform1i(state.uniforms.scalarTexUpper, 1)
       if (colormapTexture) {
         gl2.uniform1i(state.uniforms.colormapTex, 2)
       }
-      gl2.uniform1i(state.uniforms.classifierTex, 3)
-      gl2.uniform1i(state.uniforms.classifierTexUpper, 4)
-      gl2.uniform1i(state.uniforms.classifierEnabled, state.classifierTexture && state.classifierMapping.count > 0 ? 1 : 0)
-      gl2.uniform1i(state.uniforms.classifierValueCount, state.classifierMapping.count)
-      gl2.uniform1iv(state.uniforms.classifierValues, state.classifierMapping.values)
-      gl2.uniform1iv(state.uniforms.classifierRows, state.classifierMapping.rows)
-      gl2.uniform1f(state.uniforms.colormapRowCount, state.colormapRowCount)
       gl2.uniform2f(state.uniforms.gridSize, state.gridNx, state.gridNy)
       gl2.uniform2f(state.uniforms.displayRange, state.displayMin, state.displayMax)
       gl2.uniform1f(state.uniforms.timeMix, state.timeMix)
@@ -414,7 +355,6 @@ export function createFieldRuntime(
       if (gl) {
         deleteUnusedScalarTexture(gl, state.scalarTexture, null, state.scalarTextureUpper)
         if (state.scalarTextureUpper) gl.deleteTexture(state.scalarTextureUpper)
-        deleteTexturePair(gl, state.classifierTexture)
         if (state.colormapTextureInterpolated) gl.deleteTexture(state.colormapTextureInterpolated)
         if (state.colormapTextureBanded) gl.deleteTexture(state.colormapTextureBanded)
         if (state.vertexBuffer) gl.deleteBuffer(state.vertexBuffer)
@@ -430,9 +370,6 @@ export function createFieldRuntime(
       state.scalarTextureUpper = null
       state.scalarFrameLower = null
       state.scalarFrameUpper = null
-      state.classifierTexture = null
-      state.classifierMapping = emptyClassifierRowMapping()
-      state.colormapRowCount = 1
       state.colormapTextureInterpolated = null
       state.colormapTextureBanded = null
       state.colormapKey = null
@@ -461,63 +398,6 @@ function deleteUnusedScalarTexture(
   if (!texture) return
   if (texture === nextLowerTexture || texture === nextUpperTexture) return
   gl.deleteTexture(texture)
-}
-
-function createClassifierTexturePair(
-  gl: WebGL2RenderingContext,
-  lowerFrame: FieldTimeSliceData,
-  upperFrame: FieldTimeSliceData,
-): TexturePair | null {
-  const classifierOverlayId = lowerFrame.classifiedColoring?.classifierOverlayId
-  if (!classifierOverlayId) return null
-
-  const lowerOverlay = lowerFrame.overlays.find((overlay) => overlay.id === classifierOverlayId)
-  const upperOverlay = upperFrame === lowerFrame
-    ? lowerOverlay
-    : upperFrame.overlays.find((overlay) => overlay.id === classifierOverlayId)
-  if (!lowerOverlay || !upperOverlay) return null
-
-  const lowerTexture = createOverlayTexture(gl, lowerOverlay)
-  if (!lowerTexture) return null
-  const upperTexture = upperOverlay === lowerOverlay
-    ? lowerTexture
-    : createOverlayTexture(gl, upperOverlay)
-  if (!upperTexture) {
-    gl.deleteTexture(lowerTexture)
-    return null
-  }
-  return { lower: lowerTexture, upper: upperTexture }
-}
-
-function createOverlayTexture(
-  gl: WebGL2RenderingContext,
-  overlay: FieldTimeSliceData['overlays'][number],
-): WebGLTexture | null {
-  const expectedCellCount = overlay.grid.nx * overlay.grid.ny
-  if (overlay.values.length !== expectedCellCount) return null
-  return createScalarTexture(gl, overlay.grid.nx, overlay.grid.ny, overlay.values)
-}
-
-function deleteTexturePair(
-  gl: WebGL2RenderingContext,
-  texturePair: TexturePair | null
-): void {
-  if (!texturePair) return
-  gl.deleteTexture(texturePair.lower)
-  if (texturePair.upper !== texturePair.lower) {
-    gl.deleteTexture(texturePair.upper)
-  }
-}
-
-function bindTexturePair(
-  gl: WebGL2RenderingContext,
-  textureUnitOffset: number,
-  texturePair: TexturePair | null,
-  fallbackTexture: WebGLTexture,
-  side: 'lower' | 'upper',
-): void {
-  gl.activeTexture(gl.TEXTURE0 + textureUnitOffset)
-  gl.bindTexture(gl.TEXTURE_2D, texturePair?.[side] ?? fallbackTexture)
 }
 
 function createFrameTexture(
@@ -559,17 +439,14 @@ function createColormapTexture(
   frame: FieldTimeSliceData,
   colorSamplingMode: FieldColorSamplingMode
 ): WebGLTexture | null {
-  // Build a row-based RGBA LUT atlas. Row 0 is the default layer palette;
-  // optional classifier classes append additional rows.
   const texture = gl.createTexture()
   if (!texture) return null
 
   const lutSize = colorSamplingMode === 'banded'
     ? BANDED_COLORMAP_LUT_SIZE
     : COLORMAP_LUT_SIZE
-  const colormapRows = colormapRowsForFrame(frame)
-  const lut = buildColormapAtlasLut(
-    colormapRows,
+  const lut = buildColormapLut(
+    frame.colortable,
     frame.displayRange,
     lutSize,
     colorSamplingMode
@@ -587,7 +464,7 @@ function createColormapTexture(
   }
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lutSize, colormapRows.length, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lutSize, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut)
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
@@ -598,64 +475,7 @@ function createColormapKey(frame: FieldTimeSliceData): string {
   return JSON.stringify({
     displayRange: frame.displayRange,
     colortable: frame.colortable,
-    classifiedColoring: frame.classifiedColoring,
   })
-}
-
-function colormapRowsForFrame(frame: FieldTimeSliceData): LayerColortableStop[][] {
-  return [
-    frame.colortable,
-    ...(frame.classifiedColoring?.classes.map((entry) => entry.colortable) ?? []),
-  ]
-}
-
-export function buildColormapAtlasLut(
-  colortables: readonly LayerColortableStop[][],
-  displayRange: [number, number],
-  size: number,
-  colorSamplingMode: FieldColorSamplingMode
-): Uint8Array {
-  const rows = colortables.length > 0 ? colortables : [[]]
-  const lut = new Uint8Array(size * rows.length * 4)
-
-  rows.forEach((colortable, rowIndex) => {
-    lut.set(
-      buildColormapLut(colortable, displayRange, size, colorSamplingMode),
-      rowIndex * size * 4
-    )
-  })
-
-  return lut
-}
-
-export function buildClassifierRowMapping(
-  classifiedColoring: FieldTimeSliceData['classifiedColoring'] | undefined
-): ClassifierRowMapping {
-  const mapping = emptyClassifierRowMapping()
-  if (!classifiedColoring) return mapping
-
-  for (let classIndex = 0; classIndex < classifiedColoring.classes.length; classIndex += 1) {
-    const entry = classifiedColoring.classes[classIndex]
-    if (!entry) continue
-    const row = classIndex + 1
-    for (const value of entry.values) {
-      if (mapping.count >= MAX_CLASSIFIER_VALUE_MAPPINGS) return mapping
-      if (!Number.isFinite(value)) continue
-      mapping.values[mapping.count] = Math.round(value)
-      mapping.rows[mapping.count] = row
-      mapping.count += 1
-    }
-  }
-
-  return mapping
-}
-
-function emptyClassifierRowMapping(): ClassifierRowMapping {
-  return {
-    values: new Int32Array(MAX_CLASSIFIER_VALUE_MAPPINGS),
-    rows: new Int32Array(MAX_CLASSIFIER_VALUE_MAPPINGS),
-    count: 0,
-  }
 }
 
 export function buildColormapLut(

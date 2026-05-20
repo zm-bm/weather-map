@@ -6,19 +6,23 @@ from collections.abc import Mapping
 from typing import Any
 
 DERIVATION_ICON_TOT_PREC_DELTA_RATE = "icon_tot_prec_delta_rate"
-DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES = "precip_type_from_gfs_categories"
-DERIVATION_PRECIP_TYPE_FROM_ICON_WW = "precip_type_from_icon_ww"
+DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS = "precip_type_overlay_from_gfs"
+DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS = "precip_type_overlay_from_icon_components"
 DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW = "thunderstorm_mask_from_icon_ww"
 GFS_DERIVATION_TYPES = {
-    DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
 }
 ICON_WEATHER_CODE_DERIVATION_TYPES = {
-    DERIVATION_PRECIP_TYPE_FROM_ICON_WW,
     DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW,
 }
 ICON_DERIVATION_TYPES = {
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
     *ICON_WEATHER_CODE_DERIVATION_TYPES,
+}
+ICON_AVERAGE_RATE_DERIVATION_TYPES = {
+    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
 }
 DERIVATION_TYPES = {
     *GFS_DERIVATION_TYPES,
@@ -49,15 +53,14 @@ def icon_param_from_grib_match(
     return icon_param
 
 
-def single_icon_derivation_input_param(*, artifact_id: str, derivation: Any) -> str:
-    """Return the ICON parameter for a single-input derivation."""
+def icon_derivation_input_params(*, artifact_id: str, derivation: Any) -> tuple[str, ...]:
+    """Return normalized ICON parameters used by a derivation's source inputs."""
 
-    inputs = tuple(getattr(derivation, "inputs", ()))
-    if len(inputs) != 1:
-        raise SystemExit(f"ICON derived artifact {artifact_id} requires exactly one derivation input")
-    input_item = inputs[0]
-    return icon_param_from_grib_match(
-        artifact_id=artifact_id,
-        selector_id=str(getattr(input_item, "id", "")) or None,
-        grib_match=getattr(input_item, "grib_match"),
+    return tuple(
+        icon_param_from_grib_match(
+            artifact_id=artifact_id,
+            selector_id=str(getattr(input_item, "id", "")) or None,
+            grib_match=getattr(input_item, "grib_match"),
+        )
+        for input_item in tuple(getattr(derivation, "inputs", ()))
     )

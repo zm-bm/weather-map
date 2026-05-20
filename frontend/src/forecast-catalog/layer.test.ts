@@ -18,7 +18,6 @@ import {
   FORECAST_LAYERS,
   FORECAST_LAYERS_BY_ID,
   layerSourceExpectedArtifactKind,
-  type CompositeLayerOverlaySource,
   type LayerSpec,
   type LayerSource,
 } from './layer'
@@ -35,11 +34,6 @@ function isLayerSourceAvailable(
   source: LayerSource,
   owner: string
 ): boolean {
-  if (source.kind === 'composite') {
-    return isLayerSourceAvailable(activeRun, source.base, owner) &&
-      source.overlays.every((overlay) => isCompositeOverlayAvailable(activeRun, overlay, owner))
-  }
-
   const expectedKind = layerSourceExpectedArtifactKind(source)
   const artifact = getActiveRunArtifact(activeRun, String(source.artifactId))
   if (!artifact) return false
@@ -51,19 +45,6 @@ function isLayerSourceAvailable(
     return hasOrderedComponents(artifact, ['u', 'v'])
   }
 
-  return true
-}
-
-function isCompositeOverlayAvailable(
-  activeRun: ActiveForecastRun,
-  overlay: CompositeLayerOverlaySource,
-  owner: string
-): boolean {
-  const artifact = getActiveRunArtifact(activeRun, String(overlay.source.artifactId))
-  if (!artifact) return overlay.optional
-  if (artifact.kind !== 'scalar') {
-    throw new Error(`${owner} overlay ${overlay.id} requires scalar artifact ${overlay.source.artifactId}, got ${artifact.kind}`)
-  }
   return true
 }
 
@@ -162,7 +143,7 @@ describe('layer catalog', () => {
     )
   })
 
-  it('keeps composite precipitation rate available when optional overlays are missing', () => {
+  it('uses direct scalar precipitation rate source', () => {
     const manifest = createSingleTimeManifestFixture({
       artifacts: {
         prate_surface: createScalarArtifactFixture({
@@ -177,40 +158,13 @@ describe('layer catalog', () => {
     const activeRun = createActiveRunFixture(manifest)
 
     expect(precipLayer.source).toMatchObject({
-      kind: 'composite',
-      base: { kind: 'artifact', artifactId: 'prate_surface' },
+      kind: 'artifact',
+      artifactId: 'prate_surface',
     })
     expect(isLayerAvailableForActiveRun(activeRun, precipLayer)).toBe(true)
     expect(getLayerMeta('precipitation_rate', FORECAST_LAYERS_BY_ID, createActiveRunFixture(manifest))).toMatchObject({
       units: 'kg m^-2 s^-1',
       parameter: 'prate',
     })
-  })
-
-  it('accepts optional composite overlays when scalar artifacts are present', () => {
-    const manifest = createSingleTimeManifestFixture({
-      scalarArtifactIds: ['prate_surface', 'precip_type_surface'],
-      vectorArtifactIds: [],
-    })
-    const activeRun = createActiveRunFixture(manifest)
-
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_LAYERS_BY_ID.precipitation_rate!)).toBe(true)
-  })
-
-  it('rejects optional composite overlays backed by non-scalar artifacts', () => {
-    const manifest = createSingleTimeManifestFixture({
-      artifacts: {
-        prate_surface: createScalarArtifactFixture({
-          id: 'prate_surface',
-        }),
-        precip_type_surface: createVectorArtifactFixture({
-          id: 'precip_type_surface',
-        }),
-      },
-    })
-
-    expect(() => isLayerAvailableForActiveRun(createActiveRunFixture(manifest), FORECAST_LAYERS_BY_ID.precipitation_rate!)).toThrow(
-      'Layer precipitation_rate overlay precip-type requires scalar artifact precip_type_surface, got vector'
-    )
   })
 })

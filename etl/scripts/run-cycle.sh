@@ -135,6 +135,8 @@ CONFIG_OVERLAY_FILE="$ROOT/config/pipeline/local.json"
 ARTIFACTS_DIR="$ROOT/artifacts"
 CACHE_DIR="$ETL_DIR/cache"
 IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.forecast-etl.source-fingerprint"
+RUN_LOG_DIR=""
+FAILURE_DIR=""
 
 mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
 
@@ -256,6 +258,8 @@ worker_cmd_for_hour() {
 run_worker_hour() {
 	local fhour="$1"
 	local cmd=()
+	local log_path=""
+	local status
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
 	done < <(worker_cmd_for_hour "$fhour")
@@ -264,8 +268,61 @@ run_worker_hour() {
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
-		"${cmd[@]}"
+		log_path="$RUN_LOG_DIR/worker-${MODEL}-${CYCLE}-${fhour}.log"
+		: > "$log_path"
+		if "${cmd[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2); then
+			return 0
+		else
+			status=$?
+		fi
+		{
+			printf 'fhour=%s\n' "$fhour"
+			printf 'exit_status=%s\n' "$status"
+			printf 'log_path=%s\n' "$log_path"
+		} > "$FAILURE_DIR/$fhour.status"
+		return "$status"
 	fi
+}
+
+print_worker_failure_summary() {
+	local failure_file
+	local failure_files=()
+	local fhour=""
+	local exit_status=""
+	local log_path=""
+	local key
+	local value
+
+	while IFS= read -r -d '' failure_file; do
+		failure_files+=("$failure_file")
+	done < <(find "$FAILURE_DIR" -maxdepth 1 -type f -name '*.status' -print0 | LC_ALL=C sort -z)
+
+	if [[ "${#failure_files[@]}" -eq 0 ]]; then
+		echo "One or more local worker containers failed, but no failure details were captured." >&2
+		echo "Worker logs: $RUN_LOG_DIR" >&2
+		return
+	fi
+
+	echo "Failed local worker containers:" >&2
+	for failure_file in "${failure_files[@]}"; do
+		fhour=""
+		exit_status=""
+		log_path=""
+		while IFS='=' read -r key value; do
+			case "$key" in
+				fhour) fhour="$value" ;;
+				exit_status) exit_status="$value" ;;
+				log_path) log_path="$value" ;;
+			esac
+		done < "$failure_file"
+
+		echo "- model=$MODEL cycle=$CYCLE fhour=$fhour exit=$exit_status" >&2
+		echo "  log: $log_path" >&2
+		if [[ -f "$log_path" ]]; then
+			echo "  tail:" >&2
+			tail -n 40 "$log_path" | sed 's/^/    /' >&2
+		fi
+	done
 }
 
 require_docker
@@ -290,10 +347,30 @@ echo "  artifacts:      $ARTIFACTS_DIR"
 echo "  cache:          $CACHE_DIR"
 echo "  dry_run:        $DRY_RUN"
 
-if [[ "$DRY_RUN" == "true" || "$PROCS" -eq 1 ]]; then
+if [[ "$DRY_RUN" != "true" ]]; then
+	RUN_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weather-map-run-cycle-${MODEL}-${CYCLE}.XXXXXX")"
+	FAILURE_DIR="$RUN_LOG_DIR/failures"
+	mkdir -p "$FAILURE_DIR"
+	echo "  worker_logs:    $RUN_LOG_DIR"
+fi
+
+if [[ "$DRY_RUN" == "true" ]]; then
 	for FHOUR in "${FORECAST_HOURS[@]}"; do
 		run_worker_hour "$FHOUR"
 	done
+elif [[ "$PROCS" -eq 1 ]]; then
+	FAILURES=0
+	for FHOUR in "${FORECAST_HOURS[@]}"; do
+		if ! run_worker_hour "$FHOUR"; then
+			FAILURES=1
+			break
+		fi
+	done
+
+	if [[ "$FAILURES" -ne 0 ]]; then
+		print_worker_failure_summary
+		exit 1
+	fi
 else
 	ACTIVE_JOBS=0
 	FAILURES=0
@@ -321,7 +398,7 @@ else
 	done
 
 	if [[ "$FAILURES" -ne 0 ]]; then
-		echo "One or more local worker containers failed." >&2
+		print_worker_failure_summary
 		exit 1
 	fi
 fi

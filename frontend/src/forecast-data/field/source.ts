@@ -1,18 +1,13 @@
 import type { ArtifactLoader } from '../../forecast-artifacts'
 import type {
-  CompositeLayerOverlaySource,
   LayerSource,
   LayerSpec,
 } from '../../forecast-catalog'
 import type {
-  ActiveForecastRun,
   ScalarGridSpec,
 } from '../../forecast-manifest'
-import { hasActiveRunArtifact } from '../../forecast-manifest'
-import { isAbortError } from '../../abort'
 import type {
   FieldEncodingSpec,
-  FieldOverlayData,
 } from '../types'
 import { loadDerivedFieldRecipe } from './recipes'
 
@@ -21,36 +16,15 @@ export type FieldSourceData = {
   grid: ScalarGridSpec
   encoding: FieldEncodingSpec
   values: Float32Array
-  overlays?: readonly FieldOverlayData[]
 }
 
 export async function loadFieldSourceData(args: {
   artifacts: ArtifactLoader
-  activeRun: ActiveForecastRun
   hourToken: string
   layer: LayerSpec
 }): Promise<FieldSourceData> {
-  const { artifacts, activeRun, hourToken, layer } = args
-  if (layer.source.kind !== 'composite') {
-    return loadSingleFieldSourceData({ artifacts, hourToken, source: layer.source })
-  }
-
-  const base = await loadSingleFieldSourceData({
-    artifacts,
-    hourToken,
-    source: layer.source.base,
-  })
-  const overlays = await loadCompositeOverlays({
-    artifacts,
-    activeRun,
-    hourToken,
-    overlays: layer.source.overlays,
-  })
-
-  return {
-    ...base,
-    overlays,
-  }
+  const { artifacts, hourToken, layer } = args
+  return loadSingleFieldSourceData({ artifacts, hourToken, source: layer.source })
 }
 
 async function loadSingleFieldSourceData(args: {
@@ -71,50 +45,5 @@ async function loadSingleFieldSourceData(args: {
     })
   }
 
-  throw new Error(`Nested composite field sources are not supported`)
-}
-
-async function loadCompositeOverlays(args: {
-  artifacts: ArtifactLoader
-  activeRun: ActiveForecastRun
-  hourToken: string
-  overlays: readonly CompositeLayerOverlaySource[]
-}): Promise<FieldOverlayData[]> {
-  const loaded = await Promise.all(
-    args.overlays.map((overlay) => loadCompositeOverlay({
-      artifacts: args.artifacts,
-      activeRun: args.activeRun,
-      hourToken: args.hourToken,
-      overlay,
-    }))
-  )
-  return loaded.filter((overlay): overlay is FieldOverlayData => overlay != null)
-}
-
-async function loadCompositeOverlay(args: {
-  artifacts: ArtifactLoader
-  activeRun: ActiveForecastRun
-  hourToken: string
-  overlay: CompositeLayerOverlaySource
-}): Promise<FieldOverlayData | null> {
-  if (!hasActiveRunArtifact(args.activeRun, String(args.overlay.source.artifactId))) {
-    if (args.overlay.optional) return null
-    throw new Error(`Missing required overlay artifact ${args.overlay.source.artifactId}`)
-  }
-
-  try {
-    const artifact = await args.artifacts.loadScalar(args.overlay.source.artifactId, args.hourToken)
-    return {
-      id: args.overlay.id,
-      artifactId: artifact.artifactId,
-      hourToken: artifact.hourToken,
-      grid: artifact.grid,
-      encoding: artifact.encoding,
-      values: artifact.values,
-    }
-  } catch (error) {
-    if (isAbortError(error)) throw error
-    if (!args.overlay.optional) throw error
-    return null
-  }
+  throw new Error(`Unsupported field source kind: ${(source as { kind?: string }).kind ?? 'unknown'}`)
 }

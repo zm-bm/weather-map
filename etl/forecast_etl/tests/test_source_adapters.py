@@ -18,9 +18,9 @@ from forecast_etl.source_adapters.icon_dwd import icon_dwd_filename, icon_dwd_ur
 from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.artifact_configs import (
     artifact_spec,
+    icon_precip_type_config,
     minimal_artifact_config,
     precip_rate_config,
-    precip_type_config,
     thunderstorm_mask_config,
 )
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
@@ -300,11 +300,7 @@ class SourceAdapterTest(unittest.TestCase):
                 grib_match={"ICON_PARAM": previous_icon_param_key("tot_prec")},
             )
 
-    def test_icon_adapter_prepares_weather_code_for_overlay_derivations(self) -> None:
-        precip_type = artifact_spec(
-            "precip_type_surface",
-            precip_type_config(derivation_type="precip_type_from_icon_ww"),
-        )
+    def test_icon_adapter_prepares_weather_code_for_thunderstorm_derivation(self) -> None:
         thunderstorm = artifact_spec("thunderstorm_mask", thunderstorm_mask_config())
         prate = artifact_spec("prate_surface", precip_rate_config())
         model = ModelConfig(
@@ -319,12 +315,11 @@ class SourceAdapterTest(unittest.TestCase):
             ),
             workload=WorkloadConfig(
                 forecast_hours=("003",),
-                artifacts=("prate_surface", "precip_type_surface", "thunderstorm_mask"),
+                artifacts=("prate_surface", "thunderstorm_mask"),
             ),
             model_artifacts={},
             artifacts={
                 "prate_surface": prate,
-                "precip_type_surface": precip_type,
                 "thunderstorm_mask": thunderstorm,
             },
         )
@@ -354,7 +349,7 @@ class SourceAdapterTest(unittest.TestCase):
 
         self.assertEqual(
             source.component_grib_path(
-                artifact_id="precip_type_surface",
+                artifact_id="thunderstorm_mask",
                 component_id="ww",
                 grib_match={"ICON_PARAM": "ww"},
             ),
@@ -376,6 +371,69 @@ class SourceAdapterTest(unittest.TestCase):
             ),
             previous_tot_prec,
         )
+
+    def test_icon_adapter_prepares_precip_type_component_current_and_previous_inputs(self) -> None:
+        precip_type = artifact_spec("precip_type_surface", icon_precip_type_config())
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=IconDwdSourceConfig(
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(forecast_hours=("003",), artifacts=("precip_type_surface",)),
+            model_artifacts={},
+            artifacts={"precip_type_surface": precip_type},
+        )
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-icon-precip-type-source-") as td:
+            tmp = Path(td)
+            current_paths = {
+                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param=icon_param)
+                for icon_param in ("rain_gsp", "rain_con", "snow_gsp", "snow_con")
+            }
+            previous_paths = {
+                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param=icon_param)
+                for icon_param in ("rain_gsp", "rain_con", "snow_gsp", "snow_con")
+            }
+
+            with (
+                patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
+                patch("forecast_etl.source_adapters.icon_dwd.default_etl_dir", return_value=tmp),
+                patch(
+                    "forecast_etl.source_adapters.icon_dwd.make_runner",
+                    side_effect=AssertionError("regrid should be cached"),
+                ),
+            ):
+                source = acquire_prepared_source(
+                    model=model,
+                    cycle="2026042800",
+                    fhour="003",
+                    source_uri_override=None,
+                    workdir=tmp / "work",
+                    store=make_store(),
+                )
+
+        for icon_param, current_path in current_paths.items():
+            self.assertEqual(
+                source.component_grib_path(
+                    artifact_id="precip_type_surface",
+                    component_id=icon_param,
+                    grib_match={"ICON_PARAM": icon_param},
+                ),
+                current_path,
+            )
+            self.assertEqual(
+                source.component_grib_path(
+                    artifact_id="precip_type_surface",
+                    component_id=icon_param,
+                    grib_match={"ICON_PARAM": previous_icon_param_key(icon_param)},
+                ),
+                previous_paths[icon_param],
+            )
 
     def test_icon_regrid_requires_cdo(self) -> None:
         from forecast_etl.source_adapters import icon_dwd as icon

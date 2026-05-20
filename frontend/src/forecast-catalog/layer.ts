@@ -56,32 +56,9 @@ export type DerivedLayerSource = {
   recipe: 'wind-speed'
 }
 
-export type CompositeLayerOverlaySource = {
-  id: string
-  source: ArtifactLayerSource
-  optional: boolean
-}
-
-export type CompositeLayerSource = {
-  kind: 'composite'
-  base: LayerSource
-  overlays: readonly CompositeLayerOverlaySource[]
-}
-
 export type LayerSource =
   | ArtifactLayerSource
   | DerivedLayerSource
-  | CompositeLayerSource
-
-export type ClassifiedColoringClassSpec = {
-  values: readonly number[]
-  paletteId: string
-}
-
-export type ClassifiedColoringSpec = {
-  classifierOverlayId: string
-  classes: readonly ClassifiedColoringClassSpec[]
-}
 
 export type LayerSpec = {
   id: LayerId
@@ -93,7 +70,6 @@ export type LayerSpec = {
   legendScale: LegendScaleId
   source: LayerSource
   parameter?: string
-  classifiedColoring?: ClassifiedColoringSpec
 }
 
 export type LayerGroupSpec = {
@@ -113,15 +89,6 @@ type RawLayerSource =
     artifactId: string
     recipe: 'wind-speed'
   }
-  | {
-    kind: 'composite'
-    base: RawLayerSource
-    overlays: readonly {
-      id: string
-      source: Extract<RawLayerSource, { kind: 'artifact' }>
-      optional: boolean
-    }[]
-  }
 
 type RawLayerSpec = {
   id: string
@@ -133,7 +100,6 @@ type RawLayerSpec = {
   legendScale: LegendScaleId
   source: RawLayerSource
   parameter?: string
-  classifiedColoring?: ClassifiedColoringSpec
 }
 
 type RawLayerGroupSpec = {
@@ -152,21 +118,11 @@ export function layerSourceKey(source: LayerSource): string {
   if (source.kind === 'artifact') {
     return `artifact:${source.artifactId}`
   }
-  if (source.kind === 'derived') {
-    return `derived:${source.recipe}:${source.artifactId}`
-  }
-
-  return `composite:${layerSourceKey(source.base)}:${source.overlays.map((overlay) => (
-    `${overlay.id}:${overlay.optional ? 'optional' : 'required'}:${layerSourceKey(overlay.source)}`
-  )).join(',')}`
+  return `derived:${source.recipe}:${source.artifactId}`
 }
 
 export function layerSourceArtifactId(source: LayerSource): ArtifactId {
-  if (source.kind === 'artifact' || source.kind === 'derived') {
-    return source.artifactId
-  }
-
-  return layerSourceArtifactId(source.base)
+  return source.artifactId
 }
 
 const rawCatalog = RAW_FORECAST_CATALOG as unknown as RawForecastCatalog
@@ -192,8 +148,7 @@ export function getLayerSpec(
 
 export function layerSourceExpectedArtifactKind(source: LayerSource): ManifestArtifactSpec['kind'] {
   if (source.kind === 'artifact') return 'scalar'
-  if (source.kind === 'derived') return 'vector'
-  return layerSourceExpectedArtifactKind(source.base)
+  return 'vector'
 }
 
 function layerFromRaw(raw: RawLayerSpec): LayerSpec {
@@ -207,7 +162,6 @@ function layerFromRaw(raw: RawLayerSpec): LayerSpec {
     legendScale: raw.legendScale,
     source: layerSourceFromRaw(raw.source),
     parameter: raw.parameter,
-    classifiedColoring: raw.classifiedColoring,
   }
 }
 
@@ -216,22 +170,10 @@ function layerSourceFromRaw(raw: RawLayerSource): LayerSource {
     return { kind: 'artifact', artifactId: asArtifactId(raw.artifactId) }
   }
 
-  if (raw.kind === 'derived') {
-    return {
-      kind: 'derived',
-      artifactId: asArtifactId(raw.artifactId),
-      recipe: raw.recipe,
-    }
-  }
-
   return {
-    kind: 'composite',
-    base: layerSourceFromRaw(raw.base),
-    overlays: raw.overlays.map((overlay) => ({
-      id: overlay.id,
-      source: layerSourceFromRaw(overlay.source) as ArtifactLayerSource,
-      optional: overlay.optional,
-    })),
+    kind: 'derived',
+    artifactId: asArtifactId(raw.artifactId),
+    recipe: raw.recipe,
   }
 }
 

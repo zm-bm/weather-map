@@ -40,8 +40,8 @@ Candidate additions and unsettled catalog choices live in
 
 ### Thunderstorm Rendering
 
-Decide how `thunderstorm_mask` should affect the `Precipitation Rate` composite
-layer.
+Decide how `thunderstorm_mask` should affect future storm or precipitation
+overlay rendering.
 
 The artifact is ICON-only for now. Do not fake GFS thunder with CAPE,
 reflectivity, or other storm proxies unless that tradeoff is explicitly chosen.
@@ -57,8 +57,8 @@ remain available even if a combined view is added.
 
 ### Precipitation Type Legend
 
-Add a legend for the `Precipitation Type` layer that clearly indicates which colors
-correspond to which precipitation types.
+Add legend/support UI for future precipitation type overlay rendering once the
+frontend consumes `snow_frac` and `mix_frac`.
 
 ## Operational Follow-Ups
 

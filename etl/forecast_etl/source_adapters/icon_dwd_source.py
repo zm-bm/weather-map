@@ -14,10 +14,10 @@ from pathlib import Path
 from ..config.resolved import ModelConfig
 from ..cycles import parse_cycle
 from ..derivations import (
-    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    ICON_AVERAGE_RATE_DERIVATION_TYPES,
     ICON_WEATHER_CODE_DERIVATION_TYPES,
+    icon_derivation_input_params,
     icon_param_from_grib_match,
-    single_icon_derivation_input_param,
 )
 
 DEFAULT_ICON_SOURCE_WAIT_SECONDS = 2700.0
@@ -65,14 +65,7 @@ def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
             )
         derivation = getattr(artifact, "derivation", None)
         if derivation is not None:
-            for input_item in getattr(derivation, "inputs", ()):
-                params.add(
-                    icon_param_from_grib_match(
-                        artifact_id=artifact_id,
-                        selector_id=input_item.id,
-                        grib_match=input_item.grib_match,
-                    )
-                )
+            params.update(icon_derivation_input_params(artifact_id=artifact_id, derivation=derivation))
     return tuple(sorted(params))
 
 
@@ -87,8 +80,8 @@ def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
         derivation = getattr(artifact, "derivation", None)
         if derivation is None:
             continue
-        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-            params.add(single_icon_derivation_input_param(artifact_id=artifact_id, derivation=derivation))
+        if derivation.type in ICON_AVERAGE_RATE_DERIVATION_TYPES:
+            params.update(icon_derivation_input_params(artifact_id=artifact_id, derivation=derivation))
             continue
         if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
             continue

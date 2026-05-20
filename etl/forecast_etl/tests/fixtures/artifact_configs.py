@@ -147,42 +147,64 @@ def precip_rate_config() -> dict:
     }
 
 
-def precip_type_config(*, derivation_type: str = "precip_type_from_gfs_categories") -> dict:
-    if derivation_type == "precip_type_from_gfs_categories":
-        inputs = [
-            {"id": "rain", "grib_match": {"GRIB_ELEMENT": "CRAIN", "GRIB_SHORT_NAME": "0-SFC"}},
-            {"id": "freezing_rain", "grib_match": {"GRIB_ELEMENT": "CFRZR", "GRIB_SHORT_NAME": "0-SFC"}},
-            {"id": "ice_pellets", "grib_match": {"GRIB_ELEMENT": "CICEP", "GRIB_SHORT_NAME": "0-SFC"}},
-            {"id": "snow", "grib_match": {"GRIB_ELEMENT": "CSNOW", "GRIB_SHORT_NAME": "0-SFC"}},
-        ]
-    else:
-        inputs = [
-            {"id": "ww", "grib_match": {"ICON_PARAM": "ww"}},
-        ]
-
+def precip_type_config() -> dict:
     return {
-        "kind": "scalar",
+        "kind": "vector",
         "parameter": "precip_type",
         "level": "surface",
-        "units": "code",
+        "units": "fraction",
         "source_transform": "identity",
         "encoding": {
-            "id": "precip_type_surface_i8_code_v1",
+            "id": "precip_type_surface_i8_frac_v1",
             "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
-            "scale": 1,
-            "offset": 0,
+            "scale": 0.003937007874015748,
+            "offset": 0.5,
             "nodata": -128,
         },
         "components": [
-            {"id": "value"},
+            {"id": "snow_frac"},
+            {"id": "mix_frac"},
         ],
         "derivation": {
-            "type": derivation_type,
-            "inputs": inputs,
+            "type": "precip_type_overlay_from_gfs",
+            "inputs": [
+                {
+                    "id": "precip_rate",
+                    "grib_match": {
+                        "GRIB_ELEMENT": "PRATE",
+                        "GRIB_SHORT_NAME": "0-SFC",
+                        "GRIB_PDS_PDTN": "0",
+                    },
+                },
+                {"id": "frozen_percent", "grib_match": {"GRIB_ELEMENT": "CPOFP", "GRIB_SHORT_NAME": "0-SFC"}},
+                {"id": "rain", "grib_match": {"GRIB_ELEMENT": "CRAIN", "GRIB_SHORT_NAME": "0-SFC"}},
+                {"id": "freezing_rain", "grib_match": {"GRIB_ELEMENT": "CFRZR", "GRIB_SHORT_NAME": "0-SFC"}},
+                {"id": "ice_pellets", "grib_match": {"GRIB_ELEMENT": "CICEP", "GRIB_SHORT_NAME": "0-SFC"}},
+                {"id": "snow", "grib_match": {"GRIB_ELEMENT": "CSNOW", "GRIB_SHORT_NAME": "0-SFC"}},
+            ],
         },
     }
+
+
+def icon_precip_type_config() -> dict:
+    config = precip_type_config()
+    config["temporal"] = {
+        "kind": "average_rate",
+        "source_interval_hours": 1,
+    }
+    config["derivation"] = {
+        "type": "precip_type_overlay_from_icon_components",
+        "first_hour_previous": "zero",
+        "inputs": [
+            {"id": "rain_gsp", "grib_match": {"ICON_PARAM": "rain_gsp"}},
+            {"id": "rain_con", "grib_match": {"ICON_PARAM": "rain_con"}},
+            {"id": "snow_gsp", "grib_match": {"ICON_PARAM": "snow_gsp"}},
+            {"id": "snow_con", "grib_match": {"ICON_PARAM": "snow_con"}},
+        ],
+    }
+    return config
 
 
 def thunderstorm_mask_config() -> dict:

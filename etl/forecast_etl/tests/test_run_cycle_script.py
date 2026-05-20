@@ -45,17 +45,39 @@ fi
 
 if [[ "${1:-}" == "run" ]]; then
 \tmodel=""
+\tfhour=""
+\tmode=""
 \twhile [[ $# -gt 0 ]]; do
 \t\tcase "$1" in
 \t\t\t--model)
 \t\t\t\tmodel="${2:-}"
 \t\t\t\tshift 2
 \t\t\t\t;;
+\t\t\t--env)
+\t\t\t\tcase "${2:-}" in
+\t\t\t\t\tMODEL=*) model="${2#MODEL=}" ;;
+\t\t\t\t\tFHOUR=*) fhour="${2#FHOUR=}" ;;
+\t\t\t\tesac
+\t\t\t\tshift 2
+\t\t\t\t;;
+\t\t\tlist-forecast-hours|run-hour)
+\t\t\t\tmode="$1"
+\t\t\t\tshift
+\t\t\t\t;;
 \t\t\t*)
 \t\t\t\tshift
 \t\t\t\t;;
 \t\tesac
 \tdone
+
+\tif [[ "$mode" == "run-hour" ]]; then
+\t\tif [[ -n "${FAKE_DOCKER_FAIL_FHOUR:-}" && "$fhour" == "$FAKE_DOCKER_FAIL_FHOUR" ]]; then
+\t\t\techo "simulated worker failure for fhour=$fhour" >&2
+\t\t\texit 42
+\t\tfi
+\t\techo "Done. Published fhour bundle cycle=${CYCLE:-unknown} fhour=$fhour: model=$model artifacts=18"
+\t\texit 0
+\tfi
 
 \tcase "$model" in
 \t\tgfs)
@@ -107,7 +129,12 @@ exit 1
             sha256sum_lines.append(f"{digest}  {relative_path.as_posix()}\n")
         return hashlib.sha256("".join(sha256sum_lines).encode("utf-8")).hexdigest()
 
-    def run_script(self, *args: str, env_overrides: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    def run_script(
+        self,
+        *args: str,
+        env_overrides: dict[str, str] | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["PATH"] = f"{self.fake_bin_dir}{os.pathsep}{env['PATH']}"
         if env_overrides is not None:
@@ -116,7 +143,7 @@ exit 1
             [self.script.as_posix(), *args],
             cwd=self.repo_root,
             env=env,
-            check=True,
+            check=check,
             text=True,
             capture_output=True,
         )
@@ -196,6 +223,27 @@ exit 1
         self.assertIn("--env MODEL=gfs", result.stdout)
         self.assertIn("--env FHOUR=000", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)
+
+    def test_parallel_run_prints_failed_worker_log_tail(self) -> None:
+        result = self.run_script(
+            "--model",
+            "icon",
+            "--cycle",
+            "2026021606",
+            "--procs",
+            "4",
+            env_overrides={
+                "ETL_WORKER_STAGGER_SECONDS": "0",
+                "FAKE_DOCKER_FAIL_FHOUR": "003",
+            },
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("worker_logs:", result.stdout)
+        self.assertIn("Failed local worker containers:", result.stderr)
+        self.assertIn("model=icon cycle=2026021606 fhour=003 exit=42", result.stderr)
+        self.assertIn("simulated worker failure for fhour=003", result.stderr)
 
     def test_script_no_longer_checks_host_gdal_or_cdo(self) -> None:
         script_text = self.script.read_text(encoding="utf-8")

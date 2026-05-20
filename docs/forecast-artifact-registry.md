@@ -43,8 +43,7 @@ definitions live in `forecast-layer-registry.md`.
 
 ## Selectable Field Sources
 
-Artifacts that directly back current field layers. For composite layers, the
-consumer column names the artifact's role in that frontend recipe.
+Artifacts that directly back current field layers.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -58,7 +57,7 @@ consumer column names the artifact's role in that frontend recipe.
 | `low_clouds` | `scalar` | Low cloud layer cover. | `%` | `value` | instantaneous | `low_clouds_i8_1pct_v1`; linear-i8-v1; int8; scale `1`; offset `50`; nodata `-128` | layer `low_cloud_cover` | — |
 | `medium_clouds` | `scalar` | Middle cloud layer cover. | `%` | `value` | instantaneous | `medium_clouds_i8_1pct_v1`; linear-i8-v1; int8; scale `1`; offset `50`; nodata `-128` | layer `middle_cloud_cover` | — |
 | `high_clouds` | `scalar` | High cloud layer cover. | `%` | `value` | instantaneous | `high_clouds_i8_1pct_v1`; linear-i8-v1; int8; scale `1`; offset `50`; nodata `-128` | layer `high_cloud_cover` | — |
-| `prate_surface` | `scalar` | Precipitation rate normalized to millimeters per hour. | `mm/hr` | `value` | rate or source-interval average rate | `prate_surface_i8_0p15mmhr_v1`; linear-i8-v1; int8; scale `0.15`; offset `19.05`; nodata `-128` | base field for layer `precipitation_rate` | Source transform converts kg/m²/s to mm/hr. |
+| `prate_surface` | `scalar` | Precipitation rate normalized to millimeters per hour. | `mm/hr` | `value` | rate or source-interval average rate | `prate_surface_i8_0p15mmhr_v1`; linear-i8-v1; int8; scale `0.15`; offset `19.05`; nodata `-128` | layer `precipitation_rate` | Source transform converts kg/m²/s to mm/hr. |
 | `precip_total_surface` | `scalar` | Accumulated precipitation total. | `mm` | `value` | run total / source accumulation | `precip_total_surface_i8_1mm_v1`; linear-i8-v1; int8; scale `1`; offset `127`; nodata `-128` | layer `accumulated_precipitation` | Current `accumulated_precipitation` layer treats this as run total unless a fixed window is declared later. |
 | `snow_depth_surface` | `scalar` | Snow depth on the ground. | `m` | `value` | instantaneous | `snow_depth_surface_i8_0p02m_v1`; linear-i8-v1; int8; scale `0.02`; offset `2.54`; nodata `-128` | layer `snow_depth` | — |
 | `visibility_surface` | `scalar` | Horizontal surface visibility. | `m` | `value` | instantaneous | `visibility_surface_i8_200m_v1`; linear-i8-v1; int8; scale `200`; offset `25400`; nodata `-128` | layer `visibility` | — |
@@ -78,28 +77,34 @@ selectable field layer directly.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `wind10m_uv` | `vector` | 10m horizontal wind vector with ordered u/v components. | `m/s` | `u`, `v` | instantaneous | `wind10m_uv_vector_i8_v1`; linear-i8-v1; int8; scale `0.5`; offset `0` | derived layer `wind_speed`; particle layer `wind` | No nodata value is declared in the catalog encoding. |
 
-## Supporting Overlays And Classifiers
+## Staged And Supporting Artifacts
 
-Artifacts that influence rendering or classification without being selectable by
-themselves.
+Artifacts published for future rendering features or supporting derived products
+without being selectable by themselves.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `precip_type_surface` | `scalar` | Normalized precipitation-type classifier codes. | `code` | `value` | instantaneous | `precip_type_surface_i8_code_v1`; linear-i8-v1; int8; scale `1`; offset `0`; nodata `-128` | optional classifier overlay for layer `precipitation_rate` | Classifier only; it does not provide precipitation magnitude. |
+| `precip_type_surface` | `vector` | Soft precipitation-type overlay fractions derived from model precipitation-type inputs. | `fraction` | `snow_frac`, `mix_frac` | source-interval derived overlay | `precip_type_surface_i8_frac_v1`; linear-i8-v1; int8; scale `0.003937007874015748`; offset `0.5`; nodata `-128` | future precipitation type overlay rendering | Staged GFS/ICON artifact. It does not affect current `precipitation_rate` rendering. |
 | `thunderstorm_mask` | `scalar` | Normalized thunderstorm flag mask. | `flag` | `value` | instantaneous | `thunderstorm_mask_i8_flag_v1`; linear-i8-v1; int8; scale `1`; offset `0`; nodata `-128` | future thunderstorm rendering; no current selectable layer | Published when configured by a model; not currently consumed by the frontend catalog. |
 
 ## Normalized Value Tables
 
 ### `precip_type_surface`
 
-| Value | Meaning |
-| --- | --- |
-| `0` | none or unknown |
-| `1` | rain or drizzle |
-| `2` | freezing rain or freezing drizzle |
-| `3` | ice pellets or sleet |
-| `4` | snow |
-| `5` | mixed or other wintry precipitation |
+| Component | Range | Meaning |
+| --- | --- | --- |
+| `snow_frac` | `0..1` | Snow overlay strength. |
+| `mix_frac` | `0..1` | Winter-mix overlay strength for freezing rain / ice pellets / mixed signals. |
+
+GFS derivation inputs are `PRATE`, `CPOFP`, `CRAIN`, `CSNOW`, `CFRZR`,
+and `CICEP` at the surface. `PRATE` gates overlays below `0.05 mm/hr`;
+freezing rain and ice pellets map to `mix_frac`, snow maps to `snow_frac`,
+and ambiguous cases fall back to `CPOFP`.
+
+ICON derivation inputs are `rain_gsp`, `rain_con`, `snow_gsp`, and
+`snow_con`. The ETL uses adjacent forecast-hour accumulation deltas, computes
+snow share of total precipitation, and maps middle snow/rain ratios to
+`mix_frac`.
 
 ### `thunderstorm_mask`
 

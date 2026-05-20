@@ -141,25 +141,7 @@
       "displayRange": { "min": 0, "max": 30 },
       "unitBehavior": "precip-rate",
       "legendScale": "precip-rate",
-      "source": {
-        "kind": "composite",
-        "base": { "kind": "artifact", "artifactId": "prate_surface" },
-        "overlays": [
-          {
-            "id": "precip-type",
-            "source": { "kind": "artifact", "artifactId": "precip_type_surface" },
-            "optional": true
-          }
-        ]
-      },
-      "classifiedColoring": {
-        "classifierOverlayId": "precip-type",
-        "classes": [
-          { "values": [1], "paletteId": "precip.rate.mm_hr.v1" },
-          { "values": [4], "paletteId": "precip.rate.snow.mm_hr.v1" },
-          { "values": [2, 3, 5], "paletteId": "precip.rate.wintry_mix.mm_hr.v1" }
-        ]
-      }
+      "source": { "kind": "artifact", "artifactId": "prate_surface" }
     },
     {
       "id": "accumulated_precipitation",

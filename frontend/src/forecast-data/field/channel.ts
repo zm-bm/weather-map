@@ -52,7 +52,6 @@ async function loadFieldTimeSlice(args: {
 
   const sourceData = await loadFieldSourceData({
     artifacts: args.artifacts,
-    activeRun: args.activeRun,
     layer: args.layer,
     hourToken: normalizedHourToken,
   })

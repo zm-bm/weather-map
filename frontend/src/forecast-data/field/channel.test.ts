@@ -11,15 +11,12 @@ import {
   createConfigFixture,
   createSingleTimeManifestFixture,
   createGridFixture,
-  createScalarEncodingFixture,
   createScalarArtifactFixture,
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
 } from '../../test/fixtures'
 import {
-  createFetchArrayBufferResponse,
-  createFetchErrorResponse,
   stubFetchArrayBufferOnce,
 } from '../../test/fetch'
 import {
@@ -130,7 +127,7 @@ describe('createFieldChannel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('loads composite precipitation fields without optional overlays', async () => {
+  it('loads precipitation rate as a direct scalar field', async () => {
     const payload = createScalarPayloadFixture([100, 200, 300, 400])
     const fetchMock = stubFetchArrayBufferOnce(payload)
     const manifest = createSingleTimeManifestFixture({
@@ -143,67 +140,10 @@ describe('createFieldChannel', () => {
       manifest,
       layerId: 'precipitation_rate',
     }).load('000')
-    const classifiedColoring = FORECAST_LAYERS_BY_ID.precipitation_rate!.classifiedColoring
 
     expect(frame.layerId).toBe('precipitation_rate')
     expect(frame.paletteId).toBe('precip.rate.mm_hr.v1')
     expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
-    expect(frame.overlays).toEqual([])
-    expect(frame.classifiedColoring?.classifierOverlayId).toBe(classifiedColoring?.classifierOverlayId)
-    expect(frame.classifiedColoring?.classes).toHaveLength(classifiedColoring?.classes.length ?? 0)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('loads available composite precipitation overlays', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([1, 4, 0, 5])))
-    vi.stubGlobal('fetch', fetchMock)
-    const categoricalEncoding = createScalarEncodingFixture({ scale: 1 })
-    const manifest = createSingleTimeManifestFixture({
-      cycle: '2026041206',
-      artifacts: {
-        prate_surface: createScalarArtifactFixture({
-          id: 'prate_surface',
-          cycle: '2026041206',
-        }),
-        precip_type_surface: createScalarArtifactFixture({
-          id: 'precip_type_surface',
-          cycle: '2026041206',
-          encoding: categoricalEncoding,
-        }),
-      },
-    })
-
-    const frame = await fieldChannel({
-      manifest,
-      layerId: 'precipitation_rate',
-    }).load('000')
-
-    expect(frame.overlays.map((overlay) => overlay.id)).toEqual(['precip-type'])
-    expect(Array.from(frame.overlays[0]!.values)).toEqual([1, 4, 0, 5])
-    expect(frame.classifiedColoring?.classes).toHaveLength(3)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('falls back to the composite base field when an optional overlay fails to load', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(createFetchArrayBufferResponse(createScalarPayloadFixture([100, 200, 300, 400])))
-      .mockResolvedValueOnce(createFetchErrorResponse(404, 'Not Found'))
-    vi.stubGlobal('fetch', fetchMock)
-    const manifest = createSingleTimeManifestFixture({
-      cycle: '2026041212',
-      scalarArtifactIds: ['prate_surface', 'precip_type_surface'],
-      vectorArtifactIds: [],
-    })
-
-    const frame = await fieldChannel({
-      manifest,
-      layerId: 'precipitation_rate',
-    }).load('000')
-
-    expect(Array.from(frame.values)).toEqual([1, 2, 3, 4])
-    expect(frame.overlays).toEqual([])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

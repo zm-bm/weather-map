@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
     GFS_DERIVATION_TYPES,
+    ICON_AVERAGE_RATE_DERIVATION_TYPES,
     ICON_DERIVATION_TYPES,
     ICON_PARAM_MATCH_KEY,
 )
@@ -139,7 +140,7 @@ def validate_model_artifacts_for_source(
             raise SystemExit(
                 f"ICON derivation {derivation.type!r} requires exactly one derivation input for {artifact_id}"
             )
-        if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
+        if derivation.type in ICON_AVERAGE_RATE_DERIVATION_TYPES:
             _validate_icon_average_rate_derivation(artifact_id=artifact_id, model_artifact=model_artifact)
 
 

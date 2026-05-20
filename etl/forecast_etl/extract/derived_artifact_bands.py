@@ -8,8 +8,8 @@ from typing import Any
 from ..config.resolved import ArtifactSpec, DerivationInputSpec
 from ..derivations import (
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
-    DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
-    DERIVATION_PRECIP_TYPE_FROM_ICON_WW,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
     DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW,
     ICON_WEATHER_CODE_DERIVATION_TYPES,
     icon_param_from_grib_match,
@@ -19,15 +19,18 @@ from ..proc import RunFn
 from ..source_adapters.base import PreparedSource
 from .accumulation import accumulation_delta_rate_bytes
 from .precipitation_overlays import (
-    precip_type_from_gfs_category_bytes,
-    precip_type_from_icon_ww_bytes,
+    GFS_PRECIP_TYPE_OVERLAY_INPUT_IDS,
+    ICON_PRECIP_TYPE_OVERLAY_INPUT_IDS,
+    PRECIP_TYPE_OVERLAY_COMPONENT_IDS,
+    precip_type_overlay_from_gfs_bytes,
+    precip_type_overlay_from_icon_component_rates_bytes,
     thunderstorm_mask_from_icon_ww_bytes,
 )
 from .source_bands import extract_source_band
 from .types import ExtractedBand
 
 
-def extract_derived_artifact_band(
+def extract_derived_artifact_bands(
     *,
     artifact: ArtifactSpec,
     grid: dict[str, Any],
@@ -35,14 +38,33 @@ def extract_derived_artifact_band(
     workdir: Path,
     run: RunFn,
     fhour: str | None,
-) -> ExtractedBand:
-    """Extract one supported derived artifact component as Float32 bytes."""
+) -> list[ExtractedBand]:
+    """Extract supported derived artifact components as Float32 bytes."""
 
     derivation = artifact.derivation
     if derivation is None:
         raise SystemExit(f"Artifact {artifact.id} does not declare a derivation")
     if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
-        return _extract_icon_tot_prec_delta_rate(
+        return [
+            _extract_icon_tot_prec_delta_rate(
+                artifact=artifact,
+                grid=grid,
+                source=source,
+                workdir=workdir,
+                run=run,
+                fhour=fhour,
+            )
+        ]
+    if derivation.type == DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS:
+        return _extract_gfs_precip_type_overlay(
+            artifact=artifact,
+            grid=grid,
+            source=source,
+            workdir=workdir,
+            run=run,
+        )
+    if derivation.type == DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS:
+        return _extract_icon_precip_type_overlay(
             artifact=artifact,
             grid=grid,
             source=source,
@@ -50,23 +72,17 @@ def extract_derived_artifact_band(
             run=run,
             fhour=fhour,
         )
-    if derivation.type == DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES:
-        return _extract_gfs_precip_type(
-            artifact=artifact,
-            grid=grid,
-            source=source,
-            workdir=workdir,
-            run=run,
-        )
     if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
-        return _extract_icon_ww_artifact(
-            artifact=artifact,
-            grid=grid,
-            source=source,
-            workdir=workdir,
-            run=run,
-            derivation_type=derivation.type,
-        )
+        return [
+            _extract_icon_ww_artifact(
+                artifact=artifact,
+                grid=grid,
+                source=source,
+                workdir=workdir,
+                run=run,
+                derivation_type=derivation.type,
+            )
+        ]
     raise SystemExit(f"Unsupported artifact derivation for {artifact.id}: {derivation.type!r}")
 
 
@@ -100,17 +116,28 @@ def _extract_icon_tot_prec_delta_rate(
     )
 
 
-def _extract_gfs_precip_type(
+def _extract_gfs_precip_type_overlay(
     *,
     artifact: ArtifactSpec,
     grid: dict[str, Any],
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-) -> ExtractedBand:
-    output_component_id = _single_output_component_id(
+) -> list[ExtractedBand]:
+    _validate_output_component_ids(
         artifact=artifact,
-        derivation_type=DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
+        expected_component_ids=PRECIP_TYPE_OVERLAY_COMPONENT_IDS,
+    )
+    input_items = _derivation_inputs(
+        artifact=artifact,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
+    )
+    _validate_derivation_input_ids(
+        artifact=artifact,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
+        expected_input_ids=GFS_PRECIP_TYPE_OVERLAY_INPUT_IDS,
+        input_items=input_items,
     )
     input_bands = {
         input_item.id: _extract_derivation_input_band(
@@ -121,19 +148,69 @@ def _extract_gfs_precip_type(
             workdir=workdir,
             run=run,
         )
-        for input_item in _derivation_inputs(
-            artifact=artifact,
-            derivation_type=DERIVATION_PRECIP_TYPE_FROM_GFS_CATEGORIES,
-        )
+        for input_item in input_items
     }
-    return ExtractedBand(
-        component_id=output_component_id,
-        source_f32_bytes=precip_type_from_gfs_category_bytes(
-            input_bands=input_bands,
-            artifact_id=artifact.id,
-        ),
-        source_byte_order="little",
+    output_bytes = precip_type_overlay_from_gfs_bytes(
+        input_bands=input_bands,
+        artifact_id=artifact.id,
     )
+    return _bands_from_component_bytes(artifact=artifact, component_bytes=output_bytes)
+
+
+def _extract_icon_precip_type_overlay(
+    *,
+    artifact: ArtifactSpec,
+    grid: dict[str, Any],
+    source: PreparedSource,
+    workdir: Path,
+    run: RunFn,
+    fhour: str | None,
+) -> list[ExtractedBand]:
+    _validate_output_component_ids(
+        artifact=artifact,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
+        expected_component_ids=PRECIP_TYPE_OVERLAY_COMPONENT_IDS,
+    )
+    if artifact.temporal is None or artifact.temporal.source_interval_hours is None:
+        raise SystemExit(
+            f"Artifact derivation {DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS!r} "
+            f"requires source_interval_hours for {artifact.id}"
+        )
+    if fhour is None:
+        raise SystemExit(
+            f"Artifact derivation {DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS!r} "
+            f"requires forecast hour context for {artifact.id}"
+        )
+
+    input_items = _derivation_inputs(
+        artifact=artifact,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
+    )
+    _validate_derivation_input_ids(
+        artifact=artifact,
+        derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
+        expected_input_ids=ICON_PRECIP_TYPE_OVERLAY_INPUT_IDS,
+        input_items=input_items,
+    )
+    input_bands = {
+        input_item.id: _extract_icon_accumulation_rate_band(
+            artifact=artifact,
+            derivation_type=DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
+            component_id=input_item.id,
+            input_item=input_item,
+            grid=grid,
+            source=source,
+            workdir=workdir,
+            run=run,
+            fhour=fhour,
+        )
+        for input_item in input_items
+    }
+    output_bytes = precip_type_overlay_from_icon_component_rates_bytes(
+        input_bands=input_bands,
+        artifact_id=artifact.id,
+    )
+    return _bands_from_component_bytes(artifact=artifact, component_bytes=output_bytes)
 
 
 def _extract_icon_ww_artifact(
@@ -162,9 +239,7 @@ def _extract_icon_ww_artifact(
         workdir=workdir,
         run=run,
     )
-    if derivation_type == DERIVATION_PRECIP_TYPE_FROM_ICON_WW:
-        source_f32_bytes = precip_type_from_icon_ww_bytes(ww_band=ww_band)
-    elif derivation_type == DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW:
+    if derivation_type == DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW:
         source_f32_bytes = thunderstorm_mask_from_icon_ww_bytes(ww_band=ww_band)
     else:
         raise SystemExit(
@@ -175,6 +250,29 @@ def _extract_icon_ww_artifact(
         source_f32_bytes=source_f32_bytes,
         source_byte_order="little",
     )
+
+
+def _bands_from_component_bytes(
+    *,
+    artifact: ArtifactSpec,
+    component_bytes: dict[str, bytes],
+) -> list[ExtractedBand]:
+    bands: list[ExtractedBand] = []
+    for component in artifact.components:
+        try:
+            source_f32_bytes = component_bytes[component.id]
+        except KeyError:
+            raise SystemExit(
+                f"Artifact derivation output for {artifact.id} is missing component {component.id!r}"
+            ) from None
+        bands.append(
+            ExtractedBand(
+                component_id=component.id,
+                source_f32_bytes=source_f32_bytes,
+                source_byte_order="little",
+            )
+        )
+    return bands
 
 
 def _extract_icon_accumulation_rate_band(
@@ -296,6 +394,35 @@ def _single_output_component_id(*, artifact: ArtifactSpec, derivation_type: str)
             f"requires exactly one output component for {artifact.id}"
         )
     return artifact.components[0].id
+
+
+def _validate_output_component_ids(
+    *,
+    artifact: ArtifactSpec,
+    derivation_type: str,
+    expected_component_ids: tuple[str, ...],
+) -> None:
+    component_ids = artifact.component_ids
+    if component_ids != expected_component_ids:
+        raise SystemExit(
+            f"Artifact derivation {derivation_type!r} requires output components "
+            f"{list(expected_component_ids)!r} for {artifact.id}, got {list(component_ids)!r}"
+        )
+
+
+def _validate_derivation_input_ids(
+    *,
+    artifact: ArtifactSpec,
+    derivation_type: str,
+    expected_input_ids: tuple[str, ...],
+    input_items: tuple[DerivationInputSpec, ...],
+) -> None:
+    input_ids = tuple(input_item.id for input_item in input_items)
+    if input_ids != expected_input_ids:
+        raise SystemExit(
+            f"Artifact derivation {derivation_type!r} requires inputs "
+            f"{list(expected_input_ids)!r} for {artifact.id}, got {list(input_ids)!r}"
+        )
 
 
 def _derivation_inputs(*, artifact: ArtifactSpec, derivation_type: str) -> tuple[DerivationInputSpec, ...]:

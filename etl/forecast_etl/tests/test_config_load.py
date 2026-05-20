@@ -8,6 +8,7 @@ from forecast_etl.config.load import load_pipeline_config, merge_pipeline_config
 from forecast_etl.config.resolved import IconDwdSourceConfig
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_cover_config,
+    icon_precip_type_config,
     precip_rate_config,
     precip_total_config,
     precip_type_config,
@@ -152,7 +153,7 @@ class ConfigValidationTest(unittest.TestCase):
 
     def test_pipeline_config_parses_derivation_inputs_separately_from_output_components(self) -> None:
         cfg = minimal_pipeline_config()
-        artifact_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        artifact_config = precip_type_config()
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["models"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
         cfg["models"]["gfs"]["artifacts"] = {
@@ -162,17 +163,17 @@ class ConfigValidationTest(unittest.TestCase):
         parsed = parse_pipeline_config(cfg)
         artifact = parsed.model("gfs").artifacts["precip_type_surface"]
 
-        self.assertEqual(artifact.component_ids, ("value",))
-        self.assertIsNone(artifact.components[0].grib_match)
+        self.assertEqual(artifact.component_ids, ("snow_frac", "mix_frac"))
+        self.assertTrue(all(component.grib_match is None for component in artifact.components))
         assert artifact.derivation is not None
         self.assertEqual(
             [input_item.id for input_item in artifact.derivation.inputs],
-            ["rain", "freezing_rain", "ice_pellets", "snow"],
+            ["precip_rate", "frozen_percent", "rain", "freezing_rain", "ice_pellets", "snow"],
         )
 
     def test_pipeline_config_rejects_gfs_precip_type_without_derivation_inputs(self) -> None:
         cfg = minimal_pipeline_config()
-        artifact_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        artifact_config = precip_type_config()
         artifact_config["derivation"]["inputs"] = []
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["models"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
@@ -187,7 +188,7 @@ class ConfigValidationTest(unittest.TestCase):
 
     def test_pipeline_config_rejects_derived_output_component_source_selector(self) -> None:
         cfg = minimal_pipeline_config()
-        artifact_config = precip_type_config(derivation_type="precip_type_from_gfs_categories")
+        artifact_config = precip_type_config()
         artifact_config["components"][0]["grib_match"] = {"GRIB_ELEMENT": "CRAIN"}
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["models"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
@@ -200,11 +201,9 @@ class ConfigValidationTest(unittest.TestCase):
 
         self.assertIn("put source selectors in derivation.inputs", str(raised.exception))
 
-    def test_pipeline_config_parses_icon_weather_code_overlay_artifacts(self) -> None:
+    def test_pipeline_config_parses_icon_weather_code_thunderstorm_artifact(self) -> None:
         cfg = minimal_pipeline_config()
-        precip_type = precip_type_config(derivation_type="precip_type_from_icon_ww")
         thunderstorm = thunderstorm_mask_config()
-        cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(precip_type)
         cfg["artifact_catalog"]["thunderstorm_mask"] = catalog_artifact(thunderstorm)
         cfg["models"]["icon"] = {
             "label": "ICON",
@@ -217,10 +216,9 @@ class ConfigValidationTest(unittest.TestCase):
             "workload": {
                 "forecast_hour_start": 0,
                 "forecast_hour_end": 0,
-                "artifacts": ["precip_type_surface", "thunderstorm_mask"],
+                "artifacts": ["thunderstorm_mask"],
             },
             "artifacts": {
-                "precip_type_surface": model_artifact(precip_type),
                 "thunderstorm_mask": model_artifact(thunderstorm),
             },
         }
@@ -228,8 +226,41 @@ class ConfigValidationTest(unittest.TestCase):
         parsed = parse_pipeline_config(cfg)
         icon = parsed.model("icon")
 
-        self.assertEqual(icon.artifacts["precip_type_surface"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
         self.assertEqual(icon.artifacts["thunderstorm_mask"].derivation.inputs[0].grib_match["ICON_PARAM"], "ww")
+
+    def test_pipeline_config_parses_icon_precip_type_component_overlay(self) -> None:
+        cfg = minimal_pipeline_config()
+        precip_type = icon_precip_type_config()
+        cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(precip_type)
+        cfg["models"]["icon"] = {
+            "label": "ICON",
+            "source": {
+                "type": "icon_dwd_icosahedral",
+                "grid_id": "icon_global_regridded_0p125",
+                "base_url": "https://opendata.dwd.de/weather/nwp/icon/grib",
+                "rate_limit_seconds": 0.0,
+            },
+            "workload": {
+                "forecast_hour_start": 0,
+                "forecast_hour_end": 0,
+                "artifacts": ["precip_type_surface"],
+            },
+            "artifacts": {
+                "precip_type_surface": model_artifact(precip_type),
+            },
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        artifact = parsed.model("icon").artifacts["precip_type_surface"]
+
+        self.assertEqual(artifact.component_ids, ("snow_frac", "mix_frac"))
+        assert artifact.temporal is not None
+        self.assertEqual(artifact.temporal.kind, "average_rate")
+        assert artifact.derivation is not None
+        self.assertEqual(
+            [input_item.grib_match["ICON_PARAM"] for input_item in artifact.derivation.inputs],
+            ["rain_gsp", "rain_con", "snow_gsp", "snow_con"],
+        )
 
     def test_pipeline_config_rejects_icon_dwd_artifact_without_icon_param(self) -> None:
         cfg = minimal_pipeline_config()

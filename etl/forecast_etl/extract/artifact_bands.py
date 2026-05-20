@@ -8,7 +8,7 @@ from typing import Any
 from ..config.resolved import ArtifactSpec, ComponentSpec
 from ..proc import RunFn
 from ..source_adapters.base import PreparedSource
-from .derived_artifact_bands import extract_derived_artifact_band
+from .derived_artifact_bands import extract_derived_artifact_bands
 from .source_bands import extract_source_band
 from .types import ExtractedBand
 
@@ -25,16 +25,14 @@ def extract_artifact_bands(
     """Extract all output bands for one artifact."""
 
     if artifact.derivation is not None:
-        return [
-            extract_derived_artifact_band(
-                artifact=artifact,
-                grid=grid,
-                source=source,
-                workdir=workdir,
-                run=run,
-                fhour=fhour,
-            )
-        ]
+        return extract_derived_artifact_bands(
+            artifact=artifact,
+            grid=grid,
+            source=source,
+            workdir=workdir,
+            run=run,
+            fhour=fhour,
+        )
 
     return [
         extract_source_band(

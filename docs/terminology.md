@@ -58,15 +58,11 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
 ## Rendering Terms
 
 - `field`: a renderable scalar grid for a selected layer at one time slice. A
-  field may come from a scalar artifact, a derived vector recipe, or a composite
-  base. Vector wind is not a field unless converted into scalar field data for a
-  layer such as Wind Speed.
-- `field overlay`: optional scalar data loaded with a field to influence
-  rendering, such as `precip_type_surface`.
-- `classified field`: a field rendered with a classifier overlay that selects a
-  colortable while the base field supplies magnitude.
-- `classifier overlay`: a field overlay used only to choose a colortable or
-  class, such as `precip_type_surface`. It does not supply field magnitude.
+  field may come from a scalar artifact or a derived vector recipe. Vector wind
+  is not a field unless converted into scalar field data for a layer such as
+  Wind Speed.
+- `staged overlay artifact`: model data published for a future render overlay
+  but not currently loaded with a field, such as `precip_type_surface`.
 - `particle time-slice data`: decoded vector data prepared for the particle
   render channel at one time slice.
 - `render channel`: a top-level Weather Map rendering surface, currently
