@@ -1,6 +1,6 @@
 # Weather Map Roadmap
 
-Last updated: 2026-05-19
+Last updated: 2026-05-21
 
 This roadmap tracks the next meaningful app and engineering directions for
 Weather Map. It is intentionally concise: use it to decide what matters next,
@@ -29,37 +29,6 @@ Decide whether map-level options such as globe projection or drag rotation
 belong in the app UI.
 
 Treat this as app design plus renderer validation, not just adding toggles.
-
-## Forecast Layer Follow-Ups
-
-### Proposed Catalog Items
-
-Candidate additions and unsettled catalog choices live in
-`forecast-catalog-candidates.md` until they are implemented and promoted into
-`forecast-layer-registry.md`.
-
-### Thunderstorm Rendering
-
-Decide how `thunderstorm_mask` should affect future storm or precipitation
-overlay rendering.
-
-The artifact is ICON-only for now. Do not fake GFS thunder with CAPE,
-reflectivity, or other storm proxies unless that tradeoff is explicitly chosen.
-Prefer a subtle, bounded visual cue over dense glyphs or noisy overlays.
-
-### Composite Cloud Layer
-
-Consider reintroducing a combined Cloud Layers view as a frontend composite
-recipe over `low_clouds`, `medium_clouds`, and `high_clouds`.
-
-Do not bring back packed scalar artifacts. The individual cloud layers should
-remain available even if a combined view is added.
-
-### Precipitation Type Legend
-
-Add legend/support UI for the automatic precipitation type overlay. It should
-explain the snowflake and winter-mix ice-dash glyphs without turning
-`precip_type_surface` into a separate selectable layer.
 
 ## Operational Follow-Ups
 
