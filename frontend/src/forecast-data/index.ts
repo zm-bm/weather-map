@@ -29,4 +29,6 @@ export type {
   ParticleInterpolationWindowData,
   PrecipTypeOverlayTimeSliceData,
   PrecipTypeOverlayInterpolationWindowData,
+  PressureContourTimeSliceData,
+  PressureContourInterpolationWindowData,
 } from './types'

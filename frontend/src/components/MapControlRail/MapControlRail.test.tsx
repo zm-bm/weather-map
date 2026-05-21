@@ -59,6 +59,7 @@ describe('MapControlRail', () => {
     const previousColorSamplingMode = fieldRuntimeOptions.colorSamplingMode
     const previousClearTrailsOnViewChange = particleRuntimeOptions.clearTrailsOnViewChange
     const onParticlesEnabledChange = vi.fn()
+    const onPressureContoursEnabledChange = vi.fn()
     fieldRuntimeOptions.colorSamplingMode = 'interpolated'
     particleRuntimeOptions.clearTrailsOnViewChange = true
 
@@ -69,15 +70,19 @@ describe('MapControlRail', () => {
           mapReadyVersion={1}
           playlistUrl={PLAYLIST_URL}
           particlesEnabled
+          pressureContoursEnabled
           onParticlesEnabledChange={onParticlesEnabledChange}
+          onPressureContoursEnabledChange={onPressureContoursEnabledChange}
         />
       )
 
       fireEvent.click(screen.getByRole('button', { name: 'Map options' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show pressure contours' }))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
       fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
 
+      expect(onPressureContoursEnabledChange).toHaveBeenCalledWith(false)
       expect(onParticlesEnabledChange).toHaveBeenCalledWith(false)
       expect(fieldRuntimeOptions.colorSamplingMode).toBe('banded')
       expect(particleRuntimeOptions.clearTrailsOnViewChange).toBe(false)

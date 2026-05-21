@@ -82,6 +82,32 @@ describe('useForecastDataPrefetch', () => {
     }))
   })
 
+  it('omits pressure contour prefetch when contours are disabled', async () => {
+    const config = createConfigFixture()
+    const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
+      scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
+      forecastHours: ['000', '003'],
+    }))
+    const target = createTarget({ activeRun })
+
+    renderHook(() => useForecastDataPrefetch({
+      config,
+      target,
+      enabled: true,
+      pressureContoursEnabled: false,
+    }))
+
+    await waitFor(() => {
+      expect(mocks.prefetchForecastData).toHaveBeenCalledTimes(1)
+    })
+
+    expect(mocks.prefetchForecastData).toHaveBeenCalledWith(expect.objectContaining({
+      plan: expect.objectContaining({
+        pressureContours: null,
+      }),
+    }))
+  })
+
   it('aborts queued prefetch work when disabled', async () => {
     const observedSignals: AbortSignal[] = []
     const observeSignal = (args: { signal: AbortSignal }) => {

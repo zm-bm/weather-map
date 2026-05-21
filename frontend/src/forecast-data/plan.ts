@@ -3,12 +3,14 @@ import type { ActiveForecastRun } from '../forecast-manifest'
 import { createFieldChannel } from './field'
 import { createParticleChannel } from './particles'
 import { createPrecipTypeOverlayChannel } from './precip-type-overlay'
+import { createPressureContourChannel } from './pressure-contours'
 import type { ForecastDataTarget } from './target'
 import type {
   FieldTimeSliceData,
   ForecastDataChannel,
   ParticleTimeSliceData,
   PrecipTypeOverlayTimeSliceData,
+  PressureContourTimeSliceData,
 } from './types'
 
 export type ForecastDataPlan = {
@@ -19,12 +21,14 @@ export type ForecastDataPlan = {
   mix: number
   field: ForecastDataChannel<FieldTimeSliceData>
   precipTypeOverlay: ForecastDataChannel<PrecipTypeOverlayTimeSliceData> | null
+  pressureContours: ForecastDataChannel<PressureContourTimeSliceData> | null
   particles: ForecastDataChannel<ParticleTimeSliceData> | null
 }
 
 type CreateForecastDataPlanArgs = {
   target: ForecastDataTarget
   artifacts: ArtifactLoader
+  pressureContoursEnabled?: boolean
 }
 
 export function createForecastDataPlan(args: CreateForecastDataPlanArgs): ForecastDataPlan {
@@ -38,6 +42,12 @@ export function createForecastDataPlan(args: CreateForecastDataPlanArgs): Foreca
     activeRun: args.target.activeRun,
     layer: args.target.selectedLayer,
   })
+  const pressureContours = args.pressureContoursEnabled === false
+    ? null
+    : createPressureContourChannel({
+      artifacts: args.artifacts,
+      activeRun: args.target.activeRun,
+    })
   const particles = args.target.selectedParticleLayer == null
     ? null
     : createParticleChannel({
@@ -54,6 +64,7 @@ export function createForecastDataPlan(args: CreateForecastDataPlanArgs): Foreca
     mix: args.target.mix,
     field,
     precipTypeOverlay,
+    pressureContours,
     particles,
   }
 }

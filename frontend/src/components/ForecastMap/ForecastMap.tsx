@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import config from '../../config'
 import {
-  DEFAULT_FORECAST_RENDER_PROFILE,
   useForecastRenderHost,
+  type ForecastRendererId,
   type ForecastRenderProfile,
 } from '../../forecast-render'
 import { useForecastSync } from '../../forecast-sync'
@@ -15,19 +15,42 @@ export type ForecastMapProps = {
   containerId?: string
 }
 
-const FIELD_ONLY_RENDER_PROFILE = {
-  key: 'field-only',
-  rendererIds: ['field', 'field-overlay'],
-} as const satisfies ForecastRenderProfile
+type ForecastMapRenderOptions = {
+  particlesEnabled: boolean
+  pressureContoursEnabled: boolean
+}
+
+function createForecastMapRenderProfile({
+  particlesEnabled,
+  pressureContoursEnabled,
+}: ForecastMapRenderOptions): ForecastRenderProfile {
+  const rendererIds: ForecastRendererId[] = ['field', 'field-overlay']
+  if (pressureContoursEnabled) rendererIds.push('contour-overlay')
+  if (particlesEnabled) rendererIds.push('particles')
+
+  return {
+    key: [
+      'field',
+      pressureContoursEnabled ? 'contours' : 'no-contours',
+      particlesEnabled ? 'particles' : 'no-particles',
+    ].join('-'),
+    rendererIds,
+  }
+}
 
 export default function ForecastMap({
   containerId = 'map',
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const [particlesEnabled, setParticlesEnabled] = useState(true)
-  const renderProfile = particlesEnabled
-    ? DEFAULT_FORECAST_RENDER_PROFILE
-    : FIELD_ONLY_RENDER_PROFILE
+  const [pressureContoursEnabled, setPressureContoursEnabled] = useState(true)
+  const renderProfile = useMemo(
+    () => createForecastMapRenderProfile({
+      particlesEnabled,
+      pressureContoursEnabled,
+    }),
+    [particlesEnabled, pressureContoursEnabled],
+  )
   const renderHost = useForecastRenderHost({
     getMap,
     mapReadyVersion,
@@ -37,6 +60,7 @@ export default function ForecastMap({
   useForecastSync({
     renderHost,
     config,
+    pressureContoursEnabled,
   })
 
   return (
@@ -46,7 +70,9 @@ export default function ForecastMap({
         mapRef={mapRef}
         mapReadyVersion={mapReadyVersion}
         particlesEnabled={particlesEnabled}
+        pressureContoursEnabled={pressureContoursEnabled}
         onParticlesEnabledChange={setParticlesEnabled}
+        onPressureContoursEnabledChange={setPressureContoursEnabled}
       />
       <ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={mapReadyVersion} />
     </div>

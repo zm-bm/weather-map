@@ -13,6 +13,7 @@ import { prefetchForecastData } from './prefetch'
 const loaders = {
   field: vi.fn(),
   precipTypeOverlay: vi.fn(),
+  pressureContours: vi.fn(),
   particles: vi.fn(),
 }
 
@@ -29,6 +30,7 @@ function deferred<T>() {
 function createPlan(args: {
   forecastHours?: string[]
   includeOverlay?: boolean
+  includeContours?: boolean
   includeParticles?: boolean
   lowerHourToken?: string
   upperHourToken?: string
@@ -75,6 +77,12 @@ function createPlan(args: {
         load: loaders.precipTypeOverlay,
       }
       : null,
+    pressureContours: args.includeContours === true
+      ? {
+        key: 'pressure-contours:key',
+        load: loaders.pressureContours,
+      }
+      : null,
     particles: args.includeParticles === false
       ? null
       : {
@@ -89,6 +97,7 @@ describe('prefetchForecastData', () => {
     vi.clearAllMocks()
     loaders.field.mockResolvedValue({ layerId: 'temperature' })
     loaders.precipTypeOverlay.mockResolvedValue({ artifactId: 'precip_type_surface' })
+    loaders.pressureContours.mockResolvedValue({ artifactId: 'prmsl_msl' })
     loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
   })
 
@@ -113,6 +122,33 @@ describe('prefetchForecastData', () => {
       '009',
     ])
     expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
+    expect(loaders.pressureContours).not.toHaveBeenCalled()
+  })
+
+  it('prefetches pressure contour payloads when the contour channel is planned', async () => {
+    await prefetchForecastData({
+      plan: createPlan({
+        includeContours: true,
+        includeParticles: false,
+        lowerHourToken: '0',
+        upperHourToken: '3',
+      }),
+      aheadHourCount: 1,
+      concurrency: 2,
+      signal: createSignalFixture(),
+    })
+
+    expect(loaders.field.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+      '000',
+      '003',
+      '006',
+    ])
+    expect(loaders.pressureContours.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+      '000',
+      '003',
+      '006',
+    ])
+    expect(loaders.particles).not.toHaveBeenCalled()
   })
 
   it('limits prefetch concurrency across planned channels', async () => {
@@ -183,6 +219,7 @@ describe('prefetchForecastData', () => {
 
     expect(loaders.field).toHaveBeenCalledTimes(3)
     expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
+    expect(loaders.pressureContours).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
   })
 })

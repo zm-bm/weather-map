@@ -20,6 +20,7 @@ function dataPlan(args: {
   manifest: ReturnType<typeof createSingleTimeManifestFixture>
   layerId?: string
   includeParticles?: boolean
+  pressureContoursEnabled?: boolean
 }) {
   const activeRun = createActiveRunFixture(args.manifest)
   const selectedLayer = FORECAST_LAYERS_BY_ID[args.layerId ?? 'temperature']!
@@ -50,6 +51,7 @@ function dataPlan(args: {
       activeRun,
       signal: createSignalFixture(),
     }),
+    pressureContoursEnabled: args.pressureContoursEnabled,
   })
 }
 
@@ -66,6 +68,7 @@ describe('createForecastDataPlan', () => {
     expect(plan.field.key).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
     expect(plan.particles?.key).toBe('gfs:2026040900:rev:wind:wind10m_uv')
     expect(plan.precipTypeOverlay).toBeNull()
+    expect(plan.pressureContours).toBeNull()
     expect(plan.lowerHourToken).toBe('000')
     expect(plan.upperHourToken).toBe('000')
   })
@@ -82,6 +85,7 @@ describe('createForecastDataPlan', () => {
     expect(plan.field.key).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface')
     expect(plan.particles).toBeNull()
     expect(plan.precipTypeOverlay).toBeNull()
+    expect(plan.pressureContours).toBeNull()
   })
 
   it('builds a precipitation type overlay channel when the optional artifact exists', () => {
@@ -102,6 +106,64 @@ describe('createForecastDataPlan', () => {
 
     expect(plan.field.key).toBe('gfs:2026040900:rev:precipitation_rate:artifact:prate_surface')
     expect(plan.precipTypeOverlay).not.toBeNull()
+  })
+
+  it('builds a pressure contour channel when mean sea-level pressure exists', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
+          prmsl_msl: createScalarArtifactFixture({
+            id: 'prmsl_msl',
+            units: 'Pa',
+            parameter: 'prmsl',
+            level: 'mean sea level',
+          }),
+        },
+      }),
+      layerId: 'temperature',
+      includeParticles: false,
+    })
+
+    expect(plan.pressureContours?.key).toBe('gfs:2026040900:rev:pressure-contours:prmsl_msl')
+  })
+
+  it('omits the pressure contour channel when mean sea-level pressure is missing', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
+        },
+      }),
+      layerId: 'temperature',
+      includeParticles: false,
+    })
+
+    expect(plan.pressureContours).toBeNull()
+  })
+
+  it('omits the pressure contour channel when map contours are disabled', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
+          prmsl_msl: createScalarArtifactFixture({
+            id: 'prmsl_msl',
+            units: 'Pa',
+            parameter: 'prmsl',
+            level: 'mean sea level',
+          }),
+        },
+      }),
+      layerId: 'temperature',
+      includeParticles: false,
+      pressureContoursEnabled: false,
+    })
+
+    expect(plan.pressureContours).toBeNull()
   })
 
   it('omits the precipitation type overlay channel for layers without that overlay', () => {

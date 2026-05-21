@@ -2,6 +2,7 @@ import type { ForecastDataPlan } from './plan'
 import {
   NO_PARTICLES_KEY,
   NO_PRECIP_TYPE_OVERLAY_KEY,
+  NO_PRESSURE_CONTOURS_KEY,
 } from './keys'
 import type {
   ForecastRenderData,
@@ -11,6 +12,7 @@ import type {
 type CommittedForecastRenderData = {
   fieldChannelKey: string
   precipTypeOverlayChannelKey: string
+  pressureContourChannelKey: string
   particleChannelKey: string
   bundle: ForecastRenderData
 }
@@ -31,10 +33,17 @@ export function createForecastDataMemory(): ForecastDataMemory {
 
       return {
         field: committed.fieldChannelKey === plan.field.key ? committed.bundle.field : null,
-        precipTypeOverlay: committed.precipTypeOverlayChannelKey === precipTypeOverlayKey(plan)
+        precipTypeOverlay: plan.precipTypeOverlay != null &&
+          committed.precipTypeOverlayChannelKey === precipTypeOverlayKey(plan)
           ? committed.bundle.precipTypeOverlay
           : null,
-        particles: committed.particleChannelKey === particleKey(plan) ? committed.bundle.particles : null,
+        pressureContours: plan.pressureContours != null &&
+          committed.pressureContourChannelKey === pressureContourKey(plan)
+          ? committed.bundle.pressureContours
+          : null,
+        particles: plan.particles != null && committed.particleChannelKey === particleKey(plan)
+          ? committed.bundle.particles
+          : null,
       }
     },
     shouldClearFieldProbe(plan) {
@@ -44,6 +53,7 @@ export function createForecastDataMemory(): ForecastDataMemory {
       committed = {
         fieldChannelKey: plan.field.key,
         precipTypeOverlayChannelKey: precipTypeOverlayKey(plan),
+        pressureContourChannelKey: pressureContourKey(plan),
         particleChannelKey: particleKey(plan),
         bundle,
       }
@@ -56,6 +66,10 @@ export function createForecastDataMemory(): ForecastDataMemory {
 
 function precipTypeOverlayKey(plan: ForecastDataPlan): string {
   return plan.precipTypeOverlay?.key ?? NO_PRECIP_TYPE_OVERLAY_KEY
+}
+
+function pressureContourKey(plan: ForecastDataPlan): string {
+  return plan.pressureContours?.key ?? NO_PRESSURE_CONTOURS_KEY
 }
 
 function particleKey(plan: ForecastDataPlan): string {

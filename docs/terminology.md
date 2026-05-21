@@ -62,12 +62,13 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
   field may come from a scalar artifact or a derived vector recipe. Vector wind
   is not a field unless converted into scalar field data for a layer such as
   Wind Speed.
-- `overlay artifact`: optional model data loaded with a base field for an
-  additional render pass, such as `precip_type_surface` on `precipitation_rate`.
+- `overlay artifact`: optional model data loaded for an additional render pass,
+  such as `precip_type_surface` on `precipitation_rate` or map-option-controlled
+  `prmsl_msl` pressure contours.
 - `particle time-slice data`: decoded vector data prepared for the particle
   render channel at one time slice.
 - `render channel`: a top-level Weather Map rendering surface, currently
-  `field`, `field-overlay`, and `particles`.
+  `field`, `field-overlay`, `contour-overlay`, and `particles`.
 - `MapLibre layer`: a MapLibre style or custom-layer primitive. Do not use plain
   `layer` for this in app/domain docs.
 

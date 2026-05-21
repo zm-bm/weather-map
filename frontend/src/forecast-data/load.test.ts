@@ -17,6 +17,7 @@ import { loadForecastData } from './load'
 const loaders = {
   field: vi.fn(),
   precipTypeOverlay: vi.fn(),
+  pressureContours: vi.fn(),
   particles: vi.fn(),
 }
 
@@ -55,6 +56,7 @@ function createTarget(args: {
 
 function createPlan(target: ForecastDataTarget, args: {
   includeOverlay?: boolean
+  includeContours?: boolean
   includeParticles?: boolean
 } = {}): ForecastDataPlan {
   const field = {
@@ -65,6 +67,12 @@ function createPlan(target: ForecastDataTarget, args: {
     ? {
       key: 'precip-type-overlay:key',
       load: loaders.precipTypeOverlay,
+    }
+    : null
+  const pressureContours = args.includeContours === true
+    ? {
+      key: 'pressure-contours:key',
+      load: loaders.pressureContours,
     }
     : null
   const particles = args.includeParticles === false
@@ -82,6 +90,7 @@ function createPlan(target: ForecastDataTarget, args: {
     mix: target.mix,
     field,
     precipTypeOverlay,
+    pressureContours,
     particles,
   }
 }
@@ -95,6 +104,10 @@ describe('loadForecastData', () => {
     }))
     loaders.precipTypeOverlay.mockImplementation(async (hourToken: string) => ({
       artifactId: 'precip_type_surface',
+      hourToken,
+    }))
+    loaders.pressureContours.mockImplementation(async (hourToken: string) => ({
+      artifactId: 'prmsl_msl',
       hourToken,
     }))
     loaders.particles.mockImplementation(async (hourToken: string) => ({
@@ -136,6 +149,7 @@ describe('loadForecastData', () => {
         upperHourToken: '003',
         mix: 0.5,
       },
+      pressureContours: null,
       particles: {
         lower: { artifactId: 'wind10m_uv', hourToken: '000' },
         upper: { artifactId: 'wind10m_uv', hourToken: '003' },
@@ -148,6 +162,7 @@ describe('loadForecastData', () => {
 
     expect(loaders.field).toHaveBeenCalledTimes(2)
     expect(loaders.precipTypeOverlay).toHaveBeenCalledTimes(2)
+    expect(loaders.pressureContours).not.toHaveBeenCalled()
     expect(loaders.particles).toHaveBeenCalledTimes(2)
   })
 
@@ -176,12 +191,41 @@ describe('loadForecastData', () => {
         mix: 0.5,
       },
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: null,
     })
 
     expect(loaders.field).toHaveBeenCalledTimes(2)
     expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
+    expect(loaders.pressureContours).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
+  })
+
+  it('loads optional pressure contour interpolation windows when planned', async () => {
+    const manifest = createManifestFixture({
+      scalarArtifactIds: ['rh_surface', 'prmsl_msl'],
+      vectorArtifactIds: [],
+    })
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
+    const target = createTarget({
+      manifest,
+      selectedLayer,
+      selectedParticleLayer: null,
+    })
+    const plan = createPlan(target, { includeContours: true, includeParticles: false })
+
+    await expect(loadForecastData({ plan })).resolves.toMatchObject({
+      pressureContours: {
+        lower: { artifactId: 'prmsl_msl', hourToken: '000' },
+        upper: { artifactId: 'prmsl_msl', hourToken: '003' },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
+    })
+
+    expect(loaders.pressureContours).toHaveBeenCalledTimes(2)
   })
 
   it('falls back to plain field data when an optional overlay load fails', async () => {
@@ -204,10 +248,39 @@ describe('loadForecastData', () => {
         upper: { layerId: 'relative_humidity', hourToken: '003' },
       },
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: null,
     })
 
     expect(loaders.field).toHaveBeenCalledTimes(2)
     expect(loaders.precipTypeOverlay).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to plain field data when pressure contour loading fails', async () => {
+    const manifest = createManifestFixture({
+      scalarArtifactIds: ['rh_surface', 'prmsl_msl'],
+      vectorArtifactIds: [],
+    })
+    const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
+    const target = createTarget({
+      manifest,
+      selectedLayer,
+      selectedParticleLayer: null,
+    })
+    const plan = createPlan(target, { includeContours: true, includeParticles: false })
+    loaders.pressureContours.mockRejectedValue(new Error('pressure missing'))
+
+    await expect(loadForecastData({ plan })).resolves.toMatchObject({
+      field: {
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
+      },
+      precipTypeOverlay: null,
+      pressureContours: null,
+      particles: null,
+    })
+
+    expect(loaders.field).toHaveBeenCalledTimes(2)
+    expect(loaders.pressureContours).toHaveBeenCalledTimes(2)
   })
 })

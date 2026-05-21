@@ -9,7 +9,7 @@ export type ForecastRenderHost = {
   apply: (data: ForecastRenderData) => void
 }
 
-export type ForecastRendererId = 'field' | 'field-overlay' | 'particles'
+export type ForecastRendererId = 'field' | 'field-overlay' | 'contour-overlay' | 'particles'
 
 export type ForecastRenderProfile = {
   key: string

@@ -14,6 +14,7 @@ import { normalizeHourToken } from './window'
 
 export const NO_PARTICLES_KEY = 'particles:none'
 export const NO_PRECIP_TYPE_OVERLAY_KEY = 'precip-type-overlay:none'
+export const NO_PRESSURE_CONTOURS_KEY = 'pressure-contours:none'
 
 export function createForecastDataRequestKey(args: {
   activeRun: ActiveForecastRun
@@ -62,6 +63,16 @@ export function createPrecipTypeOverlayChannelKey(
   return scopeForecastDataKey(
     activeRun,
     createPrecipTypeOverlayRequestKey(overlay)
+  )
+}
+
+export function createPressureContourChannelKey(
+  activeRun: ActiveForecastRun,
+  artifactId: string
+): string {
+  return scopeForecastDataKey(
+    activeRun,
+    `pressure-contours:${artifactId}`
   )
 }
 

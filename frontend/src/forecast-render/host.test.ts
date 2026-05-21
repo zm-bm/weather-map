@@ -24,17 +24,19 @@ describe('reconcileForecastRenderers', () => {
     const { map, operations } = createLayerMap([
       'field-renderer-layer-id',
       'field-overlay-renderer-layer-id',
+      'contour-overlay-renderer-layer-id',
       'particle-renderer-layer-id',
     ])
-    const fieldOnlyProfile = {
-      key: 'field-only',
+    const noOverlayProfile = {
+      key: 'no-overlays',
       rendererIds: ['field', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileForecastRenderers(map as never, fieldOnlyProfile)
+    reconcileForecastRenderers(map as never, noOverlayProfile)
 
     expect(operations).toEqual([
       { kind: 'remove-layer', id: 'particle-renderer-layer-id' },
+      { kind: 'remove-layer', id: 'contour-overlay-renderer-layer-id' },
     ])
   })
 
@@ -66,6 +68,15 @@ function createLayerMap(initialLayers: readonly string[] = []) {
     addLayer(layer: { id: string }, beforeId?: string) {
       layers.add(layer.id)
       operations.push({ kind: 'layer', id: layer.id, beforeId })
+    },
+    getSource() {
+      return undefined
+    },
+    addSource() {
+      return undefined
+    },
+    removeSource() {
+      return undefined
     },
     removeLayer(id: string) {
       layers.delete(id)

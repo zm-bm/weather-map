@@ -9,6 +9,8 @@ This document defines the forecast choices the product presents to users:
 
 - `layer_id`: selectable field layer
 - `particle_layer_id`: selectable particle layer
+- `overlay_id`: non-selectable renderer overlay, either automatic from a layer
+  recipe or controlled by map options
 - `group_id`: layer browsing group
 
 It does **not** define ETL payload schemas, artifact encodings, or per-model
@@ -24,12 +26,13 @@ Related docs:
 ## Scope And Rules
 
 1. A layer is a user-facing weather concept, not a raw provider field or ETL payload.
-2. A particle layer is a separate user-facing render choice, not a field layer.
-3. A group is a browsing category for layers, not an artifact family.
-4. Time semantics must be explicit: instantaneous, rate, fixed-window accumulation, or run total.
-5. Source descriptions here stay at the frontend recipe level: direct artifact, derived artifact recipe, or optional overlay.
-6. Model-specific availability, upstream field selection, and derivation details belong in `forecast-model-mapping.md`.
-7. ETL payload kinds, components, and encodings belong in `forecast-artifact-registry.md`.
+2. An overlay is a renderer behavior, not a selectable filled layer.
+3. A particle layer is a separate user-facing render choice, not a field layer.
+4. A group is a browsing category for layers, not an artifact family.
+5. Time semantics must be explicit: instantaneous, rate, fixed-window accumulation, or run total.
+6. Source descriptions here stay at the frontend recipe level: direct artifact, derived artifact recipe, or optional overlay.
+7. Model-specific availability, upstream field selection, and derivation details belong in `forecast-model-mapping.md`.
+8. ETL payload kinds, components, and encodings belong in `forecast-artifact-registry.md`.
 
 ## Layer Groups
 
@@ -106,6 +109,12 @@ at z6.
 | Particle layer id | Label | Source recipe | Time semantics | Notes |
 | --- | --- | --- | --- | --- |
 | `wind` | Wind | direct vector artifact `wind10m_uv` | instantaneous | Animated 10m wind particles from ordered `u` and `v` components. |
+
+## Map Overlays
+
+| Overlay id | Label | Source recipe | Time semantics | Renderer | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered 4 hPa mean-sea-level pressure contours from a lightly smoothed pressure surface. V1 draws unlabeled solid white lines with a faint separation halo. |
 
 ## Candidate Future Layers
 

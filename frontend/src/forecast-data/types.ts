@@ -37,25 +37,40 @@ export type PrecipTypeOverlayTimeSliceData = {
   mixFrac: Float32Array
 }
 
+export type PressureContourTimeSliceData = {
+  hourToken: string
+  artifactId: string
+  grid: ScalarGridSpec
+  pressureHpa: Float32Array
+}
+
 export type ParticleTimeSliceData = VectorArtifactData
 
-export type ForecastDataChannel<T = FieldTimeSliceData | ParticleTimeSliceData | PrecipTypeOverlayTimeSliceData> = {
+export type ForecastDataChannel<T =
+  | FieldTimeSliceData
+  | ParticleTimeSliceData
+  | PrecipTypeOverlayTimeSliceData
+  | PressureContourTimeSliceData
+> = {
   key: string
   load: (hourToken: string) => Promise<T>
 }
 
 export type FieldInterpolationWindowData = LoadedInterpolationWindow<FieldTimeSliceData>
 export type PrecipTypeOverlayInterpolationWindowData = LoadedInterpolationWindow<PrecipTypeOverlayTimeSliceData>
+export type PressureContourInterpolationWindowData = LoadedInterpolationWindow<PressureContourTimeSliceData>
 export type ParticleInterpolationWindowData = LoadedInterpolationWindow<ParticleTimeSliceData>
 
 export type ForecastRenderData = {
   field: FieldInterpolationWindowData
   precipTypeOverlay: PrecipTypeOverlayInterpolationWindowData | null
+  pressureContours: PressureContourInterpolationWindowData | null
   particles: ParticleInterpolationWindowData | null
 }
 
 export type PreviousForecastInterpolationWindows = {
   field?: FieldInterpolationWindowData | null
   precipTypeOverlay?: PrecipTypeOverlayInterpolationWindowData | null
+  pressureContours?: PressureContourInterpolationWindowData | null
   particles?: ParticleInterpolationWindowData | null
 }

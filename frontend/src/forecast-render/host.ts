@@ -10,11 +10,13 @@ import type {
 } from './types'
 import { fieldRenderer } from './field'
 import { fieldOverlayRenderer } from './field-overlay'
+import { contourOverlayRenderer } from './contour-overlay'
 import { particleRenderer } from './particles'
 
 const forecastRenderers: readonly ForecastRenderer[] = [
   fieldRenderer,
   fieldOverlayRenderer,
+  contourOverlayRenderer,
   particleRenderer,
 ] as const
 const forecastRenderersById = new Map<ForecastRendererId, ForecastRenderer>(

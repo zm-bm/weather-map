@@ -17,6 +17,7 @@ type UseSyncRunnerArgs = {
   config: WeatherMapConfig
   target: ForecastSyncTarget | null
   startup: StartupState
+  pressureContoursEnabled?: boolean
 }
 
 type RunnerDecision =
@@ -51,6 +52,7 @@ export function useSyncRunner({
   config,
   target,
   startup,
+  pressureContoursEnabled = true,
 }: UseSyncRunnerArgs): void {
   const {
     isBlocked,
@@ -100,7 +102,8 @@ export function useSyncRunner({
       requestKey,
       sync,
     } = syncTarget
-    const renderRequestKey = `${activeRenderHost.version}:${requestKey}`
+    const contourStateKey = pressureContoursEnabled ? 'contours:on' : 'contours:off'
+    const renderRequestKey = `${activeRenderHost.version}:${contourStateKey}:${requestKey}`
     const dataMemory = dataMemoryRef.current
     if (dataMemory == null) return
 
@@ -118,6 +121,7 @@ export function useSyncRunner({
         activeRun: syncTarget.activeRun,
         signal: activeRequest.controller.signal,
       }),
+      pressureContoursEnabled,
     })
 
     if (dataMemory.shouldClearFieldProbe(dataPlan)) {
@@ -162,6 +166,7 @@ export function useSyncRunner({
     handleError,
     handlePending,
     isBlocked,
+    pressureContoursEnabled,
     renderHost,
     target,
   ])

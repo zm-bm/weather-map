@@ -36,9 +36,11 @@ export type MapControlRailProps = {
   layerColorOptions?: FieldRuntimeOptions
   particleOptions?: ParticleRuntimeOptions
   particlesEnabled?: boolean
+  pressureContoursEnabled?: boolean
   onLayerColorSamplingModeChange?: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange?: (nextValue: boolean) => void
   onParticlesEnabledChange?: (nextValue: boolean) => void
+  onPressureContoursEnabledChange?: (nextValue: boolean) => void
 }
 
 const ZOOM_EDGE_EPSILON = 0.0001
@@ -56,6 +58,7 @@ function setParticleClearTrailsOnViewChange(nextValue: boolean) {
 }
 
 const ignoreParticlesEnabledChange: (nextValue: boolean) => void = () => undefined
+const ignorePressureContoursEnabledChange: (nextValue: boolean) => void = () => undefined
 
 function readMapNumber(readValue: () => number): number | null {
   try {
@@ -94,9 +97,11 @@ export default function MapControlRail({
   layerColorOptions = fieldRuntimeOptions,
   particleOptions = particleRuntimeOptions,
   particlesEnabled = true,
+  pressureContoursEnabled = true,
   onLayerColorSamplingModeChange = setLayerColorSamplingMode,
   onClearTrailsOnViewChange = setParticleClearTrailsOnViewChange,
   onParticlesEnabledChange = ignoreParticlesEnabledChange,
+  onPressureContoursEnabledChange = ignorePressureContoursEnabledChange,
 }: MapControlRailProps) {
   const resolvedPlaylistUrl = useMemo(
     () => playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json'),
@@ -176,9 +181,11 @@ export default function MapControlRail({
         layerColorOptions={layerColorOptions}
         particleOptions={particleOptions}
         particlesEnabled={particlesEnabled}
+        pressureContoursEnabled={pressureContoursEnabled}
         onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
         onClearTrailsOnViewChange={onClearTrailsOnViewChange}
         onParticlesEnabledChange={onParticlesEnabledChange}
+        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
       />
     </div>
   )

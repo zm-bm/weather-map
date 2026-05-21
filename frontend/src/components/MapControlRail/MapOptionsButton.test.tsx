@@ -13,14 +13,17 @@ describe('MapOptionsButton', () => {
     const particleOptions = { ...DEFAULT_PARTICLE_RUNTIME_OPTIONS }
     const onLayerColorSamplingModeChange = vi.fn()
     const onParticlesEnabledChange = vi.fn()
+    const onPressureContoursEnabledChange = vi.fn()
     const onClearTrailsOnViewChange = vi.fn()
     const { container, rerender } = render(
       <MapOptionsButton
         layerColorOptions={layerColorOptions}
         particleOptions={particleOptions}
         particlesEnabled={true}
+        pressureContoursEnabled={true}
         onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
         onParticlesEnabledChange={onParticlesEnabledChange}
+        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
         onClearTrailsOnViewChange={onClearTrailsOnViewChange}
       />
     )
@@ -28,6 +31,7 @@ describe('MapOptionsButton', () => {
     const button = container.querySelector('button')
     const panel = container.querySelector('.map-control-options-panel') as HTMLDivElement | null
     const showParticlesCheckbox = screen.getByRole('checkbox', { name: 'Show particles', hidden: true })
+    const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Show pressure contours', hidden: true })
     const clearTrailsCheckbox = screen.getByRole('checkbox', { name: 'Clear trails on view change', hidden: true })
     const bandedRadio = container.querySelector(
       'input[type="radio"][name="layer-color-sampling-mode"][value="banded"]'
@@ -41,6 +45,7 @@ describe('MapOptionsButton', () => {
     expect(particleOptions.clearTrailsOnViewChange).toBe(true)
     expect(bandedRadio?.checked).toBe(false)
     expect(showParticlesCheckbox).toBeChecked()
+    expect(pressureContoursCheckbox).toBeChecked()
     expect(clearTrailsCheckbox).toBeChecked()
 
     button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -55,12 +60,31 @@ describe('MapOptionsButton', () => {
         layerColorOptions={layerColorOptions}
         particleOptions={particleOptions}
         particlesEnabled={false}
+        pressureContoursEnabled={true}
         onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
         onParticlesEnabledChange={onParticlesEnabledChange}
+        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
         onClearTrailsOnViewChange={onClearTrailsOnViewChange}
       />
     )
     expect(showParticlesCheckbox).not.toBeChecked()
+
+    pressureContoursCheckbox.click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onPressureContoursEnabledChange).toHaveBeenCalledWith(false)
+    rerender(
+      <MapOptionsButton
+        layerColorOptions={layerColorOptions}
+        particleOptions={particleOptions}
+        particlesEnabled={false}
+        pressureContoursEnabled={false}
+        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
+        onParticlesEnabledChange={onParticlesEnabledChange}
+        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
+        onClearTrailsOnViewChange={onClearTrailsOnViewChange}
+      />
+    )
+    expect(pressureContoursCheckbox).not.toBeChecked()
 
     bandedRadio?.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -81,8 +105,10 @@ describe('MapOptionsButton', () => {
         layerColorOptions={layerColorOptions}
         particleOptions={particleOptions}
         particlesEnabled={true}
+        pressureContoursEnabled={true}
         onLayerColorSamplingModeChange={vi.fn()}
         onParticlesEnabledChange={vi.fn()}
+        onPressureContoursEnabledChange={vi.fn()}
         onClearTrailsOnViewChange={vi.fn()}
       />
     )

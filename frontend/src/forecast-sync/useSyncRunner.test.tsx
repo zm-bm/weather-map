@@ -84,6 +84,7 @@ type SyncHarnessArgs = {
   renderHost: ForecastRenderHost | null
   config: ReturnType<typeof createConfigFixture>
   syncInput: SyncInput | null
+  pressureContoursEnabled?: boolean
 }
 
 function useSyncHarness(args: SyncHarnessArgs) {
@@ -98,6 +99,7 @@ function useSyncHarness(args: SyncHarnessArgs) {
     config: args.config,
     target,
     startup,
+    pressureContoursEnabled: args.pressureContoursEnabled,
   })
 
   return startup.status
@@ -568,6 +570,38 @@ describe('useSyncRunner + useStartupState', () => {
     }))
   })
 
+  it('omits pressure contours from data loading when the map option is disabled', async () => {
+    const manifest = createManifestFixture({
+      scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
+      vectorArtifactIds: [],
+    })
+    const activeRun = createActiveRunFixture(manifest)
+    const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
+    const args = createBaseArgs({
+      pressureContoursEnabled: false,
+      syncInput: createSyncInput({
+        activeRun,
+        selectedLayerId: selectedLayer.id,
+        selectedLayer,
+        selectedParticleLayerId: null,
+        selectedParticleLayer: null,
+      }),
+    })
+
+    renderHook(() => useSyncHarness(args))
+
+    await waitFor(() => {
+      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
+    })
+
+    expect(mocks.loadForecastData).toHaveBeenCalledWith(expect.objectContaining({
+      plan: expect.objectContaining({
+        pressureContours: null,
+      }),
+    }))
+  })
+
   it('applies render data and publishes the selected layer probe frame after render succeeds', async () => {
     const frames = {
       field: { lower: { layerId: 'relative_humidity' } },
@@ -643,10 +677,10 @@ describe('useSyncRunner + useStartupState', () => {
     expect(mocks.loadForecastData).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        previousWindows: {
+        previousWindows: expect.objectContaining({
           field: firstFrames.field,
           particles: firstFrames.particles,
-        },
+        }),
       })
     )
   })

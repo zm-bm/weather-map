@@ -12,12 +12,14 @@ export type UseForecastDataPrefetchArgs = {
   config: WeatherMapConfig
   target: ForecastSyncTarget | null
   enabled: boolean
+  pressureContoursEnabled?: boolean
 }
 
 export function useForecastDataPrefetch({
   config,
   target,
   enabled,
+  pressureContoursEnabled = true,
 }: UseForecastDataPrefetchArgs): void {
   useEffect(() => {
     if (!enabled || target == null) return
@@ -30,6 +32,7 @@ export function useForecastDataPrefetch({
         activeRun: target.activeRun,
         signal: controller.signal,
       }),
+      pressureContoursEnabled,
     })
 
     void prefetchForecastData({
@@ -44,5 +47,5 @@ export function useForecastDataPrefetch({
     return () => {
       controller.abort()
     }
-  }, [config, enabled, target])
+  }, [config, enabled, pressureContoursEnabled, target])
 }

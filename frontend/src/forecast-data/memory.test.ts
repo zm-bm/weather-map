@@ -8,7 +8,8 @@ import type { ForecastRenderData } from './types'
 function createPlan(
   fieldKey = 'field:temperature',
   particleKey = 'particles:wind:wind10m_uv',
-  overlayKey: string | null = null
+  overlayKey: string | null = null,
+  pressureContourKey: string | null = null
 ): ForecastDataPlan {
   return {
     activeRun: createActiveRunFixture(createSingleTimeManifestFixture()),
@@ -30,6 +31,14 @@ function createPlan(
           throw new Error('test plan overlay loader should not run')
         },
       },
+    pressureContours: pressureContourKey == null
+      ? null
+      : {
+        key: pressureContourKey,
+        load: async () => {
+          throw new Error('test plan pressure contour loader should not run')
+        },
+      },
     particles: particleKey === 'particles:none'
       ? null
       : {
@@ -48,6 +57,7 @@ describe('createForecastDataMemory', () => {
     const frames = {
       field: { lower: { layerId: 'temperature' } },
       precipTypeOverlay: null,
+      pressureContours: { lower: { artifactId: 'prmsl_msl' } },
       particles: { lower: { artifactId: 'wind10m_uv' } },
     } as ForecastRenderData
 
@@ -58,6 +68,21 @@ describe('createForecastDataMemory', () => {
     expect(memory.reusableWindowsFor(plan)).toEqual({
       field: frames.field,
       precipTypeOverlay: null,
+      pressureContours: null,
+      particles: frames.particles,
+    })
+
+    const contourPlan = createPlan(
+      'field:temperature',
+      'particles:wind:wind10m_uv',
+      null,
+      'pressure-contours:prmsl_msl'
+    )
+    memory.commit(contourPlan, frames)
+    expect(memory.reusableWindowsFor(contourPlan)).toEqual({
+      field: frames.field,
+      precipTypeOverlay: null,
+      pressureContours: frames.pressureContours,
       particles: frames.particles,
     })
 
@@ -66,6 +91,7 @@ describe('createForecastDataMemory', () => {
     expect(memory.reusableWindowsFor(nextLayerPlan)).toEqual({
       field: null,
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: frames.particles,
     })
   })
@@ -76,6 +102,7 @@ describe('createForecastDataMemory', () => {
     const frames = {
       field: { lower: { layerId: 'temperature' } },
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: null,
     } as ForecastRenderData
 

@@ -12,18 +12,22 @@ export type MapOptionsButtonProps = {
   layerColorOptions: FieldRuntimeOptions,
   particleOptions: ParticleRuntimeOptions,
   particlesEnabled: boolean
+  pressureContoursEnabled: boolean
   onLayerColorSamplingModeChange: (nextValue: FieldColorSamplingMode) => void
   onClearTrailsOnViewChange: (nextValue: boolean) => void
   onParticlesEnabledChange: (nextValue: boolean) => void
+  onPressureContoursEnabledChange: (nextValue: boolean) => void
 }
 
 export default function MapOptionsButton({
   layerColorOptions,
   particleOptions,
   particlesEnabled,
+  pressureContoursEnabled,
   onLayerColorSamplingModeChange,
   onClearTrailsOnViewChange,
   onParticlesEnabledChange,
+  onPressureContoursEnabledChange,
 }: MapOptionsButtonProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -63,6 +67,11 @@ export default function MapOptionsButton({
     onParticlesEnabledChange(nextValue)
   }
 
+  const handlePressureContoursEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.currentTarget.checked
+    onPressureContoursEnabledChange(nextValue)
+  }
+
   const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.value as FieldColorSamplingMode
     setLayerColorSamplingMode(nextValue)
@@ -99,6 +108,18 @@ export default function MapOptionsButton({
               </label>
             ))}
           </div>
+        </div>
+        <div className="map-control-options-divider" />
+        <div className="map-control-options-section">
+          <div className="map-control-options-heading wm-mono-caps">Overlays</div>
+          <label className="map-control-options-row wm-mono-caps">
+            <input
+              type="checkbox"
+              checked={pressureContoursEnabled}
+              onChange={handlePressureContoursEnabledChange}
+            />
+            <span>Show pressure contours</span>
+          </label>
         </div>
         <div className="map-control-options-divider" />
         <div className="map-control-options-section">

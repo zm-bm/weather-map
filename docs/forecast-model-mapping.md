@@ -40,6 +40,7 @@ These requirements come from the frontend layer and particle catalogs.
 | `wind_speed` | layer | `wind10m_uv` | - | `wind-speed` derived field |
 | `wind_gust` | layer | `gust_surface` | - | direct scalar |
 | `air_pressure` | layer | `prmsl_msl` | - | direct scalar |
+| `pressure_contours` | map overlay | `prmsl_msl` | - | toggleable GPU 4 hPa mean-sea-level pressure contours |
 | `precipitation_rate` | layer | `prate_surface` | `precip_type_surface` | direct scalar plus automatic precipitation-type pattern overlay |
 | `accumulated_precipitation` | layer | `precip_total_surface` | - | direct scalar |
 | `snow_depth` | layer | `snow_depth_surface` | - | direct scalar |
@@ -66,6 +67,7 @@ These requirements come from the frontend layer and particle catalogs.
 | `wind_speed` | `frontend-derived` | `frontend-derived` | Derived from `wind10m_uv` in the frontend. |
 | `wind_gust` | `native` | `native` | Both models publish gust speed. |
 | `air_pressure` | `native` | `native` | Both models publish mean sea-level pressure as `prmsl_msl`. |
+| `pressure_contours` | `native` | `native` | Toggleable frontend GPU contour overlay from lightly smoothed `prmsl_msl`. |
 | `precipitation_rate` | `native` | `etl-derived` | GFS rate is direct; ICON rate is derived from `tot_prec`. Both can use optional `precip_type_surface` snowflake / ice-dash pattern overlays. |
 | `accumulated_precipitation` | `unavailable` | `native` | GFS does not publish `precip_total_surface`. |
 | `snow_depth` | `native` | `native` | Both models publish snow depth. |
@@ -94,6 +96,7 @@ GFS model id: `gfs`.
 | `wind_speed` | `frontend-derived` | `wind10m_uv` | `UGRD`/`VGRD`, `10-HTGL` | `wind-speed` | Requires ordered `u`, `v` components. |
 | `wind_gust` | `native` | `gust_surface` | `GUST`, `0-SFC` | direct scalar | - |
 | `air_pressure` | `native` | `prmsl_msl` | `PRMSL`, `0-MSL` | direct scalar | Mean sea-level pressure, not surface pressure. |
+| `pressure_contours` | `native` | `prmsl_msl` | `PRMSL`, `0-MSL` | map overlay | Uses the same mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
 | `precipitation_rate` | `native` | `prate_surface`; optional `precip_type_surface` | `PRATE`, `0-SFC`, `GRIB_PDS_PDTN=0`; overlay from `PRATE`/`CPOFP`/category fields | direct scalar plus automatic overlay | `prate_surface` is normalized to `mm/hr`; overlay remains optional. |
 | `accumulated_precipitation` | `unavailable` | - | - | - | `precip_total_surface` is not in the GFS workload. |
 | `snow_depth` | `native` | `snow_depth_surface` | `SNOD`, `0-SFC` | direct scalar | - |
@@ -122,6 +125,7 @@ ICON model id: `icon`.
 | `wind_speed` | `frontend-derived` | `wind10m_uv` | `u_10m`/`v_10m` | `wind-speed` | Requires ordered `u`, `v` components. |
 | `wind_gust` | `native` | `gust_surface` | `vmax_10m` | direct scalar | - |
 | `air_pressure` | `native` | `prmsl_msl` | `pmsl` | direct scalar | Mean sea-level pressure, not surface pressure. |
+| `pressure_contours` | `native` | `prmsl_msl` | `pmsl` | map overlay | Uses the same mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
 | `precipitation_rate` | `etl-derived` | `prate_surface`; optional `precip_type_surface` | `prate_surface` from `icon_tot_prec_delta_rate` using `tot_prec`; overlay from rain/snow accumulation component deltas | direct scalar plus automatic overlay | First-hour previous accumulation is treated as zero by the ETL derivation; overlay remains optional. |
 | `accumulated_precipitation` | `native` | `precip_total_surface` | `tot_prec` | direct scalar | Source accumulation total. |
 | `snow_depth` | `native` | `snow_depth_surface` | `h_snow` | direct scalar | - |

@@ -9,11 +9,13 @@ import { useSyncRunner } from './useSyncRunner'
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
+  pressureContoursEnabled?: boolean
 }
 
 export function useForecastSync({
   renderHost,
   config,
+  pressureContoursEnabled = true,
 }: UseForecastSyncArgs): void {
   const startup = useStartupState()
   const target = useSyncTarget(startup.retryToken)
@@ -23,11 +25,13 @@ export function useForecastSync({
     config,
     target,
     startup,
+    pressureContoursEnabled,
   })
   useForecastDataPrefetch({
     config,
     target,
     enabled: !startup.isBlocked,
+    pressureContoursEnabled,
   })
   useStartupAppStatus(startup.status)
 }

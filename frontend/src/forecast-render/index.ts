@@ -6,5 +6,6 @@ export {
 } from './types'
 export type {
   ForecastRenderHost,
+  ForecastRendererId,
   ForecastRenderProfile,
 } from './types'

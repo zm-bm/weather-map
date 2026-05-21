@@ -5,14 +5,19 @@ import config from '../../config'
 import { createMapFixture } from '../../test/fixtures'
 import ForecastMap from './ForecastMap'
 
-const DEFAULT_RENDER_PROFILE = {
-  key: 'default',
-  rendererIds: ['field', 'field-overlay', 'particles'],
+const FULL_RENDER_PROFILE = {
+  key: 'field-contours-particles',
+  rendererIds: ['field', 'field-overlay', 'contour-overlay', 'particles'],
 }
 
-const FIELD_ONLY_RENDER_PROFILE = {
-  key: 'field-only',
-  rendererIds: ['field', 'field-overlay'],
+const CONTOURS_ONLY_RENDER_PROFILE = {
+  key: 'field-contours-no-particles',
+  rendererIds: ['field', 'field-overlay', 'contour-overlay'],
+}
+
+const PARTICLES_ONLY_RENDER_PROFILE = {
+  key: 'field-no-contours-particles',
+  rendererIds: ['field', 'field-overlay', 'particles'],
 }
 
 const mocks = vi.hoisted(() => ({
@@ -86,11 +91,12 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastRenderHost).toHaveBeenCalledWith({
       getMap,
       mapReadyVersion,
-      profile: DEFAULT_RENDER_PROFILE,
+      profile: FULL_RENDER_PROFILE,
     })
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
       renderHost,
       config,
+      pressureContoursEnabled: true,
     })
     expect(mocks.ForecastPlaceProbes).toHaveBeenCalledWith({
       mapRef,
@@ -100,7 +106,9 @@ describe('ForecastMap', () => {
       mapRef,
       mapReadyVersion,
       particlesEnabled: true,
+      pressureContoursEnabled: true,
       onParticlesEnabledChange: expect.any(Function),
+      onPressureContoursEnabledChange: expect.any(Function),
     })
   })
 
@@ -116,7 +124,7 @@ describe('ForecastMap', () => {
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
-      profile: FIELD_ONLY_RENDER_PROFILE,
+      profile: CONTOURS_ONLY_RENDER_PROFILE,
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       particlesEnabled: false,
@@ -125,6 +133,32 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: renderHostResults[renderHostResults.length - 1]?.value,
       config,
+      pressureContoursEnabled: true,
+    })
+  })
+
+  it('updates the render profile and sync option when pressure contours are toggled off', () => {
+    render(<ForecastMap />)
+
+    const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
+      onPressureContoursEnabledChange: (nextValue: boolean) => void
+    }
+
+    act(() => {
+      controlProps.onPressureContoursEnabledChange(false)
+    })
+
+    expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
+      profile: PARTICLES_ONLY_RENDER_PROFILE,
+    }))
+    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
+      pressureContoursEnabled: false,
+    }))
+    const renderHostResults = mocks.useForecastRenderHost.mock.results
+    expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
+      renderHost: renderHostResults[renderHostResults.length - 1]?.value,
+      config,
+      pressureContoursEnabled: false,
     })
   })
 

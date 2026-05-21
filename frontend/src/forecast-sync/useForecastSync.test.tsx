@@ -116,11 +116,13 @@ describe('useForecastSync', () => {
       config,
       target,
       startup,
+      pressureContoursEnabled: true,
     })
     expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: true,
+      pressureContoursEnabled: true,
     })
     expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
   })
@@ -167,6 +169,30 @@ describe('useForecastSync', () => {
       config,
       target,
       enabled: false,
+      pressureContoursEnabled: true,
     })
+  })
+
+  it('passes the pressure contour option to data loading and prefetch', () => {
+    const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
+    const config = createConfigFixture()
+    const startup = createStartupState()
+    const target = createSyncTarget()
+
+    mocks.useStartupState.mockReturnValue(startup)
+    mocks.useSyncTarget.mockReturnValue(target)
+
+    renderHook(() => useForecastSync({
+      renderHost,
+      config,
+      pressureContoursEnabled: false,
+    }))
+
+    expect(mocks.useSyncRunner).toHaveBeenCalledWith(expect.objectContaining({
+      pressureContoursEnabled: false,
+    }))
+    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
+      pressureContoursEnabled: false,
+    }))
   })
 })
