@@ -274,7 +274,7 @@ describe('getUnitDisplay', () => {
       units: 'Pa',
       parameter: 'prmsl',
       min: 98000,
-      max: 103500,
+      max: 103600,
       paletteId: 'pressure.msl.pa.v1',
       unitBehavior: 'pressure',
       legendScale: 'pressure',

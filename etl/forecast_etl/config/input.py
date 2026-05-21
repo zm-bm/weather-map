@@ -125,6 +125,11 @@ class ArtifactTemporalInput(ConfigModel):
         return self
 
 
+class ArtifactGridTransformInput(ConfigModel):
+    type: Literal["regular_grid_downsample_2x"]
+    grid_id: NonEmptyStr
+
+
 class ArtifactDerivationSourceInput(ConfigModel):
     id: NonEmptyStr
     grib_match: NonEmptyStringMap
@@ -163,6 +168,7 @@ class ArtifactInput(ArtifactBaseInput):
     components: tuple[ArtifactComponentInput, ...] = Field(min_length=1)
     temporal: ArtifactTemporalInput | None = None
     derivation: ArtifactDerivationInput | None = None
+    grid_transform: ArtifactGridTransformInput | None = None
 
     @model_validator(mode="after")
     def _validate_components(self) -> "ArtifactInput":
@@ -176,6 +182,7 @@ class ModelArtifactInput(ConfigModel):
     components: tuple[ArtifactComponentInput, ...] = Field(min_length=1)
     temporal: ArtifactTemporalInput | None = None
     derivation: ArtifactDerivationInput | None = None
+    grid_transform: ArtifactGridTransformInput | None = None
 
     @model_validator(mode="after")
     def _validate_components(self) -> "ModelArtifactInput":

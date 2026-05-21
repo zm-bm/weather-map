@@ -14,6 +14,7 @@ from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.encoding.artifact_payload import encode_artifact_payload
 from forecast_etl.extract.artifact_bands import extract_artifact_bands
 from forecast_etl.extract.grib import grid_meta_from_grib
+from forecast_etl.extract.grid_transforms import apply_artifact_grid_transform
 from forecast_etl.proc import RunFn
 from forecast_etl.source_adapters.base import PreparedSource
 from forecast_etl.storage.base import UriStore
@@ -82,14 +83,20 @@ class ArtifactRunFixture:
             run=run,
             fhour=self.fhour,
         )
-        payload = encode_artifact_payload(artifact=artifact, grid=grid, bands=bands)
+        transformed = apply_artifact_grid_transform(
+            artifact=artifact,
+            grid_id=source.grid_id,
+            grid=grid,
+            bands=bands,
+        )
+        payload = encode_artifact_payload(artifact=artifact, grid=transformed.grid, bands=transformed.bands)
         payload_uri = artifacts.write_field_payload(item=item, dtype=artifact.encoding.dtype, payload=payload)
         return build_artifact_marker_payload(
             artifact=artifact,
             payload_uri=payload_uri,
             payload=payload,
-            grid_id=source.grid_id,
-            grid=grid,
+            grid_id=transformed.grid_id,
+            grid=transformed.grid,
         )
 
     def payload_path(self, *, artifact_id: str, dtype: str) -> Path:

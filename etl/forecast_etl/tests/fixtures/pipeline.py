@@ -49,7 +49,7 @@ def catalog_artifact(artifact_config: dict) -> dict:
         **{
             key: value
             for key, value in artifact_config.items()
-            if key not in {"components", "temporal", "derivation"}
+            if key not in {"components", "temporal", "derivation", "grid_transform"}
         },
         "components": [{"id": component["id"]} for component in artifact_config["components"]],
     }
@@ -66,6 +66,8 @@ def model_artifact(artifact_config: dict) -> dict:
         model_cfg["temporal"] = artifact_config["temporal"]
     if "derivation" in artifact_config:
         model_cfg["derivation"] = artifact_config["derivation"]
+    if "grid_transform" in artifact_config:
+        model_cfg["grid_transform"] = artifact_config["grid_transform"]
     return model_cfg
 
 

@@ -17,6 +17,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     precip_rate_config,
     precip_total_config,
     precip_type_config,
+    pressure_msl_config,
     reflectivity_config,
     thunderstorm_mask_config,
     wind_artifact_config,
@@ -294,6 +295,59 @@ class IconGribCollectionArtifactTest(unittest.TestCase):
             self.assertEqual(result["encoding_id"], "precip_total_surface_i8_1mm_v1")
             self.assertEqual(result["units"], "mm")
             self.assertEqual(result["grid_id"], "icon_global_regridded_0p125")
+
+    def test_icon_pressure_can_publish_downsampled_grid(self) -> None:
+        with artifact_run_fixture(
+            prefix="weather-map-icon-pressure-downsample-",
+            model_id="icon",
+            source_uri="icon-dwd://icon/2026041200/003",
+        ) as fx:
+            grib_path = fx.grib_path("pmsl.regridded.grib2")
+            source = pack_f32([100500.0] * 15, byte_order="little")
+            source_grid = {
+                **grid_meta_fixture(),
+                "nx": 5,
+                "ny": 3,
+                "lon0": 180.0,
+                "dx": 0.125,
+                "dy": -0.125,
+            }
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"GRIB_ELEMENT": "PMSL"}),
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(source, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=source_grid,
+                ),
+            ):
+                result = fx.run_artifact(
+                    artifact_id="prmsl_msl",
+                    artifact_config=pressure_msl_config(grid_transform={
+                        "type": "regular_grid_downsample_2x",
+                        "grid_id": "icon_global_regridded_0p25",
+                    }),
+                    source=fx.grib_collection_source(
+                        grib_paths={"pmsl": grib_path},
+                        grid_id="icon_global_regridded_0p125",
+                    ),
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(artifact_id="prmsl_msl", dtype="int8")
+            self.assertEqual(payload_bytes, b"\x00" * 6)
+            self.assertEqual(result["byte_length"], 6)
+            self.assertEqual(result["grid_id"], "icon_global_regridded_0p25")
+            self.assertEqual(result["grid"]["nx"], 3)
+            self.assertEqual(result["grid"]["ny"], 2)
+            self.assertEqual(result["grid"]["dx"], 0.25)
+            self.assertEqual(result["grid"]["dy"], -0.25)
 
     def test_precip_rate_derives_icon_rate_from_adjacent_tot_prec_accumulations(self) -> None:
         with artifact_run_fixture(

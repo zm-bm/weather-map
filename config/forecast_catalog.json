@@ -128,7 +128,7 @@
       "label": "Air Pressure",
       "groupId": "wind_pressure",
       "paletteId": "pressure.msl.pa.v1",
-      "displayRange": { "min": 98000, "max": 103500 },
+      "displayRange": { "min": 98000, "max": 103600 },
       "unitBehavior": "pressure",
       "legendScale": "pressure",
       "source": { "kind": "artifact", "artifactId": "prmsl_msl" }

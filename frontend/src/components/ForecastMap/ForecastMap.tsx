@@ -43,7 +43,7 @@ export default function ForecastMap({
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const [particlesEnabled, setParticlesEnabled] = useState(true)
-  const [pressureContoursEnabled, setPressureContoursEnabled] = useState(true)
+  const [pressureContoursEnabled, setPressureContoursEnabled] = useState(false)
   const renderProfile = useMemo(
     () => createForecastMapRenderProfile({
       particlesEnabled,

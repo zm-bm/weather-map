@@ -66,8 +66,8 @@ These requirements come from the frontend layer and particle catalogs.
 | `relative_humidity` | `native` | `native` | Both models publish near-surface relative humidity. |
 | `wind_speed` | `frontend-derived` | `frontend-derived` | Derived from `wind10m_uv` in the frontend. |
 | `wind_gust` | `native` | `native` | Both models publish gust speed. |
-| `air_pressure` | `native` | `native` | Both models publish mean sea-level pressure as `prmsl_msl`. |
-| `pressure_contours` | `native` | `native` | Toggleable frontend GPU contour overlay from lightly smoothed `prmsl_msl`. |
+| `air_pressure` | `native` | `native` | Both models publish mean sea-level pressure as `prmsl_msl`; ICON publishes it on a downsampled `0.25` grid. |
+| `pressure_contours` | `native` | `native` | Toggleable frontend GPU contour overlay from lightly smoothed `prmsl_msl`; ICON uses the downsampled `0.25` pressure artifact. |
 | `precipitation_rate` | `native` | `etl-derived` | GFS rate is direct; ICON rate is derived from `tot_prec`. Both can use optional `precip_type_surface` snowflake / ice-dash pattern overlays. |
 | `accumulated_precipitation` | `unavailable` | `native` | GFS does not publish `precip_total_surface`. |
 | `snow_depth` | `native` | `native` | Both models publish snow depth. |
@@ -124,8 +124,8 @@ ICON model id: `icon`.
 | `relative_humidity` | `native` | `rh_surface` | `relhum_2m` | direct scalar | - |
 | `wind_speed` | `frontend-derived` | `wind10m_uv` | `u_10m`/`v_10m` | `wind-speed` | Requires ordered `u`, `v` components. |
 | `wind_gust` | `native` | `gust_surface` | `vmax_10m` | direct scalar | - |
-| `air_pressure` | `native` | `prmsl_msl` | `pmsl` | direct scalar | Mean sea-level pressure, not surface pressure. |
-| `pressure_contours` | `native` | `prmsl_msl` | `pmsl` | map overlay | Uses the same mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
+| `air_pressure` | `native` | `prmsl_msl` | `pmsl` | direct scalar | Mean sea-level pressure, not surface pressure; ETL downsamples this ICON artifact from `0.125` to `0.25` before encoding. |
+| `pressure_contours` | `native` | `prmsl_msl` | `pmsl` | map overlay | Uses the same downsampled mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
 | `precipitation_rate` | `etl-derived` | `prate_surface`; optional `precip_type_surface` | `prate_surface` from `icon_tot_prec_delta_rate` using `tot_prec`; overlay from rain/snow accumulation component deltas | direct scalar plus automatic overlay | First-hour previous accumulation is treated as zero by the ETL derivation; overlay remains optional. |
 | `accumulated_precipitation` | `native` | `precip_total_surface` | `tot_prec` | direct scalar | Source accumulation total. |
 | `snow_depth` | `native` | `snow_depth_surface` | `h_snow` | direct scalar | - |

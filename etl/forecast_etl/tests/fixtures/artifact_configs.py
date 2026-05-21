@@ -43,6 +43,31 @@ def minimal_artifact_config() -> dict:
     }
 
 
+def pressure_msl_config(*, grib_match: dict | None = None, grid_transform: dict | None = None) -> dict:
+    config = {
+        "kind": "scalar",
+        "parameter": "prmsl",
+        "level": "mean sea level",
+        "units": "Pa",
+        "source_transform": "identity",
+        "encoding": {
+            "id": "prmsl_msl_i8_25pa_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 25,
+            "offset": 100500,
+            "nodata": -128,
+        },
+        "components": [
+            {"id": "value", "grib_match": grib_match or {"ICON_PARAM": "pmsl"}},
+        ],
+    }
+    if grid_transform is not None:
+        config["grid_transform"] = grid_transform
+    return config
+
+
 def cloud_cover_config(
     *,
     parameter: str = "low_clouds",

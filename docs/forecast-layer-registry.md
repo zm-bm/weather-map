@@ -65,7 +65,7 @@ ETL encoding ranges.
 | --- | --- | --- | --- | --- | --- |
 | `wind_speed` | Wind Speed | derived field from vector artifact `wind10m_uv` using recipe `wind-speed` | instantaneous | `m/s`; `0..60`; `wind.gust.mps.v1`; `wind-speed/stop-based` | Computes `sqrt(u^2 + v^2)` in the frontend. |
 | `wind_gust` | Wind Gust | direct scalar artifact `gust_surface` | instantaneous | `m/s`; `0..60`; `wind.gust.mps.v1`; `wind-speed/stop-based` | Near-surface gust speed. |
-| `air_pressure` | Air Pressure | direct scalar artifact `prmsl_msl` | instantaneous | `Pa`; `98000..103500`; `pressure.msl.pa.v1`; `pressure/pressure` | Mean sea-level pressure. |
+| `air_pressure` | Air Pressure | direct scalar artifact `prmsl_msl` | instantaneous | `Pa`; `98000..103600`; `pressure.msl.pa.v1`; `pressure/pressure` | Mean sea-level pressure. |
 
 ### Precipitation
 
@@ -114,7 +114,7 @@ at z6.
 
 | Overlay id | Label | Source recipe | Time semantics | Renderer | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered 4 hPa mean-sea-level pressure contours from a lightly smoothed pressure surface. V1 draws unlabeled solid white lines with a faint separation halo. |
+| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered 4 hPa mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
 
 ## Candidate Future Layers
 

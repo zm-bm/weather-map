@@ -13,6 +13,7 @@ from ..config.resolved import ArtifactSpec, ModelConfig, PipelineConfig
 from ..encoding.artifact_payload import encode_artifact_payload
 from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
+from ..extract.grid_transforms import apply_artifact_grid_transform
 from ..proc import RunFn, make_runner
 from ..runtime import ExecutionContext
 from ..source_adapters import acquire_prepared_source
@@ -75,14 +76,20 @@ def run_process_hour(
                 run=run,
                 fhour=fhour,
             )
-            payload = encode_artifact_payload(artifact=artifact, grid=grid, bands=bands)
+            transformed = apply_artifact_grid_transform(
+                artifact=artifact,
+                grid_id=source.grid_id,
+                grid=grid,
+                bands=bands,
+            )
+            payload = encode_artifact_payload(artifact=artifact, grid=transformed.grid, bands=transformed.bands)
             payload_uri = artifact_repo.write_field_payload(item=item, dtype=artifact.encoding.dtype, payload=payload)
             artifact_marker_payload = build_artifact_marker_payload(
                 artifact=artifact,
                 payload_uri=payload_uri,
                 payload=payload,
-                grid_id=source.grid_id,
-                grid=grid,
+                grid_id=transformed.grid_id,
+                grid=transformed.grid,
             )
             artifact_repo.write_success_marker(item=item, artifact=artifact_marker_payload)
             artifact_done += 1

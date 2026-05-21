@@ -17,7 +17,7 @@ describe('layer metadata palettes', () => {
       label: 'Custom Pressure',
       groupId: asLayerGroupId('wind_pressure'),
       paletteId: 'pressure.msl.pa.v1',
-      displayRange: { min: 98_000, max: 103_500 },
+      displayRange: { min: 98_000, max: 103_600 },
       unitBehavior: 'pressure',
       legendScale: 'pressure',
       source: { kind: 'artifact', artifactId: asArtifactId('prmsl_msl') },

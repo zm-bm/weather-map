@@ -26,6 +26,7 @@ from .input import (
 from .resolved import (
     ArtifactCatalogSpec,
     ArtifactDerivationSpec,
+    ArtifactGridTransformSpec,
     ArtifactSpec,
     ArtifactTemporalSpec,
     ComponentSpec,
@@ -208,6 +209,7 @@ def parse_artifact_spec(*, artifact_id: str, raw: Any) -> ArtifactSpec:
         components=components,
         temporal=_temporal_spec(parsed.temporal),
         derivation=_derivation_spec(parsed.derivation),
+        grid_transform=_grid_transform_spec(parsed.grid_transform),
     )
 
 
@@ -235,6 +237,7 @@ def parse_model_artifact_spec(
         component_grib_matches=matches,
         temporal=_temporal_spec(parsed.temporal),
         derivation=_derivation_spec(parsed.derivation),
+        grid_transform=_grid_transform_spec(parsed.grid_transform),
     )
 
 
@@ -263,6 +266,7 @@ def resolve_artifact_spec(
         components=components,
         temporal=model_artifact.temporal,
         derivation=model_artifact.derivation,
+        grid_transform=model_artifact.grid_transform,
     )
 
 
@@ -307,6 +311,15 @@ def _derivation_spec(raw: object | None) -> ArtifactDerivationSpec | None:
             DerivationInputSpec(id=input_item.id, grib_match=dict(input_item.grib_match))
             for input_item in getattr(raw, "inputs", ())
         ),
+    )
+
+
+def _grid_transform_spec(raw: object | None) -> ArtifactGridTransformSpec | None:
+    if raw is None:
+        return None
+    return ArtifactGridTransformSpec(
+        type=getattr(raw, "type"),
+        grid_id=getattr(raw, "grid_id"),
     )
 
 

@@ -12,6 +12,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     precip_rate_config,
     precip_total_config,
     precip_type_config,
+    pressure_msl_config,
     thunderstorm_mask_config,
     wind_artifact_config,
 )
@@ -122,6 +123,25 @@ class ConfigValidationTest(unittest.TestCase):
         icon_prate_temporal = icon.artifacts["prate_surface"].temporal
         assert icon_prate_temporal is not None
         self.assertEqual(icon_prate_temporal.kind, "average_rate")
+
+    def test_pipeline_config_parses_model_artifact_grid_transform(self) -> None:
+        cfg = minimal_pipeline_config()
+        pressure = pressure_msl_config(grib_match={"GRIB_ELEMENT": "PRMSL"}, grid_transform={
+            "type": "regular_grid_downsample_2x",
+            "grid_id": "icon_global_regridded_0p25",
+        })
+        cfg["artifact_catalog"]["prmsl_msl"] = catalog_artifact(pressure)
+        cfg["models"]["gfs"]["workload"]["artifacts"] = ["prmsl_msl"]
+        cfg["models"]["gfs"]["artifacts"] = {
+            "prmsl_msl": model_artifact(pressure),
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        transform = parsed.model("gfs").artifacts["prmsl_msl"].grid_transform
+
+        assert transform is not None
+        self.assertEqual(transform.type, "regular_grid_downsample_2x")
+        self.assertEqual(transform.grid_id, "icon_global_regridded_0p25")
 
     def test_pipeline_config_rejects_icon_derived_rate_with_non_hourly_interval(self) -> None:
         cfg = minimal_pipeline_config()

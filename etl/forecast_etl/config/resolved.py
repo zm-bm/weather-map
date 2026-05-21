@@ -122,6 +122,13 @@ class ArtifactDerivationSpec(ConfigModel):
     inputs: tuple[DerivationInputSpec, ...] = ()
 
 
+class ArtifactGridTransformSpec(ConfigModel):
+    """Grid transform applied to extracted artifact bands before encoding."""
+
+    type: NonEmptyStr
+    grid_id: NonEmptyStr
+
+
 class ModelArtifactSpec(ConfigModel):
     """Model-specific GRIB selectors for a catalog artifact."""
 
@@ -129,6 +136,7 @@ class ModelArtifactSpec(ConfigModel):
     component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap | None]
     temporal: ArtifactTemporalSpec | None = None
     derivation: ArtifactDerivationSpec | None = None
+    grid_transform: ArtifactGridTransformSpec | None = None
 
 
 class ArtifactSpec(ConfigModel):
@@ -144,6 +152,7 @@ class ArtifactSpec(ConfigModel):
     components: tuple[ComponentSpec, ...]
     temporal: ArtifactTemporalSpec | None = None
     derivation: ArtifactDerivationSpec | None = None
+    grid_transform: ArtifactGridTransformSpec | None = None
 
     @property
     def component_ids(self) -> tuple[str, ...]:
