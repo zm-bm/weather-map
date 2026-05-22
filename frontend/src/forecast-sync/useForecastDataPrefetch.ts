@@ -3,14 +3,14 @@ import { useEffect } from 'react'
 import type { WeatherMapConfig } from '../config'
 import { createArtifactLoader } from '../forecast-artifacts'
 import { createForecastDataPlan, prefetchForecastData } from '../forecast-data'
-import type { ForecastSyncTarget } from './types'
+import type { ForecastDataTarget } from '../forecast-data'
 
 const PREFETCH_CONCURRENCY = 2
 const PREFETCH_AHEAD_HOUR_COUNT = 2
 
 export type UseForecastDataPrefetchArgs = {
   config: WeatherMapConfig
-  target: ForecastSyncTarget | null
+  target: ForecastDataTarget | null
   enabled: boolean
   pressureContoursEnabled?: boolean
 }

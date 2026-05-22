@@ -13,7 +13,7 @@ export type ForecastTimeControls = {
   togglePlay: () => void
 }
 
-export type ForecastTimeSyncBridge = {
+export type ForecastTimeSyncCallbacks = {
   onRequestStart: (timeMs: number) => void
   onRequestApplied: (timeMs: number) => void
   onRequestError: (timeMs: number, error?: Error) => void

@@ -13,16 +13,15 @@ import {
   type LayerId,
   type LayerSpec,
 } from '../forecast-catalog'
-import type { ForecastTimeSyncBridge } from '../forecast-time'
+import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { resolveForecastInterpolationWindow } from '../forecast-time'
-import { createForecastDataTarget } from '../forecast-data'
+import { createForecastDataTarget, type ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import {
   createActiveRunFixture,
   createConfigFixture,
   createManifestFixture,
 } from '../test/fixtures'
-import type { ForecastSyncTarget } from './types'
 import { useSyncRunner } from './useSyncRunner'
 import { useStartupState } from './useStartupState'
 
@@ -71,34 +70,35 @@ vi.mock('../forecast-probe', () => ({
   },
 }))
 
-type SyncInput = {
+type DataInput = {
   activeRun: ActiveForecastRun
   selectedLayerId: LayerId
   selectedLayer: LayerSpec
   selectedParticleLayerId: ParticleLayerId | null
   selectedParticleLayer: ParticleLayerSpec | null
   targetTimeMs: number
-  sync: ForecastTimeSyncBridge
 }
 
 type SyncHarnessArgs = {
   renderHost: ForecastRenderHost | null
   config: ReturnType<typeof createConfigFixture>
-  syncInput: SyncInput | null
+  dataInput: DataInput | null
+  syncCallbacks: ForecastTimeSyncCallbacks
   pressureContoursEnabled?: boolean
 }
 
 function useSyncHarness(args: SyncHarnessArgs) {
   const startup = useStartupState()
   const target = useMemo(
-    () => buildSyncTarget(args.syncInput, startup.retryToken),
-    [args.syncInput, startup.retryToken]
+    () => buildDataTarget(args.dataInput, startup.retryToken),
+    [args.dataInput, startup.retryToken]
   )
 
   useSyncRunner({
     renderHost: args.renderHost,
     config: args.config,
     target,
+    syncCallbacks: args.syncCallbacks,
     startup,
     pressureContoursEnabled: args.pressureContoursEnabled,
   })
@@ -106,7 +106,7 @@ function useSyncHarness(args: SyncHarnessArgs) {
   return startup.status
 }
 
-function createSyncCallbacks(): ForecastTimeSyncBridge {
+function createSyncCallbacks(): ForecastTimeSyncCallbacks {
   return {
     onRequestStart: vi.fn(),
     onRequestApplied: vi.fn(),
@@ -120,7 +120,7 @@ function validTimeFor(activeRun: ActiveForecastRun, hourId: string): number {
   return Date.parse(time.validAt)
 }
 
-function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
+function createDataInput(overrides: Partial<DataInput> = {}): DataInput {
   const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
   const defaultLayerId = FORECAST_LAYER_GROUPS[0]?.defaultLayer
   const selectedLayer = defaultLayerId ? FORECAST_LAYERS_BY_ID[defaultLayerId] : undefined
@@ -139,12 +139,11 @@ function createSyncInput(overrides: Partial<SyncInput> = {}): SyncInput {
     selectedParticleLayerId: selectedParticleLayer?.id ?? null,
     selectedParticleLayer: selectedParticleLayer ?? null,
     targetTimeMs: validTimeFor(activeRun, activeRun.latest.times[0]?.id ?? '000'),
-    sync: createSyncCallbacks(),
     ...overrides,
   }
 }
 
-function validTimeAt(input: SyncInput, index: number): number {
+function validTimeAt(input: DataInput, index: number): number {
   const hourId = input.activeRun.latest.times[index]?.id ?? '000'
   return validTimeFor(input.activeRun, hourId)
 }
@@ -153,7 +152,8 @@ function createBaseArgs(overrides: Partial<SyncHarnessArgs> = {}): SyncHarnessAr
   return {
     renderHost: { version: 1, apply: mocks.applyRenderData },
     config: createConfigFixture(),
-    syncInput: createSyncInput(),
+    dataInput: createDataInput(),
+    syncCallbacks: createSyncCallbacks(),
     ...overrides,
   }
 }
@@ -168,28 +168,25 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function buildSyncTarget(
-  syncInput: SyncInput | null,
+function buildDataTarget(
+  dataInput: DataInput | null,
   retryToken: number
-): ForecastSyncTarget | null {
-  if (!syncInput) return null
+): ForecastDataTarget | null {
+  if (!dataInput) return null
   const interpolationWindow = resolveForecastInterpolationWindow(
-    syncInput.activeRun.latest.times,
-    syncInput.targetTimeMs
+    dataInput.activeRun.latest.times,
+    dataInput.targetTimeMs
   )
 
-  return {
-    ...createForecastDataTarget({
-      activeRun: syncInput.activeRun,
-      selectedLayerId: syncInput.selectedLayerId,
-      selectedLayer: syncInput.selectedLayer,
-      selectedParticleLayerId: syncInput.selectedParticleLayerId,
-      selectedParticleLayer: syncInput.selectedParticleLayer,
-      interpolationWindow,
-      retryToken,
-    }),
-    sync: syncInput.sync,
-  }
+  return createForecastDataTarget({
+    activeRun: dataInput.activeRun,
+    selectedLayerId: dataInput.selectedLayerId,
+    selectedLayer: dataInput.selectedLayer,
+    selectedParticleLayerId: dataInput.selectedParticleLayerId,
+    selectedParticleLayer: dataInput.selectedParticleLayer,
+    interpolationWindow,
+    retryToken,
+  })
 }
 
 describe('useSyncRunner + useStartupState', () => {
@@ -207,9 +204,9 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.applyRenderData.mockReturnValue(undefined)
   })
 
-  it('does not sync when sync input is missing', async () => {
+  it('does not sync when data input is missing', async () => {
     const args = createBaseArgs({
-      syncInput: null,
+      dataInput: null,
     })
 
     const { result } = renderHook(() => useSyncHarness(args))
@@ -229,7 +226,7 @@ describe('useSyncRunner + useStartupState', () => {
     const args = createBaseArgs({
       renderHost: null,
     })
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
@@ -252,17 +249,18 @@ describe('useSyncRunner + useStartupState', () => {
       expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs
+        (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
     })
   })
 
   it('starts syncing when request becomes enabled', async () => {
-    const syncInput = createSyncInput()
-    const callbacks = syncInput.sync
+    const dataInput = createDataInput()
+    const callbacks = createSyncCallbacks()
     const args = createBaseArgs({
-      syncInput: null,
+      dataInput: null,
+      syncCallbacks: callbacks,
     })
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
@@ -273,20 +271,20 @@ describe('useSyncRunner + useStartupState', () => {
 
     rerender({
       ...args,
-      syncInput,
+      dataInput,
     })
 
     await waitFor(() => {
       expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(syncInput.targetTimeMs)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(dataInput.targetTimeMs)
       expect(result.current.startupPhase).toBe('ready')
     })
   })
 
   it('dedupes identical request keys for the same render host', async () => {
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
 
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
@@ -315,7 +313,7 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('reapplies the current target when render host version changes', async () => {
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
 
     const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
@@ -345,14 +343,14 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData.mockRejectedValueOnce(startupError)
 
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs,
+        (args.dataInput as DataInput).targetTimeMs,
         startupError
       )
       expect(result.current.startupPhase).toBe('error')
@@ -361,9 +359,9 @@ describe('useSyncRunner + useStartupState', () => {
 
     rerender({
       ...args,
-      syncInput: {
-        ...(args.syncInput as SyncInput),
-        targetTimeMs: validTimeAt(args.syncInput as SyncInput, 1),
+      dataInput: {
+        ...(args.dataInput as DataInput),
+        targetTimeMs: validTimeAt(args.dataInput as DataInput, 1),
       },
     })
 
@@ -388,20 +386,20 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData.mockImplementation(() => request.promise)
 
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { result } = renderHook(() => useSyncHarness(args))
 
     expect(result.current.startupPhase).toBe('loading')
     expect(result.current.startupErrorMessage).toBeNull()
     expect(callbacks.onRequestStart).toHaveBeenCalledWith(
-      (args.syncInput as SyncInput).targetTimeMs
+      (args.dataInput as DataInput).targetTimeMs
     )
     expect(callbacks.onRequestApplied).not.toHaveBeenCalled()
 
     request.resolve(frames)
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs
+        (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
@@ -415,7 +413,7 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData.mockRejectedValue(abortError)
 
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { result } = renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
@@ -445,14 +443,14 @@ describe('useSyncRunner + useStartupState', () => {
       })
 
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs,
+        (args.dataInput as DataInput).targetTimeMs,
         startupError
       )
       expect(result.current.startupPhase).toBe('error')
@@ -469,7 +467,7 @@ describe('useSyncRunner + useStartupState', () => {
       expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs
+        (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
@@ -489,24 +487,24 @@ describe('useSyncRunner + useStartupState', () => {
       .mockRejectedValueOnce(laterError)
 
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs
+        (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
     })
 
-    const nextValidTimeMs = validTimeAt(args.syncInput as SyncInput, 1)
+    const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
 
     rerender({
       ...args,
-      syncInput: {
-        ...(args.syncInput as SyncInput),
+      dataInput: {
+        ...(args.dataInput as DataInput),
         targetTimeMs: nextValidTimeMs,
       },
     })
@@ -527,7 +525,7 @@ describe('useSyncRunner + useStartupState', () => {
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
     const args = createBaseArgs({
-      syncInput: createSyncInput({
+      dataInput: createDataInput({
         activeRun,
         selectedLayerId: selectedLayer.id,
         selectedLayer,
@@ -559,7 +557,7 @@ describe('useSyncRunner + useStartupState', () => {
     const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const args = createBaseArgs({
-      syncInput: createSyncInput({
+      dataInput: createDataInput({
         activeRun,
         selectedLayerId: selectedLayer.id,
         selectedLayer,
@@ -592,7 +590,7 @@ describe('useSyncRunner + useStartupState', () => {
     const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
     const args = createBaseArgs({
       pressureContoursEnabled: false,
-      syncInput: createSyncInput({
+      dataInput: createDataInput({
         activeRun,
         selectedLayerId: selectedLayer.id,
         selectedLayer,
@@ -642,12 +640,12 @@ describe('useSyncRunner + useStartupState', () => {
       throw renderError
     })
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { result } = renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs,
+        (args.dataInput as DataInput).targetTimeMs,
         renderError
       )
       expect(result.current.startupPhase).toBe('error')
@@ -676,7 +674,7 @@ describe('useSyncRunner + useStartupState', () => {
       .mockResolvedValueOnce(secondFrames)
 
     const args = createBaseArgs()
-    const syncInput = args.syncInput as SyncInput
+    const dataInput = args.dataInput as DataInput
     const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
@@ -687,9 +685,9 @@ describe('useSyncRunner + useStartupState', () => {
 
     rerender({
       ...args,
-      syncInput: {
-        ...syncInput,
-        targetTimeMs: validTimeAt(syncInput, 1),
+      dataInput: {
+        ...dataInput,
+        targetTimeMs: validTimeAt(dataInput, 1),
       },
     })
 
@@ -726,7 +724,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     rerender({
       ...args,
-      syncInput: null,
+      dataInput: null,
     })
 
     await waitFor(() => {
@@ -739,14 +737,14 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('aborts an in-flight request when the target returns to an already applied frame', async () => {
     const args = createBaseArgs()
-    const callbacks = args.syncInput?.sync as ForecastTimeSyncBridge
+    const callbacks = args.syncCallbacks
     const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.syncInput as SyncInput).targetTimeMs
+        (args.dataInput as DataInput).targetTimeMs
       )
     })
 
@@ -755,12 +753,12 @@ describe('useSyncRunner + useStartupState', () => {
       return request.promise
     })
 
-    const nextValidTimeMs = validTimeAt(args.syncInput as SyncInput, 1)
+    const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
 
     rerender({
       ...args,
-      syncInput: {
-        ...(args.syncInput as SyncInput),
+      dataInput: {
+        ...(args.dataInput as DataInput),
         targetTimeMs: nextValidTimeMs,
       },
     })

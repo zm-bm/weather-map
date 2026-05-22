@@ -87,9 +87,9 @@ describe('ForecastTimeProvider', () => {
 
     expect(screen.getByTestId('times')).toHaveTextContent('')
     expect(getContext().state.targetTimeMs).toBe(0)
-    expect(typeof getContext().sync.onRequestStart).toBe('function')
-    expect(typeof getContext().sync.onRequestApplied).toBe('function')
-    expect(typeof getContext().sync.onRequestError).toBe('function')
+    expect(typeof getContext().syncCallbacks.onRequestStart).toBe('function')
+    expect(typeof getContext().syncCallbacks.onRequestApplied).toBe('function')
+    expect(typeof getContext().syncCallbacks.onRequestError).toBe('function')
   })
 
   it('forwards manifest times to context value', () => {
@@ -201,13 +201,13 @@ describe('ForecastTimeProvider', () => {
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().sync.onRequestStart(Date.UTC(2026, 3, 10, 0, 0))
+      getContext().syncCallbacks.onRequestStart(Date.UTC(2026, 3, 10, 0, 0))
     })
     expect(getContext().state.targetTimeMs).toBe(validAtEnd)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().sync.onRequestApplied(Date.UTC(2026, 3, 8, 0, 0))
+      getContext().syncCallbacks.onRequestApplied(Date.UTC(2026, 3, 8, 0, 0))
     })
     expect(getContext().state.appliedTimeMs).toBe(validAtStart)
     expect(getContext().state.targetTimeMs).toBe(validAtStart)
@@ -240,7 +240,7 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().sync.onRequestApplied(validAt0010)
+      getContext().syncCallbacks.onRequestApplied(validAt0010)
     })
     expect(getContext().state.appliedTimeMs).toBe(validAt0010)
     expect(getContext().state.isInFlight).toBe(false)

@@ -102,7 +102,7 @@ export default function ForecastTimeProvider({
     dispatch({ type: 'requestError' })
   }, [])
 
-  const sync = useMemo(() => ({
+  const syncCallbacks = useMemo(() => ({
     onRequestStart,
     onRequestApplied,
     onRequestError,
@@ -155,7 +155,7 @@ export default function ForecastTimeProvider({
       requestPrev,
       togglePlay,
     },
-    sync,
+    syncCallbacks,
   }), [
     times,
     requestTime,
@@ -167,7 +167,7 @@ export default function ForecastTimeProvider({
     state.isPlaying,
     state.pendingTimeMs,
     state.targetTimeMs,
-    sync,
+    syncCallbacks,
   ])
 
   return (

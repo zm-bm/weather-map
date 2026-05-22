@@ -6,7 +6,7 @@ import {
   createForecastTimeContextValue,
   createManifestFixture,
 } from '../test/fixtures'
-import { useSyncTarget } from './useSyncTarget'
+import { useForecastDataTarget } from './useForecastDataTarget'
 
 const mocks = vi.hoisted(() => ({
   useForecastSelectionContext: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock('../forecast-time', async (importOriginal) => {
   }
 })
 
-describe('useSyncTarget', () => {
+describe('useForecastDataTarget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -57,12 +57,12 @@ describe('useSyncTarget', () => {
       createForecastSelectionContextValue(null)
     )
 
-    const { result } = renderHook(() => useSyncTarget(0))
+    const { result } = renderHook(() => useForecastDataTarget(0))
     expect(result.current).toBeNull()
   })
 
   it('builds a target from the selected forecast hour', () => {
-    const { result } = renderHook(() => useSyncTarget(0))
+    const { result } = renderHook(() => useForecastDataTarget(0))
 
     expect(result.current).toEqual(expect.objectContaining({
       selectedParticleLayerId: 'wind',
@@ -73,6 +73,7 @@ describe('useSyncTarget', () => {
       mix: 0.16666666666666666,
       requestKey: expect.stringContaining(':003:006:30:0'),
     }))
+    expect(result.current).not.toHaveProperty('sync')
   })
 
   it('builds a target without particles when no particle layer is available', () => {
@@ -92,7 +93,7 @@ describe('useSyncTarget', () => {
       }
     ))
 
-    const { result } = renderHook(() => useSyncTarget(0))
+    const { result } = renderHook(() => useForecastDataTarget(0))
 
     expect(result.current).toEqual(expect.objectContaining({
       selectedParticleLayerId: null,
@@ -122,7 +123,7 @@ describe('useSyncTarget', () => {
       }
     ))
 
-    const { result } = renderHook(() => useSyncTarget(0))
+    const { result } = renderHook(() => useForecastDataTarget(0))
 
     expect(result.current).toBeNull()
   })

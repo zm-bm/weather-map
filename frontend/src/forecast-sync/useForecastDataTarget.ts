@@ -6,13 +6,13 @@ import {
   getLayerSpec,
 } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
+import type { ForecastDataTarget } from '../forecast-data'
 import { useForecastTimeContext } from '../forecast-time'
 import {
   resolveForecastInterpolationWindow,
 } from '../forecast-time'
-import type { ForecastSyncTarget } from './types'
 
-export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
+export function useForecastDataTarget(retryToken: number): ForecastDataTarget | null {
   const {
     activeRun,
     selectedLayerId,
@@ -21,10 +21,7 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
     particleLayers,
     selectedLayerIsRenderable,
   } = useForecastSelectionContext()
-  const {
-    state: timelineState,
-    sync,
-  } = useForecastTimeContext()
+  const { state: timelineState } = useForecastTimeContext()
 
   return useMemo(() => {
     if (
@@ -47,18 +44,15 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
       timelineState.targetTimeMs
     )
 
-    return {
-      ...createForecastDataTarget({
-        activeRun,
-        selectedLayerId,
-        selectedLayer,
-        selectedParticleLayerId,
-        selectedParticleLayer,
-        interpolationWindow,
-        retryToken,
-      }),
-      sync,
-    }
+    return createForecastDataTarget({
+      activeRun,
+      selectedLayerId,
+      selectedLayer,
+      selectedParticleLayerId,
+      selectedParticleLayer,
+      interpolationWindow,
+      retryToken,
+    })
   }, [
     activeRun,
     layers,
@@ -67,7 +61,6 @@ export function useSyncTarget(retryToken: number): ForecastSyncTarget | null {
     selectedLayerId,
     selectedLayerIsRenderable,
     selectedParticleLayerId,
-    sync,
     timelineState.targetTimeMs,
   ])
 }

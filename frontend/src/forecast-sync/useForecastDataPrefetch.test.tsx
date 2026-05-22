@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createConfigFixture, createSingleTimeManifestFixture, createActiveRunFixture } from '../test/fixtures'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
-import type { ForecastSyncTarget } from './types'
+import type { ForecastDataTarget } from '../forecast-data'
 import { useForecastDataPrefetch } from './useForecastDataPrefetch'
 
 const mocks = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ vi.mock('../forecast-data', async (importOriginal) => {
   }
 })
 
-function createTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSyncTarget {
+function createTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
   const activeRun = overrides.activeRun ?? createActiveRunFixture(createSingleTimeManifestFixture({
     forecastHours: ['000', '003', '006', '009'],
   }))
@@ -43,11 +43,6 @@ function createTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSync
       },
       retryToken: 0,
     }),
-    sync: {
-      onRequestStart: vi.fn(),
-      onRequestApplied: vi.fn(),
-      onRequestError: vi.fn(),
-    },
     ...overrides,
   }
 }

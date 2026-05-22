@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 
 import type {
   ForecastTimeControls,
-  ForecastTimeSyncBridge,
+  ForecastTimeSyncCallbacks,
   ForecastTimeViewState,
 } from './types'
 import type { ForecastTimelineTime } from './time'
@@ -11,7 +11,7 @@ export type ForecastTimeContextValue = {
   times: ForecastTimelineTime[]
   state: ForecastTimeViewState
   controls: ForecastTimeControls
-  sync: ForecastTimeSyncBridge
+  syncCallbacks: ForecastTimeSyncCallbacks
 }
 
 export const ForecastTimeContext = createContext<ForecastTimeContextValue | null>(null)

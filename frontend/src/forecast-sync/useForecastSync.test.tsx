@@ -8,13 +8,16 @@ import {
 } from '../test/fixtures'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
+import type { ForecastDataTarget } from '../forecast-data'
+import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import type { ForecastRenderHost } from '../forecast-render'
-import type { ForecastSyncStartupState, ForecastSyncTarget } from './types'
+import type { ForecastSyncStartupState } from './types'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
   useStartupState: vi.fn(),
-  useSyncTarget: vi.fn(),
+  useForecastDataTarget: vi.fn(),
+  useForecastTimeContext: vi.fn(),
   useSyncRunner: vi.fn(),
   useForecastDataPrefetch: vi.fn(),
 }))
@@ -23,9 +26,17 @@ vi.mock('./useStartupState', () => ({
   useStartupState: () => mocks.useStartupState(),
 }))
 
-vi.mock('./useSyncTarget', () => ({
-  useSyncTarget: (retryToken: number) => mocks.useSyncTarget(retryToken),
+vi.mock('./useForecastDataTarget', () => ({
+  useForecastDataTarget: (retryToken: number) => mocks.useForecastDataTarget(retryToken),
 }))
+
+vi.mock('../forecast-time', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-time')>()
+  return {
+    ...actual,
+    useForecastTimeContext: () => mocks.useForecastTimeContext(),
+  }
+})
 
 vi.mock('./useSyncRunner', () => ({
   useSyncRunner: (args: unknown) => mocks.useSyncRunner(args),
@@ -55,7 +66,15 @@ function createStartupState(
   }
 }
 
-function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): ForecastSyncTarget {
+function createSyncCallbacks(): ForecastTimeSyncCallbacks {
+  return {
+    onRequestStart: vi.fn(),
+    onRequestApplied: vi.fn(),
+    onRequestError: vi.fn(),
+  }
+}
+
+function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
   const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
   const hourToken = activeRun.latest.times[0].id
   const validTimeMs = Date.UTC(2026, 3, 13, 12)
@@ -78,11 +97,6 @@ function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): Forecast
       },
       retryToken: 0,
     }),
-    sync: {
-      onRequestStart: vi.fn(),
-      onRequestApplied: vi.fn(),
-      onRequestError: vi.fn(),
-    },
     ...overrides,
   }
 }
@@ -90,16 +104,21 @@ function createSyncTarget(overrides: Partial<ForecastSyncTarget> = {}): Forecast
 describe('useForecastSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.useForecastTimeContext.mockReturnValue({
+      syncCallbacks: createSyncCallbacks(),
+    })
   })
 
   it('wires startup state into target composition, runner execution, prefetch, and return status', () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
-    const target = createSyncTarget()
+    const target = createDataTarget()
+    const syncCallbacks = createSyncCallbacks()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncTarget.mockReturnValue(target)
+    mocks.useForecastDataTarget.mockReturnValue(target)
+    mocks.useForecastTimeContext.mockReturnValue({ syncCallbacks })
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
@@ -107,11 +126,12 @@ describe('useForecastSync', () => {
     }))
 
     expect(mocks.useStartupState).toHaveBeenCalledTimes(1)
-    expect(mocks.useSyncTarget).toHaveBeenCalledWith(2)
+    expect(mocks.useForecastDataTarget).toHaveBeenCalledWith(2)
     expect(mocks.useSyncRunner).toHaveBeenCalledWith({
       renderHost,
       config,
       target,
+      syncCallbacks,
       startup,
       pressureContoursEnabled: true,
     })
@@ -132,7 +152,7 @@ describe('useForecastSync', () => {
     const startup = createStartupState()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncTarget.mockReturnValue(null)
+    mocks.useForecastDataTarget.mockReturnValue(null)
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
@@ -156,10 +176,10 @@ describe('useForecastSync', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ isBlocked: true })
-    const target = createSyncTarget()
+    const target = createDataTarget()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncTarget.mockReturnValue(target)
+    mocks.useForecastDataTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,
@@ -178,10 +198,10 @@ describe('useForecastSync', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState()
-    const target = createSyncTarget()
+    const target = createDataTarget()
 
     mocks.useStartupState.mockReturnValue(startup)
-    mocks.useSyncTarget.mockReturnValue(target)
+    mocks.useForecastDataTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,

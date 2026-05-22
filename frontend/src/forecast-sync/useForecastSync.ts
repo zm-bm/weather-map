@@ -1,8 +1,9 @@
 import type { WeatherMapConfig } from '../config'
 import type { ForecastRenderHost } from '../forecast-render'
+import { useForecastTimeContext } from '../forecast-time'
 import { useStartupState } from './useStartupState'
 import { useForecastDataPrefetch } from './useForecastDataPrefetch'
-import { useSyncTarget } from './useSyncTarget'
+import { useForecastDataTarget } from './useForecastDataTarget'
 import { useSyncRunner } from './useSyncRunner'
 import type { ForecastSyncStartupStatus } from './types'
 
@@ -22,12 +23,14 @@ export function useForecastSync({
   pressureContoursEnabled = true,
 }: UseForecastSyncArgs): UseForecastSyncResult {
   const startup = useStartupState()
-  const target = useSyncTarget(startup.retryToken)
+  const target = useForecastDataTarget(startup.retryToken)
+  const { syncCallbacks } = useForecastTimeContext()
 
   useSyncRunner({
     renderHost,
     config,
     target,
+    syncCallbacks,
     startup,
     pressureContoursEnabled,
   })

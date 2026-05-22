@@ -34,7 +34,7 @@ vi.mock('../../forecast-time', async (importOriginal) => {
         requestPrev: mocks.requestPrev,
         togglePlay: mocks.togglePlay,
       },
-      sync: {
+      syncCallbacks: {
         onRequestStart: vi.fn(),
         onRequestApplied: vi.fn(),
         onRequestError: vi.fn(),

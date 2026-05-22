@@ -44,7 +44,7 @@ export function createForecastTimeContextValue(
       togglePlay: vi.fn(),
       ...options.controls,
     },
-    sync: {
+    syncCallbacks: {
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),
       onRequestError: vi.fn(),

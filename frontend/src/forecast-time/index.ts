@@ -3,7 +3,7 @@ export { useForecastTimeContext } from './ForecastTimeContext'
 export type { ForecastTimeContextValue } from './ForecastTimeContext'
 export type {
   ForecastTimeControls,
-  ForecastTimeSyncBridge,
+  ForecastTimeSyncCallbacks,
   ForecastTimeViewState,
 } from './types'
 export {

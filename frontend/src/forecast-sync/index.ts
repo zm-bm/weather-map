@@ -4,5 +4,4 @@ export type {
   ForecastSyncStartupPhase,
   ForecastSyncStartupState,
   ForecastSyncStartupStatus,
-  ForecastSyncTarget,
 } from './types'

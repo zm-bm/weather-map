@@ -42,15 +42,6 @@ unless they are opt-in or otherwise low-noise.
 
 ## Architecture Follow-Ups
 
-### Split Forecast Sync Targets From Timeline Callbacks
-
-The sync target currently combines render data request identity with timeline
-sync callbacks. That makes the runner carry both data-loading concerns and UI
-timeline side effects in one object.
-
-Separate the data target from timeline callbacks so request planning, rendering,
-and time-state notification have clearer responsibilities.
-
 ### Promote Forecast Place Probes To A Feature Module
 
 `components/ForecastPlaceProbes` owns more than React composition: it coordinates

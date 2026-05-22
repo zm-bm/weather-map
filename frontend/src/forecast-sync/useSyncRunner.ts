@@ -8,14 +8,17 @@ import {
   createForecastDataMemory,
   loadForecastData,
 } from '../forecast-data'
+import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
+import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { forecastFieldDataStore } from '../forecast-probe'
-import type { ForecastSyncStartupState, ForecastSyncTarget } from './types'
+import type { ForecastSyncStartupState } from './types'
 
 type UseSyncRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
-  target: ForecastSyncTarget | null
+  target: ForecastDataTarget | null
+  syncCallbacks: ForecastTimeSyncCallbacks
   startup: ForecastSyncStartupState
   pressureContoursEnabled?: boolean
 }
@@ -24,7 +27,7 @@ type RunnerDecision =
   | { kind: 'disabled' }
   | { kind: 'blocked' }
   | { kind: 'pending' }
-  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastSyncTarget }
+  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastDataTarget }
 
 type ActiveRequest = {
   key: string
@@ -35,7 +38,7 @@ type RunnerMachine = {
   prepare: (args: {
     isBlocked: boolean
     renderHost: ForecastRenderHost | null
-    target: ForecastSyncTarget | null
+    target: ForecastDataTarget | null
   }) => RunnerDecision
   reset: () => void
   abort: () => void
@@ -51,6 +54,7 @@ export function useSyncRunner({
   renderHost,
   config,
   target,
+  syncCallbacks,
   startup,
   pressureContoursEnabled = true,
 }: UseSyncRunnerArgs): void {
@@ -96,12 +100,11 @@ export function useSyncRunner({
         break
     }
 
-    const { renderHost: activeRenderHost, target: syncTarget } = decision
+    const { renderHost: activeRenderHost, target: dataTarget } = decision
     const {
       selectedValidTimeMs,
       requestKey,
-      sync,
-    } = syncTarget
+    } = dataTarget
     const contourStateKey = pressureContoursEnabled ? 'contours:on' : 'contours:off'
     const renderRequestKey = `${activeRenderHost.version}:${contourStateKey}:${requestKey}`
     const dataMemory = dataMemoryRef.current
@@ -115,10 +118,10 @@ export function useSyncRunner({
 
     const activeRequest = machine.start(renderRequestKey)
     const dataPlan = createForecastDataPlan({
-      target: syncTarget,
+      target: dataTarget,
       artifacts: createArtifactLoader({
         config,
-        activeRun: syncTarget.activeRun,
+        activeRun: dataTarget.activeRun,
         signal: activeRequest.controller.signal,
       }),
       pressureContoursEnabled,
@@ -129,7 +132,7 @@ export function useSyncRunner({
     }
 
     handlePending()
-    sync.onRequestStart(selectedValidTimeMs)
+    syncCallbacks.onRequestStart(selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
@@ -149,13 +152,13 @@ export function useSyncRunner({
         }
         dataMemory.commit(dataPlan, renderData)
         machine.markApplied(activeRequest)
-        sync.onRequestApplied(selectedValidTimeMs)
+        syncCallbacks.onRequestApplied(selectedValidTimeMs)
         handleApplied()
       } catch (error: unknown) {
         if (isRequestStale(machine, activeRequest)) return
         const normalizedError = normalizeError(error)
         if (isAbortError(normalizedError)) return
-        sync.onRequestError(selectedValidTimeMs, normalizedError)
+        syncCallbacks.onRequestError(selectedValidTimeMs, normalizedError)
         handleError(normalizedError)
       } finally {
         machine.finish(activeRequest)
@@ -172,6 +175,7 @@ export function useSyncRunner({
     isBlocked,
     pressureContoursEnabled,
     renderHost,
+    syncCallbacks,
     target,
   ])
 }
