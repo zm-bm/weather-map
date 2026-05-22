@@ -9,7 +9,7 @@ import {
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
-import type { StartupState, ForecastSyncTarget } from './types'
+import type { ForecastSyncStartupState, ForecastSyncTarget } from './types'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   useSyncTarget: vi.fn(),
   useSyncRunner: vi.fn(),
   useForecastDataPrefetch: vi.fn(),
-  useStartupAppStatus: vi.fn(),
 }))
 
 vi.mock('./useStartupState', () => ({
@@ -36,11 +35,9 @@ vi.mock('./useForecastDataPrefetch', () => ({
   useForecastDataPrefetch: (args: unknown) => mocks.useForecastDataPrefetch(args),
 }))
 
-vi.mock('./useStartupAppStatus', () => ({
-  useStartupAppStatus: (status: unknown) => mocks.useStartupAppStatus(status),
-}))
-
-function createStartupState(overrides: Partial<StartupState> = {}): StartupState {
+function createStartupState(
+  overrides: Partial<ForecastSyncStartupState> = {}
+): ForecastSyncStartupState {
   const retry = vi.fn()
   return {
     status: {
@@ -95,7 +92,7 @@ describe('useForecastSync', () => {
     vi.clearAllMocks()
   })
 
-  it('wires startup state into target composition, runner execution, and app status', () => {
+  it('wires startup state into target composition, runner execution, prefetch, and return status', () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
@@ -104,7 +101,7 @@ describe('useForecastSync', () => {
     mocks.useStartupState.mockReturnValue(startup)
     mocks.useSyncTarget.mockReturnValue(target)
 
-    renderHook(() => useForecastSync({
+    const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
     }))
@@ -124,7 +121,9 @@ describe('useForecastSync', () => {
       enabled: true,
       pressureContoursEnabled: true,
     })
-    expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
+    expect(result.current).toEqual({
+      startupStatus: startup.status,
+    })
   })
 
   it('passes null targets through to the sync runner', () => {
@@ -135,7 +134,7 @@ describe('useForecastSync', () => {
     mocks.useStartupState.mockReturnValue(startup)
     mocks.useSyncTarget.mockReturnValue(null)
 
-    renderHook(() => useForecastSync({
+    const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
     }))
@@ -148,7 +147,9 @@ describe('useForecastSync', () => {
       target: null,
       enabled: true,
     }))
-    expect(mocks.useStartupAppStatus).toHaveBeenCalledWith(startup.status)
+    expect(result.current).toEqual({
+      startupStatus: startup.status,
+    })
   })
 
   it('disables frame prefetch while startup is blocked', () => {

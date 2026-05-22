@@ -42,15 +42,6 @@ unless they are opt-in or otherwise low-noise.
 
 ## Architecture Follow-Ups
 
-### Keep Status Projection Out Of Domain Modules
-
-Startup status projection currently lives partly inside forecast domain modules,
-which makes metadata loading responsible for app-status UI wiring.
-
-Mount the status host at the app shell level and expose a small app-status source
-hook or adapter. Forecast modules should expose load state; app composition
-should decide how that state appears.
-
 ### Split Forecast Sync Targets From Timeline Callbacks
 
 The sync target currently combines render data request identity with timeline

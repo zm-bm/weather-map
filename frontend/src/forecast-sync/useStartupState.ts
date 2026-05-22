@@ -1,11 +1,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 
-import type { StartupState, StartupStatus, StartupPhase } from './types'
+import type {
+  ForecastSyncStartupPhase,
+  ForecastSyncStartupState,
+  ForecastSyncStartupStatus,
+} from './types'
 
 const DEFAULT_STARTUP_ERROR_MESSAGE = 'Unknown startup error.'
 
-export function useStartupState(): StartupState {
-  const [startupPhase, setStartupPhase] = useState<StartupPhase>('idle')
+export function useStartupState(): ForecastSyncStartupState {
+  const [startupPhase, setStartupPhase] = useState<ForecastSyncStartupPhase>('idle')
   const [startupErrorMessage, setStartupErrorMessage] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const hasStartupAppliedRef = useRef(false)
@@ -40,7 +44,7 @@ export function useStartupState(): StartupState {
     setStartupPhase('error')
   }, [])
 
-  const status = useMemo<StartupStatus>(() => ({
+  const status = useMemo<ForecastSyncStartupStatus>(() => ({
     startupPhase,
     startupErrorMessage,
     retry,

@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef } from 'react'
 import { ForecastSettingsProvider } from '../../forecast-settings'
 import type { ForecastManifestData } from '../../forecast-manifest'
 import { ForecastSelectionProvider } from '../../forecast-selection'
+import type { ForecastSyncStartupStatus } from '../../forecast-sync'
 import { ForecastTimeProvider, forecastTimeProviderKey } from '../../forecast-time'
 import TimelineBar from '../TimelineBar'
 import ForecastPanel from '../ForecastPanel'
@@ -12,11 +13,15 @@ import ForecastMap from '../ForecastMap/ForecastMap'
 
 type ForecastShellProps = {
   forecast: ForecastManifestData | null
+  onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
 }
 
 const MAP_CONTROL_PANEL_GAP_PX = 8
 
-export default function ForecastShell({ forecast }: ForecastShellProps) {
+export default function ForecastShell({
+  forecast,
+  onSyncStartupStatusChange,
+}: ForecastShellProps) {
   const forecastStageRef = useRef<HTMLDivElement | null>(null)
   const forecastPanelRef = useRef<HTMLElement | null>(null)
   const activeRun = forecast?.activeRun ?? null
@@ -67,7 +72,7 @@ export default function ForecastShell({ forecast }: ForecastShellProps) {
         >
           <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
             <div ref={forecastStageRef} className="forecast-stage">
-              <ForecastMap />
+              <ForecastMap onSyncStartupStatusChange={onSyncStartupStatusChange} />
 
               {activeRun && (
                 <>

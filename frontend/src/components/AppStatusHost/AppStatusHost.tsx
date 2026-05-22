@@ -1,18 +1,16 @@
-import { useActiveAppStatus } from '../../app-status'
+import type { AppStatus } from './types'
 
-export default function AppStatusHost() {
-  const activeStatus = useActiveAppStatus()
-
-  if (!activeStatus) return null
+export default function AppStatusHost({ status }: { status: AppStatus }) {
+  if (!status) return null
 
   return (
-    <div className={activeStatus.mode === 'blocking' ? 'forecast-screen__status-overlay' : 'app-status-toast'}>
-      <div className="status-card" role={activeStatus.actionLabel ? 'alert' : 'status'} aria-live="polite">
-        <h1 className="status-card__title">{activeStatus.title}</h1>
-        <p className="status-card__detail">{activeStatus.detail}</p>
-        {activeStatus.actionLabel && activeStatus.onAction && (
-          <button className="status-card__action wm-bevel-button" type="button" onClick={activeStatus.onAction}>
-            {activeStatus.actionLabel}
+    <div className={status.mode === 'blocking' ? 'forecast-screen__status-overlay' : 'app-status-toast'}>
+      <div className="status-card" role={status.actionLabel ? 'alert' : 'status'} aria-live="polite">
+        <h1 className="status-card__title">{status.title}</h1>
+        <p className="status-card__detail">{status.detail}</p>
+        {status.actionLabel && status.onAction && (
+          <button className="status-card__action wm-bevel-button" type="button" onClick={status.onAction}>
+            {status.actionLabel}
           </button>
         )}
       </div>

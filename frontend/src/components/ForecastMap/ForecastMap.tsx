@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import config from '../../config'
 import {
@@ -12,7 +12,7 @@ import {
   type ForecastRenderProfile,
 } from '../../forecast-render'
 import { useForecastSelectionContext } from '../../forecast-selection'
-import { useForecastSync } from '../../forecast-sync'
+import { useForecastSync, type ForecastSyncStartupStatus } from '../../forecast-sync'
 import { useMap } from '../../map/useMap'
 import { useForecastBasemapTheme } from '../../map/view/useForecastBasemapTheme'
 import ForecastPlaceProbes from '../ForecastPlaceProbes'
@@ -20,10 +20,12 @@ import MapControlRail from '../MapControlRail'
 
 export type ForecastMapProps = {
   containerId?: string
+  onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
 }
 
 export default function ForecastMap({
   containerId = 'map',
+  onSyncStartupStatusChange,
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const { selectedLayerId } = useForecastSelectionContext()
@@ -56,11 +58,21 @@ export default function ForecastMap({
     selectedLayerId,
   })
 
-  useForecastSync({
+  const { startupStatus } = useForecastSync({
     renderHost,
     config,
     pressureContoursEnabled: settings.pressureContours.enabled,
   })
+
+  useEffect(() => {
+    onSyncStartupStatusChange?.(startupStatus)
+  }, [onSyncStartupStatusChange, startupStatus])
+
+  useEffect(() => {
+    return () => {
+      onSyncStartupStatusChange?.(null)
+    }
+  }, [onSyncStartupStatusChange])
 
   return (
     <div className="map-stage">

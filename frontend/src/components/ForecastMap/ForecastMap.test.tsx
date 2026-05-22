@@ -6,6 +6,7 @@ import {
   DEFAULT_FORECAST_SETTINGS,
   ForecastSettingsProvider,
 } from '../../forecast-settings'
+import type { ForecastSyncStartupStatus } from '../../forecast-sync'
 import { createMapFixture } from '../../test/fixtures'
 import ForecastMap from './ForecastMap'
 
@@ -85,6 +86,17 @@ function renderForecastMap(ui = <ForecastMap />) {
   )
 }
 
+function createSyncStatus(
+  overrides: Partial<ForecastSyncStartupStatus> = {}
+): ForecastSyncStartupStatus {
+  return {
+    startupPhase: 'idle',
+    startupErrorMessage: null,
+    retry: vi.fn(),
+    ...overrides,
+  }
+}
+
 describe('ForecastMap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -103,6 +115,7 @@ describe('ForecastMap', () => {
     mocks.useForecastSelectionContext.mockReturnValue({
       selectedLayerId: 'temperature',
     })
+    mocks.useForecastSync.mockReturnValue({ startupStatus: createSyncStatus() })
   })
 
   it('wires map runtime hooks and forecast sync from the map instance', () => {
@@ -148,6 +161,23 @@ describe('ForecastMap', () => {
         updatePressureContours: expect.any(Function),
       }),
     })
+  })
+
+  it('reports sync startup status changes and clears them on unmount', () => {
+    const onSyncStartupStatusChange = vi.fn()
+    const syncStatus = createSyncStatus({ startupPhase: 'loading' })
+    mocks.useForecastSync.mockReturnValue({ startupStatus: syncStatus })
+
+    const { unmount } = renderForecastMap(
+      <ForecastMap onSyncStartupStatusChange={onSyncStartupStatusChange} />
+    )
+
+    expect(onSyncStartupStatusChange).toHaveBeenCalledWith(syncStatus)
+
+    onSyncStartupStatusChange.mockClear()
+    unmount()
+
+    expect(onSyncStartupStatusChange).toHaveBeenCalledWith(null)
   })
 
   it('updates the render profile when particles are toggled off', () => {

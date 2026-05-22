@@ -1,10 +1,10 @@
 import type { WeatherMapConfig } from '../config'
 import type { ForecastRenderHost } from '../forecast-render'
-import { useStartupAppStatus } from './useStartupAppStatus'
 import { useStartupState } from './useStartupState'
 import { useForecastDataPrefetch } from './useForecastDataPrefetch'
 import { useSyncTarget } from './useSyncTarget'
 import { useSyncRunner } from './useSyncRunner'
+import type { ForecastSyncStartupStatus } from './types'
 
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
@@ -12,11 +12,15 @@ export type UseForecastSyncArgs = {
   pressureContoursEnabled?: boolean
 }
 
+export type UseForecastSyncResult = {
+  startupStatus: ForecastSyncStartupStatus
+}
+
 export function useForecastSync({
   renderHost,
   config,
   pressureContoursEnabled = true,
-}: UseForecastSyncArgs): void {
+}: UseForecastSyncArgs): UseForecastSyncResult {
   const startup = useStartupState()
   const target = useSyncTarget(startup.retryToken)
 
@@ -33,5 +37,8 @@ export function useForecastSync({
     enabled: !startup.isBlocked,
     pressureContoursEnabled,
   })
-  useStartupAppStatus(startup.status)
+
+  return {
+    startupStatus: startup.status,
+  }
 }

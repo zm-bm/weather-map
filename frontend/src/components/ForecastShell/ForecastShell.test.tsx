@@ -7,8 +7,13 @@ import type {
   ForecastModelId,
   ForecastModelOption,
 } from '../../forecast-manifest'
+import type { ForecastSyncStartupStatus } from '../../forecast-sync'
 import { createManifestFixture, createActiveRunFixture } from '../../test/fixtures'
 import ForecastShell from './ForecastShell'
+
+const mocks = vi.hoisted(() => ({
+  ForecastMap: vi.fn(),
+}))
 
 const MODEL_OPTIONS: readonly ForecastModelOption[] = [
   { id: 'gfs', label: 'GFS' },
@@ -35,7 +40,10 @@ vi.mock('../TimelineBar', () => ({
 }))
 
 vi.mock('../ForecastMap/ForecastMap', () => ({
-  default: () => <div data-testid="forecast-map" />,
+  default: (props: unknown) => {
+    mocks.ForecastMap(props)
+    return <div data-testid="forecast-map" />
+  },
 }))
 
 function createForecastShellProps(overrides: {
@@ -68,6 +76,21 @@ describe('ForecastShell', () => {
     expect(screen.queryByTestId('forecast-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('timeline-bar')).not.toBeInTheDocument()
     expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
+  })
+
+  it('forwards sync startup status changes to the map', () => {
+    const onSyncStartupStatusChange = vi.fn<(status: ForecastSyncStartupStatus | null) => void>()
+
+    render(
+      <ForecastShell
+        {...createForecastShellProps()}
+        onSyncStartupStatusChange={onSyncStartupStatusChange}
+      />
+    )
+
+    expect(mocks.ForecastMap).toHaveBeenCalledWith({
+      onSyncStartupStatusChange,
+    })
   })
 
   it('renders map overlays and forecast timeline controls when manifest is available', () => {

@@ -13,9 +13,9 @@ when naming new modules, docs, types, and UI/domain concepts.
 
 `App.tsx` owns routing. The forecast route calls
 `forecast-manifest/useForecastManifest`, which fetches
-`manifests/forecast-manifest.json`, selects the active model, projects startup
-state into `app-status`, then renders
-`components/ForecastShell`.
+`manifests/forecast-manifest.json`, selects the active model, composes app
+startup status, then renders `components/ForecastShell` and
+`components/AppStatusHost`.
 
 `ForecastShell` wires the main providers:
 
@@ -30,9 +30,7 @@ startup, request building, payload loading, and layer application.
 
 ## Module Ownership
 
-- `app-status/*`: global blocking/toast status state, priority selection, and host rendering inputs. Use this for cross-cutting load/error states that should surface above the app.
-
-- `components/*`: React composition and panel/control UI. Components should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly.
+- `components/*`: React composition and panel/control UI. Components should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly. `components/AppStatusHost` owns the app status payload contract and rendering.
 
 - `forecast-catalog/*`: user-facing layer catalog, particle layer catalog, layer groups, labels, color tables, display ranges, unit/legend behavior ids, and artifact or derived-source mappings.
 
@@ -40,7 +38,7 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-time/*`: valid-time selection, playback state, manifest time bounds, and formatting helpers. This layer should not know about artifact payload decoding or MapLibre runtime details.
 
-- `forecast-manifest/*`: fetch, parse, validate, and expose the public forecast manifest. This owns startup request state, active model state, model/layer availability helpers, artifact payload path resolution, and startup status projection. It is the only startup network request for forecast metadata.
+- `forecast-manifest/*`: fetch, parse, validate, and expose the public forecast manifest. This owns startup request state, active model state, model/layer availability helpers, and artifact payload path resolution. It is the only startup network request for forecast metadata.
 
 - `forecast-artifacts/*`: manifest artifact I/O and decoding. This module resolves artifact payload refs, fetches and caches payload bytes, validates payload size, and decodes scalar/vector artifact data.
 
@@ -48,7 +46,7 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so data/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast-sync/*`: orchestration layer for startup policy, forecast target composition, abort/dedupe, data loading, render-host application, field-data publication, and app-status projection. It should coordinate modules, not decode payload formats, know about MapLibre, or own interpolation-window reuse bookkeeping itself.
+- `forecast-sync/*`: orchestration layer for startup policy, forecast target composition, abort/dedupe, data loading, render-host application, field-data publication, and sync startup state. It should coordinate modules, not decode payload formats, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
 
 - `forecast-settings/*`: React-owned map presentation settings and defaults. This module owns user-facing render feature options and should stay independent of component, renderer, map-view, and sync internals.
 
@@ -70,12 +68,12 @@ startup, request building, payload loading, and layer application.
 
 Preferred orchestration shape:
 
-1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection for startup.
+1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection.
 2. `ForecastShell` installs selection, time, and settings providers around map and panel UI.
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
    `forecast-settings` to `forecast-render` and `forecast-sync`.
-4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`
-   and waits for a render host capability.
+4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`,
+   waits for a render host capability, and exposes sync startup state.
 5. `forecast-sync/useSyncRunner` loads target data through `forecast-data`, applies it through the render host, then publishes the applied field interpolation window through `forecast-probe`.
 6. `forecast-render/*` reconciles active renderer profiles and applies already-loaded render data to MapLibre custom layers.
 

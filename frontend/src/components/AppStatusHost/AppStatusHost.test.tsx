@@ -1,63 +1,60 @@
-import { useEffect } from 'react'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import AppStatusHost from './AppStatusHost'
-import { AppStatusProvider, useAppStatusActions } from '../../app-status'
+import type { AppStatus } from './types'
 
-function StatusPublisher(props: {
-  sourceId: string
-  mode: 'blocking' | 'toast'
-  level: 'loading' | 'error' | 'info'
-  title: string
-  detail: string
-}) {
-  const { sourceId, mode, level, title, detail } = props
-  const { setStatus } = useAppStatusActions()
-
-  useEffect(() => {
-    setStatus(sourceId, { mode, level, title, detail })
-  }, [detail, level, mode, setStatus, sourceId, title])
-
-  return null
+function renderHost(status: AppStatus) {
+  return render(<AppStatusHost status={status} />)
 }
 
 describe('AppStatusHost', () => {
-  it('renders blocking statuses in overlay wrapper', async () => {
-    render(
-      <AppStatusProvider>
-        <StatusPublisher
-          sourceId="manifest"
-          mode="blocking"
-          level="loading"
-          title="Loading Forecast"
-          detail="Fetching manifest..."
-        />
-        <AppStatusHost />
-      </AppStatusProvider>
-    )
+  it('renders blocking statuses in overlay wrapper', () => {
+    renderHost({
+      mode: 'blocking',
+      level: 'loading',
+      title: 'Loading Forecast',
+      detail: 'Fetching manifest...',
+    })
 
-    const status = await screen.findByText('Loading Forecast')
+    const status = screen.getByText('Loading Forecast')
     expect(status).toBeInTheDocument()
     expect(status.closest('.forecast-screen__status-overlay')).not.toBeNull()
   })
 
-  it('renders toast statuses in toast wrapper', async () => {
-    render(
-      <AppStatusProvider>
-        <StatusPublisher
-          sourceId="hint"
-          mode="toast"
-          level="info"
-          title="Heads up"
-          detail="Map loaded"
-        />
-        <AppStatusHost />
-      </AppStatusProvider>
-    )
+  it('renders toast statuses in toast wrapper', () => {
+    renderHost({
+      mode: 'toast',
+      level: 'info',
+      title: 'Heads up',
+      detail: 'Map loaded',
+    })
 
-    const status = await screen.findByText('Heads up')
+    const status = screen.getByText('Heads up')
     expect(status).toBeInTheDocument()
     expect(status.closest('.app-status-toast')).not.toBeNull()
+  })
+
+  it('renders and calls an optional status action', () => {
+    const onAction = vi.fn()
+
+    renderHost({
+      mode: 'blocking',
+      level: 'error',
+      title: 'Forecast Load Failed',
+      detail: 'manifest failed',
+      actionLabel: 'Retry',
+      onAction,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders nothing without an active status', () => {
+    const { container } = renderHost(null)
+
+    expect(container).toBeEmptyDOMElement()
   })
 })

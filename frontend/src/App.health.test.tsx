@@ -13,7 +13,6 @@ vi.mock('./forecast-manifest', async (importOriginal) => {
   return {
     ...actual,
     useForecastManifest: mocks.useForecastManifest,
-    AppStartupStatus: () => null,
   }
 })
 

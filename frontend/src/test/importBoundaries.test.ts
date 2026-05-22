@@ -84,6 +84,11 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'Forecast domain modules must not import AppStatusHost',
+        (file) => (isForecastManifestFile(file.path) || isForecastSyncFile(file.path)) &&
+          file.imports.some((reference) => reference.resolvedPath.includes('/components/AppStatusHost'))
+      ),
+      ...findSourceImportViolations(
         'Import forecast-render through its public module',
         (file) => !isForecastRenderFile(file.path) &&
           file.imports.some((reference) => isForecastRenderSubmoduleImport(reference.resolvedPath))
@@ -115,11 +120,6 @@ describe('frontend import boundaries', () => {
         'Import forecast-selection through its public module',
         (file) => !file.path.includes('/forecast-selection/') &&
           file.imports.some((reference) => isForecastSelectionInternalImport(reference.resolvedPath))
-      ),
-      ...findSourceImportViolations(
-        'Import app-status through its public module',
-        (file) => !file.path.includes('/app-status/') &&
-          file.imports.some((reference) => isAppStatusInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
         'Import forecast-time through its public module',
@@ -211,6 +211,10 @@ function isForecastSyncFile(path: string): boolean {
   return path.includes('/forecast-sync/')
 }
 
+function isForecastManifestFile(path: string): boolean {
+  return path.includes('/forecast-manifest/')
+}
+
 function isMapControlRailFile(path: string): boolean {
   return path.includes('/components/MapControlRail/')
 }
@@ -285,12 +289,6 @@ function isForecastArtifactsInternalImport(path: string): boolean {
 function isForecastSelectionInternalImport(path: string): boolean {
   return path.includes('/forecast-selection/ForecastSelectionContext') ||
     path.includes('/forecast-selection/ForecastSelectionProvider')
-}
-
-function isAppStatusInternalImport(path: string): boolean {
-  return path.includes('/app-status/AppStatusContext') ||
-    path.includes('/app-status/AppStatusProvider') ||
-    path.includes('/app-status/state')
 }
 
 function isForecastTimeInternalImport(path: string): boolean {

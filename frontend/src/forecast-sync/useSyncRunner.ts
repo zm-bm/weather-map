@@ -10,13 +10,13 @@ import {
 } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import { forecastFieldDataStore } from '../forecast-probe'
-import type { StartupState, ForecastSyncTarget } from './types'
+import type { ForecastSyncStartupState, ForecastSyncTarget } from './types'
 
 type UseSyncRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
   target: ForecastSyncTarget | null
-  startup: StartupState
+  startup: ForecastSyncStartupState
   pressureContoursEnabled?: boolean
 }
 
