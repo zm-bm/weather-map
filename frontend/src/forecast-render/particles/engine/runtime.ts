@@ -25,7 +25,10 @@ import {
 import {
   EARTH_DEG_PER_METER,
 } from './constants'
-import { DEFAULT_PARTICLE_RUNTIME_OPTIONS, type ParticleRuntimeOptions } from '../options'
+import {
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+  type ParticleRenderSettings,
+} from '../../../forecast-settings/settings'
 
 type ViewportState = {
   west: number
@@ -110,12 +113,16 @@ export type ParticleLayerRuntime = {
 }
 
 export function createParticleRuntime(
-  options: ParticleRuntimeOptions = DEFAULT_PARTICLE_RUNTIME_OPTIONS
+  initialSettings: Partial<ParticleRenderSettings> = DEFAULT_PARTICLE_RENDER_SETTINGS
 ): ParticleLayerRuntime {
+  const settings: ParticleRenderSettings = {
+    ...DEFAULT_PARTICLE_RENDER_SETTINGS,
+    ...initialSettings,
+  }
   const state: ParticleLayerState = {
     enabled: true,
     lastFrameMs: 0,
-    particleCount: options.particleCount,
+    particleCount: settings.particleCount,
     viewport: null,
     vectorNx: 0,
     vectorNy: 0,
@@ -154,12 +161,15 @@ export function createParticleRuntime(
     applyFrame: (frame) => {
       if (!state.available || !state.gl) throw new Error('Vector runtime unavailable (WebGL2 required)')
       // Upload the latest vector field and optionally reseed particles.
-      applyVectorFieldToState(state, frame, options)
+      applyVectorFieldToState(state, frame, settings)
       state.map?.triggerRepaint()
     },
     setEnabled: (enabled) => {
       state.enabled = enabled
       state.map?.triggerRepaint()
+    },
+    applySettings: (nextSettings) => {
+      applyParticleRenderSettingsToState(state, settings, nextSettings)
     },
   }
 
@@ -220,7 +230,7 @@ export function createParticleRuntime(
       const initial = buildInitialParticleState(
         state.particleCount,
         state.viewport,
-        options.maxAgeSec,
+        settings.maxAgeSec,
       )
       state.stateBufferInfos = [
         createStateBufferInfo(gl2, initial),
@@ -249,7 +259,7 @@ export function createParticleRuntime(
         return
       }
 
-      if (!ensureTrailTargets(state, options)) {
+      if (!ensureTrailTargets(state, settings)) {
         state.available = false
         return
       }
@@ -269,27 +279,27 @@ export function createParticleRuntime(
 
       // Refresh camera bounds every frame as pan/zoom changes.
       state.viewport = computeViewportState(state.map)
-      updateZoomOutRespawnState(state, options)
+      updateZoomOutRespawnState(state, settings)
 
       const now = performance.now()
       // Clamp delta time to keep integration stable on slow frames.
       const dtSec = clamp((now - state.lastFrameMs) / 1000, 0.001, 0.05)
       state.lastFrameMs = now
 
-      if (!ensureTrailTargets(state, options)) return
+      if (!ensureTrailTargets(state, settings)) return
 
       const cameraChanged = didCameraChange(state)
-      if (options.clearTrailsOnViewChange && cameraChanged) {
+      if (settings.clearTrailsOnViewChange && cameraChanged) {
         clearTrailTextures(state)
       }
 
       // Run simulation first, then draw.
-      runUpdatePass(state, dtSec, now, options)
-      const trailTexture = runTrailPass(state, options)
+      runUpdatePass(state, dtSec, now, settings)
+      const trailTexture = runTrailPass(state, settings)
       if (trailTexture) {
-        compositeTrailToMap(state, trailTexture, options)
+        compositeTrailToMap(state, trailTexture, settings)
       } else {
-        runParticlePass(state, options)
+        runParticlePass(state, settings)
       }
 
       state.map.triggerRepaint()
@@ -360,7 +370,7 @@ export function createParticleRuntime(
 function applyVectorFieldToState(
   state: ParticleLayerState,
   vectorField: ParticleInterpolationWindowData,
-  options: ParticleRuntimeOptions,
+  options: ParticleRenderSettings,
 ) {
   const gl = state.gl
   if (!gl) return
@@ -432,6 +442,76 @@ function applyVectorFieldToState(
   state.lastFrameMs = performance.now()
 }
 
+function applyParticleRenderSettingsToState(
+  state: ParticleLayerState,
+  options: ParticleRenderSettings,
+  nextOptions: Partial<ParticleRenderSettings>,
+) {
+  const previousParticleCount = options.particleCount
+  const nextParticleCount = nextOptions.particleCount == null
+    ? options.particleCount
+    : sanitizeParticleCount(nextOptions.particleCount)
+
+  Object.assign(options, nextOptions)
+  options.particleCount = nextParticleCount
+
+  if (previousParticleCount !== nextParticleCount) {
+    if (!state.gl) {
+      state.particleCount = nextParticleCount
+    } else if (rebuildParticleStateBuffers(state, options, nextParticleCount)) {
+      state.particleCount = nextParticleCount
+    } else {
+      options.particleCount = previousParticleCount
+    }
+  }
+
+  state.map?.triggerRepaint()
+}
+
+function sanitizeParticleCount(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PARTICLE_RENDER_SETTINGS.particleCount
+  return Math.max(0, Math.floor(value))
+}
+
+function rebuildParticleStateBuffers(
+  state: ParticleLayerState,
+  options: ParticleRenderSettings,
+  particleCount: number,
+): boolean {
+  const { gl } = state
+  if (!gl) return false
+
+  const initial = buildInitialParticleState(
+    particleCount,
+    state.viewport,
+    options.maxAgeSec,
+  )
+  const nextBuffer0 = createStateBufferInfo(gl, initial)
+  const nextBuffer1 = createStateBufferInfo(gl, initial)
+  if (!nextBuffer0 || !nextBuffer1) {
+    const buffer0 = nextBuffer0 ? getStateBufferFromInfo(nextBuffer0) : null
+    const buffer1 = nextBuffer1 ? getStateBufferFromInfo(nextBuffer1) : null
+    if (buffer0) gl.deleteBuffer(buffer0)
+    if (buffer1) gl.deleteBuffer(buffer1)
+    console.warn('[particles] failed to resize particle state buffers; keeping previous buffers')
+    return false
+  }
+
+  const previousBuffer0 = state.stateBufferInfos[0]
+    ? getStateBufferFromInfo(state.stateBufferInfos[0])
+    : null
+  const previousBuffer1 = state.stateBufferInfos[1]
+    ? getStateBufferFromInfo(state.stateBufferInfos[1])
+    : null
+  if (previousBuffer0) gl.deleteBuffer(previousBuffer0)
+  if (previousBuffer1) gl.deleteBuffer(previousBuffer1)
+
+  state.stateBufferInfos = [nextBuffer0, nextBuffer1]
+  state.activeSourceIndex = 0
+  clearTrailTextures(state)
+  return true
+}
+
 function findReusableVectorTexture(
   state: ParticleLayerState,
   frame: ParticleTimeSliceData
@@ -456,7 +536,7 @@ function runUpdatePass(
   state: ParticleLayerState,
   dtSec: number,
   nowMs: number,
-  options: ParticleRuntimeOptions,
+  options: ParticleRenderSettings,
 ) {
   const {
     gl,
@@ -539,7 +619,7 @@ function runUpdatePass(
   state.activeSourceIndex = activeSourceIndex === 0 ? 1 : 0
 }
 
-function runParticlePass(state: ParticleLayerState, options: ParticleRuntimeOptions) {
+function runParticlePass(state: ParticleLayerState, options: ParticleRenderSettings) {
   const { gl } = state
   if (!gl) return
 
@@ -549,7 +629,7 @@ function runParticlePass(state: ParticleLayerState, options: ParticleRuntimeOpti
   drawParticleGeometryPass(state, options)
 }
 
-function runTrailPass(state: ParticleLayerState, options: ParticleRuntimeOptions) {
+function runTrailPass(state: ParticleLayerState, options: ParticleRenderSettings) {
   const {
     gl,
     trailFramebuffer,
@@ -600,7 +680,7 @@ function compositeTrailPass(
 function compositeTrailToMap(
   state: ParticleLayerState,
   texture: WebGLTexture,
-  options: ParticleRuntimeOptions,
+  options: ParticleRenderSettings,
 ) {
   const { gl, trailProgramInfo, trailQuadBufferInfo } = state
   if (!gl || !trailProgramInfo || !trailQuadBufferInfo) return
@@ -624,7 +704,7 @@ function compositeTrailToMap(
   gl.disable(gl.BLEND)
 }
 
-function drawParticleGeometryPass(state: ParticleLayerState, options: ParticleRuntimeOptions) {
+function drawParticleGeometryPass(state: ParticleLayerState, options: ParticleRenderSettings) {
   const {
     gl,
     viewport,
@@ -729,7 +809,7 @@ function getTrailQuadBufferFromInfo(bufferInfo: twgl.BufferInfo) {
   return attrib?.buffer ?? null
 }
 
-function ensureTrailTargets(state: ParticleLayerState, options: ParticleRuntimeOptions) {
+function ensureTrailTargets(state: ParticleLayerState, options: ParticleRenderSettings) {
   const { gl, trailFramebuffer, trailTextures } = state
   if (!gl || !trailFramebuffer) return false
 
@@ -821,7 +901,7 @@ function didCameraChange(state: ParticleLayerState) {
   return hasCameraChanged(prev, next)
 }
 
-function updateZoomOutRespawnState(state: ParticleLayerState, options: ParticleRuntimeOptions) {
+function updateZoomOutRespawnState(state: ParticleLayerState, options: ParticleRenderSettings) {
   const map = state.map
   if (!map) return
 

@@ -21,11 +21,12 @@ state into `app-status`, then renders
 
 - `forecast-selection`: selected layer, selected particle layer, and unit options.
 - `forecast-time`: selected valid time and playback state.
+- `forecast-settings`: map presentation settings and render feature options.
 
 `components/ForecastMap` owns the MapLibre host instance, installs the forecast
-renderer host after map style readiness, and calls `forecast-sync/useForecastSync`,
-which coordinates startup, request building, payload loading, and layer
-application.
+renderer host after map style readiness, bridges forecast settings into renderer
+and sync setup, and calls `forecast-sync/useForecastSync`, which coordinates
+startup, request building, payload loading, and layer application.
 
 ## Module Ownership
 
@@ -49,7 +50,9 @@ application.
 
 - `forecast-sync/*`: orchestration layer for startup policy, forecast target composition, abort/dedupe, data loading, render-host application, field-data publication, and app-status projection. It should coordinate modules, not decode payload formats, know about MapLibre, or own interpolation-window reuse bookkeeping itself.
 
-- `forecast-render/*`: forecast render host, renderer profiles, adapters, controllers, shaders, and renderer-specific options. This module owns MapLibre custom layer reconciliation and exposes a render-host apply capability; data loading and probe behavior live elsewhere.
+- `forecast-settings/*`: React-owned map presentation settings and defaults. This module owns user-facing render feature options and should stay independent of component, renderer, map-view, and sync internals.
+
+- `forecast-render/*`: imperative renderer runtime, renderer profiles, adapters, controllers, and shaders. This module owns MapLibre custom layer reconciliation and exposes a render-host apply capability; settings state, data loading, and probe behavior live elsewhere.
 
 - `map/*`: MapLibre host platform, style construction, viewport persistence, map controls, and base map interactions. Keep forecast domain logic out of this layer.
 
@@ -68,9 +71,9 @@ application.
 Preferred orchestration shape:
 
 1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection for startup.
-2. `ForecastShell` installs selection and time providers around map and panel UI.
-3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and installs the
-   active forecast render profile through `forecast-render`.
+2. `ForecastShell` installs selection, time, and settings providers around map and panel UI.
+3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
+   `forecast-settings` to `forecast-render` and `forecast-sync`.
 4. `forecast-sync/useForecastSync` turns provider state into a `ForecastSyncTarget`
    and waits for a render host capability.
 5. `forecast-sync/useSyncRunner` loads target data through `forecast-data`, applies it through the render host, then publishes the applied field interpolation window through `forecast-probe`.

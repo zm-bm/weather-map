@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 
+import { ForecastSettingsProvider } from '../../forecast-settings'
 import type { ForecastManifestData } from '../../forecast-manifest'
 import { ForecastSelectionProvider } from '../../forecast-selection'
 import { ForecastTimeProvider, forecastTimeProviderKey } from '../../forecast-time'
@@ -58,31 +59,33 @@ export default function ForecastShell({ forecast }: ForecastShellProps) {
 
   return (
     <main className="forecast-screen">
-      <ForecastSelectionProvider
-        activeRun={activeRun}
-        modelOptions={forecast?.modelOptions ?? []}
-        onActiveModelChange={forecast?.setActiveModel}
-      >
-        <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
-          <div ref={forecastStageRef} className="forecast-stage">
-            <ForecastMap />
+      <ForecastSettingsProvider>
+        <ForecastSelectionProvider
+          activeRun={activeRun}
+          modelOptions={forecast?.modelOptions ?? []}
+          onActiveModelChange={forecast?.setActiveModel}
+        >
+          <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
+            <div ref={forecastStageRef} className="forecast-stage">
+              <ForecastMap />
+
+              {activeRun && (
+                <>
+                  <MapSyncIndicator />
+                  <ForecastPanel ref={forecastPanelRef} />
+                  <div className="forecast-stage__legend">
+                    <LegendPanel />
+                  </div>
+                </>
+              )}
+            </div>
 
             {activeRun && (
-              <>
-                <MapSyncIndicator />
-                <ForecastPanel ref={forecastPanelRef} />
-                <div className="forecast-stage__legend">
-                  <LegendPanel />
-                </div>
-              </>
+              <TimelineBar />
             )}
-          </div>
-
-          {activeRun && (
-            <TimelineBar />
-          )}
-        </ForecastTimeProvider>
-      </ForecastSelectionProvider>
+          </ForecastTimeProvider>
+        </ForecastSelectionProvider>
+      </ForecastSettingsProvider>
     </main>
   )
 }

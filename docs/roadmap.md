@@ -42,16 +42,6 @@ unless they are opt-in or otherwise low-noise.
 
 ## Architecture Follow-Ups
 
-### Replace Mutable Renderer Option Singletons
-
-Runtime renderer options are currently mutated through shared module-level
-objects from the map controls. This hides state changes across UI, renderer
-runtime, and tests.
-
-Introduce explicit render settings state, likely through a small provider or
-renderer controller API, so controls update settings and renderers consume those
-settings through a clear boundary.
-
 ### Keep Status Projection Out Of Domain Modules
 
 Startup status projection currently lives partly inside forecast domain modules,

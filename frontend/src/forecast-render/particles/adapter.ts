@@ -4,21 +4,27 @@ import type { ForecastRenderer } from '../types'
 import { resolveForecastLayerBeforeId } from '../placement'
 import { createParticleRuntime } from './engine/runtime'
 import { getParticleController } from './controller'
-import { particleRuntimeOptions } from './options'
 import type { ParticleInterpolationWindowData } from '../../forecast-data'
+import type {
+  ParticleRenderSettings,
+  ForecastRenderSettings,
+} from '../../forecast-settings/settings'
 
 export const PARTICLE_RENDERER_LAYER_ID = 'particle-renderer-layer-id'
 
 export const particleRenderer: ForecastRenderer = {
   id: 'particles',
   layerId: PARTICLE_RENDERER_LAYER_ID,
-  install(map) {
+  install(map, renderSettings) {
     if (map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return
-    map.addLayer(createParticleCustomLayer(), resolveForecastLayerBeforeId(map))
+    map.addLayer(createParticleCustomLayer(renderSettings.particles), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return
     map.removeLayer(PARTICLE_RENDERER_LAYER_ID)
+  },
+  configure(map, renderSettings) {
+    applyParticleRenderSettings(map, renderSettings.particles)
   },
   apply(map, data) {
     applyParticleInterpolationWindow(map, data.particles)
@@ -40,8 +46,16 @@ export function applyParticleInterpolationWindow(map: MapLibreMap, frame: Partic
   controller.applyFrame(frame)
 }
 
-function createParticleCustomLayer() {
-  const runtime = createParticleRuntime(particleRuntimeOptions)
+export function applyParticleRenderSettings(
+  map: MapLibreMap,
+  settings: Partial<ParticleRenderSettings>,
+): void {
+  const controller = getParticleController(map)
+  controller?.applySettings(settings)
+}
+
+function createParticleCustomLayer(settings: ForecastRenderSettings['particles']) {
+  const runtime = createParticleRuntime(settings)
   return {
     id: PARTICLE_RENDERER_LAYER_ID,
     type: 'custom' as const,

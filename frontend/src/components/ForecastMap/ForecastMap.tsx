@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import config from '../../config'
+import {
+  type ForecastRenderSettings,
+  type ForecastSettings,
+  useForecastSettings,
+} from '../../forecast-settings'
 import {
   useForecastRenderHost,
   type ForecastRendererId,
@@ -17,48 +22,32 @@ export type ForecastMapProps = {
   containerId?: string
 }
 
-type ForecastMapRenderOptions = {
-  particlesEnabled: boolean
-  pressureContoursEnabled: boolean
-}
-
-function createForecastMapRenderProfile({
-  particlesEnabled,
-  pressureContoursEnabled,
-}: ForecastMapRenderOptions): ForecastRenderProfile {
-  const rendererIds: ForecastRendererId[] = ['field', 'cloud-layers', 'field-overlay']
-  if (pressureContoursEnabled) rendererIds.push('contour-overlay')
-  if (particlesEnabled) rendererIds.push('particles')
-
-  return {
-    key: [
-      'field',
-      'cloud-layers',
-      pressureContoursEnabled ? 'contours' : 'no-contours',
-      particlesEnabled ? 'particles' : 'no-particles',
-    ].join('-'),
-    rendererIds,
-  }
-}
-
 export default function ForecastMap({
   containerId = 'map',
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const { selectedLayerId } = useForecastSelectionContext()
-  const [particlesEnabled, setParticlesEnabled] = useState(true)
-  const [pressureContoursEnabled, setPressureContoursEnabled] = useState(false)
-  const renderProfile = useMemo(
-    () => createForecastMapRenderProfile({
-      particlesEnabled,
-      pressureContoursEnabled,
-    }),
-    [particlesEnabled, pressureContoursEnabled],
+
+  const {
+    settings,
+    actions,
+  } = useForecastSettings()
+
+  const renderSettings = useMemo(
+    () => createRenderSettings(settings),
+    [settings],
   )
+
+  const renderProfile = useMemo(
+    () => createRenderProfile(settings),
+    [settings],
+  )
+
   const renderHost = useForecastRenderHost({
     getMap,
     mapReadyVersion,
     profile: renderProfile,
+    renderSettings,
   })
 
   useForecastBasemapTheme({
@@ -70,7 +59,7 @@ export default function ForecastMap({
   useForecastSync({
     renderHost,
     config,
-    pressureContoursEnabled,
+    pressureContoursEnabled: settings.pressureContours.enabled,
   })
 
   return (
@@ -79,12 +68,35 @@ export default function ForecastMap({
       <MapControlRail
         mapRef={mapRef}
         mapReadyVersion={mapReadyVersion}
-        particlesEnabled={particlesEnabled}
-        pressureContoursEnabled={pressureContoursEnabled}
-        onParticlesEnabledChange={setParticlesEnabled}
-        onPressureContoursEnabledChange={setPressureContoursEnabled}
+        settings={settings}
+        settingsActions={actions}
       />
       <ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={mapReadyVersion} />
     </div>
   )
+}
+
+function createRenderProfile(settings: ForecastSettings): ForecastRenderProfile {
+  const rendererIds: ForecastRendererId[] = ['field', 'cloud-layers', 'field-overlay']
+  if (settings.pressureContours.enabled) rendererIds.push('contour-overlay')
+  if (settings.particles.enabled) rendererIds.push('particles')
+
+  return { rendererIds }
+}
+
+function createRenderSettings(settings: ForecastSettings): ForecastRenderSettings {
+  return {
+    field: {
+      ...settings.field,
+    },
+    particles: createParticleRenderSettings(settings.particles),
+  }
+}
+
+function createParticleRenderSettings({
+  enabled,
+  ...settings
+}: ForecastSettings['particles']): ForecastRenderSettings['particles'] {
+  void enabled
+  return settings
 }

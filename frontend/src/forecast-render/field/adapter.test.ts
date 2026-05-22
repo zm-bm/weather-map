@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+} from '../../forecast-settings/settings'
 import { FORECAST_LAYER_BEFORE_ID } from '../placement'
-import { applyFieldInterpolationWindow, fieldRenderer } from './adapter'
-import { fieldRuntimeOptions } from './options'
+import { applyFieldInterpolationWindow, applyFieldRenderSettings, fieldRenderer } from './adapter'
+
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FIELD_RENDER_SETTINGS,
+  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+}
 
 const mocks = vi.hoisted(() => ({
   getFieldController: vi.fn(),
@@ -24,6 +32,7 @@ describe('fieldRenderer', () => {
       isAvailable: () => true,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
+      applySettings: vi.fn(),
     })
   })
 
@@ -41,9 +50,9 @@ describe('fieldRenderer', () => {
       addLayer,
     }
 
-    fieldRenderer.install(map as never)
+    fieldRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
-    expect(mocks.createFieldRuntime).toHaveBeenCalledWith(fieldRuntimeOptions)
+    expect(mocks.createFieldRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.field)
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('field-renderer-layer-id')
     expect(layer.type).toBe('custom')
@@ -57,7 +66,7 @@ describe('fieldRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    fieldRenderer.install(map as never)
+    fieldRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createFieldRuntime).not.toHaveBeenCalled()
@@ -71,6 +80,7 @@ describe('fieldRenderer', () => {
       isAvailable: () => true,
       applyFrame,
       setEnabled: vi.fn(),
+      applySettings: vi.fn(),
     })
 
     applyFieldInterpolationWindow(map as never, frame as never)
@@ -83,9 +93,26 @@ describe('fieldRenderer', () => {
       isAvailable: () => false,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
+      applySettings: vi.fn(),
     })
 
     expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'temperature' } } as never))
       .toThrow('Field renderer unavailable (WebGL2 required)')
+  })
+
+  it('applies render settings to the field controller', () => {
+    const applySettings = vi.fn()
+    const map = {}
+    const settings = { colorSamplingMode: 'interpolated' } as const
+    mocks.getFieldController.mockReturnValue({
+      isAvailable: () => true,
+      applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
+      applySettings,
+    })
+
+    applyFieldRenderSettings(map as never, settings)
+
+    expect(applySettings).toHaveBeenCalledWith(settings)
   })
 })

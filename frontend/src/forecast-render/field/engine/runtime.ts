@@ -23,10 +23,10 @@ import {
   type FieldTimeSliceData,
 } from '../../../forecast-data'
 import {
-  DEFAULT_FIELD_RUNTIME_OPTIONS,
   type FieldColorSamplingMode,
-  type FieldRuntimeOptions,
-} from '../options'
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  type FieldRenderSettings,
+} from '../../../forecast-settings/settings'
 
 type NormalizedColortableStop = [number, number, number, number]
 
@@ -91,13 +91,17 @@ export type FieldRendererRuntime = {
 }
 
 export function createFieldRuntime(
-  options: FieldRuntimeOptions = DEFAULT_FIELD_RUNTIME_OPTIONS
+  initialSettings: FieldRenderSettings = DEFAULT_FIELD_RENDER_SETTINGS
 ): FieldRendererRuntime {
+  const settings: FieldRenderSettings = {
+    ...DEFAULT_FIELD_RENDER_SETTINGS,
+    ...initialSettings,
+  }
   const state: FieldRendererState = {
     available: false,
     hasFrame: false,
     opacity: FIELD_ACTIVE_OPACITY,
-    colorSamplingMode: options.colorSamplingMode,
+    colorSamplingMode: settings.colorSamplingMode,
     program: null,
     vao: null,
     vertexBuffer: null,
@@ -244,12 +248,18 @@ export function createFieldRuntime(
       state.displayMin = lowerFrame.displayRange[0]
       state.displayMax = lowerFrame.displayRange[1]
       state.timeMix = upperFrame === lowerFrame ? 0 : frame.mix
-      state.colorSamplingMode = options.colorSamplingMode
+      state.colorSamplingMode = settings.colorSamplingMode
       state.hasFrame = true
       state.map?.triggerRepaint()
     },
     setEnabled: (enabled) => {
       state.opacity = enabled ? FIELD_ACTIVE_OPACITY : 0
+      state.map?.triggerRepaint()
+    },
+    applySettings: (nextSettings) => {
+      if (settings.colorSamplingMode === nextSettings.colorSamplingMode) return
+      settings.colorSamplingMode = nextSettings.colorSamplingMode
+      state.colorSamplingMode = nextSettings.colorSamplingMode
       state.map?.triggerRepaint()
     },
   }
@@ -301,8 +311,8 @@ export function createFieldRuntime(
       if (!gl2 || !state.available || !state.map || !state.program || !state.vao) return
       if (!state.scalarTexture || !state.scalarTextureUpper || !state.hasFrame || state.opacity <= 0) return
 
-      // Pick the active LUT texture from runtime options.
-      state.colorSamplingMode = options.colorSamplingMode
+      // Pick the active LUT texture from map render settings.
+      state.colorSamplingMode = settings.colorSamplingMode
       const colormapTexture = state.colorSamplingMode === 'banded'
         ? state.colormapTextureBanded
         : state.colormapTextureInterpolated

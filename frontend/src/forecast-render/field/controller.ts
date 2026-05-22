@@ -5,8 +5,11 @@ import {
   type MapFrameController,
 } from '../../map/controllers'
 import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type { FieldRenderSettings } from '../../forecast-settings/settings'
 
-export type FieldController = MapFrameController<FieldInterpolationWindowData | null>
+export type FieldController = MapFrameController<FieldInterpolationWindowData | null> & {
+  applySettings: (settings: FieldRenderSettings) => void
+}
 
 const controllers = createMapControllerRegistry<FieldController>()
 

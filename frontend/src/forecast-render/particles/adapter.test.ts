@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+} from '../../forecast-settings/settings'
 import { FORECAST_LAYER_BEFORE_ID } from '../placement'
-import { applyParticleInterpolationWindow, particleRenderer } from './adapter'
-import { particleRuntimeOptions } from './options'
+import { applyParticleInterpolationWindow, applyParticleRenderSettings, particleRenderer } from './adapter'
+
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FIELD_RENDER_SETTINGS,
+  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+}
 
 const mocks = vi.hoisted(() => ({
   getParticleController: vi.fn(),
@@ -24,6 +32,7 @@ describe('particleRenderer', () => {
       isAvailable: () => true,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
+      applySettings: vi.fn(),
     })
   })
 
@@ -41,9 +50,9 @@ describe('particleRenderer', () => {
       addLayer,
     }
 
-    particleRenderer.install(map as never)
+    particleRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
-    expect(mocks.createParticleRuntime).toHaveBeenCalledWith(particleRuntimeOptions)
+    expect(mocks.createParticleRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.particles)
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('particle-renderer-layer-id')
     expect(layer.type).toBe('custom')
@@ -57,7 +66,7 @@ describe('particleRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    particleRenderer.install(map as never)
+    particleRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createParticleRuntime).not.toHaveBeenCalled()
@@ -72,6 +81,7 @@ describe('particleRenderer', () => {
       isAvailable: () => true,
       applyFrame,
       setEnabled,
+      applySettings: vi.fn(),
     })
 
     applyParticleInterpolationWindow(map as never, frame as never)
@@ -86,6 +96,7 @@ describe('particleRenderer', () => {
       isAvailable: () => true,
       applyFrame: vi.fn(),
       setEnabled,
+      applySettings: vi.fn(),
     })
 
     applyParticleInterpolationWindow({} as never, null)
@@ -98,9 +109,26 @@ describe('particleRenderer', () => {
       isAvailable: () => false,
       applyFrame: vi.fn(),
       setEnabled: vi.fn(),
+      applySettings: vi.fn(),
     })
 
     expect(() => applyParticleInterpolationWindow({} as never, { lower: { artifactId: 'wind10m_uv' } } as never))
       .toThrow('Particle runtime unavailable (WebGL2 required)')
+  })
+
+  it('applies render settings to the particle controller', () => {
+    const applySettings = vi.fn()
+    const map = {}
+    const settings = { clearTrailsOnViewChange: false }
+    mocks.getParticleController.mockReturnValue({
+      isAvailable: () => true,
+      applyFrame: vi.fn(),
+      setEnabled: vi.fn(),
+      applySettings,
+    })
+
+    applyParticleRenderSettings(map as never, settings)
+
+    expect(applySettings).toHaveBeenCalledWith(settings)
   })
 })

@@ -1,6 +1,6 @@
 # Forecast Catalog Candidates
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 This document is the working backlog for unimplemented or unsettled
 user-facing forecast catalog choices. Use it to settle catalog identity before
@@ -17,22 +17,6 @@ Scope rules:
    should not block GFS/ICON catalog additions. NEXRAD remains planned, but it
    should not make radar the immediate catalog priority.
 
-Release tracks:
-
-- `V1 stabilization`: fix or simplify currently exposed forecast behavior, or
-  use current artifacts to reduce confusing user-facing choices.
-- `Post-V1 backlog`: defer nice-to-have layers, model expansion, advanced
-  severe weather, aviation-specific views, and external sources until after v1
-  is stable.
-
-## V1 Stabilization Queue
-
-These are the remaining catalog decisions or follow-ups to resolve before a
-stable v1. They either polish implemented behavior or simplify exposed choices
-without expanding the model/source surface.
-
-No remaining v1 stabilization catalog candidates.
-
 ## Current Groups
 
 | Group id | Label | Current layers |
@@ -43,18 +27,19 @@ No remaining v1 stabilization catalog candidates.
 | `clouds_visibility` | Clouds & Visibility | `cloud_layers`, `cloud_cover`, `visibility` |
 | `radar_storms` | Radar & Storms | `composite_reflectivity`, `cape`, `cin` |
 
-## Post-V1 Catalog Backlog
+## Catalog Backlog
 
-These candidates remain useful, but are not required for a stable v1.
+These candidates remain useful, but need more source, product, interaction, or
+grouping decisions before promotion.
 
 ### Current-Artifact Candidates
 
 These use current artifacts or fit the current GFS/ICON forecast scope, but are
-deferred because they are not essential to the v1 product surface.
+deferred because they are not essential to the current product surface.
 
 | Candidate id | UI label | Group | Source or recipe | Current/future model support | Deferral reason |
 | --- | --- | --- | --- | --- | --- |
-| `wind_direction` | Wind Direction | `wind_pressure` | Derived degrees from `wind10m_uv`. | GFS/ICON current. | Useful, but not needed for stable v1 with `wind_speed`, `wind_gust`, and the `wind` particle layer already present. May work better as readout, arrows, barbs, or a wind render mode than as a filled scalar layer. |
+| `wind_direction` | Wind Direction | `wind_pressure` | Derived degrees from `wind10m_uv`. | GFS/ICON current. | Useful, but lower priority with `wind_speed`, `wind_gust`, and the `wind` particle layer already present. May work better as readout, arrows, barbs, or a wind render mode than as a filled scalar layer. |
 | `fog_low_visibility` | Fog / Low Visibility | `clouds_visibility` | Emphasis recipe from `visibility_surface`; optionally combine with low cloud or ceiling later. | GFS current; ICON needs visibility or an equivalent field. | Raw `visibility` already exists; defer a hazard-emphasis recipe, especially while ICON lacks visibility. This should not duplicate raw `visibility`, `cloud_layers`, or `cloud_ceiling`. |
 | `thunderstorm_overlay` | Thunderstorm Overlay | `precipitation` or `radar_storms` | Optional overlay or storm-context rendering from `thunderstorm_mask`. | ICON current; GFS unavailable unless a future explicit source is chosen. | Defer ICON-only thunderstorm rendering until precipitation-vs-storm context is worth solving. Do not fake GFS thunder with CAPE, reflectivity, or other proxies unless that tradeoff is explicitly chosen. |
 
@@ -65,13 +50,13 @@ more catalog design before implementation.
 
 | Candidate id | UI label | Group | Source or recipe | Current/future model support | Deferral reason |
 | --- | --- | --- | --- | --- | --- |
-| `precip_accum_1h`, `precip_accum_3h`, `precip_accum_6h`, `precip_accum_12h`, `precip_accum_24h` | 1h/3h/6h/12h/24h Precipitation | `precipitation` | Fixed-window accumulation artifacts derived from run-total/source accumulation fields. | GFS/ICON target after upstream cadence and derivation are confirmed. | Requires fixed-window accumulation semantics and artifacts; not needed for stable v1. Do not overload `accumulated_precipitation`; each layer needs explicit window semantics. |
+| `precip_accum_1h`, `precip_accum_3h`, `precip_accum_6h`, `precip_accum_12h`, `precip_accum_24h` | 1h/3h/6h/12h/24h Precipitation | `precipitation` | Fixed-window accumulation artifacts derived from run-total/source accumulation fields. | GFS/ICON target after upstream cadence and derivation are confirmed. | Requires fixed-window accumulation semantics and artifacts; lower priority than the current precipitation surface. Do not overload `accumulated_precipitation`; each layer needs explicit window semantics. |
 | `snowfall_accumulation` | Snowfall Accumulation | `precipitation` | Forecast new-snow accumulation artifact or derived snowfall accumulation. | GFS/ICON target after source fields are confirmed. | Needs new snowfall accumulation source or derivation; defer beyond core precipitation. Different from `snow_depth`, which is existing snow on the ground. |
-| `jet_stream` | Jet Stream | `wind_pressure` | Upper-level wind speed derived from `wind250mb_uv`, `wind300mb_uv`, or the chosen standard level. | GFS/ICON target after upper-air wind artifacts exist. | Upper-air expansion, not core v1. User-facing label should be `Jet Stream`, not a raw pressure-level field name. |
-| `geopotential_height_500mb` | Upper-Level Pattern / 500mb Heights | `wind_pressure` | Direct 500mb geopotential height scalar such as `hgt_500mb`. | GFS/ICON target after upper-air height artifacts exist. | Upper-air/synoptic expansion, not core v1. Classic trough/ridge and steering-pattern layer. |
+| `jet_stream` | Jet Stream | `wind_pressure` | Upper-level wind speed derived from `wind250mb_uv`, `wind300mb_uv`, or the chosen standard level. | GFS/ICON target after upper-air wind artifacts exist. | Upper-air expansion, not current core catalog. User-facing label should be `Jet Stream`, not a raw pressure-level field name. |
+| `geopotential_height_500mb` | Upper-Level Pattern / 500mb Heights | `wind_pressure` | Direct 500mb geopotential height scalar such as `hgt_500mb`. | GFS/ICON target after upper-air height artifacts exist. | Upper-air/synoptic expansion, not current core catalog. Classic trough/ridge and steering-pattern layer. |
 | `upper_air_standard_levels` | Upper-Air Layers | Varies; likely `wind_pressure` first | Family covering standard pressure-level temperature, wind, height, humidity, and vorticity. | GFS/ICON target after exact levels and artifact ids are chosen. | Family placeholder; defer until concrete layer ids and artifacts are chosen. |
 | `cloud_ceiling` | Cloud Ceiling | `clouds_visibility` | Lowest significant cloud ceiling or cloud-base height artifact. | GFS/ICON target if native or equivalent fields are available. | Separate aviation/height-style layer. Pairs with visibility and future fog views, but should not be conflated with the model-derived `cloud_layers` composite. |
-| `storm_relative_helicity` | Storm Helicity | `radar_storms` | Storm-relative helicity scalar such as `srh_0_3km`. | GFS/ICON target if source fields are available. | Advanced severe-weather context; defer beyond core storm layers. |
+| `storm_relative_helicity` | Storm Helicity | `radar_storms` | Storm-relative helicity scalar such as `srh_0_3km`. | GFS/ICON target if source fields are available. | Advanced severe-weather context; lower priority than the current storm layers. |
 
 ### Radar And External Sources
 

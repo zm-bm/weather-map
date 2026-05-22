@@ -9,12 +9,10 @@ import {
 
 import config from '../../config'
 import {
-  fieldRuntimeOptions,
-  particleRuntimeOptions,
-  type FieldColorSamplingMode,
-  type FieldRuntimeOptions,
-  type ParticleRuntimeOptions,
-} from '../../forecast-render/options'
+  DEFAULT_FORECAST_SETTINGS,
+  type ForecastSettings,
+  type ForecastSettingsActions,
+} from '../../forecast-settings'
 import type { RadioPlaylistFetch } from '../../radio/playlist'
 import type { AudioFactory } from '../../radio/useRadioPlayer'
 import { joinUrl } from '../../url/joinUrl'
@@ -33,14 +31,8 @@ export type MapControlRailProps = {
   createAudio?: AudioFactory
   fetchPlaylist?: RadioPlaylistFetch
   random?: () => number
-  layerColorOptions?: FieldRuntimeOptions
-  particleOptions?: ParticleRuntimeOptions
-  particlesEnabled?: boolean
-  pressureContoursEnabled?: boolean
-  onLayerColorSamplingModeChange?: (nextValue: FieldColorSamplingMode) => void
-  onClearTrailsOnViewChange?: (nextValue: boolean) => void
-  onParticlesEnabledChange?: (nextValue: boolean) => void
-  onPressureContoursEnabledChange?: (nextValue: boolean) => void
+  settings?: ForecastSettings
+  settingsActions?: ForecastSettingsActions
 }
 
 const ZOOM_EDGE_EPSILON = 0.0001
@@ -49,16 +41,12 @@ const DISABLED_ZOOM_BUTTON_STATE: ZoomButtonState = {
   canZoomOut: false,
 }
 
-function setLayerColorSamplingMode(nextValue: FieldColorSamplingMode) {
-  fieldRuntimeOptions.colorSamplingMode = nextValue
+const noopSettingsPatch = () => undefined
+const NOOP_SETTINGS_ACTIONS: ForecastSettingsActions = {
+  updateField: noopSettingsPatch,
+  updateParticles: noopSettingsPatch,
+  updatePressureContours: noopSettingsPatch,
 }
-
-function setParticleClearTrailsOnViewChange(nextValue: boolean) {
-  particleRuntimeOptions.clearTrailsOnViewChange = nextValue
-}
-
-const ignoreParticlesEnabledChange: (nextValue: boolean) => void = () => undefined
-const ignorePressureContoursEnabledChange: (nextValue: boolean) => void = () => undefined
 
 function readMapNumber(readValue: () => number): number | null {
   try {
@@ -94,14 +82,8 @@ export default function MapControlRail({
   createAudio,
   fetchPlaylist,
   random,
-  layerColorOptions = fieldRuntimeOptions,
-  particleOptions = particleRuntimeOptions,
-  particlesEnabled = true,
-  pressureContoursEnabled = true,
-  onLayerColorSamplingModeChange = setLayerColorSamplingMode,
-  onClearTrailsOnViewChange = setParticleClearTrailsOnViewChange,
-  onParticlesEnabledChange = ignoreParticlesEnabledChange,
-  onPressureContoursEnabledChange = ignorePressureContoursEnabledChange,
+  settings = DEFAULT_FORECAST_SETTINGS,
+  settingsActions = NOOP_SETTINGS_ACTIONS,
 }: MapControlRailProps) {
   const resolvedPlaylistUrl = useMemo(
     () => playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json'),
@@ -178,14 +160,8 @@ export default function MapControlRail({
       />
 
       <MapOptionsButton
-        layerColorOptions={layerColorOptions}
-        particleOptions={particleOptions}
-        particlesEnabled={particlesEnabled}
-        pressureContoursEnabled={pressureContoursEnabled}
-        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
-        onClearTrailsOnViewChange={onClearTrailsOnViewChange}
-        onParticlesEnabledChange={onParticlesEnabledChange}
-        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
+        settings={settings}
+        settingsActions={settingsActions}
       />
     </div>
   )

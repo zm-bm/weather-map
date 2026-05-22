@@ -1,4 +1,18 @@
-export type ParticleRuntimeOptions = {
+export const FIELD_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
+
+export type FieldColorSamplingMode = typeof FIELD_COLOR_SAMPLING_MODES[number]
+
+export type FieldRenderSettings = {
+  colorSamplingMode: FieldColorSamplingMode
+}
+
+export const DEFAULT_FIELD_RENDER_SETTINGS: Readonly<FieldRenderSettings> = {
+  colorSamplingMode: 'banded',
+}
+
+export type ParticleColor = readonly [number, number, number, number]
+
+export type ParticleRenderSettings = {
   // Reseed all particles whenever new particle data is applied.
   reseedOnFrameChange: boolean
   // Number of simulated particles.
@@ -38,13 +52,13 @@ export type ParticleRuntimeOptions = {
   // Non-linear mapping from normalized speed to ramp colors (1 = linear).
   speedRampGamma: number
   // Core color at low speed.
-  coreSlow: [number, number, number, number]
+  coreSlow: ParticleColor
   // Core color at high speed.
-  coreFast: [number, number, number, number]
+  coreFast: ParticleColor
   // Shadow color at low speed.
-  shadowSlow: [number, number, number, number]
+  shadowSlow: ParticleColor
   // Shadow color at high speed.
-  shadowFast: [number, number, number, number]
+  shadowFast: ParticleColor
 
   // Trail render target scale relative to drawing buffer size.
   trailScale: number
@@ -58,7 +72,7 @@ export type ParticleRuntimeOptions = {
   clearTrailsOnViewChange: boolean
 }
 
-export const DEFAULT_PARTICLE_RUNTIME_OPTIONS: Readonly<ParticleRuntimeOptions> = {
+export const DEFAULT_PARTICLE_RENDER_SETTINGS: Readonly<ParticleRenderSettings> = {
   reseedOnFrameChange: false,
   particleCount: 5000,
   maxAgeSec: 8.5,
@@ -91,6 +105,45 @@ export const DEFAULT_PARTICLE_RUNTIME_OPTIONS: Readonly<ParticleRuntimeOptions> 
   clearTrailsOnViewChange: true,
 }
 
-export const particleRuntimeOptions: ParticleRuntimeOptions = {
-  ...DEFAULT_PARTICLE_RUNTIME_OPTIONS,
+export type ForecastRenderSettings = {
+  field: FieldRenderSettings
+  particles: ParticleRenderSettings
 }
+
+export type ParticleSettings = ParticleRenderSettings & {
+  enabled: boolean
+}
+
+export type PressureContourSettings = {
+  enabled: boolean
+}
+
+export type ForecastSettings = {
+  field: FieldRenderSettings
+  particles: ParticleSettings
+  pressureContours: PressureContourSettings
+}
+
+export type ForecastSettingsActions = {
+  updateField: (patch: Partial<FieldRenderSettings>) => void
+  updateParticles: (patch: Partial<ParticleSettings>) => void
+  updatePressureContours: (patch: Partial<PressureContourSettings>) => void
+}
+
+export type ForecastSettingsValue = {
+  settings: ForecastSettings
+  actions: ForecastSettingsActions
+}
+
+export const DEFAULT_FORECAST_SETTINGS = {
+  field: {
+    ...DEFAULT_FIELD_RENDER_SETTINGS,
+  },
+  particles: {
+    enabled: true,
+    ...DEFAULT_PARTICLE_RENDER_SETTINGS,
+  },
+  pressureContours: {
+    enabled: false,
+  },
+} as const satisfies ForecastSettings

@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+} from '../../forecast-settings/settings'
 import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import { applyCloudLayersInterpolationWindow, cloudLayersRenderer } from './adapter'
+
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FIELD_RENDER_SETTINGS,
+  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+}
 
 const mocks = vi.hoisted(() => ({
   getCloudLayersController: vi.fn(),
@@ -40,7 +49,7 @@ describe('cloudLayersRenderer', () => {
       addLayer,
     }
 
-    cloudLayersRenderer.install(map as never)
+    cloudLayersRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('cloud-layers-renderer-layer-id')
@@ -55,7 +64,7 @@ describe('cloudLayersRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    cloudLayersRenderer.install(map as never)
+    cloudLayersRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createCloudLayersRuntime).not.toHaveBeenCalled()

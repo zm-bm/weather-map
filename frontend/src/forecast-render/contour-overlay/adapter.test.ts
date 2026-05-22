@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+} from '../../forecast-settings/settings'
 import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import {
   applyPressureContourInterpolationWindow,
@@ -11,6 +15,11 @@ import {
   unregisterContourOverlayController,
 } from './controller'
 
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FIELD_RENDER_SETTINGS,
+  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+}
+
 describe('contourOverlayRenderer', () => {
   it('installs a custom pressure contour layer in forecast render order', () => {
     const addLayer = vi.fn()
@@ -21,7 +30,7 @@ describe('contourOverlayRenderer', () => {
       addLayer,
     }
 
-    contourOverlayRenderer.install(map as never)
+    contourOverlayRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(addLayer).toHaveBeenCalledWith(
       expect.objectContaining({

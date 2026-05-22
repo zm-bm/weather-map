@@ -2,23 +2,29 @@ import { useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { normalizeError } from '../abort'
-import { applyForecastRenderProfileData, reconcileForecastRenderers } from './host'
 import {
-  DEFAULT_FORECAST_RENDER_PROFILE,
+  applyForecastRenderProfileData,
+  configureForecastRenderers,
+  reconcileForecastRenderers,
+} from './host'
+import {
   type ForecastRenderHost,
   type ForecastRenderProfile,
 } from './types'
+import type { ForecastRenderSettings } from '../forecast-settings/settings'
 
 type UseForecastRenderHostArgs = {
   getMap: () => MapLibreMap | null
   mapReadyVersion: number
-  profile?: ForecastRenderProfile
+  profile: ForecastRenderProfile
+  renderSettings: ForecastRenderSettings
 }
 
 export function useForecastRenderHost({
   getMap,
   mapReadyVersion,
-  profile = DEFAULT_FORECAST_RENDER_PROFILE,
+  profile,
+  renderSettings,
 }: UseForecastRenderHostArgs): ForecastRenderHost | null {
   const [renderHost, setRenderHost] = useState<ForecastRenderHost | null>(null)
   const installedRef = useRef<{
@@ -42,30 +48,33 @@ export function useForecastRenderHost({
     }
 
     const profileVersionKey = createProfileVersionKey(profile)
-    if (
+    const shouldReconcile = !(
       installedRef.current?.map === map &&
       installedRef.current.mapReadyVersion === mapReadyVersion &&
       installedRef.current.profileVersionKey === profileVersionKey
-    ) {
-      return
-    }
+    )
 
     try {
-      reconcileForecastRenderers(map, profile)
+      if (shouldReconcile) {
+        reconcileForecastRenderers(map, profile, renderSettings)
+      }
+      configureForecastRenderers(map, profile, renderSettings)
     } catch (error) {
-      console.error('[forecast-render] renderer reconciliation failed', normalizeError(error))
+      console.error('[forecast-render] renderer update failed', normalizeError(error))
     } finally {
-      installedRef.current = { map, mapReadyVersion, profileVersionKey }
-      setRenderHost((current) => ({
-        version: (current?.version ?? 0) + 1,
-        apply: (data) => applyForecastRenderProfileData(map, profile, data),
-      }))
+      if (shouldReconcile) {
+        installedRef.current = { map, mapReadyVersion, profileVersionKey }
+        setRenderHost((current) => ({
+          version: (current?.version ?? 0) + 1,
+          apply: (data) => applyForecastRenderProfileData(map, profile, data),
+        }))
+      }
     }
-  }, [getMap, mapReadyVersion, profile])
+  }, [getMap, mapReadyVersion, profile, renderSettings])
 
   return renderHost
 }
 
 function createProfileVersionKey(profile: ForecastRenderProfile): string {
-  return `${profile.key}:${profile.rendererIds.join(',')}`
+  return profile.rendererIds.join(',')
 }

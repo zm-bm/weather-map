@@ -4,35 +4,21 @@ import { useEffect, useRef, useState } from 'react'
 import {
   FIELD_COLOR_SAMPLING_MODES,
   type FieldColorSamplingMode,
-  type FieldRuntimeOptions,
-  type ParticleRuntimeOptions,
-} from '../../forecast-render/options'
+  type ForecastSettings,
+  type ForecastSettingsActions,
+} from '../../forecast-settings'
 
 export type MapOptionsButtonProps = {
-  layerColorOptions: FieldRuntimeOptions,
-  particleOptions: ParticleRuntimeOptions,
-  particlesEnabled: boolean
-  pressureContoursEnabled: boolean
-  onLayerColorSamplingModeChange: (nextValue: FieldColorSamplingMode) => void
-  onClearTrailsOnViewChange: (nextValue: boolean) => void
-  onParticlesEnabledChange: (nextValue: boolean) => void
-  onPressureContoursEnabledChange: (nextValue: boolean) => void
+  settings: ForecastSettings
+  settingsActions: ForecastSettingsActions
 }
 
 export default function MapOptionsButton({
-  layerColorOptions,
-  particleOptions,
-  particlesEnabled,
-  pressureContoursEnabled,
-  onLayerColorSamplingModeChange,
-  onClearTrailsOnViewChange,
-  onParticlesEnabledChange,
-  onPressureContoursEnabledChange,
+  settings,
+  settingsActions,
 }: MapOptionsButtonProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
-  const [layerColorSamplingMode, setLayerColorSamplingMode] = useState(layerColorOptions.colorSamplingMode)
-  const [clearTrailsOnViewChange, setClearTrailsOnViewChange] = useState(particleOptions.clearTrailsOnViewChange)
 
   useEffect(() => {
     if (!isOpen) return
@@ -58,24 +44,22 @@ export default function MapOptionsButton({
 
   const handleClearTrailsOnViewChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.checked
-    setClearTrailsOnViewChange(nextValue)
-    onClearTrailsOnViewChange(nextValue)
+    settingsActions.updateParticles({ clearTrailsOnViewChange: nextValue })
   }
 
   const handleParticlesEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.checked
-    onParticlesEnabledChange(nextValue)
+    settingsActions.updateParticles({ enabled: nextValue })
   }
 
   const handlePressureContoursEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.checked
-    onPressureContoursEnabledChange(nextValue)
+    settingsActions.updatePressureContours({ enabled: nextValue })
   }
 
   const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.value as FieldColorSamplingMode
-    setLayerColorSamplingMode(nextValue)
-    onLayerColorSamplingModeChange(nextValue)
+    settingsActions.updateField({ colorSamplingMode: nextValue })
   }
 
   return (
@@ -101,7 +85,7 @@ export default function MapOptionsButton({
                   type="radio"
                   name="layer-color-sampling-mode"
                   value={mode}
-                  checked={layerColorSamplingMode === mode}
+                  checked={settings.field.colorSamplingMode === mode}
                   onChange={handleLayerColorSamplingModeChange}
                 />
                 <span>{mode === 'interpolated' ? 'Interpolated' : 'Banded'}</span>
@@ -115,7 +99,7 @@ export default function MapOptionsButton({
           <label className="map-control-options-row wm-mono-caps">
             <input
               type="checkbox"
-              checked={pressureContoursEnabled}
+              checked={settings.pressureContours.enabled}
               onChange={handlePressureContoursEnabledChange}
             />
             <span>Show pressure contours</span>
@@ -127,7 +111,7 @@ export default function MapOptionsButton({
           <label className="map-control-options-row wm-mono-caps">
             <input
               type="checkbox"
-              checked={particlesEnabled}
+              checked={settings.particles.enabled}
               onChange={handleParticlesEnabledChange}
             />
             <span>Show particles</span>
@@ -135,7 +119,7 @@ export default function MapOptionsButton({
           <label className="map-control-options-row wm-mono-caps">
             <input
               type="checkbox"
-              checked={clearTrailsOnViewChange}
+              checked={settings.particles.clearTrailsOnViewChange}
               onChange={handleClearTrailsOnViewChange}
             />
             <span>Clear trails on view change</span>

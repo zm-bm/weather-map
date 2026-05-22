@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DEFAULT_FIELD_RENDER_SETTINGS,
+  DEFAULT_PARTICLE_RENDER_SETTINGS,
+} from '../../forecast-settings/settings'
 import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import {
   applyPrecipTypeOverlayInterpolationWindow,
   fieldOverlayRenderer,
 } from './adapter'
+
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FIELD_RENDER_SETTINGS,
+  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+}
 
 const mocks = vi.hoisted(() => ({
   getFieldOverlayController: vi.fn(),
@@ -43,7 +52,7 @@ describe('fieldOverlayRenderer', () => {
       addLayer,
     }
 
-    fieldOverlayRenderer.install(map as never)
+    fieldOverlayRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(mocks.createFieldOverlayRuntime).toHaveBeenCalled()
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []

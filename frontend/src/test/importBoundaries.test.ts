@@ -48,6 +48,29 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastProbeImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'forecast-render may only import the pure forecast-settings contract',
+        (file) => isForecastRenderFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastSettingsImport(reference.resolvedPath) &&
+            !isForecastSettingsContractImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
+        'Controls must not import forecast-render',
+        (file) => isMapControlRailFile(file.path) &&
+          file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'forecast-settings must not import components, map view, forecast-render, or forecast sync internals',
+        (file) => isForecastSettingsFile(file.path) &&
+          file.imports.some((reference) => (
+            isComponentsImport(reference.resolvedPath) ||
+            reference.resolvedPath.includes('/map/view/') ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
         'Production map modules must not import forecast-render',
         (file) => isProductionMapFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
@@ -61,11 +84,16 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
-        'Import forecast-render through its public module or options module',
+        'Import forecast-render through its public module',
         (file) => !isForecastRenderFile(file.path) &&
+          file.imports.some((reference) => isForecastRenderSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-settings through its public module',
+        (file) => !isForecastSettingsFile(file.path) &&
           file.imports.some((reference) => (
-            isForecastRenderSubmoduleImport(reference.resolvedPath) &&
-            reference.resolvedPath !== '/forecast-render/options'
+            isForecastSettingsSubmoduleImport(reference.resolvedPath) &&
+            !(isForecastRenderFile(file.path) && isForecastSettingsContractImport(reference.resolvedPath))
           ))
       ),
       ...findSourceImportViolations(
@@ -175,8 +203,20 @@ function isForecastRenderFile(path: string): boolean {
   return path.includes('/forecast-render/')
 }
 
+function isForecastSettingsFile(path: string): boolean {
+  return path.includes('/forecast-settings/')
+}
+
 function isForecastSyncFile(path: string): boolean {
   return path.includes('/forecast-sync/')
+}
+
+function isMapControlRailFile(path: string): boolean {
+  return path.includes('/components/MapControlRail/')
+}
+
+function isForecastSyncImport(path: string): boolean {
+  return path === '/forecast-sync' || path.includes('/forecast-sync/')
 }
 
 function isProductionMapFile(path: string): boolean {
@@ -193,6 +233,22 @@ function isForecastRenderImport(path: string): boolean {
 
 function isForecastRenderSubmoduleImport(path: string): boolean {
   return path.includes('/forecast-render/')
+}
+
+function isForecastSettingsImport(path: string): boolean {
+  return path === '/forecast-settings' || isForecastSettingsSubmoduleImport(path)
+}
+
+function isForecastSettingsSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-settings/')
+}
+
+function isForecastSettingsContractImport(path: string): boolean {
+  return path === '/forecast-settings/settings'
+}
+
+function isComponentsImport(path: string): boolean {
+  return path === '/components' || path.includes('/components/')
 }
 
 function isMapProbeImport(path: string): boolean {

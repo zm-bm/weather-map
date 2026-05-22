@@ -8,6 +8,7 @@ import type {
   ForecastRenderer,
   ForecastRendererId,
 } from './types'
+import type { ForecastRenderSettings } from '../forecast-settings/settings'
 import { fieldRenderer } from './field'
 import { cloudLayersRenderer } from './cloud-layers'
 import { fieldOverlayRenderer } from './field-overlay'
@@ -28,6 +29,7 @@ const forecastRenderersById = new Map<ForecastRendererId, ForecastRenderer>(
 export function reconcileForecastRenderers(
   map: MapLibreMap,
   profile: ForecastRenderProfile,
+  renderSettings: ForecastRenderSettings,
 ): void {
   const activeRenderers = renderersForProfile(profile)
   const activeRendererIds = new Set(activeRenderers.map((renderer) => renderer.id))
@@ -38,7 +40,17 @@ export function reconcileForecastRenderers(
   }
 
   for (const renderer of activeRenderers) {
-    renderer.install(map)
+    renderer.install(map, renderSettings)
+  }
+}
+
+export function configureForecastRenderers(
+  map: MapLibreMap,
+  profile: ForecastRenderProfile,
+  renderSettings: ForecastRenderSettings,
+): void {
+  for (const renderer of renderersForProfile(profile)) {
+    renderer.configure?.(map, renderSettings)
   }
 }
 

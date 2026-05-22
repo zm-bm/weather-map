@@ -4,21 +4,27 @@ import type { ForecastRenderer } from '../types'
 import { resolveForecastLayerBeforeId } from '../placement'
 import { createFieldRuntime } from './engine/runtime'
 import { getFieldController } from './controller'
-import { fieldRuntimeOptions } from './options'
 import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type {
+  FieldRenderSettings,
+  ForecastRenderSettings,
+} from '../../forecast-settings/settings'
 
 export const FIELD_RENDERER_LAYER_ID = 'field-renderer-layer-id'
 
 export const fieldRenderer: ForecastRenderer = {
   id: 'field',
   layerId: FIELD_RENDERER_LAYER_ID,
-  install(map) {
+  install(map, renderSettings) {
     if (map.getLayer(FIELD_RENDERER_LAYER_ID)) return
-    map.addLayer(createFieldCustomLayer(), resolveForecastLayerBeforeId(map))
+    map.addLayer(createFieldCustomLayer(renderSettings.field), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(FIELD_RENDERER_LAYER_ID)) return
     map.removeLayer(FIELD_RENDERER_LAYER_ID)
+  },
+  configure(map, renderSettings) {
+    applyFieldRenderSettings(map, renderSettings.field)
   },
   apply(map, data) {
     applyFieldInterpolationWindow(map, data.field)
@@ -35,8 +41,16 @@ export function applyFieldInterpolationWindow(map: MapLibreMap, frame: FieldInte
   controller.applyFrame(frame)
 }
 
-function createFieldCustomLayer() {
-  const runtime = createFieldRuntime(fieldRuntimeOptions)
+export function applyFieldRenderSettings(
+  map: MapLibreMap,
+  settings: FieldRenderSettings,
+): void {
+  const controller = getFieldController(map)
+  controller?.applySettings(settings)
+}
+
+function createFieldCustomLayer(settings: ForecastRenderSettings['field']) {
+  const runtime = createFieldRuntime(settings)
   return {
     id: FIELD_RENDERER_LAYER_ID,
     type: 'custom' as const,

@@ -2,21 +2,22 @@ import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import config from '../../config'
+import {
+  DEFAULT_FORECAST_SETTINGS,
+  ForecastSettingsProvider,
+} from '../../forecast-settings'
 import { createMapFixture } from '../../test/fixtures'
 import ForecastMap from './ForecastMap'
 
 const FULL_RENDER_PROFILE = {
-  key: 'field-cloud-layers-contours-particles',
   rendererIds: ['field', 'cloud-layers', 'field-overlay', 'contour-overlay', 'particles'],
 }
 
 const FIELD_ONLY_RENDER_PROFILE = {
-  key: 'field-cloud-layers-no-contours-no-particles',
   rendererIds: ['field', 'cloud-layers', 'field-overlay'],
 }
 
 const PARTICLES_ONLY_RENDER_PROFILE = {
-  key: 'field-cloud-layers-no-contours-particles',
   rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
 }
 
@@ -34,13 +35,13 @@ vi.mock('../../map/useMap', () => ({
   useMap: (args: unknown) => mocks.useMap(args),
 }))
 
-vi.mock('../../forecast-render', () => ({
-  DEFAULT_FORECAST_RENDER_PROFILE: {
-    key: 'default',
-    rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
-  },
-  useForecastRenderHost: (args: unknown) => mocks.useForecastRenderHost(args),
-}))
+vi.mock('../../forecast-render', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../forecast-render')>()
+  return {
+    ...actual,
+    useForecastRenderHost: (args: unknown) => mocks.useForecastRenderHost(args),
+  }
+})
 
 vi.mock('../../forecast-selection', () => ({
   useForecastSelectionContext: () => mocks.useForecastSelectionContext(),
@@ -68,6 +69,22 @@ vi.mock('../MapControlRail', () => ({
   },
 }))
 
+const DEFAULT_RENDER_SETTINGS = {
+  field: DEFAULT_FORECAST_SETTINGS.field,
+  particles: expect.objectContaining({
+    clearTrailsOnViewChange: true,
+    particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
+  }),
+}
+
+function renderForecastMap(ui = <ForecastMap />) {
+  return render(
+    <ForecastSettingsProvider>
+      {ui}
+    </ForecastSettingsProvider>
+  )
+}
+
 describe('ForecastMap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -89,7 +106,7 @@ describe('ForecastMap', () => {
   })
 
   it('wires map runtime hooks and forecast sync from the map instance', () => {
-    render(<ForecastMap />)
+    renderForecastMap()
 
     const { mapRef, getMap, mapReadyVersion } = mocks.useMap.mock.results[0]?.value as {
       mapRef: { current: ReturnType<typeof createMapFixture> }
@@ -105,6 +122,7 @@ describe('ForecastMap', () => {
       getMap,
       mapReadyVersion,
       profile: PARTICLES_ONLY_RENDER_PROFILE,
+      renderSettings: DEFAULT_RENDER_SETTINGS,
     })
     expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith({
       getMap,
@@ -123,29 +141,35 @@ describe('ForecastMap', () => {
     expect(mocks.MapControlRail).toHaveBeenCalledWith({
       mapRef,
       mapReadyVersion,
-      particlesEnabled: true,
-      pressureContoursEnabled: false,
-      onParticlesEnabledChange: expect.any(Function),
-      onPressureContoursEnabledChange: expect.any(Function),
+      settings: DEFAULT_FORECAST_SETTINGS,
+      settingsActions: expect.objectContaining({
+        updateField: expect.any(Function),
+        updateParticles: expect.any(Function),
+        updatePressureContours: expect.any(Function),
+      }),
     })
   })
 
   it('updates the render profile when particles are toggled off', () => {
-    render(<ForecastMap />)
+    renderForecastMap()
 
     const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
-      onParticlesEnabledChange: (nextValue: boolean) => void
+      settingsActions: {
+        updateParticles: (patch: { enabled: boolean }) => void
+      }
     }
 
     act(() => {
-      controlProps.onParticlesEnabledChange(false)
+      controlProps.settingsActions.updateParticles({ enabled: false })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: FIELD_ONLY_RENDER_PROFILE,
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      particlesEnabled: false,
+      settings: expect.objectContaining({
+        particles: expect.objectContaining({ enabled: false }),
+      }),
     }))
     const renderHostResults = mocks.useForecastRenderHost.mock.results
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
@@ -156,21 +180,25 @@ describe('ForecastMap', () => {
   })
 
   it('updates the render profile and sync option when pressure contours are toggled on', () => {
-    render(<ForecastMap />)
+    renderForecastMap()
 
     const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
-      onPressureContoursEnabledChange: (nextValue: boolean) => void
+      settingsActions: {
+        updatePressureContours: (patch: { enabled: boolean }) => void
+      }
     }
 
     act(() => {
-      controlProps.onPressureContoursEnabledChange(true)
+      controlProps.settingsActions.updatePressureContours({ enabled: true })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: FULL_RENDER_PROFILE,
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      pressureContoursEnabled: true,
+      settings: expect.objectContaining({
+        pressureContours: { enabled: true },
+      }),
     }))
     const renderHostResults = mocks.useForecastRenderHost.mock.results
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
@@ -180,8 +208,59 @@ describe('ForecastMap', () => {
     })
   })
 
+  it('updates renderer runtime settings without changing the render profile', () => {
+    renderForecastMap()
+
+    const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
+      settingsActions: {
+        updateField: (patch: { colorSamplingMode: 'interpolated' }) => void
+      }
+    }
+
+    act(() => {
+      controlProps.settingsActions.updateField({ colorSamplingMode: 'interpolated' })
+    })
+
+    expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
+      profile: PARTICLES_ONLY_RENDER_PROFILE,
+      renderSettings: {
+        field: { colorSamplingMode: 'interpolated' },
+        particles: expect.objectContaining({ clearTrailsOnViewChange: true }),
+      },
+    }))
+    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({
+        field: { colorSamplingMode: 'interpolated' },
+      }),
+    }))
+
+    const latestControlProps = mocks.MapControlRail.mock.calls[
+      mocks.MapControlRail.mock.calls.length - 1
+    ]?.[0] as {
+      settingsActions: {
+        updateParticles: (patch: { clearTrailsOnViewChange: boolean }) => void
+      }
+    }
+    act(() => {
+      latestControlProps.settingsActions.updateParticles({ clearTrailsOnViewChange: false })
+    })
+
+    expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
+      profile: PARTICLES_ONLY_RENDER_PROFILE,
+      renderSettings: {
+        field: { colorSamplingMode: 'interpolated' },
+        particles: expect.objectContaining({ clearTrailsOnViewChange: false }),
+      },
+    }))
+    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({
+        particles: expect.objectContaining({ clearTrailsOnViewChange: false }),
+      }),
+    }))
+  })
+
   it('passes a custom container id through to map initialization', () => {
-    render(<ForecastMap containerId="forecast-map" />)
+    renderForecastMap(<ForecastMap containerId="forecast-map" />)
 
     expect(mocks.useMap).toHaveBeenCalledWith(expect.objectContaining({
       containerId: 'forecast-map',
@@ -193,7 +272,7 @@ describe('ForecastMap', () => {
       selectedLayerId: 'cloud_layers',
     })
 
-    render(<ForecastMap />)
+    renderForecastMap()
 
     expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith(expect.objectContaining({
       selectedLayerId: 'cloud_layers',

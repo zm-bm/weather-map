@@ -2,29 +2,38 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  DEFAULT_PARTICLE_RUNTIME_OPTIONS,
-  type FieldRuntimeOptions,
-} from '../../forecast-render/options'
+  DEFAULT_FORECAST_SETTINGS,
+  type ForecastSettings,
+  type ForecastSettingsActions,
+} from '../../forecast-settings'
 import MapOptionsButton from './MapOptionsButton'
 
+const SETTINGS: ForecastSettings = {
+  ...DEFAULT_FORECAST_SETTINGS,
+  field: {
+    ...DEFAULT_FORECAST_SETTINGS.field,
+    colorSamplingMode: 'interpolated',
+  },
+  pressureContours: {
+    enabled: true,
+  },
+}
+
+function createActions(): ForecastSettingsActions {
+  return {
+    updateField: vi.fn(),
+    updateParticles: vi.fn(),
+    updatePressureContours: vi.fn(),
+  }
+}
+
 describe('MapOptionsButton', () => {
-  it('toggles panel visibility and updates layer color and particle runtime options', async () => {
-    const layerColorOptions: FieldRuntimeOptions = { colorSamplingMode: 'interpolated' }
-    const particleOptions = { ...DEFAULT_PARTICLE_RUNTIME_OPTIONS }
-    const onLayerColorSamplingModeChange = vi.fn()
-    const onParticlesEnabledChange = vi.fn()
-    const onPressureContoursEnabledChange = vi.fn()
-    const onClearTrailsOnViewChange = vi.fn()
+  it('toggles panel visibility and requests map setting changes', async () => {
+    const actions = createActions()
     const { container, rerender } = render(
       <MapOptionsButton
-        layerColorOptions={layerColorOptions}
-        particleOptions={particleOptions}
-        particlesEnabled={true}
-        pressureContoursEnabled={true}
-        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
-        onParticlesEnabledChange={onParticlesEnabledChange}
-        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
-        onClearTrailsOnViewChange={onClearTrailsOnViewChange}
+        settings={SETTINGS}
+        settingsActions={actions}
       />
     )
 
@@ -41,8 +50,6 @@ describe('MapOptionsButton', () => {
     expect(panel).toBeTruthy()
     expect(bandedRadio).toBeTruthy()
     expect(panel?.hidden).toBe(true)
-    expect(layerColorOptions.colorSamplingMode).toBe('interpolated')
-    expect(particleOptions.clearTrailsOnViewChange).toBe(true)
     expect(bandedRadio?.checked).toBe(false)
     expect(showParticlesCheckbox).toBeChecked()
     expect(pressureContoursCheckbox).toBeChecked()
@@ -54,62 +61,94 @@ describe('MapOptionsButton', () => {
 
     showParticlesCheckbox.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(onParticlesEnabledChange).toHaveBeenCalledWith(false)
+    expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
     rerender(
       <MapOptionsButton
-        layerColorOptions={layerColorOptions}
-        particleOptions={particleOptions}
-        particlesEnabled={false}
-        pressureContoursEnabled={true}
-        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
-        onParticlesEnabledChange={onParticlesEnabledChange}
-        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
-        onClearTrailsOnViewChange={onClearTrailsOnViewChange}
+        settings={{
+          ...SETTINGS,
+          particles: {
+            ...SETTINGS.particles,
+            enabled: false,
+          },
+        }}
+        settingsActions={actions}
       />
     )
     expect(showParticlesCheckbox).not.toBeChecked()
 
     pressureContoursCheckbox.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(onPressureContoursEnabledChange).toHaveBeenCalledWith(false)
+    expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
     rerender(
       <MapOptionsButton
-        layerColorOptions={layerColorOptions}
-        particleOptions={particleOptions}
-        particlesEnabled={false}
-        pressureContoursEnabled={false}
-        onLayerColorSamplingModeChange={onLayerColorSamplingModeChange}
-        onParticlesEnabledChange={onParticlesEnabledChange}
-        onPressureContoursEnabledChange={onPressureContoursEnabledChange}
-        onClearTrailsOnViewChange={onClearTrailsOnViewChange}
+        settings={{
+          ...SETTINGS,
+          particles: {
+            ...SETTINGS.particles,
+            enabled: false,
+          },
+          pressureContours: {
+            enabled: false,
+          },
+        }}
+        settingsActions={actions}
       />
     )
     expect(pressureContoursCheckbox).not.toBeChecked()
 
     bandedRadio?.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(onLayerColorSamplingModeChange).toHaveBeenCalledWith('banded')
+    expect(actions.updateField).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
+    rerender(
+      <MapOptionsButton
+        settings={{
+          ...SETTINGS,
+          field: {
+            colorSamplingMode: 'banded',
+          },
+          particles: {
+            ...SETTINGS.particles,
+            enabled: false,
+          },
+          pressureContours: {
+            enabled: false,
+          },
+        }}
+        settingsActions={actions}
+      />
+    )
     expect(bandedRadio?.checked).toBe(true)
 
     clearTrailsCheckbox.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(onClearTrailsOnViewChange).toHaveBeenCalledWith(false)
+    expect(actions.updateParticles).toHaveBeenCalledWith({ clearTrailsOnViewChange: false })
+    rerender(
+      <MapOptionsButton
+        settings={{
+          ...SETTINGS,
+          field: {
+            colorSamplingMode: 'banded',
+          },
+          particles: {
+            ...SETTINGS.particles,
+            enabled: false,
+            clearTrailsOnViewChange: false,
+          },
+          pressureContours: {
+            enabled: false,
+          },
+        }}
+        settingsActions={actions}
+      />
+    )
     expect(clearTrailsCheckbox).not.toBeChecked()
   })
 
   it('closes the panel when clicking outside without closing on inside clicks', async () => {
-    const layerColorOptions: FieldRuntimeOptions = { colorSamplingMode: 'interpolated' }
-    const particleOptions = { ...DEFAULT_PARTICLE_RUNTIME_OPTIONS }
     const { container } = render(
       <MapOptionsButton
-        layerColorOptions={layerColorOptions}
-        particleOptions={particleOptions}
-        particlesEnabled={true}
-        pressureContoursEnabled={true}
-        onLayerColorSamplingModeChange={vi.fn()}
-        onParticlesEnabledChange={vi.fn()}
-        onPressureContoursEnabledChange={vi.fn()}
-        onClearTrailsOnViewChange={vi.fn()}
+        settings={SETTINGS}
+        settingsActions={createActions()}
       />
     )
 

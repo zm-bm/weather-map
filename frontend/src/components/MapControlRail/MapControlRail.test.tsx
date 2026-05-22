@@ -2,9 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  fieldRuntimeOptions,
-  particleRuntimeOptions,
-} from '../../forecast-render/options'
+  DEFAULT_FORECAST_SETTINGS,
+  type ForecastSettingsActions,
+} from '../../forecast-settings'
 import { createMapFixture } from '../../test/fixtures'
 import MapControlRail from './MapControlRail'
 
@@ -55,40 +55,40 @@ describe('MapControlRail', () => {
     expect(screen.getByRole('button', { name: 'Map options' })).toBeInTheDocument()
   })
 
-  it('updates layer color and particle runtime options from the options panel', () => {
-    const previousColorSamplingMode = fieldRuntimeOptions.colorSamplingMode
-    const previousClearTrailsOnViewChange = particleRuntimeOptions.clearTrailsOnViewChange
-    const onParticlesEnabledChange = vi.fn()
-    const onPressureContoursEnabledChange = vi.fn()
-    fieldRuntimeOptions.colorSamplingMode = 'interpolated'
-    particleRuntimeOptions.clearTrailsOnViewChange = true
-
-    try {
-      render(
-        <MapControlRail
-          mapRef={{ current: createMapFixture() }}
-          mapReadyVersion={1}
-          playlistUrl={PLAYLIST_URL}
-          particlesEnabled
-          pressureContoursEnabled
-          onParticlesEnabledChange={onParticlesEnabledChange}
-          onPressureContoursEnabledChange={onPressureContoursEnabledChange}
-        />
-      )
-
-      fireEvent.click(screen.getByRole('button', { name: 'Map options' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show pressure contours' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
-      fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
-
-      expect(onPressureContoursEnabledChange).toHaveBeenCalledWith(false)
-      expect(onParticlesEnabledChange).toHaveBeenCalledWith(false)
-      expect(fieldRuntimeOptions.colorSamplingMode).toBe('banded')
-      expect(particleRuntimeOptions.clearTrailsOnViewChange).toBe(false)
-    } finally {
-      fieldRuntimeOptions.colorSamplingMode = previousColorSamplingMode
-      particleRuntimeOptions.clearTrailsOnViewChange = previousClearTrailsOnViewChange
+  it('requests render setting changes from the options panel', () => {
+    const actions: ForecastSettingsActions = {
+      updateField: vi.fn(),
+      updateParticles: vi.fn(),
+      updatePressureContours: vi.fn(),
     }
+
+    render(
+      <MapControlRail
+        mapRef={{ current: createMapFixture() }}
+        mapReadyVersion={1}
+        playlistUrl={PLAYLIST_URL}
+        settings={{
+          ...DEFAULT_FORECAST_SETTINGS,
+          field: {
+            colorSamplingMode: 'interpolated',
+          },
+          pressureContours: {
+            enabled: true,
+          },
+        }}
+        settingsActions={actions}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Map options' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show pressure contours' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
+
+    expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
+    expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
+    expect(actions.updateField).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
+    expect(actions.updateParticles).toHaveBeenCalledWith({ clearTrailsOnViewChange: false })
   })
 })

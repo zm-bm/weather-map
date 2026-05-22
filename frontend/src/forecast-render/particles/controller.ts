@@ -5,8 +5,11 @@ import {
   type MapFrameController,
 } from '../../map/controllers'
 import type { ParticleInterpolationWindowData } from '../../forecast-data'
+import type { ParticleRenderSettings } from '../../forecast-settings/settings'
 
-export type ParticleController = MapFrameController<ParticleInterpolationWindowData>
+export type ParticleController = MapFrameController<ParticleInterpolationWindowData> & {
+  applySettings: (settings: Partial<ParticleRenderSettings>) => void
+}
 
 const controllers = createMapControllerRegistry<ParticleController>()
 
