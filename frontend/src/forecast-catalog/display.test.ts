@@ -8,10 +8,11 @@ import {
   createScalarArtifactFixture,
   createVectorArtifactFixture,
 } from '../test/fixtures'
-import { getLayerMeta, getLayerStyleByPaletteId } from './display'
+import { getLayerPalette } from '../forecast-palette'
+import { getLayerDisplay } from './display'
 
 describe('layer metadata palettes', () => {
-  it('resolves layer colortables from frontend catalog palette ids', () => {
+  it('resolves layer color stops from frontend catalog palette ids', () => {
     const layer: LayerSpec = {
       id: asLayerId('custom_pressure'),
       label: 'Custom Pressure',
@@ -31,18 +32,18 @@ describe('layer metadata palettes', () => {
 
     const manifest = createSingleTimeManifestFixture({ artifacts: { prmsl_msl: artifact } })
 
-    const meta = getLayerMeta('custom_pressure', { custom_pressure: layer }, createActiveRunFixture(manifest))
+    const display = getLayerDisplay('custom_pressure', { custom_pressure: layer }, createActiveRunFixture(manifest))
 
-    expect(meta.label).toBe('Custom Pressure')
-    expect(meta.paletteId).toBe('pressure.msl.pa.v1')
-    expect(meta.unitBehavior).toBe('pressure')
-    expect(meta.legendScale).toBe('pressure')
-    expect(meta.colortable).toBe(getLayerStyleByPaletteId('pressure.msl.pa.v1').colortable)
+    expect(display.label).toBe('Custom Pressure')
+    expect(display.paletteId).toBe('pressure.msl.pa.v1')
+    expect(display.unitBehavior).toBe('pressure')
+    expect(display.legendScale).toBe('pressure')
+    expect(display.colorStops).toBe(getLayerPalette('pressure.msl.pa.v1').colorStops)
   })
 
   it('resolves every catalog layer palette', () => {
     for (const layer of FORECAST_LAYERS) {
-      expect(getLayerStyleByPaletteId(layer.paletteId).colortable.length).toBeGreaterThan(0)
+      expect(getLayerPalette(layer.paletteId).colorStops.length).toBeGreaterThan(0)
     }
   })
 
@@ -69,34 +70,12 @@ describe('layer metadata palettes', () => {
       },
     })
 
-    const meta = getLayerMeta('wind_speed', { wind_speed: layer }, createActiveRunFixture(manifest))
+    const display = getLayerDisplay('wind_speed', { wind_speed: layer }, createActiveRunFixture(manifest))
 
-    expect(meta.label).toBe('Wind Speed')
-    expect(meta.units).toBe('m/s')
-    expect(meta.parameter).toBe('wind_speed')
-    expect(meta.colortable).toBe(getLayerStyleByPaletteId('wind.gust.mps.v1').colortable)
+    expect(display.label).toBe('Wind Speed')
+    expect(display.units).toBe('m/s')
+    expect(display.parameter).toBe('wind_speed')
+    expect(display.colorStops).toBe(getLayerPalette('wind.gust.mps.v1').colorStops)
   })
 
-  it('rejects layers with unknown palette ids', () => {
-    const layer: LayerSpec = {
-      id: asLayerId('custom_layer'),
-      label: 'Custom Layer',
-      groupId: asLayerGroupId('temperature'),
-      paletteId: 'missing.palette.v1',
-      displayRange: { min: 0, max: 1 },
-      unitBehavior: 'temperature',
-      legendScale: 'temperature',
-      source: { kind: 'artifact', artifactId: asArtifactId('tmp_surface') },
-      overlays: [],
-    }
-
-    const manifest = createSingleTimeManifestFixture({
-      artifacts: {
-        tmp_surface: createScalarArtifactFixture(),
-      },
-    })
-
-    expect(() => getLayerMeta('custom_layer', { custom_layer: layer }, createActiveRunFixture(manifest)))
-      .toThrow('Unknown layer paletteId: missing.palette.v1')
-  })
 })

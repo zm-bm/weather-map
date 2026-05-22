@@ -1,6 +1,32 @@
-import type { LayerMeta } from '../forecast-catalog'
-
 export type UnitSystem = 'imperial' | 'metric'
+
+export const UNIT_BEHAVIORS = [
+  'temperature',
+  'wind-speed',
+  'percent',
+  'pressure',
+  'precip-rate',
+  'precip-total',
+  'snow-depth',
+  'visibility',
+  'height',
+  'water-depth',
+  'energy-per-mass',
+  'reflectivity',
+] as const
+
+export type UnitBehavior = typeof UNIT_BEHAVIORS[number]
+
+const UNIT_BEHAVIOR_SET = new Set<string>(UNIT_BEHAVIORS)
+
+export function isUnitBehavior(value: unknown): value is UnitBehavior {
+  return typeof value === 'string' && UNIT_BEHAVIOR_SET.has(value)
+}
+
+export function assertUnitBehavior(value: unknown): UnitBehavior {
+  if (isUnitBehavior(value)) return value
+  throw new Error(`Unknown unit behavior: ${String(value)}`)
+}
 
 export type UnitValueFormat = {
   minimumFractionDigits: number
@@ -94,7 +120,7 @@ export function canToggleUnitSystem(display: UnitDisplay): boolean {
     && display.options.some((option) => option.unitSystem === 'metric')
 }
 
-const UNIT_DISPLAYS: Record<LayerMeta['unitBehavior'], UnitDisplay> = {
+const UNIT_DISPLAYS: Record<UnitBehavior, UnitDisplay> = {
   temperature: {
     defaultOptionId: 'fahrenheit',
     options: [
@@ -338,8 +364,8 @@ const UNIT_DISPLAYS: Record<LayerMeta['unitBehavior'], UnitDisplay> = {
   },
 }
 
-export function getUnitDisplay(meta: LayerMeta): UnitDisplay {
-  return UNIT_DISPLAYS[meta.unitBehavior]
+export function getUnitDisplay(unitBehavior: UnitBehavior): UnitDisplay {
+  return UNIT_DISPLAYS[unitBehavior]
 }
 
 function formatCompactValue(value: number): string {

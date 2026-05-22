@@ -6,8 +6,6 @@ import {
   FORECAST_PAYLOAD_CONTRACT,
 } from './constants'
 
-export type LayerColortableStop = [number, number, number, number] | [number, number, number]
-
 const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
 
 const finiteNumberSchema = z.number().finite()

@@ -1,16 +1,16 @@
-import type { LayerMeta } from '../../forecast-catalog'
+import type { LayerDisplay } from '../../forecast-catalog'
+import { getLegendTicks, toLegendSteppedGradient } from '../../forecast-legend'
 import type { UnitOption } from '../../units'
-import { getLegendTicks, toLegendSteppedGradient } from './legendScale'
 
 type LegendPanelViewProps = {
-  meta: LayerMeta
+  display: LayerDisplay
   selectedOption: UnitOption
   canCycleUnits: boolean
   onCycleUnits: () => void
 }
 
 export function LegendPanelView({
-  meta,
+  display,
   selectedOption,
   canCycleUnits,
   onCycleUnits,
@@ -21,23 +21,23 @@ export function LegendPanelView({
     canCycleUnits ? 'legend-panel__unit-pill--interactive' : '',
     !canCycleUnits ? 'legend-panel__unit-pill--static' : '',
   ].filter(Boolean).join(' ')
-  const legendTicks = getLegendTicks(meta, selectedOption)
-  const isCloudLayersLegend = meta.id === 'cloud_layers'
+  const legendTicks = getLegendTicks(display, selectedOption)
+  const isCloudLayersLegend = display.id === 'cloud_layers'
 
   return (
-    <section className="legend-panel" aria-label={`${meta.label} legend`}>
+    <section className="legend-panel" aria-label={`${display.label} legend`}>
       <div className="legend-panel__body">
         {canCycleUnits ? (
           <button
             type="button"
             className={unitPillClassName}
-            aria-label={`Cycle ${meta.label} units. Current units ${selectedOption.units}.`}
+            aria-label={`Cycle ${display.label} units. Current units ${selectedOption.units}.`}
             onClick={onCycleUnits}
           >
             <span className="legend-panel__unit-current">{selectedOption.buttonLabel}</span>
           </button>
         ) : (
-          <span className={unitPillClassName} aria-label={`${meta.label} units ${selectedOption.units}.`}>
+          <span className={unitPillClassName} aria-label={`${display.label} units ${selectedOption.units}.`}>
             <span className="legend-panel__unit-current">{selectedOption.buttonLabel}</span>
           </span>
         )}
@@ -49,13 +49,13 @@ export function LegendPanelView({
             <div className="legend-panel__scale-wrap">
               <div
                 className="legend-panel__scale"
-                style={{ backgroundImage: toLegendSteppedGradient(meta, 'to top') }}
+                style={{ backgroundImage: toLegendSteppedGradient(display, 'to top') }}
               />
               <div className="legend-panel__ticks">
                 <div className="legend-panel__annotations">
                   {legendTicks.map((tick) => (
                     <div
-                      key={`${meta.id}-${selectedOption.id}-${tick.value}`}
+                      key={`${display.id}-${selectedOption.id}-${tick.value}`}
                       className="legend-panel__tick"
                       style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
                     >

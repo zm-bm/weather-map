@@ -1,5 +1,38 @@
-import type { LayerMeta } from '../../forecast-catalog'
-import type { UnitOption } from '../../units'
+import type { PaletteStop } from '../forecast-palette'
+
+export type LegendUnitOption = {
+  id: string
+  convert: (value: number) => number
+}
+
+export const LEGEND_SCALES = [
+  'temperature',
+  'percent',
+  'pressure',
+  'precip-rate',
+  'precip-total',
+  'stop-based',
+] as const
+
+export type LegendScale = typeof LEGEND_SCALES[number]
+
+const LEGEND_SCALE_SET = new Set<string>(LEGEND_SCALES)
+
+export function isLegendScale(value: unknown): value is LegendScale {
+  return typeof value === 'string' && LEGEND_SCALE_SET.has(value)
+}
+
+export function assertLegendScale(value: unknown): LegendScale {
+  if (isLegendScale(value)) return value
+  throw new Error(`Unknown legend scale: ${String(value)}`)
+}
+
+export type LegendSpec = {
+  min: number
+  max: number
+  legendScale: LegendScale
+  colorStops: readonly PaletteStop[]
+}
 
 export type LegendTick = {
   value: number
@@ -7,6 +40,13 @@ export type LegendTick = {
   label: string | null
   variant: 'major' | 'minor'
 }
+
+type LegendTickSet = {
+  major: number[]
+  minor: number[]
+}
+
+type NormalizedColorStop = [number, number, number, number]
 
 const TEMP_C_MAJOR_TICKS = [-40, -30, -20, -10, 0, 10, 20, 30, 40, 50]
 const TEMP_F_MAJOR_TICKS = [-40, -20, 0, 20, 40, 60, 80, 100, 120]
@@ -23,19 +63,12 @@ const MM_TOTAL_PRECIP_MINOR_TICKS = [5, 75, 125, 200]
 const IN_TOTAL_PRECIP_MAJOR_TICKS = [0, 0.5, 1, 2, 4, 6, 10]
 const IN_TOTAL_PRECIP_MINOR_TICKS = [0.25, 3, 8]
 
-type LegendScaleKind = LayerMeta['legendScale']
-
-type LegendTickSet = {
-  major: number[]
-  minor: number[]
-}
-
-function toLegendGradient(meta: LayerMeta): string {
-  const range = meta.max - meta.min || 1
-  const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
+function toLegendGradient(spec: LegendSpec): string {
+  const range = spec.max - spec.min || 1
+  const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
   const stops = orderedStops
     .map(([value, r, g, b]) => {
-      const pct = ((value - meta.min) / range) * 100
+      const pct = ((value - spec.min) / range) * 100
       return `rgb(${r} ${g} ${b}) ${Math.max(0, Math.min(100, pct)).toFixed(1)}%`
     })
     .join(', ')
@@ -137,13 +170,13 @@ function buildEvenTicks(min: number, max: number, targetCount: number): number[]
   return sampleEvenly(uniqueTicks, targetCount)
 }
 
-function buildStopBasedTicks(meta: LayerMeta, option: UnitOption, maxCount: number): number[] {
-  const min = option.convert(meta.min)
-  const max = option.convert(meta.max)
+function buildStopBasedTicks(spec: LegendSpec, option: LegendUnitOption, maxCount: number): number[] {
+  const min = option.convert(spec.min)
+  const max = option.convert(spec.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min]
 
   const convertedStops = uniqueSorted(
-    meta.colortable
+    normalizeColorStops(spec)
       .map(([value]) => option.convert(value))
       .filter((value) => Number.isFinite(value) && value >= min && value <= max)
   )
@@ -179,8 +212,8 @@ function pruneTicksByDistance(ticks: number[], min: number, max: number, minGapP
   return uniqueSorted(result)
 }
 
-function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, max: number): LegendTickSet | null {
-  switch (kind) {
+function getHardCodedTicks(scale: LegendScale, optionId: string, min: number, max: number): LegendTickSet | null {
+  switch (scale) {
     case 'percent':
       return {
         major: filterCandidatesInRange(PERCENT_MAJOR_TICKS, min, max),
@@ -193,27 +226,27 @@ function getHardCodedTicks(kind: LegendScaleKind, units: string, min: number, ma
       }
     case 'temperature':
       return {
-        major: filterCandidatesInRange(units === 'F' ? TEMP_F_MAJOR_TICKS : TEMP_C_MAJOR_TICKS, min, max),
+        major: filterCandidatesInRange(optionId === 'fahrenheit' ? TEMP_F_MAJOR_TICKS : TEMP_C_MAJOR_TICKS, min, max),
         minor: [],
       }
     case 'precip-rate':
       return {
-        major: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MAJOR_TICKS : MM_RATE_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(units === 'in/hr' ? IN_RATE_MINOR_TICKS : MM_RATE_MINOR_TICKS, min, max),
+        major: filterCandidatesInRange(optionId === 'in_per_hour' ? IN_RATE_MAJOR_TICKS : MM_RATE_MAJOR_TICKS, min, max),
+        minor: filterCandidatesInRange(optionId === 'in_per_hour' ? IN_RATE_MINOR_TICKS : MM_RATE_MINOR_TICKS, min, max),
       }
     case 'precip-total':
       return {
-        major: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(units === 'in' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
+        major: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
+        minor: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
       }
-    default:
+    case 'stop-based':
       return null
   }
 }
 
-function getLegendTickValues(meta: LayerMeta, option: UnitOption): LegendTickSet {
-  const min = option.convert(meta.min)
-  const max = option.convert(meta.max)
+function getLegendTickValues(spec: LegendSpec, option: LegendUnitOption): LegendTickSet {
+  const min = option.convert(spec.min)
+  const max = option.convert(spec.max)
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
     return {
       major: [min],
@@ -221,26 +254,23 @@ function getLegendTickValues(meta: LayerMeta, option: UnitOption): LegendTickSet
     }
   }
 
-  const normalizedUnits = option.units.trim()
-  const scaleKind = meta.legendScale
-  const hardCodedTicks = getHardCodedTicks(scaleKind, normalizedUnits, min, max)
+  const hardCodedTicks = getHardCodedTicks(spec.legendScale, option.id, min, max)
   if (hardCodedTicks && hardCodedTicks.major.length > 0) return hardCodedTicks
 
-  const stopBased = buildStopBasedTicks(meta, option, 6)
+  const stopBased = buildStopBasedTicks(spec, option, 6)
   return {
     major: pruneTicksByDistance(stopBased, min, max),
     minor: [],
   }
 }
 
-export function getLegendTicks(meta: LayerMeta, option: UnitOption): LegendTick[] {
-  const min = option.convert(meta.min)
-  const max = option.convert(meta.max)
+export function getLegendTicks(spec: LegendSpec, option: LegendUnitOption): LegendTick[] {
+  const min = option.convert(spec.min)
+  const max = option.convert(spec.max)
   const range = max - min || 1
-  const ticks = getLegendTickValues(meta, option)
-  const scaleKind = meta.legendScale
+  const ticks = getLegendTickValues(spec, option)
   const toLegendPosition = (value: number) => {
-    if (scaleKind === 'precip-rate') {
+    if (spec.legendScale === 'precip-rate') {
       return getLinearizedRateTickPosition(value, ticks.major, ticks.minor)
     }
     return clamp(((value - min) / range) * 100, 0, 100)
@@ -248,7 +278,7 @@ export function getLegendTicks(meta: LayerMeta, option: UnitOption): LegendTick[
   const majorTicks = ticks.major.map((value) => ({
     value,
     positionPct: toLegendPosition(value),
-    label: formatLegendValue(value, option.units),
+    label: formatLegendValue(value, option.id),
     variant: 'major' as const,
   }))
   const minorTicks = ticks.minor.map((value) => ({
@@ -261,11 +291,11 @@ export function getLegendTicks(meta: LayerMeta, option: UnitOption): LegendTick[
   return [...minorTicks, ...majorTicks].sort((a, b) => a.value - b.value)
 }
 
-export function toLegendSteppedGradient(meta: LayerMeta, direction = 'to top'): string {
-  const range = meta.max - meta.min || 1
-  const orderedStops = [...meta.colortable].sort((a, b) => a[0] - b[0])
-  if (orderedStops.length < 2) return toLegendGradient(meta)
-  const useEvenBandSpacing = meta.legendScale === 'precip-rate'
+export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'): string {
+  const range = spec.max - spec.min || 1
+  const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
+  if (orderedStops.length < 2) return toLegendGradient(spec)
+  const useEvenBandSpacing = spec.legendScale === 'precip-rate'
 
   const gradientStops: string[] = []
   const firstColor = orderedStops[0]
@@ -276,10 +306,10 @@ export function toLegendSteppedGradient(meta: LayerMeta, direction = 'to top'): 
     const next = orderedStops[index + 1]
     const startPct = useEvenBandSpacing
       ? (index / (orderedStops.length - 1)) * 100
-      : ((current[0] - meta.min) / range) * 100
+      : ((current[0] - spec.min) / range) * 100
     const endPct = useEvenBandSpacing
       ? ((index + 1) / (orderedStops.length - 1)) * 100
-      : ((next[0] - meta.min) / range) * 100
+      : ((next[0] - spec.min) / range) * 100
 
     const clampedStart = clamp(startPct, 0, 100)
     const clampedEnd = clamp(endPct, 0, 100)
@@ -294,11 +324,21 @@ export function toLegendSteppedGradient(meta: LayerMeta, direction = 'to top'): 
   return `linear-gradient(${direction}, ${gradientStops.join(', ')})`
 }
 
-function formatLegendValue(value: number, units: string): string {
-  if (units === '%' || units === 'C' || units === 'F' || units === 'hPa') {
+function normalizeColorStops(spec: LegendSpec): NormalizedColorStop[] {
+  const span = spec.max - spec.min
+  const denominator = Math.max(1, spec.colorStops.length - 1)
+  return spec.colorStops.map((stop, index) => {
+    if (stop.length === 4) return [stop[0], stop[1], stop[2], stop[3]]
+    const value = spec.min + (span * index) / denominator
+    return [value, stop[0], stop[1], stop[2]]
+  })
+}
+
+function formatLegendValue(value: number, optionId: string): string {
+  if (optionId === 'percent' || optionId === 'celsius' || optionId === 'fahrenheit' || optionId === 'hectopascal') {
     return `${Math.round(value)}`
   }
-  if (units === 'mm/hr' || units === 'in/hr') {
+  if (optionId === 'mm_per_hour' || optionId === 'in_per_hour') {
     if (Math.abs(value) >= 10) return `${Math.round(value)}`
     if (Math.abs(value) >= 1) return `${Number(value.toFixed(1)).toString()}`
     if (value === 0) return '0'

@@ -56,6 +56,49 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'units must stay independent of app and forecast modules',
+        (file) => isUnitsFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastModuleImport(reference.resolvedPath) ||
+            isComponentsImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react' ||
+            reference.resolvedPath.includes('/test/')
+          ))
+      ),
+      ...findSourceImportViolations(
+        'forecast-legend must stay independent of app, catalog, data, map, render, and sync modules',
+        (file) => isForecastLegendFile(file.path) &&
+          file.imports.some((reference) => (
+            isComponentsImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastDataImport(reference.resolvedPath) ||
+            isForecastManifestImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            isUnitsImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
+        'forecast-palette must stay independent of app and forecast runtime modules',
+        (file) => isForecastPaletteFile(file.path) &&
+          file.imports.some((reference) => (
+            isComponentsImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastDataImport(reference.resolvedPath) ||
+            isForecastLegendImport(reference.resolvedPath) ||
+            isForecastManifestImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            isUnitsImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react' ||
+            reference.resolvedPath.includes('/test/')
+          ))
+      ),
+      ...findSourceImportViolations(
         'Controls must not import forecast-render',
         (file) => isMapControlRailFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
@@ -100,6 +143,21 @@ describe('frontend import boundaries', () => {
             isForecastSettingsSubmoduleImport(reference.resolvedPath) &&
             !(isForecastRenderFile(file.path) && isForecastSettingsContractImport(reference.resolvedPath))
           ))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-legend through its public module',
+        (file) => !isForecastLegendFile(file.path) &&
+          file.imports.some((reference) => isForecastLegendSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-palette through its public module',
+        (file) => !isForecastPaletteFile(file.path) &&
+          file.imports.some((reference) => isForecastPaletteSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
+        'Import forecast-catalog through its public module',
+        (file) => !isForecastCatalogFile(file.path) &&
+          file.imports.some((reference) => isForecastCatalogSubmoduleImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
         'Import forecast-probe through its public module',
@@ -203,6 +261,18 @@ function isForecastRenderFile(path: string): boolean {
   return path.includes('/forecast-render/')
 }
 
+function isForecastCatalogFile(path: string): boolean {
+  return path.includes('/forecast-catalog/')
+}
+
+function isForecastLegendFile(path: string): boolean {
+  return path.includes('/forecast-legend/')
+}
+
+function isForecastPaletteFile(path: string): boolean {
+  return path.includes('/forecast-palette/')
+}
+
 function isForecastSettingsFile(path: string): boolean {
   return path.includes('/forecast-settings/')
 }
@@ -215,12 +285,48 @@ function isForecastManifestFile(path: string): boolean {
   return path.includes('/forecast-manifest/')
 }
 
+function isUnitsFile(path: string): boolean {
+  return path.includes('/units/')
+}
+
 function isMapControlRailFile(path: string): boolean {
   return path.includes('/components/MapControlRail/')
 }
 
+function isForecastModuleImport(path: string): boolean {
+  return path.startsWith('/forecast-')
+}
+
+function isForecastCatalogImport(path: string): boolean {
+  return path === '/forecast-catalog' || isForecastCatalogSubmoduleImport(path)
+}
+
+function isForecastLegendImport(path: string): boolean {
+  return path === '/forecast-legend' || path.includes('/forecast-legend/')
+}
+
+function isForecastCatalogSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-catalog/')
+}
+
+function isForecastDataImport(path: string): boolean {
+  return path === '/forecast-data' || path.includes('/forecast-data/')
+}
+
+function isForecastManifestImport(path: string): boolean {
+  return path === '/forecast-manifest' || path.includes('/forecast-manifest/')
+}
+
 function isForecastSyncImport(path: string): boolean {
   return path === '/forecast-sync' || path.includes('/forecast-sync/')
+}
+
+function isMapImport(path: string): boolean {
+  return path === '/map' || path.includes('/map/')
+}
+
+function isUnitsImport(path: string): boolean {
+  return path === '/units' || path.includes('/units/')
 }
 
 function isProductionMapFile(path: string): boolean {
@@ -245,6 +351,14 @@ function isForecastSettingsImport(path: string): boolean {
 
 function isForecastSettingsSubmoduleImport(path: string): boolean {
   return path.includes('/forecast-settings/')
+}
+
+function isForecastLegendSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-legend/')
+}
+
+function isForecastPaletteSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-palette/')
 }
 
 function isForecastSettingsContractImport(path: string): boolean {

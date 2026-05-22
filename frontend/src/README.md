@@ -32,7 +32,7 @@ startup, request building, payload loading, and layer application.
 
 - `components/*`: React composition and panel/control UI. Components should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly. `components/AppStatusHost` owns the app status payload contract and rendering.
 
-- `forecast-catalog/*`: user-facing layer catalog, particle layer catalog, layer groups, labels, color tables, display ranges, unit/legend behavior ids, and artifact or derived-source mappings.
+- `forecast-catalog/*`: user-facing layer catalog, particle layer catalog, layer groups, labels, color palettes, display ranges, and artifact or derived-source mappings. Catalog entries reference unit and legend behavior contracts owned by `units` and `forecast-legend`.
 
 - `forecast-selection/*`: selected layer, selected particle layer, and unit option state derived from the loaded manifest and frontend catalog. Keep layer selection concerns here, separate from time selection.
 
@@ -56,7 +56,11 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-probe/*`: public probe facade, layer point samplers, current applied field-data store, and probe-value formatting. `forecast-sync` publishes applied field interpolation windows, and map label components read sampled values through the public facade.
 
-- `units/*`: unit conversion and formatting primitives shared by UI and probe display.
+- `forecast-palette/*`: shared palette stop contract and frontend palette registry used by catalog display, legend gradients, data payloads, and field renderer LUT input.
+
+- `forecast-legend/*`: legend scale behavior, tick generation, and gradient helpers shared by forecast display UI.
+
+- `units/*`: unit behavior contracts, conversion, and formatting primitives shared by UI and probe display.
 
 - `url/*`: URL joining and related URL utilities.
 

@@ -1,7 +1,5 @@
-import {
-  getLayerStyleByPaletteId,
-  type LayerSpec,
-} from '../../forecast-catalog'
+import type { LayerSpec } from '../../forecast-catalog'
+import { getLayerPalette } from '../../forecast-palette'
 import type { FieldTimeSliceData } from '../types'
 import type { FieldSourceData } from './source'
 
@@ -9,7 +7,7 @@ export function materializeFieldTimeSlice(
   layer: LayerSpec,
   sourceData: FieldSourceData
 ): FieldTimeSliceData {
-  const style = getLayerStyleByPaletteId(layer.paletteId)
+  const palette = getLayerPalette(layer.paletteId)
 
   return {
     hourToken: sourceData.hourToken,
@@ -19,6 +17,6 @@ export function materializeFieldTimeSlice(
     encoding: sourceData.encoding,
     values: sourceData.values,
     displayRange: [layer.displayRange.min, layer.displayRange.max],
-    colortable: style.colortable,
+    colorStops: palette.colorStops,
   }
 }

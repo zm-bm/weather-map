@@ -1,7 +1,7 @@
 import type { ArtifactLoader, RawVectorComponentArtifactData } from '../../forecast-artifacts'
 import type { LayerSpec } from '../../forecast-catalog'
-import { getLayerStyleByPaletteId } from '../../forecast-catalog'
 import type { ActiveForecastRun } from '../../forecast-manifest'
+import { getLayerPalette } from '../../forecast-palette'
 import {
   createCloudLayersChannelKey,
   createCloudLayersTimeSliceCacheKey,
@@ -125,7 +125,7 @@ function materializeCoverageField(
   sourceData: RawVectorComponentArtifactData,
   values: Float32Array
 ): FieldTimeSliceData {
-  const style = getLayerStyleByPaletteId(layer.paletteId)
+  const palette = getLayerPalette(layer.paletteId)
   return {
     hourToken: sourceData.hourToken,
     layerId: String(layer.id),
@@ -134,7 +134,7 @@ function materializeCoverageField(
     encoding: CLOUD_COVERAGE_ENCODING,
     values,
     displayRange: [layer.displayRange.min, layer.displayRange.max],
-    colortable: style.colortable,
+    colorStops: palette.colorStops,
   }
 }
 

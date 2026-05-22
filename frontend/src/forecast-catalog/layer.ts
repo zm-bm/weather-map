@@ -3,7 +3,15 @@ import {
   type ManifestArtifactSpec,
   type ArtifactId,
 } from '../forecast-manifest'
+import {
+  assertLegendScale,
+  type LegendScale,
+} from '../forecast-legend'
 import type { Brand, NonEmptyArray } from '../types'
+import {
+  assertUnitBehavior,
+  type UnitBehavior,
+} from '../units'
 import { RAW_FORECAST_CATALOG } from './catalog'
 
 export type LayerId = Brand<string, 'LayerId'>
@@ -22,28 +30,6 @@ export type DisplayRangeSpec = {
   min: number
   max: number
 }
-
-export type UnitBehaviorId =
-  | 'temperature'
-  | 'wind-speed'
-  | 'percent'
-  | 'pressure'
-  | 'precip-rate'
-  | 'precip-total'
-  | 'snow-depth'
-  | 'visibility'
-  | 'height'
-  | 'water-depth'
-  | 'energy-per-mass'
-  | 'reflectivity'
-
-export type LegendScaleId =
-  | 'temperature'
-  | 'percent'
-  | 'pressure'
-  | 'precip-rate'
-  | 'precip-total'
-  | 'stop-based'
 
 export type ArtifactLayerSource = {
   kind: 'artifact'
@@ -81,8 +67,8 @@ export type LayerSpec = {
   groupId: LayerGroupId
   paletteId: string
   displayRange: DisplayRangeSpec
-  unitBehavior: UnitBehaviorId
-  legendScale: LegendScaleId
+  unitBehavior: UnitBehavior
+  legendScale: LegendScale
   source: LayerSource
   overlays: readonly LayerOverlaySpec[]
   parameter?: string
@@ -123,8 +109,8 @@ type RawLayerSpec = {
   groupId: string
   paletteId: string
   displayRange: DisplayRangeSpec
-  unitBehavior: UnitBehaviorId
-  legendScale: LegendScaleId
+  unitBehavior: string
+  legendScale: string
   source: RawLayerSource
   overlays?: readonly RawLayerOverlaySpec[]
   parameter?: string
@@ -189,8 +175,8 @@ function layerFromRaw(raw: RawLayerSpec): LayerSpec {
     groupId: asLayerGroupId(raw.groupId),
     paletteId: raw.paletteId,
     displayRange: raw.displayRange,
-    unitBehavior: raw.unitBehavior,
-    legendScale: raw.legendScale,
+    unitBehavior: assertUnitBehavior(raw.unitBehavior),
+    legendScale: assertLegendScale(raw.legendScale),
     source: layerSourceFromRaw(raw.source),
     overlays: (raw.overlays ?? []).map(layerOverlayFromRaw),
     parameter: raw.parameter,

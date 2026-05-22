@@ -1,5 +1,5 @@
 import { useLoadedForecastSelectionContext } from '../../forecast-selection'
-import { getLayerMeta } from '../../forecast-catalog'
+import { getLayerDisplay } from '../../forecast-catalog'
 import {
   canToggleUnitSystem,
   getUnitDisplay,
@@ -11,8 +11,8 @@ export default function LegendPanel() {
   const { activeRun, selectedLayerId, layers, unitSystem, toggleUnitSystem } = useLoadedForecastSelectionContext()
   if (selectedLayerId == null) return null
 
-  const meta = getLayerMeta(selectedLayerId, layers, activeRun)
-  const unitDisplay = getUnitDisplay(meta)
+  const display = getLayerDisplay(selectedLayerId, layers, activeRun)
+  const unitDisplay = getUnitDisplay(display.unitBehavior)
   const selectedOption = getUnitOptionForSystem(unitDisplay, unitSystem)
   const canCycleUnits = canToggleUnitSystem(unitDisplay)
 
@@ -23,7 +23,7 @@ export default function LegendPanel() {
 
   return (
     <LegendPanelView
-      meta={meta}
+      display={display}
       selectedOption={selectedOption}
       canCycleUnits={canCycleUnits}
       onCycleUnits={handleCycleUnits}

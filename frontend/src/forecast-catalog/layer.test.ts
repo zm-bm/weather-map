@@ -5,13 +5,15 @@ import {
   type ActiveForecastRun,
   type ManifestArtifactSpec,
 } from '../forecast-manifest'
+import { isLegendScale } from '../forecast-legend'
 import {
   createActiveRunFixture,
   createSingleTimeManifestFixture,
   createScalarArtifactFixture,
   createVectorArtifactFixture,
 } from '../test/fixtures'
-import { getLayerMeta } from './display'
+import { isUnitBehavior } from '../units'
+import { getLayerDisplay } from './display'
 import { PARTICLE_LAYERS } from './particle'
 import {
   FORECAST_LAYER_GROUPS,
@@ -62,6 +64,8 @@ function hasOrderedComponents(
 describe('layer catalog', () => {
   it('defines display behavior for every layer', () => {
     expect(FORECAST_LAYERS.every((layer) => layer.unitBehavior && layer.legendScale)).toBe(true)
+    expect(FORECAST_LAYERS.every((layer) => isUnitBehavior(layer.unitBehavior))).toBe(true)
+    expect(FORECAST_LAYERS.every((layer) => isLegendScale(layer.legendScale))).toBe(true)
   })
 
   it('keeps layer ids and group membership internally consistent', () => {
@@ -206,7 +210,7 @@ describe('layer catalog', () => {
       artifactId: 'prate_surface',
     })
     expect(isLayerAvailableForActiveRun(activeRun, precipLayer)).toBe(true)
-    expect(getLayerMeta('precipitation_rate', FORECAST_LAYERS_BY_ID, createActiveRunFixture(manifest))).toMatchObject({
+    expect(getLayerDisplay('precipitation_rate', FORECAST_LAYERS_BY_ID, createActiveRunFixture(manifest))).toMatchObject({
       units: 'kg m^-2 s^-1',
       parameter: 'prate',
     })

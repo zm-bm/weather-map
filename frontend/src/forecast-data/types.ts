@@ -1,5 +1,4 @@
 import type {
-  LayerColortableStop,
   ScalarEncodingSpec,
   ScalarGridSpec,
   VectorEncodingSpec,
@@ -7,6 +6,7 @@ import type {
 import type {
   VectorArtifactData,
 } from '../forecast-artifacts'
+import type { PaletteStop } from '../forecast-palette'
 import type { LoadedInterpolationWindow } from './window'
 
 export type DerivedFieldEncodingSpec = {
@@ -27,7 +27,7 @@ export type FieldTimeSliceData = {
   encoding: FieldEncodingSpec
   values: Float32Array
   displayRange: [number, number]
-  colortable: LayerColortableStop[]
+  colorStops: PaletteStop[]
 }
 
 export type PrecipTypeOverlayTimeSliceData = {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-import { getLayerMeta } from '../forecast-catalog'
+import { getLayerDisplay } from '../forecast-catalog'
 import { useLoadedForecastSelectionContext } from '../forecast-selection'
 import {
   formatUnitValue,
@@ -25,10 +25,10 @@ export type ForecastProbeValueDisplay = {
 
 export function useForecastProbeValueFormatter() {
   const { activeRun, selectedLayerId, layers, unitSystem } = useLoadedForecastSelectionContext()
-  const probeMeta = selectedLayerId == null ? null : getLayerMeta(selectedLayerId, layers, activeRun)
-  const probeUnitDisplay = probeMeta == null ? null : getUnitDisplay(probeMeta)
+  const probeDisplay = selectedLayerId == null ? null : getLayerDisplay(selectedLayerId, layers, activeRun)
+  const probeUnitDisplay = probeDisplay == null ? null : getUnitDisplay(probeDisplay.unitBehavior)
 
-  const probeUnitOption = probeMeta == null || probeUnitDisplay == null
+  const probeUnitOption = probeDisplay == null || probeUnitDisplay == null
     ? null
     : getUnitOptionForSystem(
       probeUnitDisplay,

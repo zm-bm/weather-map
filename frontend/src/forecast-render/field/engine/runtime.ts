@@ -1,6 +1,6 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import type { LayerColortableStop } from '../../../forecast-manifest'
+import type { PaletteStop } from '../../../forecast-palette'
 import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,
@@ -28,7 +28,7 @@ import {
   type FieldRenderSettings,
 } from '../../../forecast-settings/settings'
 
-type NormalizedColortableStop = [number, number, number, number]
+type NormalizedColorStop = [number, number, number, number]
 
 type FieldRendererState = {
   map?: MapLibreMap
@@ -477,7 +477,7 @@ function createColormapTexture(
     ? BANDED_COLORMAP_LUT_SIZE
     : COLORMAP_LUT_SIZE
   const lut = buildColormapLut(
-    frame.colortable,
+    frame.colorStops,
     frame.displayRange,
     lutSize,
     colorSamplingMode
@@ -505,25 +505,25 @@ function createColormapKey(frame: FieldTimeSliceData): string {
   // Deterministic key for LUT texture reuse.
   return JSON.stringify({
     displayRange: frame.displayRange,
-    colortable: frame.colortable,
+    colorStops: frame.colorStops,
   })
 }
 
 export function buildColormapLut(
-  colortable: LayerColortableStop[],
+  colorStops: PaletteStop[],
   displayRange: [number, number],
   size: number,
   colorSamplingMode: FieldColorSamplingMode
 ): Uint8Array {
   // Normalize/sanitize stops before sampling into a fixed-size LUT.
   const [rangeMin, rangeMax] = displayRange
-  const normalizedStops = normalizeColortableStops(colortable, displayRange)
+  const normalizedStops = normalizeColorStops(colorStops, displayRange)
   const safeStops = [...normalizedStops]
     .filter((stop) => Number.isFinite(stop[0]) && Number.isFinite(stop[1]) && Number.isFinite(stop[2]) && Number.isFinite(stop[3]))
     .sort((a, b) => a[0] - b[0])
   const stops = safeStops.length > 0
     ? safeStops
-    : [[rangeMin, 220, 220, 220], [rangeMax, 80, 80, 80]] as NormalizedColortableStop[]
+    : [[rangeMin, 220, 220, 220], [rangeMax, 80, 80, 80]] as NormalizedColorStop[]
   const span = Math.max(1e-6, rangeMax - rangeMin)
   const lut = new Uint8Array(size * 4)
 
@@ -531,8 +531,8 @@ export function buildColormapLut(
     const value = rangeMin + (span * idx) / Math.max(1, size - 1)
     // Interpolated mode blends stops; banded mode treats stops as lower-bound thresholds.
     const color = colorSamplingMode === 'banded'
-      ? sampleColortableThreshold(stops, value)
-      : sampleColortable(stops, value)
+      ? sampleColorStopThreshold(stops, value)
+      : sampleColorStops(stops, value)
     const offset = idx * 4
     lut[offset] = color[0]
     lut[offset + 1] = color[1]
@@ -543,17 +543,17 @@ export function buildColormapLut(
   return lut
 }
 
-function normalizeColortableStops(
-  colortable: LayerColortableStop[],
+function normalizeColorStops(
+  colorStops: PaletteStop[],
   displayRange: [number, number]
-): NormalizedColortableStop[] {
+): NormalizedColorStop[] {
   const [rangeMin, rangeMax] = displayRange
-  if (colortable.length === 0) return []
+  if (colorStops.length === 0) return []
 
   const span = rangeMax - rangeMin
-  const denominator = Math.max(1, colortable.length - 1)
+  const denominator = Math.max(1, colorStops.length - 1)
 
-  return colortable.map((stop, index) => {
+  return colorStops.map((stop, index) => {
     // Stop format: [value, r, g, b] or [r, g, b].
     // When value is omitted, distribute stops evenly across the display range.
     if (stop.length === 4) {
@@ -565,7 +565,7 @@ function normalizeColortableStops(
   })
 }
 
-function sampleColortable(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+function sampleColorStops(stops: NormalizedColorStop[], value: number): [number, number, number] {
   // Piecewise-linear interpolation between adjacent stop pairs.
   if (stops.length === 1) {
     return [stops[0][1], stops[0][2], stops[0][3]]
@@ -595,7 +595,7 @@ function sampleColortable(stops: NormalizedColortableStop[], value: number): [nu
   return [last[1], last[2], last[3]]
 }
 
-function sampleColortableThreshold(stops: NormalizedColortableStop[], value: number): [number, number, number] {
+function sampleColorStopThreshold(stops: NormalizedColorStop[], value: number): [number, number, number] {
   // Lower-bound threshold lookup for banded mode.
   if (stops.length === 1) {
     return [stops[0][1], stops[0][2], stops[0][3]]
