@@ -5,7 +5,7 @@ import maplibregl, {
 import { Protocol } from 'pmtiles'
 
 import config from '../../config'
-import { buildMapStyle } from './buildMapStyle'
+import { buildMapStyle } from './basemapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
 
 const PMTILES_PROTOCOL = 'pmtiles'

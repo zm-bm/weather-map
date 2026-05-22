@@ -95,6 +95,7 @@ class PublishFixture:
         self,
         *,
         artifact_id: str = "wind10m_uv",
+        artifact_config: dict | None = None,
         cycle: str | None = None,
         fhour: str | None = None,
     ) -> None:
@@ -105,11 +106,23 @@ class PublishFixture:
             fhour=fhour or self.fhours[0],
             artifact_id=artifact_id,
             grid_meta=self.grid_meta,
+            artifact_config=artifact_config,
         )
 
-    def write_vector_markers(self, *, artifact_id: str = "wind10m_uv", cycle: str | None = None) -> None:
+    def write_vector_markers(
+        self,
+        *,
+        artifact_id: str = "wind10m_uv",
+        artifact_config: dict | None = None,
+        cycle: str | None = None,
+    ) -> None:
         for fhour in self.fhours:
-            self.write_vector_marker(artifact_id=artifact_id, cycle=cycle, fhour=fhour)
+            self.write_vector_marker(
+                artifact_id=artifact_id,
+                artifact_config=artifact_config,
+                cycle=cycle,
+                fhour=fhour,
+            )
 
     def publish(
         self,

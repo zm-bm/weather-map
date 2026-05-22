@@ -9,12 +9,14 @@ import type {
   ForecastRendererId,
 } from './types'
 import { fieldRenderer } from './field'
+import { cloudLayersRenderer } from './cloud-layers'
 import { fieldOverlayRenderer } from './field-overlay'
 import { contourOverlayRenderer } from './contour-overlay'
 import { particleRenderer } from './particles'
 
 const forecastRenderers: readonly ForecastRenderer[] = [
   fieldRenderer,
+  cloudLayersRenderer,
   fieldOverlayRenderer,
   contourOverlayRenderer,
   particleRenderer,

@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
+import type { ForecastRenderer } from '../types'
+import { resolveForecastLayerBeforeId } from '../placement'
 import { createFieldRuntime } from './engine/runtime'
 import { getFieldController } from './controller'
 import { fieldRuntimeOptions } from './options'
@@ -13,7 +14,7 @@ export const fieldRenderer: ForecastRenderer = {
   layerId: FIELD_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(FIELD_RENDERER_LAYER_ID)) return
-    map.addLayer(createFieldCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+    map.addLayer(createFieldCustomLayer(), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(FIELD_RENDERER_LAYER_ID)) return
@@ -24,9 +25,10 @@ export const fieldRenderer: ForecastRenderer = {
   },
 }
 
-export function applyFieldInterpolationWindow(map: MapLibreMap, frame: FieldInterpolationWindowData): void {
+export function applyFieldInterpolationWindow(map: MapLibreMap, frame: FieldInterpolationWindowData | null): void {
   const controller = getFieldController(map)
   if (!controller?.isAvailable()) {
+    if (frame == null) return
     throw new Error('Field renderer unavailable (WebGL2 required)')
   }
 

@@ -2,7 +2,11 @@ import { act, render } from '@testing-library/react'
 import type { Map as MapLibreMap, MapGeoJSONFeature } from 'maplibre-gl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { basemapLayerIds, placeProbeLayerIds } from '../../map/view/constants'
+import {
+  BASEMAP_SOURCE_ID,
+  BASEMAP_SOURCE_LAYER_IDS,
+  placeProbeLayerIds,
+} from '../../map/view/constants'
 import ForecastPlaceProbes from './ForecastPlaceProbes'
 
 type MapEventName = 'idle' | 'moveend' | 'resize'
@@ -305,8 +309,8 @@ describe('ForecastPlaceProbes', () => {
       }),
     }))
     expect(map.querySourceFeatures).toHaveBeenCalledWith(
-      basemapLayerIds.source,
-      { sourceLayer: basemapLayerIds.placeSourceLayer },
+      BASEMAP_SOURCE_ID,
+      { sourceLayer: BASEMAP_SOURCE_LAYER_IDS.places },
     )
     expect(mocks.createLayerProbeSampler).toHaveBeenCalledTimes(2)
     expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([

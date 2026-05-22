@@ -13,6 +13,8 @@ import {
 import { normalizeHourToken } from './window'
 
 export const NO_PARTICLES_KEY = 'particles:none'
+export const NO_FIELD_KEY = 'field:none'
+export const NO_CLOUD_LAYERS_KEY = 'cloud-layers:none'
 export const NO_PRECIP_TYPE_OVERLAY_KEY = 'precip-type-overlay:none'
 export const NO_PRESSURE_CONTOURS_KEY = 'pressure-contours:none'
 
@@ -56,6 +58,13 @@ export function createParticleChannelKey(
   )
 }
 
+export function createCloudLayersChannelKey(
+  activeRun: ActiveForecastRun,
+  layer: LayerSpec
+): string {
+  return scopeForecastDataKey(activeRun, createLayerRequestKey(layer))
+}
+
 export function createPrecipTypeOverlayChannelKey(
   activeRun: ActiveForecastRun,
   overlay: PrecipitationTypeLayerOverlay
@@ -77,6 +86,17 @@ export function createPressureContourChannelKey(
 }
 
 export function createFieldTimeSliceCacheKey(args: {
+  activeRun: ActiveForecastRun
+  layer: LayerSpec
+  hourToken: string
+}): string {
+  return scopeForecastDataKey(
+    args.activeRun,
+    `${createLayerRequestKey(args.layer)}:${normalizeHourToken(args.hourToken)}`
+  )
+}
+
+export function createCloudLayersTimeSliceCacheKey(args: {
   activeRun: ActiveForecastRun
   layer: LayerSpec
   hourToken: string

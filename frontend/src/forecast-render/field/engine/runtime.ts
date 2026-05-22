@@ -139,6 +139,12 @@ export function createFieldRuntime(
     isAvailable: () => state.available,
     applyFrame: (frame) => {
       if (!state.available || !state.gl) throw new Error('Field runtime unavailable')
+      if (frame == null) {
+        clearFieldTextures(state)
+        state.hasFrame = false
+        state.map?.triggerRepaint()
+        return
+      }
       const { gl } = state
       const lowerFrame = frame.lower
       const upperFrame = frame.mix > 0
@@ -398,6 +404,21 @@ function deleteUnusedScalarTexture(
   if (!texture) return
   if (texture === nextLowerTexture || texture === nextUpperTexture) return
   gl.deleteTexture(texture)
+}
+
+function clearFieldTextures(state: FieldRendererState): void {
+  if (!state.gl) return
+  deleteUnusedScalarTexture(state.gl, state.scalarTexture, null, state.scalarTextureUpper)
+  if (state.scalarTextureUpper) state.gl.deleteTexture(state.scalarTextureUpper)
+  if (state.colormapTextureInterpolated) state.gl.deleteTexture(state.colormapTextureInterpolated)
+  if (state.colormapTextureBanded) state.gl.deleteTexture(state.colormapTextureBanded)
+  state.scalarTexture = null
+  state.scalarTextureUpper = null
+  state.scalarFrameLower = null
+  state.scalarFrameUpper = null
+  state.colormapTextureInterpolated = null
+  state.colormapTextureBanded = null
+  state.colormapKey = null
 }
 
 function createFrameTexture(

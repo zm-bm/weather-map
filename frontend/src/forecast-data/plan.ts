@@ -1,5 +1,6 @@
 import type { ArtifactLoader } from '../forecast-artifacts'
 import type { ActiveForecastRun } from '../forecast-manifest'
+import { createCloudLayersChannel } from './cloud-layers'
 import { createFieldChannel } from './field'
 import { createParticleChannel } from './particles'
 import { createPrecipTypeOverlayChannel } from './precip-type-overlay'
@@ -7,6 +8,7 @@ import { createPressureContourChannel } from './pressure-contours'
 import type { ForecastDataTarget } from './target'
 import type {
   FieldTimeSliceData,
+  CloudLayersTimeSliceData,
   ForecastDataChannel,
   ParticleTimeSliceData,
   PrecipTypeOverlayTimeSliceData,
@@ -19,7 +21,8 @@ export type ForecastDataPlan = {
   lowerHourToken: string
   upperHourToken: string
   mix: number
-  field: ForecastDataChannel<FieldTimeSliceData>
+  field: ForecastDataChannel<FieldTimeSliceData> | null
+  cloudLayers: ForecastDataChannel<CloudLayersTimeSliceData> | null
   precipTypeOverlay: ForecastDataChannel<PrecipTypeOverlayTimeSliceData> | null
   pressureContours: ForecastDataChannel<PressureContourTimeSliceData> | null
   particles: ForecastDataChannel<ParticleTimeSliceData> | null
@@ -32,11 +35,21 @@ type CreateForecastDataPlanArgs = {
 }
 
 export function createForecastDataPlan(args: CreateForecastDataPlanArgs): ForecastDataPlan {
-  const field = createFieldChannel({
-    artifacts: args.artifacts,
-    activeRun: args.target.activeRun,
-    layer: args.target.selectedLayer,
-  })
+  const isCloudLayersLayer = args.target.selectedLayer.source.kind === 'cloud-layers'
+  const field = isCloudLayersLayer
+    ? null
+    : createFieldChannel({
+      artifacts: args.artifacts,
+      activeRun: args.target.activeRun,
+      layer: args.target.selectedLayer,
+    })
+  const cloudLayers = isCloudLayersLayer
+    ? createCloudLayersChannel({
+      artifacts: args.artifacts,
+      activeRun: args.target.activeRun,
+      layer: args.target.selectedLayer,
+    })
+    : null
   const precipTypeOverlay = createPrecipTypeOverlayChannel({
     artifacts: args.artifacts,
     activeRun: args.target.activeRun,
@@ -63,6 +76,7 @@ export function createForecastDataPlan(args: CreateForecastDataPlanArgs): Foreca
     upperHourToken: args.target.upperHourToken,
     mix: args.target.mix,
     field,
+    cloudLayers,
     precipTypeOverlay,
     pressureContours,
     particles,

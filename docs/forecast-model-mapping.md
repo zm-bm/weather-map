@@ -44,10 +44,8 @@ These requirements come from the frontend layer and particle catalogs.
 | `precipitation_rate` | layer | `prate_surface` | `precip_type_surface` | direct scalar plus automatic precipitation-type pattern overlay |
 | `accumulated_precipitation` | layer | `precip_total_surface` | - | direct scalar |
 | `snow_depth` | layer | `snow_depth_surface` | - | direct scalar |
+| `cloud_layers` | layer | `cloud_layers` | - | custom cloud layers renderer |
 | `cloud_cover` | layer | `tcdc` | - | direct scalar |
-| `low_cloud_cover` | layer | `low_clouds` | - | direct scalar |
-| `middle_cloud_cover` | layer | `medium_clouds` | - | direct scalar |
-| `high_cloud_cover` | layer | `high_clouds` | - | direct scalar |
 | `visibility` | layer | `visibility_surface` | - | direct scalar |
 | `freezing_level` | layer | `freezing_level` | - | direct scalar |
 | `precipitable_water` | layer | `precipitable_water` | - | direct scalar |
@@ -71,10 +69,8 @@ These requirements come from the frontend layer and particle catalogs.
 | `precipitation_rate` | `native` | `etl-derived` | GFS rate is direct; ICON rate is derived from `tot_prec`. Both can use optional `precip_type_surface` snowflake / ice-dash pattern overlays. |
 | `accumulated_precipitation` | `unavailable` | `native` | GFS does not publish `precip_total_surface`. |
 | `snow_depth` | `native` | `native` | Both models publish snow depth. |
+| `cloud_layers` | `frontend-derived` | `frontend-derived` | Custom renderer consumes packed low/middle/high cloud cover components. |
 | `cloud_cover` | `native` | `native` | Both models publish total cloud cover. |
-| `low_cloud_cover` | `native` | `native` | Both models publish low cloud layer cover. |
-| `middle_cloud_cover` | `native` | `native` | Both models publish middle cloud layer cover. |
-| `high_cloud_cover` | `native` | `native` | Both models publish high cloud layer cover. |
 | `visibility` | `native` | `unavailable` | ICON does not publish `visibility_surface`. |
 | `freezing_level` | `native` | `native` | Both models publish freezing-level height. |
 | `precipitable_water` | `native` | `native` | Both models publish precipitable water. |
@@ -100,10 +96,8 @@ GFS model id: `gfs`.
 | `precipitation_rate` | `native` | `prate_surface`; optional `precip_type_surface` | `PRATE`, `0-SFC`, `GRIB_PDS_PDTN=0`; overlay from `PRATE`/`CPOFP`/category fields | direct scalar plus automatic overlay | `prate_surface` is normalized to `mm/hr`; overlay remains optional. |
 | `accumulated_precipitation` | `unavailable` | - | - | - | `precip_total_surface` is not in the GFS workload. |
 | `snow_depth` | `native` | `snow_depth_surface` | `SNOD`, `0-SFC` | direct scalar | - |
+| `cloud_layers` | `frontend-derived` | `cloud_layers` | `LCDC`/`MCDC`/`HCDC` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components. |
 | `cloud_cover` | `native` | `tcdc` | `TCDC`, `0-EATM` | direct scalar | - |
-| `low_cloud_cover` | `native` | `low_clouds` | `LCDC` | direct scalar | - |
-| `middle_cloud_cover` | `native` | `medium_clouds` | `MCDC` | direct scalar | - |
-| `high_cloud_cover` | `native` | `high_clouds` | `HCDC` | direct scalar | - |
 | `visibility` | `native` | `visibility_surface` | `VIS`, `0-SFC` | direct scalar | - |
 | `freezing_level` | `native` | `freezing_level` | `HGT`, `0-0DEG` | direct scalar | - |
 | `precipitable_water` | `native` | `precipitable_water` | `PWAT`, `0-EATM` | direct scalar | - |
@@ -129,10 +123,8 @@ ICON model id: `icon`.
 | `precipitation_rate` | `etl-derived` | `prate_surface`; optional `precip_type_surface` | `prate_surface` from `icon_tot_prec_delta_rate` using `tot_prec`; overlay from rain/snow accumulation component deltas | direct scalar plus automatic overlay | First-hour previous accumulation is treated as zero by the ETL derivation; overlay remains optional. |
 | `accumulated_precipitation` | `native` | `precip_total_surface` | `tot_prec` | direct scalar | Source accumulation total. |
 | `snow_depth` | `native` | `snow_depth_surface` | `h_snow` | direct scalar | - |
+| `cloud_layers` | `frontend-derived` | `cloud_layers` | `clcl`/`clcm`/`clch` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components on the `0.125` grid. |
 | `cloud_cover` | `native` | `tcdc` | `clct` | direct scalar | - |
-| `low_cloud_cover` | `native` | `low_clouds` | `clcl` | direct scalar | - |
-| `middle_cloud_cover` | `native` | `medium_clouds` | `clcm` | direct scalar | - |
-| `high_cloud_cover` | `native` | `high_clouds` | `clch` | direct scalar | - |
 | `visibility` | `unavailable` | - | - | - | `visibility_surface` is not in the ICON workload. |
 | `freezing_level` | `native` | `freezing_level` | `hzerocl` | direct scalar | - |
 | `precipitable_water` | `native` | `precipitable_water` | `tqv` | direct scalar | - |
@@ -143,11 +135,11 @@ ICON model id: `icon`.
 
 ## Supporting Artifacts
 
-These artifacts are model outputs but are not standalone selectable catalog
-choices.
+These artifacts are model outputs that support custom renderers or overlays.
 
 | Artifact id | GFS | ICON | Frontend use | Notes |
 | --- | --- | --- | --- | --- |
+| `cloud_layers` | `native` vector from `LCDC`/`MCDC`/`HCDC` | `native` vector from `clcl`/`clcm`/`clch` | Selectable `cloud_layers` layer | Packed low/middle/high cloud cover for the Cloud Layers renderer. |
 | `precip_type_surface` | `etl-derived` soft snow/mix fractions from GFS precipitation-type inputs | `etl-derived` soft snow/mix fractions from rain/snow accumulation components | Optional automatic `precipitation_rate` pattern overlay | The layer remains available when this artifact is missing. |
 | `thunderstorm_mask` | `unavailable` | `etl-derived` from `ww` | No current catalog consumer | Published by ICON when configured; reserved for future thunderstorm rendering. |
 

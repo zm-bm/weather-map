@@ -14,6 +14,7 @@ import {
   createManifestFixture,
   createScalarArtifactFixture,
   createActiveRunFixture,
+  createVectorArtifactFixture,
 } from '../../test/fixtures'
 import { FORECAST_LAYER_GROUPS } from '../../forecast-catalog'
 import { ForecastSelectionProvider } from '../../forecast-selection'
@@ -259,30 +260,21 @@ describe('ForecastPanel', () => {
     expect(screen.queryByText('Value')).not.toBeInTheDocument()
   })
 
-  it('shows low, middle, and high cloud cover as Clouds & Visibility measurement options', () => {
+  it('shows Cloud Layers and Total/Sky Cover as selectable cloud measurements', () => {
     const manifest = createManifestFixture({
       cycle: '2026041118',
-      scalarArtifactIds: ['tcdc', 'low_clouds', 'medium_clouds', 'high_clouds'],
-      vectorArtifactIds: [],
+      scalarArtifactIds: ['tcdc'],
+      vectorArtifactIds: ['cloud_layers'],
       artifacts: {
         tcdc: createScalarArtifactFixture({
           units: '%',
           parameter: 'tcdc',
         }),
-        low_clouds: createScalarArtifactFixture({
-          id: 'low_clouds',
+        cloud_layers: createVectorArtifactFixture({
+          id: 'cloud_layers',
           units: '%',
-          parameter: 'low_clouds',
-        }),
-        medium_clouds: createScalarArtifactFixture({
-          id: 'medium_clouds',
-          units: '%',
-          parameter: 'medium_clouds',
-        }),
-        high_clouds: createScalarArtifactFixture({
-          id: 'high_clouds',
-          units: '%',
-          parameter: 'high_clouds',
+          parameter: 'cloud_layers',
+          components: ['low', 'middle', 'high'],
         }),
       },
     })
@@ -290,14 +282,14 @@ describe('ForecastPanel', () => {
     renderPanelWithManifest(manifest)
 
     const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
-    expect(screen.getByRole('option', { name: 'Low Cloud Cover' })).toHaveValue('low_cloud_cover')
-    expect(screen.getByRole('option', { name: 'Middle Cloud Cover' })).toHaveValue('middle_cloud_cover')
-    expect(screen.getByRole('option', { name: 'High Cloud Cover' })).toHaveValue('high_cloud_cover')
+    expect(screen.getByRole('option', { name: 'Cloud Layers' })).toHaveValue('cloud_layers')
+    expect(screen.getByRole('option', { name: 'Total/Sky Cover' })).toHaveValue('cloud_cover')
 
     fireEvent.change(measurement, {
-      target: { value: 'middle_cloud_cover' },
+      target: { value: 'cloud_cover' },
     })
 
-    expect(measurement.value).toBe('middle_cloud_cover')
+    expect(measurement.value).toBe('cloud_cover')
   })
+
 })

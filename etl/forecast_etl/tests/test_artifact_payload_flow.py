@@ -11,7 +11,7 @@ from forecast_etl.proc import RunResult
 from forecast_etl.tests.fixtures.artifact_configs import (
     artifact_spec,
     cin_index_config,
-    cloud_cover_config,
+    cloud_layers_config,
     icon_precip_type_config,
     minimal_artifact_config,
     precip_rate_config,
@@ -145,18 +145,28 @@ class ScalarArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["units"], "J/kg")
             self.assertEqual(result["parameter"], "cin")
 
-    def test_cloud_cover_artifact_writes_single_component_scalar_payload(self) -> None:
+    def test_cloud_layers_artifact_writes_three_component_vector_payload(self) -> None:
         with artifact_run_fixture(prefix="weather-map-cloud-artifact-") as fx:
-            source = pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
+            low_src = pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
+            middle_src = pack_f32([10.0, 20.0, float("nan"), 80.0], byte_order="little")
+            high_src = pack_f32([100.0, 50.0, 0.0, 25.0], byte_order="little")
 
             with (
                 patch(
                     "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
-                    return_value=(1, {"GRIB_ELEMENT": "LCDC"}),
+                    side_effect=[
+                        (1, {"GRIB_ELEMENT": "LCDC"}),
+                        (2, {"GRIB_ELEMENT": "MCDC"}),
+                        (3, {"GRIB_ELEMENT": "HCDC"}),
+                    ],
                 ),
                 patch(
                     "forecast_etl.extract.source_bands.extract_float32_band_bytes",
-                    return_value=(source, "little"),
+                    side_effect=[
+                        (low_src, "little"),
+                        (middle_src, "little"),
+                        (high_src, "little"),
+                    ],
                 ),
                 patch(
                     "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
@@ -164,24 +174,29 @@ class ScalarArtifactContractTest(unittest.TestCase):
                 ),
             ):
                 result = fx.run_artifact(
-                    artifact_id="low_clouds",
-                    artifact_config=cloud_cover_config(),
+                    artifact_id="cloud_layers",
+                    artifact_config=cloud_layers_config(),
                     source=fx.single_grib_source(),
                     run=_unused_run,
                 )
 
-            payload_uri = fx.payload_uri(artifact_id="low_clouds", dtype="int8")
-            payload_path = fx.payload_path(artifact_id="low_clouds", dtype="int8")
+            payload_uri = fx.payload_uri(artifact_id="cloud_layers", dtype="int8")
+            payload_path = fx.payload_path(artifact_id="cloud_layers", dtype="int8")
             self.assertEqual(result["payload_uri"], payload_uri)
             self.assertTrue(payload_path.exists())
 
-            payload_bytes = fx.payload_bytes(artifact_id="low_clouds", dtype="int8")
-            expected_payload = struct.pack("bbbb", -50, -45, 50, -128)
+            payload_bytes = fx.payload_bytes(artifact_id="cloud_layers", dtype="int8")
+            expected_payload = (
+                struct.pack("bbbb", 0, 2, 50, -128)
+                + struct.pack("bbbb", 5, 10, -128, 40)
+                + struct.pack("bbbb", 50, 25, 0, 12)
+            )
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(result["byte_length"], len(expected_payload))
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
             self.assertEqual(result["format"], "linear-i8-v1")
-            self.assertEqual(result["components"], ["value"])
+            self.assertEqual(result["components"], ["low", "middle", "high"])
+            self.assertEqual(result["encoding_id"], "cloud_layers_vector_i8_2pct_v1")
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
 
@@ -532,24 +547,42 @@ class IconGribCollectionArtifactTest(unittest.TestCase):
 
         self.assertIn("Negative accumulation delta", str(raised.exception))
 
-    def test_icon_cloud_cover_uses_configured_grib_path(self) -> None:
+    def test_icon_cloud_layers_use_configured_component_grib_paths(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-cloud-artifact-",
             model_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
-            path = fx.grib_path("clcl.regridded.grib2")
-            artifact_config = cloud_cover_config(grib_match={"ICON_PARAM": "clcl"})
+            paths = {
+                "clcl": fx.grib_path("clcl.regridded.grib2"),
+                "clcm": fx.grib_path("clcm.regridded.grib2"),
+                "clch": fx.grib_path("clch.regridded.grib2"),
+            }
+            artifact_config = cloud_layers_config(
+                grib_matches={
+                    "low": {"ICON_PARAM": "clcl"},
+                    "middle": {"ICON_PARAM": "clcm"},
+                    "high": {"ICON_PARAM": "clch"},
+                }
+            )
             component_source = pack_f32([0.0, 5.0, 10.0, 15.0], byte_order="little")
 
             with (
                 patch(
                     "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
-                    return_value=(1, {"id": "value"}),
+                    side_effect=[
+                        (1, {"id": "low"}),
+                        (1, {"id": "middle"}),
+                        (1, {"id": "high"}),
+                    ],
                 ) as find_band,
                 patch(
                     "forecast_etl.extract.source_bands.extract_float32_band_bytes",
-                    return_value=(component_source, "little"),
+                    side_effect=[
+                        (component_source, "little"),
+                        (component_source, "little"),
+                        (component_source, "little"),
+                    ],
                 ),
                 patch(
                     "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
@@ -557,17 +590,17 @@ class IconGribCollectionArtifactTest(unittest.TestCase):
                 ),
             ):
                 fx.run_artifact(
-                    artifact_id="low_clouds",
+                    artifact_id="cloud_layers",
                     artifact_config=artifact_config,
                     source=fx.grib_collection_source(
-                        grib_paths={"clcl": path},
+                        grib_paths=paths,
                         grid_id="icon_global_regridded_0p125",
                     ),
                     run=_unused_run,
                 )
 
         called_paths = [call.args[0] for call in find_band.call_args_list]
-        self.assertEqual(called_paths, [path])
+        self.assertEqual(called_paths, [paths["clcl"], paths["clcm"], paths["clch"]])
 
     def test_icon_wind_uses_u_and_v_grib_paths(self) -> None:
         with artifact_run_fixture(

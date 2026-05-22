@@ -34,6 +34,7 @@ describe('createPressureContourChannel', () => {
         loadScalar,
         loadVector: vi.fn(),
         loadVectorComponents: vi.fn(),
+        loadRawVectorComponents: vi.fn(),
       },
     })
 

@@ -12,6 +12,7 @@ import { prefetchForecastData } from './prefetch'
 
 const loaders = {
   field: vi.fn(),
+  cloudLayers: vi.fn(),
   precipTypeOverlay: vi.fn(),
   pressureContours: vi.fn(),
   particles: vi.fn(),
@@ -30,6 +31,7 @@ function deferred<T>() {
 function createPlan(args: {
   forecastHours?: string[]
   includeOverlay?: boolean
+  includeCloudLayers?: boolean
   includeContours?: boolean
   includeParticles?: boolean
   lowerHourToken?: string
@@ -67,10 +69,18 @@ function createPlan(args: {
     lowerHourToken: target.lowerHourToken,
     upperHourToken: target.upperHourToken,
     mix: target.mix,
-    field: {
-      key: 'field:key',
-      load: loaders.field,
-    },
+    field: args.includeCloudLayers === true
+      ? null
+      : {
+        key: 'field:key',
+        load: loaders.field,
+      },
+    cloudLayers: args.includeCloudLayers === true
+      ? {
+        key: 'cloud-layers:key',
+        load: loaders.cloudLayers,
+      }
+      : null,
     precipTypeOverlay: args.includeOverlay === true
       ? {
         key: 'precip-type-overlay:key',
@@ -96,6 +106,7 @@ describe('prefetchForecastData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loaders.field.mockResolvedValue({ layerId: 'temperature' })
+    loaders.cloudLayers.mockResolvedValue({ layerId: 'cloud_layers' })
     loaders.precipTypeOverlay.mockResolvedValue({ artifactId: 'precip_type_surface' })
     loaders.pressureContours.mockResolvedValue({ artifactId: 'prmsl_msl' })
     loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
@@ -221,5 +232,25 @@ describe('prefetchForecastData', () => {
     expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
     expect(loaders.pressureContours).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
+  })
+
+  it('prefetches cloud layers payloads instead of scalar field payloads when planned', async () => {
+    await prefetchForecastData({
+      plan: createPlan({
+        forecastHours: ['000', '003', '006'],
+        includeCloudLayers: true,
+        includeParticles: false,
+      }),
+      aheadHourCount: 1,
+      concurrency: 2,
+      signal: createSignalFixture(),
+    })
+
+    expect(loaders.field).not.toHaveBeenCalled()
+    expect(loaders.cloudLayers.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+      '000',
+      '003',
+      '006',
+    ])
   })
 })

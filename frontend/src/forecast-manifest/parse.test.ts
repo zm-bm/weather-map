@@ -16,11 +16,10 @@ describe('parseManifest', () => {
     expect(manifest.models.gfs?.latest?.artifacts.tmp_surface.byteLength).toBe(8)
   })
 
-  it('rejects legacy availability index payloads', () => {
+  it('rejects payloads with the wrong schema', () => {
     const payload = {
       ...createManifestPayloadFixture(),
-      schema: 'weather-map-model-layer-availability-index',
-      schemaVersion: 2,
+      schema: 'weather-map.other',
     }
 
     expect(() => parseManifest(payload)).toThrow()

@@ -7,7 +7,11 @@ import type {
 } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Point } from 'geojson'
 
-import { basemapLayerIds, placeProbeLayerIds } from './constants'
+import {
+  BASEMAP_SOURCE_ID,
+  BASEMAP_SOURCE_LAYER_IDS,
+  placeProbeLayerIds,
+} from './constants'
 
 type PlaceProbeFeatureProperties = {
   id: string
@@ -193,8 +197,8 @@ function isMapStyleUnavailableError(error: unknown): boolean {
 }
 
 function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {
-  return map.querySourceFeatures(basemapLayerIds.source, {
-    sourceLayer: basemapLayerIds.placeSourceLayer,
+  return map.querySourceFeatures(BASEMAP_SOURCE_ID, {
+    sourceLayer: BASEMAP_SOURCE_LAYER_IDS.places,
   })
 }
 

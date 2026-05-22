@@ -144,66 +144,30 @@
         }
       ]
     },
-    "low_clouds": {
-      "kind": "scalar",
-      "parameter": "low_clouds",
-      "level": "low cloud layer",
+    "cloud_layers": {
+      "kind": "vector",
+      "parameter": "cloud_layers",
+      "level": "cloud layers",
       "units": "%",
       "source_transform": "identity",
       "encoding": {
-        "id": "low_clouds_i8_1pct_v1",
+        "id": "cloud_layers_vector_i8_2pct_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 1,
-        "offset": 50,
+        "scale": 2,
+        "offset": 0,
         "nodata": -128
       },
       "components": [
         {
-          "id": "value"
-        }
-      ]
-    },
-    "medium_clouds": {
-      "kind": "scalar",
-      "parameter": "medium_clouds",
-      "level": "middle cloud layer",
-      "units": "%",
-      "source_transform": "identity",
-      "encoding": {
-        "id": "medium_clouds_i8_1pct_v1",
-        "format": "linear-i8-v1",
-        "dtype": "int8",
-        "byte_order": "none",
-        "scale": 1,
-        "offset": 50,
-        "nodata": -128
-      },
-      "components": [
+          "id": "low"
+        },
         {
-          "id": "value"
-        }
-      ]
-    },
-    "high_clouds": {
-      "kind": "scalar",
-      "parameter": "high_clouds",
-      "level": "high cloud layer",
-      "units": "%",
-      "source_transform": "identity",
-      "encoding": {
-        "id": "high_clouds_i8_1pct_v1",
-        "format": "linear-i8-v1",
-        "dtype": "int8",
-        "byte_order": "none",
-        "scale": 1,
-        "offset": 50,
-        "nodata": -128
-      },
-      "components": [
+          "id": "middle"
+        },
         {
-          "id": "value"
+          "id": "high"
         }
       ]
     },
@@ -499,9 +463,7 @@
           "rh_surface",
           "prmsl_msl",
           "tcdc",
-          "low_clouds",
-          "medium_clouds",
-          "high_clouds",
+          "cloud_layers",
           "prate_surface",
           "precip_type_surface",
           "snow_depth_surface",
@@ -592,30 +554,22 @@
             }
           ]
         },
-        "low_clouds": {
+        "cloud_layers": {
           "components": [
             {
-              "id": "value",
+              "id": "low",
               "grib_match": {
                 "GRIB_ELEMENT": "LCDC"
               }
-            }
-          ]
-        },
-        "medium_clouds": {
-          "components": [
+            },
             {
-              "id": "value",
+              "id": "middle",
               "grib_match": {
                 "GRIB_ELEMENT": "MCDC"
               }
-            }
-          ]
-        },
-        "high_clouds": {
-          "components": [
+            },
             {
-              "id": "value",
+              "id": "high",
               "grib_match": {
                 "GRIB_ELEMENT": "HCDC"
               }
@@ -810,9 +764,7 @@
           "rh_surface",
           "prmsl_msl",
           "tcdc",
-          "low_clouds",
-          "medium_clouds",
-          "high_clouds",
+          "cloud_layers",
           "prate_surface",
           "precip_total_surface",
           "precip_type_surface",
@@ -889,30 +841,22 @@
             }
           ]
         },
-        "low_clouds": {
+        "cloud_layers": {
           "components": [
             {
-              "id": "value",
+              "id": "low",
               "grib_match": {
                 "ICON_PARAM": "clcl"
               }
-            }
-          ]
-        },
-        "medium_clouds": {
-          "components": [
+            },
             {
-              "id": "value",
+              "id": "middle",
               "grib_match": {
                 "ICON_PARAM": "clcm"
               }
-            }
-          ]
-        },
-        "high_clouds": {
-          "components": [
+            },
             {
-              "id": "value",
+              "id": "high",
               "grib_match": {
                 "ICON_PARAM": "clch"
               }

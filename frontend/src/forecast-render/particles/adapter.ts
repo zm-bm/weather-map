@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
+import type { ForecastRenderer } from '../types'
+import { resolveForecastLayerBeforeId } from '../placement'
 import { createParticleRuntime } from './engine/runtime'
 import { getParticleController } from './controller'
 import { particleRuntimeOptions } from './options'
@@ -13,7 +14,7 @@ export const particleRenderer: ForecastRenderer = {
   layerId: PARTICLE_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return
-    map.addLayer(createParticleCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+    map.addLayer(createParticleCustomLayer(), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(PARTICLE_RENDERER_LAYER_ID)) return

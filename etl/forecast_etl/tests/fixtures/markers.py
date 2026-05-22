@@ -51,20 +51,31 @@ def write_vector_marker(
     fhour: str,
     artifact_id: str,
     grid_meta: dict[str, Any],
+    artifact_config: dict | None = None,
+    source_values_by_component: dict[str, list[float]] | None = None,
 ) -> None:
     cell_count = int(grid_meta["nx"]) * int(grid_meta["ny"])
+    if artifact_config is None:
+        artifact_config = wind_artifact_config()
+        if source_values_by_component is None:
+            source_values_by_component = {
+                "u": [float(i % 128) * 0.5 for i in range(cell_count)],
+                "v": [float((i + 7) % 128) * 0.5 for i in range(cell_count)],
+            }
+    if source_values_by_component is None:
+        source_values_by_component = {
+            str(component["id"]): [float((i + component_index) % 128) * 0.5 for i in range(cell_count)]
+            for component_index, component in enumerate(artifact_config["components"])
+        }
     write_artifact_marker(
         store=store,
         ap=ap,
         cycle=cycle,
         fhour=fhour,
         artifact_id=artifact_id,
-        artifact_config=wind_artifact_config(),
+        artifact_config=artifact_config,
         grid_meta=grid_meta,
-        source_values_by_component={
-            "u": [float(i % 128) * 0.5 for i in range(cell_count)],
-            "v": [float((i + 7) % 128) * 0.5 for i in range(cell_count)],
-        },
+        source_values_by_component=source_values_by_component,
     )
 
 

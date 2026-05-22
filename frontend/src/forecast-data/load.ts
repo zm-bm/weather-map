@@ -2,6 +2,7 @@ import { isAbortError } from '../abort'
 import type { ForecastDataPlan } from './plan'
 import type {
   FieldInterpolationWindowData,
+  CloudLayersInterpolationWindowData,
   ForecastRenderData,
   ParticleInterpolationWindowData,
   PrecipTypeOverlayInterpolationWindowData,
@@ -17,11 +18,16 @@ type LoadForecastDataArgs = {
 
 export async function loadForecastData(args: LoadForecastDataArgs): Promise<ForecastRenderData> {
   const { plan } = args
-  const [field, precipTypeOverlay, pressureContours, particles] = await Promise.all([
-    loadInterpolationWindow<FieldInterpolationWindowData['lower']>({
+  const [field, cloudLayers, precipTypeOverlay, pressureContours, particles] = await Promise.all([
+    plan.field == null ? Promise.resolve(null) : loadInterpolationWindow<FieldInterpolationWindowData['lower']>({
       selection: plan,
       previousWindow: args.previousWindows?.field ?? null,
       loadTimeSlice: plan.field.load,
+    }),
+    plan.cloudLayers == null ? Promise.resolve(null) : loadInterpolationWindow<CloudLayersInterpolationWindowData['lower']>({
+      selection: plan,
+      previousWindow: args.previousWindows?.cloudLayers ?? null,
+      loadTimeSlice: plan.cloudLayers.load,
     }),
     loadOptionalPrecipTypeOverlayWindow({
       plan,
@@ -38,7 +44,28 @@ export async function loadForecastData(args: LoadForecastDataArgs): Promise<Fore
     }),
   ])
 
-  return { field, precipTypeOverlay, pressureContours, particles }
+  return {
+    field,
+    cloudLayers,
+    probeField: field ?? cloudLayersProbeFieldWindow(cloudLayers),
+    precipTypeOverlay,
+    pressureContours,
+    particles,
+  }
+}
+
+function cloudLayersProbeFieldWindow(
+  window: CloudLayersInterpolationWindowData | null
+): FieldInterpolationWindowData | null {
+  if (window == null) return null
+  return {
+    selectedValidTimeMs: window.selectedValidTimeMs,
+    lowerHourToken: window.lowerHourToken,
+    upperHourToken: window.upperHourToken,
+    mix: window.mix,
+    lower: window.lower.coverage,
+    upper: window.upper.coverage,
+  }
 }
 
 async function loadOptionalPrecipTypeOverlayWindow(args: {

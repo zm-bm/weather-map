@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FORECAST_LAYER_BEFORE_ID } from '../types'
+import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import { applyFieldInterpolationWindow, fieldRenderer } from './adapter'
 import { fieldRuntimeOptions } from './options'
 
@@ -35,7 +35,9 @@ describe('fieldRenderer', () => {
     })
     const addLayer = vi.fn()
     const map = {
-      getLayer: vi.fn(() => undefined),
+      getLayer: vi.fn((layerId: string) => (
+        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
+      )),
       addLayer,
     }
 

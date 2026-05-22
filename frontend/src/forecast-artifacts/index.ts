@@ -6,6 +6,7 @@ export type {
 } from './data'
 export type {
   VectorComponentArtifactData,
+  RawVectorComponentArtifactData,
   ScalarArtifactData,
   VectorArtifactData,
 } from './types'

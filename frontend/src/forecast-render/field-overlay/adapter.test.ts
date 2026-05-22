@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FORECAST_LAYER_BEFORE_ID } from '../types'
+import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import {
   applyPrecipTypeOverlayInterpolationWindow,
   fieldOverlayRenderer,
@@ -37,7 +37,9 @@ describe('fieldOverlayRenderer', () => {
     })
     const addLayer = vi.fn()
     const map = {
-      getLayer: vi.fn(() => undefined),
+      getLayer: vi.fn((layerId: string) => (
+        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
+      )),
       addLayer,
     }
 

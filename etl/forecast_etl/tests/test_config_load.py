@@ -7,7 +7,7 @@ from pathlib import Path
 from forecast_etl.config.load import load_pipeline_config, merge_pipeline_config_overlay, parse_pipeline_config
 from forecast_etl.config.resolved import IconDwdSourceConfig
 from forecast_etl.tests.fixtures.artifact_configs import (
-    cloud_cover_config,
+    cloud_layers_config,
     icon_precip_type_config,
     precip_rate_config,
     precip_total_config,
@@ -46,6 +46,9 @@ class ConfigValidationTest(unittest.TestCase):
             with self.subTest(model=model.id):
                 self.assertGreater(len(model.workload.artifacts), 0)
                 self.assertLessEqual(set(model.workload.artifacts), set(model.artifacts))
+                self.assertIn("cloud_layers", model.workload.artifacts)
+                self.assertEqual(model.artifacts["cloud_layers"].kind, "vector")
+                self.assertEqual(model.artifacts["cloud_layers"].component_ids, ("low", "middle", "high"))
                 for artifact_id in model.workload.artifacts:
                     self.assertEqual(model.artifacts[artifact_id].id, artifact_id)
 
@@ -387,11 +390,11 @@ class ConfigValidationTest(unittest.TestCase):
         add_model_artifact(
             cfg,
             model_id="gfs",
-            artifact_id="low_clouds",
-            artifact_config=cloud_cover_config(),
+            artifact_id="cloud_layers",
+            artifact_config=cloud_layers_config(),
         )
-        _gfs(cfg)["workload"]["artifacts"] = ["low_clouds"]
-        del _gfs(cfg)["artifacts"]["low_clouds"]["components"][0]["grib_match"]
+        _gfs(cfg)["workload"]["artifacts"] = ["cloud_layers"]
+        del _gfs(cfg)["artifacts"]["cloud_layers"]["components"][0]["grib_match"]
 
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
@@ -401,11 +404,11 @@ class ConfigValidationTest(unittest.TestCase):
         add_model_artifact(
             cfg,
             model_id="gfs",
-            artifact_id="low_clouds",
-            artifact_config=cloud_cover_config(),
+            artifact_id="cloud_layers",
+            artifact_config=cloud_layers_config(),
         )
-        _gfs(cfg)["workload"]["artifacts"] = ["low_clouds"]
-        _gfs(cfg)["artifacts"]["low_clouds"]["components"].append(
+        _gfs(cfg)["workload"]["artifacts"] = ["cloud_layers"]
+        _gfs(cfg)["artifacts"]["cloud_layers"]["components"].append(
             {"id": "ceiling", "grib_match": {"GRIB_ELEMENT": "CEIL"}}
         )
 

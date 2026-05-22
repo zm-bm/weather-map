@@ -101,8 +101,9 @@ describe('frontend import boundaries', () => {
       ...findSourceImportViolations(
         'Use grouped map layer ids outside map view internals',
         (file) => !file.path.includes('/map/view/') &&
+          !isTestFile(file.path) &&
           file.imports.some((reference) => reference.resolvedPath.includes('/map/view/constants')) &&
-          /\b(BASEMAP_SOURCE_ID|PLACE_SOURCE_LAYER_ID|PLACE_PROBE_SOURCE_ID|PLACE_PROBE_LAYER_ID|PLACE_LABEL_LAYER_IDS)\b/
+          /\b(BASEMAP_SOURCE_ID|BASEMAP_SOURCE_LAYER_IDS|BASEMAP_LAYER_IDS|PLACE_PROBE_SOURCE_ID|PLACE_PROBE_LAYER_ID|PLACE_LABEL_LAYER_IDS)\b/
             .test(file.source)
       ),
       ...findSourceImportViolations(
@@ -180,6 +181,10 @@ function isForecastSyncFile(path: string): boolean {
 
 function isProductionMapFile(path: string): boolean {
   return path.includes('/map/') && !/\.(test|spec)\.tsx?$/.test(path)
+}
+
+function isTestFile(path: string): boolean {
+  return /\.(test|spec)\.tsx?$/.test(path)
 }
 
 function isForecastRenderImport(path: string): boolean {

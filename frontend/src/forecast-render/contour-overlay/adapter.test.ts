@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { FORECAST_LAYER_BEFORE_ID } from '../types'
+import { FORECAST_LAYER_BEFORE_ID } from '../placement'
 import {
   applyPressureContourInterpolationWindow,
   CONTOUR_OVERLAY_RENDERER_LAYER_ID,
@@ -15,7 +15,9 @@ describe('contourOverlayRenderer', () => {
   it('installs a custom pressure contour layer in forecast render order', () => {
     const addLayer = vi.fn()
     const map = {
-      getLayer: vi.fn(() => undefined),
+      getLayer: vi.fn((layerId: string) => (
+        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
+      )),
       addLayer,
     }
 

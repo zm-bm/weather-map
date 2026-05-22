@@ -56,9 +56,15 @@ export type DerivedLayerSource = {
   recipe: 'wind-speed'
 }
 
+export type CloudLayersSource = {
+  kind: 'cloud-layers'
+  artifactId: ArtifactId
+}
+
 export type LayerSource =
   | ArtifactLayerSource
   | DerivedLayerSource
+  | CloudLayersSource
 
 export type PrecipitationTypeLayerOverlay = {
   id: string
@@ -99,6 +105,10 @@ type RawLayerSource =
     artifactId: string
     recipe: 'wind-speed'
   }
+  | {
+    kind: 'cloud-layers'
+    artifactId: string
+  }
 
 type RawLayerOverlaySpec = {
   id: string
@@ -135,6 +145,9 @@ type RawForecastCatalog = {
 export function layerSourceKey(source: LayerSource): string {
   if (source.kind === 'artifact') {
     return `artifact:${source.artifactId}`
+  }
+  if (source.kind === 'cloud-layers') {
+    return `cloud-layers:${source.artifactId}`
   }
   return `derived:${source.recipe}:${source.artifactId}`
 }
@@ -196,6 +209,9 @@ function layerOverlayFromRaw(raw: RawLayerOverlaySpec): LayerOverlaySpec {
 function layerSourceFromRaw(raw: RawLayerSource): LayerSource {
   if (raw.kind === 'artifact') {
     return { kind: 'artifact', artifactId: asArtifactId(raw.artifactId) }
+  }
+  if (raw.kind === 'cloud-layers') {
+    return { kind: 'cloud-layers', artifactId: asArtifactId(raw.artifactId) }
   }
 
   return {

@@ -6,24 +6,26 @@ import { createMapFixture } from '../../test/fixtures'
 import ForecastMap from './ForecastMap'
 
 const FULL_RENDER_PROFILE = {
-  key: 'field-contours-particles',
-  rendererIds: ['field', 'field-overlay', 'contour-overlay', 'particles'],
+  key: 'field-cloud-layers-contours-particles',
+  rendererIds: ['field', 'cloud-layers', 'field-overlay', 'contour-overlay', 'particles'],
 }
 
 const FIELD_ONLY_RENDER_PROFILE = {
-  key: 'field-no-contours-no-particles',
-  rendererIds: ['field', 'field-overlay'],
+  key: 'field-cloud-layers-no-contours-no-particles',
+  rendererIds: ['field', 'cloud-layers', 'field-overlay'],
 }
 
 const PARTICLES_ONLY_RENDER_PROFILE = {
-  key: 'field-no-contours-particles',
-  rendererIds: ['field', 'field-overlay', 'particles'],
+  key: 'field-cloud-layers-no-contours-particles',
+  rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
 }
 
 const mocks = vi.hoisted(() => ({
   useMap: vi.fn(),
   useForecastRenderHost: vi.fn(),
+  useForecastSelectionContext: vi.fn(),
   useForecastSync: vi.fn(),
+  useForecastBasemapTheme: vi.fn(),
   ForecastPlaceProbes: vi.fn(),
   MapControlRail: vi.fn(),
 }))
@@ -35,13 +37,21 @@ vi.mock('../../map/useMap', () => ({
 vi.mock('../../forecast-render', () => ({
   DEFAULT_FORECAST_RENDER_PROFILE: {
     key: 'default',
-    rendererIds: ['field', 'field-overlay', 'particles'],
+    rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
   },
   useForecastRenderHost: (args: unknown) => mocks.useForecastRenderHost(args),
 }))
 
+vi.mock('../../forecast-selection', () => ({
+  useForecastSelectionContext: () => mocks.useForecastSelectionContext(),
+}))
+
 vi.mock('../../forecast-sync', () => ({
   useForecastSync: (args: unknown) => mocks.useForecastSync(args),
+}))
+
+vi.mock('../../map/view/useForecastBasemapTheme', () => ({
+  useForecastBasemapTheme: (args: unknown) => mocks.useForecastBasemapTheme(args),
 }))
 
 vi.mock('../ForecastPlaceProbes', () => ({
@@ -73,6 +83,9 @@ describe('ForecastMap', () => {
       mapReadyVersion: 1,
     })
     mocks.useForecastRenderHost.mockReturnValue(renderHost)
+    mocks.useForecastSelectionContext.mockReturnValue({
+      selectedLayerId: 'temperature',
+    })
   })
 
   it('wires map runtime hooks and forecast sync from the map instance', () => {
@@ -92,6 +105,11 @@ describe('ForecastMap', () => {
       getMap,
       mapReadyVersion,
       profile: PARTICLES_ONLY_RENDER_PROFILE,
+    })
+    expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith({
+      getMap,
+      mapReadyVersion,
+      selectedLayerId: 'temperature',
     })
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
       renderHost,
@@ -167,6 +185,18 @@ describe('ForecastMap', () => {
 
     expect(mocks.useMap).toHaveBeenCalledWith(expect.objectContaining({
       containerId: 'forecast-map',
+    }))
+  })
+
+  it('passes cloud layer selection to the basemap theme hook', () => {
+    mocks.useForecastSelectionContext.mockReturnValue({
+      selectedLayerId: 'cloud_layers',
+    })
+
+    render(<ForecastMap />)
+
+    expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith(expect.objectContaining({
+      selectedLayerId: 'cloud_layers',
     }))
   })
 })

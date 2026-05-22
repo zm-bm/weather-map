@@ -1,7 +1,8 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import type { PressureContourInterpolationWindowData } from '../../forecast-data'
-import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
+import type { ForecastRenderer } from '../types'
+import { resolveForecastLayerBeforeId } from '../placement'
 import { getContourOverlayController } from './controller'
 import { createContourOverlayRuntime } from './engine/runtime'
 
@@ -12,7 +13,7 @@ export const contourOverlayRenderer: ForecastRenderer = {
   layerId: CONTOUR_OVERLAY_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(CONTOUR_OVERLAY_RENDERER_LAYER_ID)) return
-    map.addLayer(createContourOverlayCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+    map.addLayer(createContourOverlayCustomLayer(), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(CONTOUR_OVERLAY_RENDERER_LAYER_ID)) return

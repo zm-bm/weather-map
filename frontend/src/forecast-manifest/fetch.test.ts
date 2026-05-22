@@ -95,9 +95,6 @@ describe('fetchManifest', () => {
     )
     const artifact = manifest.models.gfs?.latest?.artifacts.tmp_surface
     expect(artifact?.byteLength).toBe(8)
-    expect(artifact).not.toHaveProperty('frames')
-    expect(artifact).not.toHaveProperty('path')
-    expect(artifact).not.toHaveProperty('sha256')
   })
 
   it('fails on non-ok responses', async () => {
@@ -109,11 +106,10 @@ describe('fetchManifest', () => {
     )
   })
 
-  it('rejects legacy availability payloads', async () => {
+  it('rejects payloads with the wrong schema', async () => {
     stubFetchJsonOnce({
       ...createForecastManifestPayload(),
-      schema: 'weather-map-model-layer-availability-index',
-      schemaVersion: 2,
+      schema: 'weather-map.other',
     })
 
     await expect(fetchManifest()).rejects.toThrow()

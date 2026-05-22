@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import { FORECAST_LAYER_BEFORE_ID, type ForecastRenderer } from '../types'
+import type { ForecastRenderer } from '../types'
+import { resolveForecastLayerBeforeId } from '../placement'
 import { createFieldOverlayRuntime } from './engine/runtime'
 import { getFieldOverlayController } from './controller'
 import type { PrecipTypeOverlayInterpolationWindowData } from '../../forecast-data'
@@ -12,7 +13,7 @@ export const fieldOverlayRenderer: ForecastRenderer = {
   layerId: FIELD_OVERLAY_RENDERER_LAYER_ID,
   install(map) {
     if (map.getLayer(FIELD_OVERLAY_RENDERER_LAYER_ID)) return
-    map.addLayer(createFieldOverlayCustomLayer(), FORECAST_LAYER_BEFORE_ID)
+    map.addLayer(createFieldOverlayCustomLayer(), resolveForecastLayerBeforeId(map))
   },
   uninstall(map) {
     if (!map.getLayer(FIELD_OVERLAY_RENDERER_LAYER_ID)) return

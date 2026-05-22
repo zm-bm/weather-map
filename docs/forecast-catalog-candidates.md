@@ -34,7 +34,6 @@ without expanding the model/source surface.
 | Item | Type | Group | Source or recipe | Model support | V1 decision |
 | --- | --- | --- | --- | --- | --- |
 | `precipitation_rate` precipitation type overlay | Implemented layer follow-up | `precipitation` | Optional renderer support artifact `precip_type_surface`. | GFS/ICON optional overlay support. | Add legend/support UI that explains snowflake and winter-mix ice-dash symbols. Keep `precip_type_surface` non-selectable; it is renderer support for `precipitation_rate`, not its own catalog layer. |
-| `cloud_layers` | Candidate layer | `clouds_visibility` | Frontend composite recipe over `low_clouds`, `medium_clouds`, and `high_clouds`. | GFS/ICON current. | Replace `low_cloud_cover`, `middle_cloud_cover`, and `high_cloud_cover` as normal user-facing selections while keeping the underlying artifacts. Do not bring back packed scalar artifacts. `cloud_cover` remains separate unless explicitly replaced or retitled. |
 | `accumulated_precipitation` | Implemented layer catalog decision | `precipitation` | Existing direct scalar from `precip_total_surface`. | ICON current; GFS currently unavailable in the workload. | Keep the current registry behavior as-is for v1. It remains selectable; fixed-window accumulation layers are deferred. |
 
 ## Current Groups
@@ -44,7 +43,7 @@ without expanding the model/source surface.
 | `temperature` | Temperature | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
 | `wind_pressure` | Wind & Pressure | `wind_speed`, `wind_gust`, `air_pressure` |
 | `precipitation` | Precipitation | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
-| `clouds_visibility` | Clouds & Visibility | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility` |
+| `clouds_visibility` | Clouds & Visibility | `cloud_layers`, `cloud_cover`, `visibility` |
 | `radar_storms` | Radar & Storms | `composite_reflectivity`, `cape`, `cin` |
 
 ## Post-V1 Catalog Backlog
@@ -59,7 +58,7 @@ deferred because they are not essential to the v1 product surface.
 | Candidate id | UI label | Group | Source or recipe | Current/future model support | Deferral reason |
 | --- | --- | --- | --- | --- | --- |
 | `wind_direction` | Wind Direction | `wind_pressure` | Derived degrees from `wind10m_uv`. | GFS/ICON current. | Useful, but not needed for stable v1 with `wind_speed`, `wind_gust`, and the `wind` particle layer already present. May work better as readout, arrows, barbs, or a wind render mode than as a filled scalar layer. |
-| `fog_low_visibility` | Fog / Low Visibility | `clouds_visibility` | Emphasis recipe from `visibility_surface`; optionally combine with low cloud or ceiling later. | GFS current; ICON needs visibility or an equivalent field. | Raw `visibility` already exists; defer a hazard-emphasis recipe, especially while ICON lacks visibility. This should not duplicate raw `visibility`, the future `cloud_layers` composite, or `cloud_ceiling`. |
+| `fog_low_visibility` | Fog / Low Visibility | `clouds_visibility` | Emphasis recipe from `visibility_surface`; optionally combine with low cloud or ceiling later. | GFS current; ICON needs visibility or an equivalent field. | Raw `visibility` already exists; defer a hazard-emphasis recipe, especially while ICON lacks visibility. This should not duplicate raw `visibility`, `cloud_layers`, or `cloud_ceiling`. |
 | `thunderstorm_overlay` | Thunderstorm Overlay | `precipitation` or `radar_storms` | Optional overlay or storm-context rendering from `thunderstorm_mask`. | ICON current; GFS unavailable unless a future explicit source is chosen. | Defer ICON-only thunderstorm rendering until precipitation-vs-storm context is worth solving. Do not fake GFS thunder with CAPE, reflectivity, or other proxies unless that tradeoff is explicitly chosen. |
 
 ### Forecast-Model Expansion

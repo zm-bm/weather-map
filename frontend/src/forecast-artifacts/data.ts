@@ -15,6 +15,7 @@ import type { WeatherMapConfig } from '../config'
 import { readArtifactPayload } from './payload'
 import type {
   ArtifactKind,
+  RawVectorComponentArtifactData,
   VectorComponentArtifactData,
   ScalarArtifactData,
   VectorArtifactData,
@@ -43,6 +44,7 @@ export type ArtifactLoader = {
   loadScalar: (artifactId: ArtifactId | string, hourToken: string) => Promise<ScalarArtifactData>
   loadVector: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorArtifactData>
   loadVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorComponentArtifactData>
+  loadRawVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<RawVectorComponentArtifactData>
 }
 
 type ArtifactSpecByKind = {
@@ -82,6 +84,14 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       kind: 'vector',
       assertSupported: assertSupportedVectorComponentArtifact,
       decode: decodeVectorComponentArtifact,
+    }),
+    loadRawVectorComponents: (artifactId, hourToken) => loadArtifact({
+      ...args,
+      artifactId,
+      hourToken,
+      kind: 'vector',
+      assertSupported: assertSupportedVectorComponentArtifact,
+      decode: decodeRawVectorComponentArtifact,
     }),
   }
 }
@@ -205,6 +215,39 @@ function decodeVectorComponentArtifact(
     const componentOffset = componentIndex * cellCount
     const raw = new Int8Array(payload, componentOffset, cellCount)
     components[componentId] = decodeVectorComponentValues(raw, encoding)
+  }
+
+  return {
+    artifactId,
+    hourToken: resolved.hourToken,
+    grid,
+    encoding,
+    componentIds: [...componentIds],
+    components,
+  }
+}
+
+function decodeRawVectorComponentArtifact(
+  resolved: ResolvedArtifact<'vector'>,
+  payload: ArrayBuffer
+): RawVectorComponentArtifactData {
+  const { artifactId, artifact } = resolved
+  const { components: componentIds, encoding, grid } = artifact
+  const cellCount = grid.nx * grid.ny
+  const expectedByteLength = cellCount * componentIds.length
+
+  if (payload.byteLength !== expectedByteLength) {
+    throw new Error(
+      `Vector component payload byte length mismatch for ${artifactId} ${resolved.hourToken}: ` +
+      `got=${payload.byteLength} expected=${expectedByteLength}`
+    )
+  }
+
+  const components: Record<string, Int8Array> = {}
+  for (const [componentIndex, componentId] of componentIds.entries()) {
+    const componentOffset = componentIndex * cellCount
+    const raw = new Int8Array(payload, componentOffset, cellCount)
+    components[componentId] = new Int8Array(raw)
   }
 
   return {

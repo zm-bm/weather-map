@@ -68,30 +68,34 @@ def pressure_msl_config(*, grib_match: dict | None = None, grid_transform: dict 
     return config
 
 
-def cloud_cover_config(
+def cloud_layers_config(
     *,
-    parameter: str = "low_clouds",
-    level: str = "low cloud layer",
-    encoding_id: str = "low_clouds_i8_1pct_v1",
-    grib_match: dict | None = None,
+    grib_matches: dict[str, dict] | None = None,
 ) -> dict:
+    matches = grib_matches or {
+        "low": {"GRIB_ELEMENT": "LCDC"},
+        "middle": {"GRIB_ELEMENT": "MCDC"},
+        "high": {"GRIB_ELEMENT": "HCDC"},
+    }
     return {
-        "kind": "scalar",
-        "parameter": parameter,
-        "level": level,
+        "kind": "vector",
+        "parameter": "cloud_layers",
+        "level": "cloud layers",
         "units": "%",
         "source_transform": "identity",
         "encoding": {
-            "id": encoding_id,
+            "id": "cloud_layers_vector_i8_2pct_v1",
             "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
-            "scale": 1,
-            "offset": 50,
+            "scale": 2,
+            "offset": 0,
             "nodata": -128,
         },
         "components": [
-            {"id": "value", "grib_match": grib_match or {"GRIB_ELEMENT": "LCDC"}},
+            {"id": "low", "grib_match": matches["low"]},
+            {"id": "middle", "grib_match": matches["middle"]},
+            {"id": "high", "grib_match": matches["high"]},
         ],
     }
 

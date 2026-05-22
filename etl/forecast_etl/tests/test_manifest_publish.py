@@ -14,7 +14,7 @@ from forecast_etl.manifest.constants import (
 )
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.artifact_configs import (
-    cloud_cover_config,
+    cloud_layers_config,
     minimal_artifact_config,
     precip_rate_config,
     wind_artifact_config,
@@ -364,17 +364,16 @@ class PublishManifestTest(unittest.TestCase):
                 fx.cell_count,
             )
 
-    def test_publish_writes_cloud_cover_scalar_manifest(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-cloud-cover-") as fx:
-            artifact_ids = ("low_clouds",)
+    def test_publish_writes_cloud_layers_vector_manifest(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-cloud-layers-") as fx:
+            artifact_ids = ("cloud_layers",)
             artifacts_cfg = {
-                "low_clouds": cloud_cover_config(),
+                "cloud_layers": cloud_layers_config(),
             }
 
-            fx.write_scalar_marker(
-                artifact_id="low_clouds",
-                artifact_config=artifacts_cfg["low_clouds"],
-                values=fx.values(10.0),
+            fx.write_vector_marker(
+                artifact_id="cloud_layers",
+                artifact_config=artifacts_cfg["cloud_layers"],
             )
 
             result = fx.publish(
@@ -384,31 +383,33 @@ class PublishManifestTest(unittest.TestCase):
 
             self.assertTrue(result.ready)
             cycle_manifest = fx.cycle_manifest()
-            artifact = cycle_manifest["artifacts"]["low_clouds"]
+            artifact = cycle_manifest["artifacts"]["cloud_layers"]
             encoding = artifact["encoding"]
             self.assertEqual(
                 encoding,
                 {
-                    "id": "low_clouds_i8_1pct_v1",
+                    "id": "cloud_layers_vector_i8_2pct_v1",
                     "format": "linear-i8-v1",
                     "dtype": "int8",
                     "byteOrder": "none",
                     "nodata": -128,
-                    "scale": 1.0,
-                    "offset": 50.0,
+                    "scale": 2.0,
+                    "offset": 0.0,
                     "decodeFormula": "value = stored * scale + offset",
                 },
             )
-            self.assertEqual(artifact["components"], ["value"])
-            self.assertEqual(artifact["kind"], "scalar")
+            self.assertEqual(artifact["components"], ["low", "middle", "high"])
+            self.assertEqual(artifact["kind"], "vector")
+            self.assertEqual(artifact["units"], "%")
+            self.assertEqual(artifact["parameter"], "cloud_layers")
             self.assertNotIn("valueRange", artifact)
             self.assertEqual(
                 artifact["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/low_clouds.field.i8.bin",
+                f"fields/gfs/{fx.cycle}/000/cloud_layers.field.i8.bin",
             )
             self.assertEqual(
                 artifact["frames"]["000"]["byteLength"],
-                fx.cell_count,
+                fx.cell_count * 3,
             )
 
     def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:

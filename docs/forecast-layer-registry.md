@@ -41,7 +41,7 @@ Related docs:
 | `temperature` | Temperature | `temperature` | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
 | `wind_pressure` | Wind & Pressure | `wind_gust` | `wind_speed`, `wind_gust`, `air_pressure` |
 | `precipitation` | Precipitation | `precipitation_rate` | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
-| `clouds_visibility` | Clouds & Visibility | `cloud_cover` | `cloud_cover`, `low_cloud_cover`, `middle_cloud_cover`, `high_cloud_cover`, `visibility` |
+| `clouds_visibility` | Clouds & Visibility | `cloud_layers` | `cloud_layers`, `cloud_cover`, `visibility` |
 | `radar_storms` | Radar & Storms | `cape` | `composite_reflectivity`, `cape`, `cin` |
 
 In field-layer tables, `Display` is `units; display_range; palette_id;
@@ -90,10 +90,8 @@ at z6.
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `cloud_cover` | Total Cloud Cover | direct scalar artifact `tcdc` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Total cloud cover across the atmospheric column. |
-| `low_cloud_cover` | Low Cloud Cover | direct scalar artifact `low_clouds` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Low cloud layer cover. |
-| `middle_cloud_cover` | Middle Cloud Cover | direct scalar artifact `medium_clouds` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Middle cloud layer cover. |
-| `high_cloud_cover` | High Cloud Cover | direct scalar artifact `high_clouds` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | High cloud layer cover. |
+| `cloud_layers` | Cloud Layers | cloud layers renderer from vector artifact `cloud_layers` with `low`, `middle`, `high` components | instantaneous | `%`; `0..100`; `cloud.layers.composite.v1`; `percent/percent` | Dedicated renderer uses low, middle, and high cloud cover as grayscale cloud-structure inputs, with derived composite coverage for opacity and probe labels. |
+| `cloud_cover` | Total/Sky Cover | direct scalar artifact `tcdc` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Total cloud cover across the atmospheric column. |
 | `visibility` | Visibility | direct scalar artifact `visibility_surface` | instantaneous | `m`; `0..50000`; `atmosphere.visibility.m.v1`; `visibility/stop-based` | Horizontal surface visibility. |
 
 ### Radar & Storms

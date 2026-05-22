@@ -2,6 +2,7 @@ import type {
   LayerColortableStop,
   ScalarEncodingSpec,
   ScalarGridSpec,
+  VectorEncodingSpec,
 } from '../forecast-manifest'
 import type {
   VectorArtifactData,
@@ -44,10 +45,21 @@ export type PressureContourTimeSliceData = {
   pressureHpa: Float32Array
 }
 
+export type CloudLayersTimeSliceData = {
+  hourToken: string
+  layerId: string
+  artifactId: string
+  grid: ScalarGridSpec
+  encoding: VectorEncodingSpec
+  textureBytes: Uint8Array
+  coverage: FieldTimeSliceData
+}
+
 export type ParticleTimeSliceData = VectorArtifactData
 
 export type ForecastDataChannel<T =
   | FieldTimeSliceData
+  | CloudLayersTimeSliceData
   | ParticleTimeSliceData
   | PrecipTypeOverlayTimeSliceData
   | PressureContourTimeSliceData
@@ -57,12 +69,15 @@ export type ForecastDataChannel<T =
 }
 
 export type FieldInterpolationWindowData = LoadedInterpolationWindow<FieldTimeSliceData>
+export type CloudLayersInterpolationWindowData = LoadedInterpolationWindow<CloudLayersTimeSliceData>
 export type PrecipTypeOverlayInterpolationWindowData = LoadedInterpolationWindow<PrecipTypeOverlayTimeSliceData>
 export type PressureContourInterpolationWindowData = LoadedInterpolationWindow<PressureContourTimeSliceData>
 export type ParticleInterpolationWindowData = LoadedInterpolationWindow<ParticleTimeSliceData>
 
 export type ForecastRenderData = {
-  field: FieldInterpolationWindowData
+  field: FieldInterpolationWindowData | null
+  cloudLayers: CloudLayersInterpolationWindowData | null
+  probeField: FieldInterpolationWindowData | null
   precipTypeOverlay: PrecipTypeOverlayInterpolationWindowData | null
   pressureContours: PressureContourInterpolationWindowData | null
   particles: ParticleInterpolationWindowData | null
@@ -70,6 +85,7 @@ export type ForecastRenderData = {
 
 export type PreviousForecastInterpolationWindows = {
   field?: FieldInterpolationWindowData | null
+  cloudLayers?: CloudLayersInterpolationWindowData | null
   precipTypeOverlay?: PrecipTypeOverlayInterpolationWindowData | null
   pressureContours?: PressureContourInterpolationWindowData | null
   particles?: ParticleInterpolationWindowData | null

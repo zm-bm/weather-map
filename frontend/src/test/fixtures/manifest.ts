@@ -334,14 +334,8 @@ export function createManifestLayersFixture(
     cloud_cover: createManifestLayerFixture({
       [modelId]: has('tcdc') ? available(['tcdc']) : unavailable(['tcdc']),
     }),
-    low_cloud_cover: createManifestLayerFixture({
-      [modelId]: has('low_clouds') ? available(['low_clouds']) : unavailable(['low_clouds']),
-    }),
-    middle_cloud_cover: createManifestLayerFixture({
-      [modelId]: has('medium_clouds') ? available(['medium_clouds']) : unavailable(['medium_clouds']),
-    }),
-    high_cloud_cover: createManifestLayerFixture({
-      [modelId]: has('high_clouds') ? available(['high_clouds']) : unavailable(['high_clouds']),
+    cloud_layers: createManifestLayerFixture({
+      [modelId]: has('cloud_layers') ? available(['cloud_layers']) : unavailable(['cloud_layers']),
     }),
     visibility: createManifestLayerFixture({
       [modelId]: has('visibility_surface') ? available(['visibility_surface']) : unavailable(['visibility_surface']),

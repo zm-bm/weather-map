@@ -65,7 +65,8 @@ describe('createForecastDataPlan', () => {
       layerId: 'wind_speed',
     })
 
-    expect(plan.field.key).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
+    expect(plan.field?.key).toBe('gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv')
+    expect(plan.cloudLayers).toBeNull()
     expect(plan.particles?.key).toBe('gfs:2026040900:rev:wind:wind10m_uv')
     expect(plan.precipTypeOverlay).toBeNull()
     expect(plan.pressureContours).toBeNull()
@@ -82,7 +83,8 @@ describe('createForecastDataPlan', () => {
       includeParticles: false,
     })
 
-    expect(plan.field.key).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface')
+    expect(plan.field?.key).toBe('gfs:2026040900:rev:temperature:artifact:tmp_surface')
+    expect(plan.cloudLayers).toBeNull()
     expect(plan.particles).toBeNull()
     expect(plan.precipTypeOverlay).toBeNull()
     expect(plan.pressureContours).toBeNull()
@@ -104,8 +106,30 @@ describe('createForecastDataPlan', () => {
       includeParticles: false,
     })
 
-    expect(plan.field.key).toBe('gfs:2026040900:rev:precipitation_rate:artifact:prate_surface')
+    expect(plan.field?.key).toBe('gfs:2026040900:rev:precipitation_rate:artifact:prate_surface')
+    expect(plan.cloudLayers).toBeNull()
     expect(plan.precipTypeOverlay).not.toBeNull()
+  })
+
+  it('builds a cloud layers channel instead of a scalar field channel for cloud layers', () => {
+    const plan = dataPlan({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        artifacts: {
+          cloud_layers: createVectorArtifactFixture({
+            id: 'cloud_layers',
+            units: '%',
+            components: ['low', 'middle', 'high'],
+          }),
+        },
+      }),
+      layerId: 'cloud_layers',
+      includeParticles: false,
+    })
+
+    expect(plan.field).toBeNull()
+    expect(plan.cloudLayers?.key).toBe('gfs:2026040900:rev:cloud_layers:cloud-layers:cloud_layers')
+    expect(plan.precipTypeOverlay).toBeNull()
   })
 
   it('builds a pressure contour channel when mean sea-level pressure exists', () => {

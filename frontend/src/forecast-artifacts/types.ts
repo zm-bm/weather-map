@@ -36,3 +36,12 @@ export type VectorComponentArtifactData = {
   componentIds: readonly string[]
   components: Record<string, Float32Array>
 }
+
+export type RawVectorComponentArtifactData = {
+  artifactId: string
+  hourToken: string
+  grid: ScalarGridSpec
+  encoding: VectorEncodingSpec
+  componentIds: readonly string[]
+  components: Record<string, Int8Array>
+}

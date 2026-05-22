@@ -23,6 +23,7 @@ function createPlan(
         throw new Error('test plan field loader should not run')
       },
     },
+    cloudLayers: null,
     precipTypeOverlay: overlayKey == null
       ? null
       : {
@@ -56,6 +57,8 @@ describe('createForecastDataMemory', () => {
     const plan = createPlan()
     const frames = {
       field: { lower: { layerId: 'temperature' } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'temperature' } },
       precipTypeOverlay: null,
       pressureContours: { lower: { artifactId: 'prmsl_msl' } },
       particles: { lower: { artifactId: 'wind10m_uv' } },
@@ -67,6 +70,7 @@ describe('createForecastDataMemory', () => {
     memory.commit(plan, frames)
     expect(memory.reusableWindowsFor(plan)).toEqual({
       field: frames.field,
+      cloudLayers: null,
       precipTypeOverlay: null,
       pressureContours: null,
       particles: frames.particles,
@@ -81,6 +85,7 @@ describe('createForecastDataMemory', () => {
     memory.commit(contourPlan, frames)
     expect(memory.reusableWindowsFor(contourPlan)).toEqual({
       field: frames.field,
+      cloudLayers: null,
       precipTypeOverlay: null,
       pressureContours: frames.pressureContours,
       particles: frames.particles,
@@ -90,6 +95,7 @@ describe('createForecastDataMemory', () => {
     expect(memory.shouldClearFieldProbe(nextLayerPlan)).toBe(true)
     expect(memory.reusableWindowsFor(nextLayerPlan)).toEqual({
       field: null,
+      cloudLayers: null,
       precipTypeOverlay: null,
       pressureContours: null,
       particles: frames.particles,
@@ -101,6 +107,8 @@ describe('createForecastDataMemory', () => {
     const plan = createPlan()
     const frames = {
       field: { lower: { layerId: 'temperature' } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'temperature' } },
       precipTypeOverlay: null,
       pressureContours: null,
       particles: null,

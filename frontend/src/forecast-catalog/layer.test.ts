@@ -44,6 +44,9 @@ function isLayerSourceAvailable(
   if (source.kind === 'derived' && source.recipe === 'wind-speed') {
     return hasOrderedComponents(artifact, ['u', 'v'])
   }
+  if (source.kind === 'cloud-layers') {
+    return hasOrderedComponents(artifact, ['low', 'middle', 'high'])
+  }
 
   return true
 }
@@ -88,6 +91,47 @@ describe('layer catalog', () => {
     for (const layer of PARTICLE_LAYERS) {
       expect(String(layer.id)).not.toBe(String(layer.source.artifactId))
     }
+  })
+
+  it('defines Cloud Layers as the default Clouds & Visibility layer backed by low middle high cloud vectors', () => {
+    const cloudGroup = FORECAST_LAYER_GROUPS.find((group) => group.id === 'clouds_visibility')
+    const cloudLayers = FORECAST_LAYERS_BY_ID.cloud_layers!
+
+    expect(cloudGroup?.defaultLayer).toBe('cloud_layers')
+    expect(cloudGroup?.layers).toContain(cloudLayers.id)
+    expect(cloudGroup?.layers).toContain(FORECAST_LAYERS_BY_ID.cloud_cover!.id)
+    expect(cloudGroup?.layers).toContain(FORECAST_LAYERS_BY_ID.visibility!.id)
+    expect(cloudLayers).toMatchObject({
+      label: 'Cloud Layers',
+      source: {
+        kind: 'cloud-layers',
+        artifactId: 'cloud_layers',
+      },
+    })
+    expect(FORECAST_LAYERS_BY_ID.cloud_cover?.label).toBe('Total/Sky Cover')
+  })
+
+  it('accepts Cloud Layers only when low middle high components are available', () => {
+    const cloudLayers = FORECAST_LAYERS_BY_ID.cloud_layers!
+    const availableManifest = createSingleTimeManifestFixture({
+      artifacts: {
+        cloud_layers: createVectorArtifactFixture({
+          id: 'cloud_layers',
+          components: ['low', 'middle', 'high'],
+        }),
+      },
+    })
+    const badManifest = createSingleTimeManifestFixture({
+      artifacts: {
+        cloud_layers: createVectorArtifactFixture({
+          id: 'cloud_layers',
+          components: ['low', 'high', 'middle'],
+        }),
+      },
+    })
+
+    expect(isLayerAvailableForActiveRun(createActiveRunFixture(availableManifest), cloudLayers)).toBe(true)
+    expect(isLayerAvailableForActiveRun(createActiveRunFixture(badManifest), cloudLayers)).toBe(false)
   })
 
   it('accepts frontend-derived wind speed when vector wind is available', () => {

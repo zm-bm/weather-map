@@ -16,6 +16,7 @@ import { loadForecastData } from './load'
 
 const loaders = {
   field: vi.fn(),
+  cloudLayers: vi.fn(),
   precipTypeOverlay: vi.fn(),
   pressureContours: vi.fn(),
   particles: vi.fn(),
@@ -58,11 +59,20 @@ function createPlan(target: ForecastDataTarget, args: {
   includeOverlay?: boolean
   includeContours?: boolean
   includeParticles?: boolean
+  includeCloudLayers?: boolean
 } = {}): ForecastDataPlan {
-  const field = {
-    key: 'field:key',
-    load: loaders.field,
-  }
+  const field = args.includeCloudLayers === true
+    ? null
+    : {
+      key: 'field:key',
+      load: loaders.field,
+    }
+  const cloudLayers = args.includeCloudLayers === true
+    ? {
+      key: 'cloud-layers:key',
+      load: loaders.cloudLayers,
+    }
+    : null
   const precipTypeOverlay = args.includeOverlay === true
     ? {
       key: 'precip-type-overlay:key',
@@ -89,6 +99,7 @@ function createPlan(target: ForecastDataTarget, args: {
     upperHourToken: target.upperHourToken,
     mix: target.mix,
     field,
+    cloudLayers,
     precipTypeOverlay,
     pressureContours,
     particles,
@@ -101,6 +112,11 @@ describe('loadForecastData', () => {
     loaders.field.mockImplementation(async (hourToken: string) => ({
       layerId: 'relative_humidity',
       hourToken,
+    }))
+    loaders.cloudLayers.mockImplementation(async (hourToken: string) => ({
+      layerId: 'cloud_layers',
+      hourToken,
+      coverage: { layerId: 'cloud_layers', hourToken },
     }))
     loaders.precipTypeOverlay.mockImplementation(async (hourToken: string) => ({
       artifactId: 'precip_type_surface',
@@ -134,6 +150,15 @@ describe('loadForecastData', () => {
       plan,
     })).resolves.toEqual({
       field: {
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
+      cloudLayers: null,
+      probeField: {
         lower: { layerId: 'relative_humidity', hourToken: '000' },
         upper: { layerId: 'relative_humidity', hourToken: '003' },
         selectedValidTimeMs: 123,
@@ -190,6 +215,15 @@ describe('loadForecastData', () => {
         upperHourToken: '003',
         mix: 0.5,
       },
+      cloudLayers: null,
+      probeField: {
+        lower: { layerId: 'relative_humidity', hourToken: '000' },
+        upper: { layerId: 'relative_humidity', hourToken: '003' },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
       precipTypeOverlay: null,
       pressureContours: null,
       particles: null,
@@ -199,6 +233,60 @@ describe('loadForecastData', () => {
     expect(loaders.precipTypeOverlay).not.toHaveBeenCalled()
     expect(loaders.pressureContours).not.toHaveBeenCalled()
     expect(loaders.particles).not.toHaveBeenCalled()
+  })
+
+  it('loads cloud layers data and publishes derived coverage as the probe field', async () => {
+    const manifest = createManifestFixture({
+      vectorArtifactIds: ['cloud_layers'],
+      artifacts: {
+        cloud_layers: {
+          ...createManifestFixture().models.gfs.latest!.artifacts.wind10m_uv,
+          id: 'cloud_layers',
+          components: ['low', 'middle', 'high'],
+        },
+      },
+    })
+    const selectedLayer = FORECAST_LAYERS_BY_ID.cloud_layers!
+    const target = createTarget({
+      manifest,
+      selectedLayer,
+      selectedParticleLayer: null,
+    })
+    const plan = createPlan(target, { includeCloudLayers: true, includeParticles: false })
+
+    await expect(loadForecastData({ plan })).resolves.toEqual({
+      field: null,
+      cloudLayers: {
+        lower: {
+          layerId: 'cloud_layers',
+          hourToken: '000',
+          coverage: { layerId: 'cloud_layers', hourToken: '000' },
+        },
+        upper: {
+          layerId: 'cloud_layers',
+          hourToken: '003',
+          coverage: { layerId: 'cloud_layers', hourToken: '003' },
+        },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
+      probeField: {
+        lower: { layerId: 'cloud_layers', hourToken: '000' },
+        upper: { layerId: 'cloud_layers', hourToken: '003' },
+        selectedValidTimeMs: 123,
+        lowerHourToken: '000',
+        upperHourToken: '003',
+        mix: 0.5,
+      },
+      precipTypeOverlay: null,
+      pressureContours: null,
+      particles: null,
+    })
+
+    expect(loaders.field).not.toHaveBeenCalled()
+    expect(loaders.cloudLayers).toHaveBeenCalledTimes(2)
   })
 
   it('loads optional pressure contour interpolation windows when planned', async () => {

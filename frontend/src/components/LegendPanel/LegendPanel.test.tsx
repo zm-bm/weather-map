@@ -4,21 +4,24 @@ import { describe, expect, it } from 'vitest'
 import {
   createManifestFixture,
   createScalarArtifactFixture,
+  createVectorArtifactFixture,
   renderWithForecastSelection,
 } from '../../test/fixtures'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
 function createLegendSelectionManifest(
-  selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds'
+  selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'tcdc' | 'cloud_layers'
 ) {
   const scalarArtifactIds = selectedArtifactId === 'tmp_surface'
     ? ['tmp_surface', 'prate_surface']
-    : [selectedArtifactId]
+    : selectedArtifactId === 'cloud_layers'
+      ? []
+      : [selectedArtifactId]
   return createManifestFixture({
     cycle: '2026041100',
     scalarArtifactIds,
-    vectorArtifactIds: [],
+    vectorArtifactIds: selectedArtifactId === 'cloud_layers' ? ['cloud_layers'] : [],
     artifacts: {
       tmp_surface: createScalarArtifactFixture({
       }),
@@ -31,16 +34,22 @@ function createLegendSelectionManifest(
         units: 'mm/hr',
         parameter: 'prate',
       }),
-      low_clouds: createScalarArtifactFixture({
-        id: 'low_clouds',
+      tcdc: createScalarArtifactFixture({
+        id: 'tcdc',
         units: '%',
-        parameter: 'low_clouds',
+        parameter: 'tcdc',
+      }),
+      cloud_layers: createVectorArtifactFixture({
+        id: 'cloud_layers',
+        units: '%',
+        parameter: 'cloud_layers',
+        components: ['low', 'middle', 'high'],
       }),
     },
   })
 }
 
-function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'low_clouds' = 'tmp_surface') {
+function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'tcdc' | 'cloud_layers' = 'tmp_surface') {
   const result = renderWithForecastSelection(
     <>
       <ForecastPanel />
@@ -59,9 +68,14 @@ function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | '
       target: { value: 'precipitation_rate' },
     })
   }
-  if (selectedArtifactId === 'low_clouds') {
+  if (selectedArtifactId === 'tcdc') {
     fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'low_cloud_cover' },
+      target: { value: 'cloud_cover' },
+    })
+  }
+  if (selectedArtifactId === 'cloud_layers') {
+    fireEvent.change(screen.getByLabelText('Measurement'), {
+      target: { value: 'cloud_layers' },
     })
   }
 
@@ -114,11 +128,30 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('0.000')
   })
 
-  it('shows normal layer legend for low clouds', () => {
-    const { container } = renderLegendHarness('low_clouds')
+  it('shows normal layer legend for total sky cover', () => {
+    const { container } = renderLegendHarness('tcdc')
 
-    expect(screen.getByLabelText('Low Cloud Cover units %.')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Cloud layer tones')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Total/Sky Cover units %.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Cloud layer stacked decks and coverage opacity')).not.toBeInTheDocument()
     expect(container.querySelector('.legend-panel__scale')).toBeInTheDocument()
+  })
+
+  it('shows a custom layer-tone legend for cloud layers', () => {
+    const { container } = renderLegendHarness('cloud_layers')
+
+    expect(screen.getByLabelText('Cloud Layers units %.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cloud layer stacked decks and coverage opacity')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cloud layer stacked decks')).toBeInTheDocument()
+    expect(screen.getByLabelText('Composite coverage opacity from 0 to 100 percent')).toBeInTheDocument()
+    expect(screen.getByLabelText('Low darker lower cloud deck')).toBeInTheDocument()
+    expect(screen.getByLabelText('Middle bright cloud deck')).toBeInTheDocument()
+    expect(screen.getByLabelText('High pale upper cloud deck')).toBeInTheDocument()
+    expect(screen.getByText('LOW')).toBeInTheDocument()
+    expect(screen.getByText('MID')).toBeInTheDocument()
+    expect(screen.getByText('HIGH')).toBeInTheDocument()
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getByText('0%')).toBeInTheDocument()
+    expect(container.querySelector('.legend-panel__scale')).not.toBeInTheDocument()
   })
 })

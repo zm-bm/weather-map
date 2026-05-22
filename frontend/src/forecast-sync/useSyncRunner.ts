@@ -142,7 +142,11 @@ export function useSyncRunner({
         activeRenderHost.apply(renderData)
         if (isRequestStale(machine, activeRequest)) return
 
-        forecastFieldDataStore.publish(renderData.field)
+        if (renderData.probeField == null) {
+          forecastFieldDataStore.clear()
+        } else {
+          forecastFieldDataStore.publish(renderData.probeField)
+        }
         dataMemory.commit(dataPlan, renderData)
         machine.markApplied(activeRequest)
         sync.onRequestApplied(selectedValidTimeMs)

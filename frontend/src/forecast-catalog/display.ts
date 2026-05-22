@@ -138,6 +138,17 @@ const LAYER_PALETTES: Record<string, LayerStyleEntry> = {
       [100, 60, 120, 170],
     ],
   },
+  'cloud.layers.composite.v1': {
+    colortable: [
+      [0, 180, 180, 180],
+      [10, 116, 126, 138],
+      [30, 138, 146, 154],
+      [50, 166, 172, 178],
+      [70, 192, 198, 204],
+      [90, 218, 226, 236],
+      [100, 236, 244, 252],
+    ],
+  },
   'pressure.msl.pa.v1': {
     colortable: [
       [98000, 70, 155, 225],

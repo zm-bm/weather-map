@@ -59,6 +59,7 @@ vi.mock('../forecast-artifacts', () => ({
       loadScalar: vi.fn(),
       loadVector: vi.fn(),
       loadVectorComponents: vi.fn(),
+      loadRawVectorComponents: vi.fn(),
     }
   },
 }))
@@ -197,7 +198,10 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.artifactLoaderSignals.length = 0
     mocks.loadForecastData.mockResolvedValue({
       field: mocks.fieldWindow,
+      cloudLayers: null,
+      probeField: mocks.fieldWindow,
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: mocks.particleWindow,
     })
     mocks.applyRenderData.mockReturnValue(undefined)
@@ -374,7 +378,10 @@ describe('useSyncRunner + useStartupState', () => {
   it('fires start then applied callbacks when engine succeeds', async () => {
     const frames = {
       field: mocks.fieldWindow,
+      cloudLayers: null,
+      probeField: mocks.fieldWindow,
       precipTypeOverlay: null,
+      pressureContours: null,
       particles: mocks.particleWindow,
     }
     const request = deferred<typeof frames>()
@@ -431,6 +438,9 @@ describe('useSyncRunner + useStartupState', () => {
       .mockRejectedValueOnce(startupError)
       .mockResolvedValueOnce({
         field: mocks.fieldWindow,
+        cloudLayers: null,
+        probeField: mocks.fieldWindow,
+        pressureContours: null,
         particles: mocks.particleWindow,
       })
 
@@ -471,6 +481,9 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData
       .mockResolvedValueOnce({
         field: mocks.fieldWindow,
+        cloudLayers: null,
+        probeField: mocks.fieldWindow,
+        pressureContours: null,
         particles: mocks.particleWindow,
       })
       .mockRejectedValueOnce(laterError)
@@ -605,6 +618,9 @@ describe('useSyncRunner + useStartupState', () => {
   it('applies render data and publishes the selected layer probe frame after render succeeds', async () => {
     const frames = {
       field: { lower: { layerId: 'relative_humidity' } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'relative_humidity' } },
+      pressureContours: null,
       particles: { lower: { artifactId: 'wind10m_uv' } },
     }
     mocks.loadForecastData.mockResolvedValueOnce(frames)
@@ -614,7 +630,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     await waitFor(() => {
       expect(mocks.applyRenderData).toHaveBeenCalledWith(frames)
-      expect(mocks.setForecastFieldData).toHaveBeenCalledWith(frames.field)
+      expect(mocks.setForecastFieldData).toHaveBeenCalledWith(frames.probeField)
     })
     expect(mocks.applyRenderData.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.setForecastFieldData.mock.invocationCallOrder[0])
@@ -643,10 +659,16 @@ describe('useSyncRunner + useStartupState', () => {
   it('passes reusable previous layer and particle interpolation windows to data loading', async () => {
     const firstFrames = {
       field: { lower: { layerId: 'temperature', frame: 1 } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'temperature', frame: 1 } },
+      pressureContours: null,
       particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
     }
     const secondFrames = {
       field: { lower: { layerId: 'temperature', frame: 2 } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'temperature', frame: 2 } },
+      pressureContours: null,
       particles: { lower: { artifactId: 'wind10m_uv', frame: 2 } },
     }
     mocks.loadForecastData

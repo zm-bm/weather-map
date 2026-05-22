@@ -97,7 +97,7 @@ describe('forecast manifest + data loading end-to-end', () => {
     })
 
     expect(activeRun.latest.run.cycle).toBe('2026041312')
-    expect(Array.from(renderData.field.lower.values, (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
+    expect(Array.from(renderData.field?.lower.values ?? [], (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
     expect(Array.from(renderData.particles?.lower.u ?? [])).toEqual([5, 6, 7, 8])
     expect(Array.from(renderData.particles?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)

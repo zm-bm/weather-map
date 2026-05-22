@@ -25,6 +25,8 @@ export type {
 export type {
   FieldTimeSliceData,
   FieldInterpolationWindowData,
+  CloudLayersTimeSliceData,
+  CloudLayersInterpolationWindowData,
   ParticleTimeSliceData,
   ParticleInterpolationWindowData,
   PrecipTypeOverlayTimeSliceData,

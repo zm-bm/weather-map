@@ -18,6 +18,7 @@ AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable
 LayerSupport = Literal["native", "frontend-derived", "etl-derived", "unavailable"]
 ArtifactKind = Literal["scalar", "vector"]
 PRECIP_TYPE_OVERLAY_COMPONENTS = ("snow_frac", "mix_frac")
+CLOUD_LAYERS_COMPONENTS = ("low", "middle", "high")
 
 
 @dataclass(frozen=True)
@@ -330,6 +331,18 @@ def _source_requirements(source: Mapping[str, Any], *, optional: bool) -> LayerR
 
     if source_kind == "derived":
         requirement = ArtifactRequirement(str(source["artifactId"]), "vector", _derived_components(source))
+        return LayerRequirements(
+            required=() if optional else (requirement,),
+            optional=(requirement,) if optional else (),
+            support_hint="frontend-derived",
+        )
+
+    if source_kind == "cloud-layers":
+        requirement = ArtifactRequirement(
+            str(source["artifactId"]),
+            "vector",
+            CLOUD_LAYERS_COMPONENTS,
+        )
         return LayerRequirements(
             required=() if optional else (requirement,),
             optional=(requirement,) if optional else (),

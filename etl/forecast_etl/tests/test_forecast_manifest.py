@@ -20,6 +20,7 @@ from forecast_etl.manifest.forecast_manifest import (
 )
 from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.artifact_configs import (
+    cloud_layers_config,
     minimal_artifact_config,
     precip_rate_config,
     precip_type_config,
@@ -33,9 +34,11 @@ def _pipeline_config() -> PipelineConfig:
     precip_rate = precip_rate_config()
     precip_type = precip_type_config()
     wind = wind_artifact_config()
+    cloud_layers = cloud_layers_config()
     cfg = minimal_pipeline_config()
     cfg["artifact_catalog"].update(
         {
+            "cloud_layers": catalog_artifact(cloud_layers),
             "prate_surface": catalog_artifact(precip_rate),
             "precip_type_surface": catalog_artifact(precip_type),
             "wind10m_uv": catalog_artifact(wind),
@@ -43,11 +46,13 @@ def _pipeline_config() -> PipelineConfig:
     )
     cfg["models"]["gfs"]["workload"]["artifacts"] = [
         "tmp_surface",
+        "cloud_layers",
         "precip_type_surface",
         "wind10m_uv",
     ]
     cfg["models"]["gfs"]["artifacts"] = {
         "tmp_surface": model_artifact(tmp),
+        "cloud_layers": model_artifact(cloud_layers),
         "precip_type_surface": model_artifact(precip_type),
         "wind10m_uv": model_artifact(wind),
     }
@@ -84,6 +89,10 @@ def _forecast_catalog() -> dict:
             {
                 "id": "frontend_derived",
                 "source": {"kind": "derived", "artifactId": "wind10m_uv", "recipe": "wind-speed"},
+            },
+            {
+                "id": "cloud_layers",
+                "source": {"kind": "cloud-layers", "artifactId": "cloud_layers"},
             },
             {
                 "id": "top_level_optional_overlay",
@@ -239,11 +248,63 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertEqual(frontend_derived["gfs"]["support"], "frontend-derived")
         self.assertEqual(frontend_derived["gfs"]["requiredArtifacts"], ["wind10m_uv"])
 
+        cloud_layers = manifest["layers"]["cloud_layers"]["models"]
+        self.assertEqual(cloud_layers["gfs"]["state"], "temporarily_unavailable")
+        self.assertEqual(cloud_layers["gfs"]["support"], "frontend-derived")
+        self.assertEqual(cloud_layers["gfs"]["requiredArtifacts"], ["cloud_layers"])
+        self.assertEqual(cloud_layers["icon"]["state"], "unsupported")
+
         top_level = manifest["layers"]["top_level_optional_overlay"]["models"]["gfs"]
         self.assertEqual(top_level["state"], "available")
         self.assertEqual(top_level["support"], "native")
         self.assertEqual(top_level["requiredArtifacts"], ["tmp_surface"])
         self.assertEqual(top_level["optionalArtifacts"], ["precip_type_surface"])
+
+    def test_cloud_layers_layer_requires_vector_low_middle_high_components(self) -> None:
+        cfg = _pipeline_config()
+
+        cases = (
+            ("valid", None, "available"),
+            ("wrong_kind", {"kind": "scalar"}, "temporarily_unavailable"),
+            ("wrong_components", {"components": ["low", "high", "middle"]}, "temporarily_unavailable"),
+        )
+        for case, mutation, expected_state in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory(
+                prefix="weather-map-forecast-manifest-cloud-layers-"
+            ) as td:
+                repo = ArtifactRepository.for_root(
+                    store=make_store(),
+                    artifact_root_uri=f"file://{Path(td).as_posix()}",
+                )
+                gfs = cfg.model("gfs")
+                latest_manifest = _latest_manifest(
+                    gfs,
+                    cycle="2026051606",
+                    artifact_ids=("cloud_layers",),
+                )
+                if mutation is not None:
+                    latest_manifest["artifacts"]["cloud_layers"].update(mutation)
+                repo.write_latest_manifest(model_id="gfs", manifest=latest_manifest)
+
+                manifest = build_forecast_manifest(
+                    pipeline_config=cfg,
+                    artifact_repo=repo,
+                    generated_at="2026-05-16T00:00:00Z",
+                    catalog={
+                        "catalogVersion": "test-forecast-catalog",
+                        "layers": [
+                            {
+                                "id": "cloud_layers",
+                                "source": {"kind": "cloud-layers", "artifactId": "cloud_layers"},
+                            }
+                        ],
+                    },
+                )
+
+            entry = manifest["layers"]["cloud_layers"]["models"]["gfs"]
+            self.assertEqual(entry["state"], expected_state)
+            self.assertEqual(entry["support"], "frontend-derived")
+            self.assertEqual(entry["requiredArtifacts"], ["cloud_layers"])
 
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()

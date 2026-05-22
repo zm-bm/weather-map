@@ -300,6 +300,45 @@ describe('vector payload', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('maps loaded generic vector components into raw byte arrays', async () => {
+    const payload = new Int8Array([
+      0, 25, -128, 50,
+      10, 0, 20, -128,
+      50, 25, -128, -128,
+    ]).buffer
+    const fetchMock = stubFetchArrayBufferOnce(payload)
+    const manifest = createSingleTimeManifestFixture({
+      artifacts: {
+        cloud_layers: createVectorArtifactFixture({
+          id: 'cloud_layers',
+          units: '%',
+          parameter: 'cloud_layers',
+          level: 'cloud layers',
+          components: ['low', 'middle', 'high'],
+          encoding: {
+            id: 'cloud_layers_vector_i8_2pct_v1',
+            format: 'linear-i8-v1',
+            dtype: 'int8',
+            byteOrder: 'none',
+            nodata: -128,
+            scale: 2,
+            offset: 0,
+            decodeFormula: 'value = stored * scale + offset',
+          },
+        }),
+      },
+    })
+
+    const frame = await artifacts(manifest).loadRawVectorComponents('cloud_layers', '0')
+
+    expect(frame.artifactId).toBe('cloud_layers')
+    expect(frame.componentIds).toEqual(['low', 'middle', 'high'])
+    expect(Array.from(frame.components.low!)).toEqual([0, 25, -128, 50])
+    expect(Array.from(frame.components.middle!)).toEqual([10, 0, 20, -128])
+    expect(Array.from(frame.components.high!)).toEqual([50, 25, -128, -128])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('sizes generic vector payloads by manifest component count', async () => {
     const payload = new Int8Array([
       0, 1, 2, 3,
