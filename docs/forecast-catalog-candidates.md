@@ -31,10 +31,7 @@ These are the remaining catalog decisions or follow-ups to resolve before a
 stable v1. They either polish implemented behavior or simplify exposed choices
 without expanding the model/source surface.
 
-| Item | Type | Group | Source or recipe | Model support | V1 decision |
-| --- | --- | --- | --- | --- | --- |
-| `precipitation_rate` precipitation type overlay | Implemented layer follow-up | `precipitation` | Optional renderer support artifact `precip_type_surface`. | GFS/ICON optional overlay support. | Add legend/support UI that explains snowflake and winter-mix ice-dash symbols. Keep `precip_type_surface` non-selectable; it is renderer support for `precipitation_rate`, not its own catalog layer. |
-| `accumulated_precipitation` | Implemented layer catalog decision | `precipitation` | Existing direct scalar from `precip_total_surface`. | ICON current; GFS currently unavailable in the workload. | Keep the current registry behavior as-is for v1. It remains selectable; fixed-window accumulation layers are deferred. |
+No remaining v1 stabilization catalog candidates.
 
 ## Current Groups
 
@@ -68,7 +65,7 @@ more catalog design before implementation.
 
 | Candidate id | UI label | Group | Source or recipe | Current/future model support | Deferral reason |
 | --- | --- | --- | --- | --- | --- |
-| `precip_accum_1h`, `precip_accum_3h`, `precip_accum_6h`, `precip_accum_12h`, `precip_accum_24h` | 1h/3h/6h/12h/24h Precipitation | `precipitation` | Fixed-window accumulation artifacts or derived windows from source accumulation fields. | GFS/ICON target after upstream cadence and derivation are confirmed. | Requires fixed-window accumulation semantics and artifacts; not needed for stable v1. Do not overload `accumulated_precipitation`; each layer needs explicit window semantics. |
+| `precip_accum_1h`, `precip_accum_3h`, `precip_accum_6h`, `precip_accum_12h`, `precip_accum_24h` | 1h/3h/6h/12h/24h Precipitation | `precipitation` | Fixed-window accumulation artifacts derived from run-total/source accumulation fields. | GFS/ICON target after upstream cadence and derivation are confirmed. | Requires fixed-window accumulation semantics and artifacts; not needed for stable v1. Do not overload `accumulated_precipitation`; each layer needs explicit window semantics. |
 | `snowfall_accumulation` | Snowfall Accumulation | `precipitation` | Forecast new-snow accumulation artifact or derived snowfall accumulation. | GFS/ICON target after source fields are confirmed. | Needs new snowfall accumulation source or derivation; defer beyond core precipitation. Different from `snow_depth`, which is existing snow on the ground. |
 | `jet_stream` | Jet Stream | `wind_pressure` | Upper-level wind speed derived from `wind250mb_uv`, `wind300mb_uv`, or the chosen standard level. | GFS/ICON target after upper-air wind artifacts exist. | Upper-air expansion, not core v1. User-facing label should be `Jet Stream`, not a raw pressure-level field name. |
 | `geopotential_height_500mb` | Upper-Level Pattern / 500mb Heights | `wind_pressure` | Direct 500mb geopotential height scalar such as `hgt_500mb`. | GFS/ICON target after upper-air height artifacts exist. | Upper-air/synoptic expansion, not core v1. Classic trough/ridge and steering-pattern layer. |

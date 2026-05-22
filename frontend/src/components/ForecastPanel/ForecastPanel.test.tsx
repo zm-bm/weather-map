@@ -190,34 +190,39 @@ describe('ForecastPanel', () => {
     const onActiveModelChange = vi.fn()
     const catalogManifest = createCatalogManifestFixture()
     const manifest = createMultiModelManifestFixture({
-      gfsManifest: null,
+      gfsManifest: createManifestFixture({
+        cycle: '2026041118',
+        model: { id: 'gfs', label: 'GFS' },
+        scalarArtifactIds: ['tmp_surface', 'visibility_surface'],
+        vectorArtifactIds: [],
+      }),
       iconManifest: createManifestFixture({
         cycle: '2026041118',
         model: { id: 'icon', label: 'ICON' },
-        scalarArtifactIds: ['tmp_surface', 'prate_surface', 'precip_total_surface'],
+        scalarArtifactIds: ['tmp_surface'],
         vectorArtifactIds: [],
       }),
       layers: catalogManifest.layers,
     })
 
     renderPanelWithManifest(manifest, {
-      activeModelId: 'icon',
+      activeModelId: 'gfs',
       onActiveModelChange,
     })
 
     fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'accumulated_precipitation' },
+      target: { value: 'visibility' },
     })
 
-    expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
-    expect(screen.getByRole('option', { name: 'GFS (unavailable)' })).toBeDisabled()
+    expect(screen.getByLabelText('Measurement')).toHaveValue('visibility')
+    expect(screen.getByRole('option', { name: 'ICON (unavailable)' })).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Forecast source'), {
-      target: { value: 'gfs' },
+      target: { value: 'icon' },
     })
 
-    expect(onActiveModelChange).not.toHaveBeenCalledWith('gfs')
-    expect(screen.getByLabelText('Measurement')).toHaveValue('accumulated_precipitation')
+    expect(onActiveModelChange).not.toHaveBeenCalledWith('icon')
+    expect(screen.getByLabelText('Measurement')).toHaveValue('visibility')
   })
 
   it('updates selected layer through the grouped measurement control without rendering unit controls', () => {
@@ -250,6 +255,19 @@ describe('ForecastPanel', () => {
     })
     expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('temperature')
 
+  })
+
+  it('uses the run-total precipitation label for the accumulated precipitation layer id', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026041118',
+      scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
+      vectorArtifactIds: [],
+    })
+
+    renderPanelWithManifest(manifest)
+
+    expect(screen.getByRole('option', { name: 'Run-Total Precipitation' }))
+      .toHaveValue('accumulated_precipitation')
   })
 
   it('keeps layer selection controls after the probe readout moves onto the map', () => {

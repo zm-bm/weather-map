@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from ..derivations import (
+    DERIVATION_GFS_RUN_TOTAL_PRECIP,
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
     GFS_DERIVATION_TYPES,
     ICON_AVERAGE_RATE_DERIVATION_TYPES,
@@ -107,6 +108,11 @@ def validate_model_artifacts_for_source(
                 )
             if not derivation.inputs:
                 raise SystemExit(f"GFS derivation {derivation.type!r} requires derivation.inputs for {artifact_id}")
+            if derivation.type == DERIVATION_GFS_RUN_TOTAL_PRECIP:
+                _validate_gfs_run_total_precip_derivation(
+                    artifact_id=artifact_id,
+                    model_artifact=model_artifact,
+                )
             continue
 
         if not isinstance(source, IconDwdSourceConfig):
@@ -166,6 +172,26 @@ def _validate_icon_average_rate_derivation(
     if derivation.first_hour_previous != "zero":
         raise SystemExit(
             f"ICON derivation {derivation.type!r} requires first_hour_previous='zero' for {artifact_id}"
+        )
+
+
+def _validate_gfs_run_total_precip_derivation(
+    *,
+    artifact_id: str,
+    model_artifact: ModelArtifactSpec,
+) -> None:
+    derivation = model_artifact.derivation
+    if derivation is None:
+        raise SystemExit(f"Artifact {artifact_id} does not declare a derivation")
+    if len(derivation.inputs) != 1:
+        raise SystemExit(
+            f"GFS derivation {derivation.type!r} requires exactly one derivation input for {artifact_id}"
+        )
+    if model_artifact.temporal is None:
+        raise SystemExit(f"GFS derivation {derivation.type!r} requires temporal metadata for {artifact_id}")
+    if model_artifact.temporal.kind != "accumulation":
+        raise SystemExit(
+            f"GFS derivation {derivation.type!r} requires temporal.kind='accumulation' for {artifact_id}"
         )
 
 

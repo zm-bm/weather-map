@@ -86,7 +86,7 @@ export function createCatalogManifestFixture(
         icon: available(['cloud_layers']),
       }),
       accumulated_precipitation: createManifestLayerFixture({
-        gfs: unsupported(['precip_total_surface']),
+        gfs: available(['precip_total_surface']),
         icon: available(['precip_total_surface']),
       }),
       visibility: createManifestLayerFixture({

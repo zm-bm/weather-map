@@ -8,6 +8,7 @@ from forecast_etl.config.load import load_pipeline_config, merge_pipeline_config
 from forecast_etl.config.resolved import IconDwdSourceConfig
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_layers_config,
+    gfs_precip_total_config,
     icon_precip_type_config,
     precip_rate_config,
     precip_total_config,
@@ -41,6 +42,12 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertEqual(gfs.source.type, "gfs_nomads")
         self.assertEqual(icon.source.type, "icon_dwd_icosahedral")
         self.assertIsInstance(icon.source, IconDwdSourceConfig)
+        self.assertIn("precip_total_surface", gfs.workload.artifacts)
+        gfs_precip_total = gfs.artifacts["precip_total_surface"]
+        self.assertEqual(gfs_precip_total.temporal.kind, "accumulation")
+        self.assertEqual(gfs_precip_total.derivation.type, "gfs_run_total_precip")
+        self.assertIn("precip_total_surface", icon.workload.artifacts)
+        self.assertEqual(icon.artifacts["precip_total_surface"].temporal.kind, "accumulation")
 
         for model in (gfs, icon):
             with self.subTest(model=model.id):
@@ -193,6 +200,26 @@ class ConfigValidationTest(unittest.TestCase):
             [input_item.id for input_item in artifact.derivation.inputs],
             ["precip_rate", "frozen_percent", "rain", "freezing_rain", "ice_pellets", "snow"],
         )
+
+    def test_pipeline_config_parses_gfs_run_total_precip_derivation(self) -> None:
+        cfg = minimal_pipeline_config()
+        artifact_config = gfs_precip_total_config()
+        cfg["artifact_catalog"]["precip_total_surface"] = catalog_artifact(artifact_config)
+        cfg["models"]["gfs"]["workload"]["artifacts"] = ["precip_total_surface"]
+        cfg["models"]["gfs"]["artifacts"] = {
+            "precip_total_surface": model_artifact(artifact_config),
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        artifact = parsed.model("gfs").artifacts["precip_total_surface"]
+
+        self.assertEqual(artifact.component_ids, ("value",))
+        self.assertTrue(all(component.grib_match is None for component in artifact.components))
+        assert artifact.temporal is not None
+        self.assertEqual(artifact.temporal.kind, "accumulation")
+        assert artifact.derivation is not None
+        self.assertEqual(artifact.derivation.type, "gfs_run_total_precip")
+        self.assertEqual(artifact.derivation.inputs[0].grib_match["GRIB_ELEMENT__prefix"], "APCP")
 
     def test_pipeline_config_rejects_gfs_precip_type_without_derivation_inputs(self) -> None:
         cfg = minimal_pipeline_config()

@@ -222,13 +222,6 @@ describe('ForecastSelectionContext', () => {
 
   it.each([
     {
-      activeModelId: 'gfs',
-      activeModelLabel: 'GFS',
-      buttonName: 'set-layer-accum',
-      expectedLayerId: 'accumulated_precipitation',
-      expectedModelId: 'icon',
-    },
-    {
       activeModelId: 'icon',
       activeModelLabel: 'ICON',
       buttonName: 'set-layer-visibility',
@@ -266,17 +259,17 @@ describe('ForecastSelectionContext', () => {
 
     renderSelection({
       manifest,
-      activeModelId: 'icon',
+      activeModelId: 'gfs',
       onActiveModelChange,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-model-gfs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-model-icon' }))
 
-    expect(onActiveModelChange).not.toHaveBeenCalledWith('gfs')
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+    expect(onActiveModelChange).not.toHaveBeenCalledWith('icon')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
   })
 
   it('preserves selected layer intent while repairing incompatible active model props', async () => {
@@ -285,22 +278,22 @@ describe('ForecastSelectionContext', () => {
 
     const { rerender } = renderSelection({
       manifest,
-      activeModelId: 'icon',
+      activeModelId: 'gfs',
       onActiveModelChange,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-accum' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
 
     rerender(selectionProvider({
       manifest,
-      activeModelId: 'gfs',
+      activeModelId: 'icon',
       onActiveModelChange,
     }))
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('accumulated_precipitation')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
     await waitFor(() => {
-      expect(onActiveModelChange).toHaveBeenCalledWith('icon')
+      expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
     })
   })
 

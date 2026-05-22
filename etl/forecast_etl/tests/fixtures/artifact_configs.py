@@ -140,7 +140,32 @@ def precip_total_config() -> dict:
         "components": [
             {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
         ],
+        "temporal": {
+            "kind": "accumulation",
+        },
     }
+
+
+def gfs_precip_total_config() -> dict:
+    config = precip_total_config()
+    config["components"] = [
+        {"id": "value"},
+    ]
+    config["derivation"] = {
+        "type": "gfs_run_total_precip",
+        "inputs": [
+            {
+                "id": "total",
+                "grib_match": {
+                    "GRIB_ELEMENT__prefix": "APCP",
+                    "GRIB_SHORT_NAME": "0-SFC",
+                    "GRIB_FORECAST_SECONDS": "0",
+                    "GRIB_PDS_PDTN": "8",
+                },
+            },
+        ],
+    }
+    return config
 
 
 def precip_rate_config() -> dict:

@@ -151,7 +151,7 @@
     },
     {
       "id": "accumulated_precipitation",
-      "label": "Accumulated Precipitation",
+      "label": "Run-Total Precipitation",
       "groupId": "precipitation",
       "paletteId": "precip.total.mm.v1",
       "displayRange": { "min": 0, "max": 254 },

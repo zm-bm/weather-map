@@ -65,7 +65,7 @@ describe('getUnitDisplay', () => {
   it('maps accumulated precipitation from millimeters to inches', () => {
     const display = getUnitDisplay(createLayerMeta({
       id: 'accumulated_precipitation',
-      label: 'Accumulated Precipitation',
+      label: 'Run-Total Precipitation',
       units: 'mm',
       parameter: 'precip_total',
       min: 0,

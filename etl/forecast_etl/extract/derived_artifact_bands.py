@@ -7,6 +7,7 @@ from typing import Any
 
 from ..config.resolved import ArtifactSpec, DerivationInputSpec
 from ..derivations import (
+    DERIVATION_GFS_RUN_TOTAL_PRECIP,
     DERIVATION_ICON_TOT_PREC_DELTA_RATE,
     DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS,
     DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
@@ -44,6 +45,17 @@ def extract_derived_artifact_bands(
     derivation = artifact.derivation
     if derivation is None:
         raise SystemExit(f"Artifact {artifact.id} does not declare a derivation")
+    if derivation.type == DERIVATION_GFS_RUN_TOTAL_PRECIP:
+        return [
+            _extract_gfs_run_total_precip(
+                artifact=artifact,
+                grid=grid,
+                source=source,
+                workdir=workdir,
+                run=run,
+                fhour=fhour,
+            )
+        ]
     if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
         return [
             _extract_icon_tot_prec_delta_rate(
@@ -84,6 +96,52 @@ def extract_derived_artifact_bands(
             )
         ]
     raise SystemExit(f"Unsupported artifact derivation for {artifact.id}: {derivation.type!r}")
+
+
+def _extract_gfs_run_total_precip(
+    *,
+    artifact: ArtifactSpec,
+    grid: dict[str, Any],
+    source: PreparedSource,
+    workdir: Path,
+    run: RunFn,
+    fhour: str | None,
+) -> ExtractedBand:
+    output_component_id = _single_output_component_id(
+        artifact=artifact,
+        derivation_type=DERIVATION_GFS_RUN_TOTAL_PRECIP,
+    )
+    input_item = _single_derivation_input(
+        artifact=artifact,
+        derivation_type=DERIVATION_GFS_RUN_TOTAL_PRECIP,
+    )
+    if fhour is None:
+        raise SystemExit(
+            f"Artifact derivation {DERIVATION_GFS_RUN_TOTAL_PRECIP!r} requires forecast hour context for {artifact.id}"
+        )
+    if len(fhour) != 3 or not fhour.isdigit():
+        raise SystemExit(f"Forecast hour must be a 3-digit string for {artifact.id}: {fhour!r}")
+    if int(fhour) == 0:
+        byte_length = int(grid["nx"]) * int(grid["ny"]) * 4
+        return ExtractedBand(
+            component_id=output_component_id,
+            source_f32_bytes=b"\x00" * byte_length,
+            source_byte_order="little",
+        )
+
+    source_band = _extract_derivation_input_band(
+        artifact=artifact,
+        input_item=input_item,
+        grid=grid,
+        source=source,
+        workdir=workdir,
+        run=run,
+    )
+    return ExtractedBand(
+        component_id=output_component_id,
+        source_f32_bytes=source_band.source_f32_bytes,
+        source_byte_order=source_band.source_byte_order,
+    )
 
 
 def _extract_icon_tot_prec_delta_rate(

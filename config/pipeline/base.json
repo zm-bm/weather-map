@@ -465,6 +465,7 @@
           "tcdc",
           "cloud_layers",
           "prate_surface",
+          "precip_total_surface",
           "precip_type_surface",
           "snow_depth_surface",
           "visibility_surface",
@@ -589,6 +590,30 @@
           ],
           "temporal": {
             "kind": "instantaneous_rate"
+          }
+        },
+        "precip_total_surface": {
+          "components": [
+            {
+              "id": "value"
+            }
+          ],
+          "temporal": {
+            "kind": "accumulation"
+          },
+          "derivation": {
+            "type": "gfs_run_total_precip",
+            "inputs": [
+              {
+                "id": "total",
+                "grib_match": {
+                  "GRIB_ELEMENT__prefix": "APCP",
+                  "GRIB_SHORT_NAME": "0-SFC",
+                  "GRIB_FORECAST_SECONDS": "0",
+                  "GRIB_PDS_PDTN": "8"
+                }
+              }
+            ]
           }
         },
         "precip_type_surface": {
@@ -894,7 +919,10 @@
                 "ICON_PARAM": "tot_prec"
               }
             }
-          ]
+          ],
+          "temporal": {
+            "kind": "accumulation"
+          }
         },
         "precip_type_surface": {
           "components": [

@@ -8,6 +8,9 @@ from typing import Any
 
 from . import gdal
 
+MATCH_OPERATOR_SEPARATOR = "__"
+MATCH_OPERATOR_PREFIX = "prefix"
+
 
 def _needs_half_cell_shift(origin: float, step: float) -> bool:
     if not (math.isfinite(origin) and math.isfinite(step)) or step == 0:
@@ -111,7 +114,20 @@ def find_grib_band_by_metadata(
             md0 = {}
 
         band_md = {k: str(v) for k, v in md0.items()}
-        if all(band_md.get(k) == v for k, v in match.items()):
+        if _metadata_matches(band_md=band_md, match=match):
             return idx, band_md
 
     raise SystemExit(f"No GRIB band matched {dict(match)} in {grib_path}")
+
+
+def _metadata_matches(*, band_md: dict[str, str], match: dict[str, str]) -> bool:
+    for key, expected in match.items():
+        if MATCH_OPERATOR_SEPARATOR in key:
+            metadata_key, operator = key.rsplit(MATCH_OPERATOR_SEPARATOR, 1)
+            if operator == MATCH_OPERATOR_PREFIX:
+                if not band_md.get(metadata_key, "").startswith(expected):
+                    return False
+                continue
+        if band_md.get(key) != expected:
+            return False
+    return True
