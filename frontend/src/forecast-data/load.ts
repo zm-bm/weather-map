@@ -1,28 +1,29 @@
 import { isAbortError } from '../abort'
 import type { ForecastDataRequest } from './request'
 import type {
-  ForecastDataKind,
   ForecastDataLoad,
-  ForecastDataTimeSlices,
-  LoadedInterpolationWindow,
-} from '../forecast-data-loaders'
+} from './loadDefinition'
+import type {
+  FieldTimeSliceData,
+  ForecastDataKind,
+  ForecastDataSliceMap,
+} from './slices'
 import type {
   FieldInterpolationWindowData,
   ForecastDataWindows,
   LoadedForecastData,
-  PreviousForecastDataWindows,
 } from './types'
 import { setForecastDataWindow } from './windows'
-import { loadInterpolationWindow } from './interpolationWindow'
+import { loadInterpolationWindow, type LoadedInterpolationWindow } from './interpolationWindow'
 
 type LoadForecastDataArgs = {
   request: ForecastDataRequest
-  previousWindows?: PreviousForecastDataWindows
+  previousWindows?: ForecastDataWindows
 }
 
 type LoadedData<K extends ForecastDataKind = ForecastDataKind> = {
   load: ForecastDataLoad<K>
-  window: LoadedInterpolationWindow<ForecastDataTimeSlices[K]> | null
+  window: LoadedInterpolationWindow<ForecastDataSliceMap[K]> | null
 }
 
 export async function loadForecastData(args: LoadForecastDataArgs): Promise<LoadedForecastData> {
@@ -44,10 +45,10 @@ export async function loadForecastData(args: LoadForecastDataArgs): Promise<Load
 async function loadDataWindow<K extends ForecastDataKind>(args: {
   request: ForecastDataRequest
   load: ForecastDataLoad<K>
-  previousWindow: LoadedInterpolationWindow<ForecastDataTimeSlices[K]> | null
+  previousWindow: LoadedInterpolationWindow<ForecastDataSliceMap[K]> | null
 }): Promise<LoadedData<K>> {
   try {
-    const window = await loadInterpolationWindow<ForecastDataTimeSlices[K]>({
+    const window = await loadInterpolationWindow<ForecastDataSliceMap[K]>({
       selection: args.request,
       previousWindow: args.previousWindow,
       loadTimeSlice: args.load.loadTimeSlice,
@@ -66,10 +67,10 @@ async function loadDataWindow<K extends ForecastDataKind>(args: {
 }
 
 function previousDataWindow<K extends ForecastDataKind>(
-  previousWindows: PreviousForecastDataWindows | undefined,
+  previousWindows: ForecastDataWindows | undefined,
   load: ForecastDataLoad<K>
-): LoadedInterpolationWindow<ForecastDataTimeSlices[K]> | null {
-  return (previousWindows?.[load.id] ?? null) as LoadedInterpolationWindow<ForecastDataTimeSlices[K]> | null
+): LoadedInterpolationWindow<ForecastDataSliceMap[K]> | null {
+  return (previousWindows?.[load.id] ?? null) as LoadedInterpolationWindow<ForecastDataSliceMap[K]> | null
 }
 
 function dataWindowsFromLoadedData(
@@ -97,6 +98,20 @@ function probeFieldFromLoadedWindow<K extends ForecastDataKind>(
   loadedWindow: LoadedData<K>
 ): FieldInterpolationWindowData | null {
   const { load, window } = loadedWindow
-  if (window == null || load.toProbeField == null) return null
-  return load.toProbeField(window)
+  if (window == null || load.probeField == null) return null
+  return projectProbeFieldWindow(window, load.probeField.projectTimeSlice)
+}
+
+function projectProbeFieldWindow<K extends ForecastDataKind>(
+  window: LoadedInterpolationWindow<ForecastDataSliceMap[K]>,
+  projectTimeSlice: (slice: ForecastDataSliceMap[K]) => FieldTimeSliceData
+): FieldInterpolationWindowData {
+  return {
+    selectedValidTimeMs: window.selectedValidTimeMs,
+    lowerHourToken: window.lowerHourToken,
+    upperHourToken: window.upperHourToken,
+    mix: window.mix,
+    lower: projectTimeSlice(window.lower),
+    upper: projectTimeSlice(window.upper),
+  }
 }

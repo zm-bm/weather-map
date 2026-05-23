@@ -27,7 +27,7 @@ import {
   type FieldRenderSettings,
 } from '../../../forecast-settings/settings'
 import {
-  buildColormapLut,
+  buildFieldColormapLut,
   createColormapKey,
 } from './colormap'
 
@@ -477,9 +477,8 @@ function createColormapTexture(
   const lutSize = colorSamplingMode === 'banded'
     ? BANDED_COLORMAP_LUT_SIZE
     : COLORMAP_LUT_SIZE
-  const lut = buildColormapLut(
-    frame.colorStops,
-    frame.displayRange,
+  const lut = buildFieldColormapLut(
+    frame,
     lutSize,
     colorSamplingMode
   )

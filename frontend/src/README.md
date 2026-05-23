@@ -42,15 +42,11 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-artifacts/*`: manifest artifact I/O and decoding. This module resolves artifact payload refs, fetches and caches payload bytes, validates payload size, and decodes scalar/vector artifact data.
 
-- `forecast-data-targets/*`: catalog/time adapters that translate selected layers, particle layers, and interpolation windows into data targets and source descriptors. This is the only data-loading layer that should know about catalog layer shapes.
-
-- `forecast-data-loaders/*`: data load definitions, artifact capability checks, artifact-backed slice loading, materialization, data keys, and per-slice caches for field, cloud, precip-type, pressure, and wind-vector data.
-
-- `forecast-data/*`: data request orchestration, interpolation-window loading, reusable-window memory, prefetch scheduling, and loaded data-window composition. This module consumes data sources plus loaders and exposes loaded meteorological data to sync/render/probe features.
+- `forecast-data/*`: semantic forecast data contracts plus a per-runtime data session. It owns `ForecastDataTarget`, loaded-data contracts, request keys, reusable-window memory, prefetch scheduling, loaded data-window composition, and private artifact-backed slice loaders/materialization.
 
 - `forecast-cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so data/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast-sync/*`: orchestration layer for startup policy, data-target composition, abort/dedupe, data loading, render-host application, probe-frame publication, timeline notification, and sync startup state. It should coordinate modules, not decode payload formats, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
+- `forecast-sync/*`: runtime coordination for startup policy, current target resolution, abort/dedupe, data loading, render-host application, probe-frame publication, timeline notification, and sync startup state. It should coordinate modules, not decode payload formats, construct artifact loaders, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
 
 - `forecast-settings/*`: React-owned map presentation settings and defaults. This module owns user-facing render feature options and should stay independent of component, renderer, map-view, and sync internals.
 
@@ -62,7 +58,7 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-place-probes/*`: forecast place-probe feature orchestration, including visible place selection, label sampling, MapLibre source/layer updates, hover state, and viewport refresh handling. React components wrap this feature but do not own the session behavior.
 
-- `forecast-palette/*`: shared palette stop contract and frontend palette registry used by catalog display, legend gradients, data payloads, and field renderer LUT input.
+- `forecast-palette/*`: shared palette stop contract and frontend palette registry used by catalog display, legend gradients, and field renderer LUT input.
 
 - `forecast-legend/*`: legend scale behavior, tick generation, and gradient helpers shared by forecast display UI.
 
@@ -82,14 +78,14 @@ Preferred orchestration shape:
 2. `ForecastShell` installs selection, time, and settings providers around map and panel UI.
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
    `forecast-settings` to `forecast-render` and `forecast-sync`.
-4. `forecast-sync/useForecastSync` composes a data target plus timeline request callbacks,
+4. `forecast-sync/useForecastSync` resolves the current catalog/time selection into a data target plus timeline request callbacks,
    waits for a render host capability, exposes sync startup state, and publishes applied probe frames through a callback.
-5. `forecast-sync/useRequestRunner` loads target data through `forecast-data`, which composes data targets with data loaders, applies them through the render host, publishes the applied probe frame, and notifies the timeline.
+5. `forecast-sync/useRequestRunner` creates data-session load jobs, applies loaded data through the render host, publishes the applied probe frame, commits successful jobs, and notifies the timeline.
 6. `forecast-render/*` reconciles active renderer profiles and applies already-loaded data windows to MapLibre custom layers.
 
 Guideline: keep durable domain state in the relevant provider module, use
-`forecast-sync` for cross-domain coordination, keep target adaptation in
-`forecast-data-targets`, data-specific loading in `forecast-data-loaders`,
-data orchestration in `forecast-data`, keep generic probe sampling inside `forecast-probe`, keep place
+`forecast-sync` for cross-domain coordination and target resolution, keep slice
+loading and request/window orchestration behind the `forecast-data` session,
+keep `forecast-data/loaders` private, keep generic probe sampling inside `forecast-probe`, keep place
 probe orchestration inside `forecast-place-probes`, and keep renderer/runtime
 details inside `forecast-render` and `map`.

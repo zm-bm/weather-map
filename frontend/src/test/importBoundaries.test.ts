@@ -72,8 +72,7 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => (
             isComponentsImport(reference.resolvedPath) ||
             isForecastCatalogImport(reference.resolvedPath) ||
-            isForecastDataLoadersImport(reference.resolvedPath) ||
-            isForecastDataTargetsImport(reference.resolvedPath) ||
+            isForecastDataLoaderInternalImport(reference.resolvedPath) ||
             isForecastDataImport(reference.resolvedPath) ||
             isForecastManifestImport(reference.resolvedPath) ||
             isForecastRenderImport(reference.resolvedPath) ||
@@ -88,8 +87,7 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => (
             isComponentsImport(reference.resolvedPath) ||
             isForecastCatalogImport(reference.resolvedPath) ||
-            isForecastDataLoadersImport(reference.resolvedPath) ||
-            isForecastDataTargetsImport(reference.resolvedPath) ||
+            isForecastDataLoaderInternalImport(reference.resolvedPath) ||
             isForecastDataImport(reference.resolvedPath) ||
             isForecastLegendImport(reference.resolvedPath) ||
             isForecastManifestImport(reference.resolvedPath) ||
@@ -151,6 +149,7 @@ describe('frontend import boundaries', () => {
             isForecastPlaceProbesImport(reference.resolvedPath) ||
             isForecastProbeImport(reference.resolvedPath) ||
             isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSelectionImport(reference.resolvedPath) ||
             isForecastSettingsImport(reference.resolvedPath) ||
             isForecastSyncImport(reference.resolvedPath) ||
             isMapImport(reference.resolvedPath) ||
@@ -158,31 +157,16 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
-        'forecast-data-targets must stay independent of React, artifacts, data loaders, data orchestration, render, sync, settings, map, and probe modules',
-        (file) => isForecastDataTargetsFile(file.path) &&
-          !isTestFile(file.path) &&
-          file.imports.some((reference) => (
-            isComponentsImport(reference.resolvedPath) ||
-            isForecastArtifactsImport(reference.resolvedPath) ||
-            isForecastDataLoadersImport(reference.resolvedPath) ||
-            isForecastDataImport(reference.resolvedPath) ||
-            isForecastPlaceProbesImport(reference.resolvedPath) ||
-            isForecastProbeImport(reference.resolvedPath) ||
-            isForecastRenderImport(reference.resolvedPath) ||
-            isForecastSettingsImport(reference.resolvedPath) ||
-            isForecastSyncImport(reference.resolvedPath) ||
-            isMapImport(reference.resolvedPath) ||
-            reference.resolvedPath === '/react'
-          ))
-      ),
-      ...findSourceImportViolations(
-        'forecast-data-loaders must stay independent of React, catalog, data orchestration, render, sync, settings, map, and probe modules',
-        (file) => isForecastDataLoadersFile(file.path) &&
+        'forecast-data loader internals must stay independent of React, catalog, render, sync, settings, map, and probe modules',
+        (file) => isForecastDataLoaderInternalFile(file.path) &&
           !isTestFile(file.path) &&
           file.imports.some((reference) => (
             isComponentsImport(reference.resolvedPath) ||
             isForecastCatalogImport(reference.resolvedPath) ||
-            isForecastDataImport(reference.resolvedPath) ||
+            (
+              isForecastDataImport(reference.resolvedPath) &&
+              !isAllowedForecastDataLoaderInternalImport(reference.resolvedPath)
+            ) ||
             isForecastPlaceProbesImport(reference.resolvedPath) ||
             isForecastProbeImport(reference.resolvedPath) ||
             isForecastRenderImport(reference.resolvedPath) ||
@@ -191,6 +175,22 @@ describe('frontend import boundaries', () => {
             isMapImport(reference.resolvedPath) ||
             reference.resolvedPath === '/react'
           ))
+      ),
+      ...findSourceImportViolations(
+        'forecast-sync must not import artifact or data loader internals',
+        (file) => isForecastSyncFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastArtifactsImport(reference.resolvedPath) ||
+            isForecastDataLoaderInternalImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
+        'Only forecast-sync may create forecast data sessions in production',
+        (file) => !isForecastDataFile(file.path) &&
+          !isForecastSyncFile(file.path) &&
+          !isTestFile(file.path) &&
+          /\bcreateForecastDataSession\b/.test(file.source)
       ),
       ...findSourceImportViolations(
         'Controls must not import forecast-render',
@@ -283,21 +283,17 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastDataInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Import forecast-data-targets through its public module',
-        (file) => !isForecastDataTargetsFile(file.path) &&
-          file.imports.some((reference) => isForecastDataTargetsSubmoduleImport(reference.resolvedPath))
-      ),
-      ...findSourceImportViolations(
-        'Only forecast-data may import forecast-data-loaders in production',
-        (file) => !isForecastDataLoadersFile(file.path) &&
+        'Only forecast-data may import data loader internals in production',
+        (file) => !isForecastDataLoaderInternalFile(file.path) &&
           !isForecastDataFile(file.path) &&
           !isTestFile(file.path) &&
-          file.imports.some((reference) => isForecastDataLoadersImport(reference.resolvedPath))
+          file.imports.some((reference) => isForecastDataLoaderInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Import forecast-data-loaders internals through forecast-data-loaders public modules',
-        (file) => !isForecastDataLoadersFile(file.path) &&
-          file.imports.some((reference) => isForecastDataLoadersSubmoduleImport(reference.resolvedPath))
+        'Tests may import data loader internals only from inside forecast-data',
+        (file) => !isForecastDataFile(file.path) &&
+          isTestFile(file.path) &&
+          file.imports.some((reference) => isForecastDataLoaderInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
         'Import forecast-artifacts internals through forecast-artifacts public modules',
@@ -323,13 +319,13 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => reference.resolvedPath === '/map/basemap')
       ),
       ...findSourceImportViolations(
-        'forecast-render must not import forecast-data loader modules or APIs',
+        'forecast-render must not import forecast-data loader internals or APIs',
         (file) => isForecastRenderFile(file.path) && (
           file.imports.some((reference) => (
             isForecastDataInternalImport(reference.resolvedPath) ||
-            isForecastDataLoadersImport(reference.resolvedPath)
+            isForecastDataLoaderInternalImport(reference.resolvedPath)
           )) ||
-          /\b(createForecastDataRequest|createArtifactLoader)\b/
+          /\b(createForecastDataSession|createForecastDataRequest|createArtifactLoader)\b/
             .test(file.source)
         )
       ),
@@ -426,12 +422,9 @@ function isForecastDataFile(path: string): boolean {
   return path.includes('/forecast-data/')
 }
 
-function isForecastDataTargetsFile(path: string): boolean {
-  return path.includes('/forecast-data-targets/')
-}
-
-function isForecastDataLoadersFile(path: string): boolean {
-  return path.includes('/forecast-data-loaders/')
+function isForecastDataLoaderInternalFile(path: string): boolean {
+  return path.includes('/forecast-data/loaders/') ||
+    path.endsWith('/forecast-data/loadDefinition.ts')
 }
 
 function isForecastProbeFile(path: string): boolean {
@@ -470,20 +463,20 @@ function isForecastArtifactsImport(path: string): boolean {
   return path === '/forecast-artifacts' || path.includes('/forecast-artifacts/')
 }
 
-function isForecastDataTargetsImport(path: string): boolean {
-  return path === '/forecast-data-targets' || isForecastDataTargetsSubmoduleImport(path)
+function isForecastDataLoaderInternalImport(path: string): boolean {
+  return path === '/forecast-data/loadDefinition' ||
+    path === '/forecast-data/loaders' ||
+    isForecastDataLoaderInternalSubmoduleImport(path)
 }
 
-function isForecastDataTargetsSubmoduleImport(path: string): boolean {
-  return path.includes('/forecast-data-targets/')
+function isForecastDataLoaderInternalSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-data/loaders/')
 }
 
-function isForecastDataLoadersImport(path: string): boolean {
-  return path === '/forecast-data-loaders' || isForecastDataLoadersSubmoduleImport(path)
-}
-
-function isForecastDataLoadersSubmoduleImport(path: string): boolean {
-  return path.includes('/forecast-data-loaders/')
+function isAllowedForecastDataLoaderInternalImport(path: string): boolean {
+  return path === '/forecast-data/slices' ||
+    path === '/forecast-data/target' ||
+    isForecastDataLoaderInternalImport(path)
 }
 
 function isForecastPlaceProbesImport(path: string): boolean {

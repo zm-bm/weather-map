@@ -2,17 +2,12 @@ import { useEffect, useRef } from 'react'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
-import { createArtifactLoader } from '../forecast-artifacts'
-import {
-  createForecastDataRequest,
-  createForecastDataMemory,
-  loadForecastData,
-} from '../forecast-data'
 import type {
   FieldInterpolationWindowData,
   ForecastDataOptions,
+  ForecastDataSession,
+  ForecastDataTarget,
 } from '../forecast-data'
-import type { ForecastDataTarget } from '../forecast-data-targets'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { createRequestTracker, type ActiveRequest, type RequestTracker } from './requestTracker'
@@ -24,6 +19,7 @@ type UseRequestRunnerArgs = {
   target: ForecastDataTarget | null
   syncCallbacks: ForecastTimeSyncCallbacks
   startup: StartupController
+  dataSession: ForecastDataSession
   dataOptions: ForecastDataOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
@@ -34,6 +30,7 @@ export function useRequestRunner({
   target,
   syncCallbacks,
   startup,
+  dataSession,
   dataOptions,
   onProbeFrameChange,
 }: UseRequestRunnerArgs): void {
@@ -50,10 +47,6 @@ export function useRequestRunner({
   if (requestTrackerRef.current == null) {
     requestTrackerRef.current = createRequestTracker()
   }
-  const dataMemoryRef = useRef<ReturnType<typeof createForecastDataMemory> | null>(null)
-  if (dataMemoryRef.current == null) {
-    dataMemoryRef.current = createForecastDataMemory()
-  }
   const onProbeFrameChangeRef = useRef(onProbeFrameChange)
   onProbeFrameChangeRef.current = onProbeFrameChange
   const syncCallbacksRef = useRef(syncCallbacks)
@@ -62,9 +55,9 @@ export function useRequestRunner({
   useEffect(() => {
     return () => {
       requestTrackerRef.current?.reset()
-      dataMemoryRef.current?.reset()
+      dataSession.reset()
     }
-  }, [])
+  }, [dataSession])
 
   useEffect(() => {
     const requestTracker = requestTrackerRef.current
@@ -78,7 +71,7 @@ export function useRequestRunner({
 
     switch (decision.kind) {
       case 'disabled':
-        dataMemoryRef.current?.reset()
+        dataSession.reset()
         onProbeFrameChangeRef.current?.(null)
         handleDisabled()
         return
@@ -93,26 +86,14 @@ export function useRequestRunner({
 
     const { renderHost: activeRenderHost, target: dataTarget } = decision
     const requestController = new AbortController()
-    const dataRequest = createForecastDataRequest({
+    const dataJob = dataSession.createLoadJob({
       target: dataTarget,
-      artifacts: createArtifactLoader({
-        config,
-        activeRun: dataTarget.activeRun,
-        signal: requestController.signal,
-      }),
+      config,
+      signal: requestController.signal,
       retryToken,
       options: dataOptions,
     })
-    const {
-      selectedValidTimeMs,
-      requestKey,
-    } = dataRequest
-    const renderRequestKey = `${activeRenderHost.version}:${requestKey}`
-    const dataMemory = dataMemoryRef.current
-    if (dataMemory == null) {
-      requestController.abort()
-      return
-    }
+    const renderRequestKey = `${activeRenderHost.version}:${dataJob.key}`
 
     if (requestTracker.isApplied(renderRequestKey)) {
       requestController.abort()
@@ -126,34 +107,31 @@ export function useRequestRunner({
 
     const activeRequest = requestTracker.start(renderRequestKey, requestController)
 
-    if (dataMemory.shouldClearProbeField(dataRequest)) {
+    if (dataJob.shouldClearProbeFrame) {
       onProbeFrameChangeRef.current?.(null)
     }
 
     handlePending()
-    syncCallbacksRef.current.onRequestStart(selectedValidTimeMs)
+    syncCallbacksRef.current.onRequestStart(dataJob.selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
-        const loadedData = await loadForecastData({
-          request: dataRequest,
-          previousWindows: dataMemory.reusableWindowsFor(dataRequest),
-        })
+        const loadedData = await dataJob.load()
 
         if (isRequestStale(requestTracker, activeRequest)) return
         activeRenderHost.apply(loadedData)
         if (isRequestStale(requestTracker, activeRequest)) return
 
         onProbeFrameChangeRef.current?.(loadedData.probeField ?? null)
-        dataMemory.commit(dataRequest, loadedData)
+        dataJob.commit(loadedData)
         requestTracker.markApplied(activeRequest)
-        syncCallbacksRef.current.onRequestApplied(selectedValidTimeMs)
+        syncCallbacksRef.current.onRequestApplied(dataJob.selectedValidTimeMs)
         handleApplied()
       } catch (error: unknown) {
         if (isRequestStale(requestTracker, activeRequest)) return
         const normalizedError = normalizeError(error)
         if (isAbortError(normalizedError)) return
-        syncCallbacksRef.current.onRequestError(selectedValidTimeMs, normalizedError)
+        syncCallbacksRef.current.onRequestError(dataJob.selectedValidTimeMs, normalizedError)
         handleError(normalizedError)
       } finally {
         requestTracker.finish(activeRequest)
@@ -173,6 +151,7 @@ export function useRequestRunner({
     handleError,
     handlePending,
     isBlocked,
+    dataSession,
     dataOptions,
     renderHost,
     retryToken,

@@ -65,8 +65,9 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
   data loaders.
 - `data target`: the resolved active run, interpolation window, and data source
   descriptors needed to request forecast data.
-- `data load`: a planned semantic data family to load for an interpolation
-  window, such as field, cloud layers, pressure, precip type, or wind vectors.
+- `data load`: a planned semantic data family with capability checks,
+  per-slice cache keys, time-slice loading, failure policy, and optional
+  probe-field projection.
 - `data window`: loaded lower and upper time-slice data plus interpolation
   metadata for one semantic data family.
 

@@ -1,4 +1,4 @@
-import type { ForecastDataTarget } from '../forecast-data-targets'
+import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 
 export type RequestDecision =

@@ -1,13 +1,19 @@
-import type { ArtifactLoader } from '../forecast-artifacts'
-import type { ActiveForecastRun } from '../forecast-manifest'
+import { createArtifactLoader } from '../forecast-artifacts'
+import type { WeatherMapConfig } from '../config'
+import {
+  forecastRunScopeKey,
+  normalizeForecastHourToken,
+  type ActiveForecastRun,
+} from '../forecast-manifest'
 import {
   createForecastDataLoads,
-  createForecastDataRequestKey,
-  DEFAULT_FORECAST_DATA_OPTIONS,
-  type ForecastDataOptions,
-  type ForecastDataLoad,
-} from '../forecast-data-loaders'
-import type { ForecastDataTarget } from '../forecast-data-targets'
+} from './loads'
+import type { ForecastDataLoad } from './loadDefinition'
+import { DEFAULT_FORECAST_DATA_OPTIONS } from './options'
+import type { ForecastDataTarget } from './target'
+import type { ForecastDataOptions } from './types'
+
+const NO_DATA_KEY = 'data:none'
 
 export type ForecastDataRequest = {
   activeRun: ActiveForecastRun
@@ -21,15 +27,21 @@ export type ForecastDataRequest = {
 
 type CreateForecastDataRequestArgs = {
   target: ForecastDataTarget
-  artifacts: ArtifactLoader
+  config: WeatherMapConfig
+  signal: AbortSignal
   retryToken: number
   options?: Partial<ForecastDataOptions>
 }
 
 export function createForecastDataRequest(args: CreateForecastDataRequestArgs): ForecastDataRequest {
+  const artifacts = createArtifactLoader({
+    config: args.config,
+    activeRun: args.target.activeRun,
+    signal: args.signal,
+  })
   const loads = createForecastDataLoads({
     target: args.target,
-    artifacts: args.artifacts,
+    artifacts,
     options: {
       ...DEFAULT_FORECAST_DATA_OPTIONS,
       ...args.options,
@@ -52,4 +64,31 @@ export function createForecastDataRequest(args: CreateForecastDataRequestArgs): 
     }),
     loads,
   }
+}
+
+function createForecastDataRequestKey(args: {
+  activeRun: ActiveForecastRun
+  dataKeys: readonly string[]
+  lowerHourToken: string
+  upperHourToken: string
+  minuteOffset: number
+  retryToken: number
+}): string {
+  const dataKey = args.dataKeys.length === 0
+    ? scopeForecastDataKey(args.activeRun, NO_DATA_KEY)
+    : args.dataKeys.join('|')
+  return [
+    dataKey,
+    normalizeForecastHourToken(args.lowerHourToken),
+    normalizeForecastHourToken(args.upperHourToken),
+    args.minuteOffset,
+    args.retryToken,
+  ].join(':')
+}
+
+function scopeForecastDataKey(
+  activeRun: ActiveForecastRun,
+  value: string
+): string {
+  return `${forecastRunScopeKey(activeRun)}:${value}`
 }

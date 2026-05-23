@@ -1,33 +1,39 @@
 import type {
+  ForecastDataKind,
+  ForecastDataSliceMap,
+} from './slices'
+import type { LoadedInterpolationWindow } from './interpolationWindow'
+
+export type {
   CloudLayersTimeSliceData,
+  FieldEncodingSpec,
   FieldTimeSliceData,
-  ForecastDataTimeSlices,
-  LoadedInterpolationWindow,
+  ForecastDataKind,
+  ForecastDataSliceMap,
   PrecipTypeTimeSliceData,
   PressureTimeSliceData,
   WindVectorTimeSliceData,
-} from '../forecast-data-loaders'
+} from './slices'
 
-export type FieldInterpolationWindowData = LoadedInterpolationWindow<FieldTimeSliceData>
-export type CloudLayersInterpolationWindowData = LoadedInterpolationWindow<CloudLayersTimeSliceData>
-export type PrecipTypeInterpolationWindowData = LoadedInterpolationWindow<PrecipTypeTimeSliceData>
-export type PressureInterpolationWindowData = LoadedInterpolationWindow<PressureTimeSliceData>
-export type WindVectorInterpolationWindowData = LoadedInterpolationWindow<WindVectorTimeSliceData>
-
-export type ForecastDataWindows = {
-  field?: FieldInterpolationWindowData
-  cloudLayers?: CloudLayersInterpolationWindowData
-  precipType?: PrecipTypeInterpolationWindowData
-  pressure?: PressureInterpolationWindowData
-  windVectors?: WindVectorInterpolationWindowData
+export type ForecastDataOptions = {
+  pressure: boolean
+  windVectors: boolean
 }
+
+export type ForecastDataWindow<K extends ForecastDataKind> =
+  LoadedInterpolationWindow<ForecastDataSliceMap[K]>
+
+export type FieldInterpolationWindowData = ForecastDataWindow<'field'>
+export type CloudLayersInterpolationWindowData = ForecastDataWindow<'cloudLayers'>
+export type PrecipTypeInterpolationWindowData = ForecastDataWindow<'precipType'>
+export type PressureInterpolationWindowData = ForecastDataWindow<'pressure'>
+export type WindVectorInterpolationWindowData = ForecastDataWindow<'windVectors'>
+
+export type ForecastDataWindows = Partial<{
+  [K in ForecastDataKind]: ForecastDataWindow<K>
+}>
 
 export type LoadedForecastData = {
   windows: ForecastDataWindows
   probeField: FieldInterpolationWindowData | null
 }
-
-export type PreviousForecastDataWindows = ForecastDataWindows
-
-export type ForecastDataWindow<K extends keyof ForecastDataTimeSlices> =
-  LoadedInterpolationWindow<ForecastDataTimeSlices[K]>

@@ -54,29 +54,33 @@ Check for:
 - unnecessary public exports
 - test coverage for frame updates, hover cleanup, and style-removal tolerance
 
-### 4. Forecast Data Modules
+### 4. Forecast Data And Sync
 
-Review `forecast-data-targets`, `forecast-data-loaders`, and
-`forecast-data` after the runtime owners are clear.
+Review `forecast-sync` target resolution and `forecast-data` after the runtime
+owners are clear.
 
 Check for:
 
-- data target, source descriptor, data request, and loaded data naming
+- target resolver, source descriptor, data request, and loaded data naming
 - per-slice cache vs reusable-window memory ownership
 - field, cloud, precip-type, pressure, and wind-vector data-load responsibilities
-- duplicated branching between target adaptation, data loading, and sync
+- duplicated branching between sync target adaptation and data loading
 - tests that cover data-request outcomes rather than private helper sequencing
 
 Current guidance:
 
-- Keep catalog adaptation isolated in `forecast-data-targets`; data loaders
+- Keep catalog/time target resolution inside `forecast-sync`; data loaders
   should consume data-ready descriptors, not catalog layer objects.
-- Keep data-load definitions declarative in `forecast-data-loaders`: each
-  data load should own enablement,
-  capability checks, cache/request key contribution, load behavior, failure
-  policy, and optional probe-field projection.
-- Keep `forecast-data` as orchestration: request creation, interpolation
-  windows, prefetch, reusable-window memory, and loaded data-window assembly.
+- Keep `ForecastDataTarget` and source descriptor contracts owned by
+  `forecast-data`, because they are the session input shape.
+- Keep `forecast-data/loaders` private and slice-focused: each loader owns
+  capability checks, slice cache keys, time-slice loading, semantic
+  materialization, failure policy, and optional slice-level probe projection.
+- Keep `forecast-data` as orchestration behind a per-runtime data session:
+  data options, request keys, request creation, interpolation windows, prefetch,
+  reusable-window memory, and loaded data-window assembly. Its public index
+  should expose the session factory and semantic data contracts only; request,
+  memory, loader, and prefetch internals should stay private.
 - Keep sync responsible for app/user options that decide whether optional
   data families are requested; loaders should execute explicit options, not
   infer UI settings.

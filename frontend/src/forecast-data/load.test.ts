@@ -4,12 +4,13 @@ import { createActiveRunFixture, createManifestFixture } from '../test/fixtures'
 import type { ForecastDataRequest } from './request'
 import type {
   ForecastDataFailurePolicy,
-  ForecastDataKind,
   ForecastDataLoad,
-  ForecastDataTimeSlices,
-} from '../forecast-data-loaders'
+} from './loadDefinition'
 import type {
-  CloudLayersInterpolationWindowData,
+  ForecastDataKind,
+  ForecastDataSliceMap,
+} from './types'
+import type {
   FieldInterpolationWindowData,
 } from './types'
 import { loadForecastData } from './load'
@@ -24,7 +25,7 @@ const loaders = {
 
 function dataLoad<K extends ForecastDataKind>(
   id: K,
-  loadTimeSlice: (hourToken: string) => Promise<ForecastDataTimeSlices[K]>,
+  loadTimeSlice: (hourToken: string) => Promise<ForecastDataSliceMap[K]>,
   failurePolicy: ForecastDataFailurePolicy = 'required',
 ): ForecastDataLoad<K> {
   const loadFixture = {
@@ -37,34 +38,29 @@ function dataLoad<K extends ForecastDataKind>(
   if (id === 'field') {
     return {
       ...loadFixture,
-      toProbeField: fieldProbeWindow,
+      probeField: {
+        key: loadFixture.key,
+        projectTimeSlice: fieldProbeTimeSlice,
+      },
     } as ForecastDataLoad<K>
   }
   if (id === 'cloudLayers') {
     return {
       ...loadFixture,
-      toProbeField: cloudLayersProbeWindow,
+      probeField: {
+        key: loadFixture.key,
+        projectTimeSlice: (slice: ForecastDataSliceMap['cloudLayers']) => slice.coverage,
+      },
     } as ForecastDataLoad<K>
   }
 
   return loadFixture as ForecastDataLoad<K>
 }
 
-function fieldProbeWindow(window: FieldInterpolationWindowData): FieldInterpolationWindowData {
-  return window
-}
-
-function cloudLayersProbeWindow(
-  window: CloudLayersInterpolationWindowData
-): FieldInterpolationWindowData {
-  return {
-    selectedValidTimeMs: window.selectedValidTimeMs,
-    lowerHourToken: window.lowerHourToken,
-    upperHourToken: window.upperHourToken,
-    mix: window.mix,
-    lower: window.lower.coverage,
-    upper: window.upper.coverage,
-  }
+function fieldProbeTimeSlice(
+  slice: ForecastDataSliceMap['field']
+): FieldInterpolationWindowData['lower'] {
+  return slice
 }
 
 function createRequest(loads: readonly ForecastDataLoad[]): ForecastDataRequest {

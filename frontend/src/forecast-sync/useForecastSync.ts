@@ -1,5 +1,12 @@
+import { useState } from 'react'
+
 import type { WeatherMapConfig } from '../config'
-import type { ForecastDataOptions, FieldInterpolationWindowData } from '../forecast-data'
+import {
+  createForecastDataSession,
+  type ForecastDataOptions,
+  type FieldInterpolationWindowData,
+  type ForecastDataSession,
+} from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import { useForecastTimeContext } from '../forecast-time'
 import { useStartupController } from './useStartupController'
@@ -28,6 +35,7 @@ export function useForecastSync({
   const startup = useStartupController()
   const target = useDataTarget()
   const { syncCallbacks } = useForecastTimeContext()
+  const [dataSession] = useState<ForecastDataSession>(() => createForecastDataSession())
 
   useRequestRunner({
     renderHost,
@@ -35,6 +43,7 @@ export function useForecastSync({
     target,
     syncCallbacks,
     startup,
+    dataSession,
     dataOptions,
     onProbeFrameChange,
   })
@@ -42,6 +51,7 @@ export function useForecastSync({
     config,
     target,
     enabled: !startup.isBlocked,
+    dataSession,
     dataOptions,
   })
 

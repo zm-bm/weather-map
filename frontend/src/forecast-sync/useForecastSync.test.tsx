@@ -2,21 +2,14 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  createActiveRunFixture,
   createConfigFixture,
-  createManifestFixture,
+  createForecastDataTargetFixture,
 } from '../test/fixtures'
 import {
-  FORECAST_LAYERS_BY_ID,
-  getAvailableParticleLayers,
-} from '../forecast-catalog'
-import {
-  createLayerDataSource,
-  createForecastDataTarget,
-  createWindVectorDataSource,
+  type ForecastDataOptions,
+  type ForecastDataSession,
   type ForecastDataTarget,
-} from '../forecast-data-targets'
-import type { ForecastDataOptions } from '../forecast-data'
+} from '../forecast-data'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { StartupController } from './useStartupController'
@@ -26,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   useStartupController: vi.fn(),
   useDataTarget: vi.fn(),
   useForecastTimeContext: vi.fn(),
+  createForecastDataSession: vi.fn(),
   useRequestRunner: vi.fn(),
   useDataPrefetch: vi.fn(),
 }))
@@ -48,6 +42,14 @@ vi.mock('../forecast-time', async (importOriginal) => {
   return {
     ...actual,
     useForecastTimeContext: () => mocks.useForecastTimeContext(),
+  }
+})
+
+vi.mock('../forecast-data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-data')>()
+  return {
+    ...actual,
+    createForecastDataSession: () => mocks.createForecastDataSession(),
   }
 })
 
@@ -88,32 +90,21 @@ function createSyncCallbacks(): ForecastTimeSyncCallbacks {
 }
 
 function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
-  const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
-  const hourToken = activeRun.latest.times[0].id
-  const validTimeMs = Date.UTC(2026, 3, 13, 12)
-  const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
-  const windLayer = getAvailableParticleLayers(activeRun).wind!
+  return createForecastDataTargetFixture({ overrides })
+}
+
+function createDataSession(): ForecastDataSession {
   return {
-    ...createForecastDataTarget({
-      activeRun,
-      layerDataSource: createLayerDataSource(selectedLayer),
-      windVectorDataSource: createWindVectorDataSource(windLayer),
-      interpolationWindow: {
-        selectedValidTimeMs: validTimeMs,
-        lowerHourToken: hourToken,
-        upperHourToken: hourToken,
-        lowerValidTimeMs: validTimeMs,
-        upperValidTimeMs: validTimeMs,
-        mix: 0,
-      },
-    }),
-    ...overrides,
+    createLoadJob: vi.fn(),
+    prefetch: vi.fn(),
+    reset: vi.fn(),
   }
 }
 
 describe('useForecastSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.createForecastDataSession.mockReturnValue(createDataSession())
     mocks.useForecastTimeContext.mockReturnValue({
       syncCallbacks: createSyncCallbacks(),
     })
@@ -127,10 +118,12 @@ describe('useForecastSync', () => {
     const target = createDataTarget()
     const syncCallbacks = createSyncCallbacks()
     const onProbeFrameChange = vi.fn()
+    const dataSession = createDataSession()
 
     mocks.useStartupController.mockReturnValue(startup)
     mocks.useDataTarget.mockReturnValue(target)
     mocks.useForecastTimeContext.mockReturnValue({ syncCallbacks })
+    mocks.createForecastDataSession.mockReturnValue(dataSession)
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
@@ -148,12 +141,14 @@ describe('useForecastSync', () => {
       target,
       syncCallbacks,
       startup,
+      dataSession,
       onProbeFrameChange,
     })
     expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: true,
+      dataSession,
       dataOptions: DEFAULT_DATA_OPTIONS,
     })
     expect(result.current).toEqual({
@@ -178,10 +173,12 @@ describe('useForecastSync', () => {
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       startup,
+      dataSession: expect.any(Object),
     }))
     expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       enabled: true,
+      dataSession: expect.any(Object),
     }))
     expect(result.current).toEqual({
       startupStatus: startup.status,
@@ -207,6 +204,7 @@ describe('useForecastSync', () => {
       config,
       target,
       enabled: false,
+      dataSession: expect.any(Object),
       dataOptions: DEFAULT_DATA_OPTIONS,
     })
   })

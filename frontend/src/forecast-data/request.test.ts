@@ -1,47 +1,39 @@
 import { describe, expect, it } from 'vitest'
 
-import { createArtifactLoader } from '../forecast-artifacts'
-import {
-  FORECAST_LAYERS_BY_ID,
-  getAvailableParticleLayers,
-} from '../forecast-catalog'
-import {
-  createLayerDataSource,
-  createForecastDataTarget,
-  createWindVectorDataSource,
-} from '../forecast-data-targets'
-import type { ForecastDataKind } from '../forecast-data-loaders'
 import {
   createActiveRunFixture,
+  createCloudLayerSourceFixture,
   createConfigFixture,
+  createFieldLayerSourceFixture,
+  createForecastDataTargetFixture,
+  createPrecipTypeSourceFixture,
   createScalarArtifactFixture,
   createSingleTimeManifestFixture,
   createVectorArtifactFixture,
-  createSignalFixture,
 } from '../test/fixtures'
+import type { ForecastDataTarget } from './target'
+import type { ForecastDataKind } from './slices'
 import { createForecastDataRequest } from './request'
 
 function dataRequest(args: {
   manifest: ReturnType<typeof createSingleTimeManifestFixture>
-  layerId?: string
+  layerSource?: ForecastDataTarget['layerSource']
   includeWindVectors?: boolean
   dataOptions?: Parameters<typeof createForecastDataRequest>[0]['options']
+  retryToken?: number
+  lowerHourToken?: string
+  upperHourToken?: string
+  minuteOffset?: number
 }) {
   const activeRun = createActiveRunFixture(args.manifest)
-  const selectedLayer = FORECAST_LAYERS_BY_ID[args.layerId ?? 'temperature']!
-  const windLayer = args.includeWindVectors === false
-    ? null
-    : getAvailableParticleLayers(activeRun).wind!
-  const target = createForecastDataTarget({
+  const target = createForecastDataTargetFixture({
     activeRun,
-    layerDataSource: createLayerDataSource(selectedLayer),
-    windVectorDataSource: windLayer == null
-      ? null
-      : createWindVectorDataSource(windLayer),
+    layerSource: args.layerSource,
+    windVectorSource: args.includeWindVectors === false ? null : undefined,
     interpolationWindow: {
-      selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      selectedValidTimeMs: Date.UTC(2026, 3, 13, 12, args.minuteOffset ?? 0),
+      lowerHourToken: args.lowerHourToken ?? '000',
+      upperHourToken: args.upperHourToken ?? '000',
       lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
       upperValidTimeMs: Date.UTC(2026, 3, 13, 12),
       mix: 0,
@@ -50,18 +42,41 @@ function dataRequest(args: {
 
   return createForecastDataRequest({
     target,
-    artifacts: createArtifactLoader({
-      config: createConfigFixture(),
-      activeRun,
-      signal: createSignalFixture(),
-    }),
-    retryToken: 0,
+    config: createConfigFixture(),
+    signal: new AbortController().signal,
+    retryToken: args.retryToken ?? 0,
     options: args.dataOptions,
   })
 }
 
 function dataKinds(request: ReturnType<typeof dataRequest>): ForecastDataKind[] {
   return request.loads.map((load) => load.id)
+}
+
+function windSpeedSource(): ForecastDataTarget['layerSource'] {
+  return createFieldLayerSourceFixture({
+    layerId: 'wind_speed',
+    paletteId: 'wind.gust.mps.v1',
+    displayRange: [0, 55],
+    fieldSource: {
+      kind: 'derived',
+      artifactId: 'wind10m_uv',
+      recipe: 'wind-speed',
+    },
+  })
+}
+
+function precipitationRateSource(): ForecastDataTarget['layerSource'] {
+  return createFieldLayerSourceFixture({
+    layerId: 'precipitation_rate',
+    paletteId: 'precip.rate.mm_hr.v1',
+    displayRange: [0, 50],
+    fieldSource: {
+      kind: 'scalar',
+      artifactId: 'prate_surface',
+    },
+    precipType: createPrecipTypeSourceFixture(),
+  })
 }
 
 describe('createForecastDataRequest', () => {
@@ -71,7 +86,7 @@ describe('createForecastDataRequest', () => {
         cycle: '2026040900',
         forecastHours: ['003', '006'],
       }),
-      layerId: 'wind_speed',
+      layerSource: windSpeedSource(),
     })
 
     expect(dataKinds(request)).toEqual(['field', 'windVectors'])
@@ -80,6 +95,39 @@ describe('createForecastDataRequest', () => {
     expect(request.loads.find((load) => load.id === 'windVectors')?.key)
       .toBe('gfs:2026040900:rev:wind-vectors:wind:wind10m_uv')
     expect(request.requestKey).toContain(':000:000:0:0')
+  })
+
+  it('builds scoped request keys from data keys and interpolation state', () => {
+    const request = dataRequest({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        forecastHours: ['003', '006'],
+      }),
+      lowerHourToken: '3',
+      upperHourToken: '6',
+      minuteOffset: 30,
+      retryToken: 2,
+      layerSource: windSpeedSource(),
+    })
+
+    expect(request.requestKey).toBe(
+      'gfs:2026040900:rev:wind_speed:derived:wind-speed:wind10m_uv|' +
+      'gfs:2026040900:rev:wind-vectors:wind:wind10m_uv:003:006:30:2'
+    )
+  })
+
+  it('uses an explicit empty-data key when no loads are planned', () => {
+    const request = dataRequest({
+      manifest: createSingleTimeManifestFixture({
+        cycle: '2026040900',
+        scalarArtifactIds: ['other_surface'],
+        vectorArtifactIds: [],
+      }),
+      includeWindVectors: false,
+    })
+
+    expect(dataKinds(request)).toEqual([])
+    expect(request.requestKey).toBe('gfs:2026040900:rev:data:none:000:000:0:0')
   })
 
   it('omits wind vectors when no wind source is selected', () => {
@@ -106,7 +154,7 @@ describe('createForecastDataRequest', () => {
           }),
         },
       }),
-      layerId: 'precipitation_rate',
+      layerSource: precipitationRateSource(),
       includeWindVectors: false,
     })
 
@@ -127,7 +175,7 @@ describe('createForecastDataRequest', () => {
           }),
         },
       }),
-      layerId: 'cloud_layers',
+      layerSource: createCloudLayerSourceFixture(),
       includeWindVectors: false,
     })
 
@@ -208,7 +256,7 @@ describe('createForecastDataRequest', () => {
           }),
         },
       }),
-      layerId: 'precipitation_rate',
+      layerSource: precipitationRateSource(),
       includeWindVectors: false,
     })
 

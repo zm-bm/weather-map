@@ -1,18 +1,18 @@
 import type {
   ForecastDataKind,
-  ForecastDataTimeSlices,
-  LoadedInterpolationWindow,
-} from '../forecast-data-loaders'
+  ForecastDataSliceMap,
+} from './slices'
+import type { LoadedInterpolationWindow } from './interpolationWindow'
 import type { ForecastDataWindows } from './types'
 
 export function setForecastDataWindow<K extends ForecastDataKind>(
   windows: ForecastDataWindows,
   id: K,
-  window: LoadedInterpolationWindow<ForecastDataTimeSlices[K]>
+  window: LoadedInterpolationWindow<ForecastDataSliceMap[K]>
 ): void {
   const mutableWindows = windows as Record<
     ForecastDataKind,
-    LoadedInterpolationWindow<ForecastDataTimeSlices[ForecastDataKind]>
+    LoadedInterpolationWindow<ForecastDataSliceMap[ForecastDataKind]>
   >
   mutableWindows[id] = window
 }

@@ -7,10 +7,12 @@ import {
 } from '../test/fixtures'
 import type { ForecastDataRequest } from './request'
 import type {
-  ForecastDataKind,
   ForecastDataLoad,
-  ForecastDataTimeSlices,
-} from '../forecast-data-loaders'
+} from './loadDefinition'
+import type {
+  ForecastDataKind,
+  ForecastDataSliceMap,
+} from './types'
 import { prefetchForecastData } from './prefetch'
 
 const loaders = {
@@ -33,7 +35,7 @@ function deferred<T>() {
 
 function dataLoad<K extends ForecastDataKind>(
   id: K,
-  loadTimeSlice: (hourToken: string) => Promise<ForecastDataTimeSlices[K]>
+  loadTimeSlice: (hourToken: string) => Promise<ForecastDataSliceMap[K]>
 ): ForecastDataLoad<K> {
   return {
     id,

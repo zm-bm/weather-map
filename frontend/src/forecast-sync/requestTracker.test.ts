@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ForecastDataTarget } from '../forecast-data-targets'
+import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import { createRequestTracker } from './requestTracker'
 

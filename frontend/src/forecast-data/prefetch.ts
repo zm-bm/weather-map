@@ -1,5 +1,5 @@
 import type { ForecastDataRequest } from './request'
-import type { ForecastDataLoad } from '../forecast-data-loaders'
+import type { ForecastDataLoad } from './loadDefinition'
 import { normalizeForecastHourToken } from '../forecast-manifest'
 
 type ForecastDataPrefetchTask = {

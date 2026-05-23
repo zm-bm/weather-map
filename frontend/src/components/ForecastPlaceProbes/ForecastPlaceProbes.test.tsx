@@ -97,7 +97,6 @@ function createProbeFrame(layerId = 'temperature', frame = 1): FieldInterpolatio
     },
     values: new Float32Array([frame]),
     displayRange: [0, 1] as [number, number],
-    colorStops: [[0, 0, 0, 0] as [number, number, number, number]],
     frame,
   }
 

@@ -1,15 +1,30 @@
-import type { PaletteStop } from '../../../forecast-palette'
+import { getLayerPalette, type PaletteStop } from '../../../forecast-palette'
 import type { FieldTimeSliceData } from '../../../forecast-data'
 import type { FieldColorSamplingMode } from '../../../forecast-settings/settings'
 
 type NormalizedColorStop = [number, number, number, number]
 
 export function createColormapKey(frame: FieldTimeSliceData): string {
+  const palette = getLayerPalette(frame.paletteId)
   // Deterministic key for LUT texture reuse.
   return JSON.stringify({
+    paletteId: frame.paletteId,
     displayRange: frame.displayRange,
-    colorStops: frame.colorStops,
+    colorStops: palette.colorStops,
   })
+}
+
+export function buildFieldColormapLut(
+  frame: FieldTimeSliceData,
+  size: number,
+  colorSamplingMode: FieldColorSamplingMode
+): Uint8Array {
+  return buildColormapLut(
+    getLayerPalette(frame.paletteId).colorStops,
+    frame.displayRange,
+    size,
+    colorSamplingMode
+  )
 }
 
 export function buildColormapLut(

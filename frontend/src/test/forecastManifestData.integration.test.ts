@@ -2,22 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchManifest, resolveActiveForecastRun } from '../forecast-manifest'
 import {
-  FORECAST_LAYERS_BY_ID,
-  getAvailableParticleLayers,
-} from '../forecast-catalog'
-import { createArtifactLoader } from '../forecast-artifacts'
-import {
-  createLayerDataSource,
-  createForecastDataTarget,
-  createWindVectorDataSource,
-} from '../forecast-data-targets'
-import {
-  createForecastDataRequest,
-  loadForecastData,
+  createForecastDataSession,
 } from '../forecast-data'
 import {
   createMultiModelManifestFixture,
   createConfigFixture,
+  createForecastDataTargetFixture,
   createSingleTimeManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
@@ -75,15 +65,12 @@ describe('forecast manifest + data loading end-to-end', () => {
     const manifest = await fetchManifest({ signal })
     const activeRun = resolveActiveForecastRun(manifest, 'gfs')
     if (!activeRun) throw new Error('Expected active run fixture')
-    const particleLayers = getAvailableParticleLayers(activeRun)
     const config = createConfigFixture({
       artifactBaseUrl: 'http://localhost:3000',
     })
 
-    const target = createForecastDataTarget({
+    const target = createForecastDataTargetFixture({
       activeRun,
-      layerDataSource: createLayerDataSource(FORECAST_LAYERS_BY_ID.temperature!),
-      windVectorDataSource: createWindVectorDataSource(particleLayers.wind!),
       interpolationWindow: {
         selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
         lowerHourToken: '000',
@@ -93,13 +80,13 @@ describe('forecast manifest + data loading end-to-end', () => {
         mix: 0,
       },
     })
-    const loadedData = await loadForecastData({
-      request: createForecastDataRequest({
-        target,
-        artifacts: createArtifactLoader({ config, activeRun, signal }),
-        retryToken: 0,
-      }),
+    const loadedData = await createForecastDataSession().createLoadJob({
+      target,
+      config,
+      signal,
+      retryToken: 0,
     })
+      .load()
 
     expect(activeRun.latest.run.cycle).toBe('2026041312')
     expect(Array.from(loadedData.windows.field?.lower.values ?? [], (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
