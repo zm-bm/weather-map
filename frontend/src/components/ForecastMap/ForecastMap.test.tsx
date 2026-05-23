@@ -147,7 +147,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
       renderHost,
       config,
-      pressureContoursEnabled: false,
+      productOptions: { pressure: false, windVectors: true },
       onProbeFrameChange: expect.any(Function),
     })
     const placeProbeProps = mocks.ForecastPlaceProbes.mock.calls[0]?.[0] as {
@@ -226,7 +226,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: renderHostResults[renderHostResults.length - 1]?.value,
       config,
-      pressureContoursEnabled: false,
+      productOptions: { pressure: false, windVectors: false },
       onProbeFrameChange: expect.any(Function),
     })
   })
@@ -256,7 +256,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: renderHostResults[renderHostResults.length - 1]?.value,
       config,
-      pressureContoursEnabled: true,
+      productOptions: { pressure: true, windVectors: true },
       onProbeFrameChange: expect.any(Function),
     })
   })

@@ -67,6 +67,10 @@ export function forecastRunScopeKey(activeRun: ActiveForecastRun): string {
   return `${activeRun.modelId}:${activeRun.latest.run.cycle}:${activeRun.latest.run.revision}`
 }
 
+export function normalizeForecastHourToken(value: string): string {
+  return value.trim().padStart(3, '0')
+}
+
 export function getLayerModelAvailability(
   manifest: Manifest | null,
   layerId: string | null,

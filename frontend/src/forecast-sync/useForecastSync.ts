@@ -1,17 +1,17 @@
 import type { WeatherMapConfig } from '../config'
+import type { ForecastProductOptions, FieldInterpolationWindowData } from '../forecast-products'
 import type { ForecastRenderHost } from '../forecast-render'
 import { useForecastTimeContext } from '../forecast-time'
 import { useStartupController } from './useStartupController'
-import { useDataPrefetch } from './useDataPrefetch'
-import { useDataTarget } from './useDataTarget'
+import { useProductPrefetch } from './useProductPrefetch'
+import { useProductTarget } from './useProductTarget'
 import { useRequestRunner } from './useRequestRunner'
 import type { ForecastSyncStartupStatus } from './types'
-import type { FieldInterpolationWindowData } from '../forecast-data'
 
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
-  pressureContoursEnabled?: boolean
+  productOptions: ForecastProductOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
@@ -22,11 +22,11 @@ export type UseForecastSyncResult = {
 export function useForecastSync({
   renderHost,
   config,
-  pressureContoursEnabled = true,
+  productOptions,
   onProbeFrameChange,
 }: UseForecastSyncArgs): UseForecastSyncResult {
   const startup = useStartupController()
-  const target = useDataTarget(startup.retryToken)
+  const target = useProductTarget()
   const { syncCallbacks } = useForecastTimeContext()
 
   useRequestRunner({
@@ -35,14 +35,14 @@ export function useForecastSync({
     target,
     syncCallbacks,
     startup,
-    pressureContoursEnabled,
+    productOptions,
     onProbeFrameChange,
   })
-  useDataPrefetch({
+  useProductPrefetch({
     config,
     target,
     enabled: !startup.isBlocked,
-    pressureContoursEnabled,
+    productOptions,
   })
 
   return {

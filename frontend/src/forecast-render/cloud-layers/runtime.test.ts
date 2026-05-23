@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CloudLayersTimeSliceData } from '../../forecast-data'
+import type { CloudLayersTimeSliceData } from '../../forecast-products'
 import { getCloudLayersController } from './controller'
-import { createCloudLayersRuntime } from './runtime'
+import { createCloudLayersRuntime, packCloudTextureBytes } from './runtime'
 
 function createMockWebGl2() {
   return {
@@ -102,7 +102,9 @@ function createCloudTimeSlice(): CloudLayersTimeSliceData {
       nodata: -128,
       decodeFormula: 'decoded = stored * scale + offset',
     },
-    textureBytes: new Uint8Array([20, 40, 60, 255]),
+    low: new Int8Array([20]),
+    middle: new Int8Array([40]),
+    high: new Int8Array([60]),
     coverage: {} as CloudLayersTimeSliceData['coverage'],
   }
 }
@@ -136,5 +138,11 @@ describe('cloud layers runtime', () => {
     expect(gl.uniform1f).toHaveBeenCalledWith('u_zoom', 4.25)
 
     runtime.onRemove(map as never, gl as never)
+  })
+
+  it('packs cloud layer components into renderer texture bytes', () => {
+    const slice = createCloudTimeSlice()
+
+    expect(Array.from(packCloudTextureBytes(slice))).toEqual([20, 40, 60, 255])
   })
 })

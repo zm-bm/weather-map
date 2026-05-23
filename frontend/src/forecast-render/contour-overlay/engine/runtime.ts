@@ -1,9 +1,9 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
 import {
-  type PressureContourInterpolationWindowData,
-  type PressureContourTimeSliceData,
-} from '../../../forecast-data'
+  type PressureInterpolationWindowData,
+  type PressureTimeSliceData,
+} from '../../../forecast-products'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
 import {
@@ -36,8 +36,8 @@ type ContourOverlayState = {
   vertexBuffer: WebGLBuffer | null
   lowerPressureTexture: WebGLTexture | null
   upperPressureTexture: WebGLTexture | null
-  lowerPressureFrame: PressureContourTimeSliceData | null
-  upperPressureFrame: PressureContourTimeSliceData | null
+  lowerPressureFrame: PressureTimeSliceData | null
+  upperPressureFrame: PressureTimeSliceData | null
   gridNx: number
   gridNy: number
   lon0: number
@@ -222,7 +222,7 @@ export function createContourOverlayRuntime(): ContourOverlayRuntime {
 
 function applyPressureContourFrame(
   state: ContourOverlayState,
-  frame: PressureContourInterpolationWindowData | null
+  frame: PressureInterpolationWindowData | null
 ): void {
   if (!state.gl) return
   if (frame == null) {
@@ -356,7 +356,7 @@ export function interpolatePressureHpa(args: {
   return args.lowerHpa + ((args.upperHpa - args.lowerHpa) * clamp(args.mix, 0, 1))
 }
 
-function validatePressureFrame(frame: PressureContourTimeSliceData): void {
+function validatePressureFrame(frame: PressureTimeSliceData): void {
   const expectedCellCount = frame.grid.nx * frame.grid.ny
   if (frame.pressureHpa.length !== expectedCellCount) {
     throw new Error(`Unexpected pressure grid size for ${frame.artifactId}: got=${frame.pressureHpa.length} expected=${expectedCellCount}`)
@@ -365,7 +365,7 @@ function validatePressureFrame(frame: PressureContourTimeSliceData): void {
 
 function findReusablePressureTexture(
   state: ContourOverlayState,
-  frame: PressureContourTimeSliceData
+  frame: PressureTimeSliceData
 ): WebGLTexture | null {
   if (state.lowerPressureFrame === frame) return state.lowerPressureTexture
   if (state.upperPressureFrame === frame) return state.upperPressureTexture
@@ -395,7 +395,7 @@ function deleteUnusedPressureTexture(
 
 function createPressureTexture(
   gl: WebGL2RenderingContext,
-  frame: PressureContourTimeSliceData,
+  frame: PressureTimeSliceData,
 ): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) return null

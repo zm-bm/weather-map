@@ -8,18 +8,19 @@ import {
   FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
   getDefaultParticleLayer,
-  type ParticleLayerId,
-  type ParticleLayerSpec,
-  type LayerId,
+  particleLayerSourceArtifactId,
   type LayerSpec,
 } from '../forecast-catalog'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { resolveForecastInterpolationWindow } from '../forecast-time'
 import {
-  createForecastDataTarget,
+  createForecastProductTarget,
   type FieldInterpolationWindowData,
-  type ForecastDataTarget,
-} from '../forecast-data'
+  type ForecastProductOptions,
+  type ForecastProductTarget,
+  type LoadedForecastProducts,
+  type WindVectorSource,
+} from '../forecast-products'
 import type { ForecastRenderHost } from '../forecast-render'
 import {
   createActiveRunFixture,
@@ -29,8 +30,13 @@ import {
 import { useRequestRunner } from './useRequestRunner'
 import { useStartupController } from './useStartupController'
 
+const DEFAULT_PRODUCT_OPTIONS: ForecastProductOptions = {
+  pressure: true,
+  windVectors: true,
+}
+
 const mocks = vi.hoisted(() => ({
-  loadForecastData: vi.fn(),
+  loadForecastProducts: vi.fn(),
   applyRenderData: vi.fn(),
   artifactLoaderSignals: [] as AbortSignal[],
   fieldWindow: {
@@ -45,11 +51,11 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../forecast-data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../forecast-data')>()
+vi.mock('../forecast-products', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../forecast-products')>()
   return {
     ...actual,
-    loadForecastData: mocks.loadForecastData,
+    loadForecastProducts: mocks.loadForecastProducts,
   }
 })
 
@@ -57,6 +63,9 @@ vi.mock('../forecast-artifacts', () => ({
   createArtifactLoader: (args: { signal: AbortSignal }) => {
     mocks.artifactLoaderSignals.push(args.signal)
     return {
+      canLoadScalar: vi.fn(() => true),
+      canLoadVector: vi.fn(() => true),
+      canLoadVectorComponents: vi.fn(() => true),
       loadScalar: vi.fn(),
       loadVector: vi.fn(),
       loadVectorComponents: vi.fn(),
@@ -65,29 +74,27 @@ vi.mock('../forecast-artifacts', () => ({
   },
 }))
 
-type DataInput = {
+type TargetInput = {
   activeRun: ActiveForecastRun
-  selectedLayerId: LayerId
   selectedLayer: LayerSpec
-  selectedParticleLayerId: ParticleLayerId | null
-  selectedParticleLayer: ParticleLayerSpec | null
+  windVectorSource: WindVectorSource | null
   targetTimeMs: number
 }
 
 type SyncHarnessArgs = {
   renderHost: ForecastRenderHost | null
   config: ReturnType<typeof createConfigFixture>
-  dataInput: DataInput | null
+  targetInput: TargetInput | null
   syncCallbacks: ForecastTimeSyncCallbacks
-  pressureContoursEnabled?: boolean
+  productOptions?: ForecastProductOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
 function useSyncHarness(args: SyncHarnessArgs) {
   const startup = useStartupController()
   const target = useMemo(
-    () => buildDataTarget(args.dataInput, startup.retryToken),
-    [args.dataInput, startup.retryToken]
+    () => buildProductTarget(args.targetInput),
+    [args.targetInput]
   )
 
   useRequestRunner({
@@ -96,7 +103,7 @@ function useSyncHarness(args: SyncHarnessArgs) {
     target,
     syncCallbacks: args.syncCallbacks,
     startup,
-    pressureContoursEnabled: args.pressureContoursEnabled,
+    productOptions: args.productOptions ?? DEFAULT_PRODUCT_OPTIONS,
     onProbeFrameChange: args.onProbeFrameChange,
   })
 
@@ -119,7 +126,7 @@ function validTimeFor(activeRun: ActiveForecastRun, hourId: string): number {
   return Date.parse(time.validAt)
 }
 
-function createDataInput(overrides: Partial<DataInput> = {}): DataInput {
+function createTargetInput(overrides: Partial<TargetInput> = {}): TargetInput {
   const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
   const defaultLayerId = FORECAST_LAYER_GROUPS[0]?.defaultLayer
   const selectedLayer = defaultLayerId ? FORECAST_LAYERS_BY_ID[defaultLayerId] : undefined
@@ -128,21 +135,24 @@ function createDataInput(overrides: Partial<DataInput> = {}): DataInput {
   }
   const particleLayers = getAvailableParticleLayers(activeRun)
   const defaultParticleLayerId = getDefaultParticleLayer(particleLayers)
-  const selectedParticleLayer = defaultParticleLayerId
+  const windVectorSource = defaultParticleLayerId
     ? particleLayers[defaultParticleLayerId]
     : undefined
   return {
     activeRun,
-    selectedLayerId: selectedLayer.id,
     selectedLayer,
-    selectedParticleLayerId: selectedParticleLayer?.id ?? null,
-    selectedParticleLayer: selectedParticleLayer ?? null,
+    windVectorSource: windVectorSource == null
+      ? null
+      : {
+          id: String(windVectorSource.id),
+          artifactId: particleLayerSourceArtifactId(windVectorSource),
+        },
     targetTimeMs: validTimeFor(activeRun, activeRun.latest.times[0]?.id ?? '000'),
     ...overrides,
   }
 }
 
-function validTimeAt(input: DataInput, index: number): number {
+function validTimeAt(input: TargetInput, index: number): number {
   const hourId = input.activeRun.latest.times[index]?.id ?? '000'
   return validTimeFor(input.activeRun, hourId)
 }
@@ -151,7 +161,7 @@ function createBaseArgs(overrides: Partial<SyncHarnessArgs> = {}): SyncHarnessAr
   return {
     renderHost: { version: 1, apply: mocks.applyRenderData },
     config: createConfigFixture(),
-    dataInput: createDataInput(),
+    targetInput: createTargetInput(),
     syncCallbacks: createSyncCallbacks(),
     onProbeFrameChange: vi.fn(),
     ...overrides,
@@ -168,24 +178,40 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function buildDataTarget(
-  dataInput: DataInput | null,
-  retryToken: number
-): ForecastDataTarget | null {
-  if (!dataInput) return null
+function createLoadedProducts(overrides: {
+  field?: unknown
+  cloudLayers?: unknown | null
+  probeField?: unknown | null
+  precipType?: unknown | null
+  pressure?: unknown | null
+  windVectors?: unknown | null
+} = {}): LoadedForecastProducts {
+  return {
+    products: {
+      field: overrides.field ?? mocks.fieldWindow,
+      cloudLayers: overrides.cloudLayers ?? null,
+      precipType: overrides.precipType ?? null,
+      pressure: overrides.pressure ?? null,
+      windVectors: overrides.windVectors ?? mocks.particleWindow,
+    },
+    probeField: overrides.probeField === undefined
+      ? mocks.fieldWindow
+      : overrides.probeField,
+  } as LoadedForecastProducts
+}
+
+function buildProductTarget(targetInput: TargetInput | null): ForecastProductTarget | null {
+  if (!targetInput) return null
   const interpolationWindow = resolveForecastInterpolationWindow(
-    dataInput.activeRun.latest.times,
-    dataInput.targetTimeMs
+    targetInput.activeRun.latest.times,
+    targetInput.targetTimeMs
   )
 
-  return createForecastDataTarget({
-    activeRun: dataInput.activeRun,
-    selectedLayerId: dataInput.selectedLayerId,
-    selectedLayer: dataInput.selectedLayer,
-    selectedParticleLayerId: dataInput.selectedParticleLayerId,
-    selectedParticleLayer: dataInput.selectedParticleLayer,
+  return createForecastProductTarget({
+    activeRun: targetInput.activeRun,
+    selectedLayer: targetInput.selectedLayer,
+    windVectorSource: targetInput.windVectorSource,
     interpolationWindow,
-    retryToken,
   })
 }
 
@@ -193,20 +219,13 @@ describe('useRequestRunner + useStartupController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.artifactLoaderSignals.length = 0
-    mocks.loadForecastData.mockResolvedValue({
-      field: mocks.fieldWindow,
-      cloudLayers: null,
-      probeField: mocks.fieldWindow,
-      precipTypeOverlay: null,
-      pressureContours: null,
-      particles: mocks.particleWindow,
-    })
+    mocks.loadForecastProducts.mockResolvedValue(createLoadedProducts())
     mocks.applyRenderData.mockReturnValue(undefined)
   })
 
   it('does not sync when data input is missing', async () => {
     const args = createBaseArgs({
-      dataInput: null,
+      targetInput: null,
     })
 
     const { result } = renderHook(() => useSyncHarness(args))
@@ -215,7 +234,7 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).not.toHaveBeenCalled()
+    expect(mocks.loadForecastProducts).not.toHaveBeenCalled()
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
     expect(result.current.startupPhase).toBe('idle')
@@ -235,7 +254,7 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).not.toHaveBeenCalled()
+    expect(mocks.loadForecastProducts).not.toHaveBeenCalled()
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
     expect(callbacks.onRequestStart).not.toHaveBeenCalled()
     expect(result.current.startupPhase).toBe('loading')
@@ -246,38 +265,38 @@ describe('useRequestRunner + useStartupController', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
     })
   })
 
   it('starts syncing when request becomes enabled', async () => {
-    const dataInput = createDataInput()
+    const targetInput = createTargetInput()
     const callbacks = createSyncCallbacks()
     const args = createBaseArgs({
-      dataInput: null,
+      targetInput: null,
       syncCallbacks: callbacks,
     })
     const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
-    expect(mocks.loadForecastData).not.toHaveBeenCalled()
+    expect(mocks.loadForecastProducts).not.toHaveBeenCalled()
     expect(result.current.startupPhase).toBe('idle')
 
     rerender({
       ...args,
-      dataInput,
+      targetInput,
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
-      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(dataInput.targetTimeMs)
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(targetInput.targetTimeMs)
       expect(result.current.startupPhase).toBe('ready')
     })
   })
@@ -295,7 +314,7 @@ describe('useRequestRunner + useStartupController', () => {
     })
     expect(result.current.startupErrorMessage).toBeNull()
     expect(result.current.startupPhase).toBe('ready')
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
 
     rerender({
@@ -307,7 +326,7 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
   })
 
@@ -327,7 +346,7 @@ describe('useRequestRunner + useStartupController', () => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(1)
       expect(firstCallback).toHaveBeenCalledWith(mocks.fieldWindow)
     })
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
 
     rerender({
       ...args,
@@ -338,36 +357,29 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(secondCallback).not.toHaveBeenCalled()
 
-    const dataInput = args.dataInput as DataInput
+    const targetInput = args.targetInput as TargetInput
     rerender({
       ...args,
       onProbeFrameChange: secondCallback,
-      dataInput: {
-        ...dataInput,
-        targetTimeMs: validTimeAt(dataInput, 1),
+      targetInput: {
+        ...targetInput,
+        targetTimeMs: validTimeAt(targetInput, 1),
       },
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
       expect(secondCallback).toHaveBeenCalledWith(mocks.fieldWindow)
     })
   })
 
   it('does not rerun requests when sync callbacks change and uses the latest callbacks', async () => {
-    const frames = {
-      field: mocks.fieldWindow,
-      cloudLayers: null,
-      probeField: mocks.fieldWindow,
-      precipTypeOverlay: null,
-      pressureContours: null,
-      particles: mocks.particleWindow,
-    }
+    const frames = createLoadedProducts()
     const request = deferred<typeof frames>()
-    mocks.loadForecastData.mockImplementation(() => request.promise)
+    mocks.loadForecastProducts.mockImplementation(() => request.promise)
 
     const firstCallbacks = createSyncCallbacks()
     const secondCallbacks = createSyncCallbacks()
@@ -380,7 +392,7 @@ describe('useRequestRunner + useStartupController', () => {
     })
 
     expect(firstCallbacks.onRequestStart).toHaveBeenCalledWith(
-      (args.dataInput as DataInput).targetTimeMs
+      (args.targetInput as TargetInput).targetTimeMs
     )
 
     rerender({
@@ -392,13 +404,13 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(secondCallbacks.onRequestStart).not.toHaveBeenCalled()
 
     request.resolve(frames)
     await waitFor(() => {
       expect(secondCallbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
     })
     expect(firstCallbacks.onRequestApplied).not.toHaveBeenCalled()
@@ -425,7 +437,7 @@ describe('useRequestRunner + useStartupController', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(2)
       expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(2)
     })
@@ -433,7 +445,7 @@ describe('useRequestRunner + useStartupController', () => {
 
   it('does not rerun requests while startup is blocked after an initial failure', async () => {
     const startupError = new Error('wind failed')
-    mocks.loadForecastData.mockRejectedValueOnce(startupError)
+    mocks.loadForecastProducts.mockRejectedValueOnce(startupError)
 
     const args = createBaseArgs()
     const callbacks = args.syncCallbacks
@@ -443,7 +455,7 @@ describe('useRequestRunner + useStartupController', () => {
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs,
+        (args.targetInput as TargetInput).targetTimeMs,
         startupError
       )
       expect(result.current.startupPhase).toBe('error')
@@ -452,9 +464,9 @@ describe('useRequestRunner + useStartupController', () => {
 
     rerender({
       ...args,
-      dataInput: {
-        ...(args.dataInput as DataInput),
-        targetTimeMs: validTimeAt(args.dataInput as DataInput, 1),
+      targetInput: {
+        ...(args.targetInput as TargetInput),
+        targetTimeMs: validTimeAt(args.targetInput as TargetInput, 1),
       },
     })
 
@@ -462,21 +474,14 @@ describe('useRequestRunner + useStartupController', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
   })
 
   it('fires start then applied callbacks when engine succeeds', async () => {
-    const frames = {
-      field: mocks.fieldWindow,
-      cloudLayers: null,
-      probeField: mocks.fieldWindow,
-      precipTypeOverlay: null,
-      pressureContours: null,
-      particles: mocks.particleWindow,
-    }
+    const frames = createLoadedProducts()
     const request = deferred<typeof frames>()
-    mocks.loadForecastData.mockImplementation(() => request.promise)
+    mocks.loadForecastProducts.mockImplementation(() => request.promise)
 
     const args = createBaseArgs()
     const callbacks = args.syncCallbacks
@@ -485,14 +490,14 @@ describe('useRequestRunner + useStartupController', () => {
     expect(result.current.startupPhase).toBe('loading')
     expect(result.current.startupErrorMessage).toBeNull()
     expect(callbacks.onRequestStart).toHaveBeenCalledWith(
-      (args.dataInput as DataInput).targetTimeMs
+      (args.targetInput as TargetInput).targetTimeMs
     )
     expect(callbacks.onRequestApplied).not.toHaveBeenCalled()
 
     request.resolve(frames)
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
@@ -503,14 +508,14 @@ describe('useRequestRunner + useStartupController', () => {
     const abortError = new Error('Operation aborted')
     abortError.name = 'AbortError'
 
-    mocks.loadForecastData.mockRejectedValue(abortError)
+    mocks.loadForecastProducts.mockRejectedValue(abortError)
 
     const args = createBaseArgs()
     const callbacks = args.syncCallbacks
     const { result } = renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).not.toHaveBeenCalled()
     })
 
@@ -525,15 +530,9 @@ describe('useRequestRunner + useStartupController', () => {
 
   it('transitions to error, then retry reruns and reaches ready', async () => {
     const startupError = new Error('wind failed')
-    mocks.loadForecastData
+    mocks.loadForecastProducts
       .mockRejectedValueOnce(startupError)
-      .mockResolvedValueOnce({
-        field: mocks.fieldWindow,
-        cloudLayers: null,
-        probeField: mocks.fieldWindow,
-        pressureContours: null,
-        particles: mocks.particleWindow,
-      })
+      .mockResolvedValueOnce(createLoadedProducts())
 
     const args = createBaseArgs()
     const callbacks = args.syncCallbacks
@@ -543,13 +542,13 @@ describe('useRequestRunner + useStartupController', () => {
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs,
+        (args.targetInput as TargetInput).targetTimeMs,
         startupError
       )
       expect(result.current.startupPhase).toBe('error')
       expect(result.current.startupErrorMessage).toBe('wind failed')
     })
-    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
 
     act(() => {
@@ -557,10 +556,10 @@ describe('useRequestRunner + useStartupController', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
       expect(result.current.startupErrorMessage).toBeNull()
@@ -574,14 +573,8 @@ describe('useRequestRunner + useStartupController', () => {
       upper: { layerId: 'temperature', frame: 1 },
       mix: 0,
     }
-    mocks.loadForecastData
-      .mockResolvedValueOnce({
-        field: mocks.fieldWindow,
-        cloudLayers: null,
-        probeField: probeFrame,
-        pressureContours: null,
-        particles: mocks.particleWindow,
-      })
+    mocks.loadForecastProducts
+      .mockResolvedValueOnce(createLoadedProducts({ probeField: probeFrame }))
       .mockRejectedValueOnce(laterError)
 
     const args = createBaseArgs()
@@ -592,18 +585,18 @@ describe('useRequestRunner + useStartupController', () => {
 
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
       expect(args.onProbeFrameChange).toHaveBeenCalledWith(probeFrame)
     })
 
-    const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
+    const nextValidTimeMs = validTimeAt(args.targetInput as TargetInput, 1)
 
     rerender({
       ...args,
-      dataInput: {
-        ...(args.dataInput as DataInput),
+      targetInput: {
+        ...(args.targetInput as TargetInput),
         targetTimeMs: nextValidTimeMs,
       },
     })
@@ -616,40 +609,44 @@ describe('useRequestRunner + useStartupController', () => {
     expect(args.onProbeFrameChange).toHaveBeenCalledTimes(1)
   })
 
-  it('forwards selected layer and selected particle layer to data loading', async () => {
+  it('forwards selected layer and wind-vector source to product loading', async () => {
     const manifest = createManifestFixture({
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: ['wind10m_uv'],
     })
     const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
-    const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
+    const windLayer = getAvailableParticleLayers(activeRun).wind!
+    const windVectorSource = {
+      id: String(windLayer.id),
+      artifactId: particleLayerSourceArtifactId(windLayer),
+    }
     const args = createBaseArgs({
-      dataInput: createDataInput({
+      targetInput: createTargetInput({
         activeRun,
-        selectedLayerId: selectedLayer.id,
         selectedLayer,
-        selectedParticleLayerId: selectedParticleLayer.id,
-        selectedParticleLayer,
+        windVectorSource,
       }),
     })
 
     renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledWith(expect.objectContaining({
-      plan: expect.objectContaining({
-        field: expect.objectContaining({ key: expect.any(String) }),
-        particles: expect.objectContaining({ key: expect.any(String) }),
+    expect(mocks.loadForecastProducts).toHaveBeenCalledWith(expect.objectContaining({
+      request: expect.objectContaining({
+        products: expect.arrayContaining([
+          expect.objectContaining({ id: 'field', key: expect.any(String) }),
+          expect.objectContaining({ id: 'windVectors', key: expect.any(String) }),
+        ]),
       }),
     }))
   })
 
-  it('forwards null particle selection to data loading when no particle artifact is available', async () => {
+  it('forwards null wind-vector source to product loading when no wind-vector artifact is available', async () => {
     const manifest = createManifestFixture({
       scalarArtifactIds: ['rh_surface'],
       vectorArtifactIds: [],
@@ -657,31 +654,34 @@ describe('useRequestRunner + useStartupController', () => {
     const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const args = createBaseArgs({
-      dataInput: createDataInput({
+      targetInput: createTargetInput({
         activeRun,
-        selectedLayerId: selectedLayer.id,
         selectedLayer,
-        selectedParticleLayerId: null,
-        selectedParticleLayer: null,
+        windVectorSource: null,
       }),
     })
 
     renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledWith(expect.objectContaining({
-      plan: expect.objectContaining({
-        field: expect.objectContaining({ key: expect.any(String) }),
-        particles: null,
+    expect(mocks.loadForecastProducts).toHaveBeenCalledWith(expect.objectContaining({
+      request: expect.objectContaining({
+        products: expect.arrayContaining([
+          expect.objectContaining({ id: 'field', key: expect.any(String) }),
+        ]),
       }),
     }))
+    const requestArg = mocks.loadForecastProducts.mock.calls[0]?.[0]?.request
+    expect(requestArg.products).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'windVectors' }),
+    ]))
   })
 
-  it('omits pressure contours from data loading when the map option is disabled', async () => {
+  it('omits pressure contours from product loading when the map option is disabled', async () => {
     const manifest = createManifestFixture({
       scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
       vectorArtifactIds: [],
@@ -689,39 +689,35 @@ describe('useRequestRunner + useStartupController', () => {
     const activeRun = createActiveRunFixture(manifest)
     const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
     const args = createBaseArgs({
-      pressureContoursEnabled: false,
-      dataInput: createDataInput({
+      productOptions: { pressure: false, windVectors: true },
+      targetInput: createTargetInput({
         activeRun,
-        selectedLayerId: selectedLayer.id,
         selectedLayer,
-        selectedParticleLayerId: null,
-        selectedParticleLayer: null,
+        windVectorSource: null,
       }),
     })
 
     renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
     })
 
-    expect(mocks.loadForecastData).toHaveBeenCalledWith(expect.objectContaining({
-      plan: expect.objectContaining({
-        pressureContours: null,
-      }),
-    }))
+    const requestArg = mocks.loadForecastProducts.mock.calls[0]?.[0]?.request
+    expect(requestArg.products).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'pressure' }),
+    ]))
   })
 
   it('publishes the selected layer probe frame after render succeeds', async () => {
-    const frames = {
-      field: { lower: { layerId: 'relative_humidity' } },
-      cloudLayers: null,
-      probeField: { lower: { layerId: 'relative_humidity' } },
-      pressureContours: null,
-      particles: { lower: { artifactId: 'wind10m_uv' } },
-    }
-    mocks.loadForecastData.mockResolvedValueOnce(frames)
+    const probeFrame = { lower: { layerId: 'relative_humidity' } }
+    const frames = createLoadedProducts({
+      field: probeFrame,
+      probeField: probeFrame,
+      windVectors: { lower: { artifactId: 'wind10m_uv' } },
+    })
+    mocks.loadForecastProducts.mockResolvedValueOnce(frames)
     const args = createBaseArgs()
 
     renderHook(() => useSyncHarness(args))
@@ -743,7 +739,7 @@ describe('useRequestRunner + useStartupController', () => {
 
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs,
+        (args.targetInput as TargetInput).targetTimeMs,
         renderError
       )
       expect(result.current.startupPhase).toBe('error')
@@ -753,20 +749,19 @@ describe('useRequestRunner + useStartupController', () => {
   })
 
   it('clears the applied probe field before loading a different probe channel', async () => {
-    const firstFrames = {
-      field: { lower: { layerId: 'temperature', frame: 1 } },
-      cloudLayers: null,
-      probeField: { lower: { layerId: 'temperature', frame: 1 } },
-      pressureContours: null,
-      particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
-    }
+    const probeFrame = { lower: { layerId: 'temperature', frame: 1 } }
+    const firstFrames = createLoadedProducts({
+      field: probeFrame,
+      probeField: probeFrame,
+      windVectors: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
+    })
     const secondRequest = deferred<typeof firstFrames>()
-    mocks.loadForecastData
+    mocks.loadForecastProducts
       .mockResolvedValueOnce(firstFrames)
       .mockImplementationOnce(() => secondRequest.promise)
 
     const args = createBaseArgs()
-    const dataInput = args.dataInput as DataInput
+    const targetInput = args.targetInput as TargetInput
     const relativeHumidityLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
     const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
@@ -778,68 +773,63 @@ describe('useRequestRunner + useStartupController', () => {
 
     rerender({
       ...args,
-      dataInput: {
-        ...dataInput,
-        selectedLayerId: relativeHumidityLayer.id,
+      targetInput: {
+        ...targetInput,
         selectedLayer: relativeHumidityLayer,
-        targetTimeMs: validTimeAt(dataInput, 1),
+        targetTimeMs: validTimeAt(targetInput, 1),
       },
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
       expect(args.onProbeFrameChange).toHaveBeenLastCalledWith(null)
     })
 
     secondRequest.resolve(firstFrames)
   })
 
-  it('passes reusable previous layer and particle interpolation windows to data loading', async () => {
-    const firstFrames = {
+  it('passes reusable previous layer and wind-vector interpolation windows to product loading', async () => {
+    const firstFrames = createLoadedProducts({
       field: { lower: { layerId: 'temperature', frame: 1 } },
-      cloudLayers: null,
       probeField: { lower: { layerId: 'temperature', frame: 1 } },
-      pressureContours: null,
-      particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
-    }
-    const secondFrames = {
+      windVectors: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
+    })
+    const secondFrames = createLoadedProducts({
       field: { lower: { layerId: 'temperature', frame: 2 } },
-      cloudLayers: null,
       probeField: { lower: { layerId: 'temperature', frame: 2 } },
-      pressureContours: null,
-      particles: { lower: { artifactId: 'wind10m_uv', frame: 2 } },
-    }
-    mocks.loadForecastData
+      windVectors: { lower: { artifactId: 'wind10m_uv', frame: 2 } },
+    })
+    mocks.loadForecastProducts
       .mockResolvedValueOnce(firstFrames)
       .mockResolvedValueOnce(secondFrames)
 
     const args = createBaseArgs()
-    const dataInput = args.dataInput as DataInput
+    const targetInput = args.targetInput as TargetInput
     const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
     })
 
     rerender({
       ...args,
-      dataInput: {
-        ...dataInput,
-        targetTimeMs: validTimeAt(dataInput, 1),
+      targetInput: {
+        ...targetInput,
+        targetTimeMs: validTimeAt(targetInput, 1),
       },
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
     })
-    expect(mocks.loadForecastData).toHaveBeenNthCalledWith(
+    expect(mocks.loadForecastProducts).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         previousWindows: expect.objectContaining({
-          field: firstFrames.field,
-          particles: firstFrames.particles,
+          field: firstFrames.products.field,
+          windVectors: firstFrames.products.windVectors,
         }),
       })
     )
@@ -847,7 +837,7 @@ describe('useRequestRunner + useStartupController', () => {
 
   it('resets startup state and aborts in-flight request when request becomes disabled', async () => {
     const request = deferred<void>()
-    mocks.loadForecastData.mockImplementationOnce(() => {
+    mocks.loadForecastProducts.mockImplementationOnce(() => {
       return request.promise
     })
 
@@ -857,14 +847,14 @@ describe('useRequestRunner + useStartupController', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.applyRenderData).not.toHaveBeenCalled()
       expect(result.current.startupPhase).toBe('loading')
     })
 
     rerender({
       ...args,
-      dataInput: null,
+      targetInput: null,
     })
 
     await waitFor(() => {
@@ -876,23 +866,16 @@ describe('useRequestRunner + useStartupController', () => {
   })
 
   it('aborts in-flight requests on unmount and ignores settled data', async () => {
-    const frames = {
-      field: mocks.fieldWindow,
-      cloudLayers: null,
-      probeField: mocks.fieldWindow,
-      precipTypeOverlay: null,
-      pressureContours: null,
-      particles: mocks.particleWindow,
-    }
+    const frames = createLoadedProducts()
     const request = deferred<typeof frames>()
-    mocks.loadForecastData.mockImplementationOnce(() => request.promise)
+    mocks.loadForecastProducts.mockImplementationOnce(() => request.promise)
 
     const args = createBaseArgs()
     const callbacks = args.syncCallbacks
     const { unmount } = renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(1)
       expect(mocks.artifactLoaderSignals[0]).toBeDefined()
     })
 
@@ -919,27 +902,27 @@ describe('useRequestRunner + useStartupController', () => {
 
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
-        (args.dataInput as DataInput).targetTimeMs
+        (args.targetInput as TargetInput).targetTimeMs
       )
     })
 
     const request = deferred<void>()
-    mocks.loadForecastData.mockImplementationOnce(() => {
+    mocks.loadForecastProducts.mockImplementationOnce(() => {
       return request.promise
     })
 
-    const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
+    const nextValidTimeMs = validTimeAt(args.targetInput as TargetInput, 1)
 
     rerender({
       ...args,
-      dataInput: {
-        ...(args.dataInput as DataInput),
+      targetInput: {
+        ...(args.targetInput as TargetInput),
         targetTimeMs: nextValidTimeMs,
       },
     })
 
     await waitFor(() => {
-      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(mocks.loadForecastProducts).toHaveBeenCalledTimes(2)
       expect(mocks.artifactLoaderSignals[1]).toBeDefined()
     })
 

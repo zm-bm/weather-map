@@ -7,7 +7,7 @@ import {
 } from '../layer'
 import { createFieldRuntime } from './engine/runtime'
 import { getFieldController } from './controller'
-import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type { FieldInterpolationWindowData } from '../../forecast-products'
 import type {
   FieldRenderSettings,
 } from '../../forecast-settings/settings'
@@ -32,7 +32,7 @@ export const fieldAdapter: RenderAdapter = {
     applyFieldRenderSettings(map, renderSettings.field)
   },
   apply(map, data) {
-    applyFieldInterpolationWindow(map, data.field)
+    applyFieldInterpolationWindow(map, data.products.field ?? null)
   },
 }
 

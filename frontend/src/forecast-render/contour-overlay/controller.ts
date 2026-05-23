@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { PressureContourInterpolationWindowData } from '../../forecast-data'
+import type { PressureInterpolationWindowData } from '../../forecast-products'
 
-export type ContourOverlayController = MapFrameController<PressureContourInterpolationWindowData | null>
+export type ContourOverlayController = MapFrameController<PressureInterpolationWindowData | null>
 
 const controllers = createMapControllerRegistry<ContourOverlayController>()
 

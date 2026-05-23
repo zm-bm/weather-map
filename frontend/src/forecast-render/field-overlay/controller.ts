@@ -4,9 +4,9 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { PrecipTypeOverlayInterpolationWindowData } from '../../forecast-data'
+import type { PrecipTypeInterpolationWindowData } from '../../forecast-products'
 
-export type FieldOverlayController = MapFrameController<PrecipTypeOverlayInterpolationWindowData | null>
+export type FieldOverlayController = MapFrameController<PrecipTypeInterpolationWindowData | null>
 
 const controllers = createMapControllerRegistry<FieldOverlayController>()
 

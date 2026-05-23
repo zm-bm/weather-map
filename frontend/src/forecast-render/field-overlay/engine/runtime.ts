@@ -12,8 +12,8 @@ import {
   type FieldOverlayController,
 } from '../controller'
 import type {
-  PrecipTypeOverlayTimeSliceData,
-} from '../../../forecast-data'
+  PrecipTypeTimeSliceData,
+} from '../../../forecast-products'
 import {
   FIELD_OVERLAY_LATTICE_VISIBILITY_MAX,
   FIELD_OVERLAY_LATTICE_VISIBILITY_MIN,
@@ -387,7 +387,7 @@ function deleteOverlayTextures(
   gl.deleteTexture(textures.mix)
 }
 
-function validateOverlayFrame(frame: PrecipTypeOverlayTimeSliceData): void {
+function validateOverlayFrame(frame: PrecipTypeTimeSliceData): void {
   const expectedCellCount = frame.grid.nx * frame.grid.ny
   if (frame.snowFrac.length !== expectedCellCount) {
     throw new Error(`Unexpected snow_frac grid size for ${frame.artifactId}: got=${frame.snowFrac.length} expected=${expectedCellCount}`)
@@ -399,7 +399,7 @@ function validateOverlayFrame(frame: PrecipTypeOverlayTimeSliceData): void {
 
 function createOverlayFrameTextures(
   gl: WebGL2RenderingContext,
-  frame: PrecipTypeOverlayTimeSliceData
+  frame: PrecipTypeTimeSliceData
 ): OverlayFrameTextures | null {
   const snow = createComponentTexture(gl, frame.grid.nx, frame.grid.ny, frame.snowFrac)
   const mix = createComponentTexture(gl, frame.grid.nx, frame.grid.ny, frame.mixFrac)

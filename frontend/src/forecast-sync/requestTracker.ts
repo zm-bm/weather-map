@@ -1,11 +1,11 @@
-import type { ForecastDataTarget } from '../forecast-data'
+import type { ForecastProductTarget } from '../forecast-products'
 import type { ForecastRenderHost } from '../forecast-render'
 
 export type RequestDecision =
   | { kind: 'disabled' }
   | { kind: 'blocked' }
   | { kind: 'pending' }
-  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastDataTarget }
+  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastProductTarget }
 
 export type ActiveRequest = {
   key: string
@@ -16,13 +16,13 @@ export type RequestTracker = {
   prepare: (args: {
     isBlocked: boolean
     renderHost: ForecastRenderHost | null
-    target: ForecastDataTarget | null
+    target: ForecastProductTarget | null
   }) => RequestDecision
   reset: () => void
   abort: () => void
   isApplied: (requestKey: string) => boolean
   isActive: (requestKey: string) => boolean
-  start: (requestKey: string) => ActiveRequest
+  start: (requestKey: string, controller?: AbortController) => ActiveRequest
   isCurrent: (request: ActiveRequest) => boolean
   markApplied: (request: ActiveRequest) => void
   finish: (request: ActiveRequest) => void
@@ -64,11 +64,11 @@ export function createRequestTracker(): RequestTracker {
     isActive(requestKey) {
       return active?.key === requestKey
     },
-    start(requestKey) {
+    start(requestKey, controller = new AbortController()) {
       active?.controller.abort()
       const request = {
         key: requestKey,
-        controller: new AbortController(),
+        controller,
       }
       active = request
       return request

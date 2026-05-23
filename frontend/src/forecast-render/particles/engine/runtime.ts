@@ -11,9 +11,9 @@ import {
   type ParticleController,
 } from '../controller'
 import {
-  type ParticleTimeSliceData,
-  type ParticleInterpolationWindowData,
-} from '../../../forecast-data'
+  type WindVectorTimeSliceData,
+  type WindVectorInterpolationWindowData,
+} from '../../../forecast-products'
 import {
   VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
@@ -57,8 +57,8 @@ type ParticleState = {
   // Packed RGBA textures built from lower/upper vector frames.
   vectorTextureLower: WebGLTexture | null
   vectorTextureUpper: WebGLTexture | null
-  vectorFrameLower: ParticleTimeSliceData | null
-  vectorFrameUpper: ParticleTimeSliceData | null
+  vectorFrameLower: WindVectorTimeSliceData | null
+  vectorFrameUpper: WindVectorTimeSliceData | null
   timeMix: number
   frameSignature: string | null
   available: boolean
@@ -355,7 +355,7 @@ export function createParticleRuntime(
 
 function applyVectorFieldToState(
   state: ParticleState,
-  vectorField: ParticleInterpolationWindowData,
+  vectorField: WindVectorInterpolationWindowData,
   options: ParticleRenderSettings,
 ) {
   const gl = state.gl
@@ -500,7 +500,7 @@ function rebuildParticleStateBuffers(
 
 function findReusableVectorTexture(
   state: ParticleState,
-  frame: ParticleTimeSliceData
+  frame: WindVectorTimeSliceData
 ): WebGLTexture | null {
   if (state.vectorFrameLower === frame) return state.vectorTextureLower
   if (state.vectorFrameUpper === frame) return state.vectorTextureUpper
@@ -969,7 +969,7 @@ function getStateBufferFromInfo(bufferInfo: twgl.BufferInfo) {
   return attrib?.buffer ?? null
 }
 
-function createVectorTexture(gl: WebGL2RenderingContext, frame: ParticleTimeSliceData) {
+function createVectorTexture(gl: WebGL2RenderingContext, frame: WindVectorTimeSliceData) {
   const componentBytes = frame.grid.nx * frame.grid.ny
   if (frame.u.length !== componentBytes || frame.v.length !== componentBytes) {
     console.warn('[particles] unexpected vector component sizes')

@@ -6,9 +6,13 @@ import {
   createConfigFixture,
   createManifestFixture,
 } from '../test/fixtures'
-import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
-import { createForecastDataTarget } from '../forecast-data'
-import type { ForecastDataTarget } from '../forecast-data'
+import {
+  FORECAST_LAYERS_BY_ID,
+  getAvailableParticleLayers,
+  particleLayerSourceArtifactId,
+} from '../forecast-catalog'
+import { createForecastProductTarget } from '../forecast-products'
+import type { ForecastProductOptions, ForecastProductTarget } from '../forecast-products'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { StartupController } from './useStartupController'
@@ -16,18 +20,23 @@ import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
   useStartupController: vi.fn(),
-  useDataTarget: vi.fn(),
+  useProductTarget: vi.fn(),
   useForecastTimeContext: vi.fn(),
   useRequestRunner: vi.fn(),
-  useDataPrefetch: vi.fn(),
+  useProductPrefetch: vi.fn(),
 }))
+
+const DEFAULT_PRODUCT_OPTIONS: ForecastProductOptions = {
+  pressure: true,
+  windVectors: true,
+}
 
 vi.mock('./useStartupController', () => ({
   useStartupController: () => mocks.useStartupController(),
 }))
 
-vi.mock('./useDataTarget', () => ({
-  useDataTarget: (retryToken: number) => mocks.useDataTarget(retryToken),
+vi.mock('./useProductTarget', () => ({
+  useProductTarget: () => mocks.useProductTarget(),
 }))
 
 vi.mock('../forecast-time', async (importOriginal) => {
@@ -42,8 +51,8 @@ vi.mock('./useRequestRunner', () => ({
   useRequestRunner: (args: unknown) => mocks.useRequestRunner(args),
 }))
 
-vi.mock('./useDataPrefetch', () => ({
-  useDataPrefetch: (args: unknown) => mocks.useDataPrefetch(args),
+vi.mock('./useProductPrefetch', () => ({
+  useProductPrefetch: (args: unknown) => mocks.useProductPrefetch(args),
 }))
 
 function createStartupState(
@@ -74,19 +83,20 @@ function createSyncCallbacks(): ForecastTimeSyncCallbacks {
   }
 }
 
-function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
+function createProductTarget(overrides: Partial<ForecastProductTarget> = {}): ForecastProductTarget {
   const activeRun = overrides.activeRun ?? createActiveRunFixture(createManifestFixture())
   const hourToken = activeRun.latest.times[0].id
   const validTimeMs = Date.UTC(2026, 3, 13, 12)
   const selectedLayer = FORECAST_LAYERS_BY_ID.temperature!
-  const selectedParticleLayer = getAvailableParticleLayers(activeRun).wind!
+  const windLayer = getAvailableParticleLayers(activeRun).wind!
   return {
-    ...createForecastDataTarget({
+    ...createForecastProductTarget({
       activeRun,
-      selectedLayerId: selectedLayer.id,
       selectedLayer,
-      selectedParticleLayerId: selectedParticleLayer.id,
-      selectedParticleLayer,
+      windVectorSource: {
+        id: String(windLayer.id),
+        artifactId: particleLayerSourceArtifactId(windLayer),
+      },
       interpolationWindow: {
         selectedValidTimeMs: validTimeMs,
         lowerHourToken: hourToken,
@@ -95,7 +105,6 @@ function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): Forecast
         upperValidTimeMs: validTimeMs,
         mix: 0,
       },
-      retryToken: 0,
     }),
     ...overrides,
   }
@@ -114,36 +123,37 @@ describe('useForecastSync', () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
-    const target = createDataTarget()
+    const target = createProductTarget()
     const syncCallbacks = createSyncCallbacks()
     const onProbeFrameChange = vi.fn()
 
     mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
+    mocks.useProductTarget.mockReturnValue(target)
     mocks.useForecastTimeContext.mockReturnValue({ syncCallbacks })
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
       onProbeFrameChange,
     }))
 
     expect(mocks.useStartupController).toHaveBeenCalledTimes(1)
-    expect(mocks.useDataTarget).toHaveBeenCalledWith(2)
+    expect(mocks.useProductTarget).toHaveBeenCalledWith()
     expect(mocks.useRequestRunner).toHaveBeenCalledWith({
       renderHost,
       config,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
       target,
       syncCallbacks,
       startup,
-      pressureContoursEnabled: true,
       onProbeFrameChange,
     })
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
+    expect(mocks.useProductPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: true,
-      pressureContoursEnabled: true,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
     })
     expect(result.current).toEqual({
       startupStatus: startup.status,
@@ -156,18 +166,19 @@ describe('useForecastSync', () => {
     const startup = createStartupState()
 
     mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(null)
+    mocks.useProductTarget.mockReturnValue(null)
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
     }))
 
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       startup,
     }))
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useProductPrefetch).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       enabled: true,
     }))
@@ -180,44 +191,45 @@ describe('useForecastSync', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState({ isBlocked: true })
-    const target = createDataTarget()
+    const target = createProductTarget()
 
     mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
+    mocks.useProductTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,
       config,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
     }))
 
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
+    expect(mocks.useProductPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: false,
-      pressureContoursEnabled: true,
+      productOptions: DEFAULT_PRODUCT_OPTIONS,
     })
   })
 
-  it('passes the pressure contour option to data loading and prefetch', () => {
+  it('passes the pressure contour option to product loading and prefetch', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const startup = createStartupState()
-    const target = createDataTarget()
+    const target = createProductTarget()
 
     mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
+    mocks.useProductTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,
       config,
-      pressureContoursEnabled: false,
+      productOptions: { pressure: false, windVectors: true },
     }))
 
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
-      pressureContoursEnabled: false,
+      productOptions: { pressure: false, windVectors: true },
     }))
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
-      pressureContoursEnabled: false,
+    expect(mocks.useProductPrefetch).toHaveBeenCalledWith(expect.objectContaining({
+      productOptions: { pressure: false, windVectors: true },
     }))
   })
 })

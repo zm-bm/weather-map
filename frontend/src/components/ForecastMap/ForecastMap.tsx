@@ -11,6 +11,7 @@ import {
   type ForecastRendererId,
   type ForecastRenderProfile,
 } from '../../forecast-render'
+import type { ForecastProductOptions } from '../../forecast-products'
 import { useForecastSelectionContext } from '../../forecast-selection'
 import { useForecastSync, type ForecastSyncStartupStatus } from '../../forecast-sync'
 import { createForecastPlaceProbeFrameChannel } from '../../forecast-place-probes'
@@ -36,6 +37,8 @@ export default function ForecastMap({
     settings,
     actions,
   } = useForecastSettings()
+  const particlesEnabled = settings.particles.enabled
+  const pressureContoursEnabled = settings.pressureContours.enabled
 
   const renderSettings = useMemo(
     () => createRenderSettings(settings),
@@ -43,8 +46,13 @@ export default function ForecastMap({
   )
 
   const renderProfile = useMemo(
-    () => createRenderProfile(settings),
-    [settings],
+    () => createRenderProfile({ particlesEnabled, pressureContoursEnabled }),
+    [particlesEnabled, pressureContoursEnabled],
+  )
+
+  const productOptions = useMemo(
+    () => createProductOptions({ particlesEnabled, pressureContoursEnabled }),
+    [particlesEnabled, pressureContoursEnabled],
   )
 
   const renderHost = useForecastRenderHost({
@@ -63,7 +71,7 @@ export default function ForecastMap({
   const { startupStatus } = useForecastSync({
     renderHost,
     config,
-    pressureContoursEnabled: settings.pressureContours.enabled,
+    productOptions,
     onProbeFrameChange: probeFrameChannel.publish,
   })
 
@@ -95,10 +103,18 @@ export default function ForecastMap({
   )
 }
 
-function createRenderProfile(settings: ForecastSettings): ForecastRenderProfile {
+type ProductFeatureFlags = {
+  particlesEnabled: boolean
+  pressureContoursEnabled: boolean
+}
+
+function createRenderProfile({
+  particlesEnabled,
+  pressureContoursEnabled,
+}: ProductFeatureFlags): ForecastRenderProfile {
   const rendererIds: ForecastRendererId[] = ['field', 'cloud-layers', 'field-overlay']
-  if (settings.pressureContours.enabled) rendererIds.push('contour-overlay')
-  if (settings.particles.enabled) rendererIds.push('particles')
+  if (pressureContoursEnabled) rendererIds.push('contour-overlay')
+  if (particlesEnabled) rendererIds.push('particles')
 
   return { rendererIds }
 }
@@ -109,6 +125,16 @@ function createRenderSettings(settings: ForecastSettings): ForecastRenderSetting
       ...settings.field,
     },
     particles: createParticleRenderSettings(settings.particles),
+  }
+}
+
+function createProductOptions({
+  particlesEnabled,
+  pressureContoursEnabled,
+}: ProductFeatureFlags): ForecastProductOptions {
+  return {
+    pressure: pressureContoursEnabled,
+    windVectors: particlesEnabled,
   }
 }
 

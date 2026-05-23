@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ForecastDataTarget } from '../forecast-data'
+import type { ForecastProductTarget } from '../forecast-products'
 import type { ForecastRenderHost } from '../forecast-render'
 import { createRequestTracker } from './requestTracker'
 
-const target = {} as ForecastDataTarget
+const target = {} as ForecastProductTarget
 const renderHost: ForecastRenderHost = {
   version: 1,
   apply: () => undefined,

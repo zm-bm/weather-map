@@ -7,7 +7,7 @@ import {
 } from '../layer'
 import { createCloudLayersRuntime } from './runtime'
 import { getCloudLayersController } from './controller'
-import type { CloudLayersInterpolationWindowData } from '../../forecast-data'
+import type { CloudLayersInterpolationWindowData } from '../../forecast-products'
 
 export const CLOUD_LAYERS_LAYER_ID = 'cloud-layers-renderer-layer-id'
 
@@ -26,7 +26,7 @@ export const cloudLayersAdapter: RenderAdapter = {
     map.removeLayer(CLOUD_LAYERS_LAYER_ID)
   },
   apply(map, data) {
-    applyCloudLayersInterpolationWindow(map, data.cloudLayers)
+    applyCloudLayersInterpolationWindow(map, data.products.cloudLayers ?? null)
   },
 }
 

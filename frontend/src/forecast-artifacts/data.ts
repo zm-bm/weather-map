@@ -7,6 +7,7 @@ import type {
   VectorArtifactSpec,
 } from '../forecast-manifest'
 import {
+  normalizeForecastHourToken,
   resolveActiveRunArtifact,
   resolveActiveRunFrameRef,
 } from '../forecast-manifest'
@@ -41,6 +42,12 @@ type CreateArtifactLoaderArgs = {
 }
 
 export type ArtifactLoader = {
+  canLoadScalar: (artifactId: ArtifactId | string) => boolean
+  canLoadVector: (artifactId: ArtifactId | string) => boolean
+  canLoadVectorComponents: (
+    artifactId: ArtifactId | string,
+    components?: readonly string[]
+  ) => boolean
   loadScalar: (artifactId: ArtifactId | string, hourToken: string) => Promise<ScalarArtifactData>
   loadVector: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorArtifactData>
   loadVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorComponentArtifactData>
@@ -61,6 +68,31 @@ type ResolvedArtifact<D extends ArtifactKind> = {
 
 export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLoader {
   return {
+    canLoadScalar: (artifactId) => canLoadArtifact({
+      activeRun: args.activeRun,
+      artifactId,
+      kind: 'scalar',
+      assertSupported: assertSupportedScalarArtifact,
+    }),
+    canLoadVector: (artifactId) => canLoadArtifact({
+      activeRun: args.activeRun,
+      artifactId,
+      kind: 'vector',
+      assertSupported: assertSupportedWindVectorArtifact,
+    }),
+    canLoadVectorComponents: (artifactId, components) => canLoadArtifact({
+      activeRun: args.activeRun,
+      artifactId,
+      kind: 'vector',
+      assertSupported: (resolved) => {
+        assertSupportedVectorComponentArtifact(resolved)
+        if (components == null) return
+        const available = new Set(resolved.artifact.components)
+        if (!components.every((component) => available.has(component))) {
+          throw new Error(`Artifact ${resolved.artifactId} missing vector components`)
+        }
+      },
+    }),
     loadScalar: (artifactId, hourToken) => loadArtifact({
       ...args,
       artifactId,
@@ -93,6 +125,33 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       assertSupported: assertSupportedVectorComponentArtifact,
       decode: decodeRawVectorComponentArtifact,
     }),
+  }
+}
+
+function canLoadArtifact<D extends ArtifactKind>(args: {
+  activeRun: ActiveForecastRun
+  artifactId: ArtifactId | string
+  kind: D
+  assertSupported: (resolved: ResolvedArtifact<D>) => void
+}): boolean {
+  const artifactId = String(args.artifactId)
+  const artifact = args.activeRun.latest.artifacts[artifactId]
+  if (!artifact || artifact.kind !== args.kind) return false
+  const resolved = {
+    artifactId,
+    hourToken: '',
+    frameRef: {
+      path: '',
+      byteLength: artifact.byteLength,
+    },
+    artifact,
+  } as ResolvedArtifact<D>
+
+  try {
+    args.assertSupported(resolved)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -163,12 +222,6 @@ function decodeScalarArtifact(
     encoding,
     values,
   }
-}
-
-function normalizeArtifactHourToken(value: string): string {
-  const trimmed = value.trim()
-  if (/^\d+$/.test(trimmed)) return trimmed.padStart(3, '0')
-  return trimmed
 }
 
 function decodeWindVectorArtifact(
@@ -268,7 +321,7 @@ function resolveArtifact<D extends ArtifactKind>(
     kind: D
   }
 ): ResolvedArtifact<D> {
-  const hourToken = normalizeArtifactHourToken(args.hourToken)
+  const hourToken = normalizeForecastHourToken(args.hourToken)
   const artifactId = String(args.artifactId)
   const artifact = resolveActiveRunArtifact(args.activeRun, artifactId, args.kind)
   const frameRef = resolveActiveRunFrameRef({

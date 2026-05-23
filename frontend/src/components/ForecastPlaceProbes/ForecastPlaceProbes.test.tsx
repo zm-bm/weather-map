@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type { FieldInterpolationWindowData } from '../../forecast-products'
 import type {
   ForecastPlaceProbeFrame,
   ForecastPlaceProbeFrameChannel,

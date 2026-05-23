@@ -29,6 +29,32 @@ function artifacts(manifest: ReturnType<typeof createSingleTimeManifestFixture>)
   })
 }
 
+describe('artifact capabilities', () => {
+  it('reports supported scalar, wind-vector, and vector-component artifacts', () => {
+    const loader = artifacts(createSingleTimeManifestFixture({
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
+        wind10m_uv: createVectorArtifactFixture({
+          id: 'wind10m_uv',
+          components: ['u', 'v'],
+        }),
+        precip_type_surface: createVectorArtifactFixture({
+          id: 'precip_type_surface',
+          components: ['snow_frac', 'mix_frac'],
+        }),
+      },
+    }))
+
+    expect(loader.canLoadScalar('tmp_surface')).toBe(true)
+    expect(loader.canLoadScalar('wind10m_uv')).toBe(false)
+    expect(loader.canLoadVector('wind10m_uv')).toBe(true)
+    expect(loader.canLoadVector('tmp_surface')).toBe(false)
+    expect(loader.canLoadVectorComponents('precip_type_surface', ['snow_frac', 'mix_frac'])).toBe(true)
+    expect(loader.canLoadVectorComponents('precip_type_surface', ['rain_frac'])).toBe(false)
+    expect(loader.canLoadVectorComponents('missing', ['snow_frac'])).toBe(false)
+  })
+})
+
 describe('scalar payload', () => {
   it('maps loaded scalar payload into frame data', async () => {
     const payload = createScalarPayloadFixture([1, 2, 3, 4])

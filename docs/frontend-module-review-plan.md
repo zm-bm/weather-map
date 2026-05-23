@@ -54,17 +54,34 @@ Check for:
 - unnecessary public exports
 - test coverage for frame updates, hover cleanup, and style-removal tolerance
 
-### 4. `forecast-data`
+### 4. `forecast-products`
 
-Review data planning and loading after the runtime owners are clear.
+Review product planning and loading after the runtime owners are clear.
 
 Check for:
 
-- request target and data plan naming
+- request target and product request naming
 - cache and memory ownership
-- field, overlay, particle, and contour loading responsibilities
-- duplicated branching between data planning and sync
-- tests that cover plan outcomes rather than private helper sequencing
+- field, cloud, precip-type, pressure, and wind-vector product responsibilities
+- duplicated branching between product planning and sync
+- tests that cover product-request outcomes rather than private helper sequencing
+
+Current guidance:
+
+- Keep `forecast-products` as the public product facade, but avoid exporting
+  registry implementation types unless another module truly needs them.
+- Keep product definitions declarative: each product should own enablement,
+  capability checks, cache/request key contribution, load behavior, failure
+  policy, and optional probe-field projection.
+- If catalog coupling starts to feel heavy, introduce a smaller selected product
+  source descriptor at the selection/sync edge instead of making products depend
+  on full UI catalog layer objects forever.
+- Keep sync responsible for app/user options that decide whether optional
+  product families are requested; products should execute explicit options, not
+  infer UI settings.
+- Keep render-specific packing and GPU texture shapes in `forecast-render`.
+  `forecast-products` should expose meteorological product windows and derived
+  product semantics only.
 
 ### 5. `forecast-time`
 
@@ -72,7 +89,7 @@ Review time as the owner of timeline state and playback callbacks.
 
 Check for:
 
-- whether timeline callbacks are clearly separated from data loading
+- whether timeline callbacks are clearly separated from product loading
 - playback state transitions and boundary behavior
 - names that distinguish selected time, target time, valid time, and loaded data
   time

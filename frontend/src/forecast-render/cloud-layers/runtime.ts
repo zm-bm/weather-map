@@ -1,6 +1,6 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import type { CloudLayersTimeSliceData } from '../../forecast-data'
+import type { CloudLayersTimeSliceData } from '../../forecast-products'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../field/engine/constants'
 import { asWebGL2 } from '../webgl'
@@ -10,6 +10,8 @@ import {
   type CloudLayersController,
 } from './controller'
 import { CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE } from './shaders'
+
+const CLOUD_TEXTURE_NODATA_BYTE = 255
 
 type CloudLayersState = {
   map?: MapLibreMap
@@ -273,9 +275,16 @@ export function createCloudLayersRuntime(): CloudLayersRuntime {
 }
 
 function validateCloudFrame(frame: CloudLayersTimeSliceData): void {
-  const expectedByteCount = frame.grid.nx * frame.grid.ny * 4
-  if (frame.textureBytes.length !== expectedByteCount) {
-    throw new Error(`Unexpected cloud layers texture size for ${frame.artifactId}: got=${frame.textureBytes.length} expected=${expectedByteCount}`)
+  const expectedCellCount = frame.grid.nx * frame.grid.ny
+  if (
+    frame.low.length !== expectedCellCount ||
+    frame.middle.length !== expectedCellCount ||
+    frame.high.length !== expectedCellCount
+  ) {
+    throw new Error(
+      `Unexpected cloud layers component size for ${frame.artifactId}: ` +
+      `low=${frame.low.length} middle=${frame.middle.length} high=${frame.high.length} expected=${expectedCellCount}`
+    )
   }
 }
 
@@ -285,6 +294,7 @@ function createCloudTexture(
 ): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) return null
+  const textureBytes = packCloudTextureBytes(frame)
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
@@ -301,11 +311,34 @@ function createCloudTexture(
     0,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    frame.textureBytes
+    textureBytes
   )
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
+}
+
+export function packCloudTextureBytes(frame: CloudLayersTimeSliceData): Uint8Array {
+  const cellCount = frame.grid.nx * frame.grid.ny
+  const textureBytes = new Uint8Array(cellCount * 4)
+
+  for (let idx = 0; idx < cellCount; idx += 1) {
+    const outOffset = idx * 4
+    textureBytes[outOffset] = cloudTextureByte(frame.low[idx], frame.encoding.nodata)
+    textureBytes[outOffset + 1] = cloudTextureByte(frame.middle[idx], frame.encoding.nodata)
+    textureBytes[outOffset + 2] = cloudTextureByte(frame.high[idx], frame.encoding.nodata)
+    textureBytes[outOffset + 3] = 255
+  }
+
+  return textureBytes
+}
+
+function cloudTextureByte(stored: number, nodata: number | undefined): number {
+  if (nodata != null && stored === nodata) return CLOUD_TEXTURE_NODATA_BYTE
+  if (!Number.isFinite(stored) || stored < 0 || stored >= CLOUD_TEXTURE_NODATA_BYTE) {
+    throw new Error(`Unsupported cloud component stored value: ${stored}`)
+  }
+  return stored
 }
 
 function clearCloudTextures(state: CloudLayersState): void {

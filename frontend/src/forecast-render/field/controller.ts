@@ -4,7 +4,7 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type { FieldInterpolationWindowData } from '../../forecast-products'
 import type { FieldRenderSettings } from '../../forecast-settings/settings'
 
 export type FieldController = MapFrameController<FieldInterpolationWindowData | null> & {

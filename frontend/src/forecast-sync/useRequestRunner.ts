@@ -4,11 +4,15 @@ import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
-  createForecastDataPlan,
-  createForecastDataMemory,
-  loadForecastData,
-} from '../forecast-data'
-import type { FieldInterpolationWindowData, ForecastDataTarget } from '../forecast-data'
+  createForecastProductRequest,
+  createForecastProductMemory,
+  loadForecastProducts,
+} from '../forecast-products'
+import type {
+  FieldInterpolationWindowData,
+  ForecastProductOptions,
+  ForecastProductTarget,
+} from '../forecast-products'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { createRequestTracker, type ActiveRequest, type RequestTracker } from './requestTracker'
@@ -17,10 +21,10 @@ import type { StartupController } from './useStartupController'
 type UseRequestRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
-  target: ForecastDataTarget | null
+  target: ForecastProductTarget | null
   syncCallbacks: ForecastTimeSyncCallbacks
   startup: StartupController
-  pressureContoursEnabled?: boolean
+  productOptions: ForecastProductOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
@@ -30,7 +34,7 @@ export function useRequestRunner({
   target,
   syncCallbacks,
   startup,
-  pressureContoursEnabled = true,
+  productOptions,
   onProbeFrameChange,
 }: UseRequestRunnerArgs): void {
   const {
@@ -39,15 +43,16 @@ export function useRequestRunner({
     handlePending,
     handleApplied,
     handleError,
+    retryToken,
   } = startup
 
   const requestTrackerRef = useRef<RequestTracker | null>(null)
   if (requestTrackerRef.current == null) {
     requestTrackerRef.current = createRequestTracker()
   }
-  const dataMemoryRef = useRef<ReturnType<typeof createForecastDataMemory> | null>(null)
-  if (dataMemoryRef.current == null) {
-    dataMemoryRef.current = createForecastDataMemory()
+  const productMemoryRef = useRef<ReturnType<typeof createForecastProductMemory> | null>(null)
+  if (productMemoryRef.current == null) {
+    productMemoryRef.current = createForecastProductMemory()
   }
   const onProbeFrameChangeRef = useRef(onProbeFrameChange)
   onProbeFrameChangeRef.current = onProbeFrameChange
@@ -57,7 +62,7 @@ export function useRequestRunner({
   useEffect(() => {
     return () => {
       requestTrackerRef.current?.reset()
-      dataMemoryRef.current?.reset()
+      productMemoryRef.current?.reset()
     }
   }, [])
 
@@ -73,7 +78,7 @@ export function useRequestRunner({
 
     switch (decision.kind) {
       case 'disabled':
-        dataMemoryRef.current?.reset()
+        productMemoryRef.current?.reset()
         onProbeFrameChangeRef.current?.(null)
         handleDisabled()
         return
@@ -86,34 +91,42 @@ export function useRequestRunner({
         break
     }
 
-    const { renderHost: activeRenderHost, target: dataTarget } = decision
+    const { renderHost: activeRenderHost, target: productTarget } = decision
+    const requestController = new AbortController()
+    const productRequest = createForecastProductRequest({
+      target: productTarget,
+      artifacts: createArtifactLoader({
+        config,
+        activeRun: productTarget.activeRun,
+        signal: requestController.signal,
+      }),
+      retryToken,
+      options: productOptions,
+    })
     const {
       selectedValidTimeMs,
       requestKey,
-    } = dataTarget
-    const contourStateKey = pressureContoursEnabled ? 'contours:on' : 'contours:off'
-    const renderRequestKey = `${activeRenderHost.version}:${contourStateKey}:${requestKey}`
-    const dataMemory = dataMemoryRef.current
-    if (dataMemory == null) return
+    } = productRequest
+    const renderRequestKey = `${activeRenderHost.version}:${requestKey}`
+    const productMemory = productMemoryRef.current
+    if (productMemory == null) {
+      requestController.abort()
+      return
+    }
 
     if (requestTracker.isApplied(renderRequestKey)) {
+      requestController.abort()
       requestTracker.abort()
       return
     }
-    if (requestTracker.isActive(renderRequestKey)) return
+    if (requestTracker.isActive(renderRequestKey)) {
+      requestController.abort()
+      return
+    }
 
-    const activeRequest = requestTracker.start(renderRequestKey)
-    const dataPlan = createForecastDataPlan({
-      target: dataTarget,
-      artifacts: createArtifactLoader({
-        config,
-        activeRun: dataTarget.activeRun,
-        signal: activeRequest.controller.signal,
-      }),
-      pressureContoursEnabled,
-    })
+    const activeRequest = requestTracker.start(renderRequestKey, requestController)
 
-    if (dataMemory.shouldClearFieldProbe(dataPlan)) {
+    if (productMemory.shouldClearProbeField(productRequest)) {
       onProbeFrameChangeRef.current?.(null)
     }
 
@@ -122,17 +135,17 @@ export function useRequestRunner({
 
     const runRequest = async () => {
       try {
-        const renderData = await loadForecastData({
-          plan: dataPlan,
-          previousWindows: dataMemory.reusableWindowsFor(dataPlan),
+        const loadedProducts = await loadForecastProducts({
+          request: productRequest,
+          previousWindows: productMemory.reusableWindowsFor(productRequest),
         })
 
         if (isRequestStale(requestTracker, activeRequest)) return
-        activeRenderHost.apply(renderData)
+        activeRenderHost.apply(loadedProducts)
         if (isRequestStale(requestTracker, activeRequest)) return
 
-        onProbeFrameChangeRef.current?.(renderData.probeField ?? null)
-        dataMemory.commit(dataPlan, renderData)
+        onProbeFrameChangeRef.current?.(loadedProducts.probeField ?? null)
+        productMemory.commit(productRequest, loadedProducts)
         requestTracker.markApplied(activeRequest)
         syncCallbacksRef.current.onRequestApplied(selectedValidTimeMs)
         handleApplied()
@@ -160,8 +173,9 @@ export function useRequestRunner({
     handleError,
     handlePending,
     isBlocked,
-    pressureContoursEnabled,
+    productOptions,
     renderHost,
+    retryToken,
     target,
   ])
 }

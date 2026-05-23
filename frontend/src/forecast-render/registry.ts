@@ -2,7 +2,7 @@ import type {
   Map as MapLibreMap,
 } from 'maplibre-gl'
 
-import type { ForecastRenderData } from '../forecast-data'
+import type { LoadedForecastProducts } from '../forecast-products'
 import type {
   ForecastRenderProfile,
   ForecastRendererId,
@@ -58,7 +58,7 @@ export function configureProfile(
 export function applyData(
   map: MapLibreMap,
   profile: ForecastRenderProfile,
-  data: ForecastRenderData,
+  data: LoadedForecastProducts,
 ): void {
   for (const adapter of adaptersForProfile(profile)) {
     adapter.apply(map, data)

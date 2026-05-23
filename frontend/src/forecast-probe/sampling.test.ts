@@ -8,7 +8,7 @@ import {
   sampleFieldInterpolationWindowWithSampler,
   sampleFieldTimeSliceWithSampler,
 } from './sampling'
-import type { FieldTimeSliceData } from '../forecast-data'
+import type { FieldTimeSliceData } from '../forecast-products'
 
 function createFrame(values: number[]): FieldTimeSliceData {
   return {
