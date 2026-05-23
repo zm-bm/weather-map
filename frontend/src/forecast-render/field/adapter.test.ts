@@ -4,8 +4,8 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
 } from '../../forecast-settings/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '../placement'
-import { applyFieldInterpolationWindow, applyFieldRenderSettings, fieldRenderer } from './adapter'
+import { FORECAST_LAYER_BEFORE_ID } from '../layer'
+import { applyFieldInterpolationWindow, applyFieldRenderSettings, fieldAdapter } from './adapter'
 
 const DEFAULT_RENDER_SETTINGS = {
   field: DEFAULT_FIELD_RENDER_SETTINGS,
@@ -25,7 +25,7 @@ vi.mock('./engine/runtime', () => ({
   createFieldRuntime: mocks.createFieldRuntime,
 }))
 
-describe('fieldRenderer', () => {
+describe('fieldAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getFieldController.mockReturnValue({
@@ -50,7 +50,7 @@ describe('fieldRenderer', () => {
       addLayer,
     }
 
-    fieldRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    fieldAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(mocks.createFieldRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.field)
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
@@ -66,7 +66,7 @@ describe('fieldRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    fieldRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    fieldAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createFieldRuntime).not.toHaveBeenCalled()
@@ -98,6 +98,20 @@ describe('fieldRenderer', () => {
 
     expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'temperature' } } as never))
       .toThrow('Field renderer unavailable (WebGL2 required)')
+  })
+
+  it('ignores empty field frames when runtime is unavailable', () => {
+    const applyFrame = vi.fn()
+    mocks.getFieldController.mockReturnValue({
+      isAvailable: () => false,
+      applyFrame,
+      setEnabled: vi.fn(),
+      applySettings: vi.fn(),
+    })
+
+    applyFieldInterpolationWindow({} as never, null)
+
+    expect(applyFrame).not.toHaveBeenCalled()
   })
 
   it('applies render settings to the field controller', () => {

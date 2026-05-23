@@ -3,7 +3,7 @@ import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 import type { CloudLayersTimeSliceData } from '../../forecast-data'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../field/engine/constants'
-import { asWebGL2 } from '../shared/webgl'
+import { asWebGL2 } from '../webgl'
 import {
   registerCloudLayersController,
   unregisterCloudLayersController,
@@ -11,7 +11,7 @@ import {
 } from './controller'
 import { CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE } from './shaders'
 
-type CloudLayersRendererState = {
+type CloudLayersState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   available: boolean
@@ -50,7 +50,7 @@ type CloudLayersRendererState = {
   }
 }
 
-export type CloudLayersRendererRuntime = {
+export type CloudLayersRuntime = {
   onAdd: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
   render: (
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -59,8 +59,8 @@ export type CloudLayersRendererRuntime = {
   onRemove: (_map: MapLibreMap, _gl: WebGLRenderingContext | WebGL2RenderingContext) => void
 }
 
-export function createCloudLayersRuntime(): CloudLayersRendererRuntime {
-  const state: CloudLayersRendererState = {
+export function createCloudLayersRuntime(): CloudLayersRuntime {
+  const state: CloudLayersState = {
     available: false,
     hasFrame: false,
     program: null,
@@ -308,7 +308,7 @@ function createCloudTexture(
   return texture
 }
 
-function clearCloudTextures(state: CloudLayersRendererState): void {
+function clearCloudTextures(state: CloudLayersState): void {
   if (!state.gl) return
   deleteUnusedCloudTexture(state.gl, state.lowerTexture, null, state.upperTexture)
   if (state.upperTexture) state.gl.deleteTexture(state.upperTexture)

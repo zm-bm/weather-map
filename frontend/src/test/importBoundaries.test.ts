@@ -243,9 +243,9 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastTimeInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Only map, render placement, and place probes may import basemap layer contracts',
+        'Only map, render layer helpers, and place probes may import basemap layer contracts',
         (file) => !file.path.includes('/map/') &&
-          !file.path.includes('/forecast-render/placement') &&
+          !file.path.includes('/forecast-render/layer') &&
           !file.path.includes('/forecast-place-probes/') &&
           !isTestFile(file.path) &&
           file.imports.some((reference) => reference.resolvedPath === '/map/basemap')

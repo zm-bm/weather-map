@@ -4,7 +4,7 @@ import * as twgl from 'twgl.js'
 import {
   asWebGL2,
   clamp,
-} from '../../shared/webgl'
+} from '../../webgl'
 import {
   registerParticleController,
   unregisterParticleController,
@@ -29,30 +29,16 @@ import {
   DEFAULT_PARTICLE_RENDER_SETTINGS,
   type ParticleRenderSettings,
 } from '../../../forecast-settings/settings'
+import {
+  captureCameraState,
+  computeViewportState,
+  hasCameraChanged,
+  toCellCenterOrigin,
+  type CameraState,
+  type ViewportState,
+} from './geo'
 
-type ViewportState = {
-  west: number
-  east: number
-  south: number
-  north: number
-  // Cached mercator bounds for lon/lat -> clip-space conversion.
-  mercatorWestX: number
-  mercatorEastX: number
-  mercatorNorthY: number
-  mercatorSouthY: number
-}
-
-type CameraState = {
-  centerLng: number
-  centerLat: number
-  zoom: number
-  bearing: number
-  pitch: number
-  width: number
-  height: number
-}
-
-type ParticleLayerState = {
+type ParticleState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   enabled: boolean
@@ -103,7 +89,7 @@ type ParticleLayerState = {
   zoomGestureMin: number
 }
 
-export type ParticleLayerRuntime = {
+export type ParticleRuntime = {
   onAdd: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
   render: (
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -114,12 +100,12 @@ export type ParticleLayerRuntime = {
 
 export function createParticleRuntime(
   initialSettings: Partial<ParticleRenderSettings> = DEFAULT_PARTICLE_RENDER_SETTINGS
-): ParticleLayerRuntime {
+): ParticleRuntime {
   const settings: ParticleRenderSettings = {
     ...DEFAULT_PARTICLE_RENDER_SETTINGS,
     ...initialSettings,
   }
-  const state: ParticleLayerState = {
+  const state: ParticleState = {
     enabled: true,
     lastFrameMs: 0,
     particleCount: settings.particleCount,
@@ -263,7 +249,7 @@ export function createParticleRuntime(
         state.available = false
         return
       }
-      state.previousCameraState = captureCameraState(state)
+      state.previousCameraState = captureCameraState(state.map, state.gl)
       state.available = true
 
       // Keep the custom layer animating.
@@ -368,7 +354,7 @@ export function createParticleRuntime(
 }
 
 function applyVectorFieldToState(
-  state: ParticleLayerState,
+  state: ParticleState,
   vectorField: ParticleInterpolationWindowData,
   options: ParticleRenderSettings,
 ) {
@@ -443,7 +429,7 @@ function applyVectorFieldToState(
 }
 
 function applyParticleRenderSettingsToState(
-  state: ParticleLayerState,
+  state: ParticleState,
   options: ParticleRenderSettings,
   nextOptions: Partial<ParticleRenderSettings>,
 ) {
@@ -474,7 +460,7 @@ function sanitizeParticleCount(value: number): number {
 }
 
 function rebuildParticleStateBuffers(
-  state: ParticleLayerState,
+  state: ParticleState,
   options: ParticleRenderSettings,
   particleCount: number,
 ): boolean {
@@ -513,7 +499,7 @@ function rebuildParticleStateBuffers(
 }
 
 function findReusableVectorTexture(
-  state: ParticleLayerState,
+  state: ParticleState,
   frame: ParticleTimeSliceData
 ): WebGLTexture | null {
   if (state.vectorFrameLower === frame) return state.vectorTextureLower
@@ -533,7 +519,7 @@ function deleteUnusedVectorTexture(
 }
 
 function runUpdatePass(
-  state: ParticleLayerState,
+  state: ParticleState,
   dtSec: number,
   nowMs: number,
   options: ParticleRenderSettings,
@@ -619,7 +605,7 @@ function runUpdatePass(
   state.activeSourceIndex = activeSourceIndex === 0 ? 1 : 0
 }
 
-function runParticlePass(state: ParticleLayerState, options: ParticleRenderSettings) {
+function runParticlePass(state: ParticleState, options: ParticleRenderSettings) {
   const { gl } = state
   if (!gl) return
 
@@ -629,7 +615,7 @@ function runParticlePass(state: ParticleLayerState, options: ParticleRenderSetti
   drawParticleGeometryPass(state, options)
 }
 
-function runTrailPass(state: ParticleLayerState, options: ParticleRenderSettings) {
+function runTrailPass(state: ParticleState, options: ParticleRenderSettings) {
   const {
     gl,
     trailFramebuffer,
@@ -658,7 +644,7 @@ function runTrailPass(state: ParticleLayerState, options: ParticleRenderSettings
 }
 
 function compositeTrailPass(
-  state: ParticleLayerState,
+  state: ParticleState,
   texture: WebGLTexture,
   opacity: number,
   quantize: boolean,
@@ -678,7 +664,7 @@ function compositeTrailPass(
 }
 
 function compositeTrailToMap(
-  state: ParticleLayerState,
+  state: ParticleState,
   texture: WebGLTexture,
   options: ParticleRenderSettings,
 ) {
@@ -704,7 +690,7 @@ function compositeTrailToMap(
   gl.disable(gl.BLEND)
 }
 
-function drawParticleGeometryPass(state: ParticleLayerState, options: ParticleRenderSettings) {
+function drawParticleGeometryPass(state: ParticleState, options: ParticleRenderSettings) {
   const {
     gl,
     viewport,
@@ -809,7 +795,7 @@ function getTrailQuadBufferFromInfo(bufferInfo: twgl.BufferInfo) {
   return attrib?.buffer ?? null
 }
 
-function ensureTrailTargets(state: ParticleLayerState, options: ParticleRenderSettings) {
+function ensureTrailTargets(state: ParticleState, options: ParticleRenderSettings) {
   const { gl, trailFramebuffer, trailTextures } = state
   if (!gl || !trailFramebuffer) return false
 
@@ -877,7 +863,7 @@ function bindTrailFramebuffer(
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
 }
 
-function clearTrailTextures(state: ParticleLayerState) {
+function clearTrailTextures(state: ParticleState) {
   const { gl, trailFramebuffer, trailTextures, trailWidth, trailHeight } = state
   if (!gl || !trailFramebuffer || !trailTextures[0] || !trailTextures[1]) return
 
@@ -892,8 +878,8 @@ function clearTrailTextures(state: ParticleLayerState) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 }
 
-function didCameraChange(state: ParticleLayerState) {
-  const next = captureCameraState(state)
+function didCameraChange(state: ParticleState) {
+  const next = captureCameraState(state.map, state.gl)
   if (!next) return false
   const prev = state.previousCameraState
   state.previousCameraState = next
@@ -901,7 +887,7 @@ function didCameraChange(state: ParticleLayerState) {
   return hasCameraChanged(prev, next)
 }
 
-function updateZoomOutRespawnState(state: ParticleLayerState, options: ParticleRenderSettings) {
+function updateZoomOutRespawnState(state: ParticleState, options: ParticleRenderSettings) {
   const map = state.map
   if (!map) return
 
@@ -929,38 +915,7 @@ function updateZoomOutRespawnState(state: ParticleLayerState, options: ParticleR
   }
 }
 
-function captureCameraState(state: ParticleLayerState): CameraState | null {
-  const { map, gl } = state
-  if (!map || !gl) return null
-  const center = map.getCenter()
-  return {
-    centerLng: center.lng,
-    centerLat: center.lat,
-    zoom: map.getZoom(),
-    bearing: map.getBearing(),
-    pitch: map.getPitch(),
-    width: gl.drawingBufferWidth,
-    height: gl.drawingBufferHeight,
-  }
-}
-
-function hasCameraChanged(previous: CameraState, next: CameraState) {
-  return (
-    !roughlyEqual(previous.centerLng, next.centerLng, 1e-7) ||
-    !roughlyEqual(previous.centerLat, next.centerLat, 1e-7) ||
-    !roughlyEqual(previous.zoom, next.zoom, 1e-7) ||
-    !roughlyEqual(previous.bearing, next.bearing, 1e-7) ||
-    !roughlyEqual(previous.pitch, next.pitch, 1e-7) ||
-    previous.width !== next.width ||
-    previous.height !== next.height
-  )
-}
-
-function roughlyEqual(a: number, b: number, epsilon: number) {
-  return Math.abs(a - b) <= epsilon
-}
-
-function reseedParticles(state: ParticleLayerState, maxAgeSec: number) {
+function reseedParticles(state: ParticleState, maxAgeSec: number) {
   const { gl, viewport, stateBufferInfos, particleCount } = state
   if (!gl || !viewport || !stateBufferInfos[0] || !stateBufferInfos[1]) return
 
@@ -1083,66 +1038,12 @@ function createProgramInfo(
   }
 }
 
-function computeViewportState(map: MapLibreMap): ViewportState {
-  const bounds = map.getBounds()
-  // Clamp latitude to the WebMercator domain.
-  const south = clamp(bounds.getSouth(), -85.0, 85.0)
-  const north = clamp(bounds.getNorth(), -85.0, 85.0)
-  const west = bounds.getWest()
-  let east = bounds.getEast()
-  // Unwrap antimeridian crossings into a continuous east-west span.
-  if (east < west) east += 360
-
-  const mercatorWestX = lonToMercatorX(west)
-  const mercatorEastX = lonToMercatorX(east)
-  const mercatorNorthY = latToMercatorY(north)
-  const mercatorSouthY = latToMercatorY(south)
-
-  return {
-    west,
-    east,
-    south,
-    north,
-    mercatorWestX,
-    mercatorEastX,
-    mercatorNorthY,
-    mercatorSouthY,
-  }
-}
-
-function lonToMercatorX(lon: number) {
-  // Accept unwrapped longitudes (can exceed 180 when crossing the dateline).
-  return (lon + 180) / 360
-}
-
-function latToMercatorY(lat: number) {
-  // Standard WebMercator Y in [0, 1].
-  const clamped = clamp(lat, -85.05112878, 85.05112878)
-  const s = Math.sin((clamped * Math.PI) / 180)
-  return 0.5 - (0.25 * Math.log((1 + s) / (1 - s))) / Math.PI
-}
-
 function i8ToU8(value: number) {
   // Reinterpret i8 payload from normalized unsigned texture bytes.
   return value < 0 ? value + 256 : value
 }
 
-function toCellCenterOrigin(lon0: number, lat0: number, dx: number, dy: number) {
-  // Detect cell-edge origins and shift to cell centers when needed.
-  return {
-    lon0: needsHalfCellShift(lon0, dx) ? lon0 + 0.5 * dx : lon0,
-    lat0: needsHalfCellShift(lat0, dy) ? lat0 + 0.5 * dy : lat0,
-  }
-}
-
-function needsHalfCellShift(origin: number, step: number) {
-  if (!Number.isFinite(origin) || !Number.isFinite(step) || step === 0) return false
-  const normalized = origin / step
-  const fractional = Math.abs(normalized - Math.round(normalized))
-  return Math.abs(fractional - 0.5) < 1e-6
-}
-
-function isReady(state: ParticleLayerState) {
+function isReady(state: ParticleState) {
   // Render/update requires all GPU resources plus a loaded frame.
   return Boolean(
     state.map &&

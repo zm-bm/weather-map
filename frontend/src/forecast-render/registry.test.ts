@@ -7,8 +7,8 @@ import {
 import {
   type ForecastRenderProfile,
 } from './types'
-import { reconcileForecastRenderers } from './host'
-import { FORECAST_LAYER_BEFORE_ID } from './placement'
+import { reconcileProfile } from './registry'
+import { FORECAST_LAYER_BEFORE_ID } from './layer'
 
 const DEFAULT_RENDER_SETTINGS = {
   field: DEFAULT_FIELD_RENDER_SETTINGS,
@@ -18,11 +18,11 @@ const DEFAULT_RENDER_PROFILE = {
   rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
 } as const satisfies ForecastRenderProfile
 
-describe('reconcileForecastRenderers', () => {
+describe('reconcileProfile', () => {
   it('installs requested profile renderers in deterministic order', () => {
     const { map, operations } = createLayerMap([FORECAST_LAYER_BEFORE_ID])
 
-    reconcileForecastRenderers(map as never, DEFAULT_RENDER_PROFILE, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map as never, DEFAULT_RENDER_PROFILE, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
@@ -44,7 +44,7 @@ describe('reconcileForecastRenderers', () => {
       rendererIds: ['field', 'cloud-layers', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileForecastRenderers(map as never, noOverlayProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map as never, noOverlayProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'remove-layer', id: 'particle-renderer-layer-id' },
@@ -58,7 +58,7 @@ describe('reconcileForecastRenderers', () => {
       rendererIds: ['field', 'cloud-layers', 'field'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileForecastRenderers(map as never, duplicateProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map as never, duplicateProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
@@ -72,7 +72,7 @@ describe('reconcileForecastRenderers', () => {
       rendererIds: ['field'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileForecastRenderers(map as never, fieldProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map as never, fieldProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: undefined },

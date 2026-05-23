@@ -6,7 +6,10 @@ import {
 } from '../../../forecast-data'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
-import { asWebGL2 } from '../../shared/webgl'
+import {
+  asWebGL2,
+  clamp,
+} from '../../webgl'
 import {
   registerContourOverlayController,
   unregisterContourOverlayController,
@@ -22,7 +25,7 @@ import {
 } from '../constants'
 import { PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE } from './shaders'
 
-type ContourOverlayRendererState = {
+type ContourOverlayState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   available: boolean
@@ -57,7 +60,7 @@ type ContourOverlayRendererState = {
   }
 }
 
-export type ContourOverlayRendererRuntime = {
+export type ContourOverlayRuntime = {
   onAdd: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
   render: (
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -66,8 +69,8 @@ export type ContourOverlayRendererRuntime = {
   onRemove: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
 }
 
-export function createContourOverlayRuntime(): ContourOverlayRendererRuntime {
-  const state: ContourOverlayRendererState = {
+export function createContourOverlayRuntime(): ContourOverlayRuntime {
+  const state: ContourOverlayState = {
     available: false,
     hasFrame: false,
     enabled: true,
@@ -218,7 +221,7 @@ export function createContourOverlayRuntime(): ContourOverlayRendererRuntime {
 }
 
 function applyPressureContourFrame(
-  state: ContourOverlayRendererState,
+  state: ContourOverlayState,
   frame: PressureContourInterpolationWindowData | null
 ): void {
   if (!state.gl) return
@@ -361,7 +364,7 @@ function validatePressureFrame(frame: PressureContourTimeSliceData): void {
 }
 
 function findReusablePressureTexture(
-  state: ContourOverlayRendererState,
+  state: ContourOverlayState,
   frame: PressureContourTimeSliceData
 ): WebGLTexture | null {
   if (state.lowerPressureFrame === frame) return state.lowerPressureTexture
@@ -369,7 +372,7 @@ function findReusablePressureTexture(
   return null
 }
 
-function clearPressureTextures(state: ContourOverlayRendererState): void {
+function clearPressureTextures(state: ContourOverlayState): void {
   if (!state.gl) return
   deleteUnusedPressureTexture(state.gl, state.lowerPressureTexture, null, state.upperPressureTexture)
   if (state.upperPressureTexture) state.gl.deleteTexture(state.upperPressureTexture)
@@ -500,8 +503,4 @@ function positiveModulo(value: number, divisor: number): number {
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = clamp((value - edge0) / Math.max(1e-6, edge1 - edge0), 0, 1)
   return t * t * (3 - (2 * t))
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }

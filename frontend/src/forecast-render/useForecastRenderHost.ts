@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { normalizeError } from '../abort'
 import {
-  applyForecastRenderProfileData,
-  configureForecastRenderers,
-  reconcileForecastRenderers,
-} from './host'
+  applyData,
+  configureProfile,
+  reconcileProfile,
+} from './registry'
 import {
   type ForecastRenderHost,
   type ForecastRenderProfile,
@@ -26,55 +26,92 @@ export function useForecastRenderHost({
   profile,
   renderSettings,
 }: UseForecastRenderHostArgs): ForecastRenderHost | null {
-  const [renderHost, setRenderHost] = useState<ForecastRenderHost | null>(null)
+  const hostStore = useMemo(() => createHostStore(), [])
+  const renderHost = useSyncExternalStore(
+    hostStore.subscribe,
+    hostStore.getSnapshot,
+    hostStore.getSnapshot,
+  )
   const installedRef = useRef<{
     map: MapLibreMap
     mapReadyVersion: number
-    profileVersionKey: string
+    profileKey: string
   } | null>(null)
 
   useEffect(() => {
     if (mapReadyVersion < 1) {
       installedRef.current = null
-      setRenderHost(null)
+      hostStore.publish(null)
       return
     }
 
     const map = getMap()
     if (!map) {
       installedRef.current = null
-      setRenderHost(null)
+      hostStore.publish(null)
       return
     }
 
-    const profileVersionKey = createProfileVersionKey(profile)
-    const shouldReconcile = !(
+    const profileKey = createProfileKey(profile)
+    const needsReconcile = !(
       installedRef.current?.map === map &&
       installedRef.current.mapReadyVersion === mapReadyVersion &&
-      installedRef.current.profileVersionKey === profileVersionKey
+      installedRef.current.profileKey === profileKey
     )
 
-    try {
-      if (shouldReconcile) {
-        reconcileForecastRenderers(map, profile, renderSettings)
+    if (needsReconcile) {
+      try {
+        reconcileProfile(map, profile, renderSettings)
+        configureProfile(map, profile, renderSettings)
+      } catch (error) {
+        console.error('[forecast-render] renderer update failed', normalizeError(error))
+        return
       }
-      configureForecastRenderers(map, profile, renderSettings)
+
+      installedRef.current = { map, mapReadyVersion, profileKey }
+      hostStore.publish({
+        version: (hostStore.getSnapshot()?.version ?? 0) + 1,
+        apply: (data) => applyData(map, profile, data),
+      })
+      return
+    }
+
+    try {
+      configureProfile(map, profile, renderSettings)
     } catch (error) {
       console.error('[forecast-render] renderer update failed', normalizeError(error))
-    } finally {
-      if (shouldReconcile) {
-        installedRef.current = { map, mapReadyVersion, profileVersionKey }
-        setRenderHost((current) => ({
-          version: (current?.version ?? 0) + 1,
-          apply: (data) => applyForecastRenderProfileData(map, profile, data),
-        }))
-      }
     }
-  }, [getMap, mapReadyVersion, profile, renderSettings])
+  }, [getMap, mapReadyVersion, profile, hostStore, renderSettings])
 
   return renderHost
 }
 
-function createProfileVersionKey(profile: ForecastRenderProfile): string {
+function createProfileKey(profile: ForecastRenderProfile): string {
   return profile.rendererIds.join(',')
+}
+
+type HostStore = {
+  getSnapshot: () => ForecastRenderHost | null
+  publish: (host: ForecastRenderHost | null) => void
+  subscribe: (listener: () => void) => () => void
+}
+
+function createHostStore(): HostStore {
+  let snapshot: ForecastRenderHost | null = null
+  const listeners = new Set<() => void>()
+
+  return {
+    getSnapshot: () => snapshot,
+    publish: (host) => {
+      if (snapshot === host) return
+      snapshot = host
+      for (const listener of listeners) listener()
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
 }

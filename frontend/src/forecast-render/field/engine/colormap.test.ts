@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildColormapLut,
-} from './runtime'
+} from './colormap'
 
 function getLutRgb(lut: Uint8Array, index: number): [number, number, number] {
   const offset = index * 4
   return [lut[offset], lut[offset + 1], lut[offset + 2]]
 }
 
-describe('field runtime helpers', () => {
+describe('field colormap helpers', () => {
   it('uses lower-bound threshold colors for banded colormap LUTs', () => {
     const lut = buildColormapLut([
       [0, 0, 0, 0],

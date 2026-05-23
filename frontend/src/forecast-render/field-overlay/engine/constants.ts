@@ -1,3 +1,5 @@
+import { clamp } from '../../webgl'
+
 export const FIELD_OVERLAY_MIN_PATTERN_ZOOM = 2
 export const FIELD_OVERLAY_MAX_PATTERN_ZOOM = 6
 export const FIELD_OVERLAY_MIN_PATTERN_TILE_PIXELS = 12
@@ -21,10 +23,6 @@ export function fieldOverlayPatternTilePixelsForZoom(zoom: number): number {
     1
   )
   return lerp(FIELD_OVERLAY_MIN_PATTERN_TILE_PIXELS, FIELD_OVERLAY_MAX_PATTERN_TILE_PIXELS, t)
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function lerp(a: number, b: number, t: number): number {

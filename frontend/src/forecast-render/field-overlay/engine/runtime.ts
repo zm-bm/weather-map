@@ -1,6 +1,9 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import { asWebGL2 } from '../../shared/webgl'
+import {
+  asWebGL2,
+  clamp,
+} from '../../webgl'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
 import {
@@ -29,7 +32,7 @@ type OverlayFrameTextures = {
   mix: WebGLTexture
 }
 
-type FieldOverlayRendererState = {
+type FieldOverlayState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   available: boolean
@@ -67,7 +70,7 @@ type FieldOverlayRendererState = {
   }
 }
 
-export type FieldOverlayRendererRuntime = {
+export type FieldOverlayRuntime = {
   onAdd: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
   render: (
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -76,8 +79,8 @@ export type FieldOverlayRendererRuntime = {
   onRemove: (_map: MapLibreMap, _gl: WebGLRenderingContext | WebGL2RenderingContext) => void
 }
 
-export function createFieldOverlayRuntime(): FieldOverlayRendererRuntime {
-  const state: FieldOverlayRendererState = {
+export function createFieldOverlayRuntime(): FieldOverlayRuntime {
+  const state: FieldOverlayState = {
     available: false,
     hasFrame: false,
     program: null,
@@ -364,7 +367,7 @@ export function precipTypeOverlayPatternWeights(args: {
   }
 }
 
-function clearOverlayTextures(state: FieldOverlayRendererState): void {
+function clearOverlayTextures(state: FieldOverlayState): void {
   if (!state.gl) return
   deleteOverlayTextures(state.gl, state.lowerTextures)
   deleteOverlayTextures(
@@ -513,7 +516,7 @@ function computeWorldSizeAtZoom(zoom: number): number {
   return 512 * (2 ** zoom)
 }
 
-function setPatternOpacityTarget(state: FieldOverlayRendererState, target: number): void {
+function setPatternOpacityTarget(state: FieldOverlayState, target: number): void {
   const nextTarget = finiteFraction(target)
   if (Math.abs(state.patternOpacityTarget - nextTarget) <= 0.001) return
   state.patternOpacityTarget = nextTarget
@@ -521,7 +524,7 @@ function setPatternOpacityTarget(state: FieldOverlayRendererState, target: numbe
   state.map?.triggerRepaint()
 }
 
-function elapsedPatternOpacityMs(state: FieldOverlayRendererState): number {
+function elapsedPatternOpacityMs(state: FieldOverlayState): number {
   const now = readPerformanceNow()
   return state.lastPatternOpacityMs == null ? 0 : now - state.lastPatternOpacityMs
 }
@@ -533,10 +536,6 @@ function readPerformanceNow(): number {
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.min(1, Math.max(0, (value - edge0) / Math.max(1e-6, edge1 - edge0)))
   return t * t * (3 - (2 * t))
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function finiteFraction(value: number): number {

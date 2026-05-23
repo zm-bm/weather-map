@@ -1,6 +1,5 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
-import type { PaletteStop } from '../../../forecast-palette'
 import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,
@@ -13,7 +12,7 @@ import {
 } from './constants'
 import {
   asWebGL2,
-} from '../../shared/webgl'
+} from '../../webgl'
 import {
   registerFieldController,
   unregisterFieldController,
@@ -27,10 +26,12 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   type FieldRenderSettings,
 } from '../../../forecast-settings/settings'
+import {
+  buildColormapLut,
+  createColormapKey,
+} from './colormap'
 
-type NormalizedColorStop = [number, number, number, number]
-
-type FieldRendererState = {
+type FieldState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   available: boolean
@@ -81,7 +82,7 @@ type FieldRendererState = {
   }
 }
 
-export type FieldRendererRuntime = {
+export type FieldRuntime = {
   onAdd: (map: MapLibreMap, gl: WebGLRenderingContext | WebGL2RenderingContext) => void
   render: (
     gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -92,12 +93,12 @@ export type FieldRendererRuntime = {
 
 export function createFieldRuntime(
   initialSettings: FieldRenderSettings = DEFAULT_FIELD_RENDER_SETTINGS
-): FieldRendererRuntime {
+): FieldRuntime {
   const settings: FieldRenderSettings = {
     ...DEFAULT_FIELD_RENDER_SETTINGS,
     ...initialSettings,
   }
-  const state: FieldRendererState = {
+  const state: FieldState = {
     available: false,
     hasFrame: false,
     opacity: FIELD_ACTIVE_OPACITY,
@@ -397,7 +398,7 @@ export function createFieldRuntime(
 }
 
 function findReusableScalarTexture(
-  state: FieldRendererState,
+  state: FieldState,
   frame: FieldTimeSliceData
 ): WebGLTexture | null {
   if (state.scalarFrameLower === frame) return state.scalarTexture
@@ -416,7 +417,7 @@ function deleteUnusedScalarTexture(
   gl.deleteTexture(texture)
 }
 
-function clearFieldTextures(state: FieldRendererState): void {
+function clearFieldTextures(state: FieldState): void {
   if (!state.gl) return
   deleteUnusedScalarTexture(state.gl, state.scalarTexture, null, state.scalarTextureUpper)
   if (state.scalarTextureUpper) state.gl.deleteTexture(state.scalarTextureUpper)
@@ -499,117 +500,6 @@ function createColormapTexture(
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
-}
-
-function createColormapKey(frame: FieldTimeSliceData): string {
-  // Deterministic key for LUT texture reuse.
-  return JSON.stringify({
-    displayRange: frame.displayRange,
-    colorStops: frame.colorStops,
-  })
-}
-
-export function buildColormapLut(
-  colorStops: PaletteStop[],
-  displayRange: [number, number],
-  size: number,
-  colorSamplingMode: FieldColorSamplingMode
-): Uint8Array {
-  // Normalize/sanitize stops before sampling into a fixed-size LUT.
-  const [rangeMin, rangeMax] = displayRange
-  const normalizedStops = normalizeColorStops(colorStops, displayRange)
-  const safeStops = [...normalizedStops]
-    .filter((stop) => Number.isFinite(stop[0]) && Number.isFinite(stop[1]) && Number.isFinite(stop[2]) && Number.isFinite(stop[3]))
-    .sort((a, b) => a[0] - b[0])
-  const stops = safeStops.length > 0
-    ? safeStops
-    : [[rangeMin, 220, 220, 220], [rangeMax, 80, 80, 80]] as NormalizedColorStop[]
-  const span = Math.max(1e-6, rangeMax - rangeMin)
-  const lut = new Uint8Array(size * 4)
-
-  for (let idx = 0; idx < size; idx += 1) {
-    const value = rangeMin + (span * idx) / Math.max(1, size - 1)
-    // Interpolated mode blends stops; banded mode treats stops as lower-bound thresholds.
-    const color = colorSamplingMode === 'banded'
-      ? sampleColorStopThreshold(stops, value)
-      : sampleColorStops(stops, value)
-    const offset = idx * 4
-    lut[offset] = color[0]
-    lut[offset + 1] = color[1]
-    lut[offset + 2] = color[2]
-    lut[offset + 3] = 255
-  }
-
-  return lut
-}
-
-function normalizeColorStops(
-  colorStops: PaletteStop[],
-  displayRange: [number, number]
-): NormalizedColorStop[] {
-  const [rangeMin, rangeMax] = displayRange
-  if (colorStops.length === 0) return []
-
-  const span = rangeMax - rangeMin
-  const denominator = Math.max(1, colorStops.length - 1)
-
-  return colorStops.map((stop, index) => {
-    // Stop format: [value, r, g, b] or [r, g, b].
-    // When value is omitted, distribute stops evenly across the display range.
-    if (stop.length === 4) {
-      return [stop[0], stop[1], stop[2], stop[3]]
-    }
-
-    const value = rangeMin + (span * index) / denominator
-    return [value, stop[0], stop[1], stop[2]]
-  })
-}
-
-function sampleColorStops(stops: NormalizedColorStop[], value: number): [number, number, number] {
-  // Piecewise-linear interpolation between adjacent stop pairs.
-  if (stops.length === 1) {
-    return [stops[0][1], stops[0][2], stops[0][3]]
-  }
-  if (value <= stops[0][0]) {
-    return [stops[0][1], stops[0][2], stops[0][3]]
-  }
-
-  const last = stops[stops.length - 1]
-  if (value >= last[0]) {
-    return [last[1], last[2], last[3]]
-  }
-
-  for (let i = 0; i < stops.length - 1; i += 1) {
-    const a = stops[i]
-    const b = stops[i + 1]
-    if (value < a[0] || value > b[0]) continue
-    const span = Math.max(1e-6, b[0] - a[0])
-    const t = (value - a[0]) / span
-    return [
-      Math.round(lerp(a[1], b[1], t)),
-      Math.round(lerp(a[2], b[2], t)),
-      Math.round(lerp(a[3], b[3], t)),
-    ]
-  }
-
-  return [last[1], last[2], last[3]]
-}
-
-function sampleColorStopThreshold(stops: NormalizedColorStop[], value: number): [number, number, number] {
-  // Lower-bound threshold lookup for banded mode.
-  if (stops.length === 1) {
-    return [stops[0][1], stops[0][2], stops[0][3]]
-  }
-
-  let selected = stops[0]
-
-  for (let i = 1; i < stops.length; i += 1) {
-    const candidate = stops[i]
-    if (value < candidate[0]) break
-    selected = candidate
-  }
-
-  return [selected[1], selected[2], selected[3]]
 }
 
 function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram | null {
@@ -696,8 +586,4 @@ function computeCenterWorldWrap(lng: number): number {
 function computeWorldSizeAtZoom(zoom: number): number {
   if (!Number.isFinite(zoom)) return 512
   return 512 * (2 ** zoom)
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
 }

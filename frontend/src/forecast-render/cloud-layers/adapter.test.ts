@@ -4,8 +4,8 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
 } from '../../forecast-settings/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '../placement'
-import { applyCloudLayersInterpolationWindow, cloudLayersRenderer } from './adapter'
+import { FORECAST_LAYER_BEFORE_ID } from '../layer'
+import { applyCloudLayersInterpolationWindow, cloudLayersAdapter } from './adapter'
 
 const DEFAULT_RENDER_SETTINGS = {
   field: DEFAULT_FIELD_RENDER_SETTINGS,
@@ -25,7 +25,7 @@ vi.mock('./runtime', () => ({
   createCloudLayersRuntime: mocks.createCloudLayersRuntime,
 }))
 
-describe('cloudLayersRenderer', () => {
+describe('cloudLayersAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getCloudLayersController.mockReturnValue({
@@ -49,7 +49,7 @@ describe('cloudLayersRenderer', () => {
       addLayer,
     }
 
-    cloudLayersRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    cloudLayersAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('cloud-layers-renderer-layer-id')
@@ -64,7 +64,7 @@ describe('cloudLayersRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    cloudLayersRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    cloudLayersAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createCloudLayersRuntime).not.toHaveBeenCalled()
@@ -96,5 +96,18 @@ describe('cloudLayersRenderer', () => {
 
     expect(() => applyCloudLayersInterpolationWindow({} as never, { lower: { layerId: 'cloud_layers' } } as never))
       .toThrow('Cloud Layers renderer unavailable (WebGL2 required)')
+  })
+
+  it('ignores empty cloud frames when runtime is unavailable', () => {
+    const applyFrame = vi.fn()
+    mocks.getCloudLayersController.mockReturnValue({
+      isAvailable: () => false,
+      applyFrame,
+      setEnabled: vi.fn(),
+    })
+
+    applyCloudLayersInterpolationWindow({} as never, null)
+
+    expect(applyFrame).not.toHaveBeenCalled()
   })
 })

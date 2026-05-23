@@ -4,10 +4,10 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
 } from '../../forecast-settings/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '../placement'
+import { FORECAST_LAYER_BEFORE_ID } from '../layer'
 import {
   applyPrecipTypeOverlayInterpolationWindow,
-  fieldOverlayRenderer,
+  fieldOverlayAdapter,
 } from './adapter'
 
 const DEFAULT_RENDER_SETTINGS = {
@@ -28,7 +28,7 @@ vi.mock('./engine/runtime', () => ({
   createFieldOverlayRuntime: mocks.createFieldOverlayRuntime,
 }))
 
-describe('fieldOverlayRenderer', () => {
+describe('fieldOverlayAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getFieldOverlayController.mockReturnValue({
@@ -52,7 +52,7 @@ describe('fieldOverlayRenderer', () => {
       addLayer,
     }
 
-    fieldOverlayRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    fieldOverlayAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(mocks.createFieldOverlayRuntime).toHaveBeenCalled()
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []

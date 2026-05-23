@@ -4,11 +4,11 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
 } from '../../forecast-settings/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '../placement'
+import { FORECAST_LAYER_BEFORE_ID } from '../layer'
 import {
   applyPressureContourInterpolationWindow,
-  CONTOUR_OVERLAY_RENDERER_LAYER_ID,
-  contourOverlayRenderer,
+  CONTOUR_OVERLAY_LAYER_ID,
+  contourOverlayAdapter,
 } from './adapter'
 import {
   registerContourOverlayController,
@@ -20,7 +20,7 @@ const DEFAULT_RENDER_SETTINGS = {
   particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
 }
 
-describe('contourOverlayRenderer', () => {
+describe('contourOverlayAdapter', () => {
   it('installs a custom pressure contour layer in forecast render order', () => {
     const addLayer = vi.fn()
     const map = {
@@ -30,11 +30,11 @@ describe('contourOverlayRenderer', () => {
       addLayer,
     }
 
-    contourOverlayRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    contourOverlayAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(addLayer).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: CONTOUR_OVERLAY_RENDERER_LAYER_ID,
+        id: CONTOUR_OVERLAY_LAYER_ID,
         type: 'custom',
         renderingMode: '2d',
         onAdd: expect.any(Function),
@@ -88,15 +88,33 @@ describe('contourOverlayRenderer', () => {
     }
   })
 
+  it('no-ops when the contour runtime is unavailable', () => {
+    const map = {}
+    const applyFrame = vi.fn()
+    registerContourOverlayController(map as never, {
+      isAvailable: () => false,
+      applyFrame,
+      setEnabled: vi.fn(),
+    })
+
+    try {
+      applyPressureContourInterpolationWindow(map as never, {} as never)
+    } finally {
+      unregisterContourOverlayController(map as never)
+    }
+
+    expect(applyFrame).not.toHaveBeenCalled()
+  })
+
   it('removes the custom contour layer', () => {
     const removeLayer = vi.fn()
     const map = {
-      getLayer: vi.fn(() => ({ id: CONTOUR_OVERLAY_RENDERER_LAYER_ID })),
+      getLayer: vi.fn(() => ({ id: CONTOUR_OVERLAY_LAYER_ID })),
       removeLayer,
     }
 
-    contourOverlayRenderer.uninstall?.(map as never)
+    contourOverlayAdapter.uninstall?.(map as never)
 
-    expect(removeLayer).toHaveBeenCalledWith(CONTOUR_OVERLAY_RENDERER_LAYER_ID)
+    expect(removeLayer).toHaveBeenCalledWith(CONTOUR_OVERLAY_LAYER_ID)
   })
 })

@@ -4,8 +4,8 @@ import {
   DEFAULT_FIELD_RENDER_SETTINGS,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
 } from '../../forecast-settings/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '../placement'
-import { applyParticleInterpolationWindow, applyParticleRenderSettings, particleRenderer } from './adapter'
+import { FORECAST_LAYER_BEFORE_ID } from '../layer'
+import { applyParticleInterpolationWindow, applyParticleRenderSettings, particleAdapter } from './adapter'
 
 const DEFAULT_RENDER_SETTINGS = {
   field: DEFAULT_FIELD_RENDER_SETTINGS,
@@ -25,7 +25,7 @@ vi.mock('./engine/runtime', () => ({
   createParticleRuntime: mocks.createParticleRuntime,
 }))
 
-describe('particleRenderer', () => {
+describe('particleAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getParticleController.mockReturnValue({
@@ -50,7 +50,7 @@ describe('particleRenderer', () => {
       addLayer,
     }
 
-    particleRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    particleAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(mocks.createParticleRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.particles)
     const [layer, beforeId] = addLayer.mock.calls[0] ?? []
@@ -66,7 +66,7 @@ describe('particleRenderer', () => {
       addLayer: vi.fn(),
     }
 
-    particleRenderer.install(map as never, DEFAULT_RENDER_SETTINGS)
+    particleAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createParticleRuntime).not.toHaveBeenCalled()
@@ -114,6 +114,20 @@ describe('particleRenderer', () => {
 
     expect(() => applyParticleInterpolationWindow({} as never, { lower: { artifactId: 'wind10m_uv' } } as never))
       .toThrow('Particle runtime unavailable (WebGL2 required)')
+  })
+
+  it('disables particles without requiring an available runtime for empty frames', () => {
+    const setEnabled = vi.fn()
+    mocks.getParticleController.mockReturnValue({
+      isAvailable: () => false,
+      applyFrame: vi.fn(),
+      setEnabled,
+      applySettings: vi.fn(),
+    })
+
+    applyParticleInterpolationWindow({} as never, null)
+
+    expect(setEnabled).toHaveBeenCalledWith(false)
   })
 
   it('applies render settings to the particle controller', () => {

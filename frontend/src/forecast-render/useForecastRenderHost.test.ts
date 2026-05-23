@@ -2,20 +2,20 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  applyForecastRenderProfileData: vi.fn(),
-  configureForecastRenderers: vi.fn(),
-  reconcileForecastRenderers: vi.fn(),
+  applyData: vi.fn(),
+  configureProfile: vi.fn(),
+  reconcileProfile: vi.fn(),
 }))
 
-vi.mock('./host', () => ({
-  applyForecastRenderProfileData: (map: unknown, profile: unknown, data: unknown) => {
-    mocks.applyForecastRenderProfileData(map, profile, data)
+vi.mock('./registry', () => ({
+  applyData: (map: unknown, profile: unknown, data: unknown) => {
+    mocks.applyData(map, profile, data)
   },
-  configureForecastRenderers: (map: unknown, profile: unknown, renderSettings: unknown) => {
-    mocks.configureForecastRenderers(map, profile, renderSettings)
+  configureProfile: (map: unknown, profile: unknown, renderSettings: unknown) => {
+    mocks.configureProfile(map, profile, renderSettings)
   },
-  reconcileForecastRenderers: (map: unknown, profile: unknown, renderSettings: unknown) => {
-    mocks.reconcileForecastRenderers(map, profile, renderSettings)
+  reconcileProfile: (map: unknown, profile: unknown, renderSettings: unknown) => {
+    mocks.reconcileProfile(map, profile, renderSettings)
   },
 }))
 
@@ -37,7 +37,9 @@ const DEFAULT_RENDER_PROFILE = {
 
 describe('useForecastRenderHost', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mocks.applyData.mockReset()
+    mocks.configureProfile.mockReset()
+    mocks.reconcileProfile.mockReset()
   })
 
   it('waits for map readiness before installing renderers', () => {
@@ -50,7 +52,7 @@ describe('useForecastRenderHost', () => {
       renderSettings: DEFAULT_RENDER_SETTINGS,
     }))
 
-    expect(mocks.reconcileForecastRenderers).not.toHaveBeenCalled()
+    expect(mocks.reconcileProfile).not.toHaveBeenCalled()
     expect(result.current).toBeNull()
   })
 
@@ -63,7 +65,7 @@ describe('useForecastRenderHost', () => {
       renderSettings: DEFAULT_RENDER_SETTINGS,
     }))
 
-    expect(mocks.reconcileForecastRenderers).not.toHaveBeenCalled()
+    expect(mocks.reconcileProfile).not.toHaveBeenCalled()
     expect(result.current).toBeNull()
   })
 
@@ -78,12 +80,12 @@ describe('useForecastRenderHost', () => {
     }))
 
     await waitFor(() => {
-      expect(mocks.reconcileForecastRenderers).toHaveBeenCalledWith(
+      expect(mocks.reconcileProfile).toHaveBeenCalledWith(
         map,
         DEFAULT_RENDER_PROFILE,
         DEFAULT_RENDER_SETTINGS,
       )
-      expect(mocks.configureForecastRenderers).toHaveBeenCalledWith(
+      expect(mocks.configureProfile).toHaveBeenCalledWith(
         map,
         DEFAULT_RENDER_PROFILE,
         DEFAULT_RENDER_SETTINGS,
@@ -112,19 +114,19 @@ describe('useForecastRenderHost', () => {
 
     result.current?.apply(renderData as never)
 
-    expect(mocks.applyForecastRenderProfileData).toHaveBeenCalledWith(
+    expect(mocks.applyData).toHaveBeenCalledWith(
       map,
       DEFAULT_RENDER_PROFILE,
       renderData,
     )
   })
 
-  it('logs reconciliation errors and still returns a render host', async () => {
+  it('logs reconciliation errors and leaves the host unavailable', async () => {
     const map = {}
     const getMap = () => map as never
     const error = new Error('webgl setup failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    mocks.reconcileForecastRenderers.mockImplementationOnce(() => {
+    mocks.reconcileProfile.mockImplementationOnce(() => {
       throw error
     })
 
@@ -141,6 +143,41 @@ describe('useForecastRenderHost', () => {
           '[forecast-render] renderer update failed',
           error,
         )
+        expect(result.current).toBeNull()
+      })
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('retries profile reconciliation after an install failure', async () => {
+    const map = {}
+    const getMap = () => map as never
+    const error = new Error('webgl setup failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.reconcileProfile.mockImplementationOnce(() => {
+      throw error
+    })
+
+    try {
+      const { result, rerender } = renderHook(
+        ({ mapReadyVersion }) => useForecastRenderHost({
+          getMap,
+          mapReadyVersion,
+          profile: DEFAULT_RENDER_PROFILE,
+          renderSettings: DEFAULT_RENDER_SETTINGS,
+        }),
+        { initialProps: { mapReadyVersion: 1 } },
+      )
+
+      await waitFor(() => {
+        expect(result.current).toBeNull()
+      })
+
+      rerender({ mapReadyVersion: 2 })
+
+      await waitFor(() => {
+        expect(mocks.reconcileProfile).toHaveBeenCalledTimes(2)
         expect(result.current).toEqual({
           version: 1,
           apply: expect.any(Function),
@@ -174,7 +211,7 @@ describe('useForecastRenderHost', () => {
     rerender({ mapReadyVersion: 2 })
 
     await waitFor(() => {
-      expect(mocks.reconcileForecastRenderers).toHaveBeenCalledTimes(2)
+      expect(mocks.reconcileProfile).toHaveBeenCalledTimes(2)
       expect(result.current).toEqual({
         version: 2,
         apply: expect.any(Function),
@@ -205,8 +242,8 @@ describe('useForecastRenderHost', () => {
     rerender({ profile: fieldOnlyProfile })
 
     await waitFor(() => {
-      expect(mocks.reconcileForecastRenderers).toHaveBeenCalledTimes(2)
-      expect(mocks.reconcileForecastRenderers).toHaveBeenLastCalledWith(
+      expect(mocks.reconcileProfile).toHaveBeenCalledTimes(2)
+      expect(mocks.reconcileProfile).toHaveBeenLastCalledWith(
         map,
         fieldOnlyProfile,
         DEFAULT_RENDER_SETTINGS,
@@ -216,6 +253,47 @@ describe('useForecastRenderHost', () => {
         apply: expect.any(Function),
       })
     })
+  })
+
+  it('preserves the previous host when a later profile reconciliation fails', async () => {
+    const map = {}
+    const getMap = () => map as never
+    const nextProfile = {
+      rendererIds: ['field', 'field-overlay', 'contour-overlay'],
+    } as const satisfies ForecastRenderProfile
+    const error = new Error('layer install failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { result, rerender } = renderHook(
+      ({ profile }) => useForecastRenderHost({
+        getMap,
+        mapReadyVersion: 1,
+        profile,
+        renderSettings: DEFAULT_RENDER_SETTINGS,
+      }),
+      { initialProps: { profile: DEFAULT_RENDER_PROFILE as ForecastRenderProfile } },
+    )
+
+    await waitFor(() => {
+      expect(result.current?.version).toBe(1)
+    })
+    const previousHost = result.current
+    mocks.reconcileProfile.mockImplementationOnce(() => {
+      throw error
+    })
+
+    try {
+      rerender({ profile: nextProfile })
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[forecast-render] renderer update failed',
+          error,
+        )
+      })
+      expect(result.current).toBe(previousHost)
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('applies render settings changes without reconciling renderers or incrementing host version', async () => {
@@ -245,16 +323,61 @@ describe('useForecastRenderHost', () => {
     rerender({ renderSettings: nextRenderSettings })
 
     await waitFor(() => {
-      expect(mocks.configureForecastRenderers).toHaveBeenLastCalledWith(
+      expect(mocks.configureProfile).toHaveBeenLastCalledWith(
         map,
         DEFAULT_RENDER_PROFILE,
         nextRenderSettings,
       )
     })
-    expect(mocks.reconcileForecastRenderers).toHaveBeenCalledTimes(1)
+    expect(mocks.reconcileProfile).toHaveBeenCalledTimes(1)
     expect(result.current).toEqual({
       version: 1,
       apply: expect.any(Function),
     })
+  })
+
+  it('logs settings configuration errors without reconciling renderers or incrementing host version', async () => {
+    const map = {}
+    const getMap = () => map as never
+    const error = new Error('settings update failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const nextRenderSettings: ForecastRenderSettings = {
+      field: { colorSamplingMode: 'interpolated' },
+      particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
+    }
+    const { result, rerender } = renderHook(
+      ({ renderSettings }) => useForecastRenderHost({
+        getMap,
+        mapReadyVersion: 1,
+        profile: DEFAULT_RENDER_PROFILE,
+        renderSettings,
+      }),
+      { initialProps: { renderSettings: DEFAULT_RENDER_SETTINGS } },
+    )
+
+    await waitFor(() => {
+      expect(result.current?.version).toBe(1)
+    })
+    mocks.configureProfile.mockImplementationOnce(() => {
+      throw error
+    })
+
+    try {
+      rerender({ renderSettings: nextRenderSettings })
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[forecast-render] renderer update failed',
+          error,
+        )
+      })
+      expect(mocks.reconcileProfile).toHaveBeenCalledTimes(1)
+      expect(result.current).toEqual({
+        version: 1,
+        apply: expect.any(Function),
+      })
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 })
