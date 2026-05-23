@@ -8,7 +8,7 @@ import {
 } from '../test/fixtures'
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
-import type { FieldInterpolationWindowData, ForecastDataTarget } from '../forecast-data'
+import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastSyncStartupState } from './types'
@@ -107,9 +107,7 @@ describe('useForecastSync', () => {
     mocks.useForecastTimeContext.mockReturnValue({
       syncCallbacks: createSyncCallbacks(),
     })
-    mocks.useSyncRunner.mockReturnValue({
-      appliedProbeField: null,
-    })
+    mocks.useSyncRunner.mockReturnValue(undefined)
   })
 
   it('wires startup state into target composition, runner execution, prefetch, and return status', () => {
@@ -118,6 +116,7 @@ describe('useForecastSync', () => {
     const startup = createStartupState({ retryToken: 2 })
     const target = createDataTarget()
     const syncCallbacks = createSyncCallbacks()
+    const onProbeFrameChange = vi.fn()
 
     mocks.useStartupState.mockReturnValue(startup)
     mocks.useForecastDataTarget.mockReturnValue(target)
@@ -126,6 +125,7 @@ describe('useForecastSync', () => {
     const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
+      onProbeFrameChange,
     }))
 
     expect(mocks.useStartupState).toHaveBeenCalledTimes(1)
@@ -137,6 +137,7 @@ describe('useForecastSync', () => {
       syncCallbacks,
       startup,
       pressureContoursEnabled: true,
+      onProbeFrameChange,
     })
     expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
       config,
@@ -146,7 +147,6 @@ describe('useForecastSync', () => {
     })
     expect(result.current).toEqual({
       startupStatus: startup.status,
-      appliedProbeField: null,
     })
   })
 
@@ -173,32 +173,6 @@ describe('useForecastSync', () => {
     }))
     expect(result.current).toEqual({
       startupStatus: startup.status,
-      appliedProbeField: null,
-    })
-  })
-
-  it('returns the applied probe field from the sync runner', () => {
-    const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
-    const config = createConfigFixture()
-    const startup = createStartupState()
-    const appliedProbeField = {
-      lower: { layerId: 'temperature' },
-      upper: { layerId: 'temperature' },
-      mix: 0,
-    } as FieldInterpolationWindowData
-
-    mocks.useStartupState.mockReturnValue(startup)
-    mocks.useForecastDataTarget.mockReturnValue(createDataTarget())
-    mocks.useSyncRunner.mockReturnValue({ appliedProbeField })
-
-    const { result } = renderHook(() => useForecastSync({
-      renderHost,
-      config,
-    }))
-
-    expect(result.current).toEqual({
-      startupStatus: startup.status,
-      appliedProbeField,
     })
   })
 

@@ -15,7 +15,11 @@ import {
 } from '../forecast-catalog'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { resolveForecastInterpolationWindow } from '../forecast-time'
-import { createForecastDataTarget, type ForecastDataTarget } from '../forecast-data'
+import {
+  createForecastDataTarget,
+  type FieldInterpolationWindowData,
+  type ForecastDataTarget,
+} from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import {
   createActiveRunFixture,
@@ -76,6 +80,7 @@ type SyncHarnessArgs = {
   dataInput: DataInput | null
   syncCallbacks: ForecastTimeSyncCallbacks
   pressureContoursEnabled?: boolean
+  onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
 function useSyncHarness(args: SyncHarnessArgs) {
@@ -85,18 +90,18 @@ function useSyncHarness(args: SyncHarnessArgs) {
     [args.dataInput, startup.retryToken]
   )
 
-  const { appliedProbeField } = useSyncRunner({
+  useSyncRunner({
     renderHost: args.renderHost,
     config: args.config,
     target,
     syncCallbacks: args.syncCallbacks,
     startup,
     pressureContoursEnabled: args.pressureContoursEnabled,
+    onProbeFrameChange: args.onProbeFrameChange,
   })
 
   return {
     ...startup.status,
-    appliedProbeField,
   }
 }
 
@@ -148,6 +153,7 @@ function createBaseArgs(overrides: Partial<SyncHarnessArgs> = {}): SyncHarnessAr
     config: createConfigFixture(),
     dataInput: createDataInput(),
     syncCallbacks: createSyncCallbacks(),
+    onProbeFrameChange: vi.fn(),
     ...overrides,
   }
 }
@@ -211,7 +217,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     expect(mocks.loadForecastData).not.toHaveBeenCalled()
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
-    expect(result.current.appliedProbeField).toBeNull()
+    expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
     expect(result.current.startupPhase).toBe('idle')
     expect(result.current.startupErrorMessage).toBeNull()
   })
@@ -303,6 +309,52 @@ describe('useSyncRunner + useStartupState', () => {
 
     expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
     expect(mocks.applyRenderData).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not rerun requests when the probe frame callback changes', async () => {
+    const firstCallback = vi.fn()
+    const secondCallback = vi.fn()
+    const args = createBaseArgs({
+      onProbeFrameChange: firstCallback,
+    })
+    const callbacks = args.syncCallbacks
+
+    const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await waitFor(() => {
+      expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(1)
+      expect(firstCallback).toHaveBeenCalledWith(mocks.fieldWindow)
+    })
+    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+
+    rerender({
+      ...args,
+      onProbeFrameChange: secondCallback,
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(secondCallback).not.toHaveBeenCalled()
+
+    const dataInput = args.dataInput as DataInput
+    rerender({
+      ...args,
+      onProbeFrameChange: secondCallback,
+      dataInput: {
+        ...dataInput,
+        targetTimeMs: validTimeAt(dataInput, 1),
+      },
+    })
+
+    await waitFor(() => {
+      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(secondCallback).toHaveBeenCalledWith(mocks.fieldWindow)
+    })
   })
 
   it('reapplies the current target when render host version changes', async () => {
@@ -470,7 +522,7 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('forwards later sync errors without re-entering startup error', async () => {
     const laterError = new Error('later timeline error')
-    const appliedProbeField = {
+    const probeFrame = {
       lower: { layerId: 'temperature', frame: 1 },
       upper: { layerId: 'temperature', frame: 1 },
       mix: 0,
@@ -479,7 +531,7 @@ describe('useSyncRunner + useStartupState', () => {
       .mockResolvedValueOnce({
         field: mocks.fieldWindow,
         cloudLayers: null,
-        probeField: appliedProbeField,
+        probeField: probeFrame,
         pressureContours: null,
         particles: mocks.particleWindow,
       })
@@ -496,7 +548,7 @@ describe('useSyncRunner + useStartupState', () => {
         (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
-      expect(result.current.appliedProbeField).toBe(appliedProbeField)
+      expect(args.onProbeFrameChange).toHaveBeenCalledWith(probeFrame)
     })
 
     const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
@@ -514,7 +566,7 @@ describe('useSyncRunner + useStartupState', () => {
     })
     expect(result.current.startupPhase).toBe('ready')
     expect(result.current.startupErrorMessage).toBeNull()
-    expect(result.current.appliedProbeField).toBe(appliedProbeField)
+    expect(args.onProbeFrameChange).toHaveBeenCalledTimes(1)
   })
 
   it('forwards selected layer and selected particle layer to data loading', async () => {
@@ -614,7 +666,7 @@ describe('useSyncRunner + useStartupState', () => {
     }))
   })
 
-  it('returns the selected layer probe frame after render succeeds', async () => {
+  it('publishes the selected layer probe frame after render succeeds', async () => {
     const frames = {
       field: { lower: { layerId: 'relative_humidity' } },
       cloudLayers: null,
@@ -625,11 +677,11 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData.mockResolvedValueOnce(frames)
     const args = createBaseArgs()
 
-    const { result } = renderHook(() => useSyncHarness(args))
+    renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
       expect(mocks.applyRenderData).toHaveBeenCalledWith(frames)
-      expect(result.current.appliedProbeField).toBe(frames.probeField)
+      expect(args.onProbeFrameChange).toHaveBeenCalledWith(frames.probeField)
     })
   })
 
@@ -650,7 +702,7 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('error')
     })
 
-    expect(result.current.appliedProbeField).toBeNull()
+    expect(args.onProbeFrameChange).not.toHaveBeenCalled()
   })
 
   it('clears the applied probe field before loading a different probe channel', async () => {
@@ -669,12 +721,12 @@ describe('useSyncRunner + useStartupState', () => {
     const args = createBaseArgs()
     const dataInput = args.dataInput as DataInput
     const relativeHumidityLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
-    const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+    const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
       initialProps: args,
     })
 
     await waitFor(() => {
-      expect(result.current.appliedProbeField).toBe(firstFrames.probeField)
+      expect(args.onProbeFrameChange).toHaveBeenCalledWith(firstFrames.probeField)
     })
 
     rerender({
@@ -689,7 +741,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     await waitFor(() => {
       expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
-      expect(result.current.appliedProbeField).toBeNull()
+      expect(args.onProbeFrameChange).toHaveBeenLastCalledWith(null)
     })
 
     secondRequest.resolve(firstFrames)
@@ -773,7 +825,7 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('idle')
       expect(result.current.startupErrorMessage).toBeNull()
     })
-    expect(result.current.appliedProbeField).toBeNull()
+    expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
   })
 
   it('aborts an in-flight request when the target returns to an already applied frame', async () => {
@@ -821,5 +873,6 @@ describe('useSyncRunner + useStartupState', () => {
     })
 
     expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(1)
+    expect(args.onProbeFrameChange).toHaveBeenCalledTimes(1)
   })
 })

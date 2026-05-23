@@ -78,7 +78,7 @@ vec3 respawn(float id) {
 
 // Decode U/V components (stored as packed int8 in RG channels).
 vec2 decode_vector(sampler2D vectorTex, ivec2 coord) {
-  vec4 texel = texelFetch(vectorTex, coord, 0);
+  vec2 texel = texelFetch(vectorTex, coord, 0).rg;
   return vec2(decode_i8(texel.r), decode_i8(texel.g)) * 0.5;
 }
 
@@ -255,7 +255,7 @@ float decode_i8(float encoded) {
 
 // Decode U/V components (stored as packed int8 in RG channels).
 vec2 decode_vector(sampler2D vectorTex, ivec2 coord) {
-  vec4 texel = texelFetch(vectorTex, coord, 0);
+  vec2 texel = texelFetch(vectorTex, coord, 0).rg;
   return vec2(decode_i8(texel.r), decode_i8(texel.g)) * 0.5;
 }
 

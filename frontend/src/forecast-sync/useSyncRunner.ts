@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
@@ -20,6 +20,7 @@ type UseSyncRunnerArgs = {
   syncCallbacks: ForecastTimeSyncCallbacks
   startup: ForecastSyncStartupState
   pressureContoursEnabled?: boolean
+  onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
 type RunnerDecision =
@@ -31,10 +32,6 @@ type RunnerDecision =
 type ActiveRequest = {
   key: string
   controller: AbortController
-}
-
-export type UseSyncRunnerResult = {
-  appliedProbeField: FieldInterpolationWindowData | null
 }
 
 type RunnerMachine = {
@@ -60,8 +57,8 @@ export function useSyncRunner({
   syncCallbacks,
   startup,
   pressureContoursEnabled = true,
-}: UseSyncRunnerArgs): UseSyncRunnerResult {
-  const [appliedProbeField, setAppliedProbeField] = useState<FieldInterpolationWindowData | null>(null)
+  onProbeFrameChange,
+}: UseSyncRunnerArgs): void {
   const {
     isBlocked,
     handleDisabled,
@@ -78,6 +75,8 @@ export function useSyncRunner({
   if (dataMemoryRef.current == null) {
     dataMemoryRef.current = createForecastDataMemory()
   }
+  const onProbeFrameChangeRef = useRef(onProbeFrameChange)
+  onProbeFrameChangeRef.current = onProbeFrameChange
 
   useEffect(() => {
     const machine = machineRef.current
@@ -92,7 +91,7 @@ export function useSyncRunner({
     switch (decision.kind) {
       case 'disabled':
         dataMemoryRef.current?.reset()
-        setAppliedProbeField(null)
+        onProbeFrameChangeRef.current?.(null)
         handleDisabled()
         return
       case 'blocked':
@@ -132,7 +131,7 @@ export function useSyncRunner({
     })
 
     if (dataMemory.shouldClearFieldProbe(dataPlan)) {
-      setAppliedProbeField(null)
+      onProbeFrameChangeRef.current?.(null)
     }
 
     handlePending()
@@ -149,7 +148,7 @@ export function useSyncRunner({
         activeRenderHost.apply(renderData)
         if (isRequestStale(machine, activeRequest)) return
 
-        setAppliedProbeField(renderData.probeField ?? null)
+        onProbeFrameChangeRef.current?.(renderData.probeField ?? null)
         dataMemory.commit(dataPlan, renderData)
         machine.markApplied(activeRequest)
         syncCallbacks.onRequestApplied(selectedValidTimeMs)
@@ -178,10 +177,6 @@ export function useSyncRunner({
     syncCallbacks,
     target,
   ])
-
-  return {
-    appliedProbeField,
-  }
 }
 
 function createRunnerMachine(): RunnerMachine {

@@ -4,6 +4,10 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FieldInterpolationWindowData } from '../../forecast-data'
+import type {
+  ForecastPlaceProbeFrame,
+  ForecastPlaceProbeFrameChannel,
+} from '../../forecast-place-probes'
 import ForecastPlaceProbes from './ForecastPlaceProbes'
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +42,27 @@ vi.mock('../../forecast-place-probes', () => ({
 function createMapRef(map = {}): RefObject<MapLibreMap | null> {
   return {
     current: map as MapLibreMap,
+  }
+}
+
+function createFrameChannel(
+  initialFrame: ForecastPlaceProbeFrame = null
+): ForecastPlaceProbeFrameChannel {
+  let currentFrame = initialFrame
+  const listeners = new Set<(frame: ForecastPlaceProbeFrame) => void>()
+
+  return {
+    getSnapshot: vi.fn(() => currentFrame),
+    publish: vi.fn((frame) => {
+      currentFrame = frame
+      listeners.forEach((listener) => listener(frame))
+    }),
+    subscribe: vi.fn((listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }),
   }
 }
 
@@ -102,7 +127,7 @@ describe('ForecastPlaceProbes', () => {
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={1}
-        appliedProbeField={null}
+        probeFrameChannel={createFrameChannel()}
       />
     )
 
@@ -112,13 +137,14 @@ describe('ForecastPlaceProbes', () => {
   it('creates, starts, and destroys a feature session', () => {
     const map = {}
     const mapRef = createMapRef(map)
-    const appliedProbeField = createProbeFrame()
+    const initialFrame = createProbeFrame()
+    const probeFrameChannel = createFrameChannel(initialFrame)
 
     const { unmount } = render(
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={1}
-        appliedProbeField={appliedProbeField}
+        probeFrameChannel={probeFrameChannel}
       />
     )
 
@@ -126,8 +152,9 @@ describe('ForecastPlaceProbes', () => {
       map,
       layerId: 'temperature',
       valueFormatter: mocks.formatProbeDisplay,
-      appliedProbeField,
+      initialFrame,
     })
+    expect(probeFrameChannel.subscribe).toHaveBeenCalledWith(expect.any(Function))
     expect(mocks.session.start).toHaveBeenCalledTimes(1)
 
     unmount()
@@ -135,26 +162,27 @@ describe('ForecastPlaceProbes', () => {
     expect(mocks.session.destroy).toHaveBeenCalledTimes(1)
   })
 
-  it('forwards layer, formatter, and applied probe field changes', () => {
-    const firstFrame = createProbeFrame('temperature', 1)
+  it('forwards layer, formatter, and published frame changes', () => {
     const secondFrame = createProbeFrame('temperature', 2)
     const mapRef = createMapRef()
+    const probeFrameChannel = createFrameChannel()
 
     const { rerender } = render(
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={1}
-        appliedProbeField={firstFrame}
+        probeFrameChannel={probeFrameChannel}
       />
     )
 
+    probeFrameChannel.publish(secondFrame)
     mocks.selectedLayerId = 'dew_point'
     mocks.formatProbeDisplay = vi.fn()
     rerender(
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={1}
-        appliedProbeField={secondFrame}
+        probeFrameChannel={probeFrameChannel}
       />
     )
 
@@ -165,12 +193,13 @@ describe('ForecastPlaceProbes', () => {
 
   it('recreates the session when map readiness changes', () => {
     const mapRef = createMapRef()
+    const probeFrameChannel = createFrameChannel()
 
     const { rerender } = render(
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={1}
-        appliedProbeField={null}
+        probeFrameChannel={probeFrameChannel}
       />
     )
 
@@ -178,11 +207,57 @@ describe('ForecastPlaceProbes', () => {
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={2}
-        appliedProbeField={null}
+        probeFrameChannel={probeFrameChannel}
       />
     )
 
     expect(mocks.session.destroy).toHaveBeenCalledTimes(1)
     expect(mocks.createForecastPlaceProbeSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies the latest channel frame after subscribing', () => {
+    const initialFrame = createProbeFrame('temperature', 1)
+    const latestFrame = createProbeFrame('temperature', 2)
+    let currentFrame: ForecastPlaceProbeFrame = initialFrame
+    const probeFrameChannel: ForecastPlaceProbeFrameChannel = {
+      getSnapshot: vi.fn(() => currentFrame),
+      publish: vi.fn(),
+      subscribe: vi.fn(() => {
+        currentFrame = latestFrame
+        return vi.fn()
+      }),
+    }
+
+    render(
+      <ForecastPlaceProbes
+        mapRef={createMapRef()}
+        mapReadyVersion={1}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+
+    expect(mocks.createForecastPlaceProbeSession).toHaveBeenCalledWith(expect.objectContaining({
+      initialFrame,
+    }))
+    expect(mocks.session.setFrame).toHaveBeenCalledWith(latestFrame)
+  })
+
+  it('unsubscribes from the frame channel on unmount', () => {
+    const frame = createProbeFrame()
+    const mapRef = createMapRef()
+    const probeFrameChannel = createFrameChannel()
+
+    const { unmount } = render(
+      <ForecastPlaceProbes
+        mapRef={mapRef}
+        mapReadyVersion={1}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+
+    unmount()
+    probeFrameChannel.publish(frame)
+
+    expect(mocks.session.setFrame).not.toHaveBeenCalledWith(frame)
   })
 })

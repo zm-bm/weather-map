@@ -1,9 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import type { FieldInterpolationWindowData } from '../../forecast-data'
 import {
   createForecastPlaceProbeSession,
+  type ForecastPlaceProbeFrameChannel,
   type ForecastPlaceProbeSession,
 } from '../../forecast-place-probes'
 import { useForecastProbeValueFormatter } from '../../forecast-probe'
@@ -12,13 +12,13 @@ import { useForecastSelectionContext } from '../../forecast-selection'
 type ForecastPlaceProbesProps = {
   mapRef: RefObject<MapLibreMap | null>
   mapReadyVersion: number
-  appliedProbeField: FieldInterpolationWindowData | null
+  probeFrameChannel: ForecastPlaceProbeFrameChannel
 }
 
 function ForecastPlaceProbes({
   mapRef,
   mapReadyVersion,
-  appliedProbeField,
+  probeFrameChannel,
 }: ForecastPlaceProbesProps) {
   const { selectedLayerId, activeRun } = useForecastSelectionContext()
 
@@ -29,7 +29,7 @@ function ForecastPlaceProbes({
       selectedLayerId={selectedLayerId}
       mapReadyVersion={mapReadyVersion}
       mapRef={mapRef}
-      appliedProbeField={appliedProbeField}
+      probeFrameChannel={probeFrameChannel}
     />
   )
 }
@@ -38,14 +38,13 @@ function ForecastPlaceProbeLayer({
   selectedLayerId,
   mapRef,
   mapReadyVersion,
-  appliedProbeField,
+  probeFrameChannel,
 }: ForecastPlaceProbesProps & {
   selectedLayerId: string
 }) {
   const formatProbeDisplay = useForecastProbeValueFormatter()
   const selectedLayerIdRef = useRef(selectedLayerId)
   const formatProbeDisplayRef = useRef(formatProbeDisplay)
-  const appliedProbeFieldRef = useRef(appliedProbeField)
   const sessionRef = useRef<ForecastPlaceProbeSession | null>(null)
 
   useEffect(() => {
@@ -59,11 +58,6 @@ function ForecastPlaceProbeLayer({
   }, [formatProbeDisplay])
 
   useEffect(() => {
-    appliedProbeFieldRef.current = appliedProbeField
-    sessionRef.current?.setFrame(appliedProbeField)
-  }, [appliedProbeField])
-
-  useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
@@ -71,18 +65,23 @@ function ForecastPlaceProbeLayer({
       map,
       layerId: selectedLayerIdRef.current,
       valueFormatter: formatProbeDisplayRef.current,
-      appliedProbeField: appliedProbeFieldRef.current,
+      initialFrame: probeFrameChannel.getSnapshot(),
     })
     sessionRef.current = session
     session.start()
+    const unsubscribeFrameChannel = probeFrameChannel.subscribe((frame) => {
+      session.setFrame(frame)
+    })
+    session.setFrame(probeFrameChannel.getSnapshot())
 
     return () => {
+      unsubscribeFrameChannel()
       if (sessionRef.current === session) {
         sessionRef.current = null
       }
       session.destroy()
     }
-  }, [mapReadyVersion, mapRef])
+  }, [mapReadyVersion, mapRef, probeFrameChannel])
 
   return null
 }

@@ -269,7 +269,7 @@ describe('createForecastPlaceProbeSession', () => {
       map,
       layerId: 'temperature',
       valueFormatter: mocks.formatProbeDisplay,
-      appliedProbeField: mocks.frame,
+      initialFrame: mocks.frame,
       ...options,
     })
     session.start()

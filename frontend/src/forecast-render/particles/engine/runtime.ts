@@ -1021,32 +1021,42 @@ function createVectorTexture(gl: WebGL2RenderingContext, frame: ParticleTimeSlic
     return null
   }
 
-  // Pack signed U/V into RG channels of an RGBA8 texture.
-  const rgba = new Uint8Array(componentBytes * 4)
+  // Pack signed U/V into RG channels. RG8 halves upload size versus RGBA8.
+  const bytes = new Uint8Array(componentBytes * 2)
   for (let i = 0; i < componentBytes; i += 1) {
-    const base = i * 4
-    rgba[base] = i8ToU8(frame.u[i])
-    rgba[base + 1] = i8ToU8(frame.v[i])
-    rgba[base + 2] = 128
-    rgba[base + 3] = 255
+    const base = i * 2
+    bytes[base] = i8ToU8(frame.u[i])
+    bytes[base + 1] = i8ToU8(frame.v[i])
   }
 
+  let texture: WebGLTexture | null = null
   try {
-    return twgl.createTexture(gl, {
-      src: rgba,
-      width: frame.grid.nx,
-      height: frame.grid.ny,
-      internalFormat: gl.RGBA,
-      format: gl.RGBA,
-      type: gl.UNSIGNED_BYTE,
-      min: gl.NEAREST,
-      mag: gl.NEAREST,
-      wrapS: gl.REPEAT,
-      wrapT: gl.CLAMP_TO_EDGE,
-      unpackAlignment: 1,
-      auto: false,
-    })
+    texture = gl.createTexture()
+    if (!texture) return null
+
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RG8,
+      frame.grid.nx,
+      frame.grid.ny,
+      0,
+      gl.RG,
+      gl.UNSIGNED_BYTE,
+      bytes,
+    )
+    gl.bindTexture(gl.TEXTURE_2D, null)
+
+    return texture
   } catch (error) {
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    if (texture) gl.deleteTexture(texture)
     console.warn('[particles] failed to create vector texture:', error)
     return null
   }

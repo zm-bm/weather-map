@@ -117,7 +117,6 @@ describe('ForecastMap', () => {
     })
     mocks.useForecastSync.mockReturnValue({
       startupStatus: createSyncStatus(),
-      appliedProbeField: null,
     })
   })
 
@@ -149,12 +148,28 @@ describe('ForecastMap', () => {
       renderHost,
       config,
       pressureContoursEnabled: false,
+      onProbeFrameChange: expect.any(Function),
     })
-    expect(mocks.ForecastPlaceProbes).toHaveBeenCalledWith({
+    const placeProbeProps = mocks.ForecastPlaceProbes.mock.calls[0]?.[0] as {
+      mapRef: unknown
+      mapReadyVersion: number
+      probeFrameChannel: {
+        getSnapshot: () => unknown
+        publish: (frame: unknown) => void
+        subscribe: (listener: (frame: unknown) => void) => () => void
+      }
+      initialFrame?: unknown
+    }
+    expect(placeProbeProps).toEqual({
       mapRef,
       mapReadyVersion,
-      appliedProbeField: null,
+      probeFrameChannel: expect.objectContaining({
+        getSnapshot: expect.any(Function),
+        publish: expect.any(Function),
+        subscribe: expect.any(Function),
+      }),
     })
+    expect(placeProbeProps).not.toHaveProperty('initialFrame')
     expect(mocks.MapControlRail).toHaveBeenCalledWith({
       mapRef,
       mapReadyVersion,
@@ -172,7 +187,6 @@ describe('ForecastMap', () => {
     const syncStatus = createSyncStatus({ startupPhase: 'loading' })
     mocks.useForecastSync.mockReturnValue({
       startupStatus: syncStatus,
-      appliedProbeField: null,
     })
 
     const { unmount } = renderForecastMap(
@@ -213,6 +227,7 @@ describe('ForecastMap', () => {
       renderHost: renderHostResults[renderHostResults.length - 1]?.value,
       config,
       pressureContoursEnabled: false,
+      onProbeFrameChange: expect.any(Function),
     })
   })
 
@@ -242,6 +257,7 @@ describe('ForecastMap', () => {
       renderHost: renderHostResults[renderHostResults.length - 1]?.value,
       config,
       pressureContoursEnabled: true,
+      onProbeFrameChange: expect.any(Function),
     })
   })
 
@@ -302,6 +318,27 @@ describe('ForecastMap', () => {
     expect(mocks.useMap).toHaveBeenCalledWith(expect.objectContaining({
       containerId: 'forecast-map',
     }))
+  })
+
+  it('publishes sync probe frames into the place-probe channel', () => {
+    const frame = { lower: { layerId: 'temperature' } }
+
+    renderForecastMap()
+
+    const syncArgs = mocks.useForecastSync.mock.calls[0]?.[0] as {
+      onProbeFrameChange: (nextFrame: unknown) => void
+    }
+    const placeProbeProps = mocks.ForecastPlaceProbes.mock.calls[0]?.[0] as {
+      probeFrameChannel: {
+        getSnapshot: () => unknown
+      }
+    }
+
+    act(() => {
+      syncArgs.onProbeFrameChange(frame)
+    })
+
+    expect(placeProbeProps.probeFrameChannel.getSnapshot()).toBe(frame)
   })
 
   it('passes cloud layer selection to the basemap theme hook', () => {

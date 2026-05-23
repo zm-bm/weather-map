@@ -12,29 +12,31 @@ export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
   pressureContoursEnabled?: boolean
+  onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
 export type UseForecastSyncResult = {
   startupStatus: ForecastSyncStartupStatus
-  appliedProbeField: FieldInterpolationWindowData | null
 }
 
 export function useForecastSync({
   renderHost,
   config,
   pressureContoursEnabled = true,
+  onProbeFrameChange,
 }: UseForecastSyncArgs): UseForecastSyncResult {
   const startup = useStartupState()
   const target = useForecastDataTarget(startup.retryToken)
   const { syncCallbacks } = useForecastTimeContext()
 
-  const { appliedProbeField } = useSyncRunner({
+  useSyncRunner({
     renderHost,
     config,
     target,
     syncCallbacks,
     startup,
     pressureContoursEnabled,
+    onProbeFrameChange,
   })
   useForecastDataPrefetch({
     config,
@@ -45,6 +47,5 @@ export function useForecastSync({
 
   return {
     startupStatus: startup.status,
-    appliedProbeField,
   }
 }

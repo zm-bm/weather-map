@@ -1,11 +1,11 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import type { FieldInterpolationWindowData } from '../forecast-data'
 import {
   getPlaceProbeKey,
   selectVisiblePlaceProbes,
   type PlaceProbe,
 } from './places'
+import type { ForecastPlaceProbeFrame } from './frameChannel'
 import {
   forecastPlaceProbeLayer,
   type PlaceProbeLabelSnapshot,
@@ -27,27 +27,27 @@ export type ForecastPlaceProbeSession = {
   destroy: () => void
   setLayerId: (layerId: string) => void
   setValueFormatter: (valueFormatter: ForecastPlaceProbeValueFormatter) => void
-  setFrame: (frame: FieldInterpolationWindowData | null) => void
+  setFrame: (frame: ForecastPlaceProbeFrame) => void
 }
 
 export type ForecastPlaceProbeSessionOptions = {
   map: MapLibreMap
   layerId: string
   valueFormatter: ForecastPlaceProbeValueFormatter
-  appliedProbeField: FieldInterpolationWindowData | null
+  initialFrame: ForecastPlaceProbeFrame
 }
 
 export function createForecastPlaceProbeSession({
   map,
   layerId,
   valueFormatter,
-  appliedProbeField,
+  initialFrame,
 }: ForecastPlaceProbeSessionOptions): ForecastPlaceProbeSession {
   let started = false
   let selectedLayerId = layerId
   let formatProbeValue = valueFormatter
-  let latestAppliedProbeField = appliedProbeField
-  let currentFrame: FieldInterpolationWindowData | null = null
+  let latestFrame = initialFrame
+  let currentFrame: ForecastPlaceProbeFrame = null
   let visiblePlaces: PlaceProbe[] = []
   let visiblePlaceKey = ''
   let samplerState: PlaceProbeSamplers = refreshPlaceProbeSamplers(null, [])
@@ -105,14 +105,14 @@ export function createForecastPlaceProbeSession({
     return true
   }
 
-  const applyFrame = (frame: FieldInterpolationWindowData | null) => {
+  const applyFrame = (frame: ForecastPlaceProbeFrame) => {
     currentFrame = frame?.lower.layerId === selectedLayerId ? frame : null
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
-  const setFrame = (frame: FieldInterpolationWindowData | null) => {
-    latestAppliedProbeField = frame
+  const setFrame = (frame: ForecastPlaceProbeFrame) => {
+    latestFrame = frame
     applyFrame(frame)
   }
 
@@ -159,7 +159,7 @@ export function createForecastPlaceProbeSession({
       map.on('resize', handleViewportSettled)
       map.on('idle', handleIdle)
 
-      applyFrame(latestAppliedProbeField)
+      applyFrame(latestFrame)
       refreshPlaces(true)
     },
 
@@ -190,7 +190,7 @@ export function createForecastPlaceProbeSession({
     setLayerId(nextLayerId) {
       if (selectedLayerId === nextLayerId) return
       selectedLayerId = nextLayerId
-      applyFrame(latestAppliedProbeField)
+      applyFrame(latestFrame)
     },
     setValueFormatter(nextValueFormatter) {
       if (formatProbeValue === nextValueFormatter) return

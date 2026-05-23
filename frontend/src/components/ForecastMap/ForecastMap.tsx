@@ -13,6 +13,7 @@ import {
 } from '../../forecast-render'
 import { useForecastSelectionContext } from '../../forecast-selection'
 import { useForecastSync, type ForecastSyncStartupStatus } from '../../forecast-sync'
+import { createForecastPlaceProbeFrameChannel } from '../../forecast-place-probes'
 import { useMap } from '../../map/useMap'
 import { useForecastBasemapTheme } from '../../map/view/useForecastBasemapTheme'
 import ForecastPlaceProbes from '../ForecastPlaceProbes'
@@ -29,6 +30,7 @@ export default function ForecastMap({
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const { selectedLayerId } = useForecastSelectionContext()
+  const probeFrameChannel = useMemo(() => createForecastPlaceProbeFrameChannel(), [])
 
   const {
     settings,
@@ -58,10 +60,11 @@ export default function ForecastMap({
     selectedLayerId,
   })
 
-  const { startupStatus, appliedProbeField } = useForecastSync({
+  const { startupStatus } = useForecastSync({
     renderHost,
     config,
     pressureContoursEnabled: settings.pressureContours.enabled,
+    onProbeFrameChange: probeFrameChannel.publish,
   })
 
   useEffect(() => {
@@ -86,7 +89,7 @@ export default function ForecastMap({
       <ForecastPlaceProbes
         mapRef={mapRef}
         mapReadyVersion={mapReadyVersion}
-        appliedProbeField={appliedProbeField}
+        probeFrameChannel={probeFrameChannel}
       />
     </div>
   )
