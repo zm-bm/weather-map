@@ -1,5 +1,7 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
+import { worldSizeAtZoom, worldWrapForLng } from '../../geo'
+
 import type { CloudLayersTimeSliceData } from '../../forecast-data'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../field/engine/constants'
@@ -235,13 +237,13 @@ export function createCloudLayersRuntime(): CloudLayersRuntime {
       gl2.uniform1f(state.uniforms.offset, state.offset)
       const zoom = state.map.getZoom()
       gl2.uniform1f(state.uniforms.zoom, zoom)
-      gl2.uniform1f(state.uniforms.worldSize, computeWorldSizeAtZoom(zoom))
+      gl2.uniform1f(state.uniforms.worldSize, worldSizeAtZoom(zoom))
 
       gl2.disable(gl2.DEPTH_TEST)
       gl2.enable(gl2.BLEND)
       gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA)
 
-      const centerWrap = computeCenterWorldWrap(state.map.getCenter().lng)
+      const centerWrap = worldWrapForLng(state.map.getCenter().lng)
       for (const relativeOffset of WORLD_WRAP_COPY_OFFSETS) {
         gl2.uniform1f(state.uniforms.worldOffsetX, centerWrap + relativeOffset)
         gl2.drawArrays(gl2.TRIANGLES, 0, 6)
@@ -434,14 +436,4 @@ function createVao(gl: WebGL2RenderingContext, vertexBuffer: WebGLBuffer | null)
   gl.bindVertexArray(null)
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
   return vao
-}
-
-function computeCenterWorldWrap(lng: number): number {
-  if (!Number.isFinite(lng)) return 0
-  return Math.floor((lng + 180) / 360)
-}
-
-function computeWorldSizeAtZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return 512
-  return 512 * (2 ** zoom)
 }

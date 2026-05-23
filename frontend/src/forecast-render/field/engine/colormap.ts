@@ -1,6 +1,7 @@
 import { getLayerPalette, type PaletteStop } from '../../../forecast-palette'
 import type { FieldTimeSliceData } from '../../../forecast-data'
 import type { FieldColorSamplingMode } from '../../../forecast-settings/settings'
+import { lerp } from '../../../math'
 
 type NormalizedColorStop = [number, number, number, number]
 
@@ -128,8 +129,4 @@ function sampleColorStopThreshold(stops: NormalizedColorStop[], value: number): 
   }
 
   return [selected[1], selected[2], selected[3]]
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
 }

@@ -3,8 +3,8 @@ import * as twgl from 'twgl.js'
 
 import {
   asWebGL2,
-  clamp,
 } from '../../webgl'
+import { clamp } from '../../../math'
 import {
   registerParticleController,
   unregisterParticleController,

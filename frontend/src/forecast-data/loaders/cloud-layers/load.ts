@@ -8,6 +8,7 @@ import type {
 } from '../../slices'
 import type { CloudLayerSource } from '../../target'
 import { normalizeForecastHourToken } from '../../../forecast-manifest'
+import { clamp, clamp01 } from '../../../math'
 import { createLruCache } from '../cache'
 import { scopeDataKey } from '../dataKey'
 
@@ -159,7 +160,7 @@ function decodeCloudFraction(
   if (nodata != null && stored === nodata) return null
   const percent = (stored * scale) + offset
   if (!Number.isFinite(percent)) return null
-  return clamp(percent / 100, 0, 1)
+  return clamp01(percent / 100)
 }
 
 function deriveCoveragePercent(args: {
@@ -173,10 +174,6 @@ function deriveCoveragePercent(args: {
 
   const clearFraction = finiteValues.reduce((clearSky, value) => clearSky * (1 - value), 1)
   return clamp((1 - clearFraction) * 100, 0, 100)
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
 }
 
 function createCloudLayersDataKey(

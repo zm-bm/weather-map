@@ -1,5 +1,6 @@
 import type { ForecastTimeSliceSelection } from '../forecast-time'
 import { normalizeForecastHourToken } from '../forecast-manifest'
+import { clamp01 } from '../math'
 
 export type LoadedInterpolationWindow<T> = {
   selectedValidTimeMs: number
@@ -12,7 +13,7 @@ export type LoadedInterpolationWindow<T> = {
 
 export function clampInterpolationMix(mix: number): number {
   if (!Number.isFinite(mix)) return 0
-  return Math.max(0, Math.min(1, mix))
+  return clamp01(mix)
 }
 
 export async function loadInterpolationWindow<T>(args: {

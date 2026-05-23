@@ -1,9 +1,11 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
+import { worldSizeAtZoom, worldWrapForLng } from '../../../geo'
+
 import {
   asWebGL2,
-  clamp,
 } from '../../webgl'
+import { clamp, smoothstep } from '../../../math'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
 import {
@@ -255,14 +257,14 @@ export function createFieldOverlayRuntime(): FieldOverlayRuntime {
       gl2.uniform1f(state.uniforms.lat0, state.lat0)
       gl2.uniform1f(state.uniforms.dx, state.dx)
       gl2.uniform1f(state.uniforms.dy, state.dy)
-      gl2.uniform1f(state.uniforms.worldSize, computeWorldSizeAtZoom(state.map.getZoom()))
+      gl2.uniform1f(state.uniforms.worldSize, worldSizeAtZoom(state.map.getZoom()))
       gl2.uniform1f(state.uniforms.patternOpacity, state.patternOpacity)
 
       gl2.disable(gl2.DEPTH_TEST)
       gl2.enable(gl2.BLEND)
       gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA)
 
-      const centerWrap = computeCenterWorldWrap(state.map.getCenter().lng)
+      const centerWrap = worldWrapForLng(state.map.getCenter().lng)
       for (const relativeOffset of WORLD_WRAP_COPY_OFFSETS) {
         gl2.uniform1f(state.uniforms.worldOffsetX, centerWrap + relativeOffset)
         gl2.drawArrays(gl2.TRIANGLES, 0, 6)
@@ -506,16 +508,6 @@ function createVao(gl: WebGL2RenderingContext, vertexBuffer: WebGLBuffer | null)
   return vao
 }
 
-function computeCenterWorldWrap(lng: number): number {
-  if (!Number.isFinite(lng)) return 0
-  return Math.floor((lng + 180) / 360)
-}
-
-function computeWorldSizeAtZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return 512
-  return 512 * (2 ** zoom)
-}
-
 function setPatternOpacityTarget(state: FieldOverlayState, target: number): void {
   const nextTarget = finiteFraction(target)
   if (Math.abs(state.patternOpacityTarget - nextTarget) <= 0.001) return
@@ -531,11 +523,6 @@ function elapsedPatternOpacityMs(state: FieldOverlayState): number {
 
 function readPerformanceNow(): number {
   return typeof performance === 'undefined' ? Date.now() : performance.now()
-}
-
-function smoothstep(edge0: number, edge1: number, value: number): number {
-  const t = Math.min(1, Math.max(0, (value - edge0) / Math.max(1e-6, edge1 - edge0)))
-  return t * t * (3 - (2 * t))
 }
 
 function finiteFraction(value: number): number {

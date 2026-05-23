@@ -1,3 +1,4 @@
+import { clamp, roughlyEqual } from '../math'
 import type { PaletteStop } from '../forecast-palette'
 
 export type LegendUnitOption = {
@@ -69,15 +70,11 @@ function toLegendGradient(spec: LegendSpec): string {
   const stops = orderedStops
     .map(([value, r, g, b]) => {
       const pct = ((value - spec.min) / range) * 100
-      return `rgb(${r} ${g} ${b}) ${Math.max(0, Math.min(100, pct)).toFixed(1)}%`
+      return `rgb(${r} ${g} ${b}) ${clamp(pct, 0, 100).toFixed(1)}%`
     })
     .join(', ')
 
   return `linear-gradient(90deg, ${stops})`
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function uniqueSorted(values: number[]): number[] {
@@ -116,7 +113,7 @@ function filterCandidatesInRange(values: number[], min: number, max: number): nu
 
 function areClose(a: number, b: number): boolean {
   const epsilon = Math.max(Math.abs(a), Math.abs(b), 1) * 1e-6
-  return Math.abs(a - b) <= epsilon
+  return roughlyEqual(a, b, epsilon)
 }
 
 function getLinearizedRateTickPosition(value: number, majorTicks: number[], minorTicks: number[]): number {

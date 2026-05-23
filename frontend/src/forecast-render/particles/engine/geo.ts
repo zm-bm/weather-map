@@ -1,6 +1,11 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import { clamp } from '../../webgl'
+import {
+  clampWebMercatorLat,
+  latToMercatorY,
+  lonToMercatorX,
+} from '../../../geo'
+import { roughlyEqual } from '../../../math'
 
 export type ViewportState = {
   west: number
@@ -27,8 +32,8 @@ export type CameraState = {
 export function computeViewportState(map: MapLibreMap): ViewportState {
   const bounds = map.getBounds()
   // Clamp latitude to the WebMercator domain.
-  const south = clamp(bounds.getSouth(), -85.0, 85.0)
-  const north = clamp(bounds.getNorth(), -85.0, 85.0)
+  const south = clampWebMercatorLat(bounds.getSouth())
+  const north = clampWebMercatorLat(bounds.getNorth())
   const west = bounds.getWest()
   let east = bounds.getEast()
   // Unwrap antimeridian crossings into a continuous east-west span.
@@ -88,25 +93,9 @@ export function toCellCenterOrigin(lon0: number, lat0: number, dx: number, dy: n
   }
 }
 
-function lonToMercatorX(lon: number) {
-  // Accept unwrapped longitudes (can exceed 180 when crossing the dateline).
-  return (lon + 180) / 360
-}
-
-function latToMercatorY(lat: number) {
-  // Standard WebMercator Y in [0, 1].
-  const clamped = clamp(lat, -85.05112878, 85.05112878)
-  const s = Math.sin((clamped * Math.PI) / 180)
-  return 0.5 - (0.25 * Math.log((1 + s) / (1 - s))) / Math.PI
-}
-
 function needsHalfCellShift(origin: number, step: number) {
   if (!Number.isFinite(origin) || !Number.isFinite(step) || step === 0) return false
   const normalized = origin / step
   const fractional = Math.abs(normalized - Math.round(normalized))
   return Math.abs(fractional - 0.5) < 1e-6
-}
-
-function roughlyEqual(a: number, b: number, epsilon: number) {
-  return Math.abs(a - b) <= epsilon
 }

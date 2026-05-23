@@ -1,5 +1,7 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
+import { worldSizeAtZoom, worldWrapForLng } from '../../../geo'
+
 import {
   type PressureInterpolationWindowData,
   type PressureTimeSliceData,
@@ -8,8 +10,8 @@ import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
 import {
   asWebGL2,
-  clamp,
 } from '../../webgl'
+import { clamp, smoothstep, wrap } from '../../../math'
 import {
   registerContourOverlayController,
   unregisterContourOverlayController,
@@ -176,13 +178,13 @@ export function createContourOverlayRuntime(): ContourOverlayRuntime {
       gl2.uniform1f(state.uniforms.lat0, state.lat0)
       gl2.uniform1f(state.uniforms.dx, state.dx)
       gl2.uniform1f(state.uniforms.dy, state.dy)
-      gl2.uniform1f(state.uniforms.worldSize, computeWorldSizeAtZoom(state.map.getZoom()))
+      gl2.uniform1f(state.uniforms.worldSize, worldSizeAtZoom(state.map.getZoom()))
 
       gl2.disable(gl2.DEPTH_TEST)
       gl2.enable(gl2.BLEND)
       gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA)
 
-      const centerWrap = computeCenterWorldWrap(state.map.getCenter().lng)
+      const centerWrap = worldWrapForLng(state.map.getCenter().lng)
       for (const relativeOffset of WORLD_WRAP_COPY_OFFSETS) {
         gl2.uniform1f(state.uniforms.worldOffsetX, centerWrap + relativeOffset)
         gl2.drawArrays(gl2.TRIANGLES, 0, 6)
@@ -281,7 +283,7 @@ function applyPressureContourFrame(
 
 export function pressureContourPhaseDistanceHpa(pressureHpa: number): number {
   if (!Number.isFinite(pressureHpa)) return Number.NaN
-  const phase = positiveModulo(pressureHpa, PRESSURE_CONTOUR_INTERVAL_HPA)
+  const phase = wrap(pressureHpa, PRESSURE_CONTOUR_INTERVAL_HPA)
   return Math.min(phase, PRESSURE_CONTOUR_INTERVAL_HPA - phase)
 }
 
@@ -484,23 +486,4 @@ function createVao(gl: WebGL2RenderingContext, vertexBuffer: WebGLBuffer | null)
   gl.bindVertexArray(null)
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
   return vao
-}
-
-function computeCenterWorldWrap(lng: number): number {
-  if (!Number.isFinite(lng)) return 0
-  return Math.floor((lng + 180) / 360)
-}
-
-function computeWorldSizeAtZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return 512
-  return 512 * (2 ** zoom)
-}
-
-function positiveModulo(value: number, divisor: number): number {
-  return ((value % divisor) + divisor) % divisor
-}
-
-function smoothstep(edge0: number, edge1: number, value: number): number {
-  const t = clamp((value - edge0) / Math.max(1e-6, edge1 - edge0), 0, 1)
-  return t * t * (3 - (2 * t))
 }

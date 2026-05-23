@@ -1,4 +1,4 @@
-import { clamp } from '../../webgl'
+import { clamp, lerp } from '../../../math'
 
 export const FIELD_OVERLAY_MIN_PATTERN_ZOOM = 2
 export const FIELD_OVERLAY_MAX_PATTERN_ZOOM = 6
@@ -23,8 +23,4 @@ export function fieldOverlayPatternTilePixelsForZoom(zoom: number): number {
     1
   )
   return lerp(FIELD_OVERLAY_MIN_PATTERN_TILE_PIXELS, FIELD_OVERLAY_MAX_PATTERN_TILE_PIXELS, t)
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + ((b - a) * t)
 }

@@ -101,6 +101,15 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'math must stay dependency-free',
+        (file) => isMathFile(file.path) && file.imports.length > 0
+      ),
+      ...findSourceImportViolations(
+        'geo must stay pure coordinate math',
+        (file) => isGeoFile(file.path) &&
+          file.imports.some((reference) => reference.resolvedPath !== '/math')
+      ),
+      ...findSourceImportViolations(
         'forecast-place-probes must stay independent of app, component, render, sync, settings, catalog, and map internals',
         (file) => isForecastPlaceProbesFile(file.path) &&
           !isTestFile(file.path) &&
@@ -437,6 +446,14 @@ function isUnitsFile(path: string): boolean {
 
 function isMapControlRailFile(path: string): boolean {
   return path.includes('/components/MapControlRail/')
+}
+
+function isMathFile(path: string): boolean {
+  return path === '../math.ts'
+}
+
+function isGeoFile(path: string): boolean {
+  return path === '../geo.ts'
 }
 
 function isForecastModuleImport(path: string): boolean {

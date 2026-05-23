@@ -1,5 +1,7 @@
 import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
+import { worldSizeAtZoom, worldWrapForLng } from '../../../geo'
+
 import {
   SCALAR_FRAGMENT_SHADER_SOURCE,
   SCALAR_VERTEX_SHADER_SOURCE,
@@ -346,14 +348,14 @@ export function createFieldRuntime(
       gl2.uniform1f(state.uniforms.dx, state.dx)
       gl2.uniform1f(state.uniforms.dy, state.dy)
       gl2.uniform1f(state.uniforms.opacity, state.opacity)
-      gl2.uniform1f(state.uniforms.worldSize, computeWorldSizeAtZoom(state.map.getZoom()))
+      gl2.uniform1f(state.uniforms.worldSize, worldSizeAtZoom(state.map.getZoom()))
 
       gl2.disable(gl2.DEPTH_TEST)
       gl2.enable(gl2.BLEND)
       gl2.blendFunc(gl2.SRC_ALPHA, gl2.ONE_MINUS_SRC_ALPHA)
 
       // Draw wrapped-world copies to avoid dateline seams.
-      const centerWrap = computeCenterWorldWrap(state.map.getCenter().lng)
+      const centerWrap = worldWrapForLng(state.map.getCenter().lng)
       for (const relativeOffset of WORLD_WRAP_COPY_OFFSETS) {
         gl2.uniform1f(state.uniforms.worldOffsetX, centerWrap + relativeOffset)
         gl2.drawArrays(gl2.TRIANGLES, 0, 6)
@@ -574,15 +576,4 @@ function createVao(gl: WebGL2RenderingContext, vertexBuffer: WebGLBuffer | null)
   gl.bindVertexArray(null)
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
   return vao
-}
-
-function computeCenterWorldWrap(lng: number): number {
-  // Use the wrapped copy nearest map center as the multi-copy base.
-  if (!Number.isFinite(lng)) return 0
-  return Math.floor((lng + 180) / 360)
-}
-
-function computeWorldSizeAtZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return 512
-  return 512 * (2 ** zoom)
 }

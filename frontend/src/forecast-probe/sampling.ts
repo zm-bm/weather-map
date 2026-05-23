@@ -2,6 +2,7 @@ import {
   type FieldTimeSliceData,
   type FieldInterpolationWindowData,
 } from '../forecast-data'
+import { clamp, clamp01, wrap } from '../math'
 
 export type FieldProbePoint = {
   x: number
@@ -181,7 +182,7 @@ export function blendFieldValues(
   upperValue: number | null,
   mix: number
 ): number | null {
-  const normalizedMix = Number.isFinite(mix) ? Math.max(0, Math.min(1, mix)) : 0
+  const normalizedMix = Number.isFinite(mix) ? clamp01(mix) : 0
   if (lowerValue == null && upperValue == null) return null
   if (lowerValue == null) return upperValue
   if (upperValue == null) return lowerValue
@@ -259,16 +260,6 @@ function toGridCoord(
     : clamp(rawCoord, 0, span - 1)
 }
 
-function wrap(value: number, span: number) {
-  if (span <= 0) return value
-  const wrapped = value % span
-  return wrapped < 0 ? wrapped + span : wrapped
-}
-
 function wrapIndex(value: number, span: number) {
   return Math.floor(wrap(value, span))
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
 }
