@@ -189,7 +189,7 @@ export function blendFieldValues(
   return lowerValue + ((upperValue - lowerValue) * normalizedMix)
 }
 
-export function sampleFieldInterpolationWindowWithSampler(
+export function sampleFieldWindowWithSampler(
   interpolationWindow: FieldInterpolationWindowData,
   sampler: FieldProbeSampler,
 ): number | null {

@@ -5,9 +5,9 @@ import {
   createFieldProbeSampler,
   probeFieldTimeSlice,
   probeFieldInterpolationWindow,
-  sampleFieldInterpolationWindowWithSampler,
+  sampleFieldWindowWithSampler,
   sampleFieldTimeSliceWithSampler,
-} from './sampling'
+} from './fieldSampling'
 import type { FieldTimeSliceData } from '../forecast-data'
 
 function createFrame(values: number[]): FieldTimeSliceData {
@@ -97,7 +97,7 @@ describe('probeFieldTimeSlice', () => {
     expect(probe?.value).toBe(30)
     expect(probe?.mix).toBe(0.5)
     expect(sampler).not.toBeNull()
-    expect(sampleFieldInterpolationWindowWithSampler(interpolationWindow, sampler!)).toBe(probe?.value)
+    expect(sampleFieldWindowWithSampler(interpolationWindow, sampler!)).toBe(probe?.value)
   })
 
   it('falls back to the available side when blending nodata values', () => {

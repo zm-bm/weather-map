@@ -70,17 +70,17 @@ const mocks = vi.hoisted(() => {
       value: rawValue,
     })),
     createFieldProbeSampler: vi.fn(),
-    sampleFieldInterpolationWindowWithSampler: vi.fn(),
+    sampleFieldWindowWithSampler: vi.fn(),
   }
 })
 
-vi.mock('../forecast-probe', async () => {
-  const actual = await vi.importActual<typeof import('../forecast-probe')>('../forecast-probe')
+vi.mock('./fieldSampling', async () => {
+  const actual = await vi.importActual<typeof import('./fieldSampling')>('./fieldSampling')
 
   return {
     ...actual,
     createFieldProbeSampler: mocks.createFieldProbeSampler,
-    sampleFieldInterpolationWindowWithSampler: mocks.sampleFieldInterpolationWindowWithSampler,
+    sampleFieldWindowWithSampler: mocks.sampleFieldWindowWithSampler,
   }
 })
 
@@ -250,8 +250,8 @@ describe('createForecastPlaceProbeSession', () => {
     mocks.formatProbeValue.mockClear()
     mocks.createFieldProbeSampler.mockReset()
     mocks.createFieldProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
-    mocks.sampleFieldInterpolationWindowWithSampler.mockReset()
-    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(20)
+    mocks.sampleFieldWindowWithSampler.mockReset()
+    mocks.sampleFieldWindowWithSampler.mockReturnValue(20)
   })
 
   afterEach(() => {
@@ -372,7 +372,7 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(1)
 
-    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldWindowWithSampler.mockReturnValue(25)
     act(() => {
       session.setFrame({
         lower: { layerId: 'temperature', grid: mocks.testGrid },
@@ -536,7 +536,7 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
 
-    mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(25)
+    mocks.sampleFieldWindowWithSampler.mockReturnValue(25)
     act(() => {
       session.setFrame({
         lower: { layerId: 'temperature', grid: mocks.testGrid },

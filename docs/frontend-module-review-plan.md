@@ -43,8 +43,8 @@ Check for:
 ### 3. `forecast-place-probes`
 
 Review place probes as a feature module. It owns MapLibre probe sources/layers,
-hover behavior, visible place selection, label sampling, and frame-channel
-subscription.
+hover behavior, visible place selection, field sampling, label generation, and
+frame-channel subscription.
 
 Check for:
 

@@ -4,9 +4,9 @@ import type {
 } from '../forecast-data'
 import {
   createFieldProbeSampler,
-  sampleFieldInterpolationWindowWithSampler,
+  sampleFieldWindowWithSampler,
   type FieldProbeSampler,
-} from '../forecast-probe'
+} from './fieldSampling'
 import { getPlaceProbeKey, type PlaceProbe } from './places'
 import type { PlaceProbeValueLabel } from './layer'
 
@@ -78,7 +78,7 @@ function getPlaceProbeText(
 ): string {
   const sampler = samplerState.samplers[placeIndex]
   const rawValue = frame != null && sampler != null
-    ? sampleFieldInterpolationWindowWithSampler(frame, sampler)
+    ? sampleFieldWindowWithSampler(frame, sampler)
     : null
 
   return formatProbeValue(rawValue, frame == null).text

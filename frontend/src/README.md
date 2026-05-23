@@ -54,9 +54,7 @@ startup, request building, payload loading, and layer application.
 
 - `map/*`: MapLibre host platform, basemap contracts, style construction, viewport persistence, map controls, and base map interactions. Keep forecast domain logic out of this layer.
 
-- `forecast-probe/*`: generic field probe sampling primitives. It should not own applied forecast state, unit/catalog formatting, or MapLibre place-label orchestration.
-
-- `forecast-place-probes/*`: forecast place-probe feature orchestration, including visible place selection, label sampling, MapLibre source/layer updates, hover state, and viewport refresh handling. React components wrap this feature but do not own the session behavior.
+- `forecast-place-probes/*`: forecast place-probe feature orchestration, including visible place selection, field sampling, label creation, MapLibre source/layer updates, hover state, and viewport refresh handling. React components wrap this feature but do not own the session behavior.
 
 - `forecast-palette/*`: shared palette stop contract and frontend palette registry used by catalog display, legend gradients, and field renderer LUT input.
 
@@ -86,6 +84,6 @@ Preferred orchestration shape:
 Guideline: keep durable domain state in the relevant provider module, use
 `forecast-sync` for cross-domain coordination and target resolution, keep slice
 loading and request/window orchestration behind the `forecast-data` session,
-keep `forecast-data/loaders` private, keep generic probe sampling inside `forecast-probe`, keep place
-probe orchestration inside `forecast-place-probes`, and keep renderer/runtime
+keep `forecast-data/loaders` private, keep field sampling and place-probe
+orchestration inside `forecast-place-probes`, and keep renderer/runtime
 details inside `forecast-render` and `map`.
