@@ -1,5 +1,4 @@
 import { useMapAttributionControl } from './controls/useMapAttributionControl'
-import { useMapHover } from './interactions/useMapHover'
 import {
   useMapLibre,
   type UseMapLibreResult,
@@ -20,7 +19,6 @@ export function useMap({
     maxZoom: 6.99,
   })
 
-  useMapHover(map.mapRef)
   useMapAttributionControl(map.mapRef, map.mapReadyVersion)
 
   return map

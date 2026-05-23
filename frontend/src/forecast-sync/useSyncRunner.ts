@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
@@ -8,10 +8,9 @@ import {
   createForecastDataMemory,
   loadForecastData,
 } from '../forecast-data'
-import type { ForecastDataTarget } from '../forecast-data'
+import type { FieldInterpolationWindowData, ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
-import { forecastFieldDataStore } from '../forecast-probe'
 import type { ForecastSyncStartupState } from './types'
 
 type UseSyncRunnerArgs = {
@@ -32,6 +31,10 @@ type RunnerDecision =
 type ActiveRequest = {
   key: string
   controller: AbortController
+}
+
+export type UseSyncRunnerResult = {
+  appliedProbeField: FieldInterpolationWindowData | null
 }
 
 type RunnerMachine = {
@@ -57,7 +60,8 @@ export function useSyncRunner({
   syncCallbacks,
   startup,
   pressureContoursEnabled = true,
-}: UseSyncRunnerArgs): void {
+}: UseSyncRunnerArgs): UseSyncRunnerResult {
+  const [appliedProbeField, setAppliedProbeField] = useState<FieldInterpolationWindowData | null>(null)
   const {
     isBlocked,
     handleDisabled,
@@ -88,7 +92,7 @@ export function useSyncRunner({
     switch (decision.kind) {
       case 'disabled':
         dataMemoryRef.current?.reset()
-        forecastFieldDataStore.clear()
+        setAppliedProbeField(null)
         handleDisabled()
         return
       case 'blocked':
@@ -128,7 +132,7 @@ export function useSyncRunner({
     })
 
     if (dataMemory.shouldClearFieldProbe(dataPlan)) {
-      forecastFieldDataStore.clear()
+      setAppliedProbeField(null)
     }
 
     handlePending()
@@ -145,11 +149,7 @@ export function useSyncRunner({
         activeRenderHost.apply(renderData)
         if (isRequestStale(machine, activeRequest)) return
 
-        if (renderData.probeField == null) {
-          forecastFieldDataStore.clear()
-        } else {
-          forecastFieldDataStore.publish(renderData.probeField)
-        }
+        setAppliedProbeField(renderData.probeField ?? null)
         dataMemory.commit(dataPlan, renderData)
         machine.markApplied(activeRequest)
         syncCallbacks.onRequestApplied(selectedValidTimeMs)
@@ -178,6 +178,10 @@ export function useSyncRunner({
     syncCallbacks,
     target,
   ])
+
+  return {
+    appliedProbeField,
+  }
 }
 
 function createRunnerMachine(): RunnerMachine {

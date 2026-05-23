@@ -7,7 +7,7 @@ import {
   BASEMAP_LAYER_IDS,
   BASEMAP_SOURCE_ID,
   FORECAST_OVERLAY_ANCHOR_LAYER_ID,
-} from './constants'
+} from '../basemap'
 import {
   BASEMAP_THEME_PAINT_KEYS,
 } from './basemapTheme'

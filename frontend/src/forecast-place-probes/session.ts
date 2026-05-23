@@ -1,58 +1,64 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
+import type { FieldInterpolationWindowData } from '../forecast-data'
 import {
-  forecastFieldDataStore,
-} from '../../forecast-probe'
-import type { FieldInterpolationWindowData } from '../../forecast-data'
+  getPlaceProbeKey,
+  selectVisiblePlaceProbes,
+  type PlaceProbe,
+} from './places'
 import {
-  mapPlaceSelection,
-  type MapSelectedPlace,
-} from '../../map/place-selection'
-import {
-  mapPlaceProbeLayer,
+  forecastPlaceProbeLayer,
   type PlaceProbeLabelSnapshot,
-} from '../../map/view/placeProbeLayer'
+} from './layer'
+import { createForecastPlaceProbeHoverSession } from './hover'
 import {
-  createLayerPlaceProbeValueLabels,
-  refreshLayerPlaceProbeSamplers,
-  type PlaceProbeLayerSamplers,
-} from './placeProbeValues'
+  createPlaceProbeLabels,
+  refreshPlaceProbeSamplers,
+  type PlaceProbeSamplers,
+} from './labels'
 
-type ProbeValueFormatter = (
+export type ForecastPlaceProbeValueFormatter = (
   rawProbeValue: number | null,
   loading?: boolean
 ) => { text: string }
 
-export type PlaceProbeSession = {
+export type ForecastPlaceProbeSession = {
   start: () => void
   destroy: () => void
-  refreshFrame: () => void
+  setLayerId: (layerId: string) => void
+  setValueFormatter: (valueFormatter: ForecastPlaceProbeValueFormatter) => void
+  setFrame: (frame: FieldInterpolationWindowData | null) => void
 }
 
-type PlaceProbeSessionOptions = {
+export type ForecastPlaceProbeSessionOptions = {
   map: MapLibreMap
-  getSelectedLayerId: () => string
-  getValueFormatter: () => ProbeValueFormatter
+  layerId: string
+  valueFormatter: ForecastPlaceProbeValueFormatter
+  appliedProbeField: FieldInterpolationWindowData | null
 }
 
-export function createPlaceProbeSession({
+export function createForecastPlaceProbeSession({
   map,
-  getSelectedLayerId,
-  getValueFormatter,
-}: PlaceProbeSessionOptions): PlaceProbeSession {
+  layerId,
+  valueFormatter,
+  appliedProbeField,
+}: ForecastPlaceProbeSessionOptions): ForecastPlaceProbeSession {
   let started = false
+  let selectedLayerId = layerId
+  let formatProbeValue = valueFormatter
+  let latestAppliedProbeField = appliedProbeField
   let currentFrame: FieldInterpolationWindowData | null = null
-  let visiblePlaces: MapSelectedPlace[] = []
+  let visiblePlaces: PlaceProbe[] = []
   let visiblePlaceKey = ''
-  let samplerState: PlaceProbeLayerSamplers = refreshLayerPlaceProbeSamplers(null, [])
+  let samplerState: PlaceProbeSamplers = refreshPlaceProbeSamplers(null, [])
   let labelsByPlaceId: PlaceProbeLabelSnapshot = new Map()
   let pendingSourceUpdateId: number | null = null
   let needsFullSourceUpdate = true
   let refreshOnNextIdle = false
-  let unsubscribeFrameStore: (() => void) | null = null
+  const hoverSession = createForecastPlaceProbeHoverSession(map)
 
   const rebuildSamplers = (force: boolean) => {
-    samplerState = refreshLayerPlaceProbeSamplers(
+    samplerState = refreshPlaceProbeSamplers(
       currentFrame,
       visiblePlaces,
       samplerState,
@@ -62,22 +68,22 @@ export function createPlaceProbeSession({
 
   const updateSourceData = () => {
     pendingSourceUpdateId = null
-    const labels = createLayerPlaceProbeValueLabels(
+    const labels = createPlaceProbeLabels(
       visiblePlaces,
       currentFrame,
       samplerState,
-      getValueFormatter(),
+      formatProbeValue,
     )
 
     if (needsFullSourceUpdate) {
       labelsByPlaceId = labelsByPlaceId.size === 0
-        ? mapPlaceProbeLayer.setLabels(map, labels)
-        : mapPlaceProbeLayer.updateLabels(map, labels, labelsByPlaceId)
+        ? forecastPlaceProbeLayer.setLabels(map, labels)
+        : forecastPlaceProbeLayer.updateLabels(map, labels, labelsByPlaceId)
       needsFullSourceUpdate = false
       return
     }
 
-    labelsByPlaceId = mapPlaceProbeLayer.updateLabels(
+    labelsByPlaceId = forecastPlaceProbeLayer.updateLabels(
       map,
       labels,
       labelsByPlaceId,
@@ -89,8 +95,8 @@ export function createPlaceProbeSession({
     pendingSourceUpdateId = window.requestAnimationFrame(updateSourceData)
   }
 
-  const replaceVisiblePlaces = (nextVisiblePlaces: MapSelectedPlace[]) => {
-    const nextVisiblePlaceKey = mapPlaceSelection.getKey(nextVisiblePlaces)
+  const replaceVisiblePlaces = (nextVisiblePlaces: PlaceProbe[]) => {
+    const nextVisiblePlaceKey = getPlaceProbeKey(nextVisiblePlaces)
     if (visiblePlaceKey === nextVisiblePlaceKey) return false
 
     visiblePlaces = nextVisiblePlaces
@@ -99,21 +105,22 @@ export function createPlaceProbeSession({
     return true
   }
 
-  const setFrame = (frame: FieldInterpolationWindowData | null) => {
-    currentFrame = frame?.lower.layerId === getSelectedLayerId() ? frame : null
+  const applyFrame = (frame: FieldInterpolationWindowData | null) => {
+    currentFrame = frame?.lower.layerId === selectedLayerId ? frame : null
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
-  const refreshFrame = () => {
-    setFrame(forecastFieldDataStore.getCurrent())
+  const setFrame = (frame: FieldInterpolationWindowData | null) => {
+    latestAppliedProbeField = frame
+    applyFrame(frame)
   }
 
   const refreshPlaces = (followUpOnIdle = false) => {
     refreshOnNextIdle = false
-    const selectionContext = mapPlaceProbeLayer.getSelectionContext(map)
-    const nextVisiblePlaces = mapPlaceSelection.selectVisible(
-      mapPlaceProbeLayer.queryBasemapPlaces(map),
+    const selectionContext = forecastPlaceProbeLayer.getSelectionContext(map)
+    const nextVisiblePlaces = selectVisiblePlaceProbes(
+      forecastPlaceProbeLayer.queryBasemapPlaces(map),
       {
         zoom: map.getZoom(),
         bounds: selectionContext.bounds,
@@ -146,13 +153,13 @@ export function createPlaceProbeSession({
       if (started) return
 
       started = true
-      mapPlaceProbeLayer.ensure(map)
+      forecastPlaceProbeLayer.ensure(map)
+      hoverSession.start()
       map.on('moveend', handleViewportSettled)
       map.on('resize', handleViewportSettled)
       map.on('idle', handleIdle)
-      unsubscribeFrameStore = forecastFieldDataStore.subscribe(setFrame)
 
-      refreshFrame()
+      applyFrame(latestAppliedProbeField)
       refreshPlaces(true)
     },
 
@@ -162,34 +169,42 @@ export function createPlaceProbeSession({
         pendingSourceUpdateId = null
       }
 
-      unsubscribeFrameStore?.()
-      unsubscribeFrameStore = null
-
       if (started) {
         map.off('moveend', handleViewportSettled)
         map.off('resize', handleViewportSettled)
         map.off('idle', handleIdle)
-        mapPlaceProbeLayer.remove(map)
+        hoverSession.destroy()
+        forecastPlaceProbeLayer.remove(map)
       }
 
       started = false
       currentFrame = null
       visiblePlaces = []
       visiblePlaceKey = ''
-      samplerState = refreshLayerPlaceProbeSamplers(null, [])
+      samplerState = refreshPlaceProbeSamplers(null, [])
       labelsByPlaceId.clear()
       refreshOnNextIdle = false
       needsFullSourceUpdate = true
     },
 
-    refreshFrame,
+    setLayerId(nextLayerId) {
+      if (selectedLayerId === nextLayerId) return
+      selectedLayerId = nextLayerId
+      applyFrame(latestAppliedProbeField)
+    },
+    setValueFormatter(nextValueFormatter) {
+      if (formatProbeValue === nextValueFormatter) return
+      formatProbeValue = nextValueFormatter
+      scheduleSourceUpdate()
+    },
+    setFrame,
   }
 }
 
 function shouldDeferProvisionalPlaceRefresh(
   followUpOnIdle: boolean,
-  currentPlaces: MapSelectedPlace[],
-  nextPlaces: MapSelectedPlace[],
+  currentPlaces: PlaceProbe[],
+  nextPlaces: PlaceProbe[],
 ): boolean {
   return followUpOnIdle &&
     currentPlaces.length > 0 &&

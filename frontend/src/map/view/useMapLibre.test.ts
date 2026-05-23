@@ -2,7 +2,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BASEMAP_SOURCE_ID } from './constants'
+import { BASEMAP_SOURCE_ID } from '../basemap'
 import { createConfigFixture } from '../../test/fixtures/config'
 
 const mocks = vi.hoisted(() => {

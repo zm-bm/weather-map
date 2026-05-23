@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { readStandardBasemapPaintValue } from './basemapStyle'
 import {
   BASEMAP_LAYER_IDS,
-} from './constants'
+} from '../basemap'
 import {
   applyBasemapTheme,
   basemapThemeForForecastLayer,

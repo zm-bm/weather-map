@@ -2,7 +2,7 @@ import type { LayerSpecification, StyleSpecification, VectorSourceSpecification 
 
 import type { WeatherMapConfig } from '../../config'
 import { joinUrl } from '../../url/joinUrl'
-import { BASEMAP_SOURCE_ID } from './constants'
+import { BASEMAP_SOURCE_ID } from '../basemap'
 import styleJson from './style.json'
 
 export type BasemapPaintValue = string | number | boolean | readonly unknown[]

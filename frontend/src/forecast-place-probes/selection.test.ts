@@ -1,7 +1,7 @@
 import type { MapGeoJSONFeature } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
-import { mapPlaceSelection } from './index'
+import { selectVisiblePlaceProbes } from './places'
 
 function createPlaceFeature(
   name: string,
@@ -32,7 +32,7 @@ function createPlaceFeature(
   } as unknown as MapGeoJSONFeature
 }
 
-describe('mapPlaceSelection.selectVisible', () => {
+describe('selectVisiblePlaceProbes', () => {
   it('shows places only above the zoom threshold', () => {
     const features = [
       createPlaceFeature('Capital', -92, 42, { capital: 'yes', population: 200_000 }),
@@ -41,9 +41,9 @@ describe('mapPlaceSelection.selectVisible', () => {
       createPlaceFeature('Small', -89, 39, { population: 10_000 }),
     ]
 
-    expect(mapPlaceSelection.selectVisible(features, { zoom: 3.49 })).toEqual([])
-    expect(mapPlaceSelection.selectVisible(features, { zoom: 3.5 })).toEqual([])
-    expect(mapPlaceSelection.selectVisible(features, { zoom: 3.51 }).map((place) => place.name)).toEqual([
+    expect(selectVisiblePlaceProbes(features, { zoom: 3.49 })).toEqual([])
+    expect(selectVisiblePlaceProbes(features, { zoom: 3.5 })).toEqual([])
+    expect(selectVisiblePlaceProbes(features, { zoom: 3.51 }).map((place) => place.name)).toEqual([
       'Capital',
       'Metro',
       'Mid',
@@ -52,7 +52,7 @@ describe('mapPlaceSelection.selectVisible', () => {
   })
 
   it('prioritizes capitals, then major labels, and applies the requested limit', () => {
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Small', -90, 40, { population: 10_000 }),
       createPlaceFeature('Metro', -91, 41, { population: 1_000_000 }),
       createPlaceFeature('Capital', -92, 42, { capital: 'yes', population: 200_000 }),
@@ -69,7 +69,7 @@ describe('mapPlaceSelection.selectVisible', () => {
   })
 
   it('keeps a stable core of top places, then fills empty screen cells', () => {
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
       createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
       createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
@@ -92,7 +92,7 @@ describe('mapPlaceSelection.selectVisible', () => {
   })
 
   it('uses spread slots only after the stable core', () => {
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Metro 1', 10, 10, { population: 5_000_000 }),
       createPlaceFeature('Metro 2', 50, 10, { population: 4_000_000 }),
       createPlaceFeature('Metro 3', 300, 10, { population: 3_000_000 }),
@@ -116,14 +116,14 @@ describe('mapPlaceSelection.selectVisible', () => {
       minSpacingPx: 80,
       project: (point: { lon: number; lat: number }) => ({ x: point.lon, y: point.lat }),
     }
-    const initial = mapPlaceSelection.selectVisible([
+    const initial = selectVisiblePlaceProbes([
       createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
       createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
       createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
       createPlaceFeature('Sticky Spread', 480, 10, { population: 400_000 }),
     ], selectionOptions)
 
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
       createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
       createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
@@ -143,7 +143,7 @@ describe('mapPlaceSelection.selectVisible', () => {
   })
 
   it('dedupes repeated source-tile features by name and rounded coordinates', () => {
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 }),
       createPlaceFeature('Chicago', -87.62501, 41.87501, { population: 2_700_000 }),
     ], { zoom: 4 })
@@ -155,11 +155,11 @@ describe('mapPlaceSelection.selectVisible', () => {
     const feature = createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })
     feature.id = 123
 
-    expect(mapPlaceSelection.selectVisible([feature], { zoom: 4 }).map((place) => place.name)).toEqual(['Chicago'])
+    expect(selectVisiblePlaceProbes([feature], { zoom: 4 }).map((place) => place.name)).toEqual(['Chicago'])
   })
 
   it('preserves non-latin local names when using English display names', () => {
-    const selected = mapPlaceSelection.selectVisible([
+    const selected = selectVisiblePlaceProbes([
       createPlaceFeature('東京', 139.69, 35.68, {
         nameEn: 'Tokyo',
         population: 14_000_000,

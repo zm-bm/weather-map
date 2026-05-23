@@ -99,6 +99,23 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'forecast-place-probes must stay independent of app, component, render, sync, settings, catalog, and map internals',
+        (file) => isForecastPlaceProbesFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isComponentsImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            (
+              isMapImport(reference.resolvedPath) &&
+              reference.resolvedPath !== '/map/basemap'
+            ) ||
+            reference.resolvedPath === '/react'
+          ))
+      ),
+      ...findSourceImportViolations(
         'Controls must not import forecast-render',
         (file) => isMapControlRailFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
@@ -119,10 +136,19 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'forecast-sync must not import MapLibre or forecast-render internals',
+        'Production map modules must not import forecast probe features',
+        (file) => isProductionMapFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastPlaceProbesImport(reference.resolvedPath) ||
+            isForecastProbeImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
+        'forecast-sync must not import MapLibre, forecast-probe, or forecast-render internals',
         (file) => isForecastSyncFile(file.path) &&
           file.imports.some((reference) => (
             reference.resolvedPath === '/maplibre-gl' ||
+            isForecastProbeImport(reference.resolvedPath) ||
             isForecastRenderSubmoduleImport(reference.resolvedPath)
           ))
       ),
@@ -165,6 +191,11 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastProbeSubmoduleImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'Import forecast-place-probes through its public module',
+        (file) => !isForecastPlaceProbesFile(file.path) &&
+          file.imports.some((reference) => isForecastPlaceProbesSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
         'Import forecast-data internals through forecast-data public modules',
         (file) => !file.path.includes('/forecast-data/') &&
           file.imports.some((reference) => isForecastDataInternalImport(reference.resolvedPath))
@@ -185,12 +216,12 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastTimeInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Use grouped map layer ids outside map view internals',
-        (file) => !file.path.includes('/map/view/') &&
+        'Only map, render placement, and place probes may import basemap layer contracts',
+        (file) => !file.path.includes('/map/') &&
+          !file.path.includes('/forecast-render/placement') &&
+          !file.path.includes('/forecast-place-probes/') &&
           !isTestFile(file.path) &&
-          file.imports.some((reference) => reference.resolvedPath.includes('/map/view/constants')) &&
-          /\b(BASEMAP_SOURCE_ID|BASEMAP_SOURCE_LAYER_IDS|BASEMAP_LAYER_IDS|PLACE_PROBE_SOURCE_ID|PLACE_PROBE_LAYER_ID|PLACE_LABEL_LAYER_IDS)\b/
-            .test(file.source)
+          file.imports.some((reference) => reference.resolvedPath === '/map/basemap')
       ),
       ...findSourceImportViolations(
         'forecast-render must not import forecast-data loader modules or APIs',
@@ -277,6 +308,10 @@ function isForecastSettingsFile(path: string): boolean {
   return path.includes('/forecast-settings/')
 }
 
+function isForecastPlaceProbesFile(path: string): boolean {
+  return path.includes('/forecast-place-probes/')
+}
+
 function isForecastSyncFile(path: string): boolean {
   return path.includes('/forecast-sync/')
 }
@@ -311,6 +346,14 @@ function isForecastCatalogSubmoduleImport(path: string): boolean {
 
 function isForecastDataImport(path: string): boolean {
   return path === '/forecast-data' || path.includes('/forecast-data/')
+}
+
+function isForecastPlaceProbesImport(path: string): boolean {
+  return path === '/forecast-place-probes' || isForecastPlaceProbesSubmoduleImport(path)
+}
+
+function isForecastPlaceProbesSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-place-probes/')
 }
 
 function isForecastManifestImport(path: string): boolean {

@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import { BASEMAP_LAYER_IDS } from './constants'
+import { BASEMAP_LAYER_IDS } from '../basemap'
 import {
   readStandardBasemapPaints,
   type BasemapPaint,

@@ -10,8 +10,12 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import {
   BASEMAP_SOURCE_ID,
   BASEMAP_SOURCE_LAYER_IDS,
-  placeProbeLayerIds,
-} from './constants'
+} from '../map/basemap'
+import type {
+  PlaceProbeBounds,
+  PlaceProbeProject,
+  PlaceProbeScreenPoint,
+} from './types'
 
 type PlaceProbeFeatureProperties = {
   id: string
@@ -23,22 +27,6 @@ type PlaceProbeFeatureProperties = {
 
 type PlaceProbeFeature = Feature<Point, PlaceProbeFeatureProperties>
 type PlaceProbeFeatureCollection = FeatureCollection<Point, PlaceProbeFeatureProperties>
-
-type PlaceProbeBounds = {
-  contains: (lngLat: [number, number]) => boolean
-}
-
-type PlaceProbePoint = {
-  lon: number
-  lat: number
-}
-
-type PlaceProbeScreenPoint = {
-  x: number
-  y: number
-}
-
-type PlaceProbeProject = (point: PlaceProbePoint) => PlaceProbeScreenPoint | null
 
 type PlaceProbeSelectionContext = {
   bounds: PlaceProbeBounds | null
@@ -57,6 +45,16 @@ export type PlaceProbeValueLabel = {
 
 export type PlaceProbeLabelSnapshot = Map<string, PlaceProbeValueLabel>
 
+const FORECAST_PLACE_PROBE_SOURCE_ID = 'forecast-place-probes' as const
+const FORECAST_PLACE_PROBE_LAYER_ID = 'forecast-place-probe-labels' as const
+const FORECAST_PLACE_PROBE_LABEL_LAYER_IDS = [FORECAST_PLACE_PROBE_LAYER_ID] as const
+
+export const forecastPlaceProbeLayerIds = {
+  source: FORECAST_PLACE_PROBE_SOURCE_ID,
+  layer: FORECAST_PLACE_PROBE_LAYER_ID,
+  labelLayers: FORECAST_PLACE_PROBE_LABEL_LAYER_IDS,
+} as const
+
 const PLACE_LABEL_FONT_STACK = 'NotoSansMonoCJKjpRegular'
 const PLACE_PROBE_FORMAT = {
   'font-scale': 1.15,
@@ -64,9 +62,9 @@ const PLACE_PROBE_FORMAT = {
 }
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
-  id: placeProbeLayerIds.layer,
+  id: forecastPlaceProbeLayerIds.layer,
   type: 'symbol',
-  source: placeProbeLayerIds.source,
+  source: forecastPlaceProbeLayerIds.source,
   minzoom: 3.5,
   layout: {
     'symbol-sort-key': ['get', 'sortKey'],
@@ -138,24 +136,24 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
 }
 
 function ensurePlaceProbeLayer(map: MapLibreMap): void {
-  if (!map.getSource(placeProbeLayerIds.source)) {
-    map.addSource(placeProbeLayerIds.source, {
+  if (!map.getSource(forecastPlaceProbeLayerIds.source)) {
+    map.addSource(forecastPlaceProbeLayerIds.source, {
       type: 'geojson',
       data: createEmptyPlaceProbeCollection(),
     })
   }
 
-  if (!map.getLayer(placeProbeLayerIds.layer)) {
+  if (!map.getLayer(forecastPlaceProbeLayerIds.layer)) {
     map.addLayer(PLACE_PROBE_LAYER)
   }
 }
 
 function removePlaceProbeLayer(map: MapLibreMap): void {
-  if (getMapLayerIfStyleAvailable(map, placeProbeLayerIds.layer)) {
-    runMapStyleOperation(map, () => map.removeLayer(placeProbeLayerIds.layer))
+  if (getMapLayerIfStyleAvailable(map, forecastPlaceProbeLayerIds.layer)) {
+    runMapStyleOperation(map, () => map.removeLayer(forecastPlaceProbeLayerIds.layer))
   }
-  if (getMapSourceIfStyleAvailable(map, placeProbeLayerIds.source)) {
-    runMapStyleOperation(map, () => map.removeSource(placeProbeLayerIds.source))
+  if (getMapSourceIfStyleAvailable(map, forecastPlaceProbeLayerIds.source)) {
+    runMapStyleOperation(map, () => map.removeSource(forecastPlaceProbeLayerIds.source))
   }
 }
 
@@ -259,7 +257,7 @@ function updatePlaceProbeLabels(
 }
 
 function getPlaceProbeSource(map: MapLibreMap): GeoJSONSource | null {
-  return (map.getSource(placeProbeLayerIds.source) as GeoJSONSource | undefined) ?? null
+  return (map.getSource(forecastPlaceProbeLayerIds.source) as GeoJSONSource | undefined) ?? null
 }
 
 function createEmptyPlaceProbeCollection(): PlaceProbeFeatureCollection {
@@ -381,7 +379,7 @@ function buildPlaceProbeFeature(label: PlaceProbeValueLabel): PlaceProbeFeature 
   }
 }
 
-export const mapPlaceProbeLayer = {
+export const forecastPlaceProbeLayer = {
   ensure: ensurePlaceProbeLayer,
   remove: removePlaceProbeLayer,
   queryBasemapPlaces: queryBasemapPlaceFeatures,

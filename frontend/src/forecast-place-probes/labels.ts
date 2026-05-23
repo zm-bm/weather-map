@@ -1,16 +1,16 @@
 import type {
   FieldTimeSliceData,
   FieldInterpolationWindowData,
-} from '../../forecast-data'
+} from '../forecast-data'
 import {
   layerProbe,
   type ForecastProbeValueDisplay,
   type LayerProbeSampler,
-} from '../../forecast-probe'
-import type { MapSelectedPlace } from '../../map/place-selection'
-import type { PlaceProbeValueLabel } from '../../map/view/placeProbeLayer'
+} from '../forecast-probe'
+import { getPlaceProbeKey, type PlaceProbe } from './places'
+import type { PlaceProbeValueLabel } from './layer'
 
-export type PlaceProbeLayerSamplers = {
+export type PlaceProbeSamplers = {
   frameGridKey: string | null
   placeKey: string
   samplers: Array<LayerProbeSampler | null>
@@ -21,12 +21,12 @@ type ForecastProbeValueFormatter = (
   loading?: boolean
 ) => Pick<ForecastProbeValueDisplay, 'text'>
 
-export function refreshLayerPlaceProbeSamplers(
+export function refreshPlaceProbeSamplers(
   frame: FieldInterpolationWindowData | null,
-  places: MapSelectedPlace[],
-  previousSamplers?: PlaceProbeLayerSamplers,
+  places: PlaceProbe[],
+  previousSamplers?: PlaceProbeSamplers,
   force = false,
-): PlaceProbeLayerSamplers {
+): PlaceProbeSamplers {
   const placeKey = getPlaceProbeKey(places)
 
   if (frame == null) {
@@ -53,10 +53,10 @@ export function refreshLayerPlaceProbeSamplers(
   }
 }
 
-export function createLayerPlaceProbeValueLabels(
-  places: MapSelectedPlace[],
+export function createPlaceProbeLabels(
+  places: PlaceProbe[],
   frame: FieldInterpolationWindowData | null,
-  samplerState: PlaceProbeLayerSamplers,
+  samplerState: PlaceProbeSamplers,
   formatProbeValue: ForecastProbeValueFormatter,
 ): PlaceProbeValueLabel[] {
   return places.map((place, index) => ({
@@ -66,18 +66,14 @@ export function createLayerPlaceProbeValueLabels(
     lon: place.lon,
     lat: place.lat,
     sortKey: place.sortKey,
-    probeText: getLayerPlaceProbeText(index, frame, samplerState, formatProbeValue),
+    probeText: getPlaceProbeText(index, frame, samplerState, formatProbeValue),
   }))
 }
 
-function getPlaceProbeKey(places: MapSelectedPlace[]): string {
-  return places.map((place) => place.id).join('|')
-}
-
-function getLayerPlaceProbeText(
+function getPlaceProbeText(
   placeIndex: number,
   frame: FieldInterpolationWindowData | null,
-  samplerState: PlaceProbeLayerSamplers,
+  samplerState: PlaceProbeSamplers,
   formatProbeValue: ForecastProbeValueFormatter,
 ): string {
   const sampler = samplerState.samplers[placeIndex]

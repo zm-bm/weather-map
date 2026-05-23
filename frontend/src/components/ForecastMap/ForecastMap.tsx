@@ -58,7 +58,7 @@ export default function ForecastMap({
     selectedLayerId,
   })
 
-  const { startupStatus } = useForecastSync({
+  const { startupStatus, appliedProbeField } = useForecastSync({
     renderHost,
     config,
     pressureContoursEnabled: settings.pressureContours.enabled,
@@ -83,7 +83,11 @@ export default function ForecastMap({
         settings={settings}
         settingsActions={actions}
       />
-      <ForecastPlaceProbes mapRef={mapRef} mapReadyVersion={mapReadyVersion} />
+      <ForecastPlaceProbes
+        mapRef={mapRef}
+        mapReadyVersion={mapReadyVersion}
+        appliedProbeField={appliedProbeField}
+      />
     </div>
   )
 }

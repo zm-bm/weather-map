@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { BASEMAP_LAYER_IDS } from './constants'
+import { BASEMAP_LAYER_IDS } from '../basemap'
 import { useForecastBasemapTheme } from './useForecastBasemapTheme'
 
 function createThemeMap(layerIds: readonly string[] = [

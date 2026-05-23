@@ -28,8 +28,6 @@ import { useStartupState } from './useStartupState'
 const mocks = vi.hoisted(() => ({
   loadForecastData: vi.fn(),
   applyRenderData: vi.fn(),
-  setForecastFieldData: vi.fn(),
-  clearForecastFieldData: vi.fn(),
   artifactLoaderSignals: [] as AbortSignal[],
   fieldWindow: {
     lower: { layerId: 'temperature' },
@@ -63,13 +61,6 @@ vi.mock('../forecast-artifacts', () => ({
   },
 }))
 
-vi.mock('../forecast-probe', () => ({
-  forecastFieldDataStore: {
-    publish: mocks.setForecastFieldData,
-    clear: mocks.clearForecastFieldData,
-  },
-}))
-
 type DataInput = {
   activeRun: ActiveForecastRun
   selectedLayerId: LayerId
@@ -94,7 +85,7 @@ function useSyncHarness(args: SyncHarnessArgs) {
     [args.dataInput, startup.retryToken]
   )
 
-  useSyncRunner({
+  const { appliedProbeField } = useSyncRunner({
     renderHost: args.renderHost,
     config: args.config,
     target,
@@ -103,7 +94,10 @@ function useSyncHarness(args: SyncHarnessArgs) {
     pressureContoursEnabled: args.pressureContoursEnabled,
   })
 
-  return startup.status
+  return {
+    ...startup.status,
+    appliedProbeField,
+  }
 }
 
 function createSyncCallbacks(): ForecastTimeSyncCallbacks {
@@ -217,7 +211,7 @@ describe('useSyncRunner + useStartupState', () => {
 
     expect(mocks.loadForecastData).not.toHaveBeenCalled()
     expect(mocks.applyRenderData).not.toHaveBeenCalled()
-    expect(mocks.clearForecastFieldData).toHaveBeenCalledTimes(1)
+    expect(result.current.appliedProbeField).toBeNull()
     expect(result.current.startupPhase).toBe('idle')
     expect(result.current.startupErrorMessage).toBeNull()
   })
@@ -476,11 +470,16 @@ describe('useSyncRunner + useStartupState', () => {
 
   it('forwards later sync errors without re-entering startup error', async () => {
     const laterError = new Error('later timeline error')
+    const appliedProbeField = {
+      lower: { layerId: 'temperature', frame: 1 },
+      upper: { layerId: 'temperature', frame: 1 },
+      mix: 0,
+    }
     mocks.loadForecastData
       .mockResolvedValueOnce({
         field: mocks.fieldWindow,
         cloudLayers: null,
-        probeField: mocks.fieldWindow,
+        probeField: appliedProbeField,
         pressureContours: null,
         particles: mocks.particleWindow,
       })
@@ -497,6 +496,7 @@ describe('useSyncRunner + useStartupState', () => {
         (args.dataInput as DataInput).targetTimeMs
       )
       expect(result.current.startupPhase).toBe('ready')
+      expect(result.current.appliedProbeField).toBe(appliedProbeField)
     })
 
     const nextValidTimeMs = validTimeAt(args.dataInput as DataInput, 1)
@@ -514,6 +514,7 @@ describe('useSyncRunner + useStartupState', () => {
     })
     expect(result.current.startupPhase).toBe('ready')
     expect(result.current.startupErrorMessage).toBeNull()
+    expect(result.current.appliedProbeField).toBe(appliedProbeField)
   })
 
   it('forwards selected layer and selected particle layer to data loading', async () => {
@@ -613,7 +614,7 @@ describe('useSyncRunner + useStartupState', () => {
     }))
   })
 
-  it('applies render data and publishes the selected layer probe frame after render succeeds', async () => {
+  it('returns the selected layer probe frame after render succeeds', async () => {
     const frames = {
       field: { lower: { layerId: 'relative_humidity' } },
       cloudLayers: null,
@@ -624,17 +625,15 @@ describe('useSyncRunner + useStartupState', () => {
     mocks.loadForecastData.mockResolvedValueOnce(frames)
     const args = createBaseArgs()
 
-    renderHook(() => useSyncHarness(args))
+    const { result } = renderHook(() => useSyncHarness(args))
 
     await waitFor(() => {
       expect(mocks.applyRenderData).toHaveBeenCalledWith(frames)
-      expect(mocks.setForecastFieldData).toHaveBeenCalledWith(frames.probeField)
+      expect(result.current.appliedProbeField).toBe(frames.probeField)
     })
-    expect(mocks.applyRenderData.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.setForecastFieldData.mock.invocationCallOrder[0])
   })
 
-  it('does not publish a probe frame when render application fails', async () => {
+  it('does not update the probe frame when render application fails', async () => {
     const renderError = new Error('render failed')
     mocks.applyRenderData.mockImplementationOnce(() => {
       throw renderError
@@ -651,7 +650,49 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('error')
     })
 
-    expect(mocks.setForecastFieldData).not.toHaveBeenCalled()
+    expect(result.current.appliedProbeField).toBeNull()
+  })
+
+  it('clears the applied probe field before loading a different probe channel', async () => {
+    const firstFrames = {
+      field: { lower: { layerId: 'temperature', frame: 1 } },
+      cloudLayers: null,
+      probeField: { lower: { layerId: 'temperature', frame: 1 } },
+      pressureContours: null,
+      particles: { lower: { artifactId: 'wind10m_uv', frame: 1 } },
+    }
+    const secondRequest = deferred<typeof firstFrames>()
+    mocks.loadForecastData
+      .mockResolvedValueOnce(firstFrames)
+      .mockImplementationOnce(() => secondRequest.promise)
+
+    const args = createBaseArgs()
+    const dataInput = args.dataInput as DataInput
+    const relativeHumidityLayer = FORECAST_LAYERS_BY_ID.relative_humidity!
+    const { rerender, result } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    await waitFor(() => {
+      expect(result.current.appliedProbeField).toBe(firstFrames.probeField)
+    })
+
+    rerender({
+      ...args,
+      dataInput: {
+        ...dataInput,
+        selectedLayerId: relativeHumidityLayer.id,
+        selectedLayer: relativeHumidityLayer,
+        targetTimeMs: validTimeAt(dataInput, 1),
+      },
+    })
+
+    await waitFor(() => {
+      expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
+      expect(result.current.appliedProbeField).toBeNull()
+    })
+
+    secondRequest.resolve(firstFrames)
   })
 
   it('passes reusable previous layer and particle interpolation windows to data loading', async () => {
@@ -732,7 +773,7 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupPhase).toBe('idle')
       expect(result.current.startupErrorMessage).toBeNull()
     })
-    expect(mocks.clearForecastFieldData).toHaveBeenCalledTimes(1)
+    expect(result.current.appliedProbeField).toBeNull()
   })
 
   it('aborts an in-flight request when the target returns to an already applied frame', async () => {

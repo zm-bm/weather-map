@@ -1,9 +1,9 @@
 import type { GeoJSONFeature } from 'maplibre-gl'
 
 import type {
-  MapSelectedPlace,
-  MapPlaceBounds,
-  MapPlacePoint,
+  PlaceProbe,
+  PlaceProbeBounds,
+  PlaceProbePoint,
 } from './types'
 
 const PLACE_PROBE_ZOOM_THRESHOLD = 3.5
@@ -12,19 +12,19 @@ const MID_PLACE_POPULATION = 250_000
 const LOCAL_NAME_PROPERTY_NAMES = ['name', 'name2', 'name3'] as const
 const NON_LATIN_SCRIPT_PATTERN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u
 
-type CreateMapPlaceCandidatesOptions = {
+type CreatePlaceProbeCandidatesOptions = {
   zoom?: number
-  bounds?: MapPlaceBounds | null
+  bounds?: PlaceProbeBounds | null
 }
 
-export function createMapPlaceCandidates(
+export function createPlaceProbeCandidates(
   features: GeoJSONFeature[],
   {
     zoom = PLACE_PROBE_ZOOM_THRESHOLD,
     bounds = null,
-  }: CreateMapPlaceCandidatesOptions = {},
-): MapSelectedPlace[] {
-  const candidates: MapSelectedPlace[] = []
+  }: CreatePlaceProbeCandidatesOptions = {},
+): PlaceProbe[] {
+  const candidates: PlaceProbe[] = []
 
   for (const feature of features) {
     const name = getPlaceName(feature)
@@ -38,7 +38,7 @@ export function createMapPlaceCandidates(
     if (tier == null) continue
 
     candidates.push({
-      id: createMapPlaceId(name, point),
+      id: createPlaceProbeId(name, point),
       name,
       localName: getPlaceLocalName(feature, name),
       lon: point.lon,
@@ -50,13 +50,13 @@ export function createMapPlaceCandidates(
     })
   }
 
-  candidates.sort(compareMapPlaces)
-  return dedupeMapPlaces(candidates)
+  candidates.sort(comparePlaceProbes)
+  return dedupePlaceProbes(candidates)
 }
 
-function dedupeMapPlaces(candidates: MapSelectedPlace[]): MapSelectedPlace[] {
+function dedupePlaceProbes(candidates: PlaceProbe[]): PlaceProbe[] {
   const seenPlaceIds = new Set<string>()
-  const uniquePlaces: MapSelectedPlace[] = []
+  const uniquePlaces: PlaceProbe[] = []
 
   for (const candidate of candidates) {
     if (seenPlaceIds.has(candidate.id)) continue
@@ -67,7 +67,7 @@ function dedupeMapPlaces(candidates: MapSelectedPlace[]): MapSelectedPlace[] {
   return uniquePlaces
 }
 
-function getPlacePoint(feature: GeoJSONFeature): MapPlacePoint | null {
+function getPlacePoint(feature: GeoJSONFeature): PlaceProbePoint | null {
   if (feature.geometry.type !== 'Point') return null
 
   const [lon, lat] = feature.geometry.coordinates
@@ -151,7 +151,7 @@ function getPlaceTier(
   return null
 }
 
-function compareMapPlaces(left: MapSelectedPlace, right: MapSelectedPlace): number {
+function comparePlaceProbes(left: PlaceProbe, right: PlaceProbe): number {
   if (left.tier !== right.tier) return left.tier - right.tier
 
   if (left.population != null || right.population != null) {
@@ -165,6 +165,6 @@ function compareMapPlaces(left: MapSelectedPlace, right: MapSelectedPlace): numb
   return left.name.localeCompare(right.name)
 }
 
-function createMapPlaceId(name: string, point: MapPlacePoint): string {
+function createPlaceProbeId(name: string, point: PlaceProbePoint): string {
   return `${name}:${point.lon.toFixed(4)}:${point.lat.toFixed(4)}`
 }

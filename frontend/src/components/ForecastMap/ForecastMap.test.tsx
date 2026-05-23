@@ -115,7 +115,10 @@ describe('ForecastMap', () => {
     mocks.useForecastSelectionContext.mockReturnValue({
       selectedLayerId: 'temperature',
     })
-    mocks.useForecastSync.mockReturnValue({ startupStatus: createSyncStatus() })
+    mocks.useForecastSync.mockReturnValue({
+      startupStatus: createSyncStatus(),
+      appliedProbeField: null,
+    })
   })
 
   it('wires map runtime hooks and forecast sync from the map instance', () => {
@@ -150,6 +153,7 @@ describe('ForecastMap', () => {
     expect(mocks.ForecastPlaceProbes).toHaveBeenCalledWith({
       mapRef,
       mapReadyVersion,
+      appliedProbeField: null,
     })
     expect(mocks.MapControlRail).toHaveBeenCalledWith({
       mapRef,
@@ -166,7 +170,10 @@ describe('ForecastMap', () => {
   it('reports sync startup status changes and clears them on unmount', () => {
     const onSyncStartupStatusChange = vi.fn()
     const syncStatus = createSyncStatus({ startupPhase: 'loading' })
-    mocks.useForecastSync.mockReturnValue({ startupStatus: syncStatus })
+    mocks.useForecastSync.mockReturnValue({
+      startupStatus: syncStatus,
+      appliedProbeField: null,
+    })
 
     const { unmount } = renderForecastMap(
       <ForecastMap onSyncStartupStatusChange={onSyncStartupStatusChange} />

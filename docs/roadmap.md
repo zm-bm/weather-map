@@ -40,25 +40,6 @@ requires attention.
 Start with failure and staleness notifications. Avoid success notifications
 unless they are opt-in or otherwise low-noise.
 
-## Architecture Follow-Ups
-
-### Promote Forecast Place Probes To A Feature Module
-
-`components/ForecastPlaceProbes` owns more than React composition: it coordinates
-forecast field data, probe sampling, visible place selection, MapLibre source
-updates, and viewport events.
-
-Move the session and sampler orchestration into a feature/domain module, leaving
-the component as a thin React wrapper around that behavior.
-
-### Invert Units And Catalog Dependency
-
-The units module depends on forecast catalog types only to key unit behavior.
-That makes a foundational formatting module depend on layer catalog structure.
-
-Move the unit behavior type into `units` or a shared domain type, and have the
-catalog reference it instead of the other way around.
-
 ## Ideas
 
 - Evaluate delta or predictive field encoding only if real payload or cost data

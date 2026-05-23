@@ -1,8 +1,8 @@
 import type {
-  MapSelectedPlace,
-  MapPlaceProject,
-  MapPlaceScreenPoint,
-  SelectMapPlacesOptions,
+  PlaceProbe,
+  PlaceProbeProject,
+  PlaceProbeScreenPoint,
+  SelectPlaceProbesOptions,
 } from './types'
 
 const DEFAULT_PLACE_PROBE_LIMIT = 30
@@ -10,47 +10,47 @@ const PLACE_PROBE_SPREAD_CELL_PX = 220
 const PLACE_PROBE_MIN_SPACING_PX = 90
 const PLACE_PROBE_SPREAD_SLOT_RATIO = 0.33
 
-type SelectMapPlacesBySpreadOptions = Pick<
-  SelectMapPlacesOptions,
+type SelectPlaceProbesBySpreadOptions = Pick<
+  SelectPlaceProbesOptions,
   'limit' | 'cellSizePx' | 'minSpacingPx' | 'previousPlaces'
 > & {
-  project?: MapPlaceProject | null
+  project?: PlaceProbeProject | null
 }
 
-type ProjectedMapPlace = MapSelectedPlace & {
-  screenPoint: MapPlaceScreenPoint
+type ProjectedPlaceProbe = PlaceProbe & {
+  screenPoint: PlaceProbeScreenPoint
 }
 
 type SelectionState = {
-  places: ProjectedMapPlace[]
+  places: ProjectedPlaceProbe[]
   placeIds: Set<string>
   occupiedCells: Set<string>
 }
 
 type SelectionPass = (state: SelectionState) => void
 
-export function selectMapPlacesBySpread(
-  candidates: MapSelectedPlace[],
+export function selectPlaceProbesBySpread(
+  candidates: PlaceProbe[],
   {
     limit = DEFAULT_PLACE_PROBE_LIMIT,
     project = null,
     cellSizePx = PLACE_PROBE_SPREAD_CELL_PX,
     minSpacingPx = PLACE_PROBE_MIN_SPACING_PX,
     previousPlaces = [],
-  }: SelectMapPlacesBySpreadOptions,
-): MapSelectedPlace[] {
+  }: SelectPlaceProbesBySpreadOptions,
+): PlaceProbe[] {
   const normalizedLimit = normalizePlaceLimit(limit)
   if (normalizedLimit <= 0 || candidates.length === 0) return []
   if (candidates.length <= normalizedLimit) return assignSortKeys(candidates)
 
   if (project == null) return assignSortKeys(candidates.slice(0, normalizedLimit))
 
-  const projectedCandidates = projectMapPlaces(candidates, project)
+  const projectedCandidates = projectPlaceProbes(candidates, project)
   if (projectedCandidates.length === 0) {
     return assignSortKeys(candidates.slice(0, normalizedLimit))
   }
 
-  return assignSortKeys(selectProjectedMapPlaces(
+  return assignSortKeys(selectProjectedPlaceProbes(
     projectedCandidates,
     normalizedLimit,
     normalizeCellSize(cellSizePx),
@@ -59,13 +59,13 @@ export function selectMapPlacesBySpread(
   ))
 }
 
-function selectProjectedMapPlaces(
-  candidates: ProjectedMapPlace[],
+function selectProjectedPlaceProbes(
+  candidates: ProjectedPlaceProbe[],
   limit: number,
   cellSizePx: number,
   minSpacingPx: number,
-  previousPlaces: MapSelectedPlace[],
-): MapSelectedPlace[] {
+  previousPlaces: PlaceProbe[],
+): PlaceProbe[] {
   const coreCount = getStableCorePlaceCount(limit, candidates.length)
   const state = createSelectionState(candidates.slice(0, coreCount), cellSizePx)
   if (state.places.length >= limit) return state.places
@@ -93,9 +93,9 @@ function createSelectionPasses({
   cellSizePx,
   minSpacingPx,
 }: {
-  candidates: ProjectedMapPlace[]
-  candidatesAfterCore: ProjectedMapPlace[]
-  previousPlaces: MapSelectedPlace[]
+  candidates: ProjectedPlaceProbe[]
+  candidatesAfterCore: ProjectedPlaceProbe[]
+  previousPlaces: PlaceProbe[]
   limit: number
   cellSizePx: number
   minSpacingPx: number
@@ -125,7 +125,7 @@ function createSelectionPasses({
 }
 
 function createSelectionState(
-  initialPlaces: ProjectedMapPlace[],
+  initialPlaces: ProjectedPlaceProbe[],
   cellSizePx: number,
 ): SelectionState {
   return {
@@ -138,8 +138,8 @@ function createSelectionState(
 }
 
 function createPreviousPlacesPass(
-  candidates: ProjectedMapPlace[],
-  previousPlaces: MapSelectedPlace[],
+  candidates: ProjectedPlaceProbe[],
+  previousPlaces: PlaceProbe[],
   limit: number,
   cellSizePx: number,
 ): SelectionPass {
@@ -157,7 +157,7 @@ function createPreviousPlacesPass(
 }
 
 function createEmptyCellPass(
-  candidates: ProjectedMapPlace[],
+  candidates: ProjectedPlaceProbe[],
   limit: number,
   cellSizePx: number,
   minSpacingPx: number,
@@ -177,7 +177,7 @@ function createEmptyCellPass(
 }
 
 function createSpacedPlacesPass(
-  candidates: ProjectedMapPlace[],
+  candidates: ProjectedPlaceProbe[],
   limit: number,
   minSpacingPx: number,
 ): SelectionPass {
@@ -193,7 +193,7 @@ function createSpacedPlacesPass(
 }
 
 function createRankFallbackPass(
-  candidates: ProjectedMapPlace[],
+  candidates: ProjectedPlaceProbe[],
   limit: number,
 ): SelectionPass {
   return (state) => {
@@ -206,7 +206,7 @@ function createRankFallbackPass(
 
 function addSelectedPlace(
   state: SelectionState,
-  place: ProjectedMapPlace,
+  place: ProjectedPlaceProbe,
   cellSizePx?: number,
 ): void {
   if (state.placeIds.has(place.id)) return
@@ -218,11 +218,11 @@ function addSelectedPlace(
   }
 }
 
-function projectMapPlaces(
-  candidates: MapSelectedPlace[],
-  project: MapPlaceProject,
-): ProjectedMapPlace[] {
-  const projectedCandidates: ProjectedMapPlace[] = []
+function projectPlaceProbes(
+  candidates: PlaceProbe[],
+  project: PlaceProbeProject,
+): ProjectedPlaceProbe[] {
+  const projectedCandidates: ProjectedPlaceProbe[] = []
 
   for (const candidate of candidates) {
     const screenPoint = project(candidate)
@@ -237,8 +237,8 @@ function projectMapPlaces(
 }
 
 function isTooCloseToSelectedPlace(
-  candidate: ProjectedMapPlace,
-  selected: ProjectedMapPlace[],
+  candidate: ProjectedPlaceProbe,
+  selected: ProjectedPlaceProbe[],
   minSpacingPx: number,
 ): boolean {
   if (minSpacingPx <= 0) return false
@@ -251,7 +251,7 @@ function isTooCloseToSelectedPlace(
   })
 }
 
-function getScreenCellKey(point: MapPlaceScreenPoint, cellSizePx: number): string {
+function getScreenCellKey(point: PlaceProbeScreenPoint, cellSizePx: number): string {
   return `${Math.floor(point.x / cellSizePx)}:${Math.floor(point.y / cellSizePx)}`
 }
 
@@ -262,7 +262,7 @@ function getStableCorePlaceCount(limit: number, candidateCount: number): number 
   return Math.min(candidateCount, Math.max(1, limit - spreadSlots))
 }
 
-function assignSortKeys(places: MapSelectedPlace[]): MapSelectedPlace[] {
+function assignSortKeys(places: PlaceProbe[]): PlaceProbe[] {
   return places.map((place, index) => ({
     id: place.id,
     name: place.name,
@@ -291,6 +291,6 @@ function normalizeMinSpacing(minSpacingPx: number): number {
   return minSpacingPx
 }
 
-function isFiniteScreenPoint(point: MapPlaceScreenPoint): boolean {
+function isFiniteScreenPoint(point: PlaceProbeScreenPoint): boolean {
   return Number.isFinite(point.x) && Number.isFinite(point.y)
 }

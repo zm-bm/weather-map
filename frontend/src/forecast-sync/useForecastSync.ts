@@ -6,6 +6,7 @@ import { useForecastDataPrefetch } from './useForecastDataPrefetch'
 import { useForecastDataTarget } from './useForecastDataTarget'
 import { useSyncRunner } from './useSyncRunner'
 import type { ForecastSyncStartupStatus } from './types'
+import type { FieldInterpolationWindowData } from '../forecast-data'
 
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
@@ -15,6 +16,7 @@ export type UseForecastSyncArgs = {
 
 export type UseForecastSyncResult = {
   startupStatus: ForecastSyncStartupStatus
+  appliedProbeField: FieldInterpolationWindowData | null
 }
 
 export function useForecastSync({
@@ -26,7 +28,7 @@ export function useForecastSync({
   const target = useForecastDataTarget(startup.retryToken)
   const { syncCallbacks } = useForecastTimeContext()
 
-  useSyncRunner({
+  const { appliedProbeField } = useSyncRunner({
     renderHost,
     config,
     target,
@@ -43,5 +45,6 @@ export function useForecastSync({
 
   return {
     startupStatus: startup.status,
+    appliedProbeField,
   }
 }

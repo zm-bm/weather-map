@@ -3,16 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   useMapLibre: vi.fn(),
-  useMapHover: vi.fn(),
   useMapAttributionControl: vi.fn(),
 }))
 
 vi.mock('./view/useMapLibre', () => ({
   useMapLibre: (args: unknown) => mocks.useMapLibre(args),
-}))
-
-vi.mock('./interactions/useMapHover', () => ({
-  useMapHover: (mapRef: unknown) => mocks.useMapHover(mapRef),
 }))
 
 vi.mock('./controls/useMapAttributionControl', () => ({
@@ -50,7 +45,6 @@ describe('useMap', () => {
       mapReadyVersion: number
     }
 
-    expect(mocks.useMapHover).toHaveBeenCalledWith(map.mapRef)
     expect(mocks.useMapAttributionControl).toHaveBeenCalledWith(map.mapRef, map.mapReadyVersion)
     expect(result.current).toBe(map)
   })

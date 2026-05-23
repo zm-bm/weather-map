@@ -1,9 +1,8 @@
-import { renderHook } from '@testing-library/react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { describe, expect, it, vi } from 'vitest'
 
-import { placeProbeLayerIds } from '../view/constants'
-import { useMapHover } from './useMapHover'
+import { createForecastPlaceProbeHoverSession } from './hover'
+import { forecastPlaceProbeLayerIds } from './layer'
 
 type LayerHandler = (...args: unknown[]) => void
 
@@ -33,7 +32,7 @@ function createHoverableMap(initialProbeLayerAvailable = true) {
       if (maybeHandler) handlers.set(`${event}:${layerOrHandler}`, maybeHandler)
     }),
     off: vi.fn(),
-    getLayer: vi.fn((id: string) => (id === placeProbeLayerIds.layer && probeLayerAvailable ? { id } : undefined)),
+    getLayer: vi.fn((id: string) => (id === forecastPlaceProbeLayerIds.layer && probeLayerAvailable ? { id } : undefined)),
     getCanvas: vi.fn(() => canvas),
     setFeatureState: vi.fn(),
   } as unknown as HoverableMap
@@ -41,20 +40,19 @@ function createHoverableMap(initialProbeLayerAvailable = true) {
   return { map, handlers, canvas }
 }
 
-describe('useMapHover', () => {
+describe('createForecastPlaceProbeHoverSession', () => {
   it('attaches hover listeners and updates GeoJSON hover state', () => {
     const { map, handlers, canvas } = createHoverableMap()
-    const mapRef = { current: map as MapLibreMap | null }
 
-    renderHook(() => useMapHover(mapRef))
+    createForecastPlaceProbeHoverSession(map).start()
 
     expect(map.on).toHaveBeenCalledWith('load', expect.any(Function))
     expect(map.on).toHaveBeenCalledWith('styledata', expect.any(Function))
-    expect(map.on).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
-    expect(map.on).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mousemove', forecastPlaceProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mouseleave', forecastPlaceProbeLayerIds.layer, expect.any(Function))
 
-    const onMove = handlers.get(`mousemove:${placeProbeLayerIds.layer}`)
-    const onLeave = handlers.get(`mouseleave:${placeProbeLayerIds.layer}`)
+    const onMove = handlers.get(`mousemove:${forecastPlaceProbeLayerIds.layer}`)
+    const onLeave = handlers.get(`mouseleave:${forecastPlaceProbeLayerIds.layer}`)
 
     onMove?.({
       features: [{ id: 'Chicago:-87.6250:41.8750' }],
@@ -62,7 +60,7 @@ describe('useMapHover', () => {
 
     expect(canvas.style.cursor).toBe('pointer')
     expect(map.setFeatureState).toHaveBeenLastCalledWith(
-      { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
+      { source: forecastPlaceProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: true }
     )
 
@@ -71,11 +69,11 @@ describe('useMapHover', () => {
     })
 
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
+      { source: forecastPlaceProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: false }
     )
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: placeProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
+      { source: forecastPlaceProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
       { hover: true }
     )
 
@@ -83,33 +81,31 @@ describe('useMapHover', () => {
 
     expect(canvas.style.cursor).toBe('')
     expect(map.setFeatureState).toHaveBeenCalledWith(
-      { source: placeProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
+      { source: forecastPlaceProbeLayerIds.source, id: 'Milwaukee:-87.9000:43.0400' },
       { hover: false }
     )
   })
 
   it('can attach after the probe layer is added later', () => {
     const { map, handlers } = createHoverableMap(false)
-    const mapRef = { current: map as MapLibreMap | null }
 
-    renderHook(() => useMapHover(mapRef))
+    createForecastPlaceProbeHoverSession(map).start()
 
-    expect(map.on).not.toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).not.toHaveBeenCalledWith('mousemove', forecastPlaceProbeLayerIds.layer, expect.any(Function))
 
     map.setProbeLayerAvailable(true)
     handlers.get('styledata')?.()
 
-    expect(map.on).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
-    expect(map.on).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mousemove', forecastPlaceProbeLayerIds.layer, expect.any(Function))
+    expect(map.on).toHaveBeenCalledWith('mouseleave', forecastPlaceProbeLayerIds.layer, expect.any(Function))
   })
 
   it('ignores rendered features that do not expose a name', () => {
     const { map, handlers } = createHoverableMap()
-    const mapRef = { current: map as MapLibreMap | null }
 
-    renderHook(() => useMapHover(mapRef))
+    createForecastPlaceProbeHoverSession(map).start()
 
-    const onMove = handlers.get(`mousemove:${placeProbeLayerIds.layer}`)
+    const onMove = handlers.get(`mousemove:${forecastPlaceProbeLayerIds.layer}`)
     onMove?.({
       features: [{ properties: { osm_id: 4242 } }],
     })
@@ -119,18 +115,18 @@ describe('useMapHover', () => {
 
   it('detaches listeners on unmount after they were attached', () => {
     const { map, handlers } = createHoverableMap()
-    const mapRef = { current: map as MapLibreMap | null }
 
-    const { unmount } = renderHook(() => useMapHover(mapRef))
+    const session = createForecastPlaceProbeHoverSession(map)
+    session.start()
 
     const onLoad = handlers.get('load')
     const onStyleData = handlers.get('styledata')
 
-    unmount()
+    session.destroy()
 
     expect(map.off).toHaveBeenCalledWith('load', onLoad)
     expect(map.off).toHaveBeenCalledWith('styledata', onStyleData)
-    expect(map.off).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, handlers.get(`mousemove:${placeProbeLayerIds.layer}`))
-    expect(map.off).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, handlers.get(`mouseleave:${placeProbeLayerIds.layer}`))
+    expect(map.off).toHaveBeenCalledWith('mousemove', forecastPlaceProbeLayerIds.layer, handlers.get(`mousemove:${forecastPlaceProbeLayerIds.layer}`))
+    expect(map.off).toHaveBeenCalledWith('mouseleave', forecastPlaceProbeLayerIds.layer, handlers.get(`mouseleave:${forecastPlaceProbeLayerIds.layer}`))
   })
 })
