@@ -5,7 +5,7 @@ import { createConfigFixture, createSingleTimeManifestFixture, createActiveRunFi
 import { FORECAST_LAYERS_BY_ID, getAvailableParticleLayers } from '../forecast-catalog'
 import { createForecastDataTarget } from '../forecast-data'
 import type { ForecastDataTarget } from '../forecast-data'
-import { useForecastDataPrefetch } from './useForecastDataPrefetch'
+import { useDataPrefetch } from './useDataPrefetch'
 
 const mocks = vi.hoisted(() => ({
   prefetchForecastData: vi.fn(),
@@ -47,7 +47,7 @@ function createTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastData
   }
 }
 
-describe('useForecastDataPrefetch', () => {
+describe('useDataPrefetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.prefetchForecastData.mockResolvedValue(undefined)
@@ -57,7 +57,7 @@ describe('useForecastDataPrefetch', () => {
     const config = createConfigFixture()
     const target = createTarget()
 
-    renderHook(() => useForecastDataPrefetch({
+    renderHook(() => useDataPrefetch({
       config,
       target,
       enabled: true,
@@ -85,7 +85,7 @@ describe('useForecastDataPrefetch', () => {
     }))
     const target = createTarget({ activeRun })
 
-    renderHook(() => useForecastDataPrefetch({
+    renderHook(() => useDataPrefetch({
       config,
       target,
       enabled: true,
@@ -111,7 +111,7 @@ describe('useForecastDataPrefetch', () => {
     }
     mocks.prefetchForecastData.mockImplementation(observeSignal)
 
-    const { rerender } = renderHook((props: { enabled: boolean }) => useForecastDataPrefetch({
+    const { rerender } = renderHook((props: { enabled: boolean }) => useDataPrefetch({
       config: createConfigFixture(),
       target: createTarget(),
       enabled: props.enabled,
@@ -132,7 +132,7 @@ describe('useForecastDataPrefetch', () => {
   it('suppresses prefetch failures', async () => {
     mocks.prefetchForecastData.mockRejectedValue(new Error('prefetch failed'))
 
-    renderHook(() => useForecastDataPrefetch({
+    renderHook(() => useDataPrefetch({
       config: createConfigFixture(),
       target: createTarget(),
       enabled: true,

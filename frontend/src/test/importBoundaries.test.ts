@@ -185,6 +185,11 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastRenderSubmoduleImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'Import forecast-sync through its public module',
+        (file) => !isForecastSyncFile(file.path) &&
+          file.imports.some((reference) => isForecastSyncSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
         'Import forecast-settings through its public module',
         (file) => !isForecastSettingsFile(file.path) &&
           file.imports.some((reference) => (
@@ -388,6 +393,10 @@ function isForecastManifestImport(path: string): boolean {
 
 function isForecastSyncImport(path: string): boolean {
   return path === '/forecast-sync' || path.includes('/forecast-sync/')
+}
+
+function isForecastSyncSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast-sync/')
 }
 
 function isForecastSelectionImport(path: string): boolean {

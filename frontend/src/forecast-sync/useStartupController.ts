@@ -2,13 +2,22 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type {
   ForecastSyncStartupPhase,
-  ForecastSyncStartupState,
   ForecastSyncStartupStatus,
 } from './types'
 
 const DEFAULT_STARTUP_ERROR_MESSAGE = 'Unknown startup error.'
 
-export function useStartupState(): ForecastSyncStartupState {
+export type StartupController = {
+  status: ForecastSyncStartupStatus
+  retryToken: number
+  isBlocked: boolean
+  handleDisabled: () => void
+  handlePending: () => void
+  handleApplied: () => void
+  handleError: (error: Error) => void
+}
+
+export function useStartupController(): StartupController {
   const [startupPhase, setStartupPhase] = useState<ForecastSyncStartupPhase>('idle')
   const [startupErrorMessage, setStartupErrorMessage] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)

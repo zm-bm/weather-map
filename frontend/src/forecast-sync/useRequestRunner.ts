@@ -11,46 +11,20 @@ import {
 import type { FieldInterpolationWindowData, ForecastDataTarget } from '../forecast-data'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
-import type { ForecastSyncStartupState } from './types'
+import { createRequestTracker, type ActiveRequest, type RequestTracker } from './requestTracker'
+import type { StartupController } from './useStartupController'
 
-type UseSyncRunnerArgs = {
+type UseRequestRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
   target: ForecastDataTarget | null
   syncCallbacks: ForecastTimeSyncCallbacks
-  startup: ForecastSyncStartupState
+  startup: StartupController
   pressureContoursEnabled?: boolean
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
-type RunnerDecision =
-  | { kind: 'disabled' }
-  | { kind: 'blocked' }
-  | { kind: 'pending' }
-  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastDataTarget }
-
-type ActiveRequest = {
-  key: string
-  controller: AbortController
-}
-
-type RunnerMachine = {
-  prepare: (args: {
-    isBlocked: boolean
-    renderHost: ForecastRenderHost | null
-    target: ForecastDataTarget | null
-  }) => RunnerDecision
-  reset: () => void
-  abort: () => void
-  isApplied: (requestKey: string) => boolean
-  isActive: (requestKey: string) => boolean
-  start: (requestKey: string) => ActiveRequest
-  isCurrent: (request: ActiveRequest) => boolean
-  markApplied: (request: ActiveRequest) => void
-  finish: (request: ActiveRequest) => void
-}
-
-export function useSyncRunner({
+export function useRequestRunner({
   renderHost,
   config,
   target,
@@ -58,7 +32,7 @@ export function useSyncRunner({
   startup,
   pressureContoursEnabled = true,
   onProbeFrameChange,
-}: UseSyncRunnerArgs): void {
+}: UseRequestRunnerArgs): void {
   const {
     isBlocked,
     handleDisabled,
@@ -67,9 +41,9 @@ export function useSyncRunner({
     handleError,
   } = startup
 
-  const machineRef = useRef<RunnerMachine | null>(null)
-  if (machineRef.current == null) {
-    machineRef.current = createRunnerMachine()
+  const requestTrackerRef = useRef<RequestTracker | null>(null)
+  if (requestTrackerRef.current == null) {
+    requestTrackerRef.current = createRequestTracker()
   }
   const dataMemoryRef = useRef<ReturnType<typeof createForecastDataMemory> | null>(null)
   if (dataMemoryRef.current == null) {
@@ -77,12 +51,21 @@ export function useSyncRunner({
   }
   const onProbeFrameChangeRef = useRef(onProbeFrameChange)
   onProbeFrameChangeRef.current = onProbeFrameChange
+  const syncCallbacksRef = useRef(syncCallbacks)
+  syncCallbacksRef.current = syncCallbacks
 
   useEffect(() => {
-    const machine = machineRef.current
-    if (machine == null) return
+    return () => {
+      requestTrackerRef.current?.reset()
+      dataMemoryRef.current?.reset()
+    }
+  }, [])
 
-    const decision = machine.prepare({
+  useEffect(() => {
+    const requestTracker = requestTrackerRef.current
+    if (requestTracker == null) return
+
+    const decision = requestTracker.prepare({
       isBlocked,
       renderHost,
       target,
@@ -113,13 +96,13 @@ export function useSyncRunner({
     const dataMemory = dataMemoryRef.current
     if (dataMemory == null) return
 
-    if (machine.isApplied(renderRequestKey)) {
-      machine.abort()
+    if (requestTracker.isApplied(renderRequestKey)) {
+      requestTracker.abort()
       return
     }
-    if (machine.isActive(renderRequestKey)) return
+    if (requestTracker.isActive(renderRequestKey)) return
 
-    const activeRequest = machine.start(renderRequestKey)
+    const activeRequest = requestTracker.start(renderRequestKey)
     const dataPlan = createForecastDataPlan({
       target: dataTarget,
       artifacts: createArtifactLoader({
@@ -135,7 +118,7 @@ export function useSyncRunner({
     }
 
     handlePending()
-    syncCallbacks.onRequestStart(selectedValidTimeMs)
+    syncCallbacksRef.current.onRequestStart(selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
@@ -144,27 +127,32 @@ export function useSyncRunner({
           previousWindows: dataMemory.reusableWindowsFor(dataPlan),
         })
 
-        if (isRequestStale(machine, activeRequest)) return
+        if (isRequestStale(requestTracker, activeRequest)) return
         activeRenderHost.apply(renderData)
-        if (isRequestStale(machine, activeRequest)) return
+        if (isRequestStale(requestTracker, activeRequest)) return
 
         onProbeFrameChangeRef.current?.(renderData.probeField ?? null)
         dataMemory.commit(dataPlan, renderData)
-        machine.markApplied(activeRequest)
-        syncCallbacks.onRequestApplied(selectedValidTimeMs)
+        requestTracker.markApplied(activeRequest)
+        syncCallbacksRef.current.onRequestApplied(selectedValidTimeMs)
         handleApplied()
       } catch (error: unknown) {
-        if (isRequestStale(machine, activeRequest)) return
+        if (isRequestStale(requestTracker, activeRequest)) return
         const normalizedError = normalizeError(error)
         if (isAbortError(normalizedError)) return
-        syncCallbacks.onRequestError(selectedValidTimeMs, normalizedError)
+        syncCallbacksRef.current.onRequestError(selectedValidTimeMs, normalizedError)
         handleError(normalizedError)
       } finally {
-        machine.finish(activeRequest)
+        requestTracker.finish(activeRequest)
       }
     }
 
     void runRequest()
+    return () => {
+      if (!requestTracker.isCurrent(activeRequest)) return
+      activeRequest.controller.abort()
+      requestTracker.finish(activeRequest)
+    }
   }, [
     config,
     handleApplied,
@@ -174,75 +162,13 @@ export function useSyncRunner({
     isBlocked,
     pressureContoursEnabled,
     renderHost,
-    syncCallbacks,
     target,
   ])
 }
 
-function createRunnerMachine(): RunnerMachine {
-  let lastAppliedKey: string | null = null
-  let active: ActiveRequest | null = null
-
-  const machine: RunnerMachine = {
-    prepare({ isBlocked, renderHost, target }) {
-      if (target == null) {
-        machine.reset()
-        return { kind: 'disabled' }
-      }
-      if (isBlocked) {
-        machine.abort()
-        return { kind: 'blocked' }
-      }
-      if (renderHost == null) {
-        machine.abort()
-        return { kind: 'pending' }
-      }
-
-      return { kind: 'run', renderHost, target }
-    },
-    reset() {
-      active?.controller.abort()
-      active = null
-      lastAppliedKey = null
-    },
-    abort() {
-      active?.controller.abort()
-      active = null
-    },
-    isApplied(requestKey) {
-      return lastAppliedKey === requestKey
-    },
-    isActive(requestKey) {
-      return active?.key === requestKey
-    },
-    start(requestKey) {
-      active?.controller.abort()
-      const request = {
-        key: requestKey,
-        controller: new AbortController(),
-      }
-      active = request
-      return request
-    },
-    isCurrent(request) {
-      return active === request && !request.controller.signal.aborted
-    },
-    markApplied(request) {
-      if (active !== request) return
-      lastAppliedKey = request.key
-    },
-    finish(request) {
-      if (active !== request) return
-      active = null
-    },
-  }
-
-  return machine
-}
-
 function isRequestStale(
-  machine: RunnerMachine,
+  requestTracker: RequestTracker,
   request: ActiveRequest,
 ): boolean {
-  return !machine.isCurrent(request)
+  return !requestTracker.isCurrent(request)
 }

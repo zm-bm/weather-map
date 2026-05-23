@@ -15,7 +15,7 @@ export type UseForecastDataPrefetchArgs = {
   pressureContoursEnabled?: boolean
 }
 
-export function useForecastDataPrefetch({
+export function useDataPrefetch({
   config,
   target,
   enabled,

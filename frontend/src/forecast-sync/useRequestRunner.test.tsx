@@ -26,8 +26,8 @@ import {
   createConfigFixture,
   createManifestFixture,
 } from '../test/fixtures'
-import { useSyncRunner } from './useSyncRunner'
-import { useStartupState } from './useStartupState'
+import { useRequestRunner } from './useRequestRunner'
+import { useStartupController } from './useStartupController'
 
 const mocks = vi.hoisted(() => ({
   loadForecastData: vi.fn(),
@@ -84,13 +84,13 @@ type SyncHarnessArgs = {
 }
 
 function useSyncHarness(args: SyncHarnessArgs) {
-  const startup = useStartupState()
+  const startup = useStartupController()
   const target = useMemo(
     () => buildDataTarget(args.dataInput, startup.retryToken),
     [args.dataInput, startup.retryToken]
   )
 
-  useSyncRunner({
+  useRequestRunner({
     renderHost: args.renderHost,
     config: args.config,
     target,
@@ -189,7 +189,7 @@ function buildDataTarget(
   })
 }
 
-describe('useSyncRunner + useStartupState', () => {
+describe('useRequestRunner + useStartupController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.artifactLoaderSignals.length = 0
@@ -355,6 +355,53 @@ describe('useSyncRunner + useStartupState', () => {
       expect(mocks.loadForecastData).toHaveBeenCalledTimes(2)
       expect(secondCallback).toHaveBeenCalledWith(mocks.fieldWindow)
     })
+  })
+
+  it('does not rerun requests when sync callbacks change and uses the latest callbacks', async () => {
+    const frames = {
+      field: mocks.fieldWindow,
+      cloudLayers: null,
+      probeField: mocks.fieldWindow,
+      precipTypeOverlay: null,
+      pressureContours: null,
+      particles: mocks.particleWindow,
+    }
+    const request = deferred<typeof frames>()
+    mocks.loadForecastData.mockImplementation(() => request.promise)
+
+    const firstCallbacks = createSyncCallbacks()
+    const secondCallbacks = createSyncCallbacks()
+    const args = createBaseArgs({
+      syncCallbacks: firstCallbacks,
+    })
+
+    const { rerender } = renderHook((props: SyncHarnessArgs) => useSyncHarness(props), {
+      initialProps: args,
+    })
+
+    expect(firstCallbacks.onRequestStart).toHaveBeenCalledWith(
+      (args.dataInput as DataInput).targetTimeMs
+    )
+
+    rerender({
+      ...args,
+      syncCallbacks: secondCallbacks,
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+    expect(secondCallbacks.onRequestStart).not.toHaveBeenCalled()
+
+    request.resolve(frames)
+    await waitFor(() => {
+      expect(secondCallbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.dataInput as DataInput).targetTimeMs
+      )
+    })
+    expect(firstCallbacks.onRequestApplied).not.toHaveBeenCalled()
   })
 
   it('reapplies the current target when render host version changes', async () => {
@@ -826,6 +873,41 @@ describe('useSyncRunner + useStartupState', () => {
       expect(result.current.startupErrorMessage).toBeNull()
     })
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
+  })
+
+  it('aborts in-flight requests on unmount and ignores settled data', async () => {
+    const frames = {
+      field: mocks.fieldWindow,
+      cloudLayers: null,
+      probeField: mocks.fieldWindow,
+      precipTypeOverlay: null,
+      pressureContours: null,
+      particles: mocks.particleWindow,
+    }
+    const request = deferred<typeof frames>()
+    mocks.loadForecastData.mockImplementationOnce(() => request.promise)
+
+    const args = createBaseArgs()
+    const callbacks = args.syncCallbacks
+    const { unmount } = renderHook(() => useSyncHarness(args))
+
+    await waitFor(() => {
+      expect(mocks.loadForecastData).toHaveBeenCalledTimes(1)
+      expect(mocks.artifactLoaderSignals[0]).toBeDefined()
+    })
+
+    unmount()
+    expect(mocks.artifactLoaderSignals[0]?.aborted).toBe(true)
+
+    await act(async () => {
+      request.resolve(frames)
+      await request.promise
+      await Promise.resolve()
+    })
+
+    expect(mocks.applyRenderData).not.toHaveBeenCalled()
+    expect(callbacks.onRequestApplied).not.toHaveBeenCalled()
+    expect(args.onProbeFrameChange).not.toHaveBeenCalled()
   })
 
   it('aborts an in-flight request when the target returns to an already applied frame', async () => {

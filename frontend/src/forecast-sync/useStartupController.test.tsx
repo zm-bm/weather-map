@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { useStartupState } from './useStartupState'
+import { useStartupController } from './useStartupController'
 
-describe('useStartupState', () => {
+describe('useStartupController', () => {
   it('transitions from pending to error and retries back into loading', () => {
-    const { result } = renderHook(() => useStartupState())
+    const { result } = renderHook(() => useStartupController())
 
     expect(result.current.status.startupPhase).toBe('idle')
     expect(result.current.retryToken).toBe(0)
@@ -36,7 +36,7 @@ describe('useStartupState', () => {
   })
 
   it('locks into ready after startup applies and ignores later pending/error calls', () => {
-    const { result } = renderHook(() => useStartupState())
+    const { result } = renderHook(() => useStartupController())
 
     act(() => {
       result.current.handlePending()
@@ -57,7 +57,7 @@ describe('useStartupState', () => {
   })
 
   it('resets all startup state when disabled', () => {
-    const { result } = renderHook(() => useStartupState())
+    const { result } = renderHook(() => useStartupController())
 
     act(() => {
       result.current.handlePending()

@@ -6,7 +6,7 @@ import {
   createForecastTimeContextValue,
   createManifestFixture,
 } from '../test/fixtures'
-import { useForecastDataTarget } from './useForecastDataTarget'
+import { useDataTarget } from './useDataTarget'
 
 const mocks = vi.hoisted(() => ({
   useForecastSelectionContext: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock('../forecast-time', async (importOriginal) => {
   }
 })
 
-describe('useForecastDataTarget', () => {
+describe('useDataTarget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -57,12 +57,12 @@ describe('useForecastDataTarget', () => {
       createForecastSelectionContextValue(null)
     )
 
-    const { result } = renderHook(() => useForecastDataTarget(0))
+    const { result } = renderHook(() => useDataTarget(0))
     expect(result.current).toBeNull()
   })
 
   it('builds a target from the selected forecast hour', () => {
-    const { result } = renderHook(() => useForecastDataTarget(0))
+    const { result } = renderHook(() => useDataTarget(0))
 
     expect(result.current).toEqual(expect.objectContaining({
       selectedParticleLayerId: 'wind',
@@ -93,7 +93,7 @@ describe('useForecastDataTarget', () => {
       }
     ))
 
-    const { result } = renderHook(() => useForecastDataTarget(0))
+    const { result } = renderHook(() => useDataTarget(0))
 
     expect(result.current).toEqual(expect.objectContaining({
       selectedParticleLayerId: null,
@@ -123,7 +123,7 @@ describe('useForecastDataTarget', () => {
       }
     ))
 
-    const { result } = renderHook(() => useForecastDataTarget(0))
+    const { result } = renderHook(() => useDataTarget(0))
 
     expect(result.current).toBeNull()
   })

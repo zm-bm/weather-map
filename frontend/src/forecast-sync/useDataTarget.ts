@@ -12,7 +12,7 @@ import {
   resolveForecastInterpolationWindow,
 } from '../forecast-time'
 
-export function useForecastDataTarget(retryToken: number): ForecastDataTarget | null {
+export function useDataTarget(retryToken: number): ForecastDataTarget | null {
   const {
     activeRun,
     selectedLayerId,

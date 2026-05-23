@@ -1,10 +1,10 @@
 import type { WeatherMapConfig } from '../config'
 import type { ForecastRenderHost } from '../forecast-render'
 import { useForecastTimeContext } from '../forecast-time'
-import { useStartupState } from './useStartupState'
-import { useForecastDataPrefetch } from './useForecastDataPrefetch'
-import { useForecastDataTarget } from './useForecastDataTarget'
-import { useSyncRunner } from './useSyncRunner'
+import { useStartupController } from './useStartupController'
+import { useDataPrefetch } from './useDataPrefetch'
+import { useDataTarget } from './useDataTarget'
+import { useRequestRunner } from './useRequestRunner'
 import type { ForecastSyncStartupStatus } from './types'
 import type { FieldInterpolationWindowData } from '../forecast-data'
 
@@ -25,11 +25,11 @@ export function useForecastSync({
   pressureContoursEnabled = true,
   onProbeFrameChange,
 }: UseForecastSyncArgs): UseForecastSyncResult {
-  const startup = useStartupState()
-  const target = useForecastDataTarget(startup.retryToken)
+  const startup = useStartupController()
+  const target = useDataTarget(startup.retryToken)
   const { syncCallbacks } = useForecastTimeContext()
 
-  useSyncRunner({
+  useRequestRunner({
     renderHost,
     config,
     target,
@@ -38,7 +38,7 @@ export function useForecastSync({
     pressureContoursEnabled,
     onProbeFrameChange,
   })
-  useForecastDataPrefetch({
+  useDataPrefetch({
     config,
     target,
     enabled: !startup.isBlocked,

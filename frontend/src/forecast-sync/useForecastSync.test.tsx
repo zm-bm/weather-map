@@ -11,23 +11,23 @@ import { createForecastDataTarget } from '../forecast-data'
 import type { ForecastDataTarget } from '../forecast-data'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import type { ForecastRenderHost } from '../forecast-render'
-import type { ForecastSyncStartupState } from './types'
+import type { StartupController } from './useStartupController'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
-  useStartupState: vi.fn(),
-  useForecastDataTarget: vi.fn(),
+  useStartupController: vi.fn(),
+  useDataTarget: vi.fn(),
   useForecastTimeContext: vi.fn(),
-  useSyncRunner: vi.fn(),
-  useForecastDataPrefetch: vi.fn(),
+  useRequestRunner: vi.fn(),
+  useDataPrefetch: vi.fn(),
 }))
 
-vi.mock('./useStartupState', () => ({
-  useStartupState: () => mocks.useStartupState(),
+vi.mock('./useStartupController', () => ({
+  useStartupController: () => mocks.useStartupController(),
 }))
 
-vi.mock('./useForecastDataTarget', () => ({
-  useForecastDataTarget: (retryToken: number) => mocks.useForecastDataTarget(retryToken),
+vi.mock('./useDataTarget', () => ({
+  useDataTarget: (retryToken: number) => mocks.useDataTarget(retryToken),
 }))
 
 vi.mock('../forecast-time', async (importOriginal) => {
@@ -38,17 +38,17 @@ vi.mock('../forecast-time', async (importOriginal) => {
   }
 })
 
-vi.mock('./useSyncRunner', () => ({
-  useSyncRunner: (args: unknown) => mocks.useSyncRunner(args),
+vi.mock('./useRequestRunner', () => ({
+  useRequestRunner: (args: unknown) => mocks.useRequestRunner(args),
 }))
 
-vi.mock('./useForecastDataPrefetch', () => ({
-  useForecastDataPrefetch: (args: unknown) => mocks.useForecastDataPrefetch(args),
+vi.mock('./useDataPrefetch', () => ({
+  useDataPrefetch: (args: unknown) => mocks.useDataPrefetch(args),
 }))
 
 function createStartupState(
-  overrides: Partial<ForecastSyncStartupState> = {}
-): ForecastSyncStartupState {
+  overrides: Partial<StartupController> = {}
+): StartupController {
   const retry = vi.fn()
   return {
     status: {
@@ -107,7 +107,7 @@ describe('useForecastSync', () => {
     mocks.useForecastTimeContext.mockReturnValue({
       syncCallbacks: createSyncCallbacks(),
     })
-    mocks.useSyncRunner.mockReturnValue(undefined)
+    mocks.useRequestRunner.mockReturnValue(undefined)
   })
 
   it('wires startup state into target composition, runner execution, prefetch, and return status', () => {
@@ -118,8 +118,8 @@ describe('useForecastSync', () => {
     const syncCallbacks = createSyncCallbacks()
     const onProbeFrameChange = vi.fn()
 
-    mocks.useStartupState.mockReturnValue(startup)
-    mocks.useForecastDataTarget.mockReturnValue(target)
+    mocks.useStartupController.mockReturnValue(startup)
+    mocks.useDataTarget.mockReturnValue(target)
     mocks.useForecastTimeContext.mockReturnValue({ syncCallbacks })
 
     const { result } = renderHook(() => useForecastSync({
@@ -128,9 +128,9 @@ describe('useForecastSync', () => {
       onProbeFrameChange,
     }))
 
-    expect(mocks.useStartupState).toHaveBeenCalledTimes(1)
-    expect(mocks.useForecastDataTarget).toHaveBeenCalledWith(2)
-    expect(mocks.useSyncRunner).toHaveBeenCalledWith({
+    expect(mocks.useStartupController).toHaveBeenCalledTimes(1)
+    expect(mocks.useDataTarget).toHaveBeenCalledWith(2)
+    expect(mocks.useRequestRunner).toHaveBeenCalledWith({
       renderHost,
       config,
       target,
@@ -139,7 +139,7 @@ describe('useForecastSync', () => {
       pressureContoursEnabled: true,
       onProbeFrameChange,
     })
-    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
+    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: true,
@@ -155,19 +155,19 @@ describe('useForecastSync', () => {
     const config = createConfigFixture()
     const startup = createStartupState()
 
-    mocks.useStartupState.mockReturnValue(startup)
-    mocks.useForecastDataTarget.mockReturnValue(null)
+    mocks.useStartupController.mockReturnValue(startup)
+    mocks.useDataTarget.mockReturnValue(null)
 
     const { result } = renderHook(() => useForecastSync({
       renderHost,
       config,
     }))
 
-    expect(mocks.useSyncRunner).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       startup,
     }))
-    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
       enabled: true,
     }))
@@ -182,15 +182,15 @@ describe('useForecastSync', () => {
     const startup = createStartupState({ isBlocked: true })
     const target = createDataTarget()
 
-    mocks.useStartupState.mockReturnValue(startup)
-    mocks.useForecastDataTarget.mockReturnValue(target)
+    mocks.useStartupController.mockReturnValue(startup)
+    mocks.useDataTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,
       config,
     }))
 
-    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith({
+    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: false,
@@ -204,8 +204,8 @@ describe('useForecastSync', () => {
     const startup = createStartupState()
     const target = createDataTarget()
 
-    mocks.useStartupState.mockReturnValue(startup)
-    mocks.useForecastDataTarget.mockReturnValue(target)
+    mocks.useStartupController.mockReturnValue(startup)
+    mocks.useDataTarget.mockReturnValue(target)
 
     renderHook(() => useForecastSync({
       renderHost,
@@ -213,10 +213,10 @@ describe('useForecastSync', () => {
       pressureContoursEnabled: false,
     }))
 
-    expect(mocks.useSyncRunner).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       pressureContoursEnabled: false,
     }))
-    expect(mocks.useForecastDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
       pressureContoursEnabled: false,
     }))
   })

@@ -5,13 +5,3 @@ export type ForecastSyncStartupStatus = {
   startupErrorMessage: string | null
   retry: () => void
 }
-
-export type ForecastSyncStartupState = {
-  status: ForecastSyncStartupStatus
-  retryToken: number
-  isBlocked: boolean
-  handleDisabled: () => void
-  handlePending: () => void
-  handleApplied: () => void
-  handleError: (error: Error) => void
-}

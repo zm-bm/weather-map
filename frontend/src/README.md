@@ -46,7 +46,7 @@ startup, request building, payload loading, and layer application.
 
 - `forecast-cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so data/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast-sync/*`: orchestration layer for startup policy, data-target composition, abort/dedupe, data loading, render-host application, applied probe-field state, timeline notification, and sync startup state. It should coordinate modules, not decode payload formats, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
+- `forecast-sync/*`: orchestration layer for startup policy, data-target composition, abort/dedupe, data loading, render-host application, probe-frame publication, timeline notification, and sync startup state. It should coordinate modules, not decode payload formats, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
 
 - `forecast-settings/*`: React-owned map presentation settings and defaults. This module owns user-facing render feature options and should stay independent of component, renderer, map-view, and sync internals.
 
@@ -79,8 +79,8 @@ Preferred orchestration shape:
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
    `forecast-settings` to `forecast-render` and `forecast-sync`.
 4. `forecast-sync/useForecastSync` composes a data target plus timeline request callbacks,
-   waits for a render host capability, and exposes sync startup state plus the applied probe field.
-5. `forecast-sync/useSyncRunner` loads target data through `forecast-data`, applies it through the render host, stores the applied probe field in hook state, and notifies the timeline.
+   waits for a render host capability, exposes sync startup state, and publishes applied probe frames through a callback.
+5. `forecast-sync/useRequestRunner` loads target data through `forecast-data`, applies it through the render host, publishes the applied probe frame, and notifies the timeline.
 6. `forecast-render/*` reconciles active renderer profiles and applies already-loaded render data to MapLibre custom layers.
 
 Guideline: keep durable domain state in the relevant provider module, use
