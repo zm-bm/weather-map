@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  blendLayerValues,
-  createLayerProbeSampler,
+  blendFieldValues,
+  createFieldProbeSampler,
   probeFieldTimeSlice,
   probeFieldInterpolationWindow,
   sampleFieldInterpolationWindowWithSampler,
   sampleFieldTimeSliceWithSampler,
-} from './layer'
+} from './sampling'
 import type { FieldTimeSliceData } from '../forecast-data'
 
 function createFrame(values: number[]): FieldTimeSliceData {
@@ -46,7 +46,7 @@ function createFrame(values: number[]): FieldTimeSliceData {
 }
 
 describe('probeFieldTimeSlice', () => {
-  it('bilinearly interpolates nearby layer values', () => {
+  it('bilinearly interpolates nearby field values', () => {
     const probe = probeFieldTimeSlice(createFrame([10, 20, 30, 40]), {
       lon: 0.5,
       lat: 0.5,
@@ -76,7 +76,7 @@ describe('probeFieldTimeSlice', () => {
     expect(probe?.value).toBe(22.5)
   })
 
-  it('blends probe values across a layer interpolation window', () => {
+  it('blends probe values across a field interpolation window', () => {
     const interpolationWindow = {
       lower: createFrame([10, 20, 30, 40]),
       upper: {
@@ -93,7 +93,7 @@ describe('probeFieldTimeSlice', () => {
       lat: 0.5,
     }
     const probe = probeFieldInterpolationWindow(interpolationWindow, coords)
-    const sampler = createLayerProbeSampler(interpolationWindow.lower, coords)
+    const sampler = createFieldProbeSampler(interpolationWindow.lower, coords)
 
     expect(probe?.value).toBe(30)
     expect(probe?.mix).toBe(0.5)
@@ -102,9 +102,9 @@ describe('probeFieldTimeSlice', () => {
   })
 
   it('falls back to the available side when blending nodata values', () => {
-    expect(blendLayerValues(12, null, 0.5)).toBe(12)
-    expect(blendLayerValues(null, 24, 0.5)).toBe(24)
-    expect(blendLayerValues(null, null, 0.5)).toBeNull()
+    expect(blendFieldValues(12, null, 0.5)).toBe(12)
+    expect(blendFieldValues(null, 24, 0.5)).toBe(24)
+    expect(blendFieldValues(null, null, 0.5)).toBeNull()
   })
 
   it('samples a field time slice from a cached probe sampler', () => {
@@ -113,7 +113,7 @@ describe('probeFieldTimeSlice', () => {
       lon: 0.5,
       lat: 0.5,
     }
-    const sampler = createLayerProbeSampler(frame, coords)
+    const sampler = createFieldProbeSampler(frame, coords)
 
     expect(sampler).not.toBeNull()
     expect(sampleFieldTimeSliceWithSampler(frame, sampler!)).toBe(probeFieldTimeSlice(frame, coords)?.value)

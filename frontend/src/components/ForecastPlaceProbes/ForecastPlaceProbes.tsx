@@ -6,8 +6,8 @@ import {
   type ForecastPlaceProbeFrameChannel,
   type ForecastPlaceProbeSession,
 } from '../../forecast-place-probes'
-import { useForecastProbeValueFormatter } from '../../forecast-probe'
 import { useForecastSelectionContext } from '../../forecast-selection'
+import { useForecastPlaceProbeValueFormatter } from './useForecastPlaceProbeValueFormatter'
 
 type ForecastPlaceProbesProps = {
   mapRef: RefObject<MapLibreMap | null>
@@ -42,7 +42,7 @@ function ForecastPlaceProbeLayer({
 }: ForecastPlaceProbesProps & {
   selectedLayerId: string
 }) {
-  const formatProbeDisplay = useForecastProbeValueFormatter()
+  const formatProbeDisplay = useForecastPlaceProbeValueFormatter()
   const selectedLayerIdRef = useRef(selectedLayerId)
   const formatProbeDisplayRef = useRef(formatProbeDisplay)
   const sessionRef = useRef<ForecastPlaceProbeSession | null>(null)

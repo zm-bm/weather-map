@@ -3,7 +3,7 @@ import {
   type FieldInterpolationWindowData,
 } from '../forecast-data'
 
-export type LayerProbePoint = {
+export type FieldProbePoint = {
   x: number
   y: number
   lon: number
@@ -12,13 +12,13 @@ export type LayerProbePoint = {
   weight: number
 }
 
-export type LayerProbeResult = {
+export type FieldProbeResult = {
   lon: number
   lat: number
   gridX: number
   gridY: number
   value: number | null
-  points: [LayerProbePoint, LayerProbePoint, LayerProbePoint, LayerProbePoint]
+  points: [FieldProbePoint, FieldProbePoint, FieldProbePoint, FieldProbePoint]
 }
 
 export type FieldInterpolationWindowProbeResult = {
@@ -26,16 +26,16 @@ export type FieldInterpolationWindowProbeResult = {
   lat: number
   mix: number
   value: number | null
-  lower: LayerProbeResult
-  upper: LayerProbeResult
+  lower: FieldProbeResult
+  upper: FieldProbeResult
 }
 
-export type LayerProbeSampleCell = {
+export type FieldProbeSampleCell = {
   index: number
   weight: number
 }
 
-export type LayerProbeSampler = {
+export type FieldProbeSampler = {
   lon: number
   lat: number
   nx: number
@@ -47,17 +47,17 @@ export type LayerProbeSampler = {
   xWrap: FieldTimeSliceData['grid']['xWrap']
   yMode: FieldTimeSliceData['grid']['yMode']
   cells: [
-    LayerProbeSampleCell,
-    LayerProbeSampleCell,
-    LayerProbeSampleCell,
-    LayerProbeSampleCell,
+    FieldProbeSampleCell,
+    FieldProbeSampleCell,
+    FieldProbeSampleCell,
+    FieldProbeSampleCell,
   ]
 }
 
 export function probeFieldTimeSlice(
   frame: FieldTimeSliceData,
   coords: { lon: number; lat: number },
-): LayerProbeResult | null {
+): FieldProbeResult | null {
   const { grid, values } = frame
   const { nx, ny, lon0, lat0, dx, dy } = grid
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
@@ -76,7 +76,7 @@ export function probeFieldTimeSlice(
   const tx = gridX - x0
   const ty = gridY - y0
 
-  const points: LayerProbeResult['points'] = [
+  const points: FieldProbeResult['points'] = [
     buildPoint(frame, x0, y0, (1 - tx) * (1 - ty)),
     buildPoint(frame, x1, y0, tx * (1 - ty)),
     buildPoint(frame, x0, y1, (1 - tx) * ty),
@@ -101,10 +101,10 @@ export function probeFieldTimeSlice(
   }
 }
 
-export function createLayerProbeSampler(
+export function createFieldProbeSampler(
   frame: FieldTimeSliceData,
   coords: { lon: number; lat: number },
-): LayerProbeSampler | null {
+): FieldProbeSampler | null {
   const { grid, values } = frame
   const { nx, ny, lon0, lat0, dx, dy } = grid
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
@@ -143,9 +143,9 @@ export function createLayerProbeSampler(
   }
 }
 
-export function isLayerProbeSamplerCompatible(
+export function isFieldProbeSamplerCompatible(
   frame: FieldTimeSliceData,
-  sampler: LayerProbeSampler
+  sampler: FieldProbeSampler
 ): boolean {
   return frame.grid.nx === sampler.nx &&
     frame.grid.ny === sampler.ny &&
@@ -160,9 +160,9 @@ export function isLayerProbeSamplerCompatible(
 
 export function sampleFieldTimeSliceWithSampler(
   frame: FieldTimeSliceData,
-  sampler: LayerProbeSampler
+  sampler: FieldProbeSampler
 ): number | null {
-  if (!isLayerProbeSamplerCompatible(frame, sampler)) return null
+  if (!isFieldProbeSamplerCompatible(frame, sampler)) return null
 
   let totalWeight = 0
   let totalValue = 0
@@ -176,7 +176,7 @@ export function sampleFieldTimeSliceWithSampler(
   return totalWeight > 0 ? totalValue / totalWeight : null
 }
 
-export function blendLayerValues(
+export function blendFieldValues(
   lowerValue: number | null,
   upperValue: number | null,
   mix: number
@@ -190,16 +190,16 @@ export function blendLayerValues(
 
 export function sampleFieldInterpolationWindowWithSampler(
   interpolationWindow: FieldInterpolationWindowData,
-  sampler: LayerProbeSampler,
+  sampler: FieldProbeSampler,
 ): number | null {
   const lowerValue = sampleFieldTimeSliceWithSampler(interpolationWindow.lower, sampler)
   const canBlend = interpolationWindow.mix > 0 &&
-    isLayerProbeSamplerCompatible(interpolationWindow.upper, sampler)
+    isFieldProbeSamplerCompatible(interpolationWindow.upper, sampler)
   const upperValue = canBlend
     ? sampleFieldTimeSliceWithSampler(interpolationWindow.upper, sampler)
     : lowerValue
 
-  return blendLayerValues(lowerValue, upperValue, canBlend ? interpolationWindow.mix : 0)
+  return blendFieldValues(lowerValue, upperValue, canBlend ? interpolationWindow.mix : 0)
 }
 
 export function probeFieldInterpolationWindow(
@@ -218,7 +218,7 @@ export function probeFieldInterpolationWindow(
     lon: coords.lon,
     lat: coords.lat,
     mix: canBlend ? interpolationWindow.mix : 0,
-    value: blendLayerValues(lower.value, upper.value, canBlend ? interpolationWindow.mix : 0),
+    value: blendFieldValues(lower.value, upper.value, canBlend ? interpolationWindow.mix : 0),
     lower,
     upper,
   }
@@ -229,7 +229,7 @@ function buildPoint(
   x: number,
   y: number,
   weight: number,
-): LayerProbePoint {
+): FieldProbePoint {
   const value = decodeValue(frame, x, y)
   return {
     x,

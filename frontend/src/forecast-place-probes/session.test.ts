@@ -69,7 +69,7 @@ const mocks = vi.hoisted(() => {
       loading,
       value: rawValue,
     })),
-    createLayerProbeSampler: vi.fn(),
+    createFieldProbeSampler: vi.fn(),
     sampleFieldInterpolationWindowWithSampler: vi.fn(),
   }
 })
@@ -79,10 +79,8 @@ vi.mock('../forecast-probe', async () => {
 
   return {
     ...actual,
-    layerProbe: {
-      createPointSampler: mocks.createLayerProbeSampler,
-      sampleInterpolationWindowWithSampler: mocks.sampleFieldInterpolationWindowWithSampler,
-    },
+    createFieldProbeSampler: mocks.createFieldProbeSampler,
+    sampleFieldInterpolationWindowWithSampler: mocks.sampleFieldInterpolationWindowWithSampler,
   }
 })
 
@@ -250,8 +248,8 @@ describe('createForecastPlaceProbeSession', () => {
       mix: 0,
     } as FieldInterpolationWindowData
     mocks.formatProbeDisplay.mockClear()
-    mocks.createLayerProbeSampler.mockReset()
-    mocks.createLayerProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
+    mocks.createFieldProbeSampler.mockReset()
+    mocks.createFieldProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
     mocks.sampleFieldInterpolationWindowWithSampler.mockReset()
     mocks.sampleFieldInterpolationWindowWithSampler.mockReturnValue(20)
   })
@@ -314,7 +312,7 @@ describe('createForecastPlaceProbeSession', () => {
       BASEMAP_SOURCE_ID,
       { sourceLayer: BASEMAP_SOURCE_LAYER_IDS.places },
     )
-    expect(mocks.createLayerProbeSampler).toHaveBeenCalledTimes(2)
+    expect(mocks.createFieldProbeSampler).toHaveBeenCalledTimes(2)
     expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
       expect.objectContaining({ name: 'Chicago', sortKey: 0, probeText: '20 F' }),
       expect.objectContaining({ name: 'Milwaukee', sortKey: 1, probeText: '20 F' }),
@@ -428,7 +426,7 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
-    expect(mocks.createLayerProbeSampler).toHaveBeenLastCalledWith(
+    expect(mocks.createFieldProbeSampler).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.objectContaining({ name: 'Madison' })
     )

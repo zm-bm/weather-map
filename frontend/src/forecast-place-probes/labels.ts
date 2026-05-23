@@ -3,23 +3,19 @@ import type {
   FieldInterpolationWindowData,
 } from '../forecast-data'
 import {
-  layerProbe,
-  type ForecastProbeValueDisplay,
-  type LayerProbeSampler,
+  createFieldProbeSampler,
+  sampleFieldInterpolationWindowWithSampler,
+  type FieldProbeSampler,
 } from '../forecast-probe'
 import { getPlaceProbeKey, type PlaceProbe } from './places'
 import type { PlaceProbeValueLabel } from './layer'
+import type { ForecastPlaceProbeValueFormatter } from './types'
 
 export type PlaceProbeSamplers = {
   frameGridKey: string | null
   placeKey: string
-  samplers: Array<LayerProbeSampler | null>
+  samplers: Array<FieldProbeSampler | null>
 }
-
-type ForecastProbeValueFormatter = (
-  rawProbeValue: number | null,
-  loading?: boolean
-) => Pick<ForecastProbeValueDisplay, 'text'>
 
 export function refreshPlaceProbeSamplers(
   frame: FieldInterpolationWindowData | null,
@@ -49,7 +45,7 @@ export function refreshPlaceProbeSamplers(
   return {
     frameGridKey,
     placeKey,
-    samplers: places.map((place) => layerProbe.createPointSampler(frame.lower, place)),
+    samplers: places.map((place) => createFieldProbeSampler(frame.lower, place)),
   }
 }
 
@@ -57,7 +53,7 @@ export function createPlaceProbeLabels(
   places: PlaceProbe[],
   frame: FieldInterpolationWindowData | null,
   samplerState: PlaceProbeSamplers,
-  formatProbeValue: ForecastProbeValueFormatter,
+  formatProbeValue: ForecastPlaceProbeValueFormatter,
 ): PlaceProbeValueLabel[] {
   return places.map((place, index) => ({
     id: place.id,
@@ -74,11 +70,11 @@ function getPlaceProbeText(
   placeIndex: number,
   frame: FieldInterpolationWindowData | null,
   samplerState: PlaceProbeSamplers,
-  formatProbeValue: ForecastProbeValueFormatter,
+  formatProbeValue: ForecastPlaceProbeValueFormatter,
 ): string {
   const sampler = samplerState.samplers[placeIndex]
   const rawValue = frame != null && sampler != null
-    ? layerProbe.sampleInterpolationWindowWithSampler(frame, sampler)
+    ? sampleFieldInterpolationWindowWithSampler(frame, sampler)
     : null
 
   return formatProbeValue(rawValue, frame == null).text

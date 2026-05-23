@@ -121,6 +121,23 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastCatalogImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'forecast-probe must stay sampling-only',
+        (file) => isForecastProbeFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isComponentsImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastPlaceProbesImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSelectionImport(reference.resolvedPath) ||
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            isUnitsImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react'
+          ))
+      ),
+      ...findSourceImportViolations(
         'Controls must not import forecast-render',
         (file) => isMapControlRailFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
@@ -325,6 +342,10 @@ function isForecastManifestFile(path: string): boolean {
   return path.includes('/forecast-manifest/')
 }
 
+function isForecastProbeFile(path: string): boolean {
+  return path.includes('/forecast-probe/')
+}
+
 function isUnitsFile(path: string): boolean {
   return path.includes('/units/')
 }
@@ -367,6 +388,10 @@ function isForecastManifestImport(path: string): boolean {
 
 function isForecastSyncImport(path: string): boolean {
   return path === '/forecast-sync' || path.includes('/forecast-sync/')
+}
+
+function isForecastSelectionImport(path: string): boolean {
+  return path === '/forecast-selection' || path.includes('/forecast-selection/')
 }
 
 function isMapImport(path: string): boolean {

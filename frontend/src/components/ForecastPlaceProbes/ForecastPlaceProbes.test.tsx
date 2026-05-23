@@ -31,8 +31,8 @@ vi.mock('../../forecast-selection', () => ({
   }),
 }))
 
-vi.mock('../../forecast-probe', () => ({
-  useForecastProbeValueFormatter: () => mocks.formatProbeDisplay,
+vi.mock('./useForecastPlaceProbeValueFormatter', () => ({
+  useForecastPlaceProbeValueFormatter: () => mocks.formatProbeDisplay,
 }))
 
 vi.mock('../../forecast-place-probes', () => ({

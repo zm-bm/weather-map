@@ -5,15 +5,15 @@ import {
   createForecastSelectionContextValue,
   createManifestFixture,
   createScalarArtifactFixture,
-} from '../test/fixtures'
-import { formatForecastProbeValue, useForecastProbeValueFormatter } from './display'
+} from '../../test/fixtures'
+import { useForecastPlaceProbeValueFormatter } from './useForecastPlaceProbeValueFormatter'
 
 const mocks = vi.hoisted(() => ({
   selectionContext: null as unknown,
 }))
 
-vi.mock('../forecast-selection', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../forecast-selection')>()
+vi.mock('../../forecast-selection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../forecast-selection')>()
   return {
     ...actual,
     useLoadedForecastSelectionContext: () => mocks.selectionContext,
@@ -54,7 +54,7 @@ function renderDisplayHook(options: {
     }
   )
 
-  return renderHook(() => useForecastProbeValueFormatter())
+  return renderHook(() => useForecastPlaceProbeValueFormatter())
 }
 
 describe('probe value display', () => {
@@ -107,17 +107,5 @@ describe('probe value display', () => {
     const { result } = renderDisplayHook()
 
     expect(result.current(null).text).toBe('No data')
-  })
-})
-
-describe('formatForecastProbeValue', () => {
-  it('keeps compact decimal precision for small values', () => {
-    expect(formatForecastProbeValue(12.34)).toBe('12.3')
-    expect(formatForecastProbeValue(12)).toBe('12')
-  })
-
-  it('drops decimals for values at least 100 in magnitude', () => {
-    expect(formatForecastProbeValue(101.7)).toBe('102')
-    expect(formatForecastProbeValue(-120.2)).toBe('-120')
   })
 })

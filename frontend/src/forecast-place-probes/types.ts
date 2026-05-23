@@ -35,3 +35,8 @@ export type SelectPlaceProbesOptions = {
   minSpacingPx?: number
   previousPlaces?: PlaceProbe[]
 }
+
+export type ForecastPlaceProbeValueFormatter = (
+  rawProbeValue: number | null,
+  loading?: boolean
+) => { text: string }

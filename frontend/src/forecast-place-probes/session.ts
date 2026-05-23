@@ -16,11 +16,7 @@ import {
   refreshPlaceProbeSamplers,
   type PlaceProbeSamplers,
 } from './labels'
-
-export type ForecastPlaceProbeValueFormatter = (
-  rawProbeValue: number | null,
-  loading?: boolean
-) => { text: string }
+import type { ForecastPlaceProbeValueFormatter } from './types'
 
 export type ForecastPlaceProbeSession = {
   start: () => void
