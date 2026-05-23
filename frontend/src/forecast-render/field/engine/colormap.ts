@@ -1,5 +1,5 @@
 import type { PaletteStop } from '../../../forecast-palette'
-import type { FieldTimeSliceData } from '../../../forecast-products'
+import type { FieldTimeSliceData } from '../../../forecast-data'
 import type { FieldColorSamplingMode } from '../../../forecast-settings/settings'
 
 type NormalizedColorStop = [number, number, number, number]

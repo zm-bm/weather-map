@@ -1,4 +1,4 @@
-import type { FieldInterpolationWindowData } from '../forecast-products'
+import type { FieldInterpolationWindowData } from '../forecast-data'
 
 export type ForecastPlaceProbeFrame = FieldInterpolationWindowData | null
 

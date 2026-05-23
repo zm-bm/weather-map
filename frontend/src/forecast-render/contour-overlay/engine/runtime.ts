@@ -3,7 +3,7 @@ import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 import {
   type PressureInterpolationWindowData,
   type PressureTimeSliceData,
-} from '../../../forecast-products'
+} from '../../../forecast-data'
 import { SCALAR_VERTEX_SHADER_SOURCE } from '../../field/engine/shaders'
 import { WORLD_WRAP_COPY_OFFSETS } from '../../field/engine/constants'
 import {

@@ -4,7 +4,7 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { CloudLayersInterpolationWindowData } from '../../forecast-products'
+import type { CloudLayersInterpolationWindowData } from '../../forecast-data'
 
 export type CloudLayersController = MapFrameController<CloudLayersInterpolationWindowData | null>
 

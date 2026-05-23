@@ -11,7 +11,7 @@ import {
   type ForecastPlaceProbeSessionOptions,
 } from './session'
 import { placeProbeLayerIds } from './layer'
-import type { FieldInterpolationWindowData } from '../forecast-products'
+import type { FieldInterpolationWindowData } from '../forecast-data'
 
 type MapEventName = 'idle' | 'load' | 'mousemove' | 'mouseleave' | 'moveend' | 'resize' | 'styledata'
 type MapEventHandler = (...args: unknown[]) => void

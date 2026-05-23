@@ -20,7 +20,7 @@ import {
 } from '../controller'
 import {
   type FieldTimeSliceData,
-} from '../../../forecast-products'
+} from '../../../forecast-data'
 import {
   type FieldColorSamplingMode,
   DEFAULT_FIELD_RENDER_SETTINGS,

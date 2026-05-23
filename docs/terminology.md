@@ -56,6 +56,20 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
 - `frame ref`: the manifest's published reference to an artifact payload. The
   manifest still uses `frames` as the wire key for these refs.
 
+## Data Terms
+
+- `forecast data`: semantic frontend data loaded or derived from artifacts for
+  rendering and probing.
+- `data source descriptor`: a frontend descriptor that adapts selected catalog
+  state into the artifact ids, display metadata, and derived recipes needed by
+  data loaders.
+- `data target`: the resolved active run, interpolation window, and data source
+  descriptors needed to request forecast data.
+- `data load`: a planned semantic data family to load for an interpolation
+  window, such as field, cloud layers, pressure, precip type, or wind vectors.
+- `data window`: loaded lower and upper time-slice data plus interpolation
+  metadata for one semantic data family.
+
 ## Rendering Terms
 
 - `field`: a renderable scalar grid for a selected layer at one time slice. A
@@ -76,7 +90,5 @@ forecast time concepts, renderer channels, and MapLibre implementation details.
 
 - `sync`: orchestration that turns current app state into loaded data, applied
   render channels, and published probe data.
-- `forecast data`: the frontend pipeline that resolves selected layer, time,
-  and particle choices into renderable field and particle data.
 - `probe`: sampling the applied field at a map coordinate for labels and
   readouts.

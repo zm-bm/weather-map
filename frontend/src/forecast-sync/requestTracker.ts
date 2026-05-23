@@ -1,11 +1,11 @@
-import type { ForecastProductTarget } from '../forecast-products'
+import type { ForecastDataTarget } from '../forecast-data-targets'
 import type { ForecastRenderHost } from '../forecast-render'
 
 export type RequestDecision =
   | { kind: 'disabled' }
   | { kind: 'blocked' }
   | { kind: 'pending' }
-  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastProductTarget }
+  | { kind: 'run'; renderHost: ForecastRenderHost; target: ForecastDataTarget }
 
 export type ActiveRequest = {
   key: string
@@ -16,7 +16,7 @@ export type RequestTracker = {
   prepare: (args: {
     isBlocked: boolean
     renderHost: ForecastRenderHost | null
-    target: ForecastProductTarget | null
+    target: ForecastDataTarget | null
   }) => RequestDecision
   reset: () => void
   abort: () => void

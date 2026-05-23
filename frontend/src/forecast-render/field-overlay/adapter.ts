@@ -7,7 +7,7 @@ import {
 } from '../layer'
 import { createFieldOverlayRuntime } from './engine/runtime'
 import { getFieldOverlayController } from './controller'
-import type { PrecipTypeInterpolationWindowData } from '../../forecast-products'
+import type { PrecipTypeInterpolationWindowData } from '../../forecast-data'
 
 export const FIELD_OVERLAY_LAYER_ID = 'field-overlay-renderer-layer-id'
 
@@ -26,7 +26,7 @@ export const fieldOverlayAdapter: RenderAdapter = {
     map.removeLayer(FIELD_OVERLAY_LAYER_ID)
   },
   apply(map, data) {
-    applyPrecipTypeOverlayInterpolationWindow(map, data.products.precipType ?? null)
+    applyPrecipTypeOverlayInterpolationWindow(map, data.windows.precipType ?? null)
   },
 }
 

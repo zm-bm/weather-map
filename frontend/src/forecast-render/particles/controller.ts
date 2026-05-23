@@ -4,7 +4,7 @@ import {
   createMapControllerRegistry,
   type MapFrameController,
 } from '../../map/controllers'
-import type { WindVectorInterpolationWindowData } from '../../forecast-products'
+import type { WindVectorInterpolationWindowData } from '../../forecast-data'
 import type { ParticleRenderSettings } from '../../forecast-settings/settings'
 
 export type ParticleController = MapFrameController<WindVectorInterpolationWindowData> & {

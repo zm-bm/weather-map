@@ -11,7 +11,7 @@ import {
   type ForecastRendererId,
   type ForecastRenderProfile,
 } from '../../forecast-render'
-import type { ForecastProductOptions } from '../../forecast-products'
+import type { ForecastDataOptions } from '../../forecast-data'
 import { useForecastSelectionContext } from '../../forecast-selection'
 import { useForecastSync, type ForecastSyncStartupStatus } from '../../forecast-sync'
 import { createForecastPlaceProbeFrameChannel } from '../../forecast-place-probes'
@@ -50,8 +50,8 @@ export default function ForecastMap({
     [particlesEnabled, pressureContoursEnabled],
   )
 
-  const productOptions = useMemo(
-    () => createProductOptions({ particlesEnabled, pressureContoursEnabled }),
+  const dataOptions = useMemo(
+    () => createDataOptions({ particlesEnabled, pressureContoursEnabled }),
     [particlesEnabled, pressureContoursEnabled],
   )
 
@@ -71,7 +71,7 @@ export default function ForecastMap({
   const { startupStatus } = useForecastSync({
     renderHost,
     config,
-    productOptions,
+    dataOptions,
     onProbeFrameChange: probeFrameChannel.publish,
   })
 
@@ -103,7 +103,7 @@ export default function ForecastMap({
   )
 }
 
-type ProductFeatureFlags = {
+type DataFeatureFlags = {
   particlesEnabled: boolean
   pressureContoursEnabled: boolean
 }
@@ -111,7 +111,7 @@ type ProductFeatureFlags = {
 function createRenderProfile({
   particlesEnabled,
   pressureContoursEnabled,
-}: ProductFeatureFlags): ForecastRenderProfile {
+}: DataFeatureFlags): ForecastRenderProfile {
   const rendererIds: ForecastRendererId[] = ['field', 'cloud-layers', 'field-overlay']
   if (pressureContoursEnabled) rendererIds.push('contour-overlay')
   if (particlesEnabled) rendererIds.push('particles')
@@ -128,10 +128,10 @@ function createRenderSettings(settings: ForecastSettings): ForecastRenderSetting
   }
 }
 
-function createProductOptions({
+function createDataOptions({
   particlesEnabled,
   pressureContoursEnabled,
-}: ProductFeatureFlags): ForecastProductOptions {
+}: DataFeatureFlags): ForecastDataOptions {
   return {
     pressure: pressureContoursEnabled,
     windVectors: particlesEnabled,

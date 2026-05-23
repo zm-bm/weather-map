@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CloudLayersTimeSliceData } from '../../forecast-products'
+import type { CloudLayersTimeSliceData } from '../../forecast-data'
 import { getCloudLayersController } from './controller'
 import { createCloudLayersRuntime, packCloudTextureBytes } from './runtime'
 

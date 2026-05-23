@@ -1,7 +1,7 @@
 import type {
   FieldTimeSliceData,
   FieldInterpolationWindowData,
-} from '../forecast-products'
+} from '../forecast-data'
 import {
   createFieldProbeSampler,
   sampleFieldInterpolationWindowWithSampler,

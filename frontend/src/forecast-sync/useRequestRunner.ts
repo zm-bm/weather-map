@@ -4,15 +4,15 @@ import { isAbortError, normalizeError } from '../abort'
 import type { WeatherMapConfig } from '../config'
 import { createArtifactLoader } from '../forecast-artifacts'
 import {
-  createForecastProductRequest,
-  createForecastProductMemory,
-  loadForecastProducts,
-} from '../forecast-products'
+  createForecastDataRequest,
+  createForecastDataMemory,
+  loadForecastData,
+} from '../forecast-data'
 import type {
   FieldInterpolationWindowData,
-  ForecastProductOptions,
-  ForecastProductTarget,
-} from '../forecast-products'
+  ForecastDataOptions,
+} from '../forecast-data'
+import type { ForecastDataTarget } from '../forecast-data-targets'
 import type { ForecastRenderHost } from '../forecast-render'
 import type { ForecastTimeSyncCallbacks } from '../forecast-time'
 import { createRequestTracker, type ActiveRequest, type RequestTracker } from './requestTracker'
@@ -21,10 +21,10 @@ import type { StartupController } from './useStartupController'
 type UseRequestRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
-  target: ForecastProductTarget | null
+  target: ForecastDataTarget | null
   syncCallbacks: ForecastTimeSyncCallbacks
   startup: StartupController
-  productOptions: ForecastProductOptions
+  dataOptions: ForecastDataOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
 }
 
@@ -34,7 +34,7 @@ export function useRequestRunner({
   target,
   syncCallbacks,
   startup,
-  productOptions,
+  dataOptions,
   onProbeFrameChange,
 }: UseRequestRunnerArgs): void {
   const {
@@ -50,9 +50,9 @@ export function useRequestRunner({
   if (requestTrackerRef.current == null) {
     requestTrackerRef.current = createRequestTracker()
   }
-  const productMemoryRef = useRef<ReturnType<typeof createForecastProductMemory> | null>(null)
-  if (productMemoryRef.current == null) {
-    productMemoryRef.current = createForecastProductMemory()
+  const dataMemoryRef = useRef<ReturnType<typeof createForecastDataMemory> | null>(null)
+  if (dataMemoryRef.current == null) {
+    dataMemoryRef.current = createForecastDataMemory()
   }
   const onProbeFrameChangeRef = useRef(onProbeFrameChange)
   onProbeFrameChangeRef.current = onProbeFrameChange
@@ -62,7 +62,7 @@ export function useRequestRunner({
   useEffect(() => {
     return () => {
       requestTrackerRef.current?.reset()
-      productMemoryRef.current?.reset()
+      dataMemoryRef.current?.reset()
     }
   }, [])
 
@@ -78,7 +78,7 @@ export function useRequestRunner({
 
     switch (decision.kind) {
       case 'disabled':
-        productMemoryRef.current?.reset()
+        dataMemoryRef.current?.reset()
         onProbeFrameChangeRef.current?.(null)
         handleDisabled()
         return
@@ -91,25 +91,25 @@ export function useRequestRunner({
         break
     }
 
-    const { renderHost: activeRenderHost, target: productTarget } = decision
+    const { renderHost: activeRenderHost, target: dataTarget } = decision
     const requestController = new AbortController()
-    const productRequest = createForecastProductRequest({
-      target: productTarget,
+    const dataRequest = createForecastDataRequest({
+      target: dataTarget,
       artifacts: createArtifactLoader({
         config,
-        activeRun: productTarget.activeRun,
+        activeRun: dataTarget.activeRun,
         signal: requestController.signal,
       }),
       retryToken,
-      options: productOptions,
+      options: dataOptions,
     })
     const {
       selectedValidTimeMs,
       requestKey,
-    } = productRequest
+    } = dataRequest
     const renderRequestKey = `${activeRenderHost.version}:${requestKey}`
-    const productMemory = productMemoryRef.current
-    if (productMemory == null) {
+    const dataMemory = dataMemoryRef.current
+    if (dataMemory == null) {
       requestController.abort()
       return
     }
@@ -126,7 +126,7 @@ export function useRequestRunner({
 
     const activeRequest = requestTracker.start(renderRequestKey, requestController)
 
-    if (productMemory.shouldClearProbeField(productRequest)) {
+    if (dataMemory.shouldClearProbeField(dataRequest)) {
       onProbeFrameChangeRef.current?.(null)
     }
 
@@ -135,17 +135,17 @@ export function useRequestRunner({
 
     const runRequest = async () => {
       try {
-        const loadedProducts = await loadForecastProducts({
-          request: productRequest,
-          previousWindows: productMemory.reusableWindowsFor(productRequest),
+        const loadedData = await loadForecastData({
+          request: dataRequest,
+          previousWindows: dataMemory.reusableWindowsFor(dataRequest),
         })
 
         if (isRequestStale(requestTracker, activeRequest)) return
-        activeRenderHost.apply(loadedProducts)
+        activeRenderHost.apply(loadedData)
         if (isRequestStale(requestTracker, activeRequest)) return
 
-        onProbeFrameChangeRef.current?.(loadedProducts.probeField ?? null)
-        productMemory.commit(productRequest, loadedProducts)
+        onProbeFrameChangeRef.current?.(loadedData.probeField ?? null)
+        dataMemory.commit(dataRequest, loadedData)
         requestTracker.markApplied(activeRequest)
         syncCallbacksRef.current.onRequestApplied(selectedValidTimeMs)
         handleApplied()
@@ -173,7 +173,7 @@ export function useRequestRunner({
     handleError,
     handlePending,
     isBlocked,
-    productOptions,
+    dataOptions,
     renderHost,
     retryToken,
     target,

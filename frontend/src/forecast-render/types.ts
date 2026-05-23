@@ -1,8 +1,8 @@
-import type { LoadedForecastProducts } from '../forecast-products'
+import type { LoadedForecastData } from '../forecast-data'
 
 export type ForecastRenderHost = {
   version: number
-  apply: (data: LoadedForecastProducts) => void
+  apply: (data: LoadedForecastData) => void
 }
 
 export type ForecastRendererId = 'field' | 'cloud-layers' | 'field-overlay' | 'contour-overlay' | 'particles'

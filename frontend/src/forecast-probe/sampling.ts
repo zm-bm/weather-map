@@ -1,7 +1,7 @@
 import {
   type FieldTimeSliceData,
   type FieldInterpolationWindowData,
-} from '../forecast-products'
+} from '../forecast-data'
 
 export type FieldProbePoint = {
   x: number

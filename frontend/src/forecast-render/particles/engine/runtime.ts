@@ -13,7 +13,7 @@ import {
 import {
   type WindVectorTimeSliceData,
   type WindVectorInterpolationWindowData,
-} from '../../../forecast-products'
+} from '../../../forecast-data'
 import {
   VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,

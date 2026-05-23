@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import type { LoadedForecastProducts } from '../forecast-products'
+import type { LoadedForecastData } from '../forecast-data'
 import type { ForecastRenderSettings } from '../forecast-settings/settings'
 import type { ForecastRendererId } from './types'
 
@@ -10,5 +10,5 @@ export type RenderAdapter = {
   install: (map: MapLibreMap, renderSettings: ForecastRenderSettings) => void
   uninstall?: (map: MapLibreMap) => void
   configure?: (map: MapLibreMap, renderSettings: ForecastRenderSettings) => void
-  apply: (map: MapLibreMap, data: LoadedForecastProducts) => void
+  apply: (map: MapLibreMap, data: LoadedForecastData) => void
 }

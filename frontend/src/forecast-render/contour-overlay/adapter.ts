@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import type { PressureInterpolationWindowData } from '../../forecast-products'
+import type { PressureInterpolationWindowData } from '../../forecast-data'
 import type { RenderAdapter } from '../adapter'
 import {
   createCustomLayer,
@@ -26,7 +26,7 @@ export const contourOverlayAdapter: RenderAdapter = {
     map.removeLayer(CONTOUR_OVERLAY_LAYER_ID)
   },
   apply(map, data) {
-    applyPressureContourInterpolationWindow(map, data.products.pressure ?? null)
+    applyPressureContourInterpolationWindow(map, data.windows.pressure ?? null)
   },
 }
 

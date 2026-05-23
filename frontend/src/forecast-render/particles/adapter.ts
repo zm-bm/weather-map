@@ -7,7 +7,7 @@ import {
 } from '../layer'
 import { createParticleRuntime } from './engine/runtime'
 import { getParticleController } from './controller'
-import type { WindVectorInterpolationWindowData } from '../../forecast-products'
+import type { WindVectorInterpolationWindowData } from '../../forecast-data'
 import type {
   ParticleRenderSettings,
 } from '../../forecast-settings/settings'
@@ -32,7 +32,7 @@ export const particleAdapter: RenderAdapter = {
     applyParticleRenderSettings(map, renderSettings.particles)
   },
   apply(map, data) {
-    applyParticleInterpolationWindow(map, data.products.windVectors ?? null)
+    applyParticleInterpolationWindow(map, data.windows.windVectors ?? null)
   },
 }
 

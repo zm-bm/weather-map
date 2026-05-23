@@ -13,7 +13,7 @@ import {
 } from '../controller'
 import type {
   PrecipTypeTimeSliceData,
-} from '../../../forecast-products'
+} from '../../../forecast-data'
 import {
   FIELD_OVERLAY_LATTICE_VISIBILITY_MAX,
   FIELD_OVERLAY_LATTICE_VISIBILITY_MIN,
