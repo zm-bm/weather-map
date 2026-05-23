@@ -1,4 +1,3 @@
-import type { LayerId } from '../forecast-catalog'
 import type {
   ActiveForecastRun,
   ArtifactKind,
@@ -35,14 +34,14 @@ export function modelOptionsFromManifest(
 
 export function activeForecastRunForModel(
   manifest: Manifest | null,
-  modelId: ForecastModelId | string | null
+  modelId: ForecastModelId | null
 ): ActiveForecastRun | null {
   if (!manifest || modelId == null) return null
-  const model = manifest.models[String(modelId)]
+  const model = manifest.models[modelId]
   if (!model?.latest) return null
   return {
     manifest,
-    modelId: String(modelId),
+    modelId,
     label: model.label,
     latest: model.latest,
   }
@@ -50,7 +49,7 @@ export function activeForecastRunForModel(
 
 export function resolveActiveForecastRun(
   manifest: Manifest | null,
-  preferredModelId: ForecastModelId | string | null = null
+  preferredModelId: ForecastModelId | null = null
 ): ActiveForecastRun | null {
   const preferred = activeForecastRunForModel(manifest, preferredModelId)
   if (preferred) return preferred
@@ -70,16 +69,16 @@ export function forecastRunScopeKey(activeRun: ActiveForecastRun): string {
 
 export function getLayerModelAvailability(
   manifest: Manifest | null,
-  layerId: LayerId | string | null,
-  modelId: ForecastModelId | string | null
+  layerId: string | null,
+  modelId: ForecastModelId | null
 ): LayerModelAvailability | null {
   if (!manifest || layerId == null || modelId == null) return null
-  return manifest.layers[String(layerId)]?.models[String(modelId)] ?? null
+  return manifest.layers[layerId]?.models[modelId] ?? null
 }
 
 export function getActiveRunLayerAvailability(
   activeRun: ActiveForecastRun | null,
-  layerId: LayerId | string | null
+  layerId: string | null
 ): LayerModelAvailability | null {
   if (!activeRun) return null
   return getLayerModelAvailability(activeRun.manifest, layerId, activeRun.modelId)
@@ -87,22 +86,22 @@ export function getActiveRunLayerAvailability(
 
 export function isLayerAvailableForModel(
   manifest: Manifest | null,
-  layerId: LayerId | string | null,
-  modelId: ForecastModelId | string | null
+  layerId: string | null,
+  modelId: ForecastModelId | null
 ): boolean {
   return getLayerModelAvailability(manifest, layerId, modelId)?.state === 'available'
 }
 
 export function isLayerAvailableForActiveRun(
   activeRun: ActiveForecastRun | null,
-  layerId: LayerId | string | null
+  layerId: string | null
 ): boolean {
   return getActiveRunLayerAvailability(activeRun, layerId)?.state === 'available'
 }
 
 export function resolveCompatibleActiveForecastRun(
   preferredRun: ActiveForecastRun | null,
-  layerId: LayerId | string | null
+  layerId: string | null
 ): ActiveForecastRun | null {
   const manifest = preferredRun?.manifest ?? null
   const preferredModelId = preferredRun?.modelId ?? null
@@ -117,7 +116,7 @@ export function resolveCompatibleActiveForecastRun(
 
 export function hasAnyAvailableModelForLayer(
   manifest: Manifest | null,
-  layerId: LayerId | string | null
+  layerId: string | null
 ): boolean {
   return Object.keys(manifest?.models ?? {})
     .some((modelId) => isLayerAvailableForModel(manifest, layerId, modelId))

@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  createCatalogManifestFixture,
   createMultiModelManifestFixture,
   createSingleTimeManifestFixture,
 } from '../test/fixtures'
 import {
+  getActiveRunLayerAvailability,
+  getLayerModelAvailability,
+  hasAnyAvailableModelForLayer,
+  isLayerAvailableForActiveRun,
+  isLayerAvailableForModel,
   resolveActiveForecastRun,
   resolveActiveRunFrameRef,
+  resolveCompatibleActiveForecastRun,
 } from './resolution'
 
 describe('forecast manifest active run resolution', () => {
@@ -51,6 +58,29 @@ describe('forecast manifest active run resolution', () => {
     })
 
     expect(resolveActiveForecastRun(manifest, 'gfs')).toBeNull()
+  })
+
+  it('reads layer availability with plain manifest layer ids', () => {
+    const manifest = createCatalogManifestFixture()
+    const activeRun = resolveActiveForecastRun(manifest, 'gfs')
+    if (!activeRun) throw new Error('Expected active run fixture')
+
+    expect(getLayerModelAvailability(manifest, 'temperature', 'gfs')?.state).toBe('available')
+    expect(getActiveRunLayerAvailability(activeRun, 'temperature')?.state).toBe('available')
+    expect(isLayerAvailableForModel(manifest, 'visibility', 'icon')).toBe(false)
+    expect(isLayerAvailableForActiveRun(activeRun, 'visibility')).toBe(true)
+    expect(hasAnyAvailableModelForLayer(manifest, 'visibility')).toBe(true)
+    expect(hasAnyAvailableModelForLayer(manifest, 'missing_layer')).toBe(false)
+  })
+
+  it('resolves a compatible active run for a plain layer id', () => {
+    const manifest = createCatalogManifestFixture()
+    const iconRun = resolveActiveForecastRun(manifest, 'icon')
+    if (!iconRun) throw new Error('Expected icon run fixture')
+
+    const compatibleRun = resolveCompatibleActiveForecastRun(iconRun, 'visibility')
+
+    expect(compatibleRun?.modelId).toBe('gfs')
   })
 
   it('infers frame payload refs from active run metadata', () => {

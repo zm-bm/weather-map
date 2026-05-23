@@ -116,6 +116,11 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'forecast-manifest must not import forecast-catalog',
+        (file) => isForecastManifestFile(file.path) &&
+          file.imports.some((reference) => isForecastCatalogImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
         'Controls must not import forecast-render',
         (file) => isMapControlRailFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))

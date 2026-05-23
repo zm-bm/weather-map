@@ -15,12 +15,12 @@ import {
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorPayloadFixture,
-} from '../test/fixtures'
+} from './fixtures'
 import {
   createFetchArrayBufferResponse,
   createFetchErrorResponse,
   createFetchJsonResponse,
-} from '../test/fetch'
+} from './fetch'
 
 function toUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
