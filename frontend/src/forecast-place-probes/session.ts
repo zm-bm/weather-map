@@ -7,16 +7,16 @@ import {
 } from './places'
 import type { ForecastPlaceProbeFrame } from './frameChannel'
 import {
-  forecastPlaceProbeLayer,
+  placeProbeLayer,
   type PlaceProbeLabelSnapshot,
 } from './layer'
-import { createForecastPlaceProbeHoverSession } from './hover'
+import { createPlaceProbeHoverSession } from './hover'
 import {
   createPlaceProbeLabels,
   refreshPlaceProbeSamplers,
+  type ForecastPlaceProbeValueFormatter,
   type PlaceProbeSamplers,
 } from './labels'
-import type { ForecastPlaceProbeValueFormatter } from './types'
 
 export type ForecastPlaceProbeSession = {
   start: () => void
@@ -42,8 +42,8 @@ export function createForecastPlaceProbeSession({
   let started = false
   let selectedLayerId = layerId
   let formatProbeValue = valueFormatter
-  let latestFrame = initialFrame
-  let currentFrame: ForecastPlaceProbeFrame = null
+  let publishedFrame = initialFrame
+  let activeFrame: ForecastPlaceProbeFrame = null
   let visiblePlaces: PlaceProbe[] = []
   let visiblePlaceKey = ''
   let samplerState: PlaceProbeSamplers = refreshPlaceProbeSamplers(null, [])
@@ -51,11 +51,11 @@ export function createForecastPlaceProbeSession({
   let pendingSourceUpdateId: number | null = null
   let needsFullSourceUpdate = true
   let refreshOnNextIdle = false
-  const hoverSession = createForecastPlaceProbeHoverSession(map)
+  const hoverSession = createPlaceProbeHoverSession(map)
 
   const rebuildSamplers = (force: boolean) => {
     samplerState = refreshPlaceProbeSamplers(
-      currentFrame,
+      activeFrame,
       visiblePlaces,
       samplerState,
       force,
@@ -66,20 +66,20 @@ export function createForecastPlaceProbeSession({
     pendingSourceUpdateId = null
     const labels = createPlaceProbeLabels(
       visiblePlaces,
-      currentFrame,
+      activeFrame,
       samplerState,
       formatProbeValue,
     )
 
     if (needsFullSourceUpdate) {
       labelsByPlaceId = labelsByPlaceId.size === 0
-        ? forecastPlaceProbeLayer.setLabels(map, labels)
-        : forecastPlaceProbeLayer.updateLabels(map, labels, labelsByPlaceId)
+        ? placeProbeLayer.setLabels(map, labels)
+        : placeProbeLayer.updateLabels(map, labels, labelsByPlaceId)
       needsFullSourceUpdate = false
       return
     }
 
-    labelsByPlaceId = forecastPlaceProbeLayer.updateLabels(
+    labelsByPlaceId = placeProbeLayer.updateLabels(
       map,
       labels,
       labelsByPlaceId,
@@ -87,6 +87,7 @@ export function createForecastPlaceProbeSession({
   }
 
   const scheduleSourceUpdate = () => {
+    if (!started) return
     if (pendingSourceUpdateId != null) return
     pendingSourceUpdateId = window.requestAnimationFrame(updateSourceData)
   }
@@ -102,21 +103,21 @@ export function createForecastPlaceProbeSession({
   }
 
   const applyFrame = (frame: ForecastPlaceProbeFrame) => {
-    currentFrame = frame?.lower.layerId === selectedLayerId ? frame : null
+    activeFrame = frame?.lower.layerId === selectedLayerId ? frame : null
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
   const setFrame = (frame: ForecastPlaceProbeFrame) => {
-    latestFrame = frame
+    publishedFrame = frame
     applyFrame(frame)
   }
 
   const refreshPlaces = (followUpOnIdle = false) => {
     refreshOnNextIdle = false
-    const selectionContext = forecastPlaceProbeLayer.getSelectionContext(map)
+    const selectionContext = placeProbeLayer.getSelectionContext(map)
     const nextVisiblePlaces = selectVisiblePlaceProbes(
-      forecastPlaceProbeLayer.queryBasemapPlaces(map),
+      placeProbeLayer.queryBasemapPlaces(map),
       {
         zoom: map.getZoom(),
         bounds: selectionContext.bounds,
@@ -144,49 +145,71 @@ export function createForecastPlaceProbeSession({
     refreshPlaces(false)
   }
 
+  const attachViewportListeners = () => {
+    map.on('moveend', handleViewportSettled)
+    map.on('resize', handleViewportSettled)
+    map.on('idle', handleIdle)
+  }
+
+  const detachViewportListeners = () => {
+    map.off('moveend', handleViewportSettled)
+    map.off('resize', handleViewportSettled)
+    map.off('idle', handleIdle)
+  }
+
+  const destroySession = () => {
+    if (pendingSourceUpdateId != null) {
+      window.cancelAnimationFrame(pendingSourceUpdateId)
+      pendingSourceUpdateId = null
+    }
+
+    if (started) {
+      detachViewportListeners()
+      hoverSession.destroy()
+      placeProbeLayer.remove(map)
+    }
+
+    started = false
+    activeFrame = null
+    visiblePlaces = []
+    visiblePlaceKey = ''
+    samplerState = refreshPlaceProbeSamplers(null, [])
+    labelsByPlaceId.clear()
+    refreshOnNextIdle = false
+    needsFullSourceUpdate = true
+  }
+
   return {
     start() {
       if (started) return
 
-      started = true
-      forecastPlaceProbeLayer.ensure(map)
-      hoverSession.start()
-      map.on('moveend', handleViewportSettled)
-      map.on('resize', handleViewportSettled)
-      map.on('idle', handleIdle)
-
-      applyFrame(latestFrame)
-      refreshPlaces(true)
-    },
-
-    destroy() {
-      if (pendingSourceUpdateId != null) {
-        window.cancelAnimationFrame(pendingSourceUpdateId)
-        pendingSourceUpdateId = null
-      }
-
-      if (started) {
-        map.off('moveend', handleViewportSettled)
-        map.off('resize', handleViewportSettled)
-        map.off('idle', handleIdle)
+      try {
+        placeProbeLayer.ensure(map)
+        hoverSession.start()
+        attachViewportListeners()
+      } catch (error) {
+        detachViewportListeners()
         hoverSession.destroy()
-        forecastPlaceProbeLayer.remove(map)
+        placeProbeLayer.remove(map)
+        throw error
       }
 
-      started = false
-      currentFrame = null
-      visiblePlaces = []
-      visiblePlaceKey = ''
-      samplerState = refreshPlaceProbeSamplers(null, [])
-      labelsByPlaceId.clear()
-      refreshOnNextIdle = false
-      needsFullSourceUpdate = true
+      started = true
+      try {
+        applyFrame(publishedFrame)
+        refreshPlaces(true)
+      } catch (error) {
+        destroySession()
+        throw error
+      }
     },
+
+    destroy: destroySession,
 
     setLayerId(nextLayerId) {
       if (selectedLayerId === nextLayerId) return
       selectedLayerId = nextLayerId
-      applyFrame(latestFrame)
+      applyFrame(publishedFrame)
     },
     setValueFormatter(nextValueFormatter) {
       if (formatProbeValue === nextValueFormatter) return

@@ -25,7 +25,7 @@ function ForecastPlaceProbes({
   if (activeRun == null || selectedLayerId == null) return null
 
   return (
-    <ForecastPlaceProbeLayer
+    <PlaceProbeSessionBridge
       selectedLayerId={selectedLayerId}
       mapReadyVersion={mapReadyVersion}
       mapRef={mapRef}
@@ -34,7 +34,7 @@ function ForecastPlaceProbes({
   )
 }
 
-function ForecastPlaceProbeLayer({
+function PlaceProbeSessionBridge({
   selectedLayerId,
   mapRef,
   mapReadyVersion,
@@ -42,9 +42,9 @@ function ForecastPlaceProbeLayer({
 }: ForecastPlaceProbesProps & {
   selectedLayerId: string
 }) {
-  const formatProbeDisplay = useForecastPlaceProbeValueFormatter()
+  const formatProbeValue = useForecastPlaceProbeValueFormatter()
   const selectedLayerIdRef = useRef(selectedLayerId)
-  const formatProbeDisplayRef = useRef(formatProbeDisplay)
+  const formatProbeValueRef = useRef(formatProbeValue)
   const sessionRef = useRef<ForecastPlaceProbeSession | null>(null)
 
   useEffect(() => {
@@ -53,9 +53,9 @@ function ForecastPlaceProbeLayer({
   }, [selectedLayerId])
 
   useEffect(() => {
-    formatProbeDisplayRef.current = formatProbeDisplay
-    sessionRef.current?.setValueFormatter(formatProbeDisplay)
-  }, [formatProbeDisplay])
+    formatProbeValueRef.current = formatProbeValue
+    sessionRef.current?.setValueFormatter(formatProbeValue)
+  }, [formatProbeValue])
 
   useEffect(() => {
     const map = mapRef.current
@@ -64,7 +64,7 @@ function ForecastPlaceProbeLayer({
     const session = createForecastPlaceProbeSession({
       map,
       layerId: selectedLayerIdRef.current,
-      valueFormatter: formatProbeDisplayRef.current,
+      valueFormatter: formatProbeValueRef.current,
       initialFrame: probeFrameChannel.getSnapshot(),
     })
     sessionRef.current = session

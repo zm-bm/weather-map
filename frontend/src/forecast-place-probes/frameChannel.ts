@@ -2,27 +2,27 @@ import type { FieldInterpolationWindowData } from '../forecast-data'
 
 export type ForecastPlaceProbeFrame = FieldInterpolationWindowData | null
 
-export type ForecastPlaceProbeFrameListener = (
+type FrameListener = (
   frame: ForecastPlaceProbeFrame
 ) => void
 
 export type ForecastPlaceProbeFrameChannel = {
   getSnapshot: () => ForecastPlaceProbeFrame
   publish: (frame: ForecastPlaceProbeFrame) => void
-  subscribe: (listener: ForecastPlaceProbeFrameListener) => () => void
+  subscribe: (listener: FrameListener) => () => void
 }
 
 export function createForecastPlaceProbeFrameChannel(): ForecastPlaceProbeFrameChannel {
-  let currentFrame: ForecastPlaceProbeFrame = null
-  const listeners = new Set<ForecastPlaceProbeFrameListener>()
+  let snapshot: ForecastPlaceProbeFrame = null
+  const listeners = new Set<FrameListener>()
 
   return {
     getSnapshot() {
-      return currentFrame
+      return snapshot
     },
     publish(frame) {
-      currentFrame = frame
-      listeners.forEach((listener) => listener(currentFrame))
+      snapshot = frame
+      listeners.forEach((listener) => listener(snapshot))
     },
     subscribe(listener) {
       listeners.add(listener)

@@ -9,7 +9,11 @@ import {
 } from '../forecast-probe'
 import { getPlaceProbeKey, type PlaceProbe } from './places'
 import type { PlaceProbeValueLabel } from './layer'
-import type { ForecastPlaceProbeValueFormatter } from './types'
+
+export type ForecastPlaceProbeValueFormatter = (
+  rawProbeValue: number | null,
+  loading?: boolean
+) => { text: string }
 
 export type PlaceProbeSamplers = {
   frameGridKey: string | null

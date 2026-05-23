@@ -15,7 +15,7 @@ import type {
   PlaceProbeBounds,
   PlaceProbeProject,
   PlaceProbeScreenPoint,
-} from './types'
+} from './places'
 
 type PlaceProbeFeatureProperties = {
   id: string
@@ -49,7 +49,7 @@ const FORECAST_PLACE_PROBE_SOURCE_ID = 'forecast-place-probes' as const
 const FORECAST_PLACE_PROBE_LAYER_ID = 'forecast-place-probe-labels' as const
 const FORECAST_PLACE_PROBE_LABEL_LAYER_IDS = [FORECAST_PLACE_PROBE_LAYER_ID] as const
 
-export const forecastPlaceProbeLayerIds = {
+export const placeProbeLayerIds = {
   source: FORECAST_PLACE_PROBE_SOURCE_ID,
   layer: FORECAST_PLACE_PROBE_LAYER_ID,
   labelLayers: FORECAST_PLACE_PROBE_LABEL_LAYER_IDS,
@@ -62,9 +62,9 @@ const PLACE_PROBE_FORMAT = {
 }
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
-  id: forecastPlaceProbeLayerIds.layer,
+  id: placeProbeLayerIds.layer,
   type: 'symbol',
-  source: forecastPlaceProbeLayerIds.source,
+  source: placeProbeLayerIds.source,
   minzoom: 3.5,
   layout: {
     'symbol-sort-key': ['get', 'sortKey'],
@@ -136,36 +136,36 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
 }
 
 function ensurePlaceProbeLayer(map: MapLibreMap): void {
-  if (!map.getSource(forecastPlaceProbeLayerIds.source)) {
-    map.addSource(forecastPlaceProbeLayerIds.source, {
+  if (!map.getSource(placeProbeLayerIds.source)) {
+    map.addSource(placeProbeLayerIds.source, {
       type: 'geojson',
       data: createEmptyPlaceProbeCollection(),
     })
   }
 
-  if (!map.getLayer(forecastPlaceProbeLayerIds.layer)) {
+  if (!map.getLayer(placeProbeLayerIds.layer)) {
     map.addLayer(PLACE_PROBE_LAYER)
   }
 }
 
 function removePlaceProbeLayer(map: MapLibreMap): void {
-  if (getMapLayerIfStyleAvailable(map, forecastPlaceProbeLayerIds.layer)) {
-    runMapStyleOperation(map, () => map.removeLayer(forecastPlaceProbeLayerIds.layer))
+  if (hasMapLayer(map, placeProbeLayerIds.layer)) {
+    tryMapStyleOperation(map, () => map.removeLayer(placeProbeLayerIds.layer))
   }
-  if (getMapSourceIfStyleAvailable(map, forecastPlaceProbeLayerIds.source)) {
-    runMapStyleOperation(map, () => map.removeSource(forecastPlaceProbeLayerIds.source))
+  if (hasMapSource(map, placeProbeLayerIds.source)) {
+    tryMapStyleOperation(map, () => map.removeSource(placeProbeLayerIds.source))
   }
 }
 
-function getMapLayerIfStyleAvailable(map: MapLibreMap, layerId: string): boolean {
-  return runMapStyleOperation(map, () => map.getLayer(layerId) != null) ?? false
+function hasMapLayer(map: MapLibreMap, layerId: string): boolean {
+  return tryMapStyleOperation(map, () => map.getLayer(layerId) != null) ?? false
 }
 
-function getMapSourceIfStyleAvailable(map: MapLibreMap, sourceId: string): boolean {
-  return runMapStyleOperation(map, () => map.getSource(sourceId) != null) ?? false
+function hasMapSource(map: MapLibreMap, sourceId: string): boolean {
+  return tryMapStyleOperation(map, () => map.getSource(sourceId) != null) ?? false
 }
 
-function runMapStyleOperation<T>(
+export function tryMapStyleOperation<T>(
   map: MapLibreMap,
   operation: () => T,
 ): T | null {
@@ -188,10 +188,10 @@ function isMapStyleUnavailable(map: MapLibreMap): boolean {
 }
 
 function isMapStyleUnavailableError(error: unknown): boolean {
-  if (!(error instanceof TypeError)) return false
-  return /Cannot read properties of (undefined|null) \(reading '(getLayer|getSource|removeLayer|removeSource)'\)/.test(
+  if (!(error instanceof Error)) return false
+  return /Cannot read properties of (undefined|null) \(reading '(getLayer|getSource|removeLayer|removeSource|setFeatureState)'\)/.test(
     error.message,
-  )
+  ) || /source ["'][^"']+["'] does not exist in the map's style/i.test(error.message)
 }
 
 function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {
@@ -257,7 +257,7 @@ function updatePlaceProbeLabels(
 }
 
 function getPlaceProbeSource(map: MapLibreMap): GeoJSONSource | null {
-  return (map.getSource(forecastPlaceProbeLayerIds.source) as GeoJSONSource | undefined) ?? null
+  return (map.getSource(placeProbeLayerIds.source) as GeoJSONSource | undefined) ?? null
 }
 
 function createEmptyPlaceProbeCollection(): PlaceProbeFeatureCollection {
@@ -379,7 +379,7 @@ function buildPlaceProbeFeature(label: PlaceProbeValueLabel): PlaceProbeFeature 
   }
 }
 
-export const forecastPlaceProbeLayer = {
+export const placeProbeLayer = {
   ensure: ensurePlaceProbeLayer,
   remove: removePlaceProbeLayer,
   queryBasemapPlaces: queryBasemapPlaceFeatures,

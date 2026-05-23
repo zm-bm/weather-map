@@ -3,7 +3,7 @@ import type {
   PlaceProbeProject,
   PlaceProbeScreenPoint,
   SelectPlaceProbesOptions,
-} from './types'
+} from './places'
 
 const DEFAULT_PLACE_PROBE_LIMIT = 30
 const PLACE_PROBE_SPREAD_CELL_PX = 220

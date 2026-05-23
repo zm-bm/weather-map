@@ -8,9 +8,8 @@ export type {
   ForecastPlaceProbeSession,
   ForecastPlaceProbeSessionOptions,
 } from './session'
-export type { ForecastPlaceProbeValueFormatter } from './types'
+export type { ForecastPlaceProbeValueFormatter } from './labels'
 export type {
   ForecastPlaceProbeFrame,
   ForecastPlaceProbeFrameChannel,
-  ForecastPlaceProbeFrameListener,
 } from './frameChannel'

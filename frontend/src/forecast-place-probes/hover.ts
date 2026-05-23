@@ -1,10 +1,10 @@
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl'
 
-import { forecastPlaceProbeLayerIds } from './layer'
+import { placeProbeLayerIds, tryMapStyleOperation } from './layer'
 
 const HOVER_FEATURE_ID_PROPERTY = 'id' as const
 
-export type ForecastPlaceProbeHoverSession = {
+export type PlaceProbeHoverSession = {
   start: () => void
   destroy: () => void
 }
@@ -16,29 +16,37 @@ function getHoveredPlaceId(feature: maplibregl.MapGeoJSONFeature | undefined): s
 }
 
 function setPlaceHover(map: MapLibreMap, id: string, hovered: boolean): void {
-  map.setFeatureState(
-    { source: forecastPlaceProbeLayerIds.source, id },
+  tryMapStyleOperation(map, () => map.setFeatureState(
+    { source: placeProbeLayerIds.source, id },
     { hover: hovered },
-  )
+  ))
 }
 
-export function createForecastPlaceProbeHoverSession(
+export function createPlaceProbeHoverSession(
   map: MapLibreMap,
-): ForecastPlaceProbeHoverSession {
+): PlaceProbeHoverSession {
   let hoveredPlaceId: string | null = null
   let attached = false
   let started = false
 
-  const onMove = (e: maplibregl.MapMouseEvent & maplibregl.MapLayerMouseEvent) => {
-    map.getCanvas().style.cursor = e.features?.length ? 'pointer' : ''
-    const id = getHoveredPlaceId(e.features?.[0])
-    if (id == null) return
-
-    if (hoveredPlaceId === id) return
-
+  const clearHover = () => {
     if (hoveredPlaceId !== null) {
       setPlaceHover(map, hoveredPlaceId, false)
     }
+    hoveredPlaceId = null
+  }
+
+  const onMove = (e: maplibregl.MapMouseEvent & maplibregl.MapLayerMouseEvent) => {
+    map.getCanvas().style.cursor = e.features?.length ? 'pointer' : ''
+    const id = getHoveredPlaceId(e.features?.[0])
+    if (id == null) {
+      clearHover()
+      return
+    }
+
+    if (hoveredPlaceId === id) return
+
+    clearHover()
 
     hoveredPlaceId = id
     setPlaceHover(map, hoveredPlaceId, true)
@@ -46,23 +54,20 @@ export function createForecastPlaceProbeHoverSession(
 
   const onLeave = () => {
     map.getCanvas().style.cursor = ''
-    if (hoveredPlaceId !== null) {
-      setPlaceHover(map, hoveredPlaceId, false)
-    }
-    hoveredPlaceId = null
+    clearHover()
   }
 
   const attach = () => {
-    if (attached || !map.getLayer(forecastPlaceProbeLayerIds.layer)) return
-    map.on('mousemove', forecastPlaceProbeLayerIds.layer, onMove)
-    map.on('mouseleave', forecastPlaceProbeLayerIds.layer, onLeave)
+    if (attached || !tryMapStyleOperation(map, () => map.getLayer(placeProbeLayerIds.layer))) return
+    map.on('mousemove', placeProbeLayerIds.layer, onMove)
+    map.on('mouseleave', placeProbeLayerIds.layer, onLeave)
     attached = true
   }
 
   const detach = () => {
     if (!attached) return
-    map.off('mousemove', forecastPlaceProbeLayerIds.layer, onMove)
-    map.off('mouseleave', forecastPlaceProbeLayerIds.layer, onLeave)
+    map.off('mousemove', placeProbeLayerIds.layer, onMove)
+    map.off('mouseleave', placeProbeLayerIds.layer, onLeave)
     attached = false
   }
 

@@ -4,7 +4,7 @@ import type {
   PlaceProbe,
   PlaceProbeBounds,
   PlaceProbePoint,
-} from './types'
+} from './places'
 
 const PLACE_PROBE_ZOOM_THRESHOLD = 3.5
 const MAJOR_PLACE_POPULATION = 1_000_000

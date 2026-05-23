@@ -10,7 +10,7 @@ import {
   createForecastPlaceProbeSession,
   type ForecastPlaceProbeSessionOptions,
 } from './session'
-import { forecastPlaceProbeLayerIds } from './layer'
+import { placeProbeLayerIds } from './layer'
 import type { FieldInterpolationWindowData } from '../forecast-data'
 
 type MapEventName = 'idle' | 'load' | 'mousemove' | 'mouseleave' | 'moveend' | 'resize' | 'styledata'
@@ -64,7 +64,7 @@ const mocks = vi.hoisted(() => {
       },
       mix: 0,
     } as FieldInterpolationWindowData | null,
-    formatProbeDisplay: vi.fn((rawValue: number | null, loading = false) => ({
+    formatProbeValue: vi.fn((rawValue: number | null, loading = false) => ({
       text: loading ? 'Loading' : (rawValue == null ? 'No data' : `${rawValue} F`),
       loading,
       value: rawValue,
@@ -130,7 +130,7 @@ function createProbeablePlacesMap(): ProbeablePlacesMap {
       layers.add(layer.id)
     }),
     addSource: vi.fn((sourceId: string) => {
-      if (sourceId === forecastPlaceProbeLayerIds.source) {
+      if (sourceId === placeProbeLayerIds.source) {
         probeSource = {
           setData: vi.fn(),
           updateData: vi.fn(),
@@ -153,7 +153,7 @@ function createProbeablePlacesMap(): ProbeablePlacesMap {
     }),
     removeSource: vi.fn((sourceId: string) => {
       sources.delete(sourceId)
-      if (sourceId === forecastPlaceProbeLayerIds.source) probeSource = null
+      if (sourceId === placeProbeLayerIds.source) probeSource = null
     }),
     setFeatureState: vi.fn(),
     on: vi.fn((eventName: MapEventName, layerOrHandler: string | MapEventHandler, maybeHandler?: MapEventHandler) => {
@@ -230,10 +230,10 @@ describe('createForecastPlaceProbeSession', () => {
 
   beforeEach(() => {
     animationFrameCallbacks = []
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
       animationFrameCallbacks.push(callback)
       return animationFrameCallbacks.length
-    })
+    }))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
 
     mocks.frame = {
@@ -247,7 +247,7 @@ describe('createForecastPlaceProbeSession', () => {
       },
       mix: 0,
     } as FieldInterpolationWindowData
-    mocks.formatProbeDisplay.mockClear()
+    mocks.formatProbeValue.mockClear()
     mocks.createFieldProbeSampler.mockReset()
     mocks.createFieldProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
     mocks.sampleFieldInterpolationWindowWithSampler.mockReset()
@@ -266,13 +266,31 @@ describe('createForecastPlaceProbeSession', () => {
     const session = createForecastPlaceProbeSession({
       map,
       layerId: 'temperature',
-      valueFormatter: mocks.formatProbeDisplay,
+      valueFormatter: mocks.formatProbeValue,
       initialFrame: mocks.frame,
       ...options,
     })
     session.start()
     return session
   }
+
+  it('does not schedule source updates before start', () => {
+    const map = createProbeablePlacesMap()
+    const session = createForecastPlaceProbeSession({
+      map,
+      layerId: 'temperature',
+      valueFormatter: mocks.formatProbeValue,
+      initialFrame: null,
+    })
+
+    session.setFrame(mocks.frame)
+    session.setLayerId('dew_point')
+    session.setValueFormatter(vi.fn())
+
+    expect(window.requestAnimationFrame).not.toHaveBeenCalled()
+    expect(map.addSource).not.toHaveBeenCalled()
+    expect(map.addLayer).not.toHaveBeenCalled()
+  })
 
   it('adds one GeoJSON source/layer and renders probe text', () => {
     const map = createProbeablePlacesMap()
@@ -285,11 +303,11 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(map.addSource).toHaveBeenCalledWith(
-      forecastPlaceProbeLayerIds.source,
+      placeProbeLayerIds.source,
       expect.objectContaining({ type: 'geojson' }),
     )
     expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({
-      id: forecastPlaceProbeLayerIds.layer,
+      id: placeProbeLayerIds.layer,
       layout: expect.objectContaining({
         'symbol-sort-key': ['get', 'sortKey'],
         'text-justify': 'auto',
@@ -544,8 +562,24 @@ describe('createForecastPlaceProbeSession', () => {
 
     session.destroy()
 
-    expect(map.removeLayer).toHaveBeenCalledWith(forecastPlaceProbeLayerIds.layer)
-    expect(map.removeSource).toHaveBeenCalledWith(forecastPlaceProbeLayerIds.source)
+    expect(map.removeLayer).toHaveBeenCalledWith(placeProbeLayerIds.layer)
+    expect(map.removeSource).toHaveBeenCalledWith(placeProbeLayerIds.source)
+  })
+
+  it('cancels pending source updates and removes viewport listeners on unmount', () => {
+    const map = createProbeablePlacesMap()
+    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
+
+    const session = startSession(map)
+
+    session.destroy()
+
+    expect(window.cancelAnimationFrame).toHaveBeenCalled()
+    expect(map.off).toHaveBeenCalledWith('moveend', expect.any(Function))
+    expect(map.off).toHaveBeenCalledWith('resize', expect.any(Function))
+    expect(map.off).toHaveBeenCalledWith('idle', expect.any(Function))
+    expect(map.off).toHaveBeenCalledWith('mousemove', placeProbeLayerIds.layer, expect.any(Function))
+    expect(map.off).toHaveBeenCalledWith('mouseleave', placeProbeLayerIds.layer, expect.any(Function))
   })
 
   it('tolerates cleanup after MapLibre has already removed its style', () => {
