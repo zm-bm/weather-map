@@ -1,29 +1,17 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { createBasemapThemeMapFixture } from '@/test/fixtures'
 import { BASEMAP_LAYER_IDS } from '../basemap'
 import { useForecastBasemapTheme } from './useForecastBasemapTheme'
 
-function createThemeMap(layerIds: readonly string[] = [
-  BASEMAP_LAYER_IDS.background,
-  BASEMAP_LAYER_IDS.water,
-  BASEMAP_LAYER_IDS.coastline,
-  BASEMAP_LAYER_IDS.boundary2,
-]) {
-  const layers = new Set(layerIds)
-  return {
-    getLayer: vi.fn((layerId: string) => layers.has(layerId) ? { id: layerId } : undefined),
-    setPaintProperty: vi.fn(),
-  }
-}
-
 describe('useForecastBasemapTheme', () => {
   it('updates the map theme when the selected layer changes', () => {
-    const map = createThemeMap()
+    const map = createBasemapThemeMapFixture()
     const getMap = vi.fn(() => map)
     const { rerender } = renderHook(
       ({ selectedLayerId }) => useForecastBasemapTheme({
-        getMap: getMap as never,
+        getMap,
         mapReadyVersion: 1,
         selectedLayerId,
       }),
@@ -54,11 +42,11 @@ describe('useForecastBasemapTheme', () => {
   })
 
   it('waits for the map style to be ready', () => {
-    const map = createThemeMap()
+    const map = createBasemapThemeMapFixture()
     const getMap = vi.fn(() => map)
 
     renderHook(() => useForecastBasemapTheme({
-      getMap: getMap as never,
+      getMap,
       mapReadyVersion: 0,
       selectedLayerId: 'cloud_layers',
     }))

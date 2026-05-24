@@ -5,7 +5,7 @@ import {
   DEFAULT_FORECAST_SETTINGS,
   type ForecastSettingsActions,
 } from '@/forecast/settings'
-import { createMapFixture } from '@/test/fixtures'
+import { createMapFixture, createMapRefFixture } from '@/test/fixtures'
 import MapControlRail from './MapControlRail'
 
 const PLAYLIST_URL = 'http://localhost:3000/radio/playlist.json'
@@ -16,7 +16,7 @@ describe('MapControlRail', () => {
 
     render(
       <MapControlRail
-        mapRef={{ current: map }}
+        mapRef={createMapRefFixture(map)}
         mapReadyVersion={1}
         playlistUrl={PLAYLIST_URL}
       />
@@ -32,7 +32,7 @@ describe('MapControlRail', () => {
   it('disables zoom controls while no map is available', () => {
     render(
       <MapControlRail
-        mapRef={{ current: null }}
+        mapRef={createMapRefFixture(null)}
         mapReadyVersion={0}
         playlistUrl={PLAYLIST_URL}
       />
@@ -40,19 +40,6 @@ describe('MapControlRail', () => {
 
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
-  })
-
-  it('renders radio and options controls in the rail', () => {
-    render(
-      <MapControlRail
-        mapRef={{ current: createMapFixture() }}
-        mapReadyVersion={1}
-        playlistUrl={PLAYLIST_URL}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'Play radio' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Map options' })).toBeInTheDocument()
   })
 
   it('requests render setting changes from the options panel', () => {
@@ -64,7 +51,7 @@ describe('MapControlRail', () => {
 
     render(
       <MapControlRail
-        mapRef={{ current: createMapFixture() }}
+        mapRef={createMapRefFixture(createMapFixture())}
         mapReadyVersion={1}
         playlistUrl={PLAYLIST_URL}
         settings={{

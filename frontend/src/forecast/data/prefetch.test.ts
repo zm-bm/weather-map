@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createActiveRunFixture,
+  createDeferred,
   createSingleTimeManifestFixture,
   createSignalFixture,
 } from '@/test/fixtures'
@@ -21,16 +22,6 @@ const loaders = {
   precipType: vi.fn(),
   pressure: vi.fn(),
   windVectors: vi.fn(),
-}
-
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
 }
 
 function dataLoad<K extends ForecastDataKind>(
@@ -130,9 +121,9 @@ describe('prefetchForecastData', () => {
   })
 
   it('limits prefetch concurrency across planned data loads', async () => {
-    const requests: Array<ReturnType<typeof deferred<void>>> = []
+    const requests: Array<ReturnType<typeof createDeferred<void>>> = []
     const deferredPrefetch = () => {
-      const request = deferred<void>()
+      const request = createDeferred<void>()
       requests.push(request)
       return request.promise
     }

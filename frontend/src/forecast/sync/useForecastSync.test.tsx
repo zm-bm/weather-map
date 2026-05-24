@@ -3,14 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createConfigFixture,
+  createDataSessionFixture,
   createForecastDataTargetFixture,
+  createForecastTimeContextValue,
 } from '@/test/fixtures'
-import {
-  type ForecastDataOptions,
-  type ForecastDataSession,
-  type ForecastDataTarget,
-} from '@/forecast/data'
-import type { ForecastTimeSyncCallbacks } from '@/forecast/time'
+import type { ForecastDataTarget } from '@/forecast/data'
 import type { ForecastRenderHost } from '@/forecast/render'
 import type { StartupController } from './useStartupController'
 import { useForecastSync } from './useForecastSync'
@@ -23,11 +20,6 @@ const mocks = vi.hoisted(() => ({
   useRequestRunner: vi.fn(),
   useDataPrefetch: vi.fn(),
 }))
-
-const DEFAULT_DATA_OPTIONS: ForecastDataOptions = {
-  pressure: true,
-  windVectors: true,
-}
 
 vi.mock('./useStartupController', () => ({
   useStartupController: () => mocks.useStartupController(),
@@ -81,33 +73,59 @@ function createStartupState(
   }
 }
 
-function createSyncCallbacks(): ForecastTimeSyncCallbacks {
-  return {
-    onRequestStart: vi.fn(),
-    onRequestApplied: vi.fn(),
-    onRequestError: vi.fn(),
-  }
-}
-
 function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
   return createForecastDataTargetFixture({ overrides })
 }
 
-function createDataSession(): ForecastDataSession {
+type ForecastSyncArgs = Parameters<typeof useForecastSync>[0]
+
+type ForecastSyncHarnessOptions = Partial<ForecastSyncArgs> & {
+  startup?: StartupController
+  target?: ForecastDataTarget | null
+  syncCallbacks?: ReturnType<typeof createForecastTimeContextValue>['syncCallbacks']
+  dataSession?: ReturnType<typeof createDataSessionFixture>
+}
+
+function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
+  const defaultRenderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
+  const renderHost = options.renderHost === undefined ? defaultRenderHost : options.renderHost
+  const config = options.config ?? createConfigFixture()
+  const dataOptions = options.dataOptions ?? { pressure: true, windVectors: true }
+  const startup = options.startup ?? createStartupState()
+  const target = 'target' in options ? options.target : createDataTarget()
+  const syncCallbacks = options.syncCallbacks ?? createForecastTimeContextValue(null).syncCallbacks
+  const dataSession = options.dataSession ?? createDataSessionFixture()
+
+  mocks.useStartupController.mockReturnValue(startup)
+  mocks.useDataTarget.mockReturnValue(target)
+  mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
+    syncCallbacks,
+  }))
+  mocks.createForecastDataSession.mockReturnValue(dataSession)
+
   return {
-    createLoadJob: vi.fn(),
-    prefetch: vi.fn(),
-    reset: vi.fn(),
+    ...renderHook(() => useForecastSync({
+      renderHost,
+      config,
+      dataOptions,
+      onProbeFrameChange: options.onProbeFrameChange,
+    })),
+    renderHost,
+    config,
+    dataOptions,
+    startup,
+    target,
+    syncCallbacks,
+    dataSession,
+    onProbeFrameChange: options.onProbeFrameChange,
   }
 }
 
 describe('useForecastSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createForecastDataSession.mockReturnValue(createDataSession())
-    mocks.useForecastTimeContext.mockReturnValue({
-      syncCallbacks: createSyncCallbacks(),
-    })
+    mocks.createForecastDataSession.mockReturnValue(createDataSessionFixture())
+    mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null))
     mocks.useRequestRunner.mockReturnValue(undefined)
   })
 
@@ -116,28 +134,28 @@ describe('useForecastSync', () => {
     const config = createConfigFixture()
     const startup = createStartupState({ retryToken: 2 })
     const target = createDataTarget()
-    const syncCallbacks = createSyncCallbacks()
+    const syncCallbacks = createForecastTimeContextValue(null).syncCallbacks
     const onProbeFrameChange = vi.fn()
-    const dataSession = createDataSession()
+    const dataSession = createDataSessionFixture()
+    const dataOptions = { pressure: false, windVectors: true }
 
-    mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
-    mocks.useForecastTimeContext.mockReturnValue({ syncCallbacks })
-    mocks.createForecastDataSession.mockReturnValue(dataSession)
-
-    const { result } = renderHook(() => useForecastSync({
+    const { result } = renderForecastSync({
       renderHost,
       config,
-      dataOptions: DEFAULT_DATA_OPTIONS,
+      startup,
+      target,
+      syncCallbacks,
+      dataSession,
+      dataOptions,
       onProbeFrameChange,
-    }))
+    })
 
     expect(mocks.useStartupController).toHaveBeenCalledTimes(1)
     expect(mocks.useDataTarget).toHaveBeenCalledWith()
     expect(mocks.useRequestRunner).toHaveBeenCalledWith({
       renderHost,
       config,
-      dataOptions: DEFAULT_DATA_OPTIONS,
+      dataOptions,
       target,
       syncCallbacks,
       startup,
@@ -149,7 +167,7 @@ describe('useForecastSync', () => {
       target,
       enabled: true,
       dataSession,
-      dataOptions: DEFAULT_DATA_OPTIONS,
+      dataOptions,
     })
     expect(result.current).toEqual({
       startupStatus: startup.status,
@@ -161,14 +179,13 @@ describe('useForecastSync', () => {
     const config = createConfigFixture()
     const startup = createStartupState()
 
-    mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(null)
-
-    const { result } = renderHook(() => useForecastSync({
+    const { result } = renderForecastSync({
       renderHost,
       config,
-      dataOptions: DEFAULT_DATA_OPTIONS,
-    }))
+      startup,
+      target: null,
+      dataOptions: { pressure: true, windVectors: true },
+    })
 
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
@@ -191,44 +208,20 @@ describe('useForecastSync', () => {
     const startup = createStartupState({ isBlocked: true })
     const target = createDataTarget()
 
-    mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
-
-    renderHook(() => useForecastSync({
+    renderForecastSync({
       renderHost,
       config,
-      dataOptions: DEFAULT_DATA_OPTIONS,
-    }))
+      startup,
+      target,
+      dataOptions: { pressure: true, windVectors: true },
+    })
 
     expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
       config,
       target,
       enabled: false,
       dataSession: expect.any(Object),
-      dataOptions: DEFAULT_DATA_OPTIONS,
+      dataOptions: { pressure: true, windVectors: true },
     })
-  })
-
-  it('passes the pressure contour option to data loading and prefetch', () => {
-    const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
-    const config = createConfigFixture()
-    const startup = createStartupState()
-    const target = createDataTarget()
-
-    mocks.useStartupController.mockReturnValue(startup)
-    mocks.useDataTarget.mockReturnValue(target)
-
-    renderHook(() => useForecastSync({
-      renderHost,
-      config,
-      dataOptions: { pressure: false, windVectors: true },
-    }))
-
-    expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
-      dataOptions: { pressure: false, windVectors: true },
-    }))
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
-      dataOptions: { pressure: false, windVectors: true },
-    }))
   })
 })

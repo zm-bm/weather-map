@@ -112,27 +112,49 @@ function renderInteractiveForecastPanel(
   return renderPanelWithManifest(manifest)
 }
 
+function measurementSelect(): HTMLSelectElement {
+  return screen.getByLabelText('Measurement') as HTMLSelectElement
+}
+
+function sourceSelect(): HTMLSelectElement {
+  return screen.getByLabelText('Forecast source') as HTMLSelectElement
+}
+
+function selectMeasurement(value: string, select = measurementSelect()) {
+  fireEvent.change(select, { target: { value } })
+  return select
+}
+
+function selectSource(value: string, select = sourceSelect()) {
+  fireEvent.change(select, { target: { value } })
+  return select
+}
+
+function expectNoProbeReadout() {
+  expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
+  expect(screen.queryByText('Value')).not.toBeInTheDocument()
+  expect(screen.queryByText('-- / --')).not.toBeInTheDocument()
+  expect(screen.queryByText('Click map')).not.toBeInTheDocument()
+}
+
 describe('ForecastPanel', () => {
   it('renders forecast controls without probe readouts', () => {
     const manifest = createPanelManifest(['tmp_surface', 'rh_surface'])
     renderPanelWithManifest(manifest)
 
-    const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    const measurement = measurementSelect()
     expect(measurement).toHaveValue('temperature')
     expect(Array.from(measurement.querySelectorAll('optgroup')).map((group) => group.label))
       .toEqual(FORECAST_LAYER_GROUPS.map((group) => group.label))
     expect(screen.getByLabelText('Forecast source GFS, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
-    expect(screen.getByLabelText('Forecast source')).toHaveValue('gfs')
+    expect(sourceSelect()).toHaveValue('gfs')
     expect(screen.getByText('Source')).toBeInTheDocument()
     expect(screen.getByText('Cycle')).toBeInTheDocument()
     expect(screen.getByText(formatCycleRunTimeLabel('2026041100') ?? '')).toBeInTheDocument()
     expect(screen.getByLabelText(/Forecast valid time/)).toHaveTextContent(expectedValidTimeLabel(manifest))
     expect(screen.queryByLabelText('Forecast level')).not.toBeInTheDocument()
     expect(screen.queryByText('Time')).not.toBeInTheDocument()
-    expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
-    expect(screen.queryByText('Value')).not.toBeInTheDocument()
-    expect(screen.queryByText('-- / --')).not.toBeInTheDocument()
-    expect(screen.queryByText('Click map')).not.toBeInTheDocument()
+    expectNoProbeReadout()
   })
 
   it('updates the active forecast model from the model selector', () => {
@@ -154,14 +176,12 @@ describe('ForecastPanel', () => {
     })
 
     expect(screen.getByLabelText('Forecast source ICON, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
-    const source = screen.getByLabelText('Forecast source') as HTMLSelectElement
+    const source = sourceSelect()
     expect(source).toHaveValue('icon')
 
     source.focus()
     expect(source).toHaveFocus()
-    fireEvent.change(source, {
-      target: { value: 'gfs' },
-    })
+    selectSource('gfs', source)
 
     expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
     expect(source).not.toHaveFocus()
@@ -171,14 +191,14 @@ describe('ForecastPanel', () => {
     const manifest = createPanelManifest(['tmp_surface', 'rh_surface'])
     renderPanelWithManifest(manifest)
 
-    const measurement = screen.getByLabelText('Measurement')
+    const measurement = measurementSelect()
     expect(shouldIgnoreSpaceShortcut(measurement)).toBe(true)
     fireEvent.pointerDown(measurement)
     expect(shouldIgnoreSpaceShortcut(measurement)).toBe(false)
     fireEvent.blur(measurement)
     expect(shouldIgnoreSpaceShortcut(measurement)).toBe(true)
 
-    const source = screen.getByLabelText('Forecast source')
+    const source = sourceSelect()
     expect(shouldIgnoreSpaceShortcut(source)).toBe(true)
     fireEvent.pointerDown(source)
     expect(shouldIgnoreSpaceShortcut(source)).toBe(false)
@@ -210,25 +230,21 @@ describe('ForecastPanel', () => {
       onActiveModelChange,
     })
 
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'visibility' },
-    })
+    selectMeasurement('visibility')
 
-    expect(screen.getByLabelText('Measurement')).toHaveValue('visibility')
+    expect(measurementSelect()).toHaveValue('visibility')
     expect(screen.getByRole('option', { name: 'ICON (unavailable)' })).toBeDisabled()
 
-    fireEvent.change(screen.getByLabelText('Forecast source'), {
-      target: { value: 'icon' },
-    })
+    selectSource('icon')
 
     expect(onActiveModelChange).not.toHaveBeenCalledWith('icon')
-    expect(screen.getByLabelText('Measurement')).toHaveValue('visibility')
+    expect(measurementSelect()).toHaveValue('visibility')
   })
 
   it('updates selected layer through the grouped measurement control without rendering unit controls', () => {
     renderInteractiveForecastPanel('tmp_surface')
 
-    const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    const measurement = measurementSelect()
     expect(measurement.value).toBe('temperature')
     expect(screen.getByRole('option', { name: 'Temperature' })).toHaveValue('temperature')
     expect(screen.getByRole('option', { name: 'Apparent Temperature' })).toHaveValue('apparent_temperature')
@@ -236,24 +252,18 @@ describe('ForecastPanel', () => {
 
     measurement.focus()
     expect(measurement).toHaveFocus()
-    fireEvent.change(measurement, {
-      target: { value: 'apparent_temperature' },
-    })
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('apparent_temperature')
+    selectMeasurement('apparent_temperature', measurement)
+    expect(measurementSelect().value).toBe('apparent_temperature')
     expect(measurement).not.toHaveFocus()
 
-    fireEvent.change(measurement, {
-      target: { value: 'wind_gust' },
-    })
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('wind_gust')
+    selectMeasurement('wind_gust', measurement)
+    expect(measurementSelect().value).toBe('wind_gust')
     expect(screen.getByRole('option', { name: 'Wind Speed' })).toHaveValue('wind_speed')
     expect(screen.getByRole('option', { name: 'Wind Gust' })).toHaveValue('wind_gust')
     expect(screen.getByRole('option', { name: 'Air Pressure' })).toHaveValue('air_pressure')
 
-    fireEvent.change(measurement, {
-      target: { value: 'temperature' },
-    })
-    expect((screen.getByLabelText('Measurement') as HTMLSelectElement).value).toBe('temperature')
+    selectMeasurement('temperature', measurement)
+    expect(measurementSelect().value).toBe('temperature')
 
   })
 
@@ -274,8 +284,7 @@ describe('ForecastPanel', () => {
     renderForecastPanel(['rh_surface', 'tmp_surface'])
 
     expect(screen.getByText('Relative Humidity')).toBeInTheDocument()
-    expect(screen.queryByText('Lat / Lon')).not.toBeInTheDocument()
-    expect(screen.queryByText('Value')).not.toBeInTheDocument()
+    expectNoProbeReadout()
   })
 
   it('shows Cloud Layers and Total/Sky Cover as selectable cloud measurements', () => {
@@ -299,13 +308,11 @@ describe('ForecastPanel', () => {
 
     renderPanelWithManifest(manifest)
 
-    const measurement = screen.getByLabelText('Measurement') as HTMLSelectElement
+    const measurement = measurementSelect()
     expect(screen.getByRole('option', { name: 'Cloud Layers' })).toHaveValue('cloud_layers')
     expect(screen.getByRole('option', { name: 'Total/Sky Cover' })).toHaveValue('cloud_cover')
 
-    fireEvent.change(measurement, {
-      target: { value: 'cloud_cover' },
-    })
+    selectMeasurement('cloud_cover', measurement)
 
     expect(measurement.value).toBe('cloud_cover')
   })

@@ -1,14 +1,10 @@
-import { render } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { vi } from 'vitest'
 
 import {
   activeForecastRunForModel,
-  type ForecastModelId,
   type Manifest,
 } from '@/forecast/manifest'
 import {
-  ForecastTimeProvider,
   type ForecastTimeContextValue,
 } from '@/forecast/time'
 import type { ForecastTimelineTime } from '@/forecast/time'
@@ -18,6 +14,7 @@ type ForecastTimeContextOptions = Partial<{
   times: ForecastTimelineTime[]
   state: Partial<ForecastTimeContextValue['state']>
   controls: Partial<ForecastTimeContextValue['controls']>
+  syncCallbacks: Partial<ForecastTimeContextValue['syncCallbacks']>
 }>
 
 export function createForecastTimeContextValue(
@@ -48,19 +45,7 @@ export function createForecastTimeContextValue(
       onRequestStart: vi.fn(),
       onRequestApplied: vi.fn(),
       onRequestError: vi.fn(),
+      ...options.syncCallbacks,
     },
   }
-}
-
-export function renderWithForecastTime(
-  ui: ReactNode,
-  manifest: Manifest | null,
-  activeModelId: ForecastModelId | null = 'gfs'
-) {
-  const activeRun = activeForecastRunForModel(manifest, activeModelId)
-  return render(
-    <ForecastTimeProvider activeRun={activeRun}>
-      {ui}
-    </ForecastTimeProvider>
-  )
 }

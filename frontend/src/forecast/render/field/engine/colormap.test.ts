@@ -5,7 +5,7 @@ import {
   buildColormapLut,
   createColormapKey,
 } from './colormap'
-import type { FieldTimeSliceData } from '@/forecast/data'
+import { createFieldTimeSliceFixture } from '@/test/fixtures'
 
 function getLutRgb(lut: Uint8Array, index: number): [number, number, number] {
   const offset = index * 4
@@ -25,44 +25,10 @@ describe('field colormap helpers', () => {
   })
 
   it('resolves field palette stops from the frame palette id', () => {
-    const frame = createFieldFrame()
+    const frame = createFieldTimeSliceFixture()
     const lut = buildFieldColormapLut(frame, 4, 'banded')
 
     expect(createColormapKey(frame)).toContain('temperature.air.c.v1')
     expect(lut.length).toBe(16)
   })
 })
-
-function createFieldFrame(): FieldTimeSliceData {
-  return {
-    hourToken: '000',
-    layerId: 'temperature',
-    paletteId: 'temperature.air.c.v1',
-    grid: {
-      id: 'grid',
-      crs: 'EPSG:4326',
-      nx: 1,
-      ny: 1,
-      lon0: 0,
-      lat0: 0,
-      dx: 1,
-      dy: 1,
-      origin: 'cell_center',
-      layout: 'row_major',
-      xWrap: 'none',
-      yMode: 'clamp',
-    },
-    encoding: {
-      id: 'encoding',
-      format: 'linear-i16-v1',
-      dtype: 'int16',
-      byteOrder: 'little',
-      nodata: -32768,
-      scale: 1,
-      offset: 0,
-      decodeFormula: 'value = stored * scale + offset',
-    },
-    values: new Float32Array([0]),
-    displayRange: [-35, 50],
-  }
-}

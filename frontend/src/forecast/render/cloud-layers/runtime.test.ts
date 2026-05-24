@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CloudLayersTimeSliceData } from '@/forecast/data'
+import { createCloudLayersTimeSliceFixture } from '@/test/fixtures'
 import { getCloudLayersController } from './controller'
 import { createCloudLayersRuntime, packCloudTextureBytes } from './runtime'
 
@@ -73,42 +73,6 @@ function createMockWebGl2() {
   }
 }
 
-function createCloudTimeSlice(): CloudLayersTimeSliceData {
-  return {
-    hourToken: '000',
-    layerId: 'cloud_layers',
-    artifactId: 'cloud_layers',
-    grid: {
-      id: 'global-1deg',
-      crs: 'EPSG:4326',
-      nx: 1,
-      ny: 1,
-      lon0: 0,
-      lat0: 0,
-      dx: 1,
-      dy: 1,
-      origin: 'cell_center',
-      layout: 'row_major',
-      xWrap: 'repeat',
-      yMode: 'clamp',
-    },
-    encoding: {
-      id: 'cloud_layers_vector_i8_2pct_v1',
-      format: 'linear-i8-v1',
-      dtype: 'int8',
-      byteOrder: 'none',
-      scale: 2,
-      offset: 0,
-      nodata: -128,
-      decodeFormula: 'decoded = stored * scale + offset',
-    },
-    low: new Int8Array([20]),
-    middle: new Int8Array([40]),
-    high: new Int8Array([60]),
-    coverage: {} as CloudLayersTimeSliceData['coverage'],
-  }
-}
-
 describe('cloud layers runtime', () => {
   it('passes map zoom to the shader for zoom-aware opacity', () => {
     const runtime = createCloudLayersRuntime()
@@ -121,7 +85,7 @@ describe('cloud layers runtime', () => {
 
     runtime.onAdd(map as never, gl as never)
     const controller = getCloudLayersController(map as never)
-    const slice = createCloudTimeSlice()
+    const slice = createCloudLayersTimeSliceFixture()
     controller?.applyFrame({
       lower: slice,
       upper: slice,
@@ -141,8 +105,13 @@ describe('cloud layers runtime', () => {
   })
 
   it('packs cloud layer components into renderer texture bytes', () => {
-    const slice = createCloudTimeSlice()
+    const slice = createCloudLayersTimeSliceFixture()
 
-    expect(Array.from(packCloudTextureBytes(slice))).toEqual([20, 40, 60, 255])
+    expect(Array.from(packCloudTextureBytes(slice))).toEqual([
+      0, 0, 0, 255,
+      25, 20, 10, 255,
+      50, 40, 30, 255,
+      100, 80, 60, 255,
+    ])
   })
 })

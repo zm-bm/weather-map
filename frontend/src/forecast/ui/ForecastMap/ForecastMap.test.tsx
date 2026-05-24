@@ -4,10 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import config from '@/core/config'
 import {
   DEFAULT_FORECAST_SETTINGS,
+  type ForecastSettingsActions,
   ForecastSettingsProvider,
 } from '@/forecast/settings'
-import type { ForecastSyncStartupStatus } from '@/forecast/sync'
-import { createMapFixture } from '@/test/fixtures'
+import type { ForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
+import type { UseForecastSyncArgs, ForecastSyncStartupStatus } from '@/forecast/sync'
+import {
+  createFieldWindowFixture,
+  createMapFixture,
+  createMapRefFixture,
+} from '@/test/fixtures'
+import type { MapControlRailProps } from '../MapControlRail'
 import ForecastMap from './ForecastMap'
 
 const FULL_RENDER_PROFILE = {
@@ -78,12 +85,45 @@ const DEFAULT_RENDER_SETTINGS = {
   }),
 }
 
+type MapRuntimeFixture = {
+  mapRef: ReturnType<typeof createMapRefFixture>
+  getMap: () => ReturnType<typeof createMapFixture>
+  mapReadyVersion: number
+}
+
+type PlaceProbeProps = {
+  mapRef: MapRuntimeFixture['mapRef']
+  mapReadyVersion: number
+  probeFrameChannel: ForecastPlaceProbeFrameChannel
+  initialFrame?: unknown
+}
+
 function renderForecastMap(ui = <ForecastMap />) {
   return render(
     <ForecastSettingsProvider>
       {ui}
     </ForecastSettingsProvider>
   )
+}
+
+function getMapRuntime(): MapRuntimeFixture {
+  return mocks.useMap.mock.results[0]?.value as MapRuntimeFixture
+}
+
+function getLatestControlProps(): MapControlRailProps {
+  return mocks.MapControlRail.mock.calls.at(-1)?.[0] as MapControlRailProps
+}
+
+function getLatestPlaceProbeProps(): PlaceProbeProps {
+  return mocks.ForecastPlaceProbes.mock.calls.at(-1)?.[0] as PlaceProbeProps
+}
+
+function getLatestSyncArgs(): UseForecastSyncArgs {
+  return mocks.useForecastSync.mock.calls.at(-1)?.[0] as UseForecastSyncArgs
+}
+
+function getLatestRenderHost() {
+  return mocks.useForecastRenderHost.mock.results.at(-1)?.value
 }
 
 function createSyncStatus(
@@ -102,7 +142,7 @@ describe('ForecastMap', () => {
     vi.clearAllMocks()
 
     const map = createMapFixture()
-    const mapRef = { current: map }
+    const mapRef = createMapRefFixture(map)
     const getMap = () => map
     const renderHost = { version: 4, apply: vi.fn() }
 
@@ -123,12 +163,8 @@ describe('ForecastMap', () => {
   it('wires map runtime hooks and forecast sync from the map instance', () => {
     renderForecastMap()
 
-    const { mapRef, getMap, mapReadyVersion } = mocks.useMap.mock.results[0]?.value as {
-      mapRef: { current: ReturnType<typeof createMapFixture> }
-      getMap: () => ReturnType<typeof createMapFixture>
-      mapReadyVersion: number
-    }
-    const renderHost = mocks.useForecastRenderHost.mock.results[0]?.value
+    const { mapRef, getMap, mapReadyVersion } = getMapRuntime()
+    const renderHost = getLatestRenderHost()
 
     expect(mocks.useMap).toHaveBeenCalledWith({
       containerId: 'map',
@@ -150,16 +186,7 @@ describe('ForecastMap', () => {
       dataOptions: { pressure: false, windVectors: true },
       onProbeFrameChange: expect.any(Function),
     })
-    const placeProbeProps = mocks.ForecastPlaceProbes.mock.calls[0]?.[0] as {
-      mapRef: unknown
-      mapReadyVersion: number
-      probeFrameChannel: {
-        getSnapshot: () => unknown
-        publish: (frame: unknown) => void
-        subscribe: (listener: (frame: unknown) => void) => () => void
-      }
-      initialFrame?: unknown
-    }
+    const placeProbeProps = getLatestPlaceProbeProps()
     expect(placeProbeProps).toEqual({
       mapRef,
       mapReadyVersion,
@@ -204,14 +231,10 @@ describe('ForecastMap', () => {
   it('updates the render profile when particles are toggled off', () => {
     renderForecastMap()
 
-    const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
-      settingsActions: {
-        updateParticles: (patch: { enabled: boolean }) => void
-      }
-    }
+    const controlProps = getLatestControlProps()
 
     act(() => {
-      controlProps.settingsActions.updateParticles({ enabled: false })
+      controlProps.settingsActions?.updateParticles({ enabled: false })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -222,9 +245,8 @@ describe('ForecastMap', () => {
         particles: expect.objectContaining({ enabled: false }),
       }),
     }))
-    const renderHostResults = mocks.useForecastRenderHost.mock.results
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
-      renderHost: renderHostResults[renderHostResults.length - 1]?.value,
+      renderHost: getLatestRenderHost(),
       config,
       dataOptions: { pressure: false, windVectors: false },
       onProbeFrameChange: expect.any(Function),
@@ -234,14 +256,10 @@ describe('ForecastMap', () => {
   it('updates the render profile and sync option when pressure contours are toggled on', () => {
     renderForecastMap()
 
-    const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
-      settingsActions: {
-        updatePressureContours: (patch: { enabled: boolean }) => void
-      }
-    }
+    const controlProps = getLatestControlProps()
 
     act(() => {
-      controlProps.settingsActions.updatePressureContours({ enabled: true })
+      controlProps.settingsActions?.updatePressureContours({ enabled: true })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -252,9 +270,8 @@ describe('ForecastMap', () => {
         pressureContours: { enabled: true },
       }),
     }))
-    const renderHostResults = mocks.useForecastRenderHost.mock.results
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
-      renderHost: renderHostResults[renderHostResults.length - 1]?.value,
+      renderHost: getLatestRenderHost(),
       config,
       dataOptions: { pressure: true, windVectors: true },
       onProbeFrameChange: expect.any(Function),
@@ -264,14 +281,11 @@ describe('ForecastMap', () => {
   it('updates renderer runtime settings without changing the render profile', () => {
     renderForecastMap()
 
-    const controlProps = mocks.MapControlRail.mock.calls[0]?.[0] as {
-      settingsActions: {
-        updateField: (patch: { colorSamplingMode: 'interpolated' }) => void
-      }
-    }
+    const controlProps = getLatestControlProps()
+    const settingsActions = controlProps.settingsActions as ForecastSettingsActions
 
     act(() => {
-      controlProps.settingsActions.updateField({ colorSamplingMode: 'interpolated' })
+      settingsActions.updateField({ colorSamplingMode: 'interpolated' })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -287,15 +301,10 @@ describe('ForecastMap', () => {
       }),
     }))
 
-    const latestControlProps = mocks.MapControlRail.mock.calls[
-      mocks.MapControlRail.mock.calls.length - 1
-    ]?.[0] as {
-      settingsActions: {
-        updateParticles: (patch: { clearTrailsOnViewChange: boolean }) => void
-      }
-    }
+    const latestControlProps = getLatestControlProps()
+    const latestSettingsActions = latestControlProps.settingsActions as ForecastSettingsActions
     act(() => {
-      latestControlProps.settingsActions.updateParticles({ clearTrailsOnViewChange: false })
+      latestSettingsActions.updateParticles({ clearTrailsOnViewChange: false })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -321,21 +330,15 @@ describe('ForecastMap', () => {
   })
 
   it('publishes sync probe frames into the place-probe channel', () => {
-    const frame = { lower: { layerId: 'temperature' } }
+    const frame = createFieldWindowFixture()
 
     renderForecastMap()
 
-    const syncArgs = mocks.useForecastSync.mock.calls[0]?.[0] as {
-      onProbeFrameChange: (nextFrame: unknown) => void
-    }
-    const placeProbeProps = mocks.ForecastPlaceProbes.mock.calls[0]?.[0] as {
-      probeFrameChannel: {
-        getSnapshot: () => unknown
-      }
-    }
+    const syncArgs = getLatestSyncArgs()
+    const placeProbeProps = getLatestPlaceProbeProps()
 
     act(() => {
-      syncArgs.onProbeFrameChange(frame)
+      syncArgs.onProbeFrameChange?.(frame)
     })
 
     expect(placeProbeProps.probeFrameChannel.getSnapshot()).toBe(frame)

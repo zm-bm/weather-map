@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  DEFAULT_FIELD_RENDER_SETTINGS,
-  DEFAULT_PARTICLE_RENDER_SETTINGS,
-} from '@/forecast/settings/settings'
+  createRenderControllerFixture,
+  createRenderLayerMapFixture,
+  createRenderRuntimeFixture,
+  createRenderSettingsFixture,
+  createWindVectorWindowFixture,
+} from '@/test/fixtures'
 import { FORECAST_LAYER_BEFORE_ID } from '../layer'
 import { applyParticleInterpolationWindow, applyParticleRenderSettings, particleAdapter } from './adapter'
-
-const DEFAULT_RENDER_SETTINGS = {
-  field: DEFAULT_FIELD_RENDER_SETTINGS,
-  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
-}
 
 const mocks = vi.hoisted(() => ({
   getParticleController: vi.fn(),
@@ -28,32 +26,18 @@ vi.mock('./engine/runtime', () => ({
 describe('particleAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture())
   })
 
   it('installs the particle custom layer', () => {
-    mocks.createParticleRuntime.mockReturnValue({
-      onAdd: vi.fn(),
-      render: vi.fn(),
-      onRemove: vi.fn(),
-    })
-    const addLayer = vi.fn()
-    const map = {
-      getLayer: vi.fn((layerId: string) => (
-        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
-      )),
-      addLayer,
-    }
+    const renderSettings = createRenderSettingsFixture()
+    mocks.createParticleRuntime.mockReturnValue(createRenderRuntimeFixture())
+    const map = createRenderLayerMapFixture()
 
-    particleAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    particleAdapter.install(map, renderSettings)
 
-    expect(mocks.createParticleRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.particles)
-    const [layer, beforeId] = addLayer.mock.calls[0] ?? []
+    expect(mocks.createParticleRuntime).toHaveBeenCalledWith(renderSettings.particles)
+    const [layer, beforeId] = map.addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('particle-renderer-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')
@@ -61,30 +45,25 @@ describe('particleAdapter', () => {
   })
 
   it('skips install when the layer already exists', () => {
-    const map = {
-      getLayer: vi.fn(() => ({ id: 'particle-renderer-layer-id' })),
-      addLayer: vi.fn(),
-    }
+    const map = createRenderLayerMapFixture({ layerIds: ['particle-renderer-layer-id'] })
 
-    particleAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    particleAdapter.install(map, createRenderSettingsFixture())
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createParticleRuntime).not.toHaveBeenCalled()
   })
 
   it('applies a loaded particle frame to the runtime controller', () => {
-    const frame = { lower: { artifactId: 'wind10m_uv' } }
+    const frame = createWindVectorWindowFixture()
     const applyFrame = vi.fn()
     const setEnabled = vi.fn()
-    const map = {}
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => true,
+    const map = createRenderLayerMapFixture()
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture({
       applyFrame,
       setEnabled,
-      applySettings: vi.fn(),
-    })
+    }))
 
-    applyParticleInterpolationWindow(map as never, frame as never)
+    applyParticleInterpolationWindow(map, frame)
 
     expect(setEnabled).toHaveBeenCalledWith(true)
     expect(applyFrame).toHaveBeenCalledWith(frame)
@@ -92,56 +71,39 @@ describe('particleAdapter', () => {
 
   it('disables the particle controller when no particle frame is selected', () => {
     const setEnabled = vi.fn()
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled,
-      applySettings: vi.fn(),
-    })
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture({ setEnabled }))
 
-    applyParticleInterpolationWindow({} as never, null)
+    applyParticleInterpolationWindow(createRenderLayerMapFixture(), null)
 
     expect(setEnabled).toHaveBeenCalledWith(false)
   })
 
   it('throws when runtime is unavailable', () => {
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => false,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture({ available: false }))
 
-    expect(() => applyParticleInterpolationWindow({} as never, { lower: { artifactId: 'wind10m_uv' } } as never))
+    expect(() => applyParticleInterpolationWindow(createRenderLayerMapFixture(), createWindVectorWindowFixture()))
       .toThrow('Particle runtime unavailable (WebGL2 required)')
   })
 
   it('disables particles without requiring an available runtime for empty frames', () => {
     const setEnabled = vi.fn()
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => false,
-      applyFrame: vi.fn(),
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture({
+      available: false,
       setEnabled,
-      applySettings: vi.fn(),
-    })
+    }))
 
-    applyParticleInterpolationWindow({} as never, null)
+    applyParticleInterpolationWindow(createRenderLayerMapFixture(), null)
 
     expect(setEnabled).toHaveBeenCalledWith(false)
   })
 
   it('applies render settings to the particle controller', () => {
     const applySettings = vi.fn()
-    const map = {}
+    const map = createRenderLayerMapFixture()
     const settings = { clearTrailsOnViewChange: false }
-    mocks.getParticleController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings,
-    })
+    mocks.getParticleController.mockReturnValue(createRenderControllerFixture({ applySettings }))
 
-    applyParticleRenderSettings(map as never, settings)
+    applyParticleRenderSettings(map, settings)
 
     expect(applySettings).toHaveBeenCalledWith(settings)
   })

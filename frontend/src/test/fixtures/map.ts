@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import type { IControl, Map as MapLibreMap } from 'maplibre-gl'
 import { vi } from 'vitest'
 
@@ -66,4 +67,35 @@ export function createMapFixture(): ControllableMapFixture {
       return undefined
     }),
   } as unknown as ControllableMapFixture
+}
+
+export function createMapRefFixture(
+  map: unknown = {}
+): RefObject<MapLibreMap | null> {
+  return {
+    current: map == null ? null : map as MapLibreMap,
+  }
+}
+
+export type BasemapThemeMapFixture = MapLibreMap & {
+  getLayer: ReturnType<typeof vi.fn>
+  setPaintProperty: ReturnType<typeof vi.fn>
+}
+
+export function createBasemapThemeMapFixture(
+  layerIds: readonly string[] = [
+    'background',
+    'water',
+    'coastline',
+    'boundary_2',
+  ]
+): BasemapThemeMapFixture {
+  const layers = new Set(layerIds)
+
+  return {
+    getLayer: vi.fn((layerId: string) => (
+      layers.has(layerId) ? { id: layerId } : undefined
+    )),
+    setPaintProperty: vi.fn(),
+  } as unknown as BasemapThemeMapFixture
 }

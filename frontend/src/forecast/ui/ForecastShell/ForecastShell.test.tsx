@@ -8,7 +8,10 @@ import type {
   ForecastModelOption,
 } from '@/forecast/manifest'
 import type { ForecastSyncStartupStatus } from '@/forecast/sync'
-import { createManifestFixture, createActiveRunFixture } from '@/test/fixtures'
+import {
+  createForecastManifestDataFixture,
+  createManifestFixture,
+} from '@/test/fixtures'
 import ForecastShell from './ForecastShell'
 
 const mocks = vi.hoisted(() => ({
@@ -55,12 +58,32 @@ function createForecastShellProps(overrides: {
   return {
     forecast: manifest == null
       ? null
-      : {
-          activeRun: createActiveRunFixture(manifest, overrides.activeModelId ?? 'gfs'),
+      : createForecastManifestDataFixture({
+          manifest,
+          activeModelId: overrides.activeModelId ?? 'gfs',
           modelOptions: MODEL_OPTIONS,
           setActiveModel: overrides.onActiveModelChange ?? vi.fn(),
-        },
+        }),
   }
+}
+
+type ForecastMapProps = {
+  onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
+}
+
+function latestForecastMapProps(): ForecastMapProps {
+  expect(mocks.ForecastMap).toHaveBeenCalled()
+  return mocks.ForecastMap.mock.calls.at(-1)?.[0] as ForecastMapProps
+}
+
+function forecastStage(container: HTMLElement): HTMLElement {
+  const stage = container.querySelector<HTMLElement>('.forecast-stage')
+  expect(stage).not.toBeNull()
+  return stage as HTMLElement
+}
+
+function timelineControls(): HTMLElement {
+  return screen.getByLabelText('Forecast timeline controls')
 }
 
 describe('ForecastShell', () => {
@@ -88,7 +111,7 @@ describe('ForecastShell', () => {
       />
     )
 
-    expect(mocks.ForecastMap).toHaveBeenCalledWith({
+    expect(latestForecastMapProps()).toEqual({
       onSyncStartupStatusChange,
     })
   })
@@ -105,12 +128,11 @@ describe('ForecastShell', () => {
     expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
 
-    const forecastStage = container.querySelector('.forecast-stage')
-    const timelineBar = screen.getByLabelText('Forecast timeline controls')
+    const stage = forecastStage(container)
+    const timelineBar = timelineControls()
 
-    expect(forecastStage).not.toBeNull()
     expect(timelineBar).toBeInTheDocument()
-    expect(within(forecastStage as HTMLElement).getByTestId('legend-panel')).toBeInTheDocument()
+    expect(within(stage).getByTestId('legend-panel')).toBeInTheDocument()
     expect(within(timelineBar).getByTestId('transport-controls')).toBeInTheDocument()
     expect(within(timelineBar).getByTestId('timeline-scrubber')).toBeInTheDocument()
     expect(within(timelineBar).queryByTestId('forecast-controls')).not.toBeInTheDocument()
@@ -165,7 +187,7 @@ describe('ForecastShell', () => {
 
     const { container } = render(<ForecastShell {...createForecastShellProps({ manifest })} />)
 
-    expect(container.querySelector<HTMLElement>('.forecast-stage'))
+    expect(forecastStage(container))
       .toHaveStyle({ '--wm-map-control-rail-top': '142px' })
   })
 })

@@ -1,15 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ForecastTimeContextValue } from '@/forecast/time'
+import {
+  createForecastTimeContextValue,
+  createForecastTimesFixture,
+} from '@/test/fixtures'
 import TransportControls from './TransportControls'
 
 const mocks = vi.hoisted(() => ({
-  createTimes: (hours: string[]) => hours.map((id) => ({
-    id,
-    validAt: new Date(Date.UTC(2026, 3, 9, Number.parseInt(id, 10))).toISOString(),
-  })),
-  times: [] as Array<{ id: string, validAt: string }>,
-  isPlaying: false,
+  timeContext: null as ForecastTimeContextValue | null,
   requestNext: vi.fn(),
   requestPrev: vi.fn(),
   togglePlay: vi.fn(),
@@ -19,46 +19,88 @@ vi.mock('@/forecast/time', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/forecast/time')>()
   return {
     ...actual,
-    useForecastTimeContext: () => ({
-      times: mocks.times,
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        pendingTimeMs: null,
-        isInFlight: false,
-        isPlaying: mocks.isPlaying,
-      },
-      controls: {
-        requestTime: vi.fn(),
-        requestNext: mocks.requestNext,
-        requestPrev: mocks.requestPrev,
-        togglePlay: mocks.togglePlay,
-      },
-      syncCallbacks: {
-        onRequestStart: vi.fn(),
-        onRequestApplied: vi.fn(),
-        onRequestError: vi.fn(),
-      },
-    }),
+    useForecastTimeContext: () => mocks.timeContext,
   }
 })
+
+function setForecastTimeContext(args: {
+  hours?: string[]
+  state?: Partial<ForecastTimeContextValue['state']>
+} = {}) {
+  mocks.timeContext = createForecastTimeContextValue(null, {
+    times: createForecastTimesFixture(args.hours ?? ['000', '003', '006'], '2026040900'),
+    state: {
+      isPlaying: false,
+      ...args.state,
+    },
+    controls: {
+      requestNext: mocks.requestNext,
+      requestPrev: mocks.requestPrev,
+      togglePlay: mocks.togglePlay,
+    },
+  })
+}
+
+function renderTransport(ui: Parameters<typeof render>[0] = <TransportControls />) {
+  return render(ui)
+}
+
+function pressSpace(target: Document | Element = document, options: Partial<KeyboardEventInit> = {}) {
+  fireEvent.keyDown(target, { key: ' ', code: 'Space', ...options })
+}
+
+function stepBackButton() {
+  return screen.getByRole('button', { name: 'Step back ten minutes' })
+}
+
+function stepForwardButton() {
+  return screen.getByRole('button', { name: 'Step forward ten minutes' })
+}
+
+function playButton() {
+  return screen.getByRole('button', { name: 'Play forecast timeline' })
+}
+
+function pauseButton() {
+  return screen.getByRole('button', { name: 'Pause playback' })
+}
+
+function layerSelect(): HTMLSelectElement {
+  return screen.getByLabelText('Layer') as HTMLSelectElement
+}
+
+function renderWithLayerSelect(options: { blurOnChange?: boolean, outsideButton?: boolean } = {}) {
+  return renderTransport(
+    <>
+      <select
+        aria-label="Layer"
+        defaultValue="temperature"
+        onChange={options.blurOnChange ? (event) => event.currentTarget.blur() : undefined}
+      >
+        <option value="temperature">Temperature</option>
+        <option value="wind_speed">Wind Speed</option>
+      </select>
+      {options.outsideButton ? <button type="button">Outside</button> : null}
+      <TransportControls />
+    </>
+  )
+}
 
 describe('TransportControls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.times = mocks.createTimes(['000', '003', '006'])
-    mocks.isPlaying = false
+    setForecastTimeContext()
   })
 
   it('renders enabled step controls and toggles transport actions from buttons', () => {
-    render(<TransportControls />)
+    renderTransport()
 
-    const back = screen.getByRole('button', { name: 'Step back ten minutes' })
-    const forward = screen.getByRole('button', { name: 'Step forward ten minutes' })
+    const back = stepBackButton()
+    const forward = stepForwardButton()
     expect(back).toBeEnabled()
     expect(forward).toBeEnabled()
 
-    const play = screen.getByRole('button', { name: 'Play forecast timeline' })
+    const play = playButton()
     expect(play).toBeEnabled()
     fireEvent.click(back)
     fireEvent.click(play)
@@ -70,23 +112,23 @@ describe('TransportControls', () => {
   })
 
   it('toggles playback from the global space shortcut', () => {
-    render(<TransportControls />)
+    renderTransport()
 
-    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+    pressSpace()
 
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
   it('ignores repeated space shortcut events', () => {
-    render(<TransportControls />)
+    renderTransport()
 
-    fireEvent.keyDown(document, { key: ' ', code: 'Space', repeat: true })
+    pressSpace(document, { repeat: true })
 
     expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 
   it('ignores the space shortcut while an interactive control has focus', () => {
-    render(
+    renderTransport(
       <>
         <input aria-label="Location search" />
         <TransportControls />
@@ -96,118 +138,91 @@ describe('TransportControls', () => {
     const input = screen.getByRole('textbox', { name: 'Location search' })
     input.focus()
     fireEvent.pointerDown(input)
-    fireEvent.keyDown(input, { key: ' ', code: 'Space' })
+    pressSpace(input)
 
     expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 
   it('toggles playback after a pointer-used step button keeps focus', () => {
-    render(<TransportControls />)
+    renderTransport()
 
-    const forward = screen.getByRole('button', { name: 'Step forward ten minutes' })
+    const forward = stepForwardButton()
     fireEvent.pointerDown(forward)
     forward.focus()
     fireEvent.click(forward)
     expect(mocks.requestNext).toHaveBeenCalledOnce()
 
-    fireEvent.keyDown(forward, { key: ' ', code: 'Space' })
+    pressSpace(forward)
 
     expect(mocks.requestNext).toHaveBeenCalledOnce()
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
   it('keeps Space native for a keyboard-focused step button', () => {
-    render(<TransportControls />)
+    renderTransport()
 
-    const forward = screen.getByRole('button', { name: 'Step forward ten minutes' })
+    const forward = stepForwardButton()
     forward.focus()
-    fireEvent.keyDown(forward, { key: ' ', code: 'Space' })
+    pressSpace(forward)
 
     expect(mocks.requestNext).not.toHaveBeenCalled()
     expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 
   it('toggles playback after a committed select change blurs the control', () => {
-    render(
-      <>
-        <select
-          aria-label="Layer"
-          defaultValue="temperature"
-          onChange={(event) => event.currentTarget.blur()}
-        >
-          <option value="temperature">Temperature</option>
-          <option value="wind_speed">Wind Speed</option>
-        </select>
-        <TransportControls />
-      </>
-    )
+    renderWithLayerSelect({ blurOnChange: true })
 
-    const layer = screen.getByLabelText('Layer') as HTMLSelectElement
+    const layer = layerSelect()
     layer.focus()
-    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+    pressSpace(layer)
     expect(mocks.togglePlay).not.toHaveBeenCalled()
 
     fireEvent.change(layer, { target: { value: 'wind_speed' } })
     expect(layer).not.toHaveFocus()
 
-    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+    pressSpace()
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
   it('toggles playback when a pointer-used select keeps focus without a value change', () => {
-    render(
-      <>
-        <select aria-label="Layer" defaultValue="temperature">
-          <option value="temperature">Temperature</option>
-          <option value="wind_speed">Wind Speed</option>
-        </select>
-        <TransportControls />
-      </>
-    )
+    renderWithLayerSelect()
 
-    const layer = screen.getByLabelText('Layer')
+    const layer = layerSelect()
     layer.focus()
     fireEvent.pointerDown(layer)
-    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+    pressSpace(layer)
 
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
   })
 
   it('clears pointer-used shortcut handling when a control loses focus', () => {
-    render(
-      <>
-        <select aria-label="Layer" defaultValue="temperature">
-          <option value="temperature">Temperature</option>
-          <option value="wind_speed">Wind Speed</option>
-        </select>
-        <button type="button">Outside</button>
-        <TransportControls />
-      </>
-    )
+    renderWithLayerSelect({ outsideButton: true })
 
-    const layer = screen.getByLabelText('Layer')
+    const layer = layerSelect()
     fireEvent.pointerDown(layer)
-    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+    pressSpace(layer)
     expect(mocks.togglePlay).toHaveBeenCalledOnce()
 
     fireEvent.focusOut(layer)
     vi.clearAllMocks()
 
-    fireEvent.keyDown(layer, { key: ' ', code: 'Space' })
+    pressSpace(layer)
     expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 
   it('renders pause state and disables playback when timeline has one frame', () => {
-    mocks.isPlaying = true
-    mocks.times = mocks.createTimes(['000'])
+    setForecastTimeContext({
+      hours: ['000'],
+      state: { isPlaying: true },
+    })
 
-    render(<TransportControls />)
+    renderTransport()
 
-    expect(screen.getByRole('button', { name: 'Step back ten minutes' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Pause playback' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Step forward ten minutes' })).toBeDisabled()
+    expect(stepBackButton()).toBeDisabled()
+    expect(pauseButton()).toBeDisabled()
+    expect(stepForwardButton()).toBeDisabled()
 
-    fireEvent.keyDown(document, { key: ' ', code: 'Space' })
+    pressSpace()
     expect(mocks.togglePlay).not.toHaveBeenCalled()
   })
 })

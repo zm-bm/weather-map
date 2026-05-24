@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   computeViewportState,
@@ -14,7 +15,7 @@ describe('particle geo helpers', () => {
       east: -170,
       south: -20,
       north: 20,
-    }) as never)
+    }))
 
     expect(viewport.west).toBe(170)
     expect(viewport.east).toBe(190)
@@ -54,7 +55,7 @@ function createBoundsMap(bounds: {
   east: number
   south: number
   north: number
-}) {
+}): MapLibreMap {
   return {
     getBounds() {
       return {
@@ -64,5 +65,5 @@ function createBoundsMap(bounds: {
         getNorth: () => bounds.north,
       }
     },
-  }
+  } as unknown as MapLibreMap
 }

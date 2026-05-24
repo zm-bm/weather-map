@@ -9,7 +9,6 @@ import {
   activeForecastRunForModel,
 } from '@/forecast/manifest'
 import {
-  createSingleTimeManifestFixture,
   createLayerModelAvailabilityFixture,
   createLatestRunFixture,
   createManifestLayerFixture,
@@ -105,17 +104,4 @@ function latestFromFixture(
   if (fixture == null) return null
   if ('run' in fixture) return fixture
   return activeForecastRunForModel(fixture, modelId)?.latest ?? null
-}
-
-export function createGfsIconManifestFixture(): Manifest {
-  return createMultiModelManifestFixture({
-    gfsManifest: createSingleTimeManifestFixture({
-      model: { id: 'gfs', label: 'GFS' },
-      cycle: '2026040900',
-    }),
-    iconManifest: createSingleTimeManifestFixture({
-      model: { id: 'icon', label: 'ICON' },
-      cycle: '2026040912',
-    }),
-  })
 }

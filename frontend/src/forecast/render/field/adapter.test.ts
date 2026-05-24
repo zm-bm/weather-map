@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  DEFAULT_FIELD_RENDER_SETTINGS,
-  DEFAULT_PARTICLE_RENDER_SETTINGS,
-} from '@/forecast/settings/settings'
+  createFieldWindowFixture,
+  createRenderControllerFixture,
+  createRenderLayerMapFixture,
+  createRenderRuntimeFixture,
+  createRenderSettingsFixture,
+} from '@/test/fixtures'
 import { FORECAST_LAYER_BEFORE_ID } from '../layer'
 import { applyFieldInterpolationWindow, applyFieldRenderSettings, fieldAdapter } from './adapter'
-
-const DEFAULT_RENDER_SETTINGS = {
-  field: DEFAULT_FIELD_RENDER_SETTINGS,
-  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
-}
 
 const mocks = vi.hoisted(() => ({
   getFieldController: vi.fn(),
@@ -28,32 +26,18 @@ vi.mock('./engine/runtime', () => ({
 describe('fieldAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getFieldController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    mocks.getFieldController.mockReturnValue(createRenderControllerFixture())
   })
 
   it('installs the field custom layer', () => {
-    mocks.createFieldRuntime.mockReturnValue({
-      onAdd: vi.fn(),
-      render: vi.fn(),
-      onRemove: vi.fn(),
-    })
-    const addLayer = vi.fn()
-    const map = {
-      getLayer: vi.fn((layerId: string) => (
-        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
-      )),
-      addLayer,
-    }
+    const renderSettings = createRenderSettingsFixture()
+    mocks.createFieldRuntime.mockReturnValue(createRenderRuntimeFixture())
+    const map = createRenderLayerMapFixture()
 
-    fieldAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    fieldAdapter.install(map, renderSettings)
 
-    expect(mocks.createFieldRuntime).toHaveBeenCalledWith(DEFAULT_RENDER_SETTINGS.field)
-    const [layer, beforeId] = addLayer.mock.calls[0] ?? []
+    expect(mocks.createFieldRuntime).toHaveBeenCalledWith(renderSettings.field)
+    const [layer, beforeId] = map.addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('field-renderer-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')
@@ -61,71 +45,51 @@ describe('fieldAdapter', () => {
   })
 
   it('skips install when the layer already exists', () => {
-    const map = {
-      getLayer: vi.fn(() => ({ id: 'field-renderer-layer-id' })),
-      addLayer: vi.fn(),
-    }
+    const map = createRenderLayerMapFixture({ layerIds: ['field-renderer-layer-id'] })
 
-    fieldAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    fieldAdapter.install(map, createRenderSettingsFixture())
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createFieldRuntime).not.toHaveBeenCalled()
   })
 
   it('applies a loaded field interpolation window to the runtime controller', () => {
-    const frame = { lower: { layerId: 'temperature' } }
+    const frame = createFieldWindowFixture()
     const applyFrame = vi.fn()
-    const map = {}
-    mocks.getFieldController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame,
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    const map = createRenderLayerMapFixture()
+    mocks.getFieldController.mockReturnValue(createRenderControllerFixture({ applyFrame }))
 
-    applyFieldInterpolationWindow(map as never, frame as never)
+    applyFieldInterpolationWindow(map, frame)
 
     expect(applyFrame).toHaveBeenCalledWith(frame)
   })
 
   it('throws when runtime is unavailable', () => {
-    mocks.getFieldController.mockReturnValue({
-      isAvailable: () => false,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    mocks.getFieldController.mockReturnValue(createRenderControllerFixture({ available: false }))
 
-    expect(() => applyFieldInterpolationWindow({} as never, { lower: { layerId: 'temperature' } } as never))
+    expect(() => applyFieldInterpolationWindow(createRenderLayerMapFixture(), createFieldWindowFixture()))
       .toThrow('Field renderer unavailable (WebGL2 required)')
   })
 
   it('ignores empty field frames when runtime is unavailable', () => {
     const applyFrame = vi.fn()
-    mocks.getFieldController.mockReturnValue({
-      isAvailable: () => false,
+    mocks.getFieldController.mockReturnValue(createRenderControllerFixture({
+      available: false,
       applyFrame,
-      setEnabled: vi.fn(),
-      applySettings: vi.fn(),
-    })
+    }))
 
-    applyFieldInterpolationWindow({} as never, null)
+    applyFieldInterpolationWindow(createRenderLayerMapFixture(), null)
 
     expect(applyFrame).not.toHaveBeenCalled()
   })
 
   it('applies render settings to the field controller', () => {
     const applySettings = vi.fn()
-    const map = {}
+    const map = createRenderLayerMapFixture()
     const settings = { colorSamplingMode: 'interpolated' } as const
-    mocks.getFieldController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-      applySettings,
-    })
+    mocks.getFieldController.mockReturnValue(createRenderControllerFixture({ applySettings }))
 
-    applyFieldRenderSettings(map as never, settings)
+    applyFieldRenderSettings(map, settings)
 
     expect(applySettings).toHaveBeenCalledWith(settings)
   })

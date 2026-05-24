@@ -3,7 +3,6 @@ import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BASEMAP_SOURCE_ID } from '../basemap'
-import { createConfigFixture } from '@/test/fixtures/config'
 
 const mocks = vi.hoisted(() => {
   let styleLoaded = false
@@ -61,7 +60,11 @@ vi.mock('pmtiles', () => ({
 }))
 
 vi.mock('@/core/config', () => ({
-  default: createConfigFixture(),
+  default: {
+    frontendBaseUrl: 'http://localhost:5173',
+    artifactBaseUrl: 'http://localhost:3000',
+    basemapUrl: 'pmtiles://http://localhost:3000/pmtiles/20260424.z6.pmtiles',
+  },
 }))
 
 vi.mock('./viewportPersistence', () => ({
@@ -74,6 +77,31 @@ import config from '@/core/config'
 import { useMapLibre } from './useMapLibre'
 import { joinUrl } from '@/core/url/joinUrl'
 
+const MAP_OPTIONS = {
+  center: [-95, 39] as [number, number],
+  zoom: 4,
+  minZoom: 2,
+  maxZoom: 8,
+}
+
+type MapConstructorOptions = {
+  fadeDuration: number
+  style: StyleSpecification
+}
+
+function renderMapLibre(hook = useMapLibre) {
+  return renderHook(() => hook(MAP_OPTIONS))
+}
+
+function latestMapOptions(): MapConstructorOptions {
+  const calls = mocks.Map.mock.calls as unknown as Array<[MapConstructorOptions]>
+  return calls.at(-1)?.[0] as MapConstructorOptions
+}
+
+function latestStyle(): StyleSpecification {
+  return latestMapOptions().style
+}
+
 describe('useMapLibre', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -81,17 +109,11 @@ describe('useMapLibre', () => {
   })
 
   it('constructs the map with a cloned imported style', () => {
-    renderHook(() => useMapLibre({
-      center: [-95, 39],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 8,
-    }))
+    renderMapLibre()
 
     expect(mocks.Map).toHaveBeenCalledTimes(1)
-    const calls = mocks.Map.mock.calls as unknown as Array<[{ fadeDuration: number; style: StyleSpecification }]>
-    const options = calls[0][0]
-    const style = options.style
+    const options = latestMapOptions()
+    const style = latestStyle()
 
     expect(options.fadeDuration).toBe(0)
     expect(style).not.toBe(baseStyleJson)
@@ -121,16 +143,10 @@ describe('useMapLibre', () => {
 
     const { useMapLibre: useMapLibreWithoutBasemap } = await import('./useMapLibre')
 
-    renderHook(() => useMapLibreWithoutBasemap({
-      center: [-95, 39],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 8,
-    }))
+    renderMapLibre(useMapLibreWithoutBasemap)
 
     expect(mocks.addProtocol).not.toHaveBeenCalled()
-    const calls = mocks.Map.mock.calls as unknown as Array<[{ style: StyleSpecification }]>
-    const style = calls[0][0].style
+    const style = latestStyle()
 
     expect(style.sources?.[BASEMAP_SOURCE_ID]).toBeUndefined()
     expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
@@ -138,12 +154,7 @@ describe('useMapLibre', () => {
   })
 
   it('bumps readiness on style load', () => {
-    const { result } = renderHook(() => useMapLibre({
-      center: [-95, 39],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 8,
-    }))
+    const { result } = renderMapLibre()
 
     expect(result.current.mapReadyVersion).toBe(0)
 
@@ -157,12 +168,7 @@ describe('useMapLibre', () => {
   it('bumps readiness immediately when the style is already loaded', async () => {
     mocks.setStyleLoaded(true)
 
-    const { result } = renderHook(() => useMapLibre({
-      center: [-95, 39],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 8,
-    }))
+    const { result } = renderMapLibre()
 
     await waitFor(() => {
       expect(result.current.mapReadyVersion).toBe(1)
@@ -170,12 +176,7 @@ describe('useMapLibre', () => {
   })
 
   it('removes listeners and tears down the map on unmount', () => {
-    const { unmount } = renderHook(() => useMapLibre({
-      center: [-95, 39],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 8,
-    }))
+    const { unmount } = renderMapLibre()
 
     unmount()
 

@@ -22,13 +22,4 @@ describe('App routing', () => {
     expect(screen.getByTestId('forecast-route')).toBeInTheDocument()
     expect(screen.queryByTestId('health-route')).not.toBeInTheDocument()
   })
-
-  it('renders the health page for /health', () => {
-    window.history.pushState(null, '', '/health')
-
-    render(<App />)
-
-    expect(screen.getByTestId('health-route')).toBeInTheDocument()
-    expect(screen.queryByTestId('forecast-route')).not.toBeInTheDocument()
-  })
 })

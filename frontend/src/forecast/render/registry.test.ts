@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import {
-  DEFAULT_FIELD_RENDER_SETTINGS,
-  DEFAULT_PARTICLE_RENDER_SETTINGS,
-} from '@/forecast/settings/settings'
+import { createRenderSettingsFixture } from '@/test/fixtures'
 import {
   type ForecastRenderProfile,
 } from './types'
 import { reconcileProfile } from './registry'
 import { FORECAST_LAYER_BEFORE_ID } from './layer'
 
-const DEFAULT_RENDER_SETTINGS = {
-  field: DEFAULT_FIELD_RENDER_SETTINGS,
-  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
-}
+const DEFAULT_RENDER_SETTINGS = createRenderSettingsFixture()
 const DEFAULT_RENDER_PROFILE = {
   rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
 } as const satisfies ForecastRenderProfile
@@ -22,7 +17,7 @@ describe('reconcileProfile', () => {
   it('installs requested profile renderers in deterministic order', () => {
     const { map, operations } = createLayerMap([FORECAST_LAYER_BEFORE_ID])
 
-    reconcileProfile(map as never, DEFAULT_RENDER_PROFILE, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map, DEFAULT_RENDER_PROFILE, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
@@ -44,7 +39,7 @@ describe('reconcileProfile', () => {
       rendererIds: ['field', 'cloud-layers', 'field-overlay'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileProfile(map as never, noOverlayProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map, noOverlayProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'remove-layer', id: 'particle-renderer-layer-id' },
@@ -58,7 +53,7 @@ describe('reconcileProfile', () => {
       rendererIds: ['field', 'cloud-layers', 'field'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileProfile(map as never, duplicateProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map, duplicateProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
@@ -72,7 +67,7 @@ describe('reconcileProfile', () => {
       rendererIds: ['field'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileProfile(map as never, fieldProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map, fieldProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
       { kind: 'layer', id: 'field-renderer-layer-id', beforeId: undefined },
@@ -109,5 +104,5 @@ function createLayerMap(initialLayers: readonly string[] = []) {
     },
   }
 
-  return { map, operations }
+  return { map: map as unknown as MapLibreMap, operations }
 }

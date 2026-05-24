@@ -1,47 +1,43 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ForecastTimeContextValue } from '@/forecast/time'
+import {
+  createForecastTimeContextValue,
+  createForecastTimesFixture,
+} from '@/test/fixtures'
 import MapSyncIndicator from './MapSyncIndicator'
 
 const mocks = vi.hoisted(() => ({
-  isInFlight: false,
+  timeContext: null as ForecastTimeContextValue | null,
 }))
 
 vi.mock('@/forecast/time', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/forecast/time')>()
   return {
     ...actual,
-    useForecastTimeContext: () => ({
-      times: [
-        { id: '000', validAt: '2026-04-09T00:00:00.000Z' },
-        { id: '003', validAt: '2026-04-09T03:00:00.000Z' },
-      ],
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        pendingTimeMs: null,
-        isInFlight: mocks.isInFlight,
-        isPlaying: false,
-      },
-      controls: {
-        requestTime: vi.fn(),
-        requestNext: vi.fn(),
-        requestPrev: vi.fn(),
-        togglePlay: vi.fn(),
-      },
-      syncCallbacks: {
-        onRequestStart: vi.fn(),
-        onRequestApplied: vi.fn(),
-        onRequestError: vi.fn(),
-      },
-    }),
+    useForecastTimeContext: () => mocks.timeContext,
   }
 })
+
+function setForecastTimeContext(state: Partial<ForecastTimeContextValue['state']> = {}) {
+  mocks.timeContext = createForecastTimeContextValue(null, {
+    times: createForecastTimesFixture(['000', '003'], '2026040900'),
+    state: {
+      appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+      targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
+      pendingTimeMs: null,
+      isInFlight: false,
+      isPlaying: false,
+      ...state,
+    },
+  })
+}
 
 describe('MapSyncIndicator', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    mocks.isInFlight = false
+    setForecastTimeContext()
   })
 
   afterEach(() => {
@@ -55,7 +51,7 @@ describe('MapSyncIndicator', () => {
   })
 
   it('waits before showing the in-flight map update badge', () => {
-    mocks.isInFlight = true
+    setForecastTimeContext({ isInFlight: true })
     render(<MapSyncIndicator />)
 
     act(() => {
@@ -70,7 +66,7 @@ describe('MapSyncIndicator', () => {
   })
 
   it('hides immediately when frame sync completes', () => {
-    mocks.isInFlight = true
+    setForecastTimeContext({ isInFlight: true })
     const { rerender } = render(<MapSyncIndicator />)
 
     act(() => {
@@ -78,7 +74,7 @@ describe('MapSyncIndicator', () => {
     })
     expect(screen.getByRole('status')).toBeInTheDocument()
 
-    mocks.isInFlight = false
+    setForecastTimeContext({ isInFlight: false })
     rerender(<MapSyncIndicator />)
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()

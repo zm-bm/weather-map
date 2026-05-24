@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ForecastDataTarget } from '@/forecast/data'
 import {
+  createForecastDataTargetFixture,
   createForecastSelectionContextValue,
   createForecastTimeContextValue,
   createManifestFixture,
@@ -59,7 +60,7 @@ describe('useDataTarget', () => {
   })
 
   it('delegates selection and target time to the data target resolver', () => {
-    const target = { request: 'target' } as unknown as ForecastDataTarget
+    const target: ForecastDataTarget = createForecastDataTargetFixture()
     mocks.resolveDataTarget.mockReturnValue(target)
 
     const { result } = renderHook(() => useDataTarget())

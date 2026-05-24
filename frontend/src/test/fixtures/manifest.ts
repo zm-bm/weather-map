@@ -2,7 +2,10 @@ import type {
   ActiveForecastRun,
   ArtifactId,
   ForecastModelId,
+  ForecastModelOption,
   ForecastTimeSpec,
+  ForecastManifestData,
+  ForecastManifestState,
   LatestForecastRun,
   Manifest,
   ManifestArtifactSpec,
@@ -424,4 +427,40 @@ export function createManifestPayloadFixture(
   overrides: ManifestFixtureOverrides = {}
 ): Record<string, unknown> {
   return createSingleTimeManifestFixture(overrides)
+}
+
+export function createForecastManifestDataFixture(args: {
+  manifest?: Manifest
+  activeModelId?: ForecastModelId
+  modelOptions?: readonly ForecastModelOption[]
+  setActiveModel?: (modelId: ForecastModelId) => void
+} = {}): ForecastManifestData {
+  const manifest = args.manifest ?? createManifestFixture()
+
+  return {
+    activeRun: createActiveRunFixture(manifest, args.activeModelId ?? FIXTURE_MODEL_ID),
+    modelOptions: args.modelOptions ?? [
+      { id: FIXTURE_MODEL_ID, label: FIXTURE_MODEL_LABEL },
+    ],
+    setActiveModel: args.setActiveModel ?? (() => undefined),
+  }
+}
+
+export function createForecastManifestStateFixture(args: {
+  phase?: ForecastManifestState['phase']
+  data?: ForecastManifestData | null
+  error?: Error | null
+  retry?: () => void
+} = {}): ForecastManifestState {
+  const phase = args.phase ?? 'ready'
+  const data = args.data === undefined
+    ? phase === 'ready' ? createForecastManifestDataFixture() : null
+    : args.data
+
+  return {
+    phase,
+    data,
+    error: args.error ?? null,
+    retry: args.retry ?? (() => undefined),
+  }
 }

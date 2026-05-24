@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  DEFAULT_FIELD_RENDER_SETTINGS,
-  DEFAULT_PARTICLE_RENDER_SETTINGS,
-} from '@/forecast/settings/settings'
+  createCloudLayersWindowFixture,
+  createRenderControllerFixture,
+  createRenderLayerMapFixture,
+  createRenderRuntimeFixture,
+  createRenderSettingsFixture,
+} from '@/test/fixtures'
 import { FORECAST_LAYER_BEFORE_ID } from '../layer'
 import { applyCloudLayersInterpolationWindow, cloudLayersAdapter } from './adapter'
-
-const DEFAULT_RENDER_SETTINGS = {
-  field: DEFAULT_FIELD_RENDER_SETTINGS,
-  particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
-}
 
 const mocks = vi.hoisted(() => ({
   getCloudLayersController: vi.fn(),
@@ -28,30 +26,16 @@ vi.mock('./runtime', () => ({
 describe('cloudLayersAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCloudLayersController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-    })
+    mocks.getCloudLayersController.mockReturnValue(createRenderControllerFixture())
   })
 
   it('installs the cloud layers custom layer', () => {
-    mocks.createCloudLayersRuntime.mockReturnValue({
-      onAdd: vi.fn(),
-      render: vi.fn(),
-      onRemove: vi.fn(),
-    })
-    const addLayer = vi.fn()
-    const map = {
-      getLayer: vi.fn((layerId: string) => (
-        layerId === FORECAST_LAYER_BEFORE_ID ? { id: FORECAST_LAYER_BEFORE_ID } : undefined
-      )),
-      addLayer,
-    }
+    mocks.createCloudLayersRuntime.mockReturnValue(createRenderRuntimeFixture())
+    const map = createRenderLayerMapFixture()
 
-    cloudLayersAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    cloudLayersAdapter.install(map, createRenderSettingsFixture())
 
-    const [layer, beforeId] = addLayer.mock.calls[0] ?? []
+    const [layer, beforeId] = map.addLayer.mock.calls[0] ?? []
     expect(layer.id).toBe('cloud-layers-renderer-layer-id')
     expect(layer.type).toBe('custom')
     expect(layer.renderingMode).toBe('2d')
@@ -59,54 +43,42 @@ describe('cloudLayersAdapter', () => {
   })
 
   it('skips install when the layer already exists', () => {
-    const map = {
-      getLayer: vi.fn(() => ({ id: 'cloud-layers-renderer-layer-id' })),
-      addLayer: vi.fn(),
-    }
+    const map = createRenderLayerMapFixture({ layerIds: ['cloud-layers-renderer-layer-id'] })
 
-    cloudLayersAdapter.install(map as never, DEFAULT_RENDER_SETTINGS)
+    cloudLayersAdapter.install(map, createRenderSettingsFixture())
 
     expect(map.addLayer).not.toHaveBeenCalled()
     expect(mocks.createCloudLayersRuntime).not.toHaveBeenCalled()
   })
 
   it('applies and clears cloud layers frames through the runtime controller', () => {
-    const frame = { lower: { layerId: 'cloud_layers' } }
+    const frame = createCloudLayersWindowFixture()
     const applyFrame = vi.fn()
-    const map = {}
-    mocks.getCloudLayersController.mockReturnValue({
-      isAvailable: () => true,
-      applyFrame,
-      setEnabled: vi.fn(),
-    })
+    const map = createRenderLayerMapFixture()
+    mocks.getCloudLayersController.mockReturnValue(createRenderControllerFixture({ applyFrame }))
 
-    applyCloudLayersInterpolationWindow(map as never, frame as never)
-    applyCloudLayersInterpolationWindow(map as never, null)
+    applyCloudLayersInterpolationWindow(map, frame)
+    applyCloudLayersInterpolationWindow(map, null)
 
     expect(applyFrame).toHaveBeenNthCalledWith(1, frame)
     expect(applyFrame).toHaveBeenNthCalledWith(2, null)
   })
 
   it('throws when runtime is unavailable and a cloud frame is present', () => {
-    mocks.getCloudLayersController.mockReturnValue({
-      isAvailable: () => false,
-      applyFrame: vi.fn(),
-      setEnabled: vi.fn(),
-    })
+    mocks.getCloudLayersController.mockReturnValue(createRenderControllerFixture({ available: false }))
 
-    expect(() => applyCloudLayersInterpolationWindow({} as never, { lower: { layerId: 'cloud_layers' } } as never))
+    expect(() => applyCloudLayersInterpolationWindow(createRenderLayerMapFixture(), createCloudLayersWindowFixture()))
       .toThrow('Cloud Layers renderer unavailable (WebGL2 required)')
   })
 
   it('ignores empty cloud frames when runtime is unavailable', () => {
     const applyFrame = vi.fn()
-    mocks.getCloudLayersController.mockReturnValue({
-      isAvailable: () => false,
+    mocks.getCloudLayersController.mockReturnValue(createRenderControllerFixture({
+      available: false,
       applyFrame,
-      setEnabled: vi.fn(),
-    })
+    }))
 
-    applyCloudLayersInterpolationWindow({} as never, null)
+    applyCloudLayersInterpolationWindow(createRenderLayerMapFixture(), null)
 
     expect(applyFrame).not.toHaveBeenCalled()
   })

@@ -1,7 +1,7 @@
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
-import { createConfigFixture } from '@/test/fixtures/config'
+import { createConfigFixture } from '@/test/fixtures'
 import { joinUrl } from '@/core/url/joinUrl'
 import {
   BASEMAP_LAYER_IDS,

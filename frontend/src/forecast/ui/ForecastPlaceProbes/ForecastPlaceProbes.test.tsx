@@ -1,13 +1,14 @@
 import { render } from '@testing-library/react'
-import type { RefObject } from 'react'
-import type { Map as MapLibreMap } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FieldInterpolationWindowData } from '@/forecast/data'
 import type {
   ForecastPlaceProbeFrame,
   ForecastPlaceProbeFrameChannel,
 } from '@/forecast/place-probes'
+import {
+  createFieldWindowFixture,
+  createMapRefFixture,
+} from '@/test/fixtures'
 import ForecastPlaceProbes from './ForecastPlaceProbes'
 
 const mocks = vi.hoisted(() => ({
@@ -39,12 +40,6 @@ vi.mock('@/forecast/place-probes', () => ({
   createForecastPlaceProbeSession: (args: unknown) => mocks.createForecastPlaceProbeSession(args),
 }))
 
-function createMapRef(map = {}): RefObject<MapLibreMap | null> {
-  return {
-    current: map as MapLibreMap,
-  }
-}
-
 function createFrameChannel(
   initialFrame: ForecastPlaceProbeFrame = null
 ): ForecastPlaceProbeFrameChannel {
@@ -66,50 +61,6 @@ function createFrameChannel(
   }
 }
 
-function createProbeFrame(layerId = 'temperature', frame = 1): FieldInterpolationWindowData {
-  const slice = {
-    hourToken: '000',
-    layerId,
-    paletteId: 'temperature',
-    grid: {
-      id: 'grid',
-      crs: 'EPSG:4326',
-      nx: 1,
-      ny: 1,
-      lon0: 0,
-      lat0: 0,
-      dx: 1,
-      dy: 1,
-      origin: 'cell_center' as const,
-      layout: 'row_major' as const,
-      xWrap: 'none' as const,
-      yMode: 'clamp' as const,
-    },
-    encoding: {
-      id: 'encoding',
-      format: 'linear-i8-v1' as const,
-      dtype: 'int8' as const,
-      byteOrder: 'none' as const,
-      nodata: -128,
-      scale: 1,
-      offset: 0,
-      decodeFormula: 'value',
-    },
-    values: new Float32Array([frame]),
-    displayRange: [0, 1] as [number, number],
-    frame,
-  }
-
-  return {
-    lower: slice,
-    upper: slice,
-    selectedValidTimeMs: frame,
-    lowerHourToken: '000',
-    upperHourToken: '000',
-    mix: 0,
-  }
-}
-
 describe('ForecastPlaceProbes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -120,7 +71,7 @@ describe('ForecastPlaceProbes', () => {
 
   it('does not create a session while forecast selection is unloaded', () => {
     mocks.activeRun = null
-    const mapRef = createMapRef()
+    const mapRef = createMapRefFixture()
 
     render(
       <ForecastPlaceProbes
@@ -135,8 +86,8 @@ describe('ForecastPlaceProbes', () => {
 
   it('creates, starts, and destroys a feature session', () => {
     const map = {}
-    const mapRef = createMapRef(map)
-    const initialFrame = createProbeFrame()
+    const mapRef = createMapRefFixture(map)
+    const initialFrame = createFieldWindowFixture()
     const probeFrameChannel = createFrameChannel(initialFrame)
 
     const { unmount } = render(
@@ -162,8 +113,8 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('forwards layer, formatter, and published frame changes', () => {
-    const secondFrame = createProbeFrame('temperature', 2)
-    const mapRef = createMapRef()
+    const secondFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 2 })
+    const mapRef = createMapRefFixture()
     const probeFrameChannel = createFrameChannel()
 
     const { rerender } = render(
@@ -191,7 +142,7 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('recreates the session when map readiness changes', () => {
-    const mapRef = createMapRef()
+    const mapRef = createMapRefFixture()
     const probeFrameChannel = createFrameChannel()
 
     const { rerender } = render(
@@ -215,8 +166,8 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('applies the latest channel frame after subscribing', () => {
-    const initialFrame = createProbeFrame('temperature', 1)
-    const publishedFrame = createProbeFrame('temperature', 2)
+    const initialFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 1 })
+    const publishedFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 2 })
     let snapshotFrame: ForecastPlaceProbeFrame = initialFrame
     const probeFrameChannel: ForecastPlaceProbeFrameChannel = {
       getSnapshot: vi.fn(() => snapshotFrame),
@@ -229,7 +180,7 @@ describe('ForecastPlaceProbes', () => {
 
     render(
       <ForecastPlaceProbes
-        mapRef={createMapRef()}
+        mapRef={createMapRefFixture()}
         mapReadyVersion={1}
         probeFrameChannel={probeFrameChannel}
       />
@@ -242,8 +193,8 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('unsubscribes from the frame channel on unmount', () => {
-    const frame = createProbeFrame()
-    const mapRef = createMapRef()
+    const frame = createFieldWindowFixture()
+    const mapRef = createMapRefFixture()
     const probeFrameChannel = createFrameChannel()
 
     const { unmount } = render(

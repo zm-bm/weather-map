@@ -6,6 +6,7 @@ import { resolveActiveRunFrameRef } from '@/forecast/manifest'
 import {
   createActiveRunFixture,
   createConfigFixture,
+  createDeferred,
   createSingleTimeManifestFixture,
   createSignalFixture,
 } from '@/test/fixtures'
@@ -54,16 +55,6 @@ function resolvedArtifact(args: {
   }
 }
 
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
-
 afterEach(() => {
   vi.unstubAllGlobals()
   return __resetPayloadFrameCacheForTests()
@@ -105,7 +96,7 @@ describe('readArtifactPayload', () => {
 
   it('dedupes parallel loads for the same frame payload', async () => {
     const payload = new Int16Array([1, 2, 3, 4]).buffer
-    const response = deferred<ArrayBuffer>()
+    const response = createDeferred<ArrayBuffer>()
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       arrayBuffer: () => response.promise,
@@ -133,7 +124,7 @@ describe('readArtifactPayload', () => {
 
   it('lets an aborted joining caller reject while the shared payload fetch completes', async () => {
     const payload = new Int16Array([1, 2, 3, 4]).buffer
-    const response = deferred<ArrayBuffer>()
+    const response = createDeferred<ArrayBuffer>()
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       arrayBuffer: () => response.promise,

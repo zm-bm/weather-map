@@ -3,19 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createConfigFixture,
+  createDataSessionFixture,
+  createDeferred,
   createForecastDataTargetFixture,
 } from '@/test/fixtures'
-import type { ForecastDataSession, ForecastDataTarget } from '@/forecast/data'
+import type { ForecastDataTarget } from '@/forecast/data'
 import { useDataPrefetch } from './useDataPrefetch'
 
 const mocks = vi.hoisted(() => ({
   prefetch: vi.fn(),
 }))
-
-const DEFAULT_DATA_OPTIONS = {
-  pressure: true,
-  windVectors: true,
-}
 
 function createTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
   return createForecastDataTargetFixture({
@@ -31,12 +28,24 @@ function createTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastData
   })
 }
 
-function createDataSession(): ForecastDataSession {
+type DataPrefetchArgs = Parameters<typeof useDataPrefetch>[0]
+
+function createPrefetchArgs(overrides: Partial<DataPrefetchArgs> = {}): DataPrefetchArgs {
   return {
-    createLoadJob: vi.fn(),
-    prefetch: mocks.prefetch,
-    reset: vi.fn(),
+    config: createConfigFixture(),
+    target: createTarget(),
+    enabled: true,
+    dataSession: createDataSessionFixture({ prefetch: mocks.prefetch }),
+    dataOptions: { pressure: true, windVectors: true },
+    ...overrides,
   }
+}
+
+function renderPrefetch(overrides: Partial<DataPrefetchArgs> = {}) {
+  const args = createPrefetchArgs(overrides)
+  return renderHook((nextArgs: Partial<DataPrefetchArgs> = {}) => (
+    useDataPrefetch({ ...args, ...nextArgs })
+  ))
 }
 
 describe('useDataPrefetch', () => {
@@ -48,14 +57,13 @@ describe('useDataPrefetch', () => {
   it('delegates current interpolation-window prefetching to the data session', async () => {
     const config = createConfigFixture()
     const target = createTarget()
+    const dataOptions = { pressure: false, windVectors: true }
 
-    renderHook(() => useDataPrefetch({
+    renderPrefetch({
       config,
       target,
-      enabled: true,
-      dataSession: createDataSession(),
-      dataOptions: DEFAULT_DATA_OPTIONS,
-    }))
+      dataOptions,
+    })
 
     await waitFor(() => {
       expect(mocks.prefetch).toHaveBeenCalledTimes(1)
@@ -64,51 +72,25 @@ describe('useDataPrefetch', () => {
     expect(mocks.prefetch).toHaveBeenCalledWith(expect.objectContaining({
       target,
       config,
-      options: DEFAULT_DATA_OPTIONS,
+      options: dataOptions,
       aheadHourCount: 2,
       concurrency: 2,
       signal: expect.any(AbortSignal),
     }))
   })
 
-  it('forwards data options to the data session prefetch', async () => {
-    const config = createConfigFixture()
-    const target = createTarget()
-
-    renderHook(() => useDataPrefetch({
-      config,
-      target,
-      enabled: true,
-      dataSession: createDataSession(),
-      dataOptions: { pressure: false, windVectors: true },
-    }))
-
-    await waitFor(() => {
-      expect(mocks.prefetch).toHaveBeenCalledTimes(1)
-    })
-
-    expect(mocks.prefetch).toHaveBeenCalledWith(expect.objectContaining({
-      options: { pressure: false, windVectors: true },
-    }))
-  })
-
   it('aborts queued prefetch work when disabled', async () => {
     const observedSignals: AbortSignal[] = []
+    const pendingPrefetch = createDeferred<void>()
     const observeSignal = (args: { signal: AbortSignal }) => {
       observedSignals.push(args.signal)
-      return new Promise<void>(() => {})
+      return pendingPrefetch.promise
     }
     mocks.prefetch.mockImplementation(observeSignal)
-    const dataSession = createDataSession()
+    const dataSession = createDataSessionFixture({ prefetch: mocks.prefetch })
 
-    const { rerender } = renderHook((props: { enabled: boolean }) => useDataPrefetch({
-      config: createConfigFixture(),
-      target: createTarget(),
-      enabled: props.enabled,
+    const { rerender } = renderPrefetch({
       dataSession,
-      dataOptions: DEFAULT_DATA_OPTIONS,
-    }), {
-      initialProps: { enabled: true },
     })
 
     await waitFor(() => {
@@ -124,13 +106,7 @@ describe('useDataPrefetch', () => {
   it('suppresses prefetch failures', async () => {
     mocks.prefetch.mockRejectedValue(new Error('prefetch failed'))
 
-    renderHook(() => useDataPrefetch({
-      config: createConfigFixture(),
-      target: createTarget(),
-      enabled: true,
-      dataSession: createDataSession(),
-      dataOptions: DEFAULT_DATA_OPTIONS,
-    }))
+    renderPrefetch()
 
     await waitFor(() => {
       expect(mocks.prefetch).toHaveBeenCalledTimes(1)
