@@ -13,6 +13,7 @@ import {
   type ForecastSettingsValue,
   type ParticleSettings,
   type PressureContourSettings,
+  type UnitSettings,
 } from './settings'
 import { ForecastSettingsContext } from './ForecastSettingsContext'
 
@@ -54,14 +55,38 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
     })
   }, [])
 
+  const updateUnits = useCallback((patch: Partial<UnitSettings>) => {
+    setSettings((current) => {
+      const units = applySettingsPatch(current.units, patch)
+      if (units === current.units) return current
+      return {
+        ...current,
+        units,
+      }
+    })
+  }, [])
+
+  const toggleUnitSystem = useCallback(() => {
+    setSettings((current) => ({
+      ...current,
+      units: {
+        system: current.units.system === 'imperial' ? 'metric' : 'imperial',
+      },
+    }))
+  }, [])
+
   const actions = useMemo<ForecastSettingsActions>(() => ({
     updateField,
     updateParticles,
     updatePressureContours,
+    updateUnits,
+    toggleUnitSystem,
   }), [
+    toggleUnitSystem,
     updateField,
     updateParticles,
     updatePressureContours,
+    updateUnits,
   ])
 
   const value = useMemo<ForecastSettingsValue>(() => ({

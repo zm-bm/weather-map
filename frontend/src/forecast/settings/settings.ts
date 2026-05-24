@@ -1,3 +1,5 @@
+import type { UnitSystem } from '@/forecast/units'
+
 export const FIELD_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
 
 export type FieldColorSamplingMode = typeof FIELD_COLOR_SAMPLING_MODES[number]
@@ -118,16 +120,23 @@ export type PressureContourSettings = {
   enabled: boolean
 }
 
+export type UnitSettings = {
+  system: UnitSystem
+}
+
 export type ForecastSettings = {
   field: FieldRenderSettings
   particles: ParticleSettings
   pressureContours: PressureContourSettings
+  units: UnitSettings
 }
 
 export type ForecastSettingsActions = {
   updateField: (patch: Partial<FieldRenderSettings>) => void
   updateParticles: (patch: Partial<ParticleSettings>) => void
   updatePressureContours: (patch: Partial<PressureContourSettings>) => void
+  updateUnits: (patch: Partial<UnitSettings>) => void
+  toggleUnitSystem: () => void
 }
 
 export type ForecastSettingsValue = {
@@ -145,5 +154,8 @@ export const DEFAULT_FORECAST_SETTINGS = {
   },
   pressureContours: {
     enabled: false,
+  },
+  units: {
+    system: 'imperial',
   },
 } as const satisfies ForecastSettings

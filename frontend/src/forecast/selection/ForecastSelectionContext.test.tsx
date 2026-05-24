@@ -21,7 +21,6 @@ function ForecastSelectionProbe() {
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
       <div data-testid="selected-layer-renderable">{String(context.selectedLayerIsRenderable)}</div>
-      <div data-testid="unit-system">{context.unitSystem}</div>
       <button type="button" onClick={() => context.setSelectedLayer(asLayerId('relative_humidity'))}>
         set-layer-rh
       </button>
@@ -42,12 +41,6 @@ function ForecastSelectionProbe() {
       </button>
       <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind'))}>
         set-particle-wind
-      </button>
-      <button type="button" onClick={() => context.setUnitSystem('metric')}>
-        set-metric
-      </button>
-      <button type="button" onClick={context.toggleUnitSystem}>
-        toggle-unit-system
       </button>
     </div>
   )
@@ -114,24 +107,6 @@ describe('ForecastSelectionContext', () => {
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
-  })
-
-  it('uses one global unit system and omits per-layer unit APIs', () => {
-    const manifest = createManifestFixture({
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface', 'rh_surface'],
-      vectorArtifactIds: ['wind10m_uv', 'gust10m_uv'],
-    })
-
-    renderSelection({ manifest })
-
-    expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
-
-    fireEvent.click(screen.getByRole('button', { name: 'set-metric' }))
-    expect(screen.getByTestId('unit-system')).toHaveTextContent('metric')
-
-    fireEvent.click(screen.getByRole('button', { name: 'toggle-unit-system' }))
-    expect(screen.getByTestId('unit-system')).toHaveTextContent('imperial')
   })
 
   it('uses forecast manifest layer availability for renderability', () => {

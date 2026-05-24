@@ -46,6 +46,8 @@ const NOOP_SETTINGS_ACTIONS: ForecastSettingsActions = {
   updateField: noopSettingsPatch,
   updateParticles: noopSettingsPatch,
   updatePressureContours: noopSettingsPatch,
+  updateUnits: noopSettingsPatch,
+  toggleUnitSystem: noopSettingsPatch,
 }
 
 function readMapNumber(readValue: () => number): number | null {

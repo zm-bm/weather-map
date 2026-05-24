@@ -210,6 +210,15 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
+        'forecast/selection must stay independent of forecast/settings and units',
+        (file) => isForecastSelectionFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isUnitsImport(reference.resolvedPath)
+          ))
+      ),
+      ...findSourceImportViolations(
         'Production map modules must not import forecast/render',
         (file) => isProductionMapFile(file.path) &&
           file.imports.some((reference) => isForecastRenderImport(reference.resolvedPath))
@@ -398,6 +407,10 @@ function isForecastPaletteFile(path: string): boolean {
 
 function isForecastSettingsFile(path: string): boolean {
   return path.includes('/forecast/settings/')
+}
+
+function isForecastSelectionFile(path: string): boolean {
+  return path.includes('/forecast/selection/')
 }
 
 function isForecastPlaceProbesFile(path: string): boolean {

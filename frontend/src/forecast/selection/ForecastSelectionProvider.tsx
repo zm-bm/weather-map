@@ -18,7 +18,6 @@ import {
   type LayerGroupId,
   type LayerId,
 } from '@/forecast/catalog'
-import type { UnitSystem } from '@/forecast/units'
 import {
   ForecastSelectionContext,
   type ForecastSelectionContextValue,
@@ -26,6 +25,7 @@ import {
 
 const EMPTY_GROUPS: [] = []
 const DEFAULT_LAYER_ID = FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
+const noopActiveModelChange = () => undefined
 
 function availableParticleCatalog(activeRun: ActiveForecastRun | null) {
   if (!activeRun) {
@@ -54,7 +54,7 @@ function defaultLayerForGroupId(
 export default function ForecastSelectionProvider({
   activeRun,
   modelOptions = [],
-  onActiveModelChange = () => undefined,
+  onActiveModelChange = noopActiveModelChange,
   children,
 }: {
   activeRun: ActiveForecastRun | null
@@ -66,7 +66,6 @@ export default function ForecastSelectionProvider({
   const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<ParticleLayerId | null>(
     () => availableParticleCatalog(activeRun).defaultLayer
   )
-  const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial')
 
   const setActiveModel = useCallback((value: ForecastModelId) => {
     if (
@@ -88,10 +87,6 @@ export default function ForecastSelectionProvider({
     setSelectedLayerId(defaultLayerForGroupId(FORECAST_LAYER_GROUPS, value))
   }, [])
 
-  const toggleUnitSystem = useCallback(() => {
-    setUnitSystem((current) => current === 'imperial' ? 'metric' : 'imperial')
-  }, [])
-
   useEffect(() => {
     if (activeRun == null) return
     const resolvedRun = resolveCompatibleActiveForecastRun(
@@ -110,13 +105,10 @@ export default function ForecastSelectionProvider({
   const value = useMemo<ForecastSelectionContextValue>(() => {
     const baseValue = {
       modelOptions,
-      unitSystem,
       setActiveModel,
       setSelectedLayerGroup,
       setSelectedLayer: setSelectedLayerId,
       setSelectedParticleLayer: setSelectedParticleLayerId,
-      setUnitSystem,
-      toggleUnitSystem,
     }
 
     if (!activeRun) {
@@ -164,8 +156,6 @@ export default function ForecastSelectionProvider({
     selectedParticleLayerId,
     setActiveModel,
     setSelectedLayerGroup,
-    toggleUnitSystem,
-    unitSystem,
   ])
 
   return (

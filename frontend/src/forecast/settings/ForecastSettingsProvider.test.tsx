@@ -33,6 +33,7 @@ describe('ForecastSettingsProvider', () => {
         clearTrailsOnViewChange: false,
       })
       result.current.actions.updatePressureContours({ enabled: true })
+      result.current.actions.updateUnits({ system: 'metric' })
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
@@ -42,6 +43,23 @@ describe('ForecastSettingsProvider', () => {
         clearTrailsOnViewChange: false,
       }),
       pressureContours: { enabled: true },
+      units: { system: 'metric' },
     }))
+  })
+
+  it('toggles the unit system', () => {
+    const { result } = renderHook(() => useForecastSettings(), { wrapper })
+
+    expect(result.current.settings.units.system).toBe('imperial')
+
+    act(() => {
+      result.current.actions.toggleUnitSystem()
+    })
+    expect(result.current.settings.units.system).toBe('metric')
+
+    act(() => {
+      result.current.actions.toggleUnitSystem()
+    })
+    expect(result.current.settings.units.system).toBe('imperial')
   })
 })

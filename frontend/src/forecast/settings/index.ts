@@ -21,4 +21,5 @@ export type {
   ParticleRenderSettings,
   ParticleSettings,
   PressureContourSettings,
+  UnitSettings,
 } from './settings'

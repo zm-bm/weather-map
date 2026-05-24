@@ -47,6 +47,8 @@ describe('MapControlRail', () => {
       updateField: vi.fn(),
       updateParticles: vi.fn(),
       updatePressureContours: vi.fn(),
+      updateUnits: vi.fn(),
+      toggleUnitSystem: vi.fn(),
     }
 
     render(

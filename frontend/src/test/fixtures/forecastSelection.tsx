@@ -22,14 +22,13 @@ import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
 } from '@/forecast/selection'
-import type { UnitSystem } from '@/forecast/units'
+import { ForecastSettingsProvider } from '@/forecast/settings'
 import { createActiveRunFixture } from './manifest'
 
 
 type ForecastSelectionContextOptions = Partial<{
   selectedLayerId: string
   selectedParticleLayerId: string
-  unitSystem: UnitSystem
 }>
 
 export function createForecastSelectionContextValue(
@@ -40,13 +39,10 @@ export function createForecastSelectionContextValue(
   const activeRun = activeForecastRunForModel(manifest, activeModelId)
   const shared = {
     modelOptions: modelOptionsFromManifest(manifest),
-    unitSystem: options.unitSystem ?? ('imperial' as UnitSystem),
     setActiveModel: vi.fn(),
     setSelectedLayerGroup: vi.fn(),
     setSelectedLayer: vi.fn(),
     setSelectedParticleLayer: vi.fn(),
-    setUnitSystem: vi.fn(),
-    toggleUnitSystem: vi.fn(),
   }
   const particleLayers = activeRun == null ? null : getAvailableParticleLayers(activeRun)
   const defaultParticleLayer = particleLayers == null ? null : getDefaultParticleLayer(particleLayers)
@@ -100,16 +96,18 @@ export function renderWithForecastSelection(
 ) {
   const activeRun = createActiveRunFixture(manifest, activeModelId)
   return render(
-    <ForecastSelectionProvider
-      activeRun={activeRun}
-      modelOptions={[{
-        id: activeModelId,
-        label: activeRun.label,
-      }]}
-    >
-      <ForecastTimeProvider activeRun={activeRun}>
-        {ui}
-      </ForecastTimeProvider>
-    </ForecastSelectionProvider>
+    <ForecastSettingsProvider>
+      <ForecastSelectionProvider
+        activeRun={activeRun}
+        modelOptions={[{
+          id: activeModelId,
+          label: activeRun.label,
+        }]}
+      >
+        <ForecastTimeProvider activeRun={activeRun}>
+          {ui}
+        </ForecastTimeProvider>
+      </ForecastSelectionProvider>
+    </ForecastSettingsProvider>
   )
 }

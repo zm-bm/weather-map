@@ -14,18 +14,14 @@ import type {
   LayerId,
   LayerSpec,
 } from '@/forecast/catalog'
-import type { UnitSystem } from '@/forecast/units'
 
 type ForecastSelectionBaseValue = {
   activeRun: ActiveForecastRun | null
   modelOptions: readonly ForecastModelOption[]
-  unitSystem: UnitSystem
   setActiveModel: (value: ForecastModelId) => void
   setSelectedLayerGroup: (value: LayerGroupId) => void
   setSelectedLayer: (value: LayerId) => void
   setSelectedParticleLayer: (value: ParticleLayerId) => void
-  setUnitSystem: (value: UnitSystem) => void
-  toggleUnitSystem: () => void
 }
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {

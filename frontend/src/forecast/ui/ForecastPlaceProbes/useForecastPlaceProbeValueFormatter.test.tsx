@@ -10,6 +10,7 @@ import { useForecastPlaceProbeValueFormatter } from './useForecastPlaceProbeValu
 
 const mocks = vi.hoisted(() => ({
   selectionContext: null as unknown,
+  unitSystem: 'imperial' as 'imperial' | 'metric',
 }))
 
 vi.mock('@/forecast/selection', async (importOriginal) => {
@@ -17,6 +18,28 @@ vi.mock('@/forecast/selection', async (importOriginal) => {
   return {
     ...actual,
     useLoadedForecastSelectionContext: () => mocks.selectionContext,
+  }
+})
+
+vi.mock('@/forecast/settings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/forecast/settings')>()
+  return {
+    ...actual,
+    useForecastSettings: () => ({
+      settings: {
+        ...actual.DEFAULT_FORECAST_SETTINGS,
+        units: {
+          system: mocks.unitSystem,
+        },
+      },
+      actions: {
+        updateField: vi.fn(),
+        updateParticles: vi.fn(),
+        updatePressureContours: vi.fn(),
+        updateUnits: vi.fn(),
+        toggleUnitSystem: vi.fn(),
+      },
+    }),
   }
 })
 
@@ -46,11 +69,11 @@ function renderDisplayHook(options: {
   selectedLayerId?: 'temperature' | 'relative_humidity' | 'air_pressure' | 'precipitation_rate'
   unitSystem?: 'imperial' | 'metric'
 } = {}) {
+  mocks.unitSystem = options.unitSystem ?? 'imperial'
   mocks.selectionContext = createForecastSelectionContextValue(
     manifest,
     {
       selectedLayerId: options.selectedLayerId ?? 'temperature',
-      unitSystem: options.unitSystem ?? 'imperial',
     }
   )
 
