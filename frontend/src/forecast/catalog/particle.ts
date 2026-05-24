@@ -6,7 +6,7 @@ import {
   type VectorArtifactId,
 } from '@/forecast/manifest'
 import type { Brand } from '@/core/types'
-import { RAW_FORECAST_CATALOG } from './catalog'
+import { FORECAST_CATALOG } from './catalog'
 
 export type ParticleLayerId = Brand<string, 'ParticleLayerId'>
 
@@ -25,20 +25,9 @@ export type ParticleLayerSpec = {
   source: ParticleLayerSource
 }
 
-type RawParticleLayerSpec = {
-  id: string
-  label: string
-  source: {
-    kind: 'artifact'
-    artifactId: string
-  }
-}
+type RawParticleLayerSpec = typeof FORECAST_CATALOG.particleLayers[number]
 
-type RawForecastCatalog = {
-  particleLayers: readonly RawParticleLayerSpec[]
-}
-
-const rawCatalog = RAW_FORECAST_CATALOG as RawForecastCatalog
+const rawCatalog = FORECAST_CATALOG
 
 export const PARTICLE_LAYERS: readonly ParticleLayerSpec[] = rawCatalog.particleLayers.map(particleLayerFromRaw)
 

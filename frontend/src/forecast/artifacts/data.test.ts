@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ScalarEncodingSpec, VectorEncodingSpec } from '@/forecast/manifest'
-import { __resetPayloadFrameCacheForTests } from '@/forecast/cache/payloadFrameCache'
+import { __resetFramePayloadCacheForTests } from './framePayloadCache'
 import { createArtifactLoader } from './data'
 import {
   createConfigFixture,
@@ -18,7 +18,7 @@ import { stubFetchArrayBufferOnce } from '@/test/fetch'
 
 afterEach(async () => {
   vi.unstubAllGlobals()
-  await __resetPayloadFrameCacheForTests()
+  await __resetFramePayloadCacheForTests()
 })
 
 function artifacts(manifest: ReturnType<typeof createSingleTimeManifestFixture>) {
@@ -30,7 +30,7 @@ function artifacts(manifest: ReturnType<typeof createSingleTimeManifestFixture>)
 }
 
 describe('artifact capabilities', () => {
-  it('reports supported scalar, wind-vector, and vector-component artifacts', () => {
+  it('reports supported scalar and vector-component artifacts', () => {
     const loader = artifacts(createSingleTimeManifestFixture({
       artifacts: {
         tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
@@ -47,8 +47,7 @@ describe('artifact capabilities', () => {
 
     expect(loader.canLoadScalar('tmp_surface')).toBe(true)
     expect(loader.canLoadScalar('wind10m_uv')).toBe(false)
-    expect(loader.canLoadVector('wind10m_uv')).toBe(true)
-    expect(loader.canLoadVector('tmp_surface')).toBe(false)
+    expect(loader.canLoadVectorComponents('wind10m_uv', ['u', 'v'])).toBe(true)
     expect(loader.canLoadVectorComponents('precip_type_surface', ['snow_frac', 'mix_frac'])).toBe(true)
     expect(loader.canLoadVectorComponents('precip_type_surface', ['rain_frac'])).toBe(false)
     expect(loader.canLoadVectorComponents('missing', ['snow_frac'])).toBe(false)
@@ -266,24 +265,6 @@ describe('scalar payload', () => {
 })
 
 describe('vector payload', () => {
-  it('maps loaded vector payloads into artifact data', async () => {
-    const payload = createVectorPayloadFixture([1, -2, 3, -4], [-5, 6, -7, 8])
-    const fetchMock = stubFetchArrayBufferOnce(payload)
-    const manifest = createSingleTimeManifestFixture({
-      artifacts: {
-        wind10m_uv: createVectorArtifactFixture(),
-      },
-    })
-
-    const frame = await artifacts(manifest).loadVector('wind10m_uv', '0')
-
-    expect(frame.artifactId).toBe('wind10m_uv')
-    expect(frame.hourToken).toBe('000')
-    expect(Array.from(frame.u)).toEqual([1, -2, 3, -4])
-    expect(Array.from(frame.v)).toEqual([-5, 6, -7, 8])
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
   it('maps loaded generic vector components into decoded arrays', async () => {
     const payload = createVectorPayloadFixture([-127, 0, 127, -128], [-127, -64, 0, 127])
     const fetchMock = stubFetchArrayBufferOnce(payload)
@@ -402,14 +383,14 @@ describe('vector payload', () => {
     })
 
     await expect(
-      artifacts(manifest).loadVector('wind10m_uv', '000')
+      artifacts(manifest).loadVectorComponents('wind10m_uv', '000')
     ).rejects.toThrow('Unsupported vector dtype')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('rejects vector loads for missing artifacts, missing frames, and wrong artifact kind', async () => {
+  it('rejects vector component loads for missing artifacts, missing frames, and wrong artifact kind', async () => {
     await expect(
-      artifacts(createSingleTimeManifestFixture()).loadVector('missing_wind', '000')
+      artifacts(createSingleTimeManifestFixture()).loadVectorComponents('missing_wind', '000')
     ).rejects.toThrow('No vector artifact metadata for model=gfs artifact=missing_wind')
 
     const missingTimeManifest = createSingleTimeManifestFixture({
@@ -419,7 +400,7 @@ describe('vector payload', () => {
       },
     })
     await expect(
-      artifacts(missingTimeManifest).loadVector('wind10m_uv', '000')
+      artifacts(missingTimeManifest).loadVectorComponents('wind10m_uv', '000')
     ).rejects.toThrow('No vector frame ref for model=gfs artifact=wind10m_uv hour=000')
 
     await expect(
@@ -430,7 +411,7 @@ describe('vector payload', () => {
             id: 'wind10m_uv',
           },
         },
-      })).loadVector('wind10m_uv', '000')
+      })).loadVectorComponents('wind10m_uv', '000')
     ).rejects.toThrow('Artifact wind10m_uv is not vector')
   })
 })

@@ -29,6 +29,7 @@ export function createFieldDataLoad(
   args: CreateFieldDataLoadArgs
 ): ForecastDataLoad<'field'> | null {
   if (!canLoadFieldSource({
+    activeRun: args.activeRun,
     artifacts: args.artifacts,
     source: args.source.fieldSource,
   })) {

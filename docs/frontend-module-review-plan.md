@@ -75,15 +75,16 @@ Check for:
   loaded data time
 - playback transition behavior at range boundaries
 - context value size and action names
-- selection defaults, unavailable-layer handling, and unit option state
+- selection defaults, unavailable-layer handling, and presentation settings used
+  by selection-adjacent UI
 - duplicated selection/time derivation in UI tests or sync tests
 
 Current guidance:
 
 - `forecast/time` owns timeline/playback state and sync callbacks, not data
   loading.
-- `forecast/selection` owns selected layer, selected particle layer, and unit
-  option state, not render settings or artifact availability resolution.
+- `forecast/selection` owns selected layer and selected particle layer, not unit
+  preference, render settings, or artifact availability resolution.
 - Prefer small pure state helpers when provider tests need to cover transitions.
 
 ### 3. `map`
@@ -128,17 +129,21 @@ Check for:
 - manifest ownership of remote metadata, model/run availability, artifact refs,
   and hour-token normalization
 - artifact loader capability methods staying clear and data-domain agnostic
-- cache scope, byte limits, pending writes, and IndexedDB error behavior
+- cache byte limits, pending writes, and IndexedDB error behavior
 - tests that verify behavior instead of duplicating JSON fixture structure
 
 Current guidance:
 
 - Keep catalog and manifest separate: catalog describes frontend layer choices;
   manifest describes what the backend produced.
+- Catalog should validate the frontend catalog file before exposing layer and
+  particle specs; manifest should validate remote metadata before exposing
+  active run and artifact helpers.
 - Keep artifact decoding in `forecast/artifacts`; semantic slice
-  materialization belongs to `forecast/data/loaders`.
-- Keep cache modules generic enough that artifact users do not need to know
-  whether bytes came from memory, IndexedDB, or the network.
+  materialization and vector meanings such as wind vectors belong to
+  `forecast/data/loaders`.
+- Keep `forecast/cache` generic. Forecast-specific frame-payload scope and keys
+  belong with the artifact/data owner using the cache.
 
 ### 5. `forecast/data`
 

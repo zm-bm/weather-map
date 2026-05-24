@@ -3,9 +3,6 @@ import type {
   ScalarGridSpec,
   VectorEncodingSpec,
 } from '@/forecast/manifest'
-import type {
-  VectorArtifactData,
-} from '@/forecast/artifacts'
 
 export type DerivedFieldEncodingSpec = {
   id: string
@@ -54,7 +51,15 @@ export type CloudLayersTimeSliceData = {
   coverage: FieldTimeSliceData
 }
 
-export type WindVectorTimeSliceData = VectorArtifactData
+export type WindVectorTimeSliceData = {
+  artifactId: string
+  hourToken: string
+  scale: number
+  offset: number
+  u: Int8Array
+  v: Int8Array
+  grid: ScalarGridSpec
+}
 
 export type ForecastDataSliceMap = {
   field: FieldTimeSliceData

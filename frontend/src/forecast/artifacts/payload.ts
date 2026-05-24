@@ -7,11 +7,11 @@ import type { WeatherMapConfig } from '@/core/config'
 import { createAbortError } from '@/core/abort'
 import { joinUrl } from '@/core/url/joinUrl'
 import {
-  ensurePayloadFrameCacheScope,
-  payloadFrameCacheKey,
-  readCachedPayloadFrame,
-  writeCachedPayloadFrame,
-} from '@/forecast/cache/payloadFrameCache'
+  ensureFramePayloadCacheScope,
+  framePayloadCacheKey,
+  readCachedFramePayload,
+  writeCachedFramePayload,
+} from './framePayloadCache'
 import type { ArtifactKind } from './types'
 
 type ResolvedArtifactPayload = {
@@ -40,9 +40,9 @@ export async function readArtifactPayload(
   } = args.resolved
   const artifactKind = artifact.kind
 
-  await ensurePayloadFrameCacheScope(args.activeRun)
-  const cacheKey = payloadFrameCacheKey(args.activeRun, frameRef)
-  const cachedPayload = await readCachedPayloadFrame(cacheKey)
+  await ensureFramePayloadCacheScope(args.activeRun)
+  const cacheKey = framePayloadCacheKey(args.activeRun, frameRef)
+  const cachedPayload = await readCachedFramePayload(cacheKey)
   const payload = cachedPayload ?? await waitForSharedPayloadFetch({
     cacheKey,
     signal: args.signal,
@@ -53,7 +53,7 @@ export async function readArtifactPayload(
         artifactKind,
       })
 
-      await writeCachedPayloadFrame({
+      await writeCachedFramePayload({
         activeRun: args.activeRun,
         key: cacheKey,
         payload: fetchedPayload,

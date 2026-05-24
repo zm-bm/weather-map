@@ -83,6 +83,31 @@ describe('createWindVectorDataLoad', () => {
       }), { requireLoad: false })
     ).toBeNull()
 
+    expect(
+      windVectorLoad(createSingleTimeManifestFixture({
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture(),
+          wind10m_uv: createVectorArtifactFixture({
+            components: ['v', 'u'],
+          }),
+        },
+      }), { requireLoad: false })
+    ).toBeNull()
+
+    expect(
+      windVectorLoad(createSingleTimeManifestFixture({
+        artifacts: {
+          tmp_surface: createScalarArtifactFixture(),
+          wind10m_uv: createVectorArtifactFixture({
+            encoding: {
+              ...baseEncoding,
+              scale: 1,
+            },
+          }),
+        },
+      }), { requireLoad: false })
+    ).toBeNull()
+
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

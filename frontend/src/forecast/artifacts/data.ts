@@ -19,12 +19,10 @@ import type {
   RawVectorComponentArtifactData,
   VectorComponentArtifactData,
   ScalarArtifactData,
-  VectorArtifactData,
 } from './types'
 import {
-  WIND_VECTOR_COMPONENTS as WIND_VECTOR_COMPONENT_NAMES,
-  VECTOR_DECODE_FORMULA as VECTOR_DECODE_FORMULA_VALUE,
-  VECTOR_PAYLOAD_FORMAT as VECTOR_PAYLOAD_FORMAT_VALUE,
+  VECTOR_COMPONENT_DECODE_FORMULA,
+  VECTOR_COMPONENT_PAYLOAD_FORMAT,
 } from './types'
 
 type ResolveArtifactArgs<D extends ArtifactKind> = {
@@ -43,13 +41,11 @@ type CreateArtifactLoaderArgs = {
 
 export type ArtifactLoader = {
   canLoadScalar: (artifactId: ArtifactId | string) => boolean
-  canLoadVector: (artifactId: ArtifactId | string) => boolean
   canLoadVectorComponents: (
     artifactId: ArtifactId | string,
     components?: readonly string[]
   ) => boolean
   loadScalar: (artifactId: ArtifactId | string, hourToken: string) => Promise<ScalarArtifactData>
-  loadVector: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorArtifactData>
   loadVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<VectorComponentArtifactData>
   loadRawVectorComponents: (artifactId: ArtifactId | string, hourToken: string) => Promise<RawVectorComponentArtifactData>
 }
@@ -74,12 +70,6 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       kind: 'scalar',
       assertSupported: assertSupportedScalarArtifact,
     }),
-    canLoadVector: (artifactId) => canLoadArtifact({
-      activeRun: args.activeRun,
-      artifactId,
-      kind: 'vector',
-      assertSupported: assertSupportedWindVectorArtifact,
-    }),
     canLoadVectorComponents: (artifactId, components) => canLoadArtifact({
       activeRun: args.activeRun,
       artifactId,
@@ -100,14 +90,6 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       kind: 'scalar',
       assertSupported: assertSupportedScalarArtifact,
       decode: decodeScalarArtifact,
-    }),
-    loadVector: (artifactId, hourToken) => loadArtifact({
-      ...args,
-      artifactId,
-      hourToken,
-      kind: 'vector',
-      assertSupported: assertSupportedWindVectorArtifact,
-      decode: decodeWindVectorArtifact,
     }),
     loadVectorComponents: (artifactId, hourToken) => loadArtifact({
       ...args,
@@ -224,29 +206,6 @@ function decodeScalarArtifact(
   }
 }
 
-function decodeWindVectorArtifact(
-  resolved: ResolvedArtifact<'vector'>,
-  payload: ArrayBuffer
-): VectorArtifactData {
-  const { artifactId, artifact } = resolved
-  const encoding = artifact.encoding
-  const grid = artifact.grid
-
-  const componentBytes = grid.nx * grid.ny
-  const u = new Int8Array(payload, 0, componentBytes)
-  const v = new Int8Array(payload, componentBytes, componentBytes)
-
-  return {
-    artifactId,
-    hourToken: resolved.hourToken,
-    scale: encoding.scale,
-    offset: encoding.offset,
-    u: new Int8Array(u),
-    v: new Int8Array(v),
-    grid,
-  }
-}
-
 function decodeVectorComponentArtifact(
   resolved: ResolvedArtifact<'vector'>,
   payload: ArrayBuffer
@@ -355,7 +314,7 @@ function assertSupportedVectorComponentArtifact(resolved: ResolvedArtifact<'vect
   const { artifactId, artifact } = resolved
   const { components, encoding } = artifact
 
-  if (encoding.format !== VECTOR_PAYLOAD_FORMAT_VALUE) {
+  if (encoding.format !== VECTOR_COMPONENT_PAYLOAD_FORMAT) {
     throw new Error(`Unsupported vector format for ${artifactId}: ${encoding.format}`)
   }
   if (encoding.dtype !== 'int8') {
@@ -364,39 +323,10 @@ function assertSupportedVectorComponentArtifact(resolved: ResolvedArtifact<'vect
   if (encoding.byteOrder !== 'none') {
     throw new Error(`Unsupported vector byte order for ${artifactId}: ${encoding.byteOrder}`)
   }
-  if (encoding.decodeFormula !== VECTOR_DECODE_FORMULA_VALUE) {
+  if (encoding.decodeFormula !== VECTOR_COMPONENT_DECODE_FORMULA) {
     throw new Error(`Unsupported vector decode formula for ${artifactId}: ${encoding.decodeFormula}`)
   }
   if (components.length < 1) {
-    throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)
-  }
-}
-
-function assertSupportedWindVectorArtifact(resolved: ResolvedArtifact<'vector'>): void {
-  const { artifactId, artifact } = resolved
-  const { components, encoding } = artifact
-
-  if (encoding.format !== VECTOR_PAYLOAD_FORMAT_VALUE) {
-    throw new Error(`Unsupported vector format for ${artifactId}: ${encoding.format}`)
-  }
-  if (encoding.dtype !== 'int8') {
-    throw new Error(`Unsupported vector dtype for ${artifactId}: ${encoding.dtype}`)
-  }
-  if (encoding.byteOrder !== 'none') {
-    throw new Error(`Unsupported vector byte order for ${artifactId}: ${encoding.byteOrder}`)
-  }
-  if (encoding.decodeFormula !== VECTOR_DECODE_FORMULA_VALUE) {
-    throw new Error(`Unsupported vector decode formula for ${artifactId}: ${encoding.decodeFormula}`)
-  }
-  if (encoding.scale !== 0.5 || encoding.offset !== 0) {
-    throw new Error(`Unsupported vector decode params for ${artifactId}: scale=${encoding.scale} offset=${encoding.offset}`)
-  }
-
-  if (
-    components.length !== 2 ||
-    components[0] !== WIND_VECTOR_COMPONENT_NAMES[0] ||
-    components[1] !== WIND_VECTOR_COMPONENT_NAMES[1]
-  ) {
     throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)
   }
 }

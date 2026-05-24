@@ -143,6 +143,36 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastCatalogImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'forecast/cache must stay generic cache infrastructure',
+        (file) => isForecastCacheFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isAppImport(reference.resolvedPath) ||
+            (
+              isForecastModuleImport(reference.resolvedPath) &&
+              !isForecastCacheImport(reference.resolvedPath)
+            ) ||
+            isMapImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react'
+          ))
+      ),
+      ...findSourceImportViolations(
+        'forecast/artifacts must stay independent of data, render, sync, catalog, settings, map, app, and UI modules',
+        (file) => isForecastArtifactsFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => (
+            isAppImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastDataImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            isForecastUiImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react'
+          ))
+      ),
+      ...findSourceImportViolations(
         'forecast/data must stay independent of React, app, catalog, map, render, sync, settings, and place-probe modules',
         (file) => isForecastDataFile(file.path) &&
           !isTestFile(file.path) &&
@@ -275,6 +305,12 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastCatalogSubmoduleImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
+        'Production imports forecast/manifest through its public module',
+        (file) => !isForecastManifestFile(file.path) &&
+          !isTestFile(file.path) &&
+          file.imports.some((reference) => isForecastManifestSubmoduleImport(reference.resolvedPath))
+      ),
+      ...findSourceImportViolations(
         'Import forecast/place-probes through its public module',
         (file) => !isForecastPlaceProbesFile(file.path) &&
           file.imports.some((reference) => isForecastPlaceProbesSubmoduleImport(reference.resolvedPath))
@@ -298,8 +334,9 @@ describe('frontend import boundaries', () => {
           file.imports.some((reference) => isForecastDataLoaderInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Import forecast/artifacts internals through forecast/artifacts public modules',
+        'Production imports forecast/artifacts through its public module',
         (file) => !file.path.includes('/forecast/artifacts/') &&
+          !isTestFile(file.path) &&
           file.imports.some((reference) => isForecastArtifactsInternalImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
@@ -425,6 +462,14 @@ function isForecastManifestFile(path: string): boolean {
   return path.includes('/forecast/manifest/')
 }
 
+function isForecastArtifactsFile(path: string): boolean {
+  return path.includes('/forecast/artifacts/')
+}
+
+function isForecastCacheFile(path: string): boolean {
+  return path.includes('/forecast/cache/')
+}
+
 function isForecastDataFile(path: string): boolean {
   return path.includes('/forecast/data/')
 }
@@ -478,6 +523,10 @@ function isForecastArtifactsImport(path: string): boolean {
   return path === '/forecast/artifacts' || path.includes('/forecast/artifacts/')
 }
 
+function isForecastCacheImport(path: string): boolean {
+  return path === '/forecast/cache' || path.includes('/forecast/cache/')
+}
+
 function isForecastDataLoaderInternalImport(path: string): boolean {
   return path === '/forecast/data/loadDefinition' ||
     path === '/forecast/data/loaders' ||
@@ -503,7 +552,11 @@ function isForecastPlaceProbesSubmoduleImport(path: string): boolean {
 }
 
 function isForecastManifestImport(path: string): boolean {
-  return path === '/forecast/manifest' || path.includes('/forecast/manifest/')
+  return path === '/forecast/manifest' || isForecastManifestSubmoduleImport(path)
+}
+
+function isForecastManifestSubmoduleImport(path: string): boolean {
+  return path.includes('/forecast/manifest/')
 }
 
 function isForecastSyncImport(path: string): boolean {
@@ -580,6 +633,7 @@ function isForecastDataInternalImport(path: string): boolean {
 
 function isForecastArtifactsInternalImport(path: string): boolean {
   return path.includes('/forecast/artifacts/data') ||
+    path.includes('/forecast/artifacts/framePayloadCache') ||
     path.includes('/forecast/artifacts/payload') ||
     path.includes('/forecast/artifacts/types')
 }

@@ -32,10 +32,8 @@ describe('createPressureDataLoad', () => {
       activeRun,
       artifacts: {
         canLoadScalar: vi.fn(() => true),
-        canLoadVector: vi.fn(() => false),
         canLoadVectorComponents: vi.fn(() => false),
         loadScalar,
-        loadVector: vi.fn(),
         loadVectorComponents: vi.fn(),
         loadRawVectorComponents: vi.fn(),
       },

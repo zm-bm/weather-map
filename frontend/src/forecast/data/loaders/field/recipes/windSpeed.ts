@@ -1,10 +1,11 @@
-import type {
-  ArtifactLoader,
-  VectorArtifactData,
-} from '@/forecast/artifacts'
+import type { ArtifactLoader } from '@/forecast/artifacts'
 import type { DerivedFieldSource } from '../../../target'
-import type { DerivedFieldEncodingSpec } from '../../../slices'
+import type {
+  DerivedFieldEncodingSpec,
+  WindVectorTimeSliceData,
+} from '../../../slices'
 import type { FieldSourceData } from '../source'
+import { loadWindVectorTimeSlice } from '../../windVector'
 
 const WIND_SPEED_FIELD_ENCODING: DerivedFieldEncodingSpec = {
   id: 'wind-speed-derived-float32-v1',
@@ -19,7 +20,11 @@ export async function loadWindSpeedFieldSource(args: {
   hourToken: string
   source: DerivedFieldSource
 }): Promise<FieldSourceData> {
-  const vectorFrame = await args.artifacts.loadVector(args.source.artifactId, args.hourToken)
+  const vectorFrame = await loadWindVectorTimeSlice({
+    artifacts: args.artifacts,
+    artifactId: args.source.artifactId,
+    hourToken: args.hourToken,
+  })
   return {
     hourToken: vectorFrame.hourToken,
     grid: vectorFrame.grid,
@@ -28,7 +33,7 @@ export async function loadWindSpeedFieldSource(args: {
   }
 }
 
-function deriveWindSpeedValues(vectorFrame: VectorArtifactData): Float32Array {
+function deriveWindSpeedValues(vectorFrame: WindVectorTimeSliceData): Float32Array {
   const { grid, offset, scale, u, v } = vectorFrame
   const cellCount = grid.nx * grid.ny
   if (u.length !== cellCount || v.length !== cellCount) {

@@ -8,5 +8,4 @@ export type {
   VectorComponentArtifactData,
   RawVectorComponentArtifactData,
   ScalarArtifactData,
-  VectorArtifactData,
 } from './types'

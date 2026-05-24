@@ -14,7 +14,7 @@ import {
   createFetchErrorResponse,
   stubFetchArrayBufferOnce,
 } from '@/test/fetch'
-import { __resetPayloadFrameCacheForTests } from '@/forecast/cache/payloadFrameCache'
+import { __resetFramePayloadCacheForTests } from './framePayloadCache'
 import { readArtifactPayload } from './payload'
 
 const BASE_MANIFEST = createSingleTimeManifestFixture({ forecastHours: ['000'] })
@@ -57,7 +57,7 @@ function resolvedArtifact(args: {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  return __resetPayloadFrameCacheForTests()
+  return __resetFramePayloadCacheForTests()
 })
 
 describe('readArtifactPayload', () => {

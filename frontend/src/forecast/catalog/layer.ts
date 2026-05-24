@@ -12,7 +12,7 @@ import {
   assertUnitBehavior,
   type UnitBehavior,
 } from '@/forecast/units'
-import { RAW_FORECAST_CATALOG } from './catalog'
+import { FORECAST_CATALOG } from './catalog'
 
 export type LayerId = Brand<string, 'LayerId'>
 
@@ -81,52 +81,10 @@ export type LayerGroupSpec = {
   layers: NonEmptyArray<LayerId>
 }
 
-type RawLayerSource =
-  | {
-    kind: 'artifact'
-    artifactId: string
-  }
-  | {
-    kind: 'derived'
-    artifactId: string
-    recipe: 'wind-speed'
-  }
-  | {
-    kind: 'cloud-layers'
-    artifactId: string
-  }
-
-type RawLayerOverlaySpec = {
-  id: string
-  kind: 'precipitation-type'
-  artifactId: string
-  optional?: boolean
-}
-
-type RawLayerSpec = {
-  id: string
-  label: string
-  groupId: string
-  paletteId: string
-  displayRange: DisplayRangeSpec
-  unitBehavior: string
-  legendScale: string
-  source: RawLayerSource
-  overlays?: readonly RawLayerOverlaySpec[]
-  parameter?: string
-}
-
-type RawLayerGroupSpec = {
-  id: string
-  label: string
-  defaultLayer: string
-  layers: string[]
-}
-
-type RawForecastCatalog = {
-  layers: readonly RawLayerSpec[]
-  groups: readonly RawLayerGroupSpec[]
-}
+type RawLayerSpec = typeof FORECAST_CATALOG.layers[number]
+type RawLayerGroupSpec = typeof FORECAST_CATALOG.groups[number]
+type RawLayerSource = RawLayerSpec['source']
+type RawLayerOverlaySpec = NonNullable<RawLayerSpec['overlays']>[number]
 
 export function layerSourceKey(source: LayerSource): string {
   if (source.kind === 'artifact') {
@@ -142,7 +100,7 @@ export function layerSourceArtifactId(source: LayerSource): ArtifactId {
   return source.artifactId
 }
 
-const rawCatalog = RAW_FORECAST_CATALOG as unknown as RawForecastCatalog
+const rawCatalog = FORECAST_CATALOG
 
 export const FORECAST_LAYERS: readonly LayerSpec[] = rawCatalog.layers.map(layerFromRaw)
 

@@ -1,12 +1,14 @@
 import type { ArtifactLoader } from '@/forecast/artifacts'
 import type {
   ScalarGridSpec,
+  ActiveForecastRun,
 } from '@/forecast/manifest'
 import type { FieldSource } from '../../target'
 import type {
   FieldEncodingSpec,
 } from '../../slices'
 import { loadDerivedFieldRecipe } from './recipes'
+import { canLoadWindVector } from '../windVector'
 
 export type FieldSourceData = {
   hourToken: string
@@ -25,12 +27,20 @@ export async function loadFieldSourceData(args: {
 }
 
 export function canLoadFieldSource(args: {
+  activeRun: ActiveForecastRun
   artifacts: ArtifactLoader
   source: FieldSource
 }): boolean {
-  const { artifacts, source } = args
+  const { activeRun, artifacts, source } = args
   if (source.kind === 'scalar') return artifacts.canLoadScalar(source.artifactId)
-  return artifacts.canLoadVector(source.artifactId)
+  if (source.recipe === 'wind-speed') {
+    return canLoadWindVector({
+      activeRun,
+      artifacts,
+      artifactId: source.artifactId,
+    })
+  }
+  return false
 }
 
 async function loadSingleFieldSourceData(args: {

@@ -12,12 +12,12 @@ import {
 import type { ForecastDataTarget } from './target'
 import { stubFetchArrayBufferOnce } from '@/test/fetch'
 import { clearFieldTimeSliceCache } from './loaders/field/load'
-import { __resetPayloadFrameCacheForTests } from '@/forecast/cache/payloadFrameCache'
+import { __resetFramePayloadCacheForTests } from '@/forecast/artifacts/framePayloadCache'
 import { createForecastDataSession } from './session'
 
 beforeEach(async () => {
   clearFieldTimeSliceCache()
-  await __resetPayloadFrameCacheForTests()
+  await __resetFramePayloadCacheForTests()
 })
 
 afterEach(() => {

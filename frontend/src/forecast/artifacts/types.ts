@@ -14,19 +14,8 @@ export type ScalarArtifactData = {
   values: Float32Array
 }
 
-export const VECTOR_PAYLOAD_FORMAT = 'linear-i8-v1'
-export const VECTOR_DECODE_FORMULA = 'value = stored * scale + offset'
-export const WIND_VECTOR_COMPONENTS = ['u', 'v'] as const
-
-export type VectorArtifactData = {
-  artifactId: string
-  hourToken: string
-  scale: number
-  offset: number
-  u: Int8Array
-  v: Int8Array
-  grid: ScalarGridSpec
-}
+export const VECTOR_COMPONENT_PAYLOAD_FORMAT = 'linear-i8-v1'
+export const VECTOR_COMPONENT_DECODE_FORMULA = 'value = stored * scale + offset'
 
 export type VectorComponentArtifactData = {
   artifactId: string
