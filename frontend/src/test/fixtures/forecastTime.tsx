@@ -6,12 +6,12 @@ import {
   activeForecastRunForModel,
   type ForecastModelId,
   type Manifest,
-} from '../../forecast-manifest'
+} from '@/forecast/manifest'
 import {
   ForecastTimeProvider,
   type ForecastTimeContextValue,
-} from '../../forecast-time'
-import type { ForecastTimelineTime } from '../../forecast-time'
+} from '@/forecast/time'
+import type { ForecastTimelineTime } from '@/forecast/time'
 import { createForecastTimesFixture } from './manifest'
 
 type ForecastTimeContextOptions = Partial<{

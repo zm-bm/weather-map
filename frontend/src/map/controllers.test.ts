@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createMapControllerRegistry } from './controllers'
-import { createMapFixture } from '../test/fixtures'
+import { createMapFixture } from '@/test/fixtures'
 
 describe('createMapControllerRegistry', () => {
   it('registers and retrieves controllers per-map', () => {

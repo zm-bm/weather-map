@@ -2,8 +2,8 @@
 
 Canonical registry of user-facing Weather Map forecast choices. Keep this
 document in sync with `config/forecast_catalog.json`, plus the frontend catalog
-adapters in `frontend/src/forecast-catalog/layer.ts` and
-`frontend/src/forecast-catalog/particle.ts`.
+adapters in `frontend/src/forecast/catalog/layer.ts` and
+`frontend/src/forecast/catalog/particle.ts`.
 
 This document defines the forecast choices the product presents to users:
 

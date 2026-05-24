@@ -4,7 +4,7 @@ import maplibregl, {
 } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 
-import config from '../../config'
+import config from '@/core/config'
 import { buildMapStyle } from './basemapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
 

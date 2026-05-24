@@ -1,6 +1,6 @@
 # Frontend Module Review Plan
 
-Last updated: 2026-05-22
+Last updated: 2026-05-23
 
 This plan describes how to review frontend module internals now that the main
 module boundaries are cleaner. The goal is not broad aesthetic cleanup. The
@@ -13,7 +13,7 @@ Use this as a repeatable audit checklist when taking on focused cleanup commits.
 
 Review modules by runtime responsibility and risk, not alphabetically.
 
-### 1. `forecast-sync`
+### 1. `forecast/sync`
 
 Start with sync because it coordinates request identity, loading, stale request
 handling, startup status, prefetch, render application, and probe-frame
@@ -27,7 +27,7 @@ Check for:
 - callback refs or effects that can accidentally restart work
 - tests that assert implementation details instead of observable sync behavior
 
-### 2. `forecast-render`
+### 2. `forecast/render`
 
 Review the imperative renderer runtime after sync. This module should install
 renderers, configure installed renderers, and apply render data.
@@ -40,7 +40,7 @@ Check for:
 - mutable runtime state that crosses renderer/controller boundaries unclearly
 - public exports that expose implementation details
 
-### 3. `forecast-place-probes`
+### 3. `forecast/place-probes`
 
 Review place probes as a feature module. It owns MapLibre probe sources/layers,
 hover behavior, visible place selection, field sampling, label generation, and
@@ -56,7 +56,7 @@ Check for:
 
 ### 4. Forecast Data And Sync
 
-Review `forecast-sync` target resolution and `forecast-data` after the runtime
+Review `forecast/sync` target resolution and `forecast/data` after the runtime
 owners are clear.
 
 Check for:
@@ -69,14 +69,14 @@ Check for:
 
 Current guidance:
 
-- Keep catalog/time target resolution inside `forecast-sync`; data loaders
+- Keep catalog/time target resolution inside `forecast/sync`; data loaders
   should consume data-ready descriptors, not catalog layer objects.
 - Keep `ForecastDataTarget` and source descriptor contracts owned by
-  `forecast-data`, because they are the session input shape.
-- Keep `forecast-data/loaders` private and slice-focused: each loader owns
+  `forecast/data`, because they are the session input shape.
+- Keep `forecast/data/loaders` private and slice-focused: each loader owns
   capability checks, slice cache keys, time-slice loading, semantic
   materialization, failure policy, and optional slice-level probe projection.
-- Keep `forecast-data` as orchestration behind a per-runtime data session:
+- Keep `forecast/data` as orchestration behind a per-runtime data session:
   data options, request keys, request creation, interpolation windows, prefetch,
   reusable-window memory, and loaded data-window assembly. Its public index
   should expose the session factory and semantic data contracts only; request,
@@ -84,11 +84,11 @@ Current guidance:
 - Keep sync responsible for app/user options that decide whether optional
   data families are requested; loaders should execute explicit options, not
   infer UI settings.
-- Keep render-specific packing and GPU texture shapes in `forecast-render`.
+- Keep render-specific packing and GPU texture shapes in `forecast/render`.
   Forecast data modules should expose meteorological data windows and derived
   data semantics only.
 
-### 5. `forecast-time`
+### 5. `forecast/time`
 
 Review time as the owner of timeline state and playback callbacks.
 
@@ -100,7 +100,7 @@ Check for:
   time
 - unnecessary coupling to sync or render modules
 
-### 6. `forecast-settings`
+### 6. `forecast/settings`
 
 Review settings as the owner of user-facing map presentation settings.
 
@@ -111,7 +111,7 @@ Check for:
 - derived render profile/runtime settings
 - whether new user controls can be added without touching renderer internals
 
-### 7. `forecast-catalog` And `forecast-manifest`
+### 7. `forecast/catalog` And `forecast/manifest`
 
 Review catalog and manifest after the runtime and display contracts are stable.
 
@@ -129,9 +129,9 @@ Review foundational display modules after catalog dependencies are clear.
 
 Relevant modules include:
 
-- `units`
-- `forecast-legend`
-- shared palette/display contracts, if any remain
+- `forecast/units`
+- `forecast/legend`
+- `forecast/palette`
 
 Check for:
 
@@ -150,10 +150,10 @@ Check for:
 - MapLibre lifecycle ownership
 - event and cleanup behavior
 
-### 10. `components`
+### 10. `forecast/ui`
 
-Review components last. By this point, components should mostly compose hooks,
-contexts, presentational UI, and thin adapters around feature modules.
+Review forecast UI last. By this point, UI should mostly compose hooks,
+contexts, presentational controls, and thin adapters around feature modules.
 
 Check for:
 
@@ -184,11 +184,11 @@ For each module, ask the same questions:
 
 Keep review commits small and grouped by runtime responsibility:
 
-1. `forecast-sync` internals
-2. `forecast-render` internals
-3. `forecast-place-probes` internals
+1. `forecast/sync` internals
+2. `forecast/render` internals
+3. `forecast/place-probes` internals
 4. data, time, and settings cleanup
-5. map and component thinness pass
+5. map and forecast UI thinness pass
 
 Each pass should include focused tests for the touched modules, then full
 frontend verification:

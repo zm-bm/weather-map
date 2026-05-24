@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchManifest, resolveActiveForecastRun } from '../forecast-manifest'
+import { fetchManifest, resolveActiveForecastRun } from '@/forecast/manifest'
 import {
   createForecastDataSession,
-} from '../forecast-data'
+} from '@/forecast/data'
 import {
   createMultiModelManifestFixture,
   createConfigFixture,

@@ -1,11 +1,11 @@
-import type { ForecastDataTarget } from '../../forecast-data'
-import type { ActiveForecastRun } from '../../forecast-manifest'
-import { normalizeForecastHourToken } from '../../forecast-manifest'
+import type { ForecastDataTarget } from '@/forecast/data'
+import type { ActiveForecastRun } from '@/forecast/manifest'
+import { normalizeForecastHourToken } from '@/forecast/manifest'
 import {
   interpolationWindowMinuteOffset,
   resolveForecastInterpolationWindow,
   type ForecastInterpolationWindow,
-} from '../../forecast-time'
+} from '@/forecast/time'
 import {
   createActiveRunFixture,
   createManifestFixture,

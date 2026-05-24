@@ -12,7 +12,7 @@ import type {
   VectorArtifactId,
   VectorArtifactSpec,
   VectorEncodingSpec,
-} from '../../forecast-manifest'
+} from '@/forecast/manifest'
 import {
   asArtifactId,
   asVectorArtifactId,
@@ -20,7 +20,7 @@ import {
   FORECAST_MANIFEST_SCHEMA_VERSION,
   FORECAST_PAYLOAD_CONTRACT,
   activeForecastRunForModel,
-} from '../../forecast-manifest'
+} from '@/forecast/manifest'
 
 export const FIXTURE_MODEL_ID = 'gfs'
 export const FIXTURE_MODEL_LABEL = 'GFS'

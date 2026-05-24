@@ -1,4 +1,4 @@
-import type { WeatherMapConfig } from '../../config'
+import type { WeatherMapConfig } from '@/core/config'
 
 export function createConfigFixture(
   overrides: Partial<WeatherMapConfig> = {}

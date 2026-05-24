@@ -1,7 +1,7 @@
 import type { LayerSpecification, StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 
-import type { WeatherMapConfig } from '../../config'
-import { joinUrl } from '../../url/joinUrl'
+import type { WeatherMapConfig } from '@/core/config'
+import { joinUrl } from '@/core/url/joinUrl'
 import { BASEMAP_SOURCE_ID } from '../basemap'
 import styleJson from './style.json'
 

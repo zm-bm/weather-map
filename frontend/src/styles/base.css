@@ -7,7 +7,7 @@
 
 @font-face {
   font-family: "Star4000";
-  src: url("../assets/fonts/Star4000.ttf") format("truetype");
+  src: url("@/assets/fonts/Star4000.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;

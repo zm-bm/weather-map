@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react'
 import maplibregl, { type IControl, type Map as MapLibreMap } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
-import { createMapFixture } from '../../test/fixtures'
+import { createMapFixture } from '@/test/fixtures'
 import { useMapAttributionControl } from './useMapAttributionControl'
 
 type AddedControl = [IControl, string?]

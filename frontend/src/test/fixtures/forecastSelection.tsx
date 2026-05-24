@@ -8,8 +8,8 @@ import {
   modelOptionsFromManifest,
   type ForecastModelId,
   type Manifest,
-} from '../../forecast-manifest'
-import { ForecastTimeProvider } from '../../forecast-time'
+} from '@/forecast/manifest'
+import { ForecastTimeProvider } from '@/forecast/time'
 import {
   asParticleLayerId,
   asLayerId,
@@ -17,12 +17,12 @@ import {
   FORECAST_LAYERS_BY_ID,
   getAvailableParticleLayers,
   getDefaultParticleLayer,
-} from '../../forecast-catalog'
+} from '@/forecast/catalog'
 import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
-} from '../../forecast-selection'
-import type { UnitSystem } from '../../units'
+} from '@/forecast/selection'
+import type { UnitSystem } from '@/forecast/units'
 import { createActiveRunFixture } from './manifest'
 
 

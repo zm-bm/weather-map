@@ -3,7 +3,7 @@ import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BASEMAP_SOURCE_ID } from '../basemap'
-import { createConfigFixture } from '../../test/fixtures/config'
+import { createConfigFixture } from '@/test/fixtures/config'
 
 const mocks = vi.hoisted(() => {
   let styleLoaded = false
@@ -60,7 +60,7 @@ vi.mock('pmtiles', () => ({
   },
 }))
 
-vi.mock('../../config', () => ({
+vi.mock('@/core/config', () => ({
   default: createConfigFixture(),
 }))
 
@@ -70,9 +70,9 @@ vi.mock('./viewportPersistence', () => ({
 }))
 
 import baseStyleJson from './style.json'
-import config from '../../config'
+import config from '@/core/config'
 import { useMapLibre } from './useMapLibre'
-import { joinUrl } from '../../url/joinUrl'
+import { joinUrl } from '@/core/url/joinUrl'
 
 describe('useMapLibre', () => {
   beforeEach(() => {
@@ -112,7 +112,7 @@ describe('useMapLibre', () => {
 
   it('omits the basemap source and dependent layers when no basemap url is configured', async () => {
     vi.resetModules()
-    vi.doMock('../../config', () => ({
+    vi.doMock('@/core/config', () => ({
       default: {
         ...config,
         basemapUrl: undefined,

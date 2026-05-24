@@ -6,8 +6,8 @@ Keep this document in sync with:
 - `docs/forecast-layer-registry.md`
 - `docs/forecast-artifact-registry.md`
 - `config/forecast_catalog.json`
-- `frontend/src/forecast-catalog/layer.ts`
-- `frontend/src/forecast-catalog/particle.ts`
+- `frontend/src/forecast/catalog/layer.ts`
+- `frontend/src/forecast/catalog/particle.ts`
 - `config/pipeline/base.json`
 
 This document records model support. It does not define the canonical layer set,

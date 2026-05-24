@@ -1,13 +1,13 @@
 import type {
   LatestForecastRun,
   Manifest,
-} from '../../forecast-manifest'
+} from '@/forecast/manifest'
 import {
   FORECAST_MANIFEST_SCHEMA,
   FORECAST_MANIFEST_SCHEMA_VERSION,
   FORECAST_PAYLOAD_CONTRACT,
   activeForecastRunForModel,
-} from '../../forecast-manifest'
+} from '@/forecast/manifest'
 import {
   createSingleTimeManifestFixture,
   createLayerModelAvailabilityFixture,
