@@ -4,7 +4,7 @@ import { ForecastSettingsProvider } from '@/forecast/settings'
 import type { ForecastManifestData } from '@/forecast/manifest'
 import { ForecastSelectionProvider } from '@/forecast/selection'
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
-import { ForecastTimeProvider, forecastTimeProviderKey } from '@/forecast/time'
+import { ForecastTimeProvider } from '@/forecast/time'
 import TimelineBar from '../TimelineBar'
 import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
@@ -70,7 +70,7 @@ export default function ForecastShell({
           modelOptions={forecast?.modelOptions ?? []}
           onActiveModelChange={forecast?.setActiveModel}
         >
-          <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
+          <ForecastTimeProvider activeRun={activeRun}>
             <div ref={forecastStageRef} className="forecast-stage">
               <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
 

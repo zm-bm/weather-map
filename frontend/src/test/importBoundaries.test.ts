@@ -581,6 +581,5 @@ function isForecastTimeInternalImport(path: string): boolean {
     path.includes('/forecast/time/ForecastTimeProvider') ||
     path.includes('/forecast/time/format') ||
     path.includes('/forecast/time/state') ||
-    path.includes('/forecast/time/time') ||
-    path.includes('/forecast/time/types')
+    path.includes('/forecast/time/time')
 }

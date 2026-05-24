@@ -1,11 +1,11 @@
 export { default as ForecastTimeProvider } from './ForecastTimeProvider'
 export { useForecastTimeContext } from './ForecastTimeContext'
-export type { ForecastTimeContextValue } from './ForecastTimeContext'
 export type {
   ForecastTimeControls,
+  ForecastTimeContextValue,
   ForecastTimeSyncCallbacks,
   ForecastTimeViewState,
-} from './types'
+} from './ForecastTimeContext'
 export {
   formatCycleRunTimeLabel,
   formatShortValidTimeLabel,
@@ -18,7 +18,6 @@ export {
   FORECAST_TIME_STEP_MINUTES,
   FORECAST_TIME_STEP_MS,
   forecastTimeBounds,
-  forecastTimeProviderKey,
   forecastValidTimeMsList,
   interpolationWindowMinuteOffset,
   initialForecastValidTimeMs,

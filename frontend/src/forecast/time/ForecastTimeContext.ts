@@ -1,11 +1,27 @@
 import { createContext, useContext } from 'react'
 
-import type {
-  ForecastTimeControls,
-  ForecastTimeSyncCallbacks,
-  ForecastTimeViewState,
-} from './types'
 import type { ForecastTimelineTime } from './time'
+
+export type ForecastTimeViewState = {
+  appliedTimeMs: number
+  targetTimeMs: number
+  pendingTimeMs: number | null
+  isInFlight: boolean
+  isPlaying: boolean
+}
+
+export type ForecastTimeControls = {
+  requestTime: (timeMs: number) => void
+  requestNext: () => void
+  requestPrev: () => void
+  togglePlay: () => void
+}
+
+export type ForecastTimeSyncCallbacks = {
+  onRequestStart: (timeMs: number) => void
+  onRequestApplied: (timeMs: number) => void
+  onRequestError: (timeMs: number, error?: Error) => void
+}
 
 export type ForecastTimeContextValue = {
   times: ForecastTimelineTime[]

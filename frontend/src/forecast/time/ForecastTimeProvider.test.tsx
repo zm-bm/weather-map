@@ -9,7 +9,6 @@ import {
 } from '@/test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
-import { forecastTimeProviderKey } from './time'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
@@ -48,7 +47,7 @@ function renderForecastTimeProvider(initialManifest: ReturnType<typeof createMan
   const ui = (manifest: ReturnType<typeof createManifestFixture> | null) => {
     const activeRun = manifest ? createActiveRunFixture(manifest) : null
     return (
-      <ForecastTimeProvider key={forecastTimeProviderKey(activeRun)} activeRun={activeRun}>
+      <ForecastTimeProvider activeRun={activeRun}>
         <Probe />
       </ForecastTimeProvider>
     )

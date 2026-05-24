@@ -6,12 +6,10 @@ import {
   type ReactNode,
 } from 'react'
 
-import {
-  type ActiveForecastRun,
-  type ForecastTimeSpec,
-} from '@/forecast/manifest'
+import type { ActiveForecastRun } from '@/forecast/manifest'
 import {
   clampForecastValidTimeMs,
+  type ForecastTimelineTime,
   initialForecastValidTimeMs,
   stepForecastValidTimeMs,
 } from './time'
@@ -23,9 +21,32 @@ import {
 } from './state'
 import { ForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 
-const EMPTY_TIMES: ForecastTimeSpec[] = []
+const EMPTY_TIMES: ForecastTimelineTime[] = []
 
 export default function ForecastTimeProvider({
+  activeRun,
+  children,
+}: {
+  activeRun: ActiveForecastRun | null
+  children: ReactNode
+}) {
+  return (
+    <ForecastTimeProviderInner
+      key={forecastTimeProviderKey(activeRun)}
+      activeRun={activeRun}
+    >
+      {children}
+    </ForecastTimeProviderInner>
+  )
+}
+
+function forecastTimeProviderKey(activeRun: ActiveForecastRun | null): string {
+  if (activeRun == null) return 'forecast-time:none'
+  const timelineKey = activeRun.latest.times.map((time) => `${time.id}:${time.validAt}`).join(',')
+  return `forecast-time:${activeRun.modelId}:${activeRun.latest.run.cycle}:${timelineKey}`
+}
+
+function ForecastTimeProviderInner({
   activeRun,
   children,
 }: {

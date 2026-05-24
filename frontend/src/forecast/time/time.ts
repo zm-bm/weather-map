@@ -1,10 +1,11 @@
-import type { ActiveForecastRun, ForecastTimeSpec } from '@/forecast/manifest'
-
 export const MINUTE_MS = 60 * 1000
 export const FORECAST_TIME_STEP_MINUTES = 10
 export const FORECAST_TIME_STEP_MS = FORECAST_TIME_STEP_MINUTES * MINUTE_MS
 
-export type ForecastTimelineTime = Pick<ForecastTimeSpec, 'id' | 'validAt'>
+export type ForecastTimelineTime = {
+  id: string
+  validAt: string
+}
 
 export type ForecastTimeSliceSelection = {
   selectedValidTimeMs: number
@@ -16,12 +17,6 @@ export type ForecastTimeSliceSelection = {
 export type ForecastInterpolationWindow = ForecastTimeSliceSelection & {
   lowerValidTimeMs: number
   upperValidTimeMs: number
-}
-
-export function forecastTimeProviderKey(activeRun: ActiveForecastRun | null): string {
-  if (activeRun == null) return 'forecast-time:none'
-  const timelineKey = activeRun.latest.times.map((time) => `${time.id}:${time.validAt}`).join(',')
-  return `forecast-time:${activeRun.modelId}:${activeRun.latest.run.cycle}:${timelineKey}`
 }
 
 function forecastTimeMs(time: ForecastTimelineTime): number | null {
