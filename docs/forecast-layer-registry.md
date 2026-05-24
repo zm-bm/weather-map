@@ -108,13 +108,14 @@ at z6.
 | --- | --- | --- | --- | --- |
 | `wind` | Wind | direct vector artifact `wind10m_uv` | instantaneous | Animated 10m wind particles from ordered `u` and `v` components. |
 
-## Map Overlays
+## Overlays
 
 | Overlay id | Label | Source recipe | Time semantics | Renderer | Notes |
 | --- | --- | --- | --- | --- | --- |
+| `precipitation_type` | Precipitation Type Pattern | optional vector artifact `precip_type_surface` with `snow_frac` and `mix_frac` components | source-interval derived overlay | `field-overlay` | Automatic optional overlay for `precipitation_rate`; renders snowflake and winter-mix glyph patterns when available. |
 | `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered 4 hPa mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
 
 ## Candidate Future Layers
 
 This registry lists implemented catalog entries only. Track unimplemented
-candidates in `forecast-catalog-candidates.md`, not here.
+layer, model, and external-source ideas in `roadmap.md`, not here.

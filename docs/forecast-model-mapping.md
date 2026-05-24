@@ -42,6 +42,7 @@ These requirements come from the frontend layer and particle catalogs.
 | `air_pressure` | layer | `prmsl_msl` | - | direct scalar |
 | `pressure_contours` | map overlay | `prmsl_msl` | - | toggleable GPU 4 hPa mean-sea-level pressure contours |
 | `precipitation_rate` | layer | `prate_surface` | `precip_type_surface` | direct scalar plus automatic precipitation-type pattern overlay |
+| `precipitation_type` | automatic overlay | `precip_type_surface` | - | automatic snow / winter-mix pattern overlay for `precipitation_rate` |
 | `accumulated_precipitation` | layer | `precip_total_surface` | - | direct scalar |
 | `snow_depth` | layer | `snow_depth_surface` | - | direct scalar |
 | `cloud_layers` | layer | `cloud_layers` | - | custom cloud layers renderer |
@@ -67,9 +68,10 @@ These requirements come from the frontend layer and particle catalogs.
 | `air_pressure` | `native` | `native` | Both models publish mean sea-level pressure as `prmsl_msl`; ICON publishes it on a downsampled `0.25` grid. |
 | `pressure_contours` | `native` | `native` | Toggleable frontend GPU contour overlay from lightly smoothed `prmsl_msl`; ICON uses the downsampled `0.25` pressure artifact. |
 | `precipitation_rate` | `native` | `etl-derived` | GFS rate is direct; ICON rate is derived from `tot_prec`. Both can use optional `precip_type_surface` snowflake / ice-dash pattern overlays. |
+| `precipitation_type` | `etl-derived` | `etl-derived` | Automatic optional overlay from `precip_type_surface`; the `precipitation_rate` layer remains available when this artifact is missing. |
 | `accumulated_precipitation` | `etl-derived` | `native` | GFS publishes `precip_total_surface` from run-total `APCP`, with `f000` synthesized as zero; ICON uses `tot_prec`. |
 | `snow_depth` | `native` | `native` | Both models publish snow depth. |
-| `cloud_layers` | `frontend-derived` | `frontend-derived` | Custom renderer consumes packed low/middle/high cloud cover components. |
+| `cloud_layers` | `native` | `native` | Custom renderer consumes packed low/middle/high cloud cover components published by each model. |
 | `cloud_cover` | `native` | `native` | Both models publish total cloud cover. |
 | `visibility` | `native` | `unavailable` | ICON does not publish `visibility_surface`. |
 | `freezing_level` | `native` | `native` | Both models publish freezing-level height. |
@@ -94,9 +96,10 @@ GFS model id: `gfs`.
 | `air_pressure` | `native` | `prmsl_msl` | `PRMSL`, `0-MSL` | direct scalar | Mean sea-level pressure, not surface pressure. |
 | `pressure_contours` | `native` | `prmsl_msl` | `PRMSL`, `0-MSL` | map overlay | Uses the same mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
 | `precipitation_rate` | `native` | `prate_surface`; optional `precip_type_surface` | `PRATE`, `0-SFC`, `GRIB_PDS_PDTN=0`; overlay from `PRATE`/`CPOFP`/category fields | direct scalar plus automatic overlay | `prate_surface` is normalized to `mm/hr`; overlay remains optional. |
+| `precipitation_type` | `etl-derived` | `precip_type_surface` | `PRATE`/`CPOFP`/category fields | automatic overlay | Optional snow / winter-mix pattern overlay for `precipitation_rate`. |
 | `accumulated_precipitation` | `etl-derived` | `precip_total_surface` | run-total `APCP`, `0-SFC`; `f000` synthesized as zero | direct scalar | Run-total precipitation since model reference time. |
 | `snow_depth` | `native` | `snow_depth_surface` | `SNOD`, `0-SFC` | direct scalar | - |
-| `cloud_layers` | `frontend-derived` | `cloud_layers` | `LCDC`/`MCDC`/`HCDC` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components. |
+| `cloud_layers` | `native` | `cloud_layers` | `LCDC`/`MCDC`/`HCDC` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components. |
 | `cloud_cover` | `native` | `tcdc` | `TCDC`, `0-EATM` | direct scalar | - |
 | `visibility` | `native` | `visibility_surface` | `VIS`, `0-SFC` | direct scalar | - |
 | `freezing_level` | `native` | `freezing_level` | `HGT`, `0-0DEG` | direct scalar | - |
@@ -121,9 +124,10 @@ ICON model id: `icon`.
 | `air_pressure` | `native` | `prmsl_msl` | `pmsl` | direct scalar | Mean sea-level pressure, not surface pressure; ETL downsamples this ICON artifact from `0.125` to `0.25` before encoding. |
 | `pressure_contours` | `native` | `prmsl_msl` | `pmsl` | map overlay | Uses the same downsampled mean-sea-level pressure artifact as `air_pressure`; controlled by the map options UI and lightly smoothed at render time. |
 | `precipitation_rate` | `etl-derived` | `prate_surface`; optional `precip_type_surface` | `prate_surface` from `icon_tot_prec_delta_rate` using `tot_prec`; overlay from rain/snow accumulation component deltas | direct scalar plus automatic overlay | First-hour previous accumulation is treated as zero by the ETL derivation; overlay remains optional. |
+| `precipitation_type` | `etl-derived` | `precip_type_surface` | rain/snow accumulation component deltas | automatic overlay | Optional snow / winter-mix pattern overlay for `precipitation_rate`. |
 | `accumulated_precipitation` | `native` | `precip_total_surface` | `tot_prec` | direct scalar | Run-total precipitation since model reference time. |
 | `snow_depth` | `native` | `snow_depth_surface` | `h_snow` | direct scalar | - |
-| `cloud_layers` | `frontend-derived` | `cloud_layers` | `clcl`/`clcm`/`clch` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components on the `0.125` grid. |
+| `cloud_layers` | `native` | `cloud_layers` | `clcl`/`clcm`/`clch` | custom cloud layers renderer | Requires ordered `low`, `middle`, `high` components on the `0.125` grid. |
 | `cloud_cover` | `native` | `tcdc` | `clct` | direct scalar | - |
 | `visibility` | `unavailable` | - | - | - | `visibility_surface` is not in the ICON workload. |
 | `freezing_level` | `native` | `freezing_level` | `hzerocl` | direct scalar | - |
