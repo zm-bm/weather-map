@@ -50,7 +50,7 @@ describe('useRequestRunner probe frames', () => {
         (args.target as ForecastDataTarget).selectedValidTimeMs,
         renderError
       )
-      expect(result.current.startupPhase).toBe('error')
+      expect(result.current.phase).toBe('error')
     })
 
     expect(args.onProbeFrameChange).not.toHaveBeenCalled()

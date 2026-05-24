@@ -5,7 +5,7 @@ import type {
   ForecastManifestData,
   ForecastManifestState,
 } from '@/forecast/manifest'
-import type { ForecastSyncStartupStatus } from '@/forecast/sync'
+import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
   createForecastManifestDataFixture,
   createForecastManifestStateFixture,
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   manifestState: null as ForecastManifestState | null,
   shellProps: null as {
     forecast: ForecastManifestData | null
-    onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
+    onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
   } | null,
 }))
 
@@ -31,7 +31,7 @@ vi.mock('@/forecast/manifest', async (importOriginal) => {
 vi.mock('@/forecast/ui/ForecastShell', () => ({
   default: (props: {
     forecast: ForecastManifestData | null
-    onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
+    onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
   }) => {
     mocks.shellProps = props
     return <div data-testid="forecast-shell" />
@@ -48,10 +48,10 @@ function createReadyManifestState(
   })
 }
 
-function createSyncStatus(overrides: Partial<ForecastSyncStartupStatus> = {}): ForecastSyncStartupStatus {
+function createInitialSyncStatus(overrides: Partial<ForecastSyncInitialStatus> = {}): ForecastSyncInitialStatus {
   return {
-    startupPhase: 'idle',
-    startupErrorMessage: null,
+    phase: 'idle',
+    errorMessage: null,
     retry: vi.fn(),
     ...overrides,
   }
@@ -61,9 +61,9 @@ function renderForecastApp() {
   return render(<ForecastApp />)
 }
 
-function publishSyncStatus(overrides: Partial<ForecastSyncStartupStatus> = {}) {
+function publishInitialSyncStatus(overrides: Partial<ForecastSyncInitialStatus> = {}) {
   act(() => {
-    mocks.shellProps?.onSyncStartupStatusChange?.(createSyncStatus(overrides))
+    mocks.shellProps?.onInitialSyncStatusChange?.(createInitialSyncStatus(overrides))
   })
 }
 
@@ -92,7 +92,7 @@ describe('ForecastApp', () => {
     renderForecastApp()
 
     expect(mocks.shellProps?.forecast).toBe(data)
-    expect(mocks.shellProps?.onSyncStartupStatusChange).toEqual(expect.any(Function))
+    expect(mocks.shellProps?.onInitialSyncStatusChange).toEqual(expect.any(Function))
   })
 
   it('mounts app status at the app level and projects manifest loading state', () => {
@@ -120,17 +120,17 @@ describe('ForecastApp', () => {
     expect(retry).toHaveBeenCalledTimes(1)
   })
 
-  it('projects lifted sync startup status after the manifest is ready', () => {
+  it('projects lifted initial sync status after the manifest is ready', () => {
     mocks.manifestState = createReadyManifestState()
     renderForecastApp()
 
     expect(screen.queryByText('Initializing Forecast Map')).not.toBeInTheDocument()
 
-    publishSyncStatus({ startupPhase: 'loading' })
+    publishInitialSyncStatus({ phase: 'loading' })
 
     expectStatusText('Initializing Forecast Map', 'Loading initial forecast data.')
 
-    publishSyncStatus({ startupPhase: 'ready' })
+    publishInitialSyncStatus({ phase: 'ready' })
 
     expect(screen.queryByText('Initializing Forecast Map')).not.toBeInTheDocument()
   })
@@ -138,9 +138,9 @@ describe('ForecastApp', () => {
   it('uses manifest status before lifted sync status while manifest is blocked', () => {
     renderForecastApp()
 
-    publishSyncStatus({
-      startupPhase: 'error',
-      startupErrorMessage: 'wind failed',
+    publishInitialSyncStatus({
+      phase: 'error',
+      errorMessage: 'wind failed',
     })
 
     expectStatusText('Loading Forecast')

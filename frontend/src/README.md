@@ -26,7 +26,7 @@ startup status, then renders `forecast/ui/ForecastShell` and
 `forecast/ui/ForecastMap` owns the MapLibre host instance, installs the forecast
 renderer host after map style readiness, bridges forecast settings into renderer
 and sync setup, and calls `forecast/sync/useForecastSync`, which coordinates
-startup, request building, payload loading, and layer application.
+initial sync, request building, payload loading, and layer application.
 
 ## Module Ownership
 
@@ -48,7 +48,7 @@ startup, request building, payload loading, and layer application.
 
 - `forecast/cache/*`: byte-limited memory and IndexedDB payload cache. Keep eviction, scope changes, and pending writes here so data/layer code can treat cache reads and writes as an implementation detail.
 
-- `forecast/sync/*`: runtime coordination for startup policy, current target resolution, abort/dedupe, data loading, render-host application, probe-frame publication, timeline notification, and sync startup state. It should coordinate modules, not decode payload formats, construct artifact loaders, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
+- `forecast/sync/*`: runtime coordination for initial sync policy, current target resolution, abort/dedupe, data loading, render-host application, probe-frame publication, timeline notification, and initial sync state. It should coordinate modules, not decode payload formats, construct artifact loaders, know about MapLibre, project app status, or own interpolation-window reuse bookkeeping itself.
 
 - `forecast/settings/*`: React-owned map presentation settings and defaults. This module owns user-facing render feature options and should stay independent of UI, renderer, map-view, and sync internals.
 
@@ -83,7 +83,7 @@ Preferred orchestration shape:
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
    `forecast/settings` to `forecast/render` and `forecast/sync`.
 4. `forecast/sync/useForecastSync` resolves the current catalog/time selection into a data target plus timeline request callbacks,
-   waits for a render host capability, exposes sync startup state, and publishes applied probe frames through a callback.
+   waits for a render host capability, exposes initial sync state, and publishes applied probe frames through a callback.
 5. `forecast/sync/useRequestRunner` creates data-session load jobs, applies loaded data through the render host, publishes the applied probe frame, commits successful jobs, and notifies the timeline.
 6. `forecast/render/*` reconciles active renderer profiles and applies already-loaded data windows to MapLibre custom layers.
 

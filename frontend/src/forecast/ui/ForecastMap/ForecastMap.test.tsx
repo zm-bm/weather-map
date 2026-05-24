@@ -8,7 +8,7 @@ import {
   ForecastSettingsProvider,
 } from '@/forecast/settings'
 import type { ForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
-import type { UseForecastSyncArgs, ForecastSyncStartupStatus } from '@/forecast/sync'
+import type { UseForecastSyncArgs, ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
   createFieldWindowFixture,
   createMapFixture,
@@ -126,12 +126,12 @@ function getLatestRenderHost() {
   return mocks.useForecastRenderHost.mock.results.at(-1)?.value
 }
 
-function createSyncStatus(
-  overrides: Partial<ForecastSyncStartupStatus> = {}
-): ForecastSyncStartupStatus {
+function createInitialSyncStatus(
+  overrides: Partial<ForecastSyncInitialStatus> = {}
+): ForecastSyncInitialStatus {
   return {
-    startupPhase: 'idle',
-    startupErrorMessage: null,
+    phase: 'idle',
+    errorMessage: null,
     retry: vi.fn(),
     ...overrides,
   }
@@ -156,7 +156,7 @@ describe('ForecastMap', () => {
       selectedLayerId: 'temperature',
     })
     mocks.useForecastSync.mockReturnValue({
-      startupStatus: createSyncStatus(),
+      initialStatus: createInitialSyncStatus(),
     })
   })
 
@@ -209,23 +209,23 @@ describe('ForecastMap', () => {
     })
   })
 
-  it('reports sync startup status changes and clears them on unmount', () => {
-    const onSyncStartupStatusChange = vi.fn()
-    const syncStatus = createSyncStatus({ startupPhase: 'loading' })
+  it('reports initial sync status changes and clears them on unmount', () => {
+    const onInitialSyncStatusChange = vi.fn()
+    const initialStatus = createInitialSyncStatus({ phase: 'loading' })
     mocks.useForecastSync.mockReturnValue({
-      startupStatus: syncStatus,
+      initialStatus,
     })
 
     const { unmount } = renderForecastMap(
-      <ForecastMap onSyncStartupStatusChange={onSyncStartupStatusChange} />
+      <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
     )
 
-    expect(onSyncStartupStatusChange).toHaveBeenCalledWith(syncStatus)
+    expect(onInitialSyncStatusChange).toHaveBeenCalledWith(initialStatus)
 
-    onSyncStartupStatusChange.mockClear()
+    onInitialSyncStatusChange.mockClear()
     unmount()
 
-    expect(onSyncStartupStatusChange).toHaveBeenCalledWith(null)
+    expect(onInitialSyncStatusChange).toHaveBeenCalledWith(null)
   })
 
   it('updates the render profile when particles are toggled off', () => {

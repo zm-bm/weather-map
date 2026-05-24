@@ -7,7 +7,7 @@ import type {
   ForecastModelId,
   ForecastModelOption,
 } from '@/forecast/manifest'
-import type { ForecastSyncStartupStatus } from '@/forecast/sync'
+import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
   createForecastManifestDataFixture,
   createManifestFixture,
@@ -68,7 +68,7 @@ function createForecastShellProps(overrides: {
 }
 
 type ForecastMapProps = {
-  onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
+  onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
 }
 
 function latestForecastMapProps(): ForecastMapProps {
@@ -101,18 +101,18 @@ describe('ForecastShell', () => {
     expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
   })
 
-  it('forwards sync startup status changes to the map', () => {
-    const onSyncStartupStatusChange = vi.fn<(status: ForecastSyncStartupStatus | null) => void>()
+  it('forwards initial sync status changes to the map', () => {
+    const onInitialSyncStatusChange = vi.fn<(status: ForecastSyncInitialStatus | null) => void>()
 
     render(
       <ForecastShell
         {...createForecastShellProps()}
-        onSyncStartupStatusChange={onSyncStartupStatusChange}
+        onInitialSyncStatusChange={onInitialSyncStatusChange}
       />
     )
 
     expect(latestForecastMapProps()).toEqual({
-      onSyncStartupStatusChange,
+      onInitialSyncStatusChange,
     })
   })
 

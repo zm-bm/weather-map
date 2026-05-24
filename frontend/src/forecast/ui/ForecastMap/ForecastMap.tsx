@@ -13,7 +13,7 @@ import {
 } from '@/forecast/render'
 import type { ForecastDataOptions } from '@/forecast/data'
 import { useForecastSelectionContext } from '@/forecast/selection'
-import { useForecastSync, type ForecastSyncStartupStatus } from '@/forecast/sync'
+import { useForecastSync, type ForecastSyncInitialStatus } from '@/forecast/sync'
 import { createForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
 import { useMap } from '@/map/useMap'
 import { useForecastBasemapTheme } from '@/map/view/useForecastBasemapTheme'
@@ -22,12 +22,12 @@ import MapControlRail from '../MapControlRail'
 
 export type ForecastMapProps = {
   containerId?: string
-  onSyncStartupStatusChange?: (status: ForecastSyncStartupStatus | null) => void
+  onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
 }
 
 export default function ForecastMap({
   containerId = 'map',
-  onSyncStartupStatusChange,
+  onInitialSyncStatusChange,
 }: ForecastMapProps) {
   const { mapRef, getMap, mapReadyVersion } = useMap({ containerId })
   const { selectedLayerId } = useForecastSelectionContext()
@@ -68,7 +68,7 @@ export default function ForecastMap({
     selectedLayerId,
   })
 
-  const { startupStatus } = useForecastSync({
+  const { initialStatus } = useForecastSync({
     renderHost,
     config,
     dataOptions,
@@ -76,14 +76,14 @@ export default function ForecastMap({
   })
 
   useEffect(() => {
-    onSyncStartupStatusChange?.(startupStatus)
-  }, [onSyncStartupStatusChange, startupStatus])
+    onInitialSyncStatusChange?.(initialStatus)
+  }, [onInitialSyncStatusChange, initialStatus])
 
   useEffect(() => {
     return () => {
-      onSyncStartupStatusChange?.(null)
+      onInitialSyncStatusChange?.(null)
     }
-  }, [onSyncStartupStatusChange])
+  }, [onInitialSyncStatusChange])
 
   return (
     <div className="map-stage">

@@ -32,8 +32,8 @@ describe('useRequestRunner lifecycle', () => {
     expect(runnerMocks.loadJob).not.toHaveBeenCalled()
     expect(runnerMocks.applyRenderData).not.toHaveBeenCalled()
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
-    expect(result.current.startupPhase).toBe('idle')
-    expect(result.current.startupErrorMessage).toBeNull()
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.errorMessage).toBeNull()
   })
 
   it('waits for a render host before syncing', async () => {
@@ -48,7 +48,7 @@ describe('useRequestRunner lifecycle', () => {
     expect(runnerMocks.loadJob).not.toHaveBeenCalled()
     expect(runnerMocks.applyRenderData).not.toHaveBeenCalled()
     expect(callbacks.onRequestStart).not.toHaveBeenCalled()
-    expect(result.current.startupPhase).toBe('loading')
+    expect(result.current.phase).toBe('loading')
 
     rerender({
       ...args,
@@ -61,7 +61,7 @@ describe('useRequestRunner lifecycle', () => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs
       )
-      expect(result.current.startupPhase).toBe('ready')
+      expect(result.current.phase).toBe('ready')
     })
   })
 
@@ -74,7 +74,7 @@ describe('useRequestRunner lifecycle', () => {
     const { rerender, result } = renderRequestRunnerHarness(args)
 
     expect(runnerMocks.loadJob).not.toHaveBeenCalled()
-    expect(result.current.startupPhase).toBe('idle')
+    expect(result.current.phase).toBe('idle')
 
     rerender({ ...args, target })
 
@@ -82,7 +82,7 @@ describe('useRequestRunner lifecycle', () => {
       expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
       expect(runnerMocks.applyRenderData).toHaveBeenCalledTimes(1)
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(target.selectedValidTimeMs)
-      expect(result.current.startupPhase).toBe('ready')
+      expect(result.current.phase).toBe('ready')
     })
   })
 
@@ -94,8 +94,8 @@ describe('useRequestRunner lifecycle', () => {
     await waitFor(() => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledTimes(1)
     })
-    expect(result.current.startupErrorMessage).toBeNull()
-    expect(result.current.startupPhase).toBe('ready')
+    expect(result.current.errorMessage).toBeNull()
+    expect(result.current.phase).toBe('ready')
     expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
     expect(runnerMocks.applyRenderData).toHaveBeenCalledTimes(1)
 
@@ -136,7 +136,7 @@ describe('useRequestRunner lifecycle', () => {
     })
   })
 
-  it('resets startup state and aborts in-flight request when request becomes disabled', async () => {
+  it('resets initial sync state and aborts in-flight request when request becomes disabled', async () => {
     const request = deferred<void>()
     runnerMocks.loadJob.mockImplementationOnce(() => request.promise)
 
@@ -146,15 +146,15 @@ describe('useRequestRunner lifecycle', () => {
     await waitFor(() => {
       expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
       expect(runnerMocks.applyRenderData).not.toHaveBeenCalled()
-      expect(result.current.startupPhase).toBe('loading')
+      expect(result.current.phase).toBe('loading')
     })
 
     rerender({ ...args, target: null })
 
     await waitFor(() => {
       expect(createLoadJobSignal(0).aborted).toBe(true)
-      expect(result.current.startupPhase).toBe('idle')
-      expect(result.current.startupErrorMessage).toBeNull()
+      expect(result.current.phase).toBe('idle')
+      expect(result.current.errorMessage).toBeNull()
     })
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
     expect(runnerMocks.resetSession).toHaveBeenCalled()

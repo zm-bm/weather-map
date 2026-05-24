@@ -22,7 +22,7 @@ import {
 } from '@/forecast/data'
 import type { ForecastRenderHost } from '@/forecast/render'
 import { useRequestRunner } from './useRequestRunner'
-import { useStartupController } from './useStartupController'
+import { useInitialSyncController } from './initialSync'
 
 export const runnerMocks = {
   createLoadJob: vi.fn(),
@@ -45,21 +45,21 @@ export type RequestRunnerHarnessArgs = {
 }
 
 export function useRequestRunnerHarness(args: RequestRunnerHarnessArgs) {
-  const startup = useStartupController()
+  const initialSync = useInitialSyncController()
 
   useRequestRunner({
     renderHost: args.renderHost,
     config: args.config,
     target: args.target,
     syncCallbacks: args.syncCallbacks,
-    startup,
+    initialSync,
     dataSession: args.dataSession,
     dataOptions: args.dataOptions ?? DEFAULT_FORECAST_DATA_OPTIONS,
     onProbeFrameChange: args.onProbeFrameChange,
   })
 
   return {
-    ...startup.status,
+    ...initialSync.status,
   }
 }
 

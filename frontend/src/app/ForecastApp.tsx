@@ -3,21 +3,21 @@ import { useMemo, useState } from 'react'
 import AppStatusHost, { type AppStatus } from '@/app/AppStatusHost'
 import ForecastShell from '@/forecast/ui/ForecastShell'
 import { useForecastManifest, type ForecastManifestState } from '@/forecast/manifest'
-import type { ForecastSyncStartupStatus } from '@/forecast/sync'
+import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 
 export default function ForecastApp() {
   const forecast = useForecastManifest()
-  const [syncStartupStatus, setSyncStartupStatus] = useState<ForecastSyncStartupStatus | null>(null)
+  const [initialSyncStatus, setInitialSyncStatus] = useState<ForecastSyncInitialStatus | null>(null)
   const appStatus = useMemo(
-    () => getForecastAppStatus(forecast, syncStartupStatus),
-    [forecast, syncStartupStatus]
+    () => getForecastAppStatus(forecast, initialSyncStatus),
+    [forecast, initialSyncStatus]
   )
 
   return (
     <div className="app-root">
       <ForecastShell
         forecast={forecast.data}
-        onSyncStartupStatusChange={setSyncStartupStatus}
+        onInitialSyncStatusChange={setInitialSyncStatus}
       />
       <AppStatusHost status={appStatus} />
     </div>
@@ -26,7 +26,7 @@ export default function ForecastApp() {
 
 function getForecastAppStatus(
   forecast: ForecastManifestState,
-  syncStartupStatus: ForecastSyncStartupStatus | null
+  initialSyncStatus: ForecastSyncInitialStatus | null
 ): AppStatus {
   if (forecast.phase === 'loading') {
     return {
@@ -48,7 +48,7 @@ function getForecastAppStatus(
     }
   }
 
-  if (syncStartupStatus?.startupPhase === 'loading') {
+  if (initialSyncStatus?.phase === 'loading') {
     return {
       mode: 'blocking',
       level: 'loading',
@@ -57,14 +57,14 @@ function getForecastAppStatus(
     }
   }
 
-  if (syncStartupStatus?.startupPhase === 'error') {
+  if (initialSyncStatus?.phase === 'error') {
     return {
       mode: 'blocking',
       level: 'error',
       title: 'Forecast Startup Failed',
-      detail: syncStartupStatus.startupErrorMessage ?? 'Unknown startup error.',
+      detail: initialSyncStatus.errorMessage ?? 'Unknown startup error.',
       actionLabel: 'Retry',
-      onAction: syncStartupStatus.retry,
+      onAction: initialSyncStatus.retry,
     }
   }
 

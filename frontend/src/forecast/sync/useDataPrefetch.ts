@@ -6,7 +6,7 @@ import type { ForecastDataOptions, ForecastDataSession, ForecastDataTarget } fro
 const PREFETCH_CONCURRENCY = 2
 const PREFETCH_AHEAD_HOUR_COUNT = 2
 
-export type UseForecastDataPrefetchArgs = {
+export type UseDataPrefetchArgs = {
   config: WeatherMapConfig
   target: ForecastDataTarget | null
   enabled: boolean
@@ -20,7 +20,7 @@ export function useDataPrefetch({
   enabled,
   dataSession,
   dataOptions,
-}: UseForecastDataPrefetchArgs): void {
+}: UseDataPrefetchArgs): void {
   useEffect(() => {
     if (!enabled || target == null) return
 

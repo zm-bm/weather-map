@@ -9,11 +9,11 @@ import {
 } from '@/test/fixtures'
 import type { ForecastDataTarget } from '@/forecast/data'
 import type { ForecastRenderHost } from '@/forecast/render'
-import type { StartupController } from './useStartupController'
+import type { InitialSyncController } from './initialSync'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
-  useStartupController: vi.fn(),
+  useInitialSyncController: vi.fn(),
   useDataTarget: vi.fn(),
   useForecastTimeContext: vi.fn(),
   createForecastDataSession: vi.fn(),
@@ -21,8 +21,8 @@ const mocks = vi.hoisted(() => ({
   useDataPrefetch: vi.fn(),
 }))
 
-vi.mock('./useStartupController', () => ({
-  useStartupController: () => mocks.useStartupController(),
+vi.mock('./initialSync', () => ({
+  useInitialSyncController: () => mocks.useInitialSyncController(),
 }))
 
 vi.mock('./useDataTarget', () => ({
@@ -53,14 +53,14 @@ vi.mock('./useDataPrefetch', () => ({
   useDataPrefetch: (args: unknown) => mocks.useDataPrefetch(args),
 }))
 
-function createStartupState(
-  overrides: Partial<StartupController> = {}
-): StartupController {
+function createInitialSyncController(
+  overrides: Partial<InitialSyncController> = {}
+): InitialSyncController {
   const retry = vi.fn()
   return {
     status: {
-      startupPhase: 'idle',
-      startupErrorMessage: null,
+      phase: 'idle',
+      errorMessage: null,
       retry,
     },
     retryToken: 0,
@@ -80,7 +80,7 @@ function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): Forecast
 type ForecastSyncArgs = Parameters<typeof useForecastSync>[0]
 
 type ForecastSyncHarnessOptions = Partial<ForecastSyncArgs> & {
-  startup?: StartupController
+  initialSync?: InitialSyncController
   target?: ForecastDataTarget | null
   syncCallbacks?: ReturnType<typeof createForecastTimeContextValue>['syncCallbacks']
   dataSession?: ReturnType<typeof createDataSessionFixture>
@@ -91,12 +91,12 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
   const renderHost = options.renderHost === undefined ? defaultRenderHost : options.renderHost
   const config = options.config ?? createConfigFixture()
   const dataOptions = options.dataOptions ?? { pressure: true, windVectors: true }
-  const startup = options.startup ?? createStartupState()
+  const initialSync = options.initialSync ?? createInitialSyncController()
   const target = 'target' in options ? options.target : createDataTarget()
   const syncCallbacks = options.syncCallbacks ?? createForecastTimeContextValue(null).syncCallbacks
   const dataSession = options.dataSession ?? createDataSessionFixture()
 
-  mocks.useStartupController.mockReturnValue(startup)
+  mocks.useInitialSyncController.mockReturnValue(initialSync)
   mocks.useDataTarget.mockReturnValue(target)
   mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
     syncCallbacks,
@@ -113,7 +113,7 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
     renderHost,
     config,
     dataOptions,
-    startup,
+    initialSync,
     target,
     syncCallbacks,
     dataSession,
@@ -129,10 +129,10 @@ describe('useForecastSync', () => {
     mocks.useRequestRunner.mockReturnValue(undefined)
   })
 
-  it('wires startup state into target composition, runner execution, prefetch, and return status', () => {
+  it('wires initial sync state into target composition, runner execution, prefetch, and return status', () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
-    const startup = createStartupState({ retryToken: 2 })
+    const initialSync = createInitialSyncController({ retryToken: 2 })
     const target = createDataTarget()
     const syncCallbacks = createForecastTimeContextValue(null).syncCallbacks
     const onProbeFrameChange = vi.fn()
@@ -142,7 +142,7 @@ describe('useForecastSync', () => {
     const { result } = renderForecastSync({
       renderHost,
       config,
-      startup,
+      initialSync,
       target,
       syncCallbacks,
       dataSession,
@@ -150,7 +150,7 @@ describe('useForecastSync', () => {
       onProbeFrameChange,
     })
 
-    expect(mocks.useStartupController).toHaveBeenCalledTimes(1)
+    expect(mocks.useInitialSyncController).toHaveBeenCalledTimes(1)
     expect(mocks.useDataTarget).toHaveBeenCalledWith()
     expect(mocks.useRequestRunner).toHaveBeenCalledWith({
       renderHost,
@@ -158,7 +158,7 @@ describe('useForecastSync', () => {
       dataOptions,
       target,
       syncCallbacks,
-      startup,
+      initialSync,
       dataSession,
       onProbeFrameChange,
     })
@@ -170,26 +170,26 @@ describe('useForecastSync', () => {
       dataOptions,
     })
     expect(result.current).toEqual({
-      startupStatus: startup.status,
+      initialStatus: initialSync.status,
     })
   })
 
   it('passes null targets through to the sync runner', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
-    const startup = createStartupState()
+    const initialSync = createInitialSyncController()
 
     const { result } = renderForecastSync({
       renderHost,
       config,
-      startup,
+      initialSync,
       target: null,
       dataOptions: { pressure: true, windVectors: true },
     })
 
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
       target: null,
-      startup,
+      initialSync,
       dataSession: expect.any(Object),
     }))
     expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
@@ -198,20 +198,20 @@ describe('useForecastSync', () => {
       dataSession: expect.any(Object),
     }))
     expect(result.current).toEqual({
-      startupStatus: startup.status,
+      initialStatus: initialSync.status,
     })
   })
 
-  it('disables frame prefetch while startup is blocked', () => {
+  it('disables frame prefetch while initial sync is blocked', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
-    const startup = createStartupState({ isBlocked: true })
+    const initialSync = createInitialSyncController({ isBlocked: true })
     const target = createDataTarget()
 
     renderForecastSync({
       renderHost,
       config,
-      startup,
+      initialSync,
       target,
       dataOptions: { pressure: true, windVectors: true },
     })
@@ -223,5 +223,22 @@ describe('useForecastSync', () => {
       dataSession: expect.any(Object),
       dataOptions: { pressure: true, windVectors: true },
     })
+  })
+
+  it('reuses one data session across rerenders', () => {
+    const dataSession = createDataSessionFixture()
+    const { rerender } = renderForecastSync({ dataSession })
+
+    expect(mocks.createForecastDataSession).toHaveBeenCalledTimes(1)
+
+    rerender()
+
+    expect(mocks.createForecastDataSession).toHaveBeenCalledTimes(1)
+    expect(mocks.useRequestRunner).toHaveBeenLastCalledWith(expect.objectContaining({
+      dataSession,
+    }))
+    expect(mocks.useDataPrefetch).toHaveBeenLastCalledWith(expect.objectContaining({
+      dataSession,
+    }))
   })
 })

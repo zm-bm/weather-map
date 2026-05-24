@@ -12,12 +12,12 @@ import {
   targetAt,
 } from './requestRunner.testHarness'
 
-describe('useRequestRunner startup and errors', () => {
+describe('useRequestRunner initial sync and errors', () => {
   beforeEach(resetRequestRunnerMocks)
 
-  it('does not rerun requests while startup is blocked after an initial failure', async () => {
-    const startupError = new Error('wind failed')
-    runnerMocks.loadJob.mockRejectedValueOnce(startupError)
+  it('does not rerun requests while initial sync is blocked after an initial failure', async () => {
+    const initialSyncError = new Error('wind failed')
+    runnerMocks.loadJob.mockRejectedValueOnce(initialSyncError)
 
     const args = createBaseRunnerArgs()
     const callbacks = args.syncCallbacks
@@ -26,10 +26,10 @@ describe('useRequestRunner startup and errors', () => {
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs,
-        startupError
+        initialSyncError
       )
-      expect(result.current.startupPhase).toBe('error')
-      expect(result.current.startupErrorMessage).toBe('wind failed')
+      expect(result.current.phase).toBe('error')
+      expect(result.current.errorMessage).toBe('wind failed')
     })
 
     rerender({
@@ -54,8 +54,8 @@ describe('useRequestRunner startup and errors', () => {
     const callbacks = args.syncCallbacks
     const { result } = renderRequestRunnerHarness(args)
 
-    expect(result.current.startupPhase).toBe('loading')
-    expect(result.current.startupErrorMessage).toBeNull()
+    expect(result.current.phase).toBe('loading')
+    expect(result.current.errorMessage).toBeNull()
     expect(callbacks.onRequestStart).toHaveBeenCalledWith(
       (args.target as ForecastDataTarget).selectedValidTimeMs
     )
@@ -66,8 +66,8 @@ describe('useRequestRunner startup and errors', () => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs
       )
-      expect(result.current.startupPhase).toBe('ready')
-      expect(result.current.startupErrorMessage).toBeNull()
+      expect(result.current.phase).toBe('ready')
+      expect(result.current.errorMessage).toBeNull()
     })
   })
 
@@ -90,14 +90,14 @@ describe('useRequestRunner startup and errors', () => {
     })
 
     expect(callbacks.onRequestError).not.toHaveBeenCalled()
-    expect(result.current.startupPhase).toBe('loading')
-    expect(result.current.startupErrorMessage).toBeNull()
+    expect(result.current.phase).toBe('loading')
+    expect(result.current.errorMessage).toBeNull()
   })
 
   it('transitions to error, then retry reruns and reaches ready', async () => {
-    const startupError = new Error('wind failed')
+    const initialSyncError = new Error('wind failed')
     runnerMocks.loadJob
-      .mockRejectedValueOnce(startupError)
+      .mockRejectedValueOnce(initialSyncError)
       .mockResolvedValueOnce(createRunnerLoadedData())
 
     const args = createBaseRunnerArgs()
@@ -107,10 +107,10 @@ describe('useRequestRunner startup and errors', () => {
     await waitFor(() => {
       expect(callbacks.onRequestError).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs,
-        startupError
+        initialSyncError
       )
-      expect(result.current.startupPhase).toBe('error')
-      expect(result.current.startupErrorMessage).toBe('wind failed')
+      expect(result.current.phase).toBe('error')
+      expect(result.current.errorMessage).toBe('wind failed')
     })
     expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
     expect(runnerMocks.applyRenderData).not.toHaveBeenCalled()
@@ -125,12 +125,12 @@ describe('useRequestRunner startup and errors', () => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs
       )
-      expect(result.current.startupPhase).toBe('ready')
-      expect(result.current.startupErrorMessage).toBeNull()
+      expect(result.current.phase).toBe('ready')
+      expect(result.current.errorMessage).toBeNull()
     })
   })
 
-  it('forwards later sync errors without re-entering startup error', async () => {
+  it('forwards later sync errors without re-entering initial sync error', async () => {
     const laterError = new Error('later timeline error')
     const probeFrame = createFieldFrameLike('temperature', 1)
     runnerMocks.loadJob
@@ -145,7 +145,7 @@ describe('useRequestRunner startup and errors', () => {
       expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
         (args.target as ForecastDataTarget).selectedValidTimeMs
       )
-      expect(result.current.startupPhase).toBe('ready')
+      expect(result.current.phase).toBe('ready')
       expect(args.onProbeFrameChange).toHaveBeenCalledWith(probeFrame)
     })
 
@@ -158,8 +158,8 @@ describe('useRequestRunner startup and errors', () => {
         laterError,
       )
     })
-    expect(result.current.startupPhase).toBe('ready')
-    expect(result.current.startupErrorMessage).toBeNull()
+    expect(result.current.phase).toBe('ready')
+    expect(result.current.errorMessage).toBeNull()
     expect(args.onProbeFrameChange).toHaveBeenCalledTimes(1)
   })
 })

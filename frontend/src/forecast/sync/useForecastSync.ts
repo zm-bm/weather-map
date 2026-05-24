@@ -1,19 +1,17 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 
 import type { WeatherMapConfig } from '@/core/config'
 import {
   createForecastDataSession,
   type ForecastDataOptions,
   type FieldInterpolationWindowData,
-  type ForecastDataSession,
 } from '@/forecast/data'
 import type { ForecastRenderHost } from '@/forecast/render'
 import { useForecastTimeContext } from '@/forecast/time'
-import { useStartupController } from './useStartupController'
+import { useInitialSyncController, type ForecastSyncInitialStatus } from './initialSync'
 import { useDataPrefetch } from './useDataPrefetch'
 import { useDataTarget } from './useDataTarget'
 import { useRequestRunner } from './useRequestRunner'
-import type { ForecastSyncStartupStatus } from './types'
 
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
@@ -23,7 +21,7 @@ export type UseForecastSyncArgs = {
 }
 
 export type UseForecastSyncResult = {
-  startupStatus: ForecastSyncStartupStatus
+  initialStatus: ForecastSyncInitialStatus
 }
 
 export function useForecastSync({
@@ -32,30 +30,31 @@ export function useForecastSync({
   dataOptions,
   onProbeFrameChange,
 }: UseForecastSyncArgs): UseForecastSyncResult {
-  const startup = useStartupController()
+  const initialSync = useInitialSyncController()
   const target = useDataTarget()
   const { syncCallbacks } = useForecastTimeContext()
-  const [dataSession] = useState<ForecastDataSession>(() => createForecastDataSession())
+  const dataSession = useMemo(() => createForecastDataSession(), [])
 
   useRequestRunner({
     renderHost,
     config,
     target,
     syncCallbacks,
-    startup,
+    initialSync,
     dataSession,
     dataOptions,
     onProbeFrameChange,
   })
+
   useDataPrefetch({
     config,
     target,
-    enabled: !startup.isBlocked,
+    enabled: !initialSync.isBlocked,
     dataSession,
     dataOptions,
   })
 
   return {
-    startupStatus: startup.status,
+    initialStatus: initialSync.status,
   }
 }

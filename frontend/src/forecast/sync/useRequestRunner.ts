@@ -11,14 +11,14 @@ import type {
 import type { ForecastRenderHost } from '@/forecast/render'
 import type { ForecastTimeSyncCallbacks } from '@/forecast/time'
 import { createRequestTracker, type ActiveRequest, type RequestTracker } from './requestTracker'
-import type { StartupController } from './useStartupController'
+import type { InitialSyncController } from './initialSync'
 
 type UseRequestRunnerArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
   target: ForecastDataTarget | null
   syncCallbacks: ForecastTimeSyncCallbacks
-  startup: StartupController
+  initialSync: InitialSyncController
   dataSession: ForecastDataSession
   dataOptions: ForecastDataOptions
   onProbeFrameChange?: (frame: FieldInterpolationWindowData | null) => void
@@ -29,7 +29,7 @@ export function useRequestRunner({
   config,
   target,
   syncCallbacks,
-  startup,
+  initialSync,
   dataSession,
   dataOptions,
   onProbeFrameChange,
@@ -41,7 +41,7 @@ export function useRequestRunner({
     handleApplied,
     handleError,
     retryToken,
-  } = startup
+  } = initialSync
 
   const requestTrackerRef = useRef<RequestTracker | null>(null)
   if (requestTrackerRef.current == null) {
