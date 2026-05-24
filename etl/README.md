@@ -18,18 +18,25 @@ Local cycle runs go through the worker container. The host only needs Docker;
 GDAL, CDO, eccodes, and ICON regrid assets live in the image.
 
 ```bash
+etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH>
 etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH> --artifact tmp_surface --no-publish
+etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH> --artifact cloud_layers --artifact wind10m_uv
 ```
 
 The script prepares `weather-map-forecast-etl:local`, resolves configured
 forecast hours inside that image, then runs one `forecast-etl run-hour`
-container per forecast hour. It automatically rebuilds the image when the ETL
-Dockerfile, package code, package metadata, or forecast config changes; use
-`--rebuild` to force a rebuild when needed.
+container per forecast hour. Omitting `--model` refreshes every configured model
+sequentially. It automatically rebuilds the image when the ETL Dockerfile,
+package code, package metadata, or forecast config changes; use `--rebuild` to
+force a rebuild when needed.
 
 Local outputs are written under the repo-level `artifacts/` directory.
 Downloads and prepared GRIB files are cached under `etl/cache/`.
+Use repeatable `--artifact` filters for local iteration when only specific
+artifacts need to be regenerated. Filtered runs still use full-workload publish
+readiness; add `--no-publish` when intentionally running an isolated subset.
 
 ## Direct CLI
 
@@ -38,6 +45,7 @@ tests:
 
 ```bash
 etl/scripts/bootstrap.sh
+.venv/bin/forecast-etl list-models
 .venv/bin/forecast-etl list-forecast-hours --model <model>
 ```
 

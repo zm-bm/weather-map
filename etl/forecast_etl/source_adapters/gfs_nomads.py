@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Iterable
 
 from ..config.resolved import GfsNomadsSourceConfig, ModelConfig
 from ..cycles import parse_cycle
@@ -21,13 +22,14 @@ def acquire_prepared_source(
     cycle: str,
     fhour: str,
     source_uri_override: str | None,
+    artifact_ids: Iterable[str],
     workdir: Path,
     store: UriStore,
     run: RunFn | None = None,
 ) -> PreparedSource:
     """Acquire a single local GRIB source for one GFS cycle/hour."""
 
-    del run
+    del artifact_ids, run
     if not isinstance(model.source, GfsNomadsSourceConfig):
         raise SystemExit(f"Model {model.id!r} is not configured for GFS NOMADS acquisition")
     source = model.source

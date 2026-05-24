@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Iterable
 
 from ..config.resolved import ModelConfig
 from ..cycles import parse_cycle
@@ -45,11 +46,12 @@ def icon_dwd_url(*, base_url: str, cycle: str, fhour: str, icon_param: str) -> s
     return f"{base_url.rstrip('/')}/{cycle_hour}/{icon_param.lower()}/{filename}"
 
 
-def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
+def required_icon_params(model: ModelConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
     """Return the unique ICON parameters required by the model workload."""
 
+    resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts)
     params: set[str] = set()
-    for artifact_id in model.workload.artifacts:
+    for artifact_id in resolved_artifact_ids:
         artifact = model.artifacts.get(artifact_id)
         if artifact is None:
             raise SystemExit(f"Unknown ICON workload artifact: {artifact_id}")
@@ -69,11 +71,12 @@ def required_icon_params(model: ModelConfig) -> tuple[str, ...]:
     return tuple(sorted(params))
 
 
-def required_previous_icon_params(model: ModelConfig) -> tuple[str, ...]:
+def required_previous_icon_params(model: ModelConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
     """Return ICON parameters needed from the previous forecast hour."""
 
+    resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts)
     params: set[str] = set()
-    for artifact_id in model.workload.artifacts:
+    for artifact_id in resolved_artifact_ids:
         artifact = model.artifacts.get(artifact_id)
         if artifact is None:
             raise SystemExit(f"Unknown ICON workload artifact: {artifact_id}")

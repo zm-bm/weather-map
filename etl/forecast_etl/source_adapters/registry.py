@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable
 
 from ..config.resolved import (
     GfsNomadsSourceConfig,
@@ -21,6 +22,7 @@ def acquire_prepared_source(
     cycle: str,
     fhour: str,
     source_uri_override: str | None,
+    artifact_ids: Iterable[str],
     workdir: Path,
     store: UriStore,
     run: RunFn | None = None,
@@ -33,6 +35,7 @@ def acquire_prepared_source(
             cycle=cycle,
             fhour=fhour,
             source_uri_override=source_uri_override,
+            artifact_ids=artifact_ids,
             workdir=workdir,
             store=store,
             run=run,
@@ -43,6 +46,7 @@ def acquire_prepared_source(
             cycle=cycle,
             fhour=fhour,
             source_uri_override=source_uri_override,
+            artifact_ids=artifact_ids,
             workdir=workdir,
             store=store,
             run=run,

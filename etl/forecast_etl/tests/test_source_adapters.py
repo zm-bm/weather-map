@@ -15,6 +15,7 @@ from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig, Mod
 from forecast_etl.derivations import previous_icon_param_key
 from forecast_etl.source_adapters import acquire_prepared_source, icon_dwd
 from forecast_etl.source_adapters.icon_dwd import icon_dwd_filename, icon_dwd_url
+from forecast_etl.source_adapters.icon_dwd_source import required_icon_params, required_previous_icon_params
 from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.artifact_configs import (
     artifact_spec,
@@ -65,6 +66,7 @@ class SourceAdapterTest(unittest.TestCase):
                 cycle="2026041200",
                 fhour="000",
                 source_uri_override=f"file://{source_path.as_posix()}",
+                artifact_ids=model.workload.artifacts,
                 workdir=workdir,
                 store=make_store(),
             )
@@ -176,6 +178,7 @@ class SourceAdapterTest(unittest.TestCase):
                     cycle="2026042800",
                     fhour="000",
                     source_uri_override=None,
+                    artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
                     store=make_store(),
                 )
@@ -226,6 +229,7 @@ class SourceAdapterTest(unittest.TestCase):
                     cycle="2026042800",
                     fhour="003",
                     source_uri_override=None,
+                    artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
                     store=make_store(),
                 )
@@ -281,6 +285,7 @@ class SourceAdapterTest(unittest.TestCase):
                     cycle="2026042800",
                     fhour="001",
                     source_uri_override=None,
+                    artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
                     store=make_store(),
                 )
@@ -343,6 +348,7 @@ class SourceAdapterTest(unittest.TestCase):
                     cycle="2026042800",
                     fhour="003",
                     source_uri_override=None,
+                    artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
                     store=make_store(),
                 )
@@ -371,6 +377,35 @@ class SourceAdapterTest(unittest.TestCase):
             ),
             previous_tot_prec,
         )
+
+    def test_icon_required_params_respect_selected_artifacts(self) -> None:
+        thunderstorm = artifact_spec("thunderstorm_mask", thunderstorm_mask_config())
+        prate = artifact_spec("prate_surface", precip_rate_config())
+        model = ModelConfig(
+            id="icon",
+            label="ICON",
+            source=IconDwdSourceConfig(
+                grid_id="icon_global_regridded_0p125",
+                icon_dwd=IconDwdConfig(
+                    base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
+                    rate_limit_seconds=0.0,
+                ),
+            ),
+            workload=WorkloadConfig(
+                forecast_hours=("003",),
+                artifacts=("prate_surface", "thunderstorm_mask"),
+            ),
+            model_artifacts={},
+            artifacts={
+                "prate_surface": prate,
+                "thunderstorm_mask": thunderstorm,
+            },
+        )
+
+        self.assertEqual(required_icon_params(model, ("thunderstorm_mask",)), ("ww",))
+        self.assertEqual(required_previous_icon_params(model, ("thunderstorm_mask",)), ())
+        self.assertEqual(required_icon_params(model, ("prate_surface",)), ("tot_prec",))
+        self.assertEqual(required_previous_icon_params(model, ("prate_surface",)), ("tot_prec",))
 
     def test_icon_adapter_prepares_precip_type_component_current_and_previous_inputs(self) -> None:
         precip_type = artifact_spec("precip_type_surface", icon_precip_type_config())
@@ -413,6 +448,7 @@ class SourceAdapterTest(unittest.TestCase):
                     cycle="2026042800",
                     fhour="003",
                     source_uri_override=None,
+                    artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
                     store=make_store(),
                 )

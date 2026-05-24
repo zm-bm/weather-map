@@ -3,6 +3,7 @@
 Subcommands:
 - run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
+- list-models: print configured forecast model ids
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
 """
@@ -25,7 +26,7 @@ from .uris import (
 )
 
 
-def _runtime_parser() -> argparse.ArgumentParser:
+def _config_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument(
         "--pipeline-config-uri",
@@ -39,6 +40,11 @@ def _runtime_parser() -> argparse.ArgumentParser:
         default=os.environ.get("PIPELINE_CONFIG_OVERLAY_URI") or None,
         help="Optional local/dev pipeline config overlay URI.",
     )
+    return p
+
+
+def _runtime_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(add_help=False, parents=[_config_parser()])
     p.add_argument(
         "--artifact-root-uri",
         dest="artifact_root_uri",
@@ -60,6 +66,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="forecast_etl")
     sub = ap.add_subparsers(dest="cmd", required=True)
     runtime = _runtime_parser()
+    config = _config_parser()
 
     ap_run_hour = sub.add_parser(
         "run-hour",
@@ -77,6 +84,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip publish after processing this forecast hour",
     )
+    _add_artifact_filter_arg(ap_run_hour)
     ap_run_hour.set_defaults(_handler=_cmd_run_hour)
 
     ap_run_cycle = sub.add_parser(
@@ -96,6 +104,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip publish after processing all configured forecast hours",
     )
+    _add_artifact_filter_arg(ap_run_cycle)
     ap_run_cycle.set_defaults(_handler=_cmd_run_cycle)
 
     ap_list_fhours = sub.add_parser(
@@ -104,6 +113,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         parents=[runtime],
     )
     ap_list_fhours.set_defaults(_handler=_cmd_list_forecast_hours)
+
+    ap_list_models = sub.add_parser(
+        "list-models",
+        help="Print configured forecast model ids",
+        parents=[config],
+    )
+    ap_list_models.set_defaults(_handler=_cmd_list_models)
 
     ap_smoke = sub.add_parser("smoke", help="Print a trivial health-check message and exit")
     ap_smoke.set_defaults(_handler=_cmd_smoke)
@@ -135,6 +151,35 @@ def _require_model_id(args: argparse.Namespace) -> str:
     return _require_str(args.model, env_name="MODEL", cli_flag="--model")
 
 
+def _add_artifact_filter_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--artifact",
+        dest="artifacts",
+        action="append",
+        default=None,
+        help="Artifact id to process; repeat to process multiple artifacts.",
+    )
+
+
+def _resolve_artifact_ids(model, selected: list[str] | None) -> tuple[str, ...]:
+    workload_artifacts = tuple(model.workload.artifacts or ())
+    if not selected:
+        return workload_artifacts
+
+    requested = {artifact_id.strip() for artifact_id in selected if artifact_id.strip()}
+    if not requested:
+        raise SystemExit("--artifact requires at least one non-empty artifact id")
+
+    unknown = sorted(requested - set(workload_artifacts))
+    if unknown:
+        raise SystemExit(
+            f"Unknown artifact id(s) for model {model.id!r}: {unknown!r}; "
+            f"configured artifacts: {list(workload_artifacts)!r}"
+        )
+
+    return tuple(artifact_id for artifact_id in workload_artifacts if artifact_id in requested)
+
+
 def _cmd_run_hour(args: argparse.Namespace) -> int:
     """Run one hour and publish by default."""
     store = make_store()
@@ -157,6 +202,7 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         cycle=cycle,
         fhour=fhour,
         source_uri=source_uri,
+        artifact_ids=_resolve_artifact_ids(model, args.artifacts),
         publish=not args.no_publish,
         pipeline_config=cfg,
         store=store,
@@ -177,6 +223,7 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
         model=model,
         ctx=ctx,
         cycle=cycle,
+        artifact_ids=_resolve_artifact_ids(model, args.artifacts),
         procs=args.procs,
         publish=not args.no_publish,
         pipeline_config=cfg,
@@ -191,6 +238,14 @@ def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
     model = cfg.model(_require_model_id(args))
     for fhour in model.workload.forecast_hours:
         print(fhour)
+    return 0
+
+
+def _cmd_list_models(args: argparse.Namespace) -> int:
+    """Print one configured forecast model id per line."""
+    cfg = _load_cfg(args, store=make_store())
+    for model_id in cfg.models:
+        print(model_id)
     return 0
 
 

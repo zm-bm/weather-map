@@ -6,6 +6,7 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import Iterable
 
 from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..derivations import ICON_PARAM_MATCH_KEY, previous_icon_param_key
@@ -143,6 +144,7 @@ def _acquire_icon_dwd_source(
     cycle: str,
     fhour: str,
     source_uri_override: str | None,
+    artifact_ids: Iterable[str],
     run: RunFn | None = None,
 ) -> PreparedSource:
     """Acquire the prepared GRIB collection for one ICON cycle/hour."""
@@ -154,7 +156,8 @@ def _acquire_icon_dwd_source(
 
     grib_paths: dict[str, Path] = {}
     rate_limit_seconds = model.source.icon_dwd.rate_limit_seconds
-    for icon_param in required_icon_params(model):
+    resolved_artifact_ids = tuple(artifact_ids)
+    for icon_param in required_icon_params(model, resolved_artifact_ids):
         grib_path, downloaded = _prepare_icon_param(
             model=model,
             cycle=cycle,
@@ -168,7 +171,7 @@ def _acquire_icon_dwd_source(
 
     previous_fhour = previous_icon_fhour(fhour)
     if previous_fhour is not None:
-        for icon_param in required_previous_icon_params(model):
+        for icon_param in required_previous_icon_params(model, resolved_artifact_ids):
             grib_path, downloaded = _prepare_icon_param(
                 model=model,
                 cycle=cycle,
@@ -194,6 +197,7 @@ def acquire_prepared_source(
     cycle: str,
     fhour: str,
     source_uri_override: str | None,
+    artifact_ids: Iterable[str],
     workdir: Path,
     store: UriStore,
     run: RunFn | None = None,
@@ -207,6 +211,7 @@ def acquire_prepared_source(
             cycle=cycle,
             fhour=fhour,
             source_uri_override=source_uri_override,
+            artifact_ids=artifact_ids,
             run=run,
         )
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import partial
 from multiprocessing import Pool
 from traceback import format_exc
+from typing import Iterable
 
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig, PipelineConfig
@@ -36,6 +37,7 @@ def run_cycle(
     model: ModelConfig,
     ctx: ExecutionContext,
     cycle: str,
+    artifact_ids: Iterable[str] | None = None,
     procs: int | None = None,
     publish: bool,
     pipeline_config: PipelineConfig | None = None,
@@ -44,7 +46,7 @@ def run_cycle(
 ) -> None:
     """Process every configured forecast hour and optionally publish once."""
 
-    tasks = build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle)
+    tasks = build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle, artifact_ids=artifact_ids)
     process_count = int(procs) if procs is not None else default_run_cycle_procs(model)
     if process_count != 1 and run is not None:
         raise SystemExit("Injected command runner for run-cycle requires --procs 1")
@@ -95,16 +97,22 @@ def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunF
         ) from None
 
 
-def build_run_cycle_tasks(*, model: ModelConfig, ctx: ExecutionContext, cycle: str) -> list[HourTask]:
+def build_run_cycle_tasks(
+    *,
+    model: ModelConfig,
+    ctx: ExecutionContext,
+    cycle: str,
+    artifact_ids: Iterable[str] | None = None,
+) -> list[HourTask]:
     """Build pickle-friendly per-hour tasks for local multiprocessing."""
 
     parse_cycle(cycle)
     fhours = model.workload.forecast_hours
-    artifact_ids = tuple(model.workload.artifacts or ())
+    resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts or ())
     tasks: list[HourTask] = []
 
     for fhour in fhours:
-        tasks.append((ctx, model, model.artifacts, artifact_ids, cycle, fhour, None))
+        tasks.append((ctx, model, model.artifacts, resolved_artifact_ids, cycle, fhour, None))
 
     return tasks
 

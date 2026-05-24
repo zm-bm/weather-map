@@ -4,17 +4,20 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--procs <n>] [--rebuild] [--dry-run]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
 
 Description:
 	Refreshes local forecast artifacts by running the same ETL worker container
 	used by production Batch. The script runs one local container per configured
-	forecast hour and publishes manifests directly into artifacts/.
+	forecast hour and publishes manifests directly into artifacts/. When --model
+	is omitted, every configured model is refreshed sequentially.
 
 Options:
 	--cycle <cycle>  Forecast cycle string (example: 2026021600)
-	--model <model>  Forecast model id (default: gfs)
+	--model <model>  Forecast model id (default: all configured models)
+	--artifact <id>  Artifact id to process; repeat to process multiple artifacts
 	--procs <n>  Maximum concurrent local worker containers (default: 1)
+	--no-publish  Skip manifest publishing in worker containers
 	--rebuild  Force a local worker image rebuild before resolving forecast hours
 	--dry-run  Prepare the worker image, resolve hours inside it, and print run-hour commands
 	-h, --help  Show this help and exit
@@ -44,12 +47,15 @@ print_command() {
 }
 
 CYCLE=""
-MODEL="gfs"
+SELECTED_MODEL=""
+SELECTED_ARTIFACTS=()
 PROCS="1"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE_REBUILD="false"
+NO_PUBLISH="false"
 LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-forecast-etl:local}"
 ETL_WORKER_STAGGER_SECONDS="${ETL_WORKER_STAGGER_SECONDS:-5}"
+artifact=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -69,12 +75,23 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--model)
 			require_value "$1" "${2:-}"
-			MODEL="$2"
+			SELECTED_MODEL="$2"
 			shift 2
 			;;
 		--model=*)
-			MODEL="${1#*=}"
-			require_value "--model" "$MODEL"
+			SELECTED_MODEL="${1#*=}"
+			require_value "--model" "$SELECTED_MODEL"
+			shift
+			;;
+		--artifact)
+			require_value "$1" "${2:-}"
+			SELECTED_ARTIFACTS+=("$2")
+			shift 2
+			;;
+		--artifact=*)
+			artifact="${1#*=}"
+			require_value "--artifact" "$artifact"
+			SELECTED_ARTIFACTS+=("$artifact")
 			shift
 			;;
 		--procs)
@@ -89,6 +106,10 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--dry-run)
 			DRY_RUN="true"
+			shift
+			;;
+		--no-publish)
+			NO_PUBLISH="true"
 			shift
 			;;
 		--rebuild)
@@ -156,9 +177,16 @@ require_docker() {
 	fi
 }
 
+list_model_ids_with_worker() {
+	docker run --rm "$LOCAL_ETL_IMAGE" list-models \
+		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
+}
+
 resolve_forecast_hours_with_worker() {
+	local model="$1"
+
 	docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
-		--model "$MODEL" \
+		--model "$model" \
 		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
 }
 
@@ -225,7 +253,9 @@ prepare_worker_image() {
 }
 
 worker_cmd_for_hour() {
-	local fhour="$1"
+	local model="$1"
+	local fhour="$2"
+	local artifact
 	local cmd=(
 		docker run --rm
 		--network host
@@ -235,7 +265,7 @@ worker_cmd_for_hour() {
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
 		--env "PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json"
 		--env "PYTHONDONTWRITEBYTECODE=1"
-		--env "MODEL=$MODEL"
+		--env "MODEL=$model"
 		--env "CYCLE=$CYCLE"
 		--env "FHOUR=$fhour"
 	)
@@ -252,23 +282,30 @@ worker_cmd_for_hour() {
 	done
 
 	cmd+=("$LOCAL_ETL_IMAGE" run-hour)
+	if [[ "$NO_PUBLISH" == "true" ]]; then
+		cmd+=(--no-publish)
+	fi
+	for artifact in "${SELECTED_ARTIFACTS[@]}"; do
+		cmd+=(--artifact "$artifact")
+	done
 	printf '%s\0' "${cmd[@]}"
 }
 
 run_worker_hour() {
-	local fhour="$1"
+	local model="$1"
+	local fhour="$2"
 	local cmd=()
 	local log_path=""
 	local status
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
-	done < <(worker_cmd_for_hour "$fhour")
+	done < <(worker_cmd_for_hour "$model" "$fhour")
 
-	echo "Running local worker container: model=$MODEL cycle=$CYCLE fhour=$fhour"
+	echo "Running local worker container: model=$model cycle=$CYCLE fhour=$fhour"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
-		log_path="$RUN_LOG_DIR/worker-${MODEL}-${CYCLE}-${fhour}.log"
+		log_path="$RUN_LOG_DIR/worker-${model}-${CYCLE}-${fhour}.log"
 		: > "$log_path"
 		if "${cmd[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2); then
 			return 0
@@ -285,6 +322,7 @@ run_worker_hour() {
 }
 
 print_worker_failure_summary() {
+	local model="$1"
 	local failure_file
 	local failure_files=()
 	local fhour=""
@@ -316,7 +354,7 @@ print_worker_failure_summary() {
 			esac
 		done < "$failure_file"
 
-		echo "- model=$MODEL cycle=$CYCLE fhour=$fhour exit=$exit_status" >&2
+		echo "- model=$model cycle=$CYCLE fhour=$fhour exit=$exit_status" >&2
 		echo "  log: $log_path" >&2
 		if [[ -f "$log_path" ]]; then
 			echo "  tail:" >&2
@@ -325,83 +363,128 @@ print_worker_failure_summary() {
 	done
 }
 
-require_docker
+run_forecast_hours() {
+	local model="$1"
+	shift
+	local FORECAST_HOURS=("$@")
+	local FHOUR
+	local FAILURES
+	local ACTIVE_JOBS
+	local STARTED_JOBS
 
-echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
-prepare_worker_image
-mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker)
+	if [[ "$DRY_RUN" == "true" ]]; then
+		for FHOUR in "${FORECAST_HOURS[@]}"; do
+			run_worker_hour "$model" "$FHOUR"
+		done
+	elif [[ "$PROCS" -eq 1 ]]; then
+		FAILURES=0
+		for FHOUR in "${FORECAST_HOURS[@]}"; do
+			if ! run_worker_hour "$model" "$FHOUR"; then
+				FAILURES=1
+				break
+			fi
+		done
 
-if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
-	echo "No forecast hours resolved from config." >&2
-	exit 1
-fi
-
-echo "Running local containerized pipeline"
-echo "  model:          $MODEL"
-echo "  cycle:          $CYCLE"
-echo "  image:          $LOCAL_ETL_IMAGE"
-echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
-echo "  procs:          $PROCS"
-echo "  start_stagger:  ${ETL_WORKER_STAGGER_SECONDS}s"
-echo "  artifacts:      $ARTIFACTS_DIR"
-echo "  cache:          $CACHE_DIR"
-echo "  dry_run:        $DRY_RUN"
-
-if [[ "$DRY_RUN" != "true" ]]; then
-	RUN_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weather-map-run-cycle-${MODEL}-${CYCLE}.XXXXXX")"
-	FAILURE_DIR="$RUN_LOG_DIR/failures"
-	mkdir -p "$FAILURE_DIR"
-	echo "  worker_logs:    $RUN_LOG_DIR"
-fi
-
-if [[ "$DRY_RUN" == "true" ]]; then
-	for FHOUR in "${FORECAST_HOURS[@]}"; do
-		run_worker_hour "$FHOUR"
-	done
-elif [[ "$PROCS" -eq 1 ]]; then
-	FAILURES=0
-	for FHOUR in "${FORECAST_HOURS[@]}"; do
-		if ! run_worker_hour "$FHOUR"; then
-			FAILURES=1
-			break
+		if [[ "$FAILURES" -ne 0 ]]; then
+			print_worker_failure_summary "$model"
+			return 1
 		fi
-	done
+	else
+		ACTIVE_JOBS=0
+		FAILURES=0
+		STARTED_JOBS=0
+		for FHOUR in "${FORECAST_HOURS[@]}"; do
+			if [[ "$STARTED_JOBS" -gt 0 && "$ETL_WORKER_STAGGER_SECONDS" != "0" ]]; then
+				sleep "$ETL_WORKER_STAGGER_SECONDS"
+			fi
+			run_worker_hour "$model" "$FHOUR" &
+			STARTED_JOBS=$((STARTED_JOBS + 1))
+			ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
+			if [[ "$ACTIVE_JOBS" -ge "$PROCS" ]]; then
+				if ! wait -n; then
+					FAILURES=1
+				fi
+				ACTIVE_JOBS=$((ACTIVE_JOBS - 1))
+			fi
+		done
 
-	if [[ "$FAILURES" -ne 0 ]]; then
-		print_worker_failure_summary
-		exit 1
-	fi
-else
-	ACTIVE_JOBS=0
-	FAILURES=0
-	STARTED_JOBS=0
-	for FHOUR in "${FORECAST_HOURS[@]}"; do
-		if [[ "$STARTED_JOBS" -gt 0 && "$ETL_WORKER_STAGGER_SECONDS" != "0" ]]; then
-			sleep "$ETL_WORKER_STAGGER_SECONDS"
-		fi
-		run_worker_hour "$FHOUR" &
-		STARTED_JOBS=$((STARTED_JOBS + 1))
-		ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
-		if [[ "$ACTIVE_JOBS" -ge "$PROCS" ]]; then
+		while [[ "$ACTIVE_JOBS" -gt 0 ]]; do
 			if ! wait -n; then
 				FAILURES=1
 			fi
 			ACTIVE_JOBS=$((ACTIVE_JOBS - 1))
-		fi
-	done
+		done
 
-	while [[ "$ACTIVE_JOBS" -gt 0 ]]; do
-		if ! wait -n; then
-			FAILURES=1
+		if [[ "$FAILURES" -ne 0 ]]; then
+			print_worker_failure_summary "$model"
+			return 1
 		fi
-		ACTIVE_JOBS=$((ACTIVE_JOBS - 1))
-	done
+	fi
+}
 
-	if [[ "$FAILURES" -ne 0 ]]; then
-		print_worker_failure_summary
+run_model_cycle() {
+	local model="$1"
+	local FORECAST_HOURS=()
+
+	RUN_LOG_DIR=""
+	FAILURE_DIR=""
+
+	mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker "$model")
+
+	if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
+		echo "No forecast hours resolved from config for model=$model." >&2
 		exit 1
 	fi
+
+	echo "Running local containerized pipeline"
+	echo "  model:          $model"
+	echo "  cycle:          $CYCLE"
+	echo "  image:          $LOCAL_ETL_IMAGE"
+	echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
+	if [[ "${#SELECTED_ARTIFACTS[@]}" -gt 0 ]]; then
+		echo "  selected_artifacts: ${SELECTED_ARTIFACTS[*]}"
+	fi
+	echo "  procs:          $PROCS"
+	echo "  start_stagger:  ${ETL_WORKER_STAGGER_SECONDS}s"
+	echo "  artifacts:      $ARTIFACTS_DIR"
+	echo "  cache:          $CACHE_DIR"
+	echo "  dry_run:        $DRY_RUN"
+	echo "  no_publish:     $NO_PUBLISH"
+
+	if [[ "$DRY_RUN" != "true" ]]; then
+		RUN_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weather-map-run-cycle-${model}-${CYCLE}.XXXXXX")"
+		FAILURE_DIR="$RUN_LOG_DIR/failures"
+		mkdir -p "$FAILURE_DIR"
+		echo "  worker_logs:    $RUN_LOG_DIR"
+	fi
+
+	run_forecast_hours "$model" "${FORECAST_HOURS[@]}" || exit 1
+}
+
+require_docker
+
+echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
+prepare_worker_image
+
+MODEL_IDS=()
+if [[ -n "$SELECTED_MODEL" ]]; then
+	MODEL_IDS=("$SELECTED_MODEL")
+else
+	mapfile -t MODEL_IDS < <(list_model_ids_with_worker)
 fi
+
+if [[ "${#MODEL_IDS[@]}" -eq 0 ]]; then
+	echo "No models resolved from config." >&2
+	exit 1
+fi
+
+if [[ -z "$SELECTED_MODEL" ]]; then
+	echo "models: ${MODEL_IDS[*]}"
+fi
+
+for MODEL_ID in "${MODEL_IDS[@]}"; do
+	run_model_cycle "$MODEL_ID"
+done
 
 if [[ "$DRY_RUN" == "true" ]]; then
 	echo "Dry run complete."

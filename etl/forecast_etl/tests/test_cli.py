@@ -27,6 +27,7 @@ class _FakePipelineConfig:
         *,
         forecast_hours: tuple[str, ...] = ("000", "003"),
         artifacts: tuple[str, ...] = ("tmp_surface",),
+        model_ids: tuple[str, ...] = ("gfs",),
         rate_limit_seconds: float = 0.0,
     ) -> None:
         self.workload = _FakeWorkload(forecast_hours=forecast_hours, artifacts=artifacts)
@@ -45,11 +46,13 @@ class _FakePipelineConfig:
         }
         self.id = "gfs"
         self.label = "GFS"
+        self.models = {model_id: self for model_id in model_ids}
 
     def model(self, model_id: str) -> "_FakePipelineConfig":
-        if model_id != "gfs":
+        model = self.models.get(model_id)
+        if model is None:
             raise SystemExit(f"Unknown model {model_id!r}")
-        return self
+        return model
 
 
 class _FakePool:
@@ -123,6 +126,31 @@ class CliTest(unittest.TestCase):
             {"tmp_surface": {"kind": "scalar"}},
         )
         run_publish.assert_called_once()
+
+    def test_run_hour_filters_selected_artifacts(self) -> None:
+        fake_cfg = _FakePipelineConfig(artifacts=("tmp_surface", "rh_surface"))
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.publish_cycle.run_publish"),
+        ):
+            result = cli.main(
+                [
+                    "run-hour",
+                    "--model",
+                    "gfs",
+                    "--cycle",
+                    "2026021300",
+                    "--fhour",
+                    "003",
+                    "--artifact",
+                    "rh_surface",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(run_process_hour.call_args.kwargs["artifact_ids"], ("rh_surface",))
 
     def test_run_hour_no_publish_skips_publish(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("003",))
@@ -198,6 +226,62 @@ class CliTest(unittest.TestCase):
         for call in run_process_hour.call_args_list:
             self.assertEqual(call.kwargs["artifact_ids"], ("tmp_surface",))
         run_publish.assert_called_once()
+
+    def test_run_cycle_filters_selected_artifacts_in_workload_order(self) -> None:
+        fake_cfg = _FakePipelineConfig(
+            forecast_hours=("000", "003"),
+            artifacts=("tmp_surface", "rh_surface", "wind10m_uv"),
+            rate_limit_seconds=0.0,
+        )
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
+            patch("forecast_etl.commands.publish_cycle.run_publish"),
+            patch("forecast_etl.commands.run_cycle.Pool", _FakePool),
+        ):
+            result = cli.main(
+                [
+                    "run-cycle",
+                    "--model",
+                    "gfs",
+                    "--cycle",
+                    "2026021300",
+                    "--artifact",
+                    "wind10m_uv",
+                    "--artifact",
+                    "tmp_surface",
+                    "--artifact",
+                    "tmp_surface",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        for call in run_process_hour.call_args_list:
+            self.assertEqual(call.kwargs["artifact_ids"], ("tmp_surface", "wind10m_uv"))
+
+    def test_run_cycle_rejects_unknown_artifact_before_processing(self) -> None:
+        fake_cfg = _FakePipelineConfig(artifacts=("tmp_surface",))
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                cli.main(
+                    [
+                        "run-cycle",
+                        "--model",
+                        "gfs",
+                        "--cycle",
+                        "2026021300",
+                        "--artifact",
+                        "not_configured",
+                    ]
+                )
+
+        self.assertIn("Unknown artifact id(s) for model 'gfs'", str(raised.exception))
+        run_process_hour.assert_not_called()
 
     def test_run_cycle_no_publish_skips_publish(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
@@ -307,6 +391,41 @@ class CliTest(unittest.TestCase):
                 cli.main(["list-forecast-hours", "--model", "icon"])
 
         self.assertIn("Unknown model 'icon'", str(raised.exception))
+
+    def test_list_models_prints_configured_models(self) -> None:
+        fake_cfg = _FakePipelineConfig(model_ids=("gfs", "icon"))
+        out = io.StringIO()
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            redirect_stdout(out),
+        ):
+            result = cli.main(["list-models"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(out.getvalue(), "gfs\nicon\n")
+
+    def test_list_models_passes_pipeline_config_overlay_uri_to_loader(self) -> None:
+        fake_cfg = _FakePipelineConfig(model_ids=("gfs",))
+        out = io.StringIO()
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
+            redirect_stdout(out),
+        ):
+            result = cli.main(
+                [
+                    "list-models",
+                    "--pipeline-config-uri",
+                    "file:///tmp/base.json",
+                    "--pipeline-config-overlay-uri",
+                    "file:///tmp/local.json",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(load_pipeline_config.call_args.args, ("file:///tmp/base.json",))
+        self.assertEqual(load_pipeline_config.call_args.kwargs["overlay_uri"], "file:///tmp/local.json")
 
 
 if __name__ == "__main__":
