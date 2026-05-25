@@ -32,9 +32,11 @@ import {
 import {
   captureCameraState,
   computeViewportState,
+  expandViewportBounds,
   hasCameraChanged,
   toCellCenterOrigin,
   type CameraState,
+  type ViewportBounds,
   type ViewportState,
 } from './geo'
 
@@ -215,7 +217,7 @@ export function createParticleRuntime(
       // Allocate ping-pong state buffers with seeded particles.
       const initial = buildInitialParticleState(
         state.particleCount,
-        state.viewport,
+        expandViewportBounds(state.viewport, settings.simulationViewportPaddingRatio),
         settings.maxAgeSec,
       )
       state.stateBufferInfos = [
@@ -420,7 +422,7 @@ function applyVectorFieldToState(
   state.frameSignature = nextFrameSignature
   if (options.reseedOnFrameChange && didFramePairChange) {
     // Optional continuity break on frame change.
-    reseedParticles(state, options.maxAgeSec)
+    reseedParticles(state, options)
     state.activeSourceIndex = 0
     state.activeTrailSourceIndex = 0
     clearTrailTextures(state)
@@ -469,7 +471,7 @@ function rebuildParticleStateBuffers(
 
   const initial = buildInitialParticleState(
     particleCount,
-    state.viewport,
+    expandViewportBounds(state.viewport, options.simulationViewportPaddingRatio),
     options.maxAgeSec,
   )
   const nextBuffer0 = createStateBufferInfo(gl, initial)
@@ -559,6 +561,7 @@ function runUpdatePass(
 
   const zoom = map?.getZoom() ?? options.flowRefZoom
   const forcedRespawnFrac = clamp(state.pendingForcedRespawnFrac, 0, 1)
+  const simulationBounds = expandViewportBounds(viewport, options.simulationViewportPaddingRatio)
   gl.useProgram(updateProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, updateProgramInfo, srcBufferInfo)
   // Simulation uniforms: field sampling, advection, age, and viewport bounds.
@@ -579,10 +582,11 @@ function runUpdatePass(
     u_speed_respawn_per_mps: options.respawnSpeedPerMps,
     u_forced_respawn_frac: forcedRespawnFrac,
     u_motion_jitter_ratio: options.jitterRatio,
-    u_bounds_west: viewport.west,
-    u_bounds_east: viewport.east,
-    u_bounds_south: viewport.south,
-    u_bounds_north: viewport.north,
+    u_motion_speed_floor_mps: options.motionSpeedFloorMps,
+    u_bounds_west: simulationBounds?.west ?? viewport.west,
+    u_bounds_east: simulationBounds?.east ?? viewport.east,
+    u_bounds_south: simulationBounds?.south ?? viewport.south,
+    u_bounds_north: simulationBounds?.north ?? viewport.north,
     u_vector_tex_lower: vectorTextureLower,
     u_vector_tex_upper: vectorTextureUpper,
   })
@@ -915,7 +919,7 @@ function updateZoomOutRespawnState(state: ParticleState, options: ParticleRender
   }
 }
 
-function reseedParticles(state: ParticleState, maxAgeSec: number) {
+function reseedParticles(state: ParticleState, options: ParticleRenderSettings) {
   const { gl, viewport, stateBufferInfos, particleCount } = state
   if (!gl || !viewport || !stateBufferInfos[0] || !stateBufferInfos[1]) return
 
@@ -924,7 +928,11 @@ function reseedParticles(state: ParticleState, maxAgeSec: number) {
   if (!stateBuffer0 || !stateBuffer1) return
 
   // Reset both ping-pong buffers to the same seed state.
-  const seeded = buildInitialParticleState(particleCount, viewport, maxAgeSec)
+  const seeded = buildInitialParticleState(
+    particleCount,
+    expandViewportBounds(viewport, options.simulationViewportPaddingRatio),
+    options.maxAgeSec,
+  )
   gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer0)
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, seeded)
   gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer1)
@@ -934,7 +942,7 @@ function reseedParticles(state: ParticleState, maxAgeSec: number) {
 
 function buildInitialParticleState(
   count: number,
-  viewport: ViewportState | null,
+  viewport: ViewportBounds | null,
   maxAgeSec: number,
 ): Float32Array {
   const out = new Float32Array(count * 3)

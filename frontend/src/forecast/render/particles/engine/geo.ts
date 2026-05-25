@@ -5,7 +5,7 @@ import {
   latToMercatorY,
   lonToMercatorX,
 } from '@/core/geo'
-import { roughlyEqual } from '@/core/math'
+import { clamp, roughlyEqual } from '@/core/math'
 
 export type ViewportState = {
   west: number
@@ -18,6 +18,8 @@ export type ViewportState = {
   mercatorNorthY: number
   mercatorSouthY: number
 }
+
+export type ViewportBounds = Pick<ViewportState, 'west' | 'east' | 'south' | 'north'>
 
 export type CameraState = {
   centerLng: number
@@ -83,6 +85,23 @@ export function hasCameraChanged(previous: CameraState, next: CameraState) {
     previous.width !== next.width ||
     previous.height !== next.height
   )
+}
+
+export function expandViewportBounds(
+  viewport: ViewportBounds | null,
+  paddingRatio: number,
+): ViewportBounds | null {
+  if (!viewport) return null
+  const ratio = Number.isFinite(paddingRatio) ? clamp(paddingRatio, 0, 1) : 0
+  const lonPadding = Math.max(0, viewport.east - viewport.west) * ratio
+  const latPadding = Math.max(0, viewport.north - viewport.south) * ratio
+
+  return {
+    west: viewport.west - lonPadding,
+    east: viewport.east + lonPadding,
+    south: clampWebMercatorLat(viewport.south - latPadding),
+    north: clampWebMercatorLat(viewport.north + latPadding),
+  }
 }
 
 export function toCellCenterOrigin(lon0: number, lat0: number, dx: number, dy: number) {

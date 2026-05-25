@@ -21,6 +21,7 @@ uniform float u_base_respawn_per_sec;
 uniform float u_speed_respawn_per_mps;
 uniform float u_forced_respawn_frac;
 uniform float u_motion_jitter_ratio;
+uniform float u_motion_speed_floor_mps;
 uniform float u_bounds_west;
 uniform float u_bounds_east;
 uniform float u_bounds_south;
@@ -34,9 +35,21 @@ float decode_i8(float encoded) {
   return raw > 127.0 ? raw - 256.0 : raw;
 }
 
-// Small deterministic hash used for respawn jitter.
-float rand(float value) {
-  return fract(sin(value) * 43758.5453123);
+uint hash_u32(uint value) {
+  value ^= value >> 16;
+  value *= 0x7feb352du;
+  value ^= value >> 15;
+  value *= 0x846ca68bu;
+  value ^= value >> 16;
+  return value;
+}
+
+// Stable per-frame RNG. Avoid sin-based float hashes here; some GPUs produce
+// biased low rolls for repeated large particle IDs.
+float rand01(uint id, uint salt) {
+  uint frame = uint(floor(max(u_seed, 0.0) * 1000.0));
+  uint hashed = hash_u32(id ^ (frame * 0x9e3779b9u) ^ salt);
+  return float(hashed & 0x00ffffffu) * (1.0 / 16777216.0);
 }
 
 // Keep longitudes in [-180, 180).
@@ -64,16 +77,15 @@ bool in_bounds(float lon, float lat) {
          lat >= u_bounds_south && lat <= u_bounds_north;
 }
 
-// Respawn inside viewport with randomized age so lifecycle is staggered.
-vec3 respawn(float id) {
-  float r1 = rand(id * 12.9898 + u_seed * 0.121);
-  float r2 = rand(id * 78.233 + u_seed * 0.173);
-  float r3 = rand(id * 37.719 + u_seed * 0.411);
+// Respawn inside viewport. Initial CPU seeding staggers ages; runtime respawns
+// restart at zero so a newly respawned particle cannot immediately expire.
+vec3 respawn(uint id) {
+  float r1 = rand01(id, 0x68bc21ebu);
+  float r2 = rand01(id, 0x02e5be93u);
   float lon = mix(u_bounds_west, u_bounds_east, r1);
   if (lon > 180.0) lon -= 360.0;
   float lat = mix(u_bounds_south, u_bounds_north, r2);
-  float age = r3 * u_max_age_sec;
-  return vec3(lon, lat, age);
+  return vec3(lon, lat, 0.0);
 }
 
 // Decode U/V components (stored as packed int8 in RG channels).
@@ -116,7 +128,7 @@ vec2 sample_vector_bilinear(sampler2D vectorTex, float lon, float lat) {
 }
 
 void main() {
-  float id = float(gl_VertexID);
+  uint id = uint(gl_VertexID);
   vec3 state = a_state;
   float time_mix = clamp(u_time_mix, 0.0, 1.0);
   vec2 vector_lower = sample_vector_bilinear(u_vector_tex_lower, state.x, state.y);
@@ -132,7 +144,7 @@ void main() {
   }
 
   // One-shot zoom-out recovery: quickly repopulate newly visible area.
-  float forced_respawn_roll = rand(id * 5.381 + u_seed * 2.771);
+  float forced_respawn_roll = rand01(id, 0x9e08f4a9u);
   if (forced_respawn_roll < clamp(u_forced_respawn_frac, 0.0, 1.0)) {
     v_state = respawn(id);
     gl_Position = vec4(0.0);
@@ -141,8 +153,8 @@ void main() {
 
   // Stochastic turnover: faster flow increases respawn probability.
   float respawn_per_sec = u_base_respawn_per_sec + speed_mps * u_speed_respawn_per_mps;
-  float respawn_prob = clamp(respawn_per_sec * u_dt_sec, 0.0, 1.0);
-  float respawn_roll = rand(id * 19.31 + age * 0.47 + u_seed * 1.91);
+  float respawn_prob = clamp(1.0 - exp(-max(0.0, respawn_per_sec) * max(0.0, u_dt_sec)), 0.0, 1.0);
+  float respawn_roll = rand01(id, 0x3c6ef35fu);
   if (respawn_roll < respawn_prob) {
     v_state = respawn(id);
     gl_Position = vec4(0.0);
@@ -153,8 +165,12 @@ void main() {
   float cos_lat = max(0.15, abs(cos(radians(state.y))));
   vec2 flow_dir = speed_mps > 1e-5 ? (vector_mps / speed_mps) : vec2(1.0, 0.0);
   vec2 flow_normal = vec2(-flow_dir.y, flow_dir.x);
-  float jitter_sign = rand(id * 11.73 + age * 0.19 + u_seed * 0.73) * 2.0 - 1.0;
-  vec2 vector_step = vector_mps + flow_normal * (speed_mps * u_motion_jitter_ratio * jitter_sign);
+  float jitter_sign = rand01(id, 0xa54ff53au) * 2.0 - 1.0;
+  float motion_speed_mps = speed_mps > 0.25
+    ? max(speed_mps, max(0.0, u_motion_speed_floor_mps))
+    : 0.0;
+  vec2 motion_vector_mps = flow_dir * motion_speed_mps;
+  vec2 vector_step = motion_vector_mps + flow_normal * (motion_speed_mps * u_motion_jitter_ratio * jitter_sign);
 
   float speed = u_speed_multiplier * u_zoom_scale;
   float delta_lat = vector_step.y * u_dt_sec * u_deg_per_meter * speed;

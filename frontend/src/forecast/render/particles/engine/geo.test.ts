@@ -3,6 +3,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   computeViewportState,
+  expandViewportBounds,
   hasCameraChanged,
   toCellCenterOrigin,
   type CameraState,
@@ -32,6 +33,32 @@ describe('particle geo helpers', () => {
       lon0: 0.25,
       lat0: -0.25,
     })
+  })
+
+  it('expands particle simulation bounds by a viewport-relative padding ratio', () => {
+    expect(expandViewportBounds({
+      west: -100,
+      east: -80,
+      south: 30,
+      north: 40,
+    }, 0.15)).toEqual({
+      west: -103,
+      east: -77,
+      south: 28.5,
+      north: 41.5,
+    })
+  })
+
+  it('clamps particle simulation latitude padding to the WebMercator domain', () => {
+    const expanded = expandViewportBounds({
+      west: -180,
+      east: 180,
+      south: -84,
+      north: 84,
+    }, 0.5)
+
+    expect(expanded?.south).toBeCloseTo(-85.05112878)
+    expect(expanded?.north).toBeCloseTo(85.05112878)
   })
 
   it('detects meaningful camera changes', () => {
