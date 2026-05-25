@@ -50,21 +50,21 @@ export const DEFAULT_PARTICLE_RENDER_SETTINGS: Readonly<ParticleRenderSettings> 
   // Reseed all particles whenever new particle data is applied.
   reseedOnFrameChange: false,
   // Number of simulated particles.
-  particleCount: 10000,
+  particleCount: 7000,
   // Maximum particle lifetime before forced respawn.
-  maxAgeSec: 10,
+  maxAgeSec: 6,
   // Baseline random respawn chance per second.
-  respawnBasePerSec: 0.1,
+  respawnBasePerSec: 0.05,
   // Extra respawn chance per m/s of local flow speed.
-  respawnSpeedPerMps: 0.025,
+  respawnSpeedPerMps: 0.0002,
   // Perpendicular stochastic wobble as a fraction of local speed.
-  jitterRatio: 0.2,
+  jitterRatio: 0.02,
   // Minimum visual advection speed for non-calm flow.
-  motionSpeedFloorMps: 5,
+  motionSpeedFloorMps: 4,
   // Fractional viewport padding used for particle spawn/cull bounds.
   simulationViewportPaddingRatio: 0.05,
   // World-space advection scaling.
-  flowSpeedScale: 6400,
+  flowSpeedScale: 6200,
   // Reference zoom used to normalize flowSpeedScale.
   flowRefZoom: 5,
   // Fraction of particles to forcibly respawn after a zoom-out gesture.
@@ -73,37 +73,37 @@ export const DEFAULT_PARTICLE_RENDER_SETTINGS: Readonly<ParticleRenderSettings> 
   zoomOutRespawnMinDelta: 0.05,
 
   // Point size used for each dash draw call.
-  pointSizePx: 20,
+  pointSizePx: 32,
   // Minimum dash length in pixels.
-  dashMinPx: 8,
+  dashMinPx: 9,
   // Maximum dash length in pixels.
-  dashMaxPx: 12,
+  dashMaxPx: 17,
   // Additional dash length per m/s.
-  dashPerMps: 0.05,
+  dashPerMps: 0.11,
   // Core (foreground) dash stroke width.
-  coreWidthPx: 1.0,
+  coreWidthPx: 0.95,
   // Shadow (understroke) dash width.
-  shadowWidthPx: 2.0,
+  shadowWidthPx: 1.5,
   // Forward sample step used to smooth direction.
   dirSampleStepSec: 0.1,
 
   // Non-linear mapping from normalized speed to ramp colors (1 = linear).
   speedRampGamma: 1.0,
   // Core color at low speed.
-  coreSlow: [0.86, 0.9, 0.94, 0.2],
+  coreSlow: [0.9, 0.94, 1.0, 0.24],
   // Core color at high speed.
-  coreFast: [0.98, 0.99, 1, 0.25],
+  coreFast: [1.0, 1.0, 1.0, 0.36],
   // Shadow color at low speed.
-  shadowSlow: [0.52, 0.56, 0.7, 0.1],
+  shadowSlow: [0.35, 0.42, 0.56, 0.04],
   // Shadow color at high speed.
-  shadowFast: [0.58, 0.6, 0.7, 0.2],
+  shadowFast: [0.42, 0.46, 0.58, 0.06],
 
   // Trail render target scale relative to drawing buffer size.
   trailScale: 0.99,
   // Multiplicative fade applied each frame to previous trail texture.
-  trailFade: 0.975,
+  trailFade: 0.996,
   // Quantize faded trails to reduce ghost pixels.
-  trailQuantize: true,
+  trailQuantize: false,
   // Opacity used when compositing trails back onto the map.
   trailCompositeOpacity: 1.0,
   // Clear trail history when camera/viewport changes.

@@ -7,10 +7,7 @@ function stop(value: number, color: PaletteColorStop['color']): PaletteColorStop
 }
 
 const TEMPERATURE_COLOR_STOPS = [
-  stop(fahrenheitToCelsius(-50), [203, 219, 244]),
-  stop(fahrenheitToCelsius(-45), [192, 212, 237]),
-  stop(fahrenheitToCelsius(-40), [184, 205, 234]),
-  stop(fahrenheitToCelsius(-35), [175, 198, 230]),
+  stop(-35, [169, 192, 228]),
   stop(fahrenheitToCelsius(-30), [167, 191, 227]),
   stop(fahrenheitToCelsius(-25), [156, 184, 223]),
   stop(fahrenheitToCelsius(-20), [147, 177, 215]),
@@ -41,7 +38,7 @@ const TEMPERATURE_COLOR_STOPS = [
   stop(fahrenheitToCelsius(105), [135, 32, 62]),
   stop(fahrenheitToCelsius(110), [110, 21, 49]),
   stop(fahrenheitToCelsius(115), [86, 12, 37]),
-  stop(fahrenheitToCelsius(120), [61, 2, 22]),
+  stop(50, [61, 2, 22]),
 ]
 
 function palette(
