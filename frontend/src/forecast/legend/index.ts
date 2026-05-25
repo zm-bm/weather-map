@@ -12,6 +12,7 @@ export const LEGEND_SCALES = [
   'pressure',
   'precip-rate',
   'precip-total',
+  'snow-depth',
   'stop-based',
 ] as const
 
@@ -47,7 +48,7 @@ type LegendTickSet = {
   minor: number[]
 }
 
-type NormalizedColorStop = [number, number, number, number]
+type NormalizedColorStop = [number, number, number, number, number]
 
 const TEMP_C_MAJOR_TICKS = [-40, -30, -20, -10, 0, 10, 20, 30, 40, 50]
 const TEMP_F_MAJOR_TICKS = [-40, -20, 0, 20, 40, 60, 80, 100, 120]
@@ -63,14 +64,30 @@ const MM_TOTAL_PRECIP_MAJOR_TICKS = [0, 10, 25, 50, 100, 150, 250]
 const MM_TOTAL_PRECIP_MINOR_TICKS = [5, 75, 125, 200]
 const IN_TOTAL_PRECIP_MAJOR_TICKS = [0, 0.5, 1, 2, 4, 6, 10]
 const IN_TOTAL_PRECIP_MINOR_TICKS = [0.25, 3, 8]
+const CM_SNOW_DEPTH_MAJOR_TICKS = [0, 2, 5, 10, 50, 100, 300]
+const CM_SNOW_DEPTH_MINOR_TICKS = [20, 200]
+const INCHES_PER_METER = 39.37007874015748
+const IN_SNOW_DEPTH_MAJOR_TICKS = [
+  0,
+  0.02 * INCHES_PER_METER,
+  0.05 * INCHES_PER_METER,
+  0.1 * INCHES_PER_METER,
+  0.5 * INCHES_PER_METER,
+  1 * INCHES_PER_METER,
+  3 * INCHES_PER_METER,
+]
+const IN_SNOW_DEPTH_MINOR_TICKS = [
+  0.2 * INCHES_PER_METER,
+  2 * INCHES_PER_METER,
+]
 
 function toLegendGradient(spec: LegendSpec): string {
   const range = spec.max - spec.min || 1
   const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
   const stops = orderedStops
-    .map(([value, r, g, b]) => {
+    .map(([value, r, g, b, a]) => {
       const pct = ((value - spec.min) / range) * 100
-      return `rgb(${r} ${g} ${b}) ${clamp(pct, 0, 100).toFixed(1)}%`
+      return `${legendColor(r, g, b, a)} ${clamp(pct, 0, 100).toFixed(1)}%`
     })
     .join(', ')
 
@@ -116,7 +133,7 @@ function areClose(a: number, b: number): boolean {
   return roughlyEqual(a, b, epsilon)
 }
 
-function getLinearizedRateTickPosition(value: number, majorTicks: number[], minorTicks: number[]): number {
+function getLinearizedTickPosition(value: number, majorTicks: number[], minorTicks: number[]): number {
   const orderedMajors = uniqueSorted(majorTicks)
   if (orderedMajors.length <= 1) return 0
 
@@ -236,6 +253,11 @@ function getHardCodedTicks(scale: LegendScale, optionId: string, min: number, ma
         major: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
         minor: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
       }
+    case 'snow-depth':
+      return {
+        major: filterCandidatesInRange(optionId === 'inches' ? IN_SNOW_DEPTH_MAJOR_TICKS : CM_SNOW_DEPTH_MAJOR_TICKS, min, max),
+        minor: filterCandidatesInRange(optionId === 'inches' ? IN_SNOW_DEPTH_MINOR_TICKS : CM_SNOW_DEPTH_MINOR_TICKS, min, max),
+      }
     case 'stop-based':
       return null
   }
@@ -267,15 +289,15 @@ export function getLegendTicks(spec: LegendSpec, option: LegendUnitOption): Lege
   const range = max - min || 1
   const ticks = getLegendTickValues(spec, option)
   const toLegendPosition = (value: number) => {
-    if (spec.legendScale === 'precip-rate') {
-      return getLinearizedRateTickPosition(value, ticks.major, ticks.minor)
+    if (spec.legendScale === 'precip-rate' || spec.legendScale === 'snow-depth') {
+      return getLinearizedTickPosition(value, ticks.major, ticks.minor)
     }
     return clamp(((value - min) / range) * 100, 0, 100)
   }
   const majorTicks = ticks.major.map((value) => ({
     value,
     positionPct: toLegendPosition(value),
-    label: formatLegendValue(value, option.id),
+    label: formatLegendValue(value, option.id, spec.legendScale),
     variant: 'major' as const,
   }))
   const minorTicks = ticks.minor.map((value) => ({
@@ -290,13 +312,13 @@ export function getLegendTicks(spec: LegendSpec, option: LegendUnitOption): Lege
 
 export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'): string {
   const range = spec.max - spec.min || 1
-  const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
+  const orderedStops = steppedGradientColorStops(spec)
   if (orderedStops.length < 2) return toLegendGradient(spec)
-  const useEvenBandSpacing = spec.legendScale === 'precip-rate'
+  const useEvenBandSpacing = spec.legendScale === 'precip-rate' || spec.legendScale === 'snow-depth'
 
   const gradientStops: string[] = []
   const firstColor = orderedStops[0]
-  gradientStops.push(`rgb(${firstColor[1]} ${firstColor[2]} ${firstColor[3]}) 0%`)
+  gradientStops.push(`${legendColor(firstColor[1], firstColor[2], firstColor[3], firstColor[4])} 0%`)
 
   for (let index = 0; index < orderedStops.length - 1; index += 1) {
     const current = orderedStops[index]
@@ -310,28 +332,48 @@ export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'):
 
     const clampedStart = clamp(startPct, 0, 100)
     const clampedEnd = clamp(endPct, 0, 100)
-    const color = `rgb(${current[1]} ${current[2]} ${current[3]})`
+    const color = legendColor(current[1], current[2], current[3], current[4])
     gradientStops.push(`${color} ${clampedStart.toFixed(2)}%`)
     gradientStops.push(`${color} ${clampedEnd.toFixed(2)}%`)
   }
 
   const last = orderedStops[orderedStops.length - 1]
-  gradientStops.push(`rgb(${last[1]} ${last[2]} ${last[3]}) 100%`)
+  gradientStops.push(`${legendColor(last[1], last[2], last[3], last[4])} 100%`)
 
   return `linear-gradient(${direction}, ${gradientStops.join(', ')})`
+}
+
+function steppedGradientColorStops(spec: LegendSpec): NormalizedColorStop[] {
+  const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
+  if (
+    spec.legendScale === 'snow-depth'
+    && orderedStops.length > 1
+    && roughlyEqual(orderedStops[0]?.[0] ?? Number.NaN, spec.min)
+    && orderedStops[0]?.[4] === 0
+  ) {
+    return orderedStops.slice(1)
+  }
+  return orderedStops
 }
 
 function normalizeColorStops(spec: LegendSpec): NormalizedColorStop[] {
   const span = spec.max - spec.min
   const denominator = Math.max(1, spec.colorStops.length - 1)
   return spec.colorStops.map((stop, index) => {
-    if (stop.length === 4) return [stop[0], stop[1], stop[2], stop[3]]
+    if (stop.length === 5) return [stop[0], stop[1], stop[2], stop[3], stop[4]]
+    if (stop.length === 4) return [stop[0], stop[1], stop[2], stop[3], 255]
     const value = spec.min + (span * index) / denominator
-    return [value, stop[0], stop[1], stop[2]]
+    return [value, stop[0], stop[1], stop[2], 255]
   })
 }
 
-function formatLegendValue(value: number, optionId: string): string {
+function legendColor(r: number, g: number, b: number, a: number): string {
+  if (a >= 255) return `rgb(${r} ${g} ${b})`
+  return `rgb(${r} ${g} ${b} / ${Number((a / 255).toFixed(3))})`
+}
+
+function formatLegendValue(value: number, optionId: string, legendScale: LegendScale): string {
+  if (legendScale === 'snow-depth') return formatSnowDepthLegendValue(value, optionId)
   if (optionId === 'percent' || optionId === 'celsius' || optionId === 'fahrenheit' || optionId === 'hectopascal') {
     return `${Math.round(value)}`
   }
@@ -343,5 +385,24 @@ function formatLegendValue(value: number, optionId: string): string {
   }
   if (Math.abs(value) >= 10) return `${Math.round(value)}`
   if (Number.isInteger(value)) return `${value}`
+  return `${Number(value.toFixed(1)).toString()}`
+}
+
+function formatSnowDepthLegendValue(value: number, optionId: string): string {
+  if (value === 0) return '0'
+
+  if (optionId === 'centimeters') {
+    if (Math.abs(value) >= 100) return `${Math.round(value / 100)}m`
+    if (Math.abs(value) >= 10) return `${Math.round(value)}`
+    if (Number.isInteger(value)) return `${value}`
+    return `${Number(value.toFixed(1)).toString()}`
+  }
+
+  if (optionId === 'inches') {
+    if (Math.abs(value) >= 36) return `${Math.floor(value / 12)}ft`
+    if (Math.abs(value) >= 1) return `${Math.round(value)}`
+    return `${Number(value.toFixed(1)).toString()}`
+  }
+
   return `${Number(value.toFixed(1)).toString()}`
 }

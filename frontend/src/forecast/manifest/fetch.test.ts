@@ -61,6 +61,7 @@ function createForecastManifestPayload() {
                 scale: 0.01,
                 offset: 0,
                 decodeFormula: 'value = stored * scale + offset',
+                finiteValueRange: { min: -50, max: 50 },
               },
               byteLength: 8,
             },
@@ -95,6 +96,9 @@ describe('fetchManifest', () => {
     )
     const artifact = manifest.models.gfs?.latest?.artifacts.tmp_surface
     expect(artifact?.byteLength).toBe(8)
+    expect(artifact?.encoding.format).toBe('linear-i16-v1')
+    if (artifact?.encoding.format !== 'linear-i16-v1') throw new Error('Expected linear int16 encoding')
+    expect(artifact.encoding.finiteValueRange).toEqual({ min: -50, max: 50 })
   })
 
   it('fails on non-ok responses', async () => {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ._types import (
     ConfigModel,
@@ -75,6 +75,19 @@ class ComponentSpec(ConfigModel):
     grib_match: NonEmptyStringMap | None = None
 
 
+class FiniteValueRangeSpec(ConfigModel):
+    """Finite transformed-value clamp range applied before quantization."""
+
+    min: FiniteNumber
+    max: FiniteNumber
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "FiniteValueRangeSpec":
+        if self.max < self.min:
+            raise ValueError("finite_value_range.max must be greater than or equal to min")
+        return self
+
+
 class EncodingSpec(ConfigModel):
     """Resolved binary payload encoding contract for one artifact."""
 
@@ -85,6 +98,7 @@ class EncodingSpec(ConfigModel):
     scale: FiniteNumber | None = None
     offset: FiniteNumber | None = None
     nodata: int | None = None
+    finite_value_range: FiniteValueRangeSpec | None = None
 
 
 class ArtifactCatalogSpec(ConfigModel):

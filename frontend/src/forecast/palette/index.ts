@@ -1,4 +1,7 @@
-export type PaletteStop = [number, number, number, number] | [number, number, number]
+export type PaletteStop =
+  | [number, number, number, number, number]
+  | [number, number, number, number]
+  | [number, number, number]
 
 export type LayerPalette = {
   colorStops: PaletteStop[]
@@ -176,15 +179,16 @@ const LAYER_PALETTES: Record<string, LayerPalette> = {
   },
   'snow.depth.m.v1': {
     colorStops: [
-      [0, 180, 180, 180],
-      [0.05, 210, 230, 245],
-      [0.1, 188, 220, 244],
-      [0.25, 154, 199, 236],
-      [0.5, 116, 174, 224],
-      [1, 87, 146, 206],
-      [2, 74, 112, 184],
-      [3, 90, 82, 164],
-      [5, 118, 60, 150],
+      [0, 56, 68, 124, 0],
+      [0.011811023622047244, 56, 68, 124],
+      [0.02, 68, 84, 150],
+      [0.05, 62, 108, 174],
+      [0.1, 52, 150, 160],
+      [0.2, 68, 160, 128],
+      [0.5, 106, 154, 86],
+      [1, 172, 92, 122],
+      [2, 154, 66, 126],
+      [3, 166, 58, 112],
     ],
   },
   'atmosphere.visibility.m.v1': {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from ..encoding.codecs import (
@@ -12,8 +13,8 @@ from ..encoding.codecs import (
     required_nodata_for_format,
 )
 from ._types import parse_config_model
-from .input import EncodingInput
-from .resolved import EncodingSpec
+from .input import EncodingInput, FiniteValueRangeInput
+from .resolved import EncodingSpec, FiniteValueRangeSpec
 
 
 def parse_encoding(
@@ -83,6 +84,16 @@ def parse_encoding(
             f"for format {encoding_format!r}"
         )
 
+    finite_value_range = _parse_finite_value_range(
+        artifact_id=artifact_id,
+        encoding_format=encoding_format,
+        dtype=dtype,
+        scale=scale,
+        offset=offset,
+        nodata=nodata,
+        raw_range=raw.finite_value_range,
+    )
+
     encoding = EncodingSpec(
         id=raw.id,
         format=encoding_format,
@@ -91,5 +102,50 @@ def parse_encoding(
         scale=scale,
         offset=offset,
         nodata=nodata,
+        finite_value_range=finite_value_range,
     )
     return encoding
+
+
+def _parse_finite_value_range(
+    *,
+    artifact_id: str,
+    encoding_format: str,
+    dtype: str,
+    scale: float | None,
+    offset: float | None,
+    nodata: int | None,
+    raw_range: FiniteValueRangeInput | None,
+) -> FiniteValueRangeSpec | None:
+    if raw_range is None:
+        return None
+
+    if not is_linear_encoding_format(encoding_format):
+        raise SystemExit(
+            f"Artifact {artifact_id!r} encoding.finite_value_range is not supported "
+            f"for format {encoding_format!r}"
+        )
+    if scale is None or offset is None:
+        raise SystemExit(f"Artifact {artifact_id!r} encoding.finite_value_range requires scale and offset")
+
+    min_stored, max_stored = encoding_storage_bounds(dtype)
+    for label, value in (("min", raw_range.min), ("max", raw_range.max)):
+        stored = round((value - offset) / scale)
+        if stored < min_stored or stored > max_stored:
+            raise SystemExit(
+                f"Artifact {artifact_id!r} encoding.finite_value_range.{label} "
+                f"does not fit {dtype} storage"
+            )
+        decoded = stored * scale + offset
+        if not math.isclose(decoded, value, rel_tol=1e-12, abs_tol=abs(scale) * 1e-9):
+            raise SystemExit(
+                f"Artifact {artifact_id!r} encoding.finite_value_range.{label} "
+                "must be exactly representable by scale and offset"
+            )
+        if nodata is not None and stored == nodata:
+            raise SystemExit(
+                f"Artifact {artifact_id!r} encoding.finite_value_range.{label} "
+                "quantizes to the nodata sentinel"
+            )
+
+    return FiniteValueRangeSpec(min=raw_range.min, max=raw_range.max)

@@ -164,9 +164,9 @@
       "label": "Snow Depth",
       "groupId": "precipitation",
       "paletteId": "snow.depth.m.v1",
-      "displayRange": { "min": 0, "max": 5 },
+      "displayRange": { "min": 0, "max": 3 },
       "unitBehavior": "snow-depth",
-      "legendScale": "stop-based",
+      "legendScale": "snow-depth",
       "source": { "kind": "artifact", "artifactId": "snow_depth_surface" }
     },
     {

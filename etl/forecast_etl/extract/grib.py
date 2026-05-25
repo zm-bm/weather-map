@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import struct
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +92,16 @@ def extract_float32_band_bytes(
         except Exception:
             pass
 
-    return workdir_path.read_bytes(), byte_order
+    source_f32_bytes = workdir_path.read_bytes()
+    nodata_value = _band_nodata_value(grib_path=grib_path, band_idx=band_idx, run=run)
+    if nodata_value is not None:
+        source_f32_bytes = _replace_float32_nodata_with_nan(
+            source_f32_bytes,
+            byte_order=byte_order,
+            nodata_value=nodata_value,
+        )
+
+    return source_f32_bytes, byte_order
 
 
 def find_grib_band_by_metadata(
@@ -131,3 +141,50 @@ def _metadata_matches(*, band_md: dict[str, str], match: dict[str, str]) -> bool
         if band_md.get(key) != expected:
             return False
     return True
+
+
+def _band_nodata_value(*, grib_path: Path, band_idx: int, run: gdal.RunFn) -> float | None:
+    info = gdal.gdalinfo_json(grib_path, run=run)
+    bands = info.get("bands", [])
+    if not isinstance(bands, list) or band_idx < 1 or band_idx > len(bands):
+        return None
+
+    band = bands[band_idx - 1]
+    if not isinstance(band, dict):
+        return None
+    raw_value = band.get("noDataValue")
+    if raw_value is None:
+        return None
+
+    try:
+        nodata_value = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(nodata_value):
+        return None
+    return nodata_value
+
+
+def _replace_float32_nodata_with_nan(
+    source_f32_bytes: bytes,
+    *,
+    byte_order: str,
+    nodata_value: float,
+) -> bytes:
+    if len(source_f32_bytes) % 4 != 0:
+        raise SystemExit("Unexpected Float32 source byte length")
+
+    if byte_order == "little":
+        float_format = "<f"
+    elif byte_order == "big":
+        float_format = ">f"
+    else:
+        raise SystemExit(f"Unsupported Float32 source byte_order: {byte_order!r}")
+
+    nodata_bytes = struct.pack(float_format, nodata_value)
+    nan_bytes = struct.pack(float_format, math.nan)
+    out = bytearray(source_f32_bytes)
+    for offset in range(0, len(out), 4):
+        if out[offset : offset + 4] == nodata_bytes:
+            out[offset : offset + 4] = nan_bytes
+    return bytes(out)

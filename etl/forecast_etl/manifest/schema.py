@@ -155,6 +155,8 @@ def manifest_encoding(*, encoding_id: str, encoding: Mapping[str, Any]) -> dict[
             raw["byteOrder"] = value
         elif key == "decode_formula":
             raw["decodeFormula"] = value
+        elif key == "finite_value_range":
+            raw["finiteValueRange"] = value
         else:
             raw[key] = value
     return validated_dict(ManifestEncoding, raw, by_alias=True)

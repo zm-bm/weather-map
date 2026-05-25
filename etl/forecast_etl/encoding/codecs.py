@@ -121,6 +121,7 @@ def encode_component_payload(
     offset: float | None = None,
     nodata: int | None = None,
     value_transform: Callable[[float], float] | None = None,
+    finite_value_range: tuple[float, float] | None = None,
 ) -> bytes:
     """Encode one extracted float32 artifact component into payload bytes."""
     try:
@@ -152,6 +153,13 @@ def encode_component_payload(
     else:
         raise SystemExit(f"Unsupported encoding format: {encoding_format!r}")
 
+    if finite_value_range is not None:
+        finite_min, finite_max = finite_value_range
+        if not math.isfinite(finite_min) or not math.isfinite(finite_max) or finite_max < finite_min:
+            raise SystemExit(f"Invalid finite value range: {finite_value_range!r}")
+        if not is_linear_encoding_format(encoding_format):
+            raise SystemExit(f"Encoding format {encoding_format!r} does not support finite value ranges")
+
     min_stored, max_stored = encoding_storage_bounds(target_dtype)
     if nodata is not None and (nodata < min_stored or nodata > max_stored):
         raise SystemExit(f"Invalid {target_dtype} nodata sentinel: {nodata!r}")
@@ -176,6 +184,8 @@ def encode_component_payload(
                     raise SystemExit(f"Encoding format {encoding_format!r} requires nodata")
                 stored = encode_temp_c_piecewise_i8_value(transformed_value, nodata=nodata)
             else:
+                if finite_value_range is not None:
+                    transformed_value = min(max(transformed_value, finite_min), finite_max)
                 stored = int(round((transformed_value - linear_offset) / linear_scale))
                 stored = clamp_int(stored, bounds=(min_stored, max_stored))
                 if nodata is not None and stored == nodata:

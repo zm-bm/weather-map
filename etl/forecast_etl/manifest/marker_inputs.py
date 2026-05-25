@@ -149,6 +149,11 @@ def _encoding_marker_metadata_for_artifact(artifact: ArtifactSpec) -> dict[str, 
         metadata["scale"] = encoding.scale
         metadata["offset"] = encoding.offset
         metadata["decode_formula"] = LINEAR_DECODE_FORMULA
+    if encoding.finite_value_range is not None:
+        metadata["finite_value_range"] = {
+            "min": encoding.finite_value_range.min,
+            "max": encoding.finite_value_range.max,
+        }
     return metadata
 
 

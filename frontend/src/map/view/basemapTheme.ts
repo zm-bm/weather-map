@@ -8,7 +8,12 @@ import {
   type BasemapPaintValue,
 } from './basemapStyle'
 
-export type BasemapThemeId = 'standard' | 'cloud-layers'
+export type ForecastBasemapStyleId = 'standard' | 'cloud-layers'
+
+type ForecastBasemapStyle = {
+  id: ForecastBasemapStyleId
+  paints: readonly BasemapPaint[]
+}
 
 export const BASEMAP_THEME_PAINT_KEYS: readonly BasemapPaintKey[] = [
   { layerId: BASEMAP_LAYER_IDS.background, property: 'background-color' },
@@ -62,20 +67,29 @@ const CLOUD_LAYERS_BASEMAP_PAINT_OVERRIDES: readonly BasemapPaint[] = [
   },
 ]
 
-const BASEMAP_THEMES: Record<BasemapThemeId, readonly BasemapPaint[]> = {
-  standard: STANDARD_BASEMAP_PAINTS,
-  'cloud-layers': mergePaintOverrides(
-    STANDARD_BASEMAP_PAINTS,
-    CLOUD_LAYERS_BASEMAP_PAINT_OVERRIDES,
-  ),
+const BASEMAP_STYLES: Record<ForecastBasemapStyleId, ForecastBasemapStyle> = {
+  standard: {
+    id: 'standard',
+    paints: STANDARD_BASEMAP_PAINTS,
+  },
+  'cloud-layers': {
+    id: 'cloud-layers',
+    paints: mergePaintOverrides(
+      STANDARD_BASEMAP_PAINTS,
+      CLOUD_LAYERS_BASEMAP_PAINT_OVERRIDES,
+    ),
+  },
 }
 
-export function basemapThemeForForecastLayer(selectedLayerId: string | null): BasemapThemeId {
-  return selectedLayerId === 'cloud_layers' ? 'cloud-layers' : 'standard'
+export function basemapStyleForForecastLayer(selectedLayerId: string | null): ForecastBasemapStyleId {
+  if (selectedLayerId === 'cloud_layers') return 'cloud-layers'
+  return 'standard'
 }
 
-export function applyBasemapTheme(map: MapLibreMap, themeId: BasemapThemeId): void {
-  for (const paint of BASEMAP_THEMES[themeId]) {
+export function applyForecastBasemapStyle(map: MapLibreMap, styleId: ForecastBasemapStyleId): void {
+  const style = BASEMAP_STYLES[styleId]
+
+  for (const paint of style.paints) {
     if (!map.getLayer(paint.layerId)) continue
     map.setPaintProperty(paint.layerId, paint.property, paintValueForMap(paint.value))
   }

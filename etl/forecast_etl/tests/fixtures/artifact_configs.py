@@ -51,13 +51,14 @@ def pressure_msl_config(*, grib_match: dict | None = None, grid_transform: dict 
         "units": "Pa",
         "source_transform": "identity",
         "encoding": {
-            "id": "prmsl_msl_i8_25pa_v1",
+            "id": "prmsl_msl_i8_50pa_v1",
             "format": "linear-i8-v1",
             "dtype": "int8",
             "byte_order": "none",
-            "scale": 25,
+            "scale": 50,
             "offset": 100500,
             "nodata": -128,
+            "finite_value_range": {"min": 94150, "max": 106850},
         },
         "components": [
             {"id": "value", "grib_match": grib_match or {"ICON_PARAM": "pmsl"}},
@@ -91,6 +92,7 @@ def cloud_layers_config(
             "scale": 2,
             "offset": 0,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 100},
         },
         "components": [
             {"id": "low", "grib_match": matches["low"]},
@@ -113,6 +115,7 @@ def wind_artifact_config() -> dict:
             "byte_order": "none",
             "scale": 0.5,
             "offset": 0.0,
+            "finite_value_range": {"min": -64, "max": 63.5},
         },
         "components": [
             {"id": "u", "grib_match": {"GRIB_ELEMENT": "UGRD"}},
@@ -136,6 +139,7 @@ def precip_total_config() -> dict:
             "scale": 1,
             "offset": 127,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 254},
         },
         "components": [
             {"id": "value", "grib_match": {"ICON_PARAM": "tot_prec"}},
@@ -183,6 +187,7 @@ def precip_rate_config() -> dict:
             "scale": 0.15,
             "offset": 19.05,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 38.1},
         },
         "components": [
             {"id": "value"},
@@ -216,6 +221,7 @@ def precip_type_config() -> dict:
             "scale": 0.003937007874015748,
             "offset": 0.5,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 1},
         },
         "components": [
             {"id": "snow_frac"},
@@ -276,6 +282,7 @@ def thunderstorm_mask_config() -> dict:
             "scale": 1,
             "offset": 0,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 1},
         },
         "components": [
             {"id": "value"},
@@ -304,6 +311,7 @@ def reflectivity_config() -> dict:
             "scale": 0.5,
             "offset": 31.5,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 75},
         },
         "components": [
             {
@@ -332,6 +340,7 @@ def cin_index_config() -> dict:
             "scale": 2,
             "offset": 254,
             "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 508},
         },
         "components": [
             {

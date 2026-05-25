@@ -2,25 +2,24 @@ import { describe, expect, it } from 'vitest'
 
 import { createBasemapThemeMapFixture } from '@/test/fixtures'
 import { readStandardBasemapPaintValue } from './basemapStyle'
+import { BASEMAP_LAYER_IDS } from '../basemap'
 import {
-  BASEMAP_LAYER_IDS,
-} from '../basemap'
-import {
-  applyBasemapTheme,
-  basemapThemeForForecastLayer,
+  applyForecastBasemapStyle,
+  basemapStyleForForecastLayer,
 } from './basemapTheme'
 
 describe('basemap theme', () => {
-  it('uses the cloud basemap theme only for Cloud Layers', () => {
-    expect(basemapThemeForForecastLayer('cloud_layers')).toBe('cloud-layers')
-    expect(basemapThemeForForecastLayer('cloud_cover')).toBe('standard')
-    expect(basemapThemeForForecastLayer(null)).toBe('standard')
+  it('maps forecast layers to basemap styles', () => {
+    expect(basemapStyleForForecastLayer('cloud_layers')).toBe('cloud-layers')
+    expect(basemapStyleForForecastLayer('snow_depth')).toBe('standard')
+    expect(basemapStyleForForecastLayer('cloud_cover')).toBe('standard')
+    expect(basemapStyleForForecastLayer(null)).toBe('standard')
   })
 
   it('applies the Cloud Layers theme and restores standard style paints', () => {
     const map = createBasemapThemeMapFixture()
 
-    applyBasemapTheme(map, 'cloud-layers')
+    applyForecastBasemapStyle(map, 'cloud-layers')
     expect(map.setPaintProperty).toHaveBeenCalledWith(
       BASEMAP_LAYER_IDS.background,
       'background-color',
@@ -43,7 +42,7 @@ describe('basemap theme', () => {
     )
 
     map.setPaintProperty.mockClear()
-    applyBasemapTheme(map, 'standard')
+    applyForecastBasemapStyle(map, 'standard')
 
     expect(map.setPaintProperty).toHaveBeenCalledWith(
       BASEMAP_LAYER_IDS.background,
@@ -66,7 +65,7 @@ describe('basemap theme', () => {
   it('ignores missing basemap layers', () => {
     const map = createBasemapThemeMapFixture([BASEMAP_LAYER_IDS.background])
 
-    expect(() => applyBasemapTheme(map, 'cloud-layers')).not.toThrow()
+    expect(() => applyForecastBasemapStyle(map, 'cloud-layers')).not.toThrow()
     expect(map.setPaintProperty).toHaveBeenCalledTimes(1)
     expect(map.setPaintProperty).toHaveBeenCalledWith(
       BASEMAP_LAYER_IDS.background,

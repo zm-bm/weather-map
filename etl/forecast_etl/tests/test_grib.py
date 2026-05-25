@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
+import struct
+import tempfile
 import unittest
 from pathlib import Path
 
-from forecast_etl.extract.grib import find_grib_band_by_metadata
+from forecast_etl.extract.grib import extract_float32_band_bytes, find_grib_band_by_metadata
 from forecast_etl.proc import RunResult
 
 
@@ -72,6 +75,38 @@ class GribMetadataMatchTest(unittest.TestCase):
 
         self.assertEqual(band_idx, 2)
         self.assertEqual(metadata["GRIB_ELEMENT"], "APCP09")
+
+
+class GribBandExtractionTest(unittest.TestCase):
+    def test_extract_float32_band_bytes_maps_gdal_nodata_to_nan(self) -> None:
+        info = {"bands": [{}, {"noDataValue": 9999.0}]}
+        source_values = struct.pack("<ffff", 0.0, 9999.0, 1.5, 9998.0)
+
+        def run(argv: object) -> RunResult:
+            args = tuple(str(item) for item in argv)
+            if args[0] == "gdal_translate":
+                dst = Path(args[-1])
+                dst.write_bytes(source_values)
+                dst.with_suffix(".hdr").write_text("byte order = 0\n", encoding="utf-8")
+                return RunResult(argv=args, returncode=0, stdout="")
+            if args[:2] == ("gdalinfo", "-json"):
+                return RunResult(argv=args, returncode=0, stdout=json.dumps(info))
+            raise AssertionError(f"unexpected command: {args!r}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload, byte_order = extract_float32_band_bytes(
+                grib_path=Path("input.grib2"),
+                band_idx=2,
+                workdir_path=Path(tmpdir) / "band.bin",
+                run=run,
+            )
+
+        values = struct.unpack("<ffff", payload)
+        self.assertEqual(byte_order, "little")
+        self.assertEqual(values[0], 0.0)
+        self.assertTrue(math.isnan(values[1]))
+        self.assertEqual(values[2], 1.5)
+        self.assertEqual(values[3], 9998.0)
 
 
 if __name__ == "__main__":

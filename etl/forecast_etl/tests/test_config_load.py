@@ -388,6 +388,86 @@ class ConfigValidationTest(unittest.TestCase):
             "kg_m2_s_to_mm_hr",
         )
 
+    def test_pipeline_config_accepts_linear_encoding_finite_value_range(self) -> None:
+        cfg = minimal_pipeline_config()
+        cfg["artifact_catalog"]["tmp_surface"]["encoding"]["finite_value_range"] = {
+            "min": -50,
+            "max": 50,
+        }
+
+        parsed = parse_pipeline_config(cfg)
+        finite_value_range = parsed.model("gfs").artifacts["tmp_surface"].encoding.finite_value_range
+
+        assert finite_value_range is not None
+        self.assertEqual(finite_value_range.min, -50)
+        self.assertEqual(finite_value_range.max, 50)
+
+    def test_pipeline_config_rejects_invalid_finite_value_range(self) -> None:
+        cases = (
+            {"min": 10, "max": 0},
+            {"min": 0},
+            {"min": 0, "max": float("inf")},
+        )
+
+        for finite_value_range in cases:
+            bad_cfg = minimal_pipeline_config()
+            bad_cfg["artifact_catalog"]["tmp_surface"]["encoding"]["finite_value_range"] = finite_value_range
+
+            with self.subTest(finite_value_range=finite_value_range), self.assertRaises(SystemExit):
+                parse_pipeline_config(bad_cfg)
+
+    def test_pipeline_config_rejects_finite_value_range_for_piecewise_encoding(self) -> None:
+        bad_cfg = minimal_pipeline_config()
+        bad_cfg["artifact_catalog"]["tmp_surface"]["encoding"] = {
+            "id": "tmp_surface_i8_temp_c_piecewise_v1",
+            "format": "temp-c-piecewise-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "nodata": -128,
+            "finite_value_range": {"min": -35, "max": 50},
+        }
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(bad_cfg)
+
+        self.assertIn("finite_value_range is not supported", str(raised.exception))
+
+    def test_pipeline_config_rejects_finite_value_range_endpoint_that_quantizes_to_nodata(self) -> None:
+        bad_cfg = minimal_pipeline_config()
+        bad_cfg["artifact_catalog"]["tmp_surface"]["encoding"] = {
+            "id": "tmp_surface_i8_test_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 1,
+            "offset": 128,
+            "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 1},
+        }
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(bad_cfg)
+
+        self.assertIn("quantizes to the nodata sentinel", str(raised.exception))
+
+    def test_pipeline_config_rejects_finite_value_range_endpoint_between_encoding_buckets(self) -> None:
+        bad_cfg = minimal_pipeline_config()
+        bad_cfg["artifact_catalog"]["tmp_surface"]["encoding"] = {
+            "id": "tmp_surface_i8_test_v1",
+            "format": "linear-i8-v1",
+            "dtype": "int8",
+            "byte_order": "none",
+            "scale": 2,
+            "offset": 0,
+            "nodata": -128,
+            "finite_value_range": {"min": 0, "max": 99},
+        }
+
+        with self.assertRaises(SystemExit) as raised:
+            parse_pipeline_config(bad_cfg)
+
+        self.assertIn("must be exactly representable", str(raised.exception))
+
     def test_pipeline_config_accepts_temperature_piecewise_encoding_without_scale_offset(self) -> None:
         cfg = minimal_pipeline_config()
         cfg["artifact_catalog"]["tmp_surface"]["encoding"] = {

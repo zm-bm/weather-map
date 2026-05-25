@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
-  applyBasemapTheme,
-  basemapThemeForForecastLayer,
+  applyForecastBasemapStyle,
+  basemapStyleForForecastLayer,
 } from './basemapTheme'
 
 type UseForecastBasemapThemeArgs = {
@@ -21,6 +21,6 @@ export function useForecastBasemapTheme({
     if (mapReadyVersion < 1) return
     const map = getMap()
     if (!map) return
-    applyBasemapTheme(map, basemapThemeForForecastLayer(selectedLayerId))
+    applyForecastBasemapStyle(map, basemapStyleForForecastLayer(selectedLayerId))
   }, [getMap, mapReadyVersion, selectedLayerId])
 }

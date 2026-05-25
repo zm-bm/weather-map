@@ -8,14 +8,51 @@ then create a focused implementation plan when a task is ready to execute.
 
 ## Next Priorities
 
-### 1. Review Scalar Palettes And Boundary Correctness
+### 1. Audit Default Palette And Boundary Correctness
 
-Confirm that every field-rendered layer has the right color stops, unit
-behavior, legend ticks, display range, and boundary handling.
+Confirm that every field-rendered layer maps decoded physical values to the
+right visual output after the encoding contract is sound.
 
-Include exact-boundary checks for values on and around color stops.
+This is the frontend/rendering contract. It covers default palette selection,
+color stops, display range, unit behavior, legend scale, legend ticks, sampling
+mode, and boundary handling.
 
-### 2. Add Selected Forecast Rendering Controls
+Key work:
+
+- audit every field-rendered layer's `paletteId`, color stops, display range,
+  unit behavior, legend scale, and expected legend ticks
+- define boundary semantics for continuous and threshold palettes
+- add exact-boundary checks for values just below, exactly at, and just above
+  every color stop
+- verify behavior below display minimum, above display maximum, and for nodata
+- make pure palette sampling, LUT generation, legend rendering, and catalog
+  validation agree on the same contract
+
+This should answer: does the app show the right colors for the right values?
+
+### 2. Design Custom Palette Overrides
+
+Design user-defined color palettes as a frontend feature built on top of the
+display and encoding contracts above.
+
+Start with the data model and rendering contract before adding UI.
+
+Key work:
+
+- formalize a palette schema with color stops, alpha, and sampling mode
+- resolve each layer's active palette from default catalog metadata plus any
+  user override
+- feed the same resolved palette to the renderer and legend
+- store user overrides per layer, initially in local browser storage
+- validate or warn when custom stops are finer than artifact encoding
+  resolution
+- add a compact editor for palette preset, stop values, colors, opacity, and
+  reset-to-default
+
+This should answer: can users safely customize layer color palettes without
+breaking legends, units, or renderer boundary behavior?
+
+### 3. Add Selected Forecast Rendering Controls
 
 Expose a small, useful set of runtime controls in the map options UI.
 
@@ -23,7 +60,7 @@ This should be a curated app control surface, not a debug panel. Good
 candidates are controls that are safe to adjust live and easy to understand,
 such as field opacity/intensity or particle density/speed.
 
-### 3. Add NEXRAD Observed Radar
+### 4. Add NEXRAD Observed Radar
 
 Add observed radar as a separate source family, not as a normal forecast model
 layer.
@@ -41,7 +78,7 @@ Key decisions:
 - cache scope and refresh behavior for recent observed data
 - how observed radar coexists with model reflectivity and storm layers
 
-### 4. Add Forecast Model Expansion Track
+### 5. Add Forecast Model Expansion Track
 
 Plan support for additional forecast models such as HRRR and ECMWF.
 
@@ -62,13 +99,27 @@ Key decisions:
 - whether model selection should be global, per-layer, or hidden until support
   is broad enough
 
-### 5. Add ETL Health Notifications
+### 6. Add ETL Health Notifications
 
 Add low-noise notifications when ETL health is stale, failing, or otherwise
 requires attention.
 
 Start with failure and staleness notifications. Avoid success notifications
 unless they are opt-in or otherwise low-noise.
+
+## Recently Completed
+
+### Define Field Layer Requirements
+
+Created `forecast-field-layer-requirements.md` as a staging contract for
+field-rendered layer units, display ranges, encoded ranges, precision,
+thresholds, nodata behavior, clipping behavior, and sampling expectations.
+
+### Audit Artifact Encoding Correctness
+
+Added explicit ETL finite clamp support, updated artifact encoding contracts,
+and added encoding-contract tests that lock range, quantum, nodata, clamp, and
+boundary behavior for field-rendered artifacts.
 
 ## Design Evaluations
 

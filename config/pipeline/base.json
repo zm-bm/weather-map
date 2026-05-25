@@ -52,7 +52,11 @@
         "byte_order": "none",
         "scale": 1,
         "offset": 50,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 100
+        }
       },
       "components": [
         {
@@ -67,13 +71,17 @@
       "units": "m/s",
       "source_transform": "identity",
       "encoding": {
-        "id": "gust_surface_i8_1ms_v1",
+        "id": "gust_surface_i8_0p5ms_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
         "offset": 63.5,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 60
+        }
       },
       "components": [
         {
@@ -109,13 +117,17 @@
       "units": "Pa",
       "source_transform": "identity",
       "encoding": {
-        "id": "prmsl_msl_i8_25pa_v1",
+        "id": "prmsl_msl_i8_50pa_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 25,
+        "scale": 50,
         "offset": 100500,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 94150,
+          "max": 106850
+        }
       },
       "components": [
         {
@@ -130,13 +142,17 @@
       "units": "%",
       "source_transform": "identity",
       "encoding": {
-        "id": "tcdc_i8_0p5pct_v1",
+        "id": "tcdc_i8_1pct_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
         "scale": 1,
         "offset": 50,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 100
+        }
       },
       "components": [
         {
@@ -157,7 +173,11 @@
         "byte_order": "none",
         "scale": 2,
         "offset": 0,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 100
+        }
       },
       "components": [
         {
@@ -184,7 +204,11 @@
         "byte_order": "none",
         "scale": 0.15,
         "offset": 19.05,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 38.1
+        }
       },
       "components": [
         {
@@ -205,7 +229,11 @@
         "byte_order": "none",
         "scale": 1,
         "offset": 127,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 254
+        }
       },
       "components": [
         {
@@ -226,7 +254,11 @@
         "byte_order": "none",
         "scale": 0.003937007874015748,
         "offset": 0.5,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 1
+        }
       },
       "components": [
         {
@@ -250,7 +282,11 @@
         "byte_order": "none",
         "scale": 1,
         "offset": 0,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 1
+        }
       },
       "components": [
         {
@@ -265,13 +301,17 @@
       "units": "m",
       "source_transform": "identity",
       "encoding": {
-        "id": "snow_depth_surface_i8_0p02m_v1",
+        "id": "snow_depth_surface_i8_0p012m_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 0.02,
-        "offset": 2.54,
-        "nodata": -128
+        "scale": 0.011811023622047244,
+        "offset": 1.5,
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 3
+        }
       },
       "components": [
         {
@@ -292,7 +332,11 @@
         "byte_order": "none",
         "scale": 200,
         "offset": 25400,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 50800
+        }
       },
       "components": [
         {
@@ -313,7 +357,11 @@
         "byte_order": "none",
         "scale": 32,
         "offset": 4064,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 8128
+        }
       },
       "components": [
         {
@@ -334,7 +382,11 @@
         "byte_order": "none",
         "scale": 0.32,
         "offset": 40.64,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 81.28
+        }
       },
       "components": [
         {
@@ -355,7 +407,11 @@
         "byte_order": "none",
         "scale": 20,
         "offset": 2540,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 5080
+        }
       },
       "components": [
         {
@@ -376,7 +432,11 @@
         "byte_order": "none",
         "scale": 2,
         "offset": 254,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 508
+        }
       },
       "components": [
         {
@@ -397,7 +457,11 @@
         "byte_order": "none",
         "scale": 0.5,
         "offset": 31.5,
-        "nodata": -128
+        "nodata": -128,
+        "finite_value_range": {
+          "min": 0,
+          "max": 75
+        }
       },
       "components": [
         {
@@ -417,7 +481,11 @@
         "dtype": "int8",
         "byte_order": "none",
         "scale": 0.5,
-        "offset": 0
+        "offset": 0,
+        "finite_value_range": {
+          "min": -64,
+          "max": 63.5
+        }
       },
       "components": [
         {

@@ -78,7 +78,12 @@ export function createMapRefFixture(
 }
 
 export type BasemapThemeMapFixture = MapLibreMap & {
+  addLayer: ReturnType<typeof vi.fn>
   getLayer: ReturnType<typeof vi.fn>
+  getSource: ReturnType<typeof vi.fn>
+  getStyle: ReturnType<typeof vi.fn>
+  moveLayer: ReturnType<typeof vi.fn>
+  removeLayer: ReturnType<typeof vi.fn>
   setPaintProperty: ReturnType<typeof vi.fn>
 }
 
@@ -90,12 +95,45 @@ export function createBasemapThemeMapFixture(
     'boundary_2',
   ]
 ): BasemapThemeMapFixture {
-  const layers = new Set(layerIds)
+  const layers = [...layerIds]
+
+  const hasLayer = (layerId: string) => layers.includes(layerId)
+  const removeLayerId = (layerId: string) => {
+    const layerIndex = layers.indexOf(layerId)
+    if (layerIndex >= 0) layers.splice(layerIndex, 1)
+  }
+  const insertLayerId = (layerId: string, beforeId?: string) => {
+    removeLayerId(layerId)
+    const beforeIndex = beforeId ? layers.indexOf(beforeId) : -1
+    if (beforeIndex >= 0) {
+      layers.splice(beforeIndex, 0, layerId)
+      return
+    }
+    layers.push(layerId)
+  }
 
   return {
+    addLayer: vi.fn((layer: { id: string }, beforeId?: string) => {
+      insertLayerId(layer.id, beforeId)
+      return undefined
+    }),
     getLayer: vi.fn((layerId: string) => (
-      layers.has(layerId) ? { id: layerId } : undefined
+      hasLayer(layerId) ? { id: layerId } : undefined
     )),
+    getSource: vi.fn((sourceId: string) => (
+      sourceId === 'basemap' ? { id: sourceId } : undefined
+    )),
+    getStyle: vi.fn(() => ({
+      layers: layers.map((id) => ({ id })),
+    })),
+    moveLayer: vi.fn((layerId: string, beforeId?: string) => {
+      insertLayerId(layerId, beforeId)
+      return undefined
+    }),
+    removeLayer: vi.fn((layerId: string) => {
+      removeLayerId(layerId)
+      return undefined
+    }),
     setPaintProperty: vi.fn(),
   } as unknown as BasemapThemeMapFixture
 }

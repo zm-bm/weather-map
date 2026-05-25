@@ -40,6 +40,11 @@ const gridSchema = z.object({
   yMode: z.literal('clamp'),
 })
 
+const finiteValueRangeSchema = z.object({
+  min: finiteNumberSchema,
+  max: finiteNumberSchema,
+})
+
 const scalarLinearInt16EncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i16-v1'),
@@ -49,6 +54,7 @@ const scalarLinearInt16EncodingSchema = z.object({
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
   decodeFormula: z.string(),
+  finiteValueRange: finiteValueRangeSchema.optional(),
 })
 
 const scalarLinearInt8EncodingSchema = z.object({
@@ -60,6 +66,7 @@ const scalarLinearInt8EncodingSchema = z.object({
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
   decodeFormula: z.string(),
+  finiteValueRange: finiteValueRangeSchema.optional(),
 })
 
 const scalarTempCPiecewiseEncodingSchema = z.object({
@@ -85,6 +92,7 @@ const vectorEncodingSchema = z.object({
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
   decodeFormula: z.string(),
+  finiteValueRange: finiteValueRangeSchema.optional(),
 })
 
 const layerAvailabilityStateSchema = z.enum([

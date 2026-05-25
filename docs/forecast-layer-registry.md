@@ -48,6 +48,16 @@ In field-layer tables, `Display` is `units; display_range; palette_id;
 unit_behavior/legend_scale`. These values mirror frontend display metadata, not
 ETL encoding ranges.
 
+## Display Behavior
+
+1. Display ranges are renderer color clamps and default legend ranges. They do
+   not define ETL encoded ranges or preserved overrange.
+2. Probe labels show decoded physical values converted by each layer's unit
+   behavior, unless the sampled value is nodata.
+3. Nodata renders as no value rather than being clamped into the display range.
+4. Field color sampling is controlled by the global rendering setting. The
+   default sampling mode is banded.
+
 ## Field Layers
 
 ### Temperature
@@ -74,7 +84,7 @@ ETL encoding ranges.
 | `precipitation_rate` | Precipitation Rate | direct scalar artifact `prate_surface`; optional overlay artifact `precip_type_surface` | rate or source-interval average rate, normalized to `mm/hr` | `mm/hr`; `0..30`; `precip.rate.mm_hr.v1`; `precip-rate/precip-rate` | Liquid-water-equivalent precipitation intensity with automatic snowflake / pale alternating snowflake-ice-dash winter-mix glyph overlays that fade during map zoom when `precip_type_surface` is available. |
 | `accumulated_precipitation` | Run-Total Precipitation | direct scalar artifact `precip_total_surface` | run total since model reference time | `mm`; `0..254`; `precip.total.mm.v1`; `precip-total/precip-total` | Not a rolling 1h/3h/24h accumulation layer. |
 | `precipitable_water` | Precipitable Water | direct scalar artifact `precipitable_water` | instantaneous | `mm`; `0..80`; `atmosphere.precipitable_water.mm.v1`; `water-depth/stop-based` | Column-integrated water vapor expressed as liquid water depth. |
-| `snow_depth` | Snow Depth | direct scalar artifact `snow_depth_surface` | instantaneous | `m`; `0..5`; `snow.depth.m.v1`; `snow-depth/stop-based` | Snow depth on the ground, not snowfall rate or new snow accumulation. |
+| `snow_depth` | Snow Depth | direct scalar artifact `snow_depth_surface` | instantaneous | `m`; `0..3`; `snow.depth.m.v1`; `snow-depth/snow-depth` | Snow depth on the ground, not snowfall rate or new snow accumulation. |
 | `freezing_level` | Freezing Level | direct scalar artifact `freezing_level` | instantaneous | `m`; `0..8000`; `atmosphere.freezing_level.m.v1`; `height/stop-based` | Height of the 0C isotherm. |
 
 `precipitation_rate` answers how much liquid-water-equivalent precipitation is
@@ -113,7 +123,7 @@ at z6.
 | Overlay id | Label | Source recipe | Time semantics | Renderer | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `precipitation_type` | Precipitation Type Pattern | optional vector artifact `precip_type_surface` with `snow_frac` and `mix_frac` components | source-interval derived overlay | `field-overlay` | Automatic optional overlay for `precipitation_rate`; renders snowflake and winter-mix glyph patterns when available. |
-| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered 4 hPa mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
+| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered `400 Pa` / `4 hPa` mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
 
 ## Candidate Future Layers
 

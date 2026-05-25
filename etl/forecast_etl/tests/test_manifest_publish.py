@@ -109,6 +109,7 @@ class PublishManifestTest(unittest.TestCase):
                         "scale": 0.01,
                         "offset": 0.0,
                         "nodata": -32768,
+                        "finite_value_range": {"min": 0, "max": 100},
                     },
                 },
             }
@@ -158,6 +159,10 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["grid"]["xWrap"], "repeat")
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["grid"]["yMode"], "clamp")
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["encoding"]["byteOrder"], "little")
+            self.assertEqual(
+                cycle_manifest["artifacts"]["rh_surface"]["encoding"]["finiteValueRange"],
+                {"min": 0.0, "max": 100.0},
+            )
             self.assertEqual(
                 cycle_manifest["artifacts"]["tmp_surface"]["frames"]["000"]["path"],
                 f"fields/gfs/{fx.cycle}/000/tmp_surface.field.i16.bin",
@@ -396,6 +401,7 @@ class PublishManifestTest(unittest.TestCase):
                     "scale": 2.0,
                     "offset": 0.0,
                     "decodeFormula": "value = stored * scale + offset",
+                    "finiteValueRange": {"min": 0.0, "max": 100.0},
                 },
             )
             self.assertEqual(artifact["components"], ["low", "middle", "high"])

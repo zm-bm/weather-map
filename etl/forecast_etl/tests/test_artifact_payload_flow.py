@@ -75,7 +75,7 @@ class ScalarArtifactContractTest(unittest.TestCase):
     def test_reflectivity_artifact_writes_dbz_payload(self) -> None:
         with artifact_run_fixture(prefix="weather-map-reflectivity-artifact-") as fx:
             source_grib = fx.single_grib_source()
-            source = pack_f32([0.0, 31.5, 75.0, float("nan")], byte_order="little")
+            source = pack_f32([-5.0, 31.5, 80.0, float("nan")], byte_order="little")
 
             with (
                 patch(
@@ -146,10 +146,225 @@ class ScalarArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["units"], "J/kg")
             self.assertEqual(result["parameter"], "cin")
 
+    def test_total_cloud_cover_uses_1pct_encoding_and_clamps_finite_values(self) -> None:
+        with artifact_run_fixture(prefix="weather-map-tcdc-artifact-") as fx:
+            source_grib = fx.single_grib_source()
+            source = pack_f32([-10.0, 2.0, 120.0, float("nan")], byte_order="little")
+            artifact_config = {
+                "kind": "scalar",
+                "parameter": "tcdc",
+                "level": "entire atmosphere",
+                "units": "%",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "tcdc_i8_1pct_v1",
+                    "format": "linear-i8-v1",
+                    "dtype": "int8",
+                    "byte_order": "none",
+                    "scale": 1,
+                    "offset": 50,
+                    "nodata": -128,
+                    "finite_value_range": {"min": 0, "max": 100},
+                },
+                "components": [
+                    {"id": "value", "grib_match": {"GRIB_ELEMENT": "TCDC"}},
+                ],
+            }
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    return_value=(1, {"GRIB_ELEMENT": "TCDC"}),
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    return_value=(source, "little"),
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=small_grid_meta_fixture(),
+                ),
+            ):
+                result = fx.run_artifact(
+                    artifact_id="tcdc",
+                    artifact_config=artifact_config,
+                    source=source_grib,
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(artifact_id="tcdc", dtype="int8")
+            self.assertEqual(payload_bytes, struct.pack("bbbb", -50, -48, 50, -128))
+            self.assertEqual(result["encoding_id"], "tcdc_i8_1pct_v1")
+
+    def test_bounded_scalar_artifacts_clamp_finite_values_through_artifact_flow(self) -> None:
+        cases = (
+            {
+                "artifact_id": "prate_surface",
+                "parameter": "prate",
+                "units": "mm/hr",
+                "source_transform": "kg_m2_s_to_mm_hr",
+                "encoding": {
+                    "id": "prate_surface_i8_0p15mmhr_v1",
+                    "scale": 0.15,
+                    "offset": 19.05,
+                    "finite_value_range": {"min": 0, "max": 38.1},
+                },
+                "values": [-0.001, 0.0, 0.02, float("nan")],
+                "expected": [-127, -127, 127, -128],
+            },
+            {
+                "artifact_id": "precip_total_surface",
+                "parameter": "precip_total",
+                "units": "mm",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "precip_total_surface_i8_1mm_v1",
+                    "scale": 1,
+                    "offset": 127,
+                    "finite_value_range": {"min": 0, "max": 254},
+                },
+                "values": [-1.0, 1.0, 300.0, float("nan")],
+                "expected": [-127, -126, 127, -128],
+            },
+            {
+                "artifact_id": "snow_depth_surface",
+                "parameter": "snow_depth",
+                "units": "m",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "snow_depth_surface_i8_0p012m_v1",
+                    "scale": 3 / 254,
+                    "offset": 1.5,
+                    "finite_value_range": {"min": 0, "max": 3},
+                },
+                "values": [-1.0, 0.02, 10.0, float("nan")],
+                "expected": [-127, -125, 127, -128],
+            },
+            {
+                "artifact_id": "visibility_surface",
+                "parameter": "visibility",
+                "units": "m",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "visibility_surface_i8_200m_v1",
+                    "scale": 200,
+                    "offset": 25400,
+                    "finite_value_range": {"min": 0, "max": 50800},
+                },
+                "values": [-1.0, 200.0, 99999.0, float("nan")],
+                "expected": [-127, -126, 127, -128],
+            },
+            {
+                "artifact_id": "freezing_level",
+                "parameter": "freezing_level",
+                "units": "m",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "freezing_level_i8_32m_v1",
+                    "scale": 32,
+                    "offset": 4064,
+                    "finite_value_range": {"min": 0, "max": 8128},
+                },
+                "values": [-1.0, 32.0, 99999.0, float("nan")],
+                "expected": [-127, -126, 127, -128],
+            },
+            {
+                "artifact_id": "precipitable_water",
+                "parameter": "pwat",
+                "units": "mm",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "precipitable_water_i8_0p32mm_v1",
+                    "scale": 0.32,
+                    "offset": 40.64,
+                    "finite_value_range": {"min": 0, "max": 81.28},
+                },
+                "values": [-1.0, 0.32, 999.0, float("nan")],
+                "expected": [-127, -126, 127, -128],
+            },
+            {
+                "artifact_id": "cape_index",
+                "parameter": "cape",
+                "units": "J/kg",
+                "source_transform": "identity",
+                "encoding": {
+                    "id": "cape_index_i8_20jkg_v1",
+                    "scale": 20,
+                    "offset": 2540,
+                    "finite_value_range": {"min": 0, "max": 5080},
+                },
+                "values": [-1.0, 20.0, 9999.0, float("nan")],
+                "expected": [-127, -126, 127, -128],
+            },
+            {
+                "artifact_id": "cin_index",
+                "parameter": "cin",
+                "units": "J/kg",
+                "source_transform": "cin_magnitude",
+                "encoding": {
+                    "id": "cin_index_i8_2jkg_v1",
+                    "scale": 2,
+                    "offset": 254,
+                    "finite_value_range": {"min": 0, "max": 508},
+                },
+                "values": [-999.0, 0.0, 999.0, float("nan")],
+                "expected": [127, -127, 127, -128],
+            },
+        )
+
+        for case in cases:
+            with self.subTest(artifact_id=case["artifact_id"]):
+                with artifact_run_fixture(prefix=f"weather-map-{case['artifact_id']}-clamp-") as fx:
+                    source = pack_f32(case["values"], byte_order="little")
+                    artifact_config = {
+                        "kind": "scalar",
+                        "parameter": case["parameter"],
+                        "level": "surface",
+                        "units": case["units"],
+                        "source_transform": case["source_transform"],
+                        "encoding": {
+                            "id": case["encoding"]["id"],
+                            "format": "linear-i8-v1",
+                            "dtype": "int8",
+                            "byte_order": "none",
+                            "scale": case["encoding"]["scale"],
+                            "offset": case["encoding"]["offset"],
+                            "nodata": -128,
+                            "finite_value_range": case["encoding"]["finite_value_range"],
+                        },
+                        "components": [
+                            {"id": "value", "grib_match": {"GRIB_ELEMENT": "TEST"}},
+                        ],
+                    }
+
+                    with (
+                        patch(
+                            "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                            return_value=(1, {"GRIB_ELEMENT": "TEST"}),
+                        ),
+                        patch(
+                            "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                            return_value=(source, "little"),
+                        ),
+                        patch(
+                            "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                            return_value=small_grid_meta_fixture(),
+                        ),
+                    ):
+                        fx.run_artifact(
+                            artifact_id=case["artifact_id"],
+                            artifact_config=artifact_config,
+                            source=fx.single_grib_source(),
+                            run=_unused_run,
+                        )
+
+                    payload_bytes = fx.payload_bytes(artifact_id=case["artifact_id"], dtype="int8")
+                    self.assertEqual(payload_bytes, struct.pack("bbbb", *case["expected"]))
+
     def test_cloud_layers_artifact_writes_three_component_vector_payload(self) -> None:
         with artifact_run_fixture(prefix="weather-map-cloud-artifact-") as fx:
-            low_src = pack_f32([0.0, 5.0, 100.0, float("nan")], byte_order="little")
-            middle_src = pack_f32([10.0, 20.0, float("nan"), 80.0], byte_order="little")
+            low_src = pack_f32([0.0, 5.0, 120.0, float("nan")], byte_order="little")
+            middle_src = pack_f32([10.0, 20.0, float("nan"), -10.0], byte_order="little")
             high_src = pack_f32([100.0, 50.0, 0.0, 25.0], byte_order="little")
 
             with (
@@ -189,7 +404,7 @@ class ScalarArtifactContractTest(unittest.TestCase):
             payload_bytes = fx.payload_bytes(artifact_id="cloud_layers", dtype="int8")
             expected_payload = (
                 struct.pack("bbbb", 0, 2, 50, -128)
-                + struct.pack("bbbb", 5, 10, -128, 40)
+                + struct.pack("bbbb", 5, 10, -128, 0)
                 + struct.pack("bbbb", 50, 25, 0, 12)
             )
             self.assertEqual(payload_bytes, expected_payload)
@@ -263,6 +478,36 @@ class WindArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["grid_id"], "gfs_0p25_global")
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
+
+    def test_wind_artifact_encodes_invalid_vector_cells_as_zero_wind(self) -> None:
+        with artifact_run_fixture(prefix="weather-map-wind-invalid-artifact-") as fx:
+            u_src = pack_f32([1.0, float("nan"), 3.0, float("inf")], byte_order="little")
+            v_src = pack_f32([2.0, 4.0, float("-inf"), 8.0], byte_order="little")
+
+            with (
+                patch(
+                    "forecast_etl.extract.source_bands.find_grib_band_by_metadata",
+                    side_effect=[(1, {"id": "u"}), (2, {"id": "v"})],
+                ),
+                patch(
+                    "forecast_etl.extract.source_bands.extract_float32_band_bytes",
+                    side_effect=[(u_src, "little"), (v_src, "little")],
+                ),
+                patch(
+                    "forecast_etl.tests.fixtures.execution.grid_meta_from_grib",
+                    return_value=small_grid_meta_fixture(),
+                ),
+            ):
+                fx.run_artifact(
+                    artifact_id="wind10m_uv",
+                    artifact_config=wind_artifact_config(),
+                    source=fx.single_grib_source(),
+                    run=_unused_run,
+                )
+
+            payload_bytes = fx.payload_bytes(artifact_id="wind10m_uv", dtype="int8")
+            expected_payload = struct.pack("bbbb", 2, 0, 0, 0) + struct.pack("bbbb", 4, 0, 0, 0)
+            self.assertEqual(payload_bytes, expected_payload)
 
 
 class GribCollectionArtifactTest(unittest.TestCase):

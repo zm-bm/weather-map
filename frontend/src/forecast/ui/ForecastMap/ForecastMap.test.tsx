@@ -321,6 +321,21 @@ describe('ForecastMap', () => {
     }))
   })
 
+  it('keeps snow-depth on the normal render profile and basemap hook path', () => {
+    mocks.useForecastSelectionContext.mockReturnValue({
+      selectedLayerId: 'snow_depth',
+    })
+
+    renderForecastMap()
+
+    expect(mocks.useForecastRenderHost).toHaveBeenCalledWith(expect.objectContaining({
+      profile: PARTICLES_ONLY_RENDER_PROFILE,
+    }))
+    expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith(expect.objectContaining({
+      selectedLayerId: 'snow_depth',
+    }))
+  })
+
   it('passes a custom container id through to map initialization', () => {
     renderForecastMap(<ForecastMap containerId="forecast-map" />)
 

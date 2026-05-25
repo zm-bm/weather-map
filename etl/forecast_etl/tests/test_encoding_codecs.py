@@ -103,6 +103,22 @@ class ComponentPayloadTest(unittest.TestCase):
 
         self.assertEqual(list(struct.unpack("bbbb", payload)), [-127, -103, 73, -128])
 
+    def test_encode_component_payload_clamps_finite_values_after_transform(self) -> None:
+        payload = encode_component_payload(
+            source_f32_bytes=pack_f32([-0.001, 0.001, 0.004, float("nan")], byte_order="little"),
+            source_byte_order="little",
+            target_dtype="int8",
+            target_byte_order="none",
+            target_format=FORMAT_LINEAR_I8,
+            scale=1,
+            offset=0,
+            nodata=-128,
+            value_transform=lambda value: value * 3600.0,
+            finite_value_range=(0, 10),
+        )
+
+        self.assertEqual(list(struct.unpack("bbbb", payload)), [0, 4, 10, -128])
+
     def test_encode_component_payload_supports_temperature_piecewise_encoding(self) -> None:
         payload = encode_component_payload(
             source_f32_bytes=pack_f32(

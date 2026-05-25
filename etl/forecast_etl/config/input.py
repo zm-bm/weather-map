@@ -197,6 +197,19 @@ class ModelArtifactInput(ConfigModel):
         }
 
 
+class FiniteValueRangeInput(ConfigModel):
+    """Raw finite-value clamp range for transformed artifact values."""
+
+    min: FiniteNumber
+    max: FiniteNumber
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> "FiniteValueRangeInput":
+        if self.max < self.min:
+            raise ValueError("finite_value_range.max must be greater than or equal to min")
+        return self
+
+
 class EncodingInput(ConfigModel):
     """Raw encoding object from artifact config."""
 
@@ -207,6 +220,7 @@ class EncodingInput(ConfigModel):
     scale: FiniteNumber | None = None
     offset: FiniteNumber | None = None
     nodata: StrictInt | None = None
+    finite_value_range: FiniteValueRangeInput | None = None
 
 
 def _validate_unique_component_ids(component_ids: tuple[str, ...]) -> None:
