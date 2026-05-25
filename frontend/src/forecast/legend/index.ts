@@ -1,22 +1,123 @@
 import { clamp, roughlyEqual } from '@/core/math'
-import type { PaletteStop } from '@/forecast/palette'
+import {
+  normalizePaletteColor,
+  type PaletteColorStop,
+} from '@/forecast/palette'
 
 export type LegendUnitOption = {
   id: string
   convert: (value: number) => number
 }
 
-export const LEGEND_SCALES = [
-  'temperature',
-  'percent',
-  'pressure',
-  'precip-rate',
-  'precip-total',
-  'snow-depth',
-  'stop-based',
-] as const
+type LegendTickPlacement = 'linear' | 'linearized-profile'
+type LegendSteppedBandSpacing = 'value' | 'even'
 
-export type LegendScale = typeof LEGEND_SCALES[number]
+type LegendProfileTickSet = {
+  major: readonly number[]
+  minor?: readonly number[]
+}
+
+type LegendProfile = {
+  tickPlacement: LegendTickPlacement
+  steppedBandSpacing: LegendSteppedBandSpacing
+  omitTransparentMinStopInSteppedGradient?: boolean
+  ticksByOptionId?: Record<string, LegendProfileTickSet>
+}
+
+const INCHES_PER_METER = 39.37007874015748
+
+const LEGEND_PROFILES = {
+  temperature: {
+    tickPlacement: 'linear',
+    steppedBandSpacing: 'value',
+    ticksByOptionId: {
+      celsius: { major: [-40, -30, -20, -10, 0, 10, 20, 30, 40, 50] },
+      fahrenheit: { major: [-40, -20, 0, 20, 40, 60, 80, 100, 120] },
+    },
+  },
+  percent: {
+    tickPlacement: 'linear',
+    steppedBandSpacing: 'value',
+    ticksByOptionId: {
+      percent: {
+        major: [0, 20, 40, 60, 80, 100],
+        minor: [10, 30, 50, 70, 90],
+      },
+    },
+  },
+  pressure: {
+    tickPlacement: 'linear',
+    steppedBandSpacing: 'value',
+    ticksByOptionId: {
+      hectopascal: {
+        major: [980, 992, 1004, 1016, 1028, 1036],
+        minor: [984, 988, 996, 1000, 1008, 1012, 1020, 1024, 1032],
+      },
+    },
+  },
+  'precip-rate': {
+    tickPlacement: 'linearized-profile',
+    steppedBandSpacing: 'even',
+    ticksByOptionId: {
+      mm_per_hour: {
+        major: [0, 1, 3, 7, 15, 30],
+        minor: [0.3, 5, 10, 20],
+      },
+      in_per_hour: {
+        major: [0, 0.03, 0.1, 0.3, 0.7, 1],
+        minor: [0.01, 0.05, 0.5],
+      },
+    },
+  },
+  'precip-total': {
+    tickPlacement: 'linear',
+    steppedBandSpacing: 'value',
+    ticksByOptionId: {
+      millimeters: {
+        major: [0, 10, 25, 50, 100, 150, 250],
+        minor: [5, 75, 125, 200],
+      },
+      inches: {
+        major: [0, 0.5, 1, 2, 4, 6, 10],
+        minor: [0.25, 3, 8],
+      },
+    },
+  },
+  'snow-depth': {
+    tickPlacement: 'linearized-profile',
+    steppedBandSpacing: 'even',
+    omitTransparentMinStopInSteppedGradient: true,
+    ticksByOptionId: {
+      centimeters: {
+        major: [0, 2, 5, 10, 50, 100, 300],
+        minor: [20, 200],
+      },
+      inches: {
+        major: [
+          0,
+          0.02 * INCHES_PER_METER,
+          0.05 * INCHES_PER_METER,
+          0.1 * INCHES_PER_METER,
+          0.5 * INCHES_PER_METER,
+          1 * INCHES_PER_METER,
+          3 * INCHES_PER_METER,
+        ],
+        minor: [
+          0.2 * INCHES_PER_METER,
+          2 * INCHES_PER_METER,
+        ],
+      },
+    },
+  },
+  'stop-based': {
+    tickPlacement: 'linear',
+    steppedBandSpacing: 'value',
+  },
+} as const satisfies Record<string, LegendProfile>
+
+export type LegendScale = keyof typeof LEGEND_PROFILES
+
+export const LEGEND_SCALES = Object.keys(LEGEND_PROFILES) as LegendScale[]
 
 const LEGEND_SCALE_SET = new Set<string>(LEGEND_SCALES)
 
@@ -29,11 +130,15 @@ export function assertLegendScale(value: unknown): LegendScale {
   throw new Error(`Unknown legend scale: ${String(value)}`)
 }
 
+export function getLegendProfile(scale: LegendScale): LegendProfile {
+  return LEGEND_PROFILES[scale]
+}
+
 export type LegendSpec = {
   min: number
   max: number
   legendScale: LegendScale
-  colorStops: readonly PaletteStop[]
+  stops: readonly PaletteColorStop[]
 }
 
 export type LegendTick = {
@@ -48,38 +153,7 @@ type LegendTickSet = {
   minor: number[]
 }
 
-type NormalizedColorStop = [number, number, number, number, number]
-
-const TEMP_C_MAJOR_TICKS = [-40, -30, -20, -10, 0, 10, 20, 30, 40, 50]
-const TEMP_F_MAJOR_TICKS = [-40, -20, 0, 20, 40, 60, 80, 100, 120]
-const PERCENT_MAJOR_TICKS = [0, 20, 40, 60, 80, 100]
-const PERCENT_MINOR_TICKS = [10, 30, 50, 70, 90]
-const PRESSURE_MAJOR_TICKS = [980, 992, 1004, 1016, 1028, 1036]
-const PRESSURE_MINOR_TICKS = [984, 988, 996, 1000, 1008, 1012, 1020, 1024, 1032]
-const MM_RATE_MAJOR_TICKS = [0, 1, 3, 7, 15, 30]
-const MM_RATE_MINOR_TICKS = [0.3, 5, 10, 20]
-const IN_RATE_MAJOR_TICKS = [0, 0.03, 0.1, 0.3, 0.7, 1]
-const IN_RATE_MINOR_TICKS = [0.01, 0.05, 0.5]
-const MM_TOTAL_PRECIP_MAJOR_TICKS = [0, 10, 25, 50, 100, 150, 250]
-const MM_TOTAL_PRECIP_MINOR_TICKS = [5, 75, 125, 200]
-const IN_TOTAL_PRECIP_MAJOR_TICKS = [0, 0.5, 1, 2, 4, 6, 10]
-const IN_TOTAL_PRECIP_MINOR_TICKS = [0.25, 3, 8]
-const CM_SNOW_DEPTH_MAJOR_TICKS = [0, 2, 5, 10, 50, 100, 300]
-const CM_SNOW_DEPTH_MINOR_TICKS = [20, 200]
-const INCHES_PER_METER = 39.37007874015748
-const IN_SNOW_DEPTH_MAJOR_TICKS = [
-  0,
-  0.02 * INCHES_PER_METER,
-  0.05 * INCHES_PER_METER,
-  0.1 * INCHES_PER_METER,
-  0.5 * INCHES_PER_METER,
-  1 * INCHES_PER_METER,
-  3 * INCHES_PER_METER,
-]
-const IN_SNOW_DEPTH_MINOR_TICKS = [
-  0.2 * INCHES_PER_METER,
-  2 * INCHES_PER_METER,
-]
+type NormalizedColorStop = readonly [number, number, number, number, number]
 
 export function toLegendContinuousGradient(spec: LegendSpec, direction = 'to top'): string {
   const range = spec.max - spec.min || 1
@@ -94,20 +168,20 @@ export function toLegendContinuousGradient(spec: LegendSpec, direction = 'to top
   return `linear-gradient(${direction}, ${stops})`
 }
 
-function uniqueSorted(values: number[]): number[] {
+function uniqueSorted(values: readonly number[]): number[] {
   return [...new Set(values.map((value) => Number(value.toFixed(6))))].sort((a, b) => a - b)
 }
 
-function sampleEvenly(values: number[], maxCount: number): number[] {
-  if (values.length <= maxCount) return values
-  if (maxCount <= 2) return [values[0], values[values.length - 1]]
+function sampleEvenly(values: readonly number[], maxCount: number): number[] {
+  if (values.length <= maxCount) return [...values]
+  if (maxCount <= 2) return [values[0]!, values[values.length - 1]!]
 
-  const sampled: number[] = [values[0]]
+  const sampled: number[] = [values[0]!]
   for (let i = 1; i < maxCount - 1; i += 1) {
     const index = Math.round((i / (maxCount - 1)) * (values.length - 1))
-    sampled.push(values[index])
+    sampled.push(values[index]!)
   }
-  sampled.push(values[values.length - 1])
+  sampled.push(values[values.length - 1]!)
   return uniqueSorted(sampled)
 }
 
@@ -123,7 +197,7 @@ function niceStep(roughStep: number): number {
   return niceNormalized * 10 ** power
 }
 
-function filterCandidatesInRange(values: number[], min: number, max: number): number[] {
+function filterCandidatesInRange(values: readonly number[], min: number, max: number): number[] {
   const epsilon = Math.max(Math.abs(min), Math.abs(max), 1) * 1e-6
   return values.filter((value) => value >= min - epsilon && value <= max + epsilon)
 }
@@ -133,7 +207,7 @@ function areClose(a: number, b: number): boolean {
   return roughlyEqual(a, b, epsilon)
 }
 
-function getLinearizedTickPosition(value: number, majorTicks: number[], minorTicks: number[]): number {
+function getLinearizedTickPosition(value: number, majorTicks: readonly number[], minorTicks: readonly number[]): number {
   const orderedMajors = uniqueSorted(majorTicks)
   if (orderedMajors.length <= 1) return 0
 
@@ -190,8 +264,8 @@ function buildStopBasedTicks(spec: LegendSpec, option: LegendUnitOption, maxCoun
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min]
 
   const convertedStops = uniqueSorted(
-    normalizeColorStops(spec)
-      .map(([value]) => option.convert(value))
+    spec.stops
+      .map((stop) => option.convert(stop.value))
       .filter((value) => Number.isFinite(value) && value >= min && value <= max)
   )
 
@@ -201,23 +275,23 @@ function buildStopBasedTicks(spec: LegendSpec, option: LegendUnitOption, maxCoun
   return sampleEvenly(ticks, maxCount)
 }
 
-function pruneTicksByDistance(ticks: number[], min: number, max: number, minGapPct = 11): number[] {
-  if (ticks.length <= 2) return ticks
+function pruneTicksByDistance(ticks: readonly number[], min: number, max: number, minGapPct = 11): number[] {
+  if (ticks.length <= 2) return [...ticks]
   const range = max - min || 1
 
   const sortedTicks = uniqueSorted(ticks)
-  const result: number[] = [sortedTicks[0]]
-  let lastPct = ((sortedTicks[0] - min) / range) * 100
+  const result: number[] = [sortedTicks[0]!]
+  let lastPct = ((sortedTicks[0]! - min) / range) * 100
 
   for (let i = 1; i < sortedTicks.length - 1; i += 1) {
-    const pct = ((sortedTicks[i] - min) / range) * 100
+    const pct = ((sortedTicks[i]! - min) / range) * 100
     if (pct - lastPct >= minGapPct) {
-      result.push(sortedTicks[i])
+      result.push(sortedTicks[i]!)
       lastPct = pct
     }
   }
 
-  const finalTick = sortedTicks[sortedTicks.length - 1]
+  const finalTick = sortedTicks[sortedTicks.length - 1]!
   const finalPct = ((finalTick - min) / range) * 100
   if (finalPct - lastPct < minGapPct * 0.65 && result.length > 1) {
     result.pop()
@@ -226,40 +300,14 @@ function pruneTicksByDistance(ticks: number[], min: number, max: number, minGapP
   return uniqueSorted(result)
 }
 
-function getHardCodedTicks(scale: LegendScale, optionId: string, min: number, max: number): LegendTickSet | null {
-  switch (scale) {
-    case 'percent':
-      return {
-        major: filterCandidatesInRange(PERCENT_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(PERCENT_MINOR_TICKS, min, max),
-      }
-    case 'pressure':
-      return {
-        major: filterCandidatesInRange(PRESSURE_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(PRESSURE_MINOR_TICKS, min, max),
-      }
-    case 'temperature':
-      return {
-        major: filterCandidatesInRange(optionId === 'fahrenheit' ? TEMP_F_MAJOR_TICKS : TEMP_C_MAJOR_TICKS, min, max),
-        minor: [],
-      }
-    case 'precip-rate':
-      return {
-        major: filterCandidatesInRange(optionId === 'in_per_hour' ? IN_RATE_MAJOR_TICKS : MM_RATE_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(optionId === 'in_per_hour' ? IN_RATE_MINOR_TICKS : MM_RATE_MINOR_TICKS, min, max),
-      }
-    case 'precip-total':
-      return {
-        major: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MAJOR_TICKS : MM_TOTAL_PRECIP_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(optionId === 'inches' ? IN_TOTAL_PRECIP_MINOR_TICKS : MM_TOTAL_PRECIP_MINOR_TICKS, min, max),
-      }
-    case 'snow-depth':
-      return {
-        major: filterCandidatesInRange(optionId === 'inches' ? IN_SNOW_DEPTH_MAJOR_TICKS : CM_SNOW_DEPTH_MAJOR_TICKS, min, max),
-        minor: filterCandidatesInRange(optionId === 'inches' ? IN_SNOW_DEPTH_MINOR_TICKS : CM_SNOW_DEPTH_MINOR_TICKS, min, max),
-      }
-    case 'stop-based':
-      return null
+function getProfileTicks(scale: LegendScale, optionId: string, min: number, max: number): LegendTickSet | null {
+  const profile = getLegendProfile(scale)
+  const ticks = profile.ticksByOptionId?.[optionId]
+  if (!ticks) return null
+
+  return {
+    major: filterCandidatesInRange(ticks.major, min, max),
+    minor: filterCandidatesInRange(ticks.minor ?? [], min, max),
   }
 }
 
@@ -273,8 +321,8 @@ function getLegendTickValues(spec: LegendSpec, option: LegendUnitOption): Legend
     }
   }
 
-  const hardCodedTicks = getHardCodedTicks(spec.legendScale, option.id, min, max)
-  if (hardCodedTicks && hardCodedTicks.major.length > 0) return hardCodedTicks
+  const profileTicks = getProfileTicks(spec.legendScale, option.id, min, max)
+  if (profileTicks && profileTicks.major.length > 0) return profileTicks
 
   const stopBased = buildStopBasedTicks(spec, option, 6)
   return {
@@ -288,8 +336,9 @@ export function getLegendTicks(spec: LegendSpec, option: LegendUnitOption): Lege
   const max = option.convert(spec.max)
   const range = max - min || 1
   const ticks = getLegendTickValues(spec, option)
+  const profile = getLegendProfile(spec.legendScale)
   const toLegendPosition = (value: number) => {
-    if (spec.legendScale === 'precip-rate' || spec.legendScale === 'snow-depth') {
+    if (profile.tickPlacement === 'linearized-profile') {
       return getLinearizedTickPosition(value, ticks.major, ticks.minor)
     }
     return clamp(((value - min) / range) * 100, 0, 100)
@@ -314,15 +363,16 @@ export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'):
   const range = spec.max - spec.min || 1
   const orderedStops = steppedGradientColorStops(spec)
   if (orderedStops.length < 2) return toLegendContinuousGradient(spec, direction)
-  const useEvenBandSpacing = spec.legendScale === 'precip-rate' || spec.legendScale === 'snow-depth'
+  const profile = getLegendProfile(spec.legendScale)
+  const useEvenBandSpacing = profile.steppedBandSpacing === 'even'
 
   const gradientStops: string[] = []
-  const firstColor = orderedStops[0]
+  const firstColor = orderedStops[0]!
   gradientStops.push(`${legendColor(firstColor[1], firstColor[2], firstColor[3], firstColor[4])} 0%`)
 
   for (let index = 0; index < orderedStops.length - 1; index += 1) {
-    const current = orderedStops[index]
-    const next = orderedStops[index + 1]
+    const current = orderedStops[index]!
+    const next = orderedStops[index + 1]!
     const startPct = useEvenBandSpacing
       ? (index / (orderedStops.length - 1)) * 100
       : ((current[0] - spec.min) / range) * 100
@@ -337,7 +387,7 @@ export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'):
     gradientStops.push(`${color} ${clampedEnd.toFixed(2)}%`)
   }
 
-  const last = orderedStops[orderedStops.length - 1]
+  const last = orderedStops[orderedStops.length - 1]!
   gradientStops.push(`${legendColor(last[1], last[2], last[3], last[4])} 100%`)
 
   return `linear-gradient(${direction}, ${gradientStops.join(', ')})`
@@ -345,8 +395,9 @@ export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'):
 
 function steppedGradientColorStops(spec: LegendSpec): NormalizedColorStop[] {
   const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
+  const profile = getLegendProfile(spec.legendScale)
   if (
-    spec.legendScale === 'snow-depth'
+    profile.omitTransparentMinStopInSteppedGradient
     && orderedStops.length > 1
     && roughlyEqual(orderedStops[0]?.[0] ?? Number.NaN, spec.min)
     && orderedStops[0]?.[4] === 0
@@ -357,13 +408,9 @@ function steppedGradientColorStops(spec: LegendSpec): NormalizedColorStop[] {
 }
 
 function normalizeColorStops(spec: LegendSpec): NormalizedColorStop[] {
-  const span = spec.max - spec.min
-  const denominator = Math.max(1, spec.colorStops.length - 1)
-  return spec.colorStops.map((stop, index) => {
-    if (stop.length === 5) return [stop[0], stop[1], stop[2], stop[3], stop[4]]
-    if (stop.length === 4) return [stop[0], stop[1], stop[2], stop[3], 255]
-    const value = spec.min + (span * index) / denominator
-    return [value, stop[0], stop[1], stop[2], 255]
+  return spec.stops.map((stop) => {
+    const [r, g, b, a] = normalizePaletteColor(stop.color)
+    return [stop.value, r, g, b, a]
   })
 }
 

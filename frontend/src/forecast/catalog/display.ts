@@ -5,7 +5,7 @@ import { getActiveRunArtifact } from '@/forecast/manifest'
 import type { LegendScale } from '@/forecast/legend'
 import {
   getLayerPalette,
-  type PaletteStop,
+  type PaletteColorStop,
 } from '@/forecast/palette'
 import type { UnitBehavior } from '@/forecast/units'
 import {
@@ -26,7 +26,7 @@ export type LayerDisplay = {
   paletteId: string
   unitBehavior: UnitBehavior
   legendScale: LegendScale
-  colorStops: PaletteStop[]
+  stops: readonly PaletteColorStop[]
 }
 
 export function getLayerDisplay(
@@ -56,6 +56,6 @@ export function getLayerDisplay(
     paletteId: layer.paletteId,
     unitBehavior: layer.unitBehavior,
     legendScale: layer.legendScale,
-    colorStops: palette.colorStops,
+    stops: palette.stops,
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assertLegendScale,
+  getLegendProfile,
   getLegendTicks,
   isLegendScale,
   toLegendContinuousGradient,
@@ -40,11 +41,17 @@ const INCHES_OPTION: LegendUnitOption = {
   convert: (value) => value * 39.37007874015748,
 }
 
+const stop = (value: number, color: [number, number, number] | [number, number, number, number]) => ({
+  value,
+  color,
+})
+
 describe('legend scale behavior', () => {
   it('validates known legend scales', () => {
     expect(isLegendScale('temperature')).toBe(true)
     expect(isLegendScale('snow-depth')).toBe(true)
     expect(assertLegendScale('temperature')).toBe('temperature')
+    expect(getLegendProfile('snow-depth').steppedBandSpacing).toBe('even')
     expect(isLegendScale('bogus')).toBe(false)
     expect(() => assertLegendScale('bogus')).toThrow('Unknown legend scale: bogus')
   })
@@ -54,9 +61,9 @@ describe('legend scale behavior', () => {
       min: -35,
       max: 50,
       legendScale: 'temperature',
-      colorStops: [
-        [-35, 0, 0, 0],
-        [50, 255, 255, 255],
+      stops: [
+        stop(-35, [0, 0, 0]),
+        stop(50, [255, 255, 255]),
       ],
     }
     const labels = getLegendTicks(spec, CELSIUS_OPTION)
@@ -73,9 +80,9 @@ describe('legend scale behavior', () => {
       min: 98_000,
       max: 103_600,
       legendScale: 'pressure',
-      colorStops: [
-        [98_000, 0, 0, 0],
-        [103_600, 255, 255, 255],
+      stops: [
+        stop(98_000, [0, 0, 0]),
+        stop(103_600, [255, 255, 255]),
       ],
     }
     const ticks = getLegendTicks(spec, HECTOPASCAL_OPTION)
@@ -89,10 +96,10 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 30,
       legendScale: 'precip-rate',
-      colorStops: [
-        [0, 0, 0, 0],
-        [15, 128, 128, 128],
-        [30, 255, 255, 255],
+      stops: [
+        stop(0, [0, 0, 0]),
+        stop(15, [128, 128, 128]),
+        stop(30, [255, 255, 255]),
       ],
     }
     const ticks = getLegendTicks(spec, IN_PER_HOUR_OPTION)
@@ -107,9 +114,9 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 3,
       legendScale: 'snow-depth',
-      colorStops: [
-        [0, 0, 0, 0],
-        [3, 255, 255, 255],
+      stops: [
+        stop(0, [0, 0, 0]),
+        stop(3, [255, 255, 255]),
       ],
     }
 
@@ -125,9 +132,9 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 3,
       legendScale: 'snow-depth',
-      colorStops: [
-        [0, 0, 0, 0],
-        [3, 255, 255, 255],
+      stops: [
+        stop(0, [0, 0, 0]),
+        stop(3, [255, 255, 255]),
       ],
     }
 
@@ -143,9 +150,9 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 8,
       legendScale: 'stop-based',
-      colorStops: [
-        [0, 0, 0, 0],
-        [8, 255, 255, 255],
+      stops: [
+        stop(0, [0, 0, 0]),
+        stop(8, [255, 255, 255]),
       ],
     }
 
@@ -159,10 +166,10 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 30,
       legendScale: 'precip-rate',
-      colorStops: [
-        [1, 1, 1],
-        [2, 2, 2],
-        [3, 3, 3],
+      stops: [
+        stop(1, [1, 1, 1]),
+        stop(2, [2, 2, 2]),
+        stop(3, [3, 3, 3]),
       ],
     }
 
@@ -180,10 +187,10 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 10,
       legendScale: 'stop-based',
-      colorStops: [
-        [0, 1, 1, 1],
-        [5, 2, 2, 2],
-        [10, 3, 3, 3],
+      stops: [
+        stop(0, [1, 1, 1]),
+        stop(5, [2, 2, 2]),
+        stop(10, [3, 3, 3]),
       ],
     }
 
@@ -200,10 +207,10 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 3,
       legendScale: 'snow-depth',
-      colorStops: [
-        [0, 1, 1, 1, 0],
-        [0.02, 2, 2, 2],
-        [3, 3, 3, 3],
+      stops: [
+        stop(0, [1, 1, 1, 0]),
+        stop(0.02, [2, 2, 2]),
+        stop(3, [3, 3, 3]),
       ],
     }
 
@@ -219,9 +226,9 @@ describe('legend scale behavior', () => {
       min: 0,
       max: 1,
       legendScale: 'stop-based',
-      colorStops: [
-        [0, 1, 2, 3, 0],
-        [1, 4, 5, 6],
+      stops: [
+        stop(0, [1, 2, 3, 0]),
+        stop(1, [4, 5, 6]),
       ],
     }
 

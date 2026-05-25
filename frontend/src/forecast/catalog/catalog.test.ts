@@ -95,4 +95,26 @@ describe('parseForecastCatalog', () => {
       ],
     })).toThrow()
   })
+
+  it('rejects unknown palette ids and legend scales', () => {
+    expect(() => parseForecastCatalog({
+      ...BASE_CATALOG,
+      layers: [
+        {
+          ...BASE_CATALOG.layers[0],
+          paletteId: 'missing.palette.v1',
+        },
+      ],
+    })).toThrow(/references unknown palette missing\.palette\.v1/)
+
+    expect(() => parseForecastCatalog({
+      ...BASE_CATALOG,
+      layers: [
+        {
+          ...BASE_CATALOG.layers[0],
+          legendScale: 'missing-scale',
+        },
+      ],
+    })).toThrow(/references unknown legend scale missing-scale/)
+  })
 })

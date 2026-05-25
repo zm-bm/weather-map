@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isLegendScale } from '@/forecast/legend'
+import { isLayerPaletteId } from '@/forecast/palette'
 import catalogJson from '../../../../config/forecast_catalog.json'
 
 const idSchema = z.string().trim().min(1)
@@ -121,6 +123,20 @@ const forecastCatalogSchema = z.object({
         code: 'custom',
         path: ['layers', layerIndex, 'groupId'],
         message: `layer ${layer.id} is not listed in group ${layer.groupId}`,
+      })
+    }
+    if (!isLayerPaletteId(layer.paletteId)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['layers', layerIndex, 'paletteId'],
+        message: `layer ${layer.id} references unknown palette ${layer.paletteId}`,
+      })
+    }
+    if (!isLegendScale(layer.legendScale)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['layers', layerIndex, 'legendScale'],
+        message: `layer ${layer.id} references unknown legend scale ${layer.legendScale}`,
       })
     }
   }

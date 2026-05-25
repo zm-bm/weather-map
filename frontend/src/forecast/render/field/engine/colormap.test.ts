@@ -16,12 +16,17 @@ function getLutAlpha(lut: Uint8Array, index: number): number {
   return lut[index * 4 + 3]
 }
 
+const stop = (value: number, color: [number, number, number] | [number, number, number, number]) => ({
+  value,
+  color,
+})
+
 describe('field colormap helpers', () => {
   it('uses lower-bound threshold colors for banded colormap LUTs', () => {
     const lut = buildColormapLut([
-      [0, 0, 0, 0],
-      [50, 200, 0, 0],
-      [100, 255, 255, 255],
+      stop(0, [0, 0, 0]),
+      stop(50, [200, 0, 0]),
+      stop(100, [255, 255, 255]),
     ], [0, 100], 6, 'banded')
 
     expect(getLutRgb(lut, 2)).toEqual([0, 0, 0])
@@ -38,9 +43,9 @@ describe('field colormap helpers', () => {
 
   it('preserves explicit alpha stops and keeps RGB stops opaque', () => {
     const lut = buildColormapLut([
-      [0, 0, 0, 0, 0],
-      [1, 255, 255, 255, 128],
-      [2, 255, 0, 0],
+      stop(0, [0, 0, 0, 0]),
+      stop(1, [255, 255, 255, 128]),
+      stop(2, [255, 0, 0]),
     ], [0, 2], 3, 'banded')
 
     expect(getLutAlpha(lut, 0)).toBe(0)

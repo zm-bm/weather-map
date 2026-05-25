@@ -38,12 +38,12 @@ describe('layer metadata palettes', () => {
     expect(display.paletteId).toBe('pressure.msl.pa.v1')
     expect(display.unitBehavior).toBe('pressure')
     expect(display.legendScale).toBe('pressure')
-    expect(display.colorStops).toBe(getLayerPalette('pressure.msl.pa.v1').colorStops)
+    expect(display.stops).toBe(getLayerPalette('pressure.msl.pa.v1').stops)
   })
 
   it('resolves every catalog layer palette', () => {
     for (const layer of FORECAST_LAYERS) {
-      expect(getLayerPalette(layer.paletteId).colorStops.length).toBeGreaterThan(0)
+      expect(getLayerPalette(layer.paletteId).stops.length).toBeGreaterThan(0)
     }
   })
 
@@ -75,7 +75,7 @@ describe('layer metadata palettes', () => {
     expect(display.label).toBe('Wind Speed')
     expect(display.units).toBe('m/s')
     expect(display.parameter).toBe('wind_speed')
-    expect(display.colorStops).toBe(getLayerPalette('wind.gust.mps.v1').colorStops)
+    expect(display.stops).toBe(getLayerPalette('wind.gust.mps.v1').stops)
   })
 
 })

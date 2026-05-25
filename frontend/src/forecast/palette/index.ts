@@ -1,277 +1,98 @@
-export type PaletteStop =
-  | [number, number, number, number, number]
-  | [number, number, number, number]
-  | [number, number, number]
+import { lerp } from '@/core/math'
+import { BUILT_IN_FIELD_PALETTES } from './definitions'
+import {
+  parseForecastPalettes,
+  type FieldPaletteDefinition,
+  type PaletteColor,
+  type PaletteColorStop,
+} from './schema'
 
-export type LayerPalette = {
-  colorStops: PaletteStop[]
+export type {
+  FieldPaletteDefinition,
+  PaletteColor,
+  PaletteColorStop,
+} from './schema'
+
+export type PaletteSamplingMode = 'banded' | 'interpolated'
+
+export type SampledPaletteColor = readonly [number, number, number, number]
+
+export const FIELD_PALETTES = parseForecastPalettes(BUILT_IN_FIELD_PALETTES)
+
+const FIELD_PALETTES_BY_ID: Record<string, FieldPaletteDefinition> = Object.fromEntries(
+  FIELD_PALETTES.map((palette) => [palette.id, palette])
+)
+
+export function isLayerPaletteId(paletteId: unknown): paletteId is string {
+  return typeof paletteId === 'string' && FIELD_PALETTES_BY_ID[paletteId] != null
 }
 
-const fahrenheitToCelsius = (value: number) => ((value - 32) * 5) / 9
-
-const TEMPERATURE_COLOR_STOPS: PaletteStop[] = [
-  [fahrenheitToCelsius(120), 61, 2, 22],
-  [fahrenheitToCelsius(115), 86, 12, 37],
-  [fahrenheitToCelsius(110), 110, 21, 49],
-  [fahrenheitToCelsius(105), 135, 32, 62],
-  [fahrenheitToCelsius(100), 159, 41, 76],
-  [fahrenheitToCelsius(95), 175, 77, 76],
-  [fahrenheitToCelsius(90), 190, 112, 76],
-  [fahrenheitToCelsius(85), 195, 138, 83],
-  [fahrenheitToCelsius(80), 193, 157, 97],
-  [fahrenheitToCelsius(75), 194, 171, 117],
-  [fahrenheitToCelsius(70), 171, 168, 125],
-  [fahrenheitToCelsius(65), 135, 154, 132],
-  [fahrenheitToCelsius(60), 100, 141, 137],
-  [fahrenheitToCelsius(55), 67, 129, 144],
-  [fahrenheitToCelsius(50), 40, 117, 147],
-  [fahrenheitToCelsius(45), 39, 103, 138],
-  [fahrenheitToCelsius(40), 38, 92, 130],
-  [fahrenheitToCelsius(35), 37, 79, 119],
-  [fahrenheitToCelsius(30), 38, 67, 111],
-  [fahrenheitToCelsius(25), 47, 71, 117],
-  [fahrenheitToCelsius(20), 57, 81, 127],
-  [fahrenheitToCelsius(15), 65, 92, 135],
-  [fahrenheitToCelsius(10), 77, 101, 145],
-  [fahrenheitToCelsius(5), 86, 113, 156],
-  [fahrenheitToCelsius(0), 96, 123, 166],
-  [fahrenheitToCelsius(-5), 117, 145, 185],
-  [fahrenheitToCelsius(-10), 127, 155, 195],
-  [fahrenheitToCelsius(-15), 138, 164, 205],
-  [fahrenheitToCelsius(-20), 147, 177, 215],
-  [fahrenheitToCelsius(-25), 156, 184, 223],
-  [fahrenheitToCelsius(-30), 167, 191, 227],
-  [fahrenheitToCelsius(-35), 175, 198, 230],
-  [fahrenheitToCelsius(-40), 184, 205, 234],
-  [fahrenheitToCelsius(-45), 192, 212, 237],
-  [fahrenheitToCelsius(-50), 203, 219, 244],
-]
-
-const LAYER_PALETTES: Record<string, LayerPalette> = {
-  'temperature.air.c.v1': {
-    colorStops: TEMPERATURE_COLOR_STOPS,
-  },
-  'moisture.relative_humidity.percent.v1': {
-    colorStops: [
-      [0, 218, 192, 146],
-      [10, 232, 214, 171],
-      [20, 244, 234, 196],
-      [30, 230, 238, 202],
-      [40, 196, 232, 203],
-      [50, 153, 220, 206],
-      [60, 105, 201, 212],
-      [70, 67, 173, 214],
-      [80, 44, 141, 205],
-      [90, 29, 101, 176],
-      [100, 19, 72, 140],
-    ],
-  },
-  'wind.gust.mps.v1': {
-    colorStops: [
-      [0, 200, 210, 215],
-      [4, 148, 199, 213],
-      [8, 96, 185, 185],
-      [12, 72, 172, 132],
-      [16, 112, 184, 86],
-      [20, 184, 198, 68],
-      [25, 232, 182, 64],
-      [30, 238, 128, 55],
-      [35, 220, 74, 64],
-      [45, 174, 49, 105],
-      [60, 110, 42, 150],
-    ],
-  },
-  'temperature.dewpoint.c.v1': {
-    colorStops: [
-      [-60, 98, 81, 140],
-      [-45, 95, 112, 182],
-      [-30, 82, 151, 202],
-      [-20, 72, 177, 194],
-      [-10, 82, 190, 155],
-      [0, 116, 197, 108],
-      [8, 165, 203, 88],
-      [14, 210, 203, 82],
-      [18, 233, 178, 76],
-      [22, 235, 134, 75],
-      [26, 213, 88, 94],
-      [30, 166, 63, 119],
-      [40, 94, 53, 126],
-    ],
-  },
-  'cloud.cover.percent.v1': {
-    colorStops: [
-      [0, 180, 180, 180],
-      [5, 170, 185, 200],
-      [10, 150, 185, 210],
-      [15, 135, 180, 215],
-      [20, 120, 175, 220],
-      [30, 110, 170, 215],
-      [40, 100, 165, 210],
-      [50, 90, 160, 205],
-      [60, 80, 155, 200],
-      [70, 75, 150, 195],
-      [80, 70, 145, 190],
-      [90, 65, 135, 180],
-      [100, 60, 120, 170],
-    ],
-  },
-  'cloud.layers.composite.v1': {
-    colorStops: [
-      [0, 180, 180, 180],
-      [10, 116, 126, 138],
-      [30, 138, 146, 154],
-      [50, 166, 172, 178],
-      [70, 192, 198, 204],
-      [90, 218, 226, 236],
-      [100, 236, 244, 252],
-    ],
-  },
-  'pressure.msl.pa.v1': {
-    colorStops: [
-      [98000, 70, 155, 225],
-      [98400, 82, 182, 230],
-      [98800, 98, 205, 228],
-      [99200, 122, 220, 220],
-      [99600, 155, 230, 210],
-      [100000, 188, 236, 214],
-      [100400, 206, 238, 220],
-      [100800, 228, 234, 211],
-      [101200, 245, 223, 186],
-      [101600, 245, 205, 155],
-      [102000, 238, 182, 125],
-      [102400, 229, 157, 101],
-      [102800, 218, 128, 82],
-      [103200, 202, 103, 71],
-      [103600, 180, 78, 62],
-    ],
-  },
-  'precip.rate.mm_hr.v1': {
-    colorStops: [
-      [0, 180, 180, 180],
-      [0.15, 200, 210, 240],
-      [0.3, 160, 190, 255],
-      [0.45, 120, 170, 255],
-      [0.75, 80, 150, 255],
-      [1.5, 60, 170, 220],
-      [3, 60, 200, 160],
-      [4.5, 100, 220, 100],
-      [7.5, 160, 230, 80],
-      [12, 220, 220, 60],
-      [16.5, 255, 180, 60],
-      [21, 255, 120, 60],
-      [25, 255, 70, 70],
-      [30, 180, 40, 140],
-    ],
-  },
-  'precip.total.mm.v1': {
-    colorStops: [
-      [0, 180, 180, 180],
-      [1, 200, 210, 240],
-      [2, 160, 190, 255],
-      [5, 120, 170, 255],
-      [10, 60, 170, 220],
-      [25, 60, 200, 160],
-      [50, 160, 230, 80],
-      [100, 255, 180, 60],
-      [150, 255, 100, 60],
-      [250, 180, 40, 140],
-    ],
-  },
-  'snow.depth.m.v1': {
-    colorStops: [
-      [0, 56, 68, 124, 0],
-      [0.011811023622047244, 56, 68, 124],
-      [0.02, 68, 84, 150],
-      [0.05, 62, 108, 174],
-      [0.1, 52, 150, 160],
-      [0.2, 68, 160, 128],
-      [0.5, 106, 154, 86],
-      [1, 172, 92, 122],
-      [2, 154, 66, 126],
-      [3, 166, 58, 112],
-    ],
-  },
-  'atmosphere.visibility.m.v1': {
-    colorStops: [
-      [0, 120, 118, 116],
-      [500, 165, 100, 90],
-      [1000, 204, 128, 78],
-      [2000, 222, 174, 92],
-      [5000, 205, 210, 118],
-      [10000, 140, 204, 170],
-      [20000, 96, 172, 206],
-      [50000, 72, 126, 190],
-    ],
-  },
-  'atmosphere.freezing_level.m.v1': {
-    colorStops: [
-      [0, 70, 118, 180],
-      [500, 75, 162, 210],
-      [1000, 96, 198, 190],
-      [1500, 148, 214, 128],
-      [2500, 220, 210, 94],
-      [3500, 238, 160, 76],
-      [5000, 220, 92, 86],
-      [6500, 172, 72, 142],
-      [8000, 112, 64, 158],
-    ],
-  },
-  'atmosphere.precipitable_water.mm.v1': {
-    colorStops: [
-      [0, 174, 168, 138],
-      [5, 202, 199, 154],
-      [10, 164, 204, 180],
-      [20, 98, 186, 202],
-      [30, 78, 162, 214],
-      [40, 96, 184, 134],
-      [50, 210, 202, 76],
-      [65, 232, 132, 70],
-      [80, 174, 64, 132],
-    ],
-  },
-  'severe.cape.jkg.v1': {
-    colorStops: [
-      [0, 174, 176, 172],
-      [250, 142, 190, 118],
-      [500, 198, 210, 92],
-      [1000, 236, 186, 70],
-      [1500, 238, 130, 64],
-      [2500, 214, 76, 82],
-      [3500, 176, 58, 130],
-      [5000, 104, 50, 156],
-    ],
-  },
-  'severe.cin.jkg.v1': {
-    colorStops: [
-      [0, 180, 186, 182],
-      [25, 158, 204, 172],
-      [50, 214, 216, 112],
-      [100, 238, 180, 78],
-      [200, 222, 104, 70],
-      [300, 172, 70, 128],
-      [500, 96, 58, 148],
-    ],
-  },
-  'radar.reflectivity.dbz.v1': {
-    colorStops: [
-      [0, 180, 180, 180],
-      [5, 110, 225, 110],
-      [10, 60, 205, 75],
-      [20, 35, 155, 55],
-      [30, 238, 226, 65],
-      [40, 236, 150, 55],
-      [50, 214, 64, 64],
-      [60, 166, 56, 146],
-      [70, 112, 48, 150],
-      [75, 245, 245, 245],
-    ],
-  },
-}
-
-export function getLayerPalette(paletteId: string): LayerPalette {
-  const palette = LAYER_PALETTES[paletteId]
+export function getLayerPalette(paletteId: string): FieldPaletteDefinition {
+  const palette = FIELD_PALETTES_BY_ID[paletteId]
   if (!palette) {
     throw new Error(`Unknown layer paletteId: ${paletteId}`)
   }
   return palette
+}
+
+export function normalizePaletteColor(color: PaletteColor): SampledPaletteColor {
+  return [color[0], color[1], color[2], color[3] ?? 255]
+}
+
+export function samplePaletteColor(
+  stops: readonly PaletteColorStop[],
+  value: number,
+  samplingMode: PaletteSamplingMode,
+): SampledPaletteColor {
+  if (stops.length === 0) return [220, 220, 220, 255]
+  if (samplingMode === 'banded') return sampleThresholdColor(stops, value)
+  return sampleInterpolatedColor(stops, value)
+}
+
+function sampleThresholdColor(
+  stops: readonly PaletteColorStop[],
+  value: number,
+): SampledPaletteColor {
+  let selected = stops[0]!
+
+  for (let index = 1; index < stops.length; index += 1) {
+    const candidate = stops[index]!
+    if (value < candidate.value) break
+    selected = candidate
+  }
+
+  return normalizePaletteColor(selected.color)
+}
+
+function sampleInterpolatedColor(
+  stops: readonly PaletteColorStop[],
+  value: number,
+): SampledPaletteColor {
+  if (stops.length === 1) return normalizePaletteColor(stops[0]!.color)
+
+  const first = stops[0]!
+  if (value <= first.value) return normalizePaletteColor(first.color)
+
+  const last = stops[stops.length - 1]!
+  if (value >= last.value) return normalizePaletteColor(last.color)
+
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const lowerStop = stops[index]!
+    const upperStop = stops[index + 1]!
+    if (value < lowerStop.value || value > upperStop.value) continue
+
+    const lowerColor = normalizePaletteColor(lowerStop.color)
+    const upperColor = normalizePaletteColor(upperStop.color)
+    const span = Math.max(1e-6, upperStop.value - lowerStop.value)
+    const t = (value - lowerStop.value) / span
+
+    return [
+      Math.round(lerp(lowerColor[0], upperColor[0], t)),
+      Math.round(lerp(lowerColor[1], upperColor[1], t)),
+      Math.round(lerp(lowerColor[2], upperColor[2], t)),
+      Math.round(lerp(lowerColor[3], upperColor[3], t)),
+    ]
+  }
+
+  return normalizePaletteColor(last.color)
 }
