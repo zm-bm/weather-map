@@ -30,6 +30,7 @@ export default function LegendPanel() {
     <LegendPanelView
       display={display}
       selectedOption={selectedOption}
+      colorSamplingMode={settings.field.colorSamplingMode}
       canCycleUnits={canCycleUnits}
       onCycleUnits={handleCycleUnits}
     />

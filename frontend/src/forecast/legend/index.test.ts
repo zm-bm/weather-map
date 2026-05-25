@@ -4,6 +4,7 @@ import {
   assertLegendScale,
   getLegendTicks,
   isLegendScale,
+  toLegendContinuousGradient,
   toLegendSteppedGradient,
   type LegendSpec,
   type LegendUnitOption,
@@ -172,6 +173,26 @@ describe('legend scale behavior', () => {
     expect(gradient).toContain('rgb(1 1 1) 50.00%')
     expect(gradient).toContain('rgb(2 2 2) 50.00%')
     expect(gradient).toContain('rgb(2 2 2) 100.00%')
+  })
+
+  it('builds continuous gradients with value-positioned color stops', () => {
+    const spec: LegendSpec = {
+      min: 0,
+      max: 10,
+      legendScale: 'stop-based',
+      colorStops: [
+        [0, 1, 1, 1],
+        [5, 2, 2, 2],
+        [10, 3, 3, 3],
+      ],
+    }
+
+    const gradient = toLegendContinuousGradient(spec, 'to top')
+
+    expect(gradient).toContain('linear-gradient(to top')
+    expect(gradient).toContain('rgb(1 1 1) 0.0%')
+    expect(gradient).toContain('rgb(2 2 2) 50.0%')
+    expect(gradient).toContain('rgb(3 3 3) 100.0%')
   })
 
   it('builds stepped gradients and evenly spaces snow depth color bands', () => {

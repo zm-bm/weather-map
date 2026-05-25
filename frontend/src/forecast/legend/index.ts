@@ -81,7 +81,7 @@ const IN_SNOW_DEPTH_MINOR_TICKS = [
   2 * INCHES_PER_METER,
 ]
 
-function toLegendGradient(spec: LegendSpec): string {
+export function toLegendContinuousGradient(spec: LegendSpec, direction = 'to top'): string {
   const range = spec.max - spec.min || 1
   const orderedStops = normalizeColorStops(spec).sort((a, b) => a[0] - b[0])
   const stops = orderedStops
@@ -91,7 +91,7 @@ function toLegendGradient(spec: LegendSpec): string {
     })
     .join(', ')
 
-  return `linear-gradient(90deg, ${stops})`
+  return `linear-gradient(${direction}, ${stops})`
 }
 
 function uniqueSorted(values: number[]): number[] {
@@ -313,7 +313,7 @@ export function getLegendTicks(spec: LegendSpec, option: LegendUnitOption): Lege
 export function toLegendSteppedGradient(spec: LegendSpec, direction = 'to top'): string {
   const range = spec.max - spec.min || 1
   const orderedStops = steppedGradientColorStops(spec)
-  if (orderedStops.length < 2) return toLegendGradient(spec)
+  if (orderedStops.length < 2) return toLegendContinuousGradient(spec, direction)
   const useEvenBandSpacing = spec.legendScale === 'precip-rate' || spec.legendScale === 'snow-depth'
 
   const gradientStops: string[] = []

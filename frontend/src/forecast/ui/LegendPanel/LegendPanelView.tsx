@@ -1,10 +1,12 @@
 import type { LayerDisplay } from '@/forecast/catalog'
-import { getLegendTicks, toLegendSteppedGradient } from '@/forecast/legend'
+import { getLegendTicks, toLegendContinuousGradient, toLegendSteppedGradient } from '@/forecast/legend'
+import type { FieldColorSamplingMode } from '@/forecast/settings'
 import type { UnitOption } from '@/forecast/units'
 
 type LegendPanelViewProps = {
   display: LayerDisplay
   selectedOption: UnitOption
+  colorSamplingMode: FieldColorSamplingMode
   canCycleUnits: boolean
   onCycleUnits: () => void
 }
@@ -12,6 +14,7 @@ type LegendPanelViewProps = {
 export function LegendPanelView({
   display,
   selectedOption,
+  colorSamplingMode,
   canCycleUnits,
   onCycleUnits,
 }: LegendPanelViewProps) {
@@ -22,6 +25,9 @@ export function LegendPanelView({
     !canCycleUnits ? 'legend-panel__unit-pill--static' : '',
   ].filter(Boolean).join(' ')
   const legendTicks = getLegendTicks(display, selectedOption)
+  const legendScaleGradient = colorSamplingMode === 'interpolated'
+    ? toLegendContinuousGradient(display, 'to top')
+    : toLegendSteppedGradient(display, 'to top')
   const isCloudLayersLegend = display.id === 'cloud_layers'
 
   return (
@@ -49,7 +55,7 @@ export function LegendPanelView({
             <div className="legend-panel__scale-wrap">
               <div
                 className="legend-panel__scale"
-                style={{ backgroundImage: toLegendSteppedGradient(display, 'to top') }}
+                style={{ backgroundImage: legendScaleGradient }}
               />
               <div className="legend-panel__ticks">
                 <div className="legend-panel__annotations">
