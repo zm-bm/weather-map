@@ -125,7 +125,7 @@ describe('createFieldDataLoad', () => {
   })
 
   it('derives wind speed fields from vector u/v components', async () => {
-    const payload = createVectorPayloadFixture([6, 0, -6, 0], [8, 0, -8, 0])
+    const payload = createVectorPayloadFixture([3, 0, -3, 0], [4, 0, -4, 0])
     const fetchMock = stubFetchArrayBufferOnce(payload)
     const manifest = createSingleTimeManifestFixture({
       scalarArtifactIds: [],

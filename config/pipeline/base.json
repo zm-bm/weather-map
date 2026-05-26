@@ -142,12 +142,12 @@
       "units": "%",
       "source_transform": "identity",
       "encoding": {
-        "id": "tcdc_i8_1pct_v1",
+        "id": "tcdc_i8_4pct_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 1,
-        "offset": 50,
+        "scale": 4,
+        "offset": 0,
         "nodata": -128,
         "finite_value_range": {
           "min": 0,
@@ -167,11 +167,11 @@
       "units": "%",
       "source_transform": "identity",
       "encoding": {
-        "id": "cloud_layers_vector_i8_2pct_v1",
+        "id": "cloud_layers_vector_i8_4pct_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 2,
+        "scale": 4,
         "offset": 0,
         "nodata": -128,
         "finite_value_range": {
@@ -476,15 +476,15 @@
       "level": "10m_above_ground",
       "source_transform": "identity",
       "encoding": {
-        "id": "wind10m_uv_vector_i8_v1",
+        "id": "wind10m_uv_vector_i8_1ms_v1",
         "format": "linear-i8-v1",
         "dtype": "int8",
         "byte_order": "none",
-        "scale": 0.5,
+        "scale": 1,
         "offset": 0,
         "finite_value_range": {
           "min": -64,
-          "max": 63.5
+          "max": 64
         }
       },
       "components": [

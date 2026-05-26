@@ -59,7 +59,7 @@ Artifacts that directly back current field layers.
 | `rh_surface` | `scalar` | Near-surface relative humidity. | `%` | `value` | instantaneous | `rh_surface_i8_1pct_v1`; linear-i8-v1; int8; scale `1`; offset `50`; nodata `-128`; finite_value_range `0..100` | layer `relative_humidity` | Finite source values clamp to the natural percent range before quantization. |
 | `gust_surface` | `scalar` | Near-surface wind gust speed. | `m/s` | `value` | instantaneous | `gust_surface_i8_0p5ms_v1`; linear-i8-v1; int8; scale `0.5`; offset `63.5`; nodata `-128`; finite_value_range `0..60` | layer `wind_gust` | Finite source values clamp to the layer display range before quantization. |
 | `prmsl_msl` | `scalar` | Mean sea-level pressure. | `Pa` | `value` | instantaneous | `prmsl_msl_i8_50pa_v1`; linear-i8-v1; int8; scale `50`; offset `100500`; nodata `-128`; finite_value_range `94150..106850` | layer `air_pressure`; map overlay `pressure_contours` | Semantic level is mean sea level. ICON source is regridded to `0.125` then downsampled to `0.25` before publishing this artifact. |
-| `tcdc` | `scalar` | Total cloud cover across the atmospheric column. | `%` | `value` | instantaneous | `tcdc_i8_1pct_v1`; linear-i8-v1; int8; scale `1`; offset `50`; nodata `-128`; finite_value_range `0..100` | layer `cloud_cover` | Finite source values clamp to the natural percent range before quantization. |
+| `tcdc` | `scalar` | Total cloud cover across the atmospheric column. | `%` | `value` | instantaneous | `tcdc_i8_4pct_v1`; linear-i8-v1; int8; scale `4`; offset `0`; nodata `-128`; finite_value_range `0..100` | layer `cloud_cover` | Finite source values clamp to the natural percent range before quantization. |
 | `prate_surface` | `scalar` | Precipitation rate normalized to millimeters per hour. | `mm/hr` | `value` | rate or source-interval average rate | `prate_surface_i8_0p15mmhr_v1`; linear-i8-v1; int8; scale `0.15`; offset `19.05`; nodata `-128`; finite_value_range `0..38.1` | layer `precipitation_rate` | Source transform converts kg/m²/s to mm/hr before finite clamp. |
 | `precip_total_surface` | `scalar` | Run-total precipitation since model reference time. | `mm` | `value` | run total / source accumulation | `precip_total_surface_i8_1mm_v1`; linear-i8-v1; int8; scale `1`; offset `127`; nodata `-128`; finite_value_range `0..254` | layer `accumulated_precipitation` | GFS synthesizes zero at `f000` and uses run-total `APCP` afterward; ICON uses `tot_prec`. Fixed-window accumulation layers need separate artifacts. |
 | `snow_depth_surface` | `scalar` | Snow depth on the ground. | `m` | `value` | instantaneous | `snow_depth_surface_i8_0p012m_v1`; linear-i8-v1; int8; scale `3/254` (`~0.011811 m`); offset `1.5`; nodata `-128`; finite_value_range `0..3` | layer `snow_depth` | GFS `SNOD` source nodata over open water must remain artifact nodata before finite clamp. |
@@ -78,7 +78,7 @@ selectable field layer directly.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `wind10m_uv` | `vector` | 10m horizontal wind vector with ordered u/v components. | `m/s` | `u`, `v` | instantaneous | `wind10m_uv_vector_i8_v1`; linear-i8-v1; int8; scale `0.5`; offset `0`; finite_value_range `-64..63.5` | derived layer `wind_speed`; particle layer `wind` | No nodata value is declared in the catalog encoding. If either source component is non-finite for a cell, ETL encodes both components as `0 m/s`. |
+| `wind10m_uv` | `vector` | 10m horizontal wind vector with ordered u/v components. | `m/s` | `u`, `v` | instantaneous | `wind10m_uv_vector_i8_1ms_v1`; linear-i8-v1; int8; scale `1`; offset `0`; finite_value_range `-64..64` | derived layer `wind_speed`; particle layer `wind` | No nodata value is declared in the catalog encoding. If either source component is non-finite for a cell, ETL encodes both components as `0 m/s`. |
 
 ## Renderer Support Artifacts
 
@@ -86,7 +86,7 @@ Artifacts published for custom renderers, overlays, or future derived products.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cloud_layers` | `vector` | Low, middle, and high cloud-layer cover packed for the Cloud Layers renderer. | `%` | `low`, `middle`, `high` | instantaneous | `cloud_layers_vector_i8_2pct_v1`; linear-i8-v1; int8; scale `2`; offset `0`; nodata `-128`; finite_value_range `0..100` | layer `cloud_layers` | Source artifact for the selectable Cloud Layers visualization. |
+| `cloud_layers` | `vector` | Low, middle, and high cloud-layer cover packed for the Cloud Layers renderer. | `%` | `low`, `middle`, `high` | instantaneous | `cloud_layers_vector_i8_4pct_v1`; linear-i8-v1; int8; scale `4`; offset `0`; nodata `-128`; finite_value_range `0..100` | layer `cloud_layers` | Source artifact for the selectable Cloud Layers visualization. |
 | `precip_type_surface` | `vector` | Soft precipitation-type overlay fractions derived from model precipitation-type inputs. | `fraction` | `snow_frac`, `mix_frac` | source-interval derived overlay | `precip_type_surface_i8_frac_v1`; linear-i8-v1; int8; scale `0.003937007874015748`; offset `0.5`; nodata `-128`; finite_value_range `0..1` | automatic `precipitation_rate` pattern overlay | Optional GFS/ICON artifact; precipitation intensity still renders when this artifact is missing. |
 | `thunderstorm_mask` | `scalar` | Normalized thunderstorm flag mask. | `flag` | `value` | instantaneous | `thunderstorm_mask_i8_flag_v1`; linear-i8-v1; int8; scale `1`; offset `0`; nodata `-128`; finite_value_range `0..1` | future thunderstorm rendering; no current selectable layer | Published when configured by a model; not currently consumed by the frontend catalog. |
 
@@ -106,7 +106,7 @@ stores three same-grid component planes in fixed order:
 The byte payload layout is all `low` cells, followed by all `middle` cells,
 then all `high` cells. Non-finite source values publish nodata for the affected
 component cell. Finite source values clamp to `0..100%` before quantization.
-Values are quantized in 2 percentage-point buckets.
+Values are quantized in 4 percentage-point buckets.
 
 ### `precip_type_surface`
 

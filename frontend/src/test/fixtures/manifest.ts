@@ -33,7 +33,7 @@ export const FIXTURE_REVISION = 'rev'
 export const FIXTURE_HOUR_TOKEN = '000'
 export const FIXTURE_GRID_ID = 'g0'
 export const FIXTURE_SCALAR_ENCODING_ID = 'e0'
-export const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_v1'
+export const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_1ms_v1'
 export const FIXTURE_SCALAR_ID = asArtifactId('tmp_surface')
 export const FIXTURE_VECTOR_ID = asVectorArtifactId('wind10m_uv')
 export const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
@@ -131,7 +131,7 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
     format: 'linear-i8-v1',
     dtype: 'int8',
     byteOrder: 'none',
-    scale: 0.5,
+    scale: 1,
     offset: 0,
     decodeFormula: 'value = stored * scale + offset',
     ...overrides,

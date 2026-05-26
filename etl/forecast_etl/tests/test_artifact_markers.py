@@ -19,7 +19,7 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     payload_uri="file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
                     byte_length=24,
                     format="linear-i8-v1",
-                    encoding_id="wind10m_uv_vector_i8_v1",
+                    encoding_id="wind10m_uv_vector_i8_1ms_v1",
                     units="m/s",
                     parameter="wind_uv",
                     level="10m_above_ground",

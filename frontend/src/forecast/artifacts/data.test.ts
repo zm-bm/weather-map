@@ -11,6 +11,7 @@ import {
   createScalarPayloadFixture,
   createSignalFixture,
   createVectorArtifactFixture,
+  createVectorEncodingFixture,
   createVectorPayloadFixture,
   createActiveRunFixture,
 } from '@/test/fixtures'
@@ -323,12 +324,12 @@ describe('vector payload', () => {
           level: 'cloud layers',
           components: ['low', 'middle', 'high'],
           encoding: {
-            id: 'cloud_layers_vector_i8_2pct_v1',
+            id: 'cloud_layers_vector_i8_4pct_v1',
             format: 'linear-i8-v1',
             dtype: 'int8',
             byteOrder: 'none',
             nodata: -128,
-            scale: 2,
+            scale: 4,
             offset: 0,
             decodeFormula: 'value = stored * scale + offset',
           },
@@ -358,6 +359,7 @@ describe('vector payload', () => {
         triple_vector: createVectorArtifactFixture({
           id: 'triple_vector',
           components: ['a', 'b', 'c'],
+          encoding: createVectorEncodingFixture({ scale: 0.5 }),
         }),
       },
     })

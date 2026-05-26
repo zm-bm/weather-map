@@ -19,16 +19,16 @@ describe('materializeCloudLayersTimeSlice', () => {
       hourToken: '003',
       grid,
       encoding: createVectorEncodingFixture({
-        id: 'cloud_layers_vector_i8_2pct_v1',
-        scale: 2,
+        id: 'cloud_layers_vector_i8_4pct_v1',
+        scale: 4,
         offset: 0,
         nodata: -128,
       }),
       componentIds: ['low', 'middle', 'high'],
       components: {
-        low: new Int8Array([0, 25, -128, -128]),
-        middle: new Int8Array([10, 0, -128, 10]),
-        high: new Int8Array([50, 25, -128, -128]),
+        low: new Int8Array([0, 12, -128, -128]),
+        middle: new Int8Array([5, 0, -128, 5]),
+        high: new Int8Array([25, 13, -128, -128]),
       },
     })
 
@@ -38,9 +38,9 @@ describe('materializeCloudLayersTimeSlice', () => {
       artifactId: 'cloud_layers',
       grid,
     })
-    expect(Array.from(slice.low)).toEqual([0, 25, -128, -128])
-    expect(Array.from(slice.middle)).toEqual([10, 0, -128, 10])
-    expect(Array.from(slice.high)).toEqual([50, 25, -128, -128])
+    expect(Array.from(slice.low)).toEqual([0, 12, -128, -128])
+    expect(Array.from(slice.middle)).toEqual([5, 0, -128, 5])
+    expect(Array.from(slice.high)).toEqual([25, 13, -128, -128])
     expect(Array.from(slice.coverage.values, (value) => Number.isNaN(value) ? 'NaN' : Number(value.toFixed(1)))).toEqual([
       100,
       75,
@@ -63,7 +63,7 @@ describe('materializeCloudLayersTimeSlice', () => {
       artifactId: 'cloud_layers',
       hourToken: '003',
       grid: createGridFixture({ nx: 1, ny: 1 }),
-      encoding: createVectorEncodingFixture({ scale: 2, offset: 0, nodata: -128 }),
+      encoding: createVectorEncodingFixture({ scale: 4, offset: 0, nodata: -128 }),
       componentIds: ['low', 'high', 'middle'],
       components: {
         low: new Int8Array([0]),

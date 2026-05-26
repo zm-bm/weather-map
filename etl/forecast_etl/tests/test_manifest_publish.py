@@ -393,12 +393,12 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(
                 encoding,
                 {
-                    "id": "cloud_layers_vector_i8_2pct_v1",
+                    "id": "cloud_layers_vector_i8_4pct_v1",
                     "format": "linear-i8-v1",
                     "dtype": "int8",
                     "byteOrder": "none",
                     "nodata": -128,
-                    "scale": 2.0,
+                    "scale": 4.0,
                     "offset": 0.0,
                     "decodeFormula": "value = stored * scale + offset",
                     "finiteValueRange": {"min": 0.0, "max": 100.0},

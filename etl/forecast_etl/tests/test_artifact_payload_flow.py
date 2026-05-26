@@ -146,7 +146,7 @@ class ScalarArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["units"], "J/kg")
             self.assertEqual(result["parameter"], "cin")
 
-    def test_total_cloud_cover_uses_1pct_encoding_and_clamps_finite_values(self) -> None:
+    def test_total_cloud_cover_uses_4pct_encoding_and_clamps_finite_values(self) -> None:
         with artifact_run_fixture(prefix="weather-map-tcdc-artifact-") as fx:
             source_grib = fx.single_grib_source()
             source = pack_f32([-10.0, 2.0, 120.0, float("nan")], byte_order="little")
@@ -157,12 +157,12 @@ class ScalarArtifactContractTest(unittest.TestCase):
                 "units": "%",
                 "source_transform": "identity",
                 "encoding": {
-                    "id": "tcdc_i8_1pct_v1",
+                    "id": "tcdc_i8_4pct_v1",
                     "format": "linear-i8-v1",
                     "dtype": "int8",
                     "byte_order": "none",
-                    "scale": 1,
-                    "offset": 50,
+                    "scale": 4,
+                    "offset": 0,
                     "nodata": -128,
                     "finite_value_range": {"min": 0, "max": 100},
                 },
@@ -193,8 +193,8 @@ class ScalarArtifactContractTest(unittest.TestCase):
                 )
 
             payload_bytes = fx.payload_bytes(artifact_id="tcdc", dtype="int8")
-            self.assertEqual(payload_bytes, struct.pack("bbbb", -50, -48, 50, -128))
-            self.assertEqual(result["encoding_id"], "tcdc_i8_1pct_v1")
+            self.assertEqual(payload_bytes, struct.pack("bbbb", 0, 0, 25, -128))
+            self.assertEqual(result["encoding_id"], "tcdc_i8_4pct_v1")
 
     def test_bounded_scalar_artifacts_clamp_finite_values_through_artifact_flow(self) -> None:
         cases = (
@@ -403,16 +403,16 @@ class ScalarArtifactContractTest(unittest.TestCase):
 
             payload_bytes = fx.payload_bytes(artifact_id="cloud_layers", dtype="int8")
             expected_payload = (
-                struct.pack("bbbb", 0, 2, 50, -128)
-                + struct.pack("bbbb", 5, 10, -128, 0)
-                + struct.pack("bbbb", 50, 25, 0, 12)
+                struct.pack("bbbb", 0, 1, 25, -128)
+                + struct.pack("bbbb", 2, 5, -128, 0)
+                + struct.pack("bbbb", 25, 12, 0, 6)
             )
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(result["byte_length"], len(expected_payload))
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
             self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["components"], ["low", "middle", "high"])
-            self.assertEqual(result["encoding_id"], "cloud_layers_vector_i8_2pct_v1")
+            self.assertEqual(result["encoding_id"], "cloud_layers_vector_i8_4pct_v1")
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
 
@@ -456,7 +456,7 @@ class WindArtifactContractTest(unittest.TestCase):
                 target_dtype="int8",
                 target_byte_order="none",
                 target_format=FORMAT_LINEAR_I8,
-                scale=0.5,
+                scale=1,
                 offset=0.0,
             )
             expected_v = encode_component_payload(
@@ -465,7 +465,7 @@ class WindArtifactContractTest(unittest.TestCase):
                 target_dtype="int8",
                 target_byte_order="none",
                 target_format=FORMAT_LINEAR_I8,
-                scale=0.5,
+                scale=1,
                 offset=0.0,
             )
             expected_payload = expected_u + expected_v
@@ -474,7 +474,7 @@ class WindArtifactContractTest(unittest.TestCase):
             self.assertEqual(result["sha256"], hashlib.sha256(expected_payload).hexdigest())
             self.assertEqual(result["format"], "linear-i8-v1")
             self.assertEqual(result["components"], ["u", "v"])
-            self.assertEqual(result["encoding_id"], "wind10m_uv_vector_i8_v1")
+            self.assertEqual(result["encoding_id"], "wind10m_uv_vector_i8_1ms_v1")
             self.assertEqual(result["grid_id"], "gfs_0p25_global")
             self.assertEqual(result["grid"]["lon0"], -180.0)
             self.assertEqual(result["grid"]["lat0"], 90.0)
@@ -506,7 +506,7 @@ class WindArtifactContractTest(unittest.TestCase):
                 )
 
             payload_bytes = fx.payload_bytes(artifact_id="wind10m_uv", dtype="int8")
-            expected_payload = struct.pack("bbbb", 2, 0, 0, 0) + struct.pack("bbbb", 4, 0, 0, 0)
+            expected_payload = struct.pack("bbbb", 1, 0, 0, 0) + struct.pack("bbbb", 2, 0, 0, 0)
             self.assertEqual(payload_bytes, expected_payload)
 
 

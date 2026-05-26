@@ -101,7 +101,7 @@ describe('createWindVectorDataLoad', () => {
           wind10m_uv: createVectorArtifactFixture({
             encoding: {
               ...baseEncoding,
-              scale: 1,
+              scale: 0.5,
             },
           }),
         },

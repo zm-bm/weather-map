@@ -62,14 +62,14 @@ This table records current catalog and artifact facts as of the date above.
 | `apparent_temperature` | `aptmp_surface` | `C` | `-35..50` | `-35..50` | `0.25 C common range; 0.5 C tails` | `-128` | global banded |
 | `dew_point` | `dewpoint_surface` | `C` | `-60..40` | `-63.5..63.5` | `0.5 C` | `-128` | global banded |
 | `relative_humidity` | `rh_surface` | `%` | `0..100` | finite clamp `0..100`; storage `-77..177` | `1%` | `-128` | global banded |
-| `wind_speed` | `wind10m_uv` derived as speed | `m/s` | `0..60` | component finite clamp `-64..63.5` | `0.5 m/s` | none | global banded |
+| `wind_speed` | `wind10m_uv` derived as speed | `m/s` | `0..60` | component finite clamp `-64..64` | `1 m/s` | none | global banded |
 | `wind_gust` | `gust_surface` | `m/s` | `0..60` | finite clamp `0..60`; storage `0..127` | `0.5 m/s` | `-128` | global banded |
 | `air_pressure` | `prmsl_msl` | `Pa` | `98000..103600` | finite clamp `94150..106850` | `50 Pa` | `-128` | global banded |
 | `precipitation_rate` | `prate_surface` | `mm/hr` | `0..30` | finite clamp `0..38.1` | `0.15 mm/hr` | `-128` | global banded |
 | `accumulated_precipitation` | `precip_total_surface` | `mm` | `0..254` | finite clamp `0..254` | `1 mm` | `-128` | global banded |
 | `snow_depth` | `snow_depth_surface` | `m` | `0..3` | finite clamp `0..3` | `~0.011811 m` | `-128` | global banded |
-| `cloud_layers` | `cloud_layers` coverage field | `%` | `0..100` | finite clamp `0..100`; storage `-254..254` | `2%` | `-128` | global banded coverage; dedicated renderer |
-| `cloud_cover` | `tcdc` | `%` | `0..100` | finite clamp `0..100`; storage `-77..177` | `1%` | `-128` | global banded |
+| `cloud_layers` | `cloud_layers` coverage field | `%` | `0..100` | finite clamp `0..100`; storage `-508..508` | `4%` | `-128` | global banded coverage; dedicated renderer |
+| `cloud_cover` | `tcdc` | `%` | `0..100` | finite clamp `0..100`; storage `-508..508` | `4%` | `-128` | global banded |
 | `visibility` | `visibility_surface` | `m` | `0..50000` | finite clamp `0..50800` | `200 m` | `-128` | global banded |
 | `freezing_level` | `freezing_level` | `m` | `0..8000` | finite clamp `0..8128` | `32 m` | `-128` | global banded |
 | `precipitable_water` | `precipitable_water` | `mm` | `0..80` | finite clamp `0..81.28` | `0.32 mm` | `-128` | global banded |
@@ -164,7 +164,7 @@ Applies to `wind_speed` and `wind_gust`.
 | Speed display range | `0..60 m/s` |
 | Required speed range | `0..60 m/s` |
 | Required vector component range | At least `-60..60 m/s` for `u` and `v` |
-| Precision | `<=0.5 m/s` |
+| Precision | `<=1 m/s` |
 | Exact boundaries | `0 m/s` calm; display max `60 m/s` for speed and gust |
 | Domain thresholds | `5 m/s`, `10 m/s`, `15 m/s`, `17 m/s`, `25 m/s`, `33 m/s`, `50 m/s`, `60 m/s` |
 | Nodata policy | `wind10m_uv` is expected-complete with no nodata sentinel; `wind_gust` keeps sentinel support |
@@ -380,10 +380,10 @@ correctness audit.
 | --- | --- |
 | `wind10m_uv` nodata | Accept no nodata sentinel for v1. Treat `u` and `v` as expected-complete finite grids. If either component is non-finite for a cell, encode both components as `0 m/s` as a visualization safety fallback, and treat any occurrence as data-quality fallout. |
 | Gust encoding id | Encoding id is `gust_surface_i8_0p5ms_v1`, matching the configured `0.5 m/s` scale. |
-| Total cloud-cover encoding | Total cloud cover uses `tcdc_i8_1pct_v1` with `1%` precision. |
+| Total cloud-cover encoding | Total cloud cover uses `tcdc_i8_4pct_v1` with `4%` precision. |
 | ETL finite clamp path | Bounded linear encodings use `encoding.finite_value_range` before quantization; non-finite values still follow each artifact's nodata or fallback policy. |
 | Natural bounded fields | Percent, precipitation, snow, visibility, freezing level, precipitable water, CAPE, and CIN use finite clamps before encoding. Renderer clamps remain as a second line of defense. |
-| `cloud_layers` component range | Low, middle, and high cloud components clamp finite values to `0..100%` before encoding. Keep `2%` component precision. |
+| `cloud_layers` component range | Low, middle, and high cloud components clamp finite values to `0..100%` before encoding. Keep `4%` component precision. |
 | `precipitation_rate` overrange | Current encoding reaches `38.1 mm/hr`; this is accepted as close enough to the about-`40 mm/hr` useful overrange target. |
 | Temperature overrange | Temperature and apparent temperature intentionally clip finite values to `-35..50 C`. No temperature overrange preservation is required in v1. |
 | Sampling mode | Keep sampling as a global rendering setting and keep the default as banded. Do not introduce per-layer sampling defaults in v1. |

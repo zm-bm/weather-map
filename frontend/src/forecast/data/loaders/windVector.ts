@@ -9,7 +9,7 @@ import type {
 import type { WindVectorTimeSliceData } from '../slices'
 
 const WIND_VECTOR_COMPONENTS = ['u', 'v'] as const
-const WIND_VECTOR_SCALE = 0.5
+const WIND_VECTOR_SCALE = 1
 const WIND_VECTOR_OFFSET = 0
 
 export function canLoadWindVector(args: {
