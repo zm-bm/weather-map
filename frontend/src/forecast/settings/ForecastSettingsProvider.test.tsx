@@ -31,6 +31,15 @@ describe('ForecastSettingsProvider', () => {
       result.current.actions.updateParticles({
         enabled: false,
         clearTrailsOnViewChange: false,
+        fadeInAgeRatio: 0.2,
+        fadeOutAgeRatio: 0.3,
+        dotMinPx: 2,
+        dotMaxPx: 4,
+        stagnationFadeStartMps: 0.2,
+        stagnationFadeEndMps: 1.2,
+        stagnationRespawnStartMps: 0.05,
+        stagnationRespawnEndMps: 0.6,
+        stagnationRespawnPerSec: 2,
       })
       result.current.actions.updatePressureContours({ enabled: true })
       result.current.actions.updateUnits({ system: 'metric' })
@@ -41,6 +50,15 @@ describe('ForecastSettingsProvider', () => {
       particles: expect.objectContaining({
         enabled: false,
         clearTrailsOnViewChange: false,
+        fadeInAgeRatio: 0.2,
+        fadeOutAgeRatio: 0.3,
+        dotMinPx: 2,
+        dotMaxPx: 4,
+        stagnationFadeStartMps: 0.2,
+        stagnationFadeEndMps: 1.2,
+        stagnationRespawnStartMps: 0.05,
+        stagnationRespawnEndMps: 0.6,
+        stagnationRespawnPerSec: 2,
       }),
       pressureContours: { enabled: true },
       units: { system: 'metric' },

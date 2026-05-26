@@ -190,7 +190,7 @@ export function createParticleRuntime(
         },
       )
 
-      // Particle program renders current state as oriented dashes.
+      // Particle program renders current state as speed-scaled dots.
       state.particleProgramInfo = createProgramInfo(
         gl2,
         VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
@@ -580,6 +580,9 @@ function runUpdatePass(
     u_max_age_sec: options.maxAgeSec,
     u_base_respawn_per_sec: options.respawnBasePerSec,
     u_speed_respawn_per_mps: options.respawnSpeedPerMps,
+    u_stagnation_respawn_start_mps: options.stagnationRespawnStartMps,
+    u_stagnation_respawn_end_mps: options.stagnationRespawnEndMps,
+    u_stagnation_respawn_per_sec: options.stagnationRespawnPerSec,
     u_forced_respawn_frac: forcedRespawnFrac,
     u_motion_jitter_ratio: options.jitterRatio,
     u_motion_speed_floor_mps: options.motionSpeedFloorMps,
@@ -679,7 +682,12 @@ function compositeTrailToMap(
   gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
   gl.disable(gl.DEPTH_TEST)
   gl.enable(gl.BLEND)
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+  gl.blendFuncSeparate(
+    gl.ONE,
+    gl.ONE_MINUS_SRC_ALPHA,
+    gl.ONE,
+    gl.ONE_MINUS_SRC_ALPHA,
+  )
 
   gl.useProgram(trailProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, trailProgramInfo, trailQuadBufferInfo)
@@ -704,7 +712,6 @@ function drawParticleGeometryPass(state: ParticleState, options: ParticleRenderS
     stateBufferInfos,
     activeSourceIndex,
     particleCount,
-    map,
   } = state
   if (
     !gl ||
@@ -712,8 +719,7 @@ function drawParticleGeometryPass(state: ParticleState, options: ParticleRenderS
     !vectorTextureLower ||
     !vectorTextureUpper ||
     !particleProgramInfo ||
-    !stateBufferInfos[activeSourceIndex] ||
-    !map
+    !stateBufferInfos[activeSourceIndex]
   ) {
     return
   }
@@ -724,8 +730,7 @@ function drawParticleGeometryPass(state: ParticleState, options: ParticleRenderS
   gl.useProgram(particleProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
 
-  const zoom = map.getZoom()
-  // Render uniforms: viewport mapping, dash styling, and local flow direction.
+  // Render uniforms: viewport mapping, dot styling, and local flow speed.
   const commonUniforms = {
     u_bounds_west: viewport.west,
     u_bounds_east: viewport.east,
@@ -735,42 +740,36 @@ function drawParticleGeometryPass(state: ParticleState, options: ParticleRenderS
       viewport.mercatorNorthY,
       viewport.mercatorSouthY,
     ],
-    u_point_size: options.pointSizePx,
+    u_dot_min_px: options.dotMinPx,
+    u_dot_max_px: options.dotMaxPx,
     u_lon0: state.vectorLon0,
     u_lat0: state.vectorLat0,
     u_dx: state.vectorDx,
     u_dy: state.vectorDy,
     u_vector_size: [state.vectorNx, state.vectorNy],
     u_time_mix: state.timeMix,
-    u_deg_per_meter: EARTH_DEG_PER_METER,
-    u_dir_step_sec: options.dirSampleStepSec,
-    u_speed_multiplier: options.flowSpeedScale,
-    u_zoom_scale: Math.pow(2, options.flowRefZoom - zoom),
-    u_dash_min_len_px: options.dashMinPx,
-    u_dash_max_len_px: options.dashMaxPx,
-    u_dash_len_per_mps: options.dashPerMps,
     u_speed_ramp_gamma: options.speedRampGamma,
+    u_max_age_sec: options.maxAgeSec,
+    u_fade_in_age_ratio: options.fadeInAgeRatio,
+    u_fade_out_age_ratio: options.fadeOutAgeRatio,
+    u_stagnation_fade_start_mps: options.stagnationFadeStartMps,
+    u_stagnation_fade_end_mps: options.stagnationFadeEndMps,
     u_vector_tex_lower: vectorTextureLower,
     u_vector_tex_upper: vectorTextureUpper,
   }
   twgl.setUniforms(particleProgramInfo, commonUniforms)
 
   gl.enable(gl.BLEND)
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+  gl.blendFuncSeparate(
+    gl.ONE,
+    gl.ONE_MINUS_SRC_ALPHA,
+    gl.ONE,
+    gl.ONE_MINUS_SRC_ALPHA,
+  )
 
-  // Pass 1: darker/wider understroke.
   twgl.setUniforms(particleProgramInfo, {
-    u_color_slow: options.shadowSlow,
-    u_color_fast: options.shadowFast,
-    u_dash_width_px: options.shadowWidthPx,
-  })
-  twgl.drawBufferInfo(gl, particleBufferInfo, gl.POINTS, particleCount)
-
-  // Pass 2: lighter/narrower core.
-  twgl.setUniforms(particleProgramInfo, {
-    u_color_slow: options.coreSlow,
-    u_color_fast: options.coreFast,
-    u_dash_width_px: options.coreWidthPx,
+    u_core_color_slow: options.coreSlow,
+    u_core_color_fast: options.coreFast,
   })
   twgl.drawBufferInfo(gl, particleBufferInfo, gl.POINTS, particleCount)
 

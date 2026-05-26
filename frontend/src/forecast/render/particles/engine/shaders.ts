@@ -19,6 +19,9 @@ uniform float u_deg_per_meter;
 uniform float u_max_age_sec;
 uniform float u_base_respawn_per_sec;
 uniform float u_speed_respawn_per_mps;
+uniform float u_stagnation_respawn_start_mps;
+uniform float u_stagnation_respawn_end_mps;
+uniform float u_stagnation_respawn_per_sec;
 uniform float u_forced_respawn_frac;
 uniform float u_motion_jitter_ratio;
 uniform float u_motion_speed_floor_mps;
@@ -161,6 +164,27 @@ void main() {
     return;
   }
 
+  // Drain particles that get trapped in stagnant or near-stagnant flow.
+  float stagnation_start = min(u_stagnation_respawn_start_mps, u_stagnation_respawn_end_mps);
+  float stagnation_end = max(u_stagnation_respawn_start_mps, u_stagnation_respawn_end_mps);
+  float stagnation_t = 1.0 - smoothstep(
+    stagnation_start,
+    max(stagnation_end, stagnation_start + 1e-4),
+    speed_mps
+  );
+  float stagnation_respawn_rate = max(0.0, u_stagnation_respawn_per_sec) * clamp(stagnation_t, 0.0, 1.0);
+  float stagnation_respawn_prob = clamp(
+    1.0 - exp(-stagnation_respawn_rate * max(0.0, u_dt_sec)),
+    0.0,
+    1.0
+  );
+  float stagnation_respawn_roll = rand01(id, 0x7f4a7c15u);
+  if (stagnation_respawn_roll < stagnation_respawn_prob) {
+    v_state = respawn(id);
+    gl_Position = vec4(0.0);
+    return;
+  }
+
   // Integrate velocity from m/s into lon/lat delta for this timestep.
   float cos_lat = max(0.15, abs(cos(radians(state.y))));
   vec2 flow_dir = speed_mps > 1e-5 ? (vector_mps / speed_mps) : vec2(1.0, 0.0);
@@ -240,7 +264,8 @@ layout(location = 0) in vec3 a_state; // lon, lat, age
 uniform float u_bounds_west;
 uniform float u_bounds_east;
 uniform vec4 u_mercator_bounds; // west_x, east_x, north_y, south_y
-uniform float u_point_size;
+uniform float u_dot_min_px;
+uniform float u_dot_max_px;
 uniform sampler2D u_vector_tex_lower;
 uniform sampler2D u_vector_tex_upper;
 uniform vec2 u_vector_size;
@@ -248,20 +273,18 @@ uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
-uniform float u_deg_per_meter;
-uniform float u_dir_step_sec;
 uniform float u_time_mix;
-uniform float u_speed_multiplier;
-uniform float u_zoom_scale;
-uniform float u_dash_min_len_px;
-uniform float u_dash_max_len_px;
-uniform float u_dash_len_per_mps;
 uniform float u_speed_ramp_gamma;
+uniform float u_max_age_sec;
+uniform float u_fade_in_age_ratio;
+uniform float u_fade_out_age_ratio;
+uniform float u_stagnation_fade_start_mps;
+uniform float u_stagnation_fade_end_mps;
 
-out vec2 v_dir;
-out float v_dash_len;
-out float v_visible;
+out float v_dot_diameter;
 out float v_speed_t;
+out float v_life_alpha;
+out float v_stagnation_alpha;
 
 // Decode a normalized texture channel back to signed int8 range.
 float decode_i8(float encoded) {
@@ -342,103 +365,81 @@ vec2 to_screen(float lon, float lat) {
   return vec2(nx * 2.0 - 1.0, 1.0 - ny * 2.0);
 }
 
+float age_fade_window(float life_t, float width, bool entering) {
+  float clamped_width = clamp(width, 0.0, 1.0);
+  if (clamped_width <= 1e-4) {
+    return 1.0;
+  }
+  return entering
+    ? smoothstep(0.0, clamped_width, life_t)
+    : 1.0 - smoothstep(1.0 - clamped_width, 1.0, life_t);
+}
+
+float particle_life_alpha(float age) {
+  float life_t = clamp(age / max(u_max_age_sec, 1e-4), 0.0, 1.0);
+  float fade_in = age_fade_window(life_t, u_fade_in_age_ratio, true);
+  float fade_out = age_fade_window(life_t, u_fade_out_age_ratio, false);
+  return clamp(fade_in * fade_out, 0.0, 1.0);
+}
+
+float particle_stagnation_alpha(float speed_mps) {
+  float fade_start = min(u_stagnation_fade_start_mps, u_stagnation_fade_end_mps);
+  float fade_end = max(u_stagnation_fade_start_mps, u_stagnation_fade_end_mps);
+  return smoothstep(fade_start, max(fade_end, fade_start + 1e-4), speed_mps);
+}
+
 void main() {
   float lon = lon_to_view_interval(a_state.x);
   float lat = a_state.y;
 
-  // Dash length scales with speed but is clamped by style bounds.
   float time_mix = clamp(u_time_mix, 0.0, 1.0);
   vec2 vector_now_lower = sample_vector_bilinear(u_vector_tex_lower, a_state.x, lat);
   vec2 vector_now_upper = sample_vector_bilinear(u_vector_tex_upper, a_state.x, lat);
   vec2 vector_now = mix(vector_now_lower, vector_now_upper, time_mix);
   float speed_mps = length(vector_now);
-  v_dash_len = clamp(
-    u_dash_min_len_px + speed_mps * u_dash_len_per_mps,
-    u_dash_min_len_px,
-    u_dash_max_len_px
-  );
   float speed_t = smoothstep(1.5, 12.0, speed_mps);
   v_speed_t = pow(speed_t, max(0.01, u_speed_ramp_gamma));
+  float dot_min = min(u_dot_min_px, u_dot_max_px);
+  float dot_max = max(u_dot_min_px, u_dot_max_px);
+  v_dot_diameter = mix(dot_min, dot_max, v_speed_t);
+  v_life_alpha = particle_life_alpha(a_state.z);
+  v_stagnation_alpha = particle_stagnation_alpha(speed_mps);
 
   vec2 screen = to_screen(lon, lat);
-  float cos_lat = max(0.15, abs(cos(radians(lat))));
-  float speed = u_speed_multiplier * u_zoom_scale;
-
-  // Smooth orientation by blending the local vector with one short step ahead.
-  float preview_delta_lat = vector_now.y * u_dir_step_sec * u_deg_per_meter * speed;
-  float preview_delta_lon = vector_now.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
-  float preview_lon = wrap_lon(a_state.x + preview_delta_lon);
-  float preview_lat = clamp(lat + preview_delta_lat, -89.5, 89.5);
-  vec2 vector_ahead_lower = sample_vector_bilinear(u_vector_tex_lower, preview_lon, preview_lat);
-  vec2 vector_ahead_upper = sample_vector_bilinear(u_vector_tex_upper, preview_lon, preview_lat);
-  vec2 vector_ahead = mix(vector_ahead_lower, vector_ahead_upper, time_mix);
-  vec2 vector_dir = mix(vector_now, vector_ahead, 0.5);
-
-  float delta_lat = vector_dir.y * u_dir_step_sec * u_deg_per_meter * speed;
-  float delta_lon = vector_dir.x * u_dir_step_sec * (u_deg_per_meter / cos_lat) * speed;
-  float next_lon = lon_to_view_interval(wrap_lon(a_state.x + delta_lon));
-  float next_lat = clamp(lat + delta_lat, -89.5, 89.5);
-
-  // Estimate on-screen flow direction from a short forward step.
-  vec2 next_screen = to_screen(next_lon, next_lat);
-  vec2 dir = next_screen - screen;
-  float len = length(dir);
-
-  // Preserve minimum dash visibility; use a fallback direction near calm flow.
-  v_visible = 1.0;
-  v_dir = len > 1e-6 ? dir / len : vec2(1.0, 0.0);
 
   gl_Position = vec4(screen, 0.0, 1.0);
-  gl_PointSize = u_point_size;
+  gl_PointSize = max(dot_max + 2.0, 1.0);
 }
 `
 
 export const VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE = `#version 300 es
 precision highp float;
 
-uniform vec4 u_color_slow;
-uniform vec4 u_color_fast;
-uniform float u_point_size;
-uniform float u_dash_width_px;
-in vec2 v_dir;
-in float v_dash_len;
-in float v_visible;
+uniform vec4 u_core_color_slow;
+uniform vec4 u_core_color_fast;
+uniform float u_dot_min_px;
+uniform float u_dot_max_px;
+in float v_dot_diameter;
 in float v_speed_t;
+in float v_life_alpha;
+in float v_stagnation_alpha;
 out vec4 out_color;
 
 void main() {
-  // Optional visibility gate from vertex stage.
-  if (v_visible < 0.5) {
-    discard;
-  }
-
-  // WebGL point coords are top-left origin; flip Y so px matches the
-  // same y-up screen basis used for v_dir in the vertex shader.
-  vec2 point_uv = vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y);
-  vec2 px = point_uv * u_point_size - vec2(0.5 * u_point_size);
-  vec2 tangent = normalize(v_dir);
-  vec2 normal = vec2(-tangent.y, tangent.x);
-
-  float along = dot(px, tangent);
-  float across = dot(px, normal);
-
-  // Build an oriented, anti-aliased dash from tangent/normal distances.
-  float half_len = v_dash_len * 0.5;
-  float half_width = u_dash_width_px * 0.5;
-  float aa = 0.35;
-
-  // Capsule SDF for rounded dash ends: center segment + circular end caps.
-  float half_segment = max(0.0, half_len - half_width);
-  float clamped_along = clamp(along, -half_segment, half_segment);
-  float cap_dist = length(vec2(along - clamped_along, across));
-  float shape = 1.0 - smoothstep(half_width - aa, half_width + aa, cap_dist);
+  float dot_extent = max(u_dot_min_px, u_dot_max_px);
+  float point_size = max(dot_extent + 2.0, 1.0);
+  vec2 px = (gl_PointCoord - vec2(0.5)) * point_size;
+  float radius = max(v_dot_diameter * 0.5, 0.0);
+  float aa = 0.6;
+  float shape = 1.0 - smoothstep(radius - aa, radius + aa, length(px));
 
   if (shape <= 0.001) {
     discard;
   }
 
-  // Apply style color and use shape as alpha coverage.
-  vec4 color = mix(u_color_slow, u_color_fast, v_speed_t);
-  out_color = vec4(color.rgb, color.a * shape);
+  // Store premultiplied alpha in the trail texture so fading preserves hue.
+  vec4 color = mix(u_core_color_slow, u_core_color_fast, v_speed_t);
+  float alpha = color.a * shape * v_life_alpha * v_stagnation_alpha;
+  out_color = vec4(color.rgb * alpha, alpha);
 }
 `

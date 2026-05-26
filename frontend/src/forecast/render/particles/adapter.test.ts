@@ -100,7 +100,11 @@ describe('particleAdapter', () => {
   it('applies render settings to the particle controller', () => {
     const applySettings = vi.fn()
     const map = createRenderLayerMapFixture()
-    const settings = { clearTrailsOnViewChange: false }
+    const settings = {
+      clearTrailsOnViewChange: false,
+      fadeInAgeRatio: 0.2,
+      fadeOutAgeRatio: 0.3,
+    }
     mocks.getParticleController.mockReturnValue(createRenderControllerFixture({ applySettings }))
 
     applyParticleRenderSettings(map, settings)
