@@ -27,8 +27,6 @@ type SelectionState = {
   occupiedCells: Set<string>
 }
 
-type SelectionPass = (state: SelectionState) => void
-
 export function selectPlaceProbesBySpread(
   candidates: PlaceProbe[],
   {
@@ -70,58 +68,27 @@ function selectProjectedPlaceProbes(
   const state = createSelectionState(candidates.slice(0, coreCount), cellSizePx)
   if (state.places.length >= limit) return state.places
 
-  for (const pass of createSelectionPasses({
-    candidates,
-    candidatesAfterCore: candidates.slice(coreCount),
-    previousPlaces,
-    limit,
-    cellSizePx,
-    minSpacingPx,
-  })) {
-    pass(state)
-    if (state.places.length >= limit) return state.places
-  }
+  const candidatesAfterCore = candidates.slice(coreCount)
 
-  return state.places
-}
-
-function createSelectionPasses({
-  candidates,
-  candidatesAfterCore,
-  previousPlaces,
-  limit,
-  cellSizePx,
-  minSpacingPx,
-}: {
-  candidates: ProjectedPlaceProbe[]
-  candidatesAfterCore: ProjectedPlaceProbe[]
-  previousPlaces: PlaceProbe[]
-  limit: number
-  cellSizePx: number
-  minSpacingPx: number
-}): SelectionPass[] {
-  const passes: SelectionPass[] = [
-    createPreviousPlacesPass(candidates, previousPlaces, limit, cellSizePx),
-    createEmptyCellPass(candidatesAfterCore, limit, cellSizePx, minSpacingPx),
-  ]
-
+  if (addPreviousPlaces(state, candidates, previousPlaces, limit, cellSizePx)) return state.places
+  if (addEmptyCellPlaces(state, candidatesAfterCore, limit, cellSizePx, minSpacingPx)) return state.places
   if (minSpacingPx > 1) {
-    passes.push(createEmptyCellPass(
+    if (addEmptyCellPlaces(
+      state,
       candidatesAfterCore,
       limit,
       cellSizePx,
       minSpacingPx * 0.65,
-    ))
+    )) return state.places
   }
 
-  passes.push(createSpacedPlacesPass(candidates, limit, minSpacingPx))
-
+  if (addSpacedPlaces(state, candidates, limit, minSpacingPx)) return state.places
   if (minSpacingPx > 1) {
-    passes.push(createSpacedPlacesPass(candidates, limit, minSpacingPx * 0.65))
+    if (addSpacedPlaces(state, candidates, limit, minSpacingPx * 0.65)) return state.places
   }
 
-  passes.push(createRankFallbackPass(candidates, limit))
-  return passes
+  addRankFallbackPlaces(state, candidates, limit)
+  return state.places
 }
 
 function createSelectionState(
@@ -137,70 +104,69 @@ function createSelectionState(
   }
 }
 
-function createPreviousPlacesPass(
+function addPreviousPlaces(
+  state: SelectionState,
   candidates: ProjectedPlaceProbe[],
   previousPlaces: PlaceProbe[],
   limit: number,
   cellSizePx: number,
-): SelectionPass {
+): boolean {
   const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]))
 
-  return (state) => {
-    for (const previousPlace of previousPlaces) {
-      if (state.places.length >= limit) return
+  for (const previousPlace of previousPlaces) {
+    if (state.places.length >= limit) return true
 
-      const candidate = candidatesById.get(previousPlace.id)
-      if (candidate == null) continue
-      addSelectedPlace(state, candidate, cellSizePx)
-    }
+    const candidate = candidatesById.get(previousPlace.id)
+    if (candidate == null) continue
+    addSelectedPlace(state, candidate, cellSizePx)
   }
+  return state.places.length >= limit
 }
 
-function createEmptyCellPass(
+function addEmptyCellPlaces(
+  state: SelectionState,
   candidates: ProjectedPlaceProbe[],
   limit: number,
   cellSizePx: number,
   minSpacingPx: number,
-): SelectionPass {
-  return (state) => {
-    for (const candidate of candidates) {
-      if (state.places.length >= limit) return
-      if (state.placeIds.has(candidate.id)) continue
+): boolean {
+  for (const candidate of candidates) {
+    if (state.places.length >= limit) return true
+    if (state.placeIds.has(candidate.id)) continue
 
-      const cellKey = getScreenCellKey(candidate.screenPoint, cellSizePx)
-      if (state.occupiedCells.has(cellKey)) continue
-      if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
+    const cellKey = getScreenCellKey(candidate.screenPoint, cellSizePx)
+    if (state.occupiedCells.has(cellKey)) continue
+    if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
 
-      addSelectedPlace(state, candidate, cellSizePx)
-    }
+    addSelectedPlace(state, candidate, cellSizePx)
   }
+  return state.places.length >= limit
 }
 
-function createSpacedPlacesPass(
+function addSpacedPlaces(
+  state: SelectionState,
   candidates: ProjectedPlaceProbe[],
   limit: number,
   minSpacingPx: number,
-): SelectionPass {
-  return (state) => {
-    for (const candidate of candidates) {
-      if (state.places.length >= limit) return
-      if (state.placeIds.has(candidate.id)) continue
-      if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
+): boolean {
+  for (const candidate of candidates) {
+    if (state.places.length >= limit) return true
+    if (state.placeIds.has(candidate.id)) continue
+    if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
 
-      addSelectedPlace(state, candidate)
-    }
+    addSelectedPlace(state, candidate)
   }
+  return state.places.length >= limit
 }
 
-function createRankFallbackPass(
+function addRankFallbackPlaces(
+  state: SelectionState,
   candidates: ProjectedPlaceProbe[],
   limit: number,
-): SelectionPass {
-  return (state) => {
-    for (const candidate of candidates) {
-      if (state.places.length >= limit) return
-      addSelectedPlace(state, candidate)
-    }
+): void {
+  for (const candidate of candidates) {
+    if (state.places.length >= limit) return
+    addSelectedPlace(state, candidate)
   }
 }
 

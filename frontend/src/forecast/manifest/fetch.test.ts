@@ -53,17 +53,17 @@ function createForecastManifestPayload() {
                 yMode: 'clamp',
               },
               encoding: {
-                id: 'tmp_surface_i16_v1',
-                format: 'linear-i16-v1',
-                dtype: 'int16',
-                byteOrder: 'little',
-                nodata: -32768,
-                scale: 0.01,
+                id: 'tmp_surface_i8_v1',
+                format: 'linear-i8-v1',
+                dtype: 'int8',
+                byteOrder: 'none',
+                nodata: -128,
+                scale: 1,
                 offset: 0,
                 decodeFormula: 'value = stored * scale + offset',
                 finiteValueRange: { min: -50, max: 50 },
               },
-              byteLength: 8,
+              byteLength: 4,
             },
           },
         },
@@ -95,9 +95,9 @@ describe('fetchManifest', () => {
       expect.any(Object)
     )
     const artifact = manifest.models.gfs?.latest?.artifacts.tmp_surface
-    expect(artifact?.byteLength).toBe(8)
-    expect(artifact?.encoding.format).toBe('linear-i16-v1')
-    if (artifact?.encoding.format !== 'linear-i16-v1') throw new Error('Expected linear int16 encoding')
+    expect(artifact?.byteLength).toBe(4)
+    expect(artifact?.encoding.format).toBe('linear-i8-v1')
+    if (artifact?.encoding.format !== 'linear-i8-v1') throw new Error('Expected linear int8 encoding')
     expect(artifact.encoding.finiteValueRange).toEqual({ min: -50, max: 50 })
   })
 

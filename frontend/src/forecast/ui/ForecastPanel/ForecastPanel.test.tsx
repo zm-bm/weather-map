@@ -1,9 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ForecastModelId, ForecastModelOption, Manifest } from '@/forecast/manifest'
 import {
-  ForecastTimeProvider,
   formatCycleRunTimeLabel,
   formatValidTimeTickLabel,
   initialForecastValidTimeMs,
@@ -15,9 +14,9 @@ import {
   createScalarArtifactFixture,
   createActiveRunFixture,
   createVectorArtifactFixture,
+  renderWithForecastSelection,
 } from '@/test/fixtures'
-import { FORECAST_LAYER_GROUPS } from '@/forecast/catalog'
-import { ForecastSelectionProvider } from '@/forecast/selection'
+import { FORECAST_RASTER_LAYER_GROUPS } from '@/forecast/catalog'
 import { shouldIgnoreSpaceShortcut } from '@/core/keyboard'
 import ForecastPanel from './ForecastPanel'
 
@@ -39,19 +38,11 @@ function renderPanelWithManifest(
     onActiveModelChange?: (modelId: ForecastModelId) => void
   } = {}
 ) {
-  const activeRun = createActiveRunFixture(manifest, options.activeModelId ?? 'gfs')
-
-  return render(
-    <ForecastSelectionProvider
-      activeRun={activeRun}
-      modelOptions={options.modelOptions ?? MODEL_OPTIONS}
-      onActiveModelChange={options.onActiveModelChange}
-    >
-      <ForecastTimeProvider activeRun={activeRun}>
-        <ForecastPanel />
-      </ForecastTimeProvider>
-    </ForecastSelectionProvider>
-  )
+  return renderWithForecastSelection(<ForecastPanel />, manifest, {
+    activeModelId: options.activeModelId ?? 'gfs',
+    modelOptions: options.modelOptions ?? MODEL_OPTIONS,
+    onActiveModelChange: options.onActiveModelChange,
+  })
 }
 
 function createPanelManifest(
@@ -145,7 +136,7 @@ describe('ForecastPanel', () => {
     const measurement = measurementSelect()
     expect(measurement).toHaveValue('temperature')
     expect(Array.from(measurement.querySelectorAll('optgroup')).map((group) => group.label))
-      .toEqual(FORECAST_LAYER_GROUPS.map((group) => group.label))
+      .toEqual(FORECAST_RASTER_LAYER_GROUPS.map((group) => group.label))
     expect(screen.getByLabelText('Forecast source GFS, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
     expect(sourceSelect()).toHaveValue('gfs')
     expect(screen.getByText('Source')).toBeInTheDocument()

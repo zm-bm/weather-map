@@ -4,13 +4,13 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import { createRenderSettingsFixture } from '@/test/fixtures'
 import {
   type ForecastRenderProfile,
-} from './types'
+} from './profile'
 import { reconcileProfile } from './registry'
-import { FORECAST_LAYER_BEFORE_ID } from './layer'
+import { FORECAST_LAYER_BEFORE_ID } from './maplibre/customLayer'
 
 const DEFAULT_RENDER_SETTINGS = createRenderSettingsFixture()
 const DEFAULT_RENDER_PROFILE = {
-  rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
+  layerIds: ['raster', 'overlay', 'particles'],
 } as const satisfies ForecastRenderProfile
 
 describe('reconcileProfile', () => {
@@ -20,57 +20,54 @@ describe('reconcileProfile', () => {
     reconcileProfile(map, DEFAULT_RENDER_PROFILE, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
-      { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
-      { kind: 'layer', id: 'cloud-layers-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
-      { kind: 'layer', id: 'field-overlay-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
-      { kind: 'layer', id: 'particle-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
+      { kind: 'layer', id: 'forecast-raster-layer', beforeId: FORECAST_LAYER_BEFORE_ID },
+      { kind: 'layer', id: 'forecast-overlay-layer', beforeId: FORECAST_LAYER_BEFORE_ID },
+      { kind: 'layer', id: 'forecast-particles-layer', beforeId: FORECAST_LAYER_BEFORE_ID },
     ])
   })
 
   it('removes renderers that are omitted by a new profile', () => {
     const { map, operations } = createLayerMap([
-      'field-renderer-layer-id',
-      'cloud-layers-renderer-layer-id',
-      'field-overlay-renderer-layer-id',
-      'contour-overlay-renderer-layer-id',
-      'particle-renderer-layer-id',
+      'forecast-raster-layer',
+      'forecast-overlay-layer',
+      'forecast-contour-layer',
+      'forecast-particles-layer',
     ])
     const noOverlayProfile = {
-      rendererIds: ['field', 'cloud-layers', 'field-overlay'],
+      layerIds: ['raster', 'overlay'],
     } as const satisfies ForecastRenderProfile
 
     reconcileProfile(map, noOverlayProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
-      { kind: 'remove-layer', id: 'particle-renderer-layer-id' },
-      { kind: 'remove-layer', id: 'contour-overlay-renderer-layer-id' },
+      { kind: 'remove-layer', id: 'forecast-particles-layer' },
+      { kind: 'remove-layer', id: 'forecast-contour-layer' },
     ])
   })
 
   it('ignores duplicate renderer ids in a profile', () => {
     const { map, operations } = createLayerMap([FORECAST_LAYER_BEFORE_ID])
     const duplicateProfile = {
-      rendererIds: ['field', 'cloud-layers', 'field'],
+      layerIds: ['raster', 'raster'],
     } as const satisfies ForecastRenderProfile
 
     reconcileProfile(map, duplicateProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
-      { kind: 'layer', id: 'field-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
-      { kind: 'layer', id: 'cloud-layers-renderer-layer-id', beforeId: FORECAST_LAYER_BEFORE_ID },
+      { kind: 'layer', id: 'forecast-raster-layer', beforeId: FORECAST_LAYER_BEFORE_ID },
     ])
   })
 
   it('falls back to top insertion when the forecast overlay anchor is missing', () => {
     const { map, operations } = createLayerMap()
-    const fieldProfile = {
-      rendererIds: ['field'],
+    const rasterProfile = {
+      layerIds: ['raster'],
     } as const satisfies ForecastRenderProfile
 
-    reconcileProfile(map, fieldProfile, DEFAULT_RENDER_SETTINGS)
+    reconcileProfile(map, rasterProfile, DEFAULT_RENDER_SETTINGS)
 
     expect(operations).toEqual([
-      { kind: 'layer', id: 'field-renderer-layer-id', beforeId: undefined },
+      { kind: 'layer', id: 'forecast-raster-layer', beforeId: undefined },
     ])
   })
 })

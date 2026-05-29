@@ -1,4 +1,4 @@
-export const DEFAULT_PLAY_MIN_INTERVAL_MS = 167
+export const DEFAULT_PLAY_MIN_INTERVAL_MS = 7
 export const DEFAULT_PLAY_STEP_COUNT = 1
 
 export type ForecastTimeState = {

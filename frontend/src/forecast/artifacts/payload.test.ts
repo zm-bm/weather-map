@@ -1,20 +1,24 @@
 import { waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { FramePayloadRef } from '@/forecast/manifest'
-import { resolveActiveRunFrameRef } from '@/forecast/manifest'
 import {
   createActiveRunFixture,
   createConfigFixture,
   createDeferred,
+  createFakeIndexedDb,
   createSingleTimeManifestFixture,
   createSignalFixture,
 } from '@/test/fixtures'
 import {
+  createFetchArrayBufferResponse,
   createFetchErrorResponse,
   stubFetchArrayBufferOnce,
 } from '@/test/fetch'
-import { __resetFramePayloadCacheForTests } from './framePayloadCache'
+import {
+  __flushPayloadCacheForTests,
+  __resetPayloadCacheForTests,
+  __setPayloadCacheLimitsForTests,
+} from './payloadCache'
 import { readArtifactPayload } from './payload'
 
 const BASE_MANIFEST = createSingleTimeManifestFixture({ forecastHours: ['000'] })
@@ -22,71 +26,60 @@ const BASE_ACTIVE_RUN = createActiveRunFixture(BASE_MANIFEST)
 const BASE_LATEST_RUN = BASE_ACTIVE_RUN.latest
 const SCALAR_ARTIFACT = BASE_LATEST_RUN.artifacts.tmp_surface
 const VECTOR_ARTIFACT = BASE_LATEST_RUN.artifacts.wind10m_uv
-const SCALAR_FRAME_REF = resolveActiveRunFrameRef({
-  activeRun: BASE_ACTIVE_RUN,
-  artifactId: 'tmp_surface',
-  hourToken: '000',
-  kind: 'scalar',
-})
-const VECTOR_FRAME_REF = resolveActiveRunFrameRef({
-  activeRun: BASE_ACTIVE_RUN,
-  artifactId: 'wind10m_uv',
-  hourToken: '000',
-  kind: 'vector',
-})
 
-function resolvedArtifact(args: {
+function payloadArgs(args: {
+  activeRun?: typeof BASE_ACTIVE_RUN
   artifact?: typeof SCALAR_ARTIFACT | typeof VECTOR_ARTIFACT
-  frameRef?: FramePayloadRef
   hourToken?: string
+  signal?: AbortSignal
 } = {}) {
   const artifact = args.artifact ?? SCALAR_ARTIFACT
-  const hourToken = args.hourToken ?? '000'
   return {
-    artifactId: String(artifact.id),
-    hourToken,
+    config: createConfigFixture(),
+    activeRun: args.activeRun ?? BASE_ACTIVE_RUN,
+    hourToken: args.hourToken ?? '000',
     artifact,
-    frameRef: args.frameRef ?? resolveActiveRunFrameRef({
-      activeRun: BASE_ACTIVE_RUN,
-      artifactId: String(artifact.id),
-      hourToken,
-      kind: artifact.kind,
-    }),
+    signal: args.signal ?? createSignalFixture(),
   }
 }
 
 afterEach(() => {
+  __setPayloadCacheLimitsForTests({
+    memoryBytes: 128 * 1024 * 1024,
+    persistedBytes: 384 * 1024 * 1024,
+  })
   vi.unstubAllGlobals()
-  return __resetFramePayloadCacheForTests()
+  vi.useRealTimers()
+  return __resetPayloadCacheForTests()
 })
 
 describe('readArtifactPayload', () => {
   it('loads a payload buffer', async () => {
-    stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
+    stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
 
-    const payload = await readArtifactPayload({
-      config: createConfigFixture(),
-      activeRun: BASE_ACTIVE_RUN,
-      resolved: resolvedArtifact(),
-      signal: createSignalFixture(),
-    })
+    const payload = await readArtifactPayload(payloadArgs())
 
-    expect(payload.byteLength).toBe(8)
+    expect(payload.byteLength).toBe(4)
+  })
+
+  it('infers payload URLs from active run metadata', async () => {
+    const fetchMock = stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
+
+    await readArtifactPayload(payloadArgs())
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/fields/gfs/2026041312/000/tmp_surface.field.i8.bin'
+    )
   })
 
   it('uses the in-memory cache for repeated manifest-scoped loads', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new Int16Array([1, 2, 3, 4]).buffer,
+      arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const args = {
-      config: createConfigFixture(),
-      activeRun: BASE_ACTIVE_RUN,
-      resolved: resolvedArtifact(),
-      signal: createSignalFixture(),
-    }
+    const args = payloadArgs()
 
     await readArtifactPayload(args)
     await readArtifactPayload(args)
@@ -94,8 +87,55 @@ describe('readArtifactPayload', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('evicts memory payloads through the configured cache limit', async () => {
+    vi.useFakeTimers()
+    const payload = new Uint8Array([1, 2, 3, 4]).buffer
+    const fetchMock = vi.fn().mockResolvedValue(createFetchArrayBufferResponse(payload))
+    vi.stubGlobal('fetch', fetchMock)
+    __setPayloadCacheLimitsForTests({
+      memoryBytes: 4,
+      persistedBytes: 0,
+    })
+    const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
+      forecastHours: ['000', '003'],
+    }))
+
+    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '000' }))
+    vi.advanceTimersByTime(1)
+    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '003' }))
+    vi.advanceTimersByTime(1)
+    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '000' }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('reads persisted payloads after the payload cache module reloads', async () => {
+    vi.stubGlobal('indexedDB', createFakeIndexedDb())
+    const payload = new Uint8Array([1, 2, 3, 4]).buffer
+    const fetchMock = vi.fn().mockResolvedValue(createFetchArrayBufferResponse(payload))
+    vi.stubGlobal('fetch', fetchMock)
+    __setPayloadCacheLimitsForTests({
+      memoryBytes: 0,
+      persistedBytes: 128,
+    })
+    const args = payloadArgs()
+
+    await readArtifactPayload(args)
+    await __flushPayloadCacheForTests()
+    vi.resetModules()
+    const reloadedPayload = await import('./payload')
+    const reloadedCache = await import('./payloadCache')
+
+    try {
+      await reloadedPayload.readArtifactPayload(args)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      await reloadedCache.__resetPayloadCacheForTests()
+    }
+  })
+
   it('dedupes parallel loads for the same frame payload', async () => {
-    const payload = new Int16Array([1, 2, 3, 4]).buffer
+    const payload = new Uint8Array([1, 2, 3, 4]).buffer
     const response = createDeferred<ArrayBuffer>()
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -103,13 +143,7 @@ describe('readArtifactPayload', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const args = {
-      config: createConfigFixture(),
-      activeRun: BASE_ACTIVE_RUN,
-      resolved: resolvedArtifact(),
-      signal: createSignalFixture(),
-    }
-
+    const args = payloadArgs()
     const firstLoad = readArtifactPayload(args)
     const secondLoad = readArtifactPayload(args)
 
@@ -123,7 +157,7 @@ describe('readArtifactPayload', () => {
   })
 
   it('lets an aborted joining caller reject while the shared payload fetch completes', async () => {
-    const payload = new Int16Array([1, 2, 3, 4]).buffer
+    const payload = new Uint8Array([1, 2, 3, 4]).buffer
     const response = createDeferred<ArrayBuffer>()
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -133,25 +167,18 @@ describe('readArtifactPayload', () => {
 
     const firstController = new AbortController()
     const secondController = new AbortController()
-    const baseArgs = {
-      config: createConfigFixture(),
-      activeRun: BASE_ACTIVE_RUN,
-      resolved: resolvedArtifact(),
-    }
 
-    const firstLoad = readArtifactPayload({
-      ...baseArgs,
+    const firstLoad = readArtifactPayload(payloadArgs({
       signal: firstController.signal,
-    })
+    }))
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
-    const secondLoad = readArtifactPayload({
-      ...baseArgs,
+    const secondLoad = readArtifactPayload(payloadArgs({
       signal: secondController.signal,
-    })
+    }))
     secondController.abort()
     response.resolve(payload)
 
@@ -164,66 +191,34 @@ describe('readArtifactPayload', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchErrorResponse(404, 'Not Found')))
 
     await expect(
-      readArtifactPayload({
-        config: createConfigFixture(),
-        activeRun: BASE_ACTIVE_RUN,
-        resolved: resolvedArtifact(),
-        signal: createSignalFixture(),
-      })
+      readArtifactPayload(payloadArgs())
     ).rejects.toThrow('Failed to fetch scalar payload: 404 Not Found')
   })
 
   it('fails when payload byte length does not match the forecast manifest', async () => {
-    stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
+    stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
 
     await expect(
-      readArtifactPayload({
-        config: createConfigFixture(),
-        activeRun: BASE_ACTIVE_RUN,
-        resolved: resolvedArtifact({
-          frameRef: {
-            ...SCALAR_FRAME_REF,
-            byteLength: 6,
-          },
-        }),
-        signal: createSignalFixture(),
-      })
+      readArtifactPayload(payloadArgs({
+        artifact: {
+          ...SCALAR_ARTIFACT,
+          byteLength: 6,
+        },
+      }))
     ).rejects.toThrow('Unexpected scalar payload size')
   })
 
-  it('fails when vector payload byte length does not match the grid dimensions', async () => {
-    stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
-
+  it('fails when a frame ref is missing for the requested hour', async () => {
     await expect(
-      readArtifactPayload({
-        config: createConfigFixture(),
-        activeRun: BASE_ACTIVE_RUN,
-        resolved: resolvedArtifact({
-          artifact: {
-            ...VECTOR_ARTIFACT,
-            grid: {
-              ...VECTOR_ARTIFACT.grid,
-              nx: 3,
-              ny: 3,
-            },
-          },
-          frameRef: VECTOR_FRAME_REF,
-        }),
-        signal: createSignalFixture(),
-      })
-    ).rejects.toThrow('vector payload bytes do not match grid dimensions')
+      readArtifactPayload(payloadArgs({ hourToken: '999' }))
+    ).rejects.toThrow('No scalar frame ref for model=gfs artifact=tmp_surface hour=999')
   })
 
-  it('loads payloads from frame refs without sha metadata', async () => {
-    stubFetchArrayBufferOnce(new Int16Array([1, 2, 3, 4]).buffer)
+  it('uses vector artifact kind in fetch errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchErrorResponse(404, 'Not Found')))
 
-    const payload = await readArtifactPayload({
-      config: createConfigFixture(),
-      activeRun: BASE_ACTIVE_RUN,
-      resolved: resolvedArtifact({ frameRef: SCALAR_FRAME_REF }),
-      signal: createSignalFixture(),
-    })
-
-    expect(payload.byteLength).toBe(8)
+    await expect(
+      readArtifactPayload(payloadArgs({ artifact: VECTOR_ARTIFACT }))
+    ).rejects.toThrow('Failed to fetch vector payload: 404 Not Found')
   })
 })

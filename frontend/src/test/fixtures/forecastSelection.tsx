@@ -4,19 +4,15 @@ import { vi } from 'vitest'
 
 import {
   activeForecastRunForModel,
-  getLayerModelAvailability,
+  type ForecastModelOption,
   modelOptionsFromManifest,
   type ForecastModelId,
   type Manifest,
 } from '@/forecast/manifest'
 import { ForecastTimeProvider } from '@/forecast/time'
 import {
-  asParticleLayerId,
-  asLayerId,
-  FORECAST_LAYER_GROUPS,
-  FORECAST_LAYERS_BY_ID,
-  getAvailableParticleLayers,
-  getDefaultParticleLayer,
+  getDefaultAvailableParticleLayerId,
+  getDefaultRasterLayerId,
 } from '@/forecast/catalog'
 import {
   ForecastSelectionProvider,
@@ -40,50 +36,25 @@ export function createForecastSelectionContextValue(
   const shared = {
     modelOptions: modelOptionsFromManifest(manifest),
     setActiveModel: vi.fn(),
-    setSelectedLayerGroup: vi.fn(),
     setSelectedLayer: vi.fn(),
     setSelectedParticleLayer: vi.fn(),
   }
-  const particleLayers = activeRun == null ? null : getAvailableParticleLayers(activeRun)
-  const defaultParticleLayer = particleLayers == null ? null : getDefaultParticleLayer(particleLayers)
   const selectedLayerId = options.selectedLayerId
-    ? asLayerId(options.selectedLayerId)
-    : FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
-  const selectedLayerAvailability =
-    activeRun != null && selectedLayerId != null
-      ? getLayerModelAvailability(activeRun.manifest, selectedLayerId, activeRun.modelId)
-      : null
-  const selectedLayerIsRenderable = selectedLayerAvailability?.state === 'available'
-  const selectedLayerGroupId = selectedLayerId == null
-    ? null
-    : FORECAST_LAYER_GROUPS.find((group) => group.layers.includes(selectedLayerId))?.id ?? null
+    ? options.selectedLayerId
+    : getDefaultRasterLayerId()
 
   return (
     activeRun == null
       ? {
           activeRun: null,
-          groups: [],
-          layers: null,
-          particleLayers: null,
-          selectedLayerGroupId: null,
           selectedLayerId: null,
-          selectedLayerAvailability: null,
-          selectedLayerIsRenderable: false,
           selectedParticleLayerId: null,
           ...shared,
         }
       : {
           activeRun,
-          groups: [...FORECAST_LAYER_GROUPS],
-          layers: FORECAST_LAYERS_BY_ID,
-          particleLayers: particleLayers!,
-          selectedLayerGroupId,
           selectedLayerId,
-          selectedLayerAvailability,
-          selectedLayerIsRenderable,
-          selectedParticleLayerId: options.selectedParticleLayerId
-            ? asParticleLayerId(options.selectedParticleLayerId)
-            : defaultParticleLayer,
+          selectedParticleLayerId: options.selectedParticleLayerId ?? getDefaultAvailableParticleLayerId(activeRun),
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue
@@ -92,17 +63,30 @@ export function createForecastSelectionContextValue(
 export function renderWithForecastSelection(
   ui: ReactNode,
   manifest: Manifest,
-  activeModelId: ForecastModelId = 'gfs'
+  options: ForecastModelId | {
+    activeModelId?: ForecastModelId
+    modelOptions?: readonly ForecastModelOption[]
+    onActiveModelChange?: (modelId: ForecastModelId) => void
+  } = 'gfs'
 ) {
+  const activeModelId = typeof options === 'string'
+    ? options
+    : options.activeModelId ?? 'gfs'
   const activeRun = createActiveRunFixture(manifest, activeModelId)
   return render(
     <ForecastSettingsProvider>
       <ForecastSelectionProvider
         activeRun={activeRun}
-        modelOptions={[{
+        modelOptions={typeof options === 'string' ? [{
+          id: activeModelId,
+          label: activeRun.label,
+        }] : options.modelOptions ?? [{
           id: activeModelId,
           label: activeRun.label,
         }]}
+        onActiveModelChange={typeof options === 'string'
+          ? undefined
+          : options.onActiveModelChange}
       >
         <ForecastTimeProvider activeRun={activeRun}>
           {ui}

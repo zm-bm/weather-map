@@ -135,7 +135,7 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
   },
 }
 
-function ensurePlaceProbeLayer(map: MapLibreMap): void {
+export function ensurePlaceProbeLayer(map: MapLibreMap): void {
   if (!map.getSource(placeProbeLayerIds.source)) {
     map.addSource(placeProbeLayerIds.source, {
       type: 'geojson',
@@ -148,7 +148,7 @@ function ensurePlaceProbeLayer(map: MapLibreMap): void {
   }
 }
 
-function removePlaceProbeLayer(map: MapLibreMap): void {
+export function removePlaceProbeLayer(map: MapLibreMap): void {
   if (hasMapLayer(map, placeProbeLayerIds.layer)) {
     tryMapStyleOperation(map, () => map.removeLayer(placeProbeLayerIds.layer))
   }
@@ -194,7 +194,7 @@ function isMapStyleUnavailableError(error: unknown): boolean {
   ) || /source ["'][^"']+["'] does not exist in the map's style/i.test(error.message)
 }
 
-function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {
+export function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {
   return map.querySourceFeatures(BASEMAP_SOURCE_ID, {
     sourceLayer: BASEMAP_SOURCE_LAYER_IDS.places,
   })
@@ -205,7 +205,7 @@ function getMapBounds(map: MapLibreMap): PlaceProbeBounds | null {
   return getBounds?.call(map) ?? null
 }
 
-function getPlaceProbeSelectionContext(map: MapLibreMap): PlaceProbeSelectionContext {
+export function getPlaceProbeSelectionContext(map: MapLibreMap): PlaceProbeSelectionContext {
   return {
     bounds: getMapBounds(map),
     project: createPlaceProbeProjector(map),
@@ -229,7 +229,7 @@ function createPlaceProbeProjector(map: MapLibreMap): PlaceProbeProject | null {
   }
 }
 
-function setPlaceProbeLabels(
+export function setPlaceProbeLabels(
   map: MapLibreMap,
   labels: PlaceProbeValueLabel[],
 ): PlaceProbeLabelSnapshot {
@@ -241,7 +241,7 @@ function setPlaceProbeLabels(
   return sourceData.labelsByPlaceId
 }
 
-function updatePlaceProbeLabels(
+export function updatePlaceProbeLabels(
   map: MapLibreMap,
   labels: PlaceProbeValueLabel[],
   previousLabelsByPlaceId: ReadonlyMap<string, PlaceProbeValueLabel>,
@@ -378,13 +378,3 @@ function buildPlaceProbeFeature(label: PlaceProbeValueLabel): PlaceProbeFeature 
     },
   }
 }
-
-export const placeProbeLayer = {
-  ensure: ensurePlaceProbeLayer,
-  remove: removePlaceProbeLayer,
-  queryBasemapPlaces: queryBasemapPlaceFeatures,
-  getBounds: getMapBounds,
-  getSelectionContext: getPlaceProbeSelectionContext,
-  setLabels: setPlaceProbeLabels,
-  updateLabels: updatePlaceProbeLabels,
-} as const

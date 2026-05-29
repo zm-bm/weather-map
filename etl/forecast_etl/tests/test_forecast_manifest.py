@@ -82,30 +82,40 @@ def _pipeline_config() -> PipelineConfig:
 def _forecast_catalog() -> dict:
     return {
         "catalogVersion": "test-forecast-catalog",
-        "layers": [
-            {"id": "native_scalar", "source": {"kind": "artifact", "artifactId": "tmp_surface"}},
-            {"id": "unsupported_scalar", "source": {"kind": "artifact", "artifactId": "prate_surface"}},
-            {"id": "etl_derived", "source": {"kind": "artifact", "artifactId": "precip_type_surface"}},
+        "rasterLayers": [
+            {"id": "native_scalar", "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]}},
+            {"id": "unsupported_scalar", "source": {"artifactId": "prate_surface", "bands": [{"id": "value"}]}},
+            {"id": "etl_derived", "source": {"artifactId": "precip_type_surface", "bands": [{"id": "value"}]}},
             {
                 "id": "frontend_derived",
-                "source": {"kind": "derived", "artifactId": "wind10m_uv", "recipe": "wind-speed"},
+                "source": {
+                    "artifactId": "wind10m_uv",
+                    "bands": [{"id": "u"}, {"id": "v"}],
+                },
             },
             {
                 "id": "cloud_layers",
-                "source": {"kind": "cloud-layers", "artifactId": "cloud_layers"},
+                "source": {
+                    "artifactId": "cloud_layers",
+                    "bands": [{"id": "low"}, {"id": "middle"}, {"id": "high"}],
+                },
             },
             {
                 "id": "top_level_optional_overlay",
-                "source": {"kind": "artifact", "artifactId": "tmp_surface"},
-                "overlays": [
-                    {
-                        "id": "precipitation_type",
-                        "kind": "precipitation-type",
-                        "artifactId": "precip_type_surface",
-                        "optional": True,
-                    }
-                ],
+                "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]},
+                "overlays": ["precipitation_type"],
             },
+        ],
+        "overlayLayers": [
+            {
+                "id": "precipitation_type",
+                "style": "precipitation-type-pattern",
+                "source": {
+                    "artifactId": "precip_type_surface",
+                    "bands": [{"id": "snow_frac"}, {"id": "mix_frac"}],
+                },
+                "optional": True,
+            }
         ],
     }
 
@@ -292,10 +302,13 @@ class ForecastManifestTest(unittest.TestCase):
                     generated_at="2026-05-16T00:00:00Z",
                     catalog={
                         "catalogVersion": "test-forecast-catalog",
-                        "layers": [
+                        "rasterLayers": [
                             {
                                 "id": "cloud_layers",
-                                "source": {"kind": "cloud-layers", "artifactId": "cloud_layers"},
+                                "source": {
+                                    "artifactId": "cloud_layers",
+                                    "bands": [{"id": "low"}, {"id": "middle"}, {"id": "high"}],
+                                },
                             }
                         ],
                     },
@@ -305,6 +318,127 @@ class ForecastManifestTest(unittest.TestCase):
             self.assertEqual(entry["state"], expected_state)
             self.assertEqual(entry["support"], "frontend-derived")
             self.assertEqual(entry["requiredArtifacts"], ["cloud_layers"])
+
+    def test_rejects_stale_raster_band_input(self) -> None:
+        cfg = _pipeline_config()
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-unsupported-raster-") as td:
+            repo = ArtifactRepository.for_root(
+                store=make_store(),
+                artifact_root_uri=f"file://{Path(td).as_posix()}",
+            )
+
+            with self.assertRaisesRegex(SystemExit, "Raster source bands must not define 'input'"):
+                build_forecast_manifest(
+                    pipeline_config=cfg,
+                    artifact_repo=repo,
+                    generated_at="2026-05-16T00:00:00Z",
+                    catalog={
+                        "catalogVersion": "test-forecast-catalog",
+                        "rasterLayers": [
+                            {
+                                "id": "unknown_input",
+                                "source": {
+                                    "artifactId": "cloud_layers",
+                                    "bands": [
+                                        {
+                                            "id": "speed",
+                                            "input": {"kind": "unknown-input"},
+                                        }
+                                    ],
+                                },
+                            }
+                        ],
+                    },
+                )
+
+    def test_rejects_invalid_overlay_source_shapes(self) -> None:
+        cfg = _pipeline_config()
+
+        cases = (
+            (
+                "unsupported_style",
+                {
+                    "id": "precipitation_type",
+                    "style": "unsupported-overlay-style",
+                    "source": {
+                        "artifactId": "precip_type_surface",
+                        "bands": [{"id": "snow_frac"}, {"id": "mix_frac"}],
+                    },
+                },
+                "Unsupported layer overlay style: 'unsupported-overlay-style'",
+            ),
+            (
+                "empty_bands",
+                {
+                    "id": "precipitation_type",
+                    "style": "precipitation-type-pattern",
+                    "source": {
+                        "artifactId": "precip_type_surface",
+                        "bands": [],
+                    },
+                },
+                "Raster source must define non-empty bands",
+            ),
+        )
+        for case, overlay, expected_error in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory(
+                prefix="weather-map-forecast-manifest-invalid-overlay-"
+            ) as td:
+                repo = ArtifactRepository.for_root(
+                    store=make_store(),
+                    artifact_root_uri=f"file://{Path(td).as_posix()}",
+                )
+
+                with self.assertRaisesRegex(SystemExit, expected_error):
+                    build_forecast_manifest(
+                        pipeline_config=cfg,
+                        artifact_repo=repo,
+                        generated_at="2026-05-16T00:00:00Z",
+                        catalog={
+                            "catalogVersion": "test-forecast-catalog",
+                            "rasterLayers": [
+                                {
+                                    "id": "invalid_overlay",
+                                    "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]},
+                                    "overlays": ["precipitation_type"],
+                                }
+                            ],
+                            "overlayLayers": [overlay],
+                        },
+                    )
+
+    def test_rejects_invalid_raster_source_shapes(self) -> None:
+        cfg = _pipeline_config()
+
+        cases = (
+            ("missing", {"artifactId": "tmp_surface"}),
+            ("empty", {"artifactId": "tmp_surface", "bands": []}),
+        )
+        for case, source in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory(
+                prefix="weather-map-forecast-manifest-invalid-raster-"
+            ) as td:
+                repo = ArtifactRepository.for_root(
+                    store=make_store(),
+                    artifact_root_uri=f"file://{Path(td).as_posix()}",
+                )
+
+                with self.assertRaisesRegex(SystemExit, "Raster source must define non-empty bands"):
+                    build_forecast_manifest(
+                        pipeline_config=cfg,
+                        artifact_repo=repo,
+                        generated_at="2026-05-16T00:00:00Z",
+                        catalog={
+                            "catalogVersion": "test-forecast-catalog",
+                            "rasterLayers": [
+                                {
+                                    "id": "invalid_raster",
+                                    "source": source,
+                                }
+                            ],
+                        },
+                    )
 
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()

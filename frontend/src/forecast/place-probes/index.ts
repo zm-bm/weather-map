@@ -13,3 +13,19 @@ export type {
   ForecastPlaceProbeFrame,
   ForecastPlaceProbeFrameChannel,
 } from './frameChannel'
+export {
+  blendRasterValues,
+  createRasterProbeSampler,
+  isRasterProbeSamplerCompatible,
+  probeRasterWindow,
+  probeRasterFrame,
+  sampleRasterFrameWithSampler,
+  sampleRasterWindowWithSampler,
+} from './rasterSampling'
+export type {
+  RasterWindowProbeResult,
+  RasterProbePoint,
+  RasterProbeResult,
+  RasterProbeSampleCell,
+  RasterProbeSampler,
+} from './rasterSampling'

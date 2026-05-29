@@ -1,6 +1,6 @@
-import type { FieldInterpolationWindowData } from '@/forecast/data'
+import type { ProbeWindow } from '@/forecast/frames'
 
-export type ForecastPlaceProbeFrame = FieldInterpolationWindowData | null
+export type ForecastPlaceProbeFrame = ProbeWindow | null
 
 type FrameListener = (
   frame: ForecastPlaceProbeFrame

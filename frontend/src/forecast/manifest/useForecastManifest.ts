@@ -6,8 +6,25 @@ import {
   modelOptionsFromManifest,
   resolveActiveForecastRun,
 } from './resolution'
-import type { ForecastModelId, Manifest } from './schema'
-import type { ForecastManifestState } from './types'
+import type {
+  ActiveForecastRun,
+  ForecastModelId,
+  ForecastModelOption,
+  Manifest,
+} from './schema'
+
+export type ForecastManifestData = {
+  activeRun: ActiveForecastRun
+  modelOptions: readonly ForecastModelOption[]
+  setActiveModel: (modelId: ForecastModelId) => void
+}
+
+export type ForecastManifestState = {
+  phase: 'loading' | 'ready' | 'error'
+  data: ForecastManifestData | null
+  error: Error | null
+  retry: () => void
+}
 
 type ManifestRequest =
   | { phase: 'loading' }

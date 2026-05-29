@@ -5,7 +5,7 @@ import {
   BASEMAP_SOURCE_ID,
   BASEMAP_SOURCE_LAYER_IDS,
 } from '@/map/basemap'
-import type { FieldInterpolationWindowData } from '@/forecast/data'
+import type { ProbeWindow } from '@/forecast/frames'
 import {
   createForecastPlaceProbeSession,
   type ForecastPlaceProbeSessionOptions,
@@ -35,32 +35,32 @@ const mocks = vi.hoisted(() => {
     testGrid,
     frame: {
       lower: {
-        layerId: 'temperature',
-        grid: testGrid,
+        source: { layerId: 'temperature' },
+        raster: { grid: testGrid },
       },
       upper: {
-        layerId: 'temperature',
-        grid: testGrid,
+        source: { layerId: 'temperature' },
+        raster: { grid: testGrid },
       },
       mix: 0,
-    } as FieldInterpolationWindowData | null,
+    } as unknown as ProbeWindow | null,
     formatProbeValue: vi.fn((rawValue: number | null, loading = false) => ({
       text: loading ? 'Loading' : (rawValue == null ? 'No data' : `${rawValue} F`),
       loading,
       value: rawValue,
     })),
-    createFieldProbeSampler: vi.fn(),
-    sampleFieldWindowWithSampler: vi.fn(),
+    createRasterProbeSampler: vi.fn(),
+    sampleRasterWindowWithSampler: vi.fn(),
   }
 })
 
-vi.mock('./fieldSampling', async () => {
-  const actual = await vi.importActual<typeof import('./fieldSampling')>('./fieldSampling')
+vi.mock('./rasterSampling', async () => {
+  const actual = await vi.importActual<typeof import('./rasterSampling')>('./rasterSampling')
 
   return {
     ...actual,
-    createFieldProbeSampler: mocks.createFieldProbeSampler,
-    sampleFieldWindowWithSampler: mocks.sampleFieldWindowWithSampler,
+    createRasterProbeSampler: mocks.createRasterProbeSampler,
+    sampleRasterWindowWithSampler: mocks.sampleRasterWindowWithSampler,
   }
 })
 
@@ -84,20 +84,20 @@ describe('createForecastPlaceProbeSession', () => {
 
     mocks.frame = {
       lower: {
-        layerId: 'temperature',
-        grid: mocks.testGrid,
+        source: { layerId: 'temperature' },
+        raster: { grid: mocks.testGrid },
       },
       upper: {
-        layerId: 'temperature',
-        grid: mocks.testGrid,
+        source: { layerId: 'temperature' },
+        raster: { grid: mocks.testGrid },
       },
       mix: 0,
-    } as FieldInterpolationWindowData
+    } as unknown as ProbeWindow
     mocks.formatProbeValue.mockClear()
-    mocks.createFieldProbeSampler.mockReset()
-    mocks.createFieldProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
-    mocks.sampleFieldWindowWithSampler.mockReset()
-    mocks.sampleFieldWindowWithSampler.mockReturnValue(20)
+    mocks.createRasterProbeSampler.mockReset()
+    mocks.createRasterProbeSampler.mockImplementation((_frame, place: { id: string }) => ({ id: place.id }))
+    mocks.sampleRasterWindowWithSampler.mockReset()
+    mocks.sampleRasterWindowWithSampler.mockReturnValue(20)
   })
 
   afterEach(() => {
@@ -176,7 +176,7 @@ describe('createForecastPlaceProbeSession', () => {
       BASEMAP_SOURCE_ID,
       { sourceLayer: BASEMAP_SOURCE_LAYER_IDS.places },
     )
-    expect(mocks.createFieldProbeSampler).toHaveBeenCalledTimes(2)
+    expect(mocks.createRasterProbeSampler).toHaveBeenCalledTimes(2)
     expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
       expect.objectContaining({ name: 'Chicago', sortKey: 0, probeText: '20 F' }),
       expect.objectContaining({ name: 'Milwaukee', sortKey: 1, probeText: '20 F' }),
@@ -218,13 +218,13 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(1)
 
-    mocks.sampleFieldWindowWithSampler.mockReturnValue(25)
+    mocks.sampleRasterWindowWithSampler.mockReturnValue(25)
     act(() => {
       session.setFrame({
-        lower: { layerId: 'temperature', grid: mocks.testGrid },
-        upper: { layerId: 'temperature', grid: mocks.testGrid },
+        lower: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
+        upper: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
         mix: 0.5,
-      } as FieldInterpolationWindowData)
+      } as unknown as ProbeWindow)
     })
     act(flushAnimationFrames)
 
@@ -246,10 +246,10 @@ describe('createForecastPlaceProbeSession', () => {
 
     act(() => {
       session.setFrame({
-        lower: { layerId: 'temperature', grid: mocks.testGrid },
-        upper: { layerId: 'temperature', grid: mocks.testGrid },
+        lower: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
+        upper: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
         mix: 0.5,
-      } as FieldInterpolationWindowData)
+      } as unknown as ProbeWindow)
     })
     act(flushAnimationFrames)
 
@@ -290,7 +290,7 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
-    expect(mocks.createFieldProbeSampler).toHaveBeenLastCalledWith(
+    expect(mocks.createRasterProbeSampler).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.objectContaining({ name: 'Madison' })
     )
@@ -382,13 +382,13 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
 
-    mocks.sampleFieldWindowWithSampler.mockReturnValue(25)
+    mocks.sampleRasterWindowWithSampler.mockReturnValue(25)
     act(() => {
       session.setFrame({
-        lower: { layerId: 'temperature', grid: mocks.testGrid },
-        upper: { layerId: 'temperature', grid: mocks.testGrid },
+        lower: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
+        upper: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
         mix: 0.5,
-      } as FieldInterpolationWindowData)
+      } as unknown as ProbeWindow)
     })
     act(flushAnimationFrames)
 

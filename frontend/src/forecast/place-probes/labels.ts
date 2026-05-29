@@ -1,12 +1,9 @@
-import type {
-  FieldTimeSliceData,
-  FieldInterpolationWindowData,
-} from '@/forecast/data'
+import type { ProbeWindow } from '@/forecast/frames'
 import {
-  createFieldProbeSampler,
-  sampleFieldWindowWithSampler,
-  type FieldProbeSampler,
-} from './fieldSampling'
+  createRasterProbeSampler,
+  sampleRasterWindowWithSampler,
+  type RasterProbeSampler,
+} from './rasterSampling'
 import { getPlaceProbeKey, type PlaceProbe } from './places'
 import type { PlaceProbeValueLabel } from './layer'
 
@@ -18,11 +15,11 @@ export type ForecastPlaceProbeValueFormatter = (
 export type PlaceProbeSamplers = {
   frameGridKey: string | null
   placeKey: string
-  samplers: Array<FieldProbeSampler | null>
+  samplers: Array<RasterProbeSampler | null>
 }
 
 export function refreshPlaceProbeSamplers(
-  frame: FieldInterpolationWindowData | null,
+  frame: ProbeWindow | null,
   places: PlaceProbe[],
   previousSamplers?: PlaceProbeSamplers,
   force = false,
@@ -37,7 +34,7 @@ export function refreshPlaceProbeSamplers(
     }
   }
 
-  const frameGridKey = getFieldFrameGridKey(frame.lower)
+  const frameGridKey = getRasterFrameGridKey(frame.lower)
   if (
     !force &&
     previousSamplers?.frameGridKey === frameGridKey &&
@@ -49,13 +46,13 @@ export function refreshPlaceProbeSamplers(
   return {
     frameGridKey,
     placeKey,
-    samplers: places.map((place) => createFieldProbeSampler(frame.lower, place)),
+    samplers: places.map((place) => createRasterProbeSampler(frame.lower, place)),
   }
 }
 
 export function createPlaceProbeLabels(
   places: PlaceProbe[],
-  frame: FieldInterpolationWindowData | null,
+  frame: ProbeWindow | null,
   samplerState: PlaceProbeSamplers,
   formatProbeValue: ForecastPlaceProbeValueFormatter,
 ): PlaceProbeValueLabel[] {
@@ -72,20 +69,20 @@ export function createPlaceProbeLabels(
 
 function getPlaceProbeText(
   placeIndex: number,
-  frame: FieldInterpolationWindowData | null,
+  frame: ProbeWindow | null,
   samplerState: PlaceProbeSamplers,
   formatProbeValue: ForecastPlaceProbeValueFormatter,
 ): string {
   const sampler = samplerState.samplers[placeIndex]
   const rawValue = frame != null && sampler != null
-    ? sampleFieldWindowWithSampler(frame, sampler)
+    ? sampleRasterWindowWithSampler(frame, sampler)
     : null
 
   return formatProbeValue(rawValue, frame == null).text
 }
 
-function getFieldFrameGridKey(frame: FieldTimeSliceData): string {
-  const { grid } = frame
+function getRasterFrameGridKey(frame: ProbeWindow['lower']): string {
+  const { grid } = frame.raster
   return [
     grid.nx,
     grid.ny,

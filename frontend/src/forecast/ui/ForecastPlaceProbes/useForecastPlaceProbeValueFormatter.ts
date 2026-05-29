@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-import { getLayerDisplay } from '@/forecast/catalog'
+import { getForecastRasterLayer } from '@/forecast/catalog'
 import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import { useForecastSettings } from '@/forecast/settings'
 import {
@@ -11,10 +11,10 @@ import {
 import type { ForecastPlaceProbeValueFormatter } from '@/forecast/place-probes'
 
 export function useForecastPlaceProbeValueFormatter(): ForecastPlaceProbeValueFormatter {
-  const { activeRun, selectedLayerId, layers } = useLoadedForecastSelectionContext()
+  const { selectedLayerId } = useLoadedForecastSelectionContext()
   const { settings } = useForecastSettings()
-  const display = selectedLayerId == null ? null : getLayerDisplay(selectedLayerId, layers, activeRun)
-  const unitDisplay = display == null ? null : getUnitDisplay(display.unitBehavior)
+  const layer = getForecastRasterLayer(selectedLayerId)
+  const unitDisplay = layer == null ? null : getUnitDisplay(layer.display.unitBehavior)
   const unitOption = unitDisplay == null ? null : getUnitOptionForSystem(unitDisplay, settings.units.system)
 
   return useCallback((rawValue, loading = false) => {

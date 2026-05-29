@@ -27,7 +27,7 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     act(() => {
-      result.current.actions.updateField({ colorSamplingMode: 'interpolated' })
+      result.current.actions.updateRaster({ colorSamplingMode: 'interpolated' })
       result.current.actions.updateParticles({
         enabled: false,
         clearTrailsOnViewChange: false,
@@ -46,7 +46,7 @@ describe('ForecastSettingsProvider', () => {
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      field: expect.objectContaining({ colorSamplingMode: 'interpolated' }),
+      raster: expect.objectContaining({ colorSamplingMode: 'interpolated' }),
       particles: expect.objectContaining({
         enabled: false,
         clearTrailsOnViewChange: false,

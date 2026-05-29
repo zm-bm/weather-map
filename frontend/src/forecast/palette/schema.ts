@@ -9,7 +9,7 @@ export type PaletteColorStop = {
   readonly color: PaletteColor
 }
 
-export type FieldPaletteDefinition = {
+export type RasterPaletteDefinition = {
   readonly id: string
   readonly label: string
   readonly valueUnit: string
@@ -30,7 +30,7 @@ const colorStopSchema = z.object({
   color: colorSchema,
 })
 
-const fieldPaletteDefinitionSchema = z.object({
+const rasterPaletteDefinitionSchema = z.object({
   id: idSchema,
   label: idSchema,
   valueUnit: idSchema,
@@ -52,7 +52,7 @@ const fieldPaletteDefinitionSchema = z.object({
   }
 })
 
-const forecastPalettesSchema = z.array(fieldPaletteDefinitionSchema).nonempty()
+const forecastPalettesSchema = z.array(rasterPaletteDefinitionSchema).nonempty()
   .superRefine((palettes, ctx) => {
     const seen = new Set<string>()
     for (const [index, palette] of palettes.entries()) {
@@ -68,6 +68,6 @@ const forecastPalettesSchema = z.array(fieldPaletteDefinitionSchema).nonempty()
     }
   })
 
-export function parseForecastPalettes(value: unknown): FieldPaletteDefinition[] {
-  return forecastPalettesSchema.parse(value) as FieldPaletteDefinition[]
+export function parseForecastPalettes(value: unknown): RasterPaletteDefinition[] {
+  return forecastPalettesSchema.parse(value) as RasterPaletteDefinition[]
 }

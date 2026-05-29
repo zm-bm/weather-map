@@ -9,6 +9,7 @@ import {
 } from '@/test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
+import { DEFAULT_PLAY_MIN_INTERVAL_MS } from './state'
 
 const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
 
@@ -99,14 +100,14 @@ describe('ForecastTimeProvider', () => {
     expect(screen.getByTestId('times')).toHaveTextContent('000,003,006')
   })
 
-  it('starts at the current time snapped to the 10-minute timeline grid', () => {
+  it('starts at the current time snapped to the minute timeline grid', () => {
     vi.setSystemTime(new Date('2026-04-09T04:14:00Z'))
     const manifest = createTimelineManifest()
 
     const { getContext } = renderForecastTimeProvider(manifest)
 
-    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
-    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
+    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 14))
+    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 14))
   })
 
   it('replaces in-flight requests so direct timeline seeks win', () => {
@@ -168,11 +169,11 @@ describe('ForecastTimeProvider', () => {
 
     rerenderManifest(createTimelineManifest())
 
-    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
-    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 10))
+    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 14))
+    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 14))
   })
 
-  it('steps next from the latest desired 10-minute slot while in flight', () => {
+  it('steps next from the latest desired minute slot while in flight', () => {
     const manifest = createTimelineManifest()
     const validAt0300 = validTimeFor(manifest, '003')
     const { getContext } = renderForecastTimeProvider(manifest)
@@ -185,12 +186,12 @@ describe('ForecastTimeProvider', () => {
     act(() => {
       getContext().controls.requestNext()
     })
-    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (10 * 60 * 1000))
+    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (1 * 60 * 1000))
 
     act(() => {
       getContext().controls.requestNext()
     })
-    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (20 * 60 * 1000))
+    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (2 * 60 * 1000))
   })
 
   it('clamps out-of-range frame callback times into the forecast window', () => {
@@ -213,11 +214,11 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.isInFlight).toBe(false)
   })
 
-  it('advances autoplay by ten forecast minutes after each apply', () => {
+  it('advances autoplay by one forecast minute after each apply', () => {
     const manifest = createTimelineManifest()
     const validAt0000 = validTimeFor(manifest, '000')
-    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
-    const validAt0020 = Date.UTC(2026, 3, 9, 0, 20)
+    const validAt0001 = Date.UTC(2026, 3, 9, 0, 1)
+    const validAt0002 = Date.UTC(2026, 3, 9, 0, 2)
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -226,7 +227,7 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.isPlaying).toBe(true)
 
     act(() => {
-      vi.advanceTimersByTime(99)
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS - 1)
     })
     expect(getContext().state.targetTimeMs).toBe(validAt0000)
     expect(getContext().state.isInFlight).toBe(false)
@@ -235,25 +236,25 @@ describe('ForecastTimeProvider', () => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+    expect(getContext().state.targetTimeMs).toBe(validAt0001)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().syncCallbacks.onRequestApplied(validAt0010)
+      getContext().syncCallbacks.onRequestApplied(validAt0001)
     })
-    expect(getContext().state.appliedTimeMs).toBe(validAt0010)
+    expect(getContext().state.appliedTimeMs).toBe(validAt0001)
     expect(getContext().state.isInFlight).toBe(false)
 
     act(() => {
-      vi.advanceTimersByTime(99)
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS - 1)
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+    expect(getContext().state.targetTimeMs).toBe(validAt0001)
 
     act(() => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0020)
+    expect(getContext().state.targetTimeMs).toBe(validAt0002)
   })
 
   it('lets a manual seek win over a scheduled playback tick', () => {
@@ -278,7 +279,7 @@ describe('ForecastTimeProvider', () => {
   it('keeps playback ticking after a same-time seek', () => {
     const manifest = createTimelineManifest()
     const validAt0000 = validTimeFor(manifest, '000')
-    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
+    const validAt0001 = Date.UTC(2026, 3, 9, 0, 1)
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -289,11 +290,11 @@ describe('ForecastTimeProvider', () => {
 
     act(() => {
       getContext().controls.requestTime(validAt0000)
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS)
     })
 
     expect(getContext().state.isPlaying).toBe(true)
-    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+    expect(getContext().state.targetTimeMs).toBe(validAt0001)
     expect(getContext().state.appliedTimeMs).toBe(validAt0000)
     expect(getContext().state.isInFlight).toBe(true)
   })

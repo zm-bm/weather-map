@@ -1,7 +1,6 @@
 import config from '@/core/config'
 import { joinUrl } from '@/core/url/joinUrl'
-import { parseManifest } from './parse'
-import type { Manifest } from './schema'
+import { parseManifest, type Manifest } from './schema'
 
 export async function fetchManifest(opts?: {
   signal?: AbortSignal

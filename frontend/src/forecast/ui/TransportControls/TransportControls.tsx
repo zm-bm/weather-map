@@ -60,7 +60,7 @@ function TransportControls() {
           type="button"
           onClick={requestPrev}
           disabled={transportDisabled}
-          aria-label="Step back ten minutes"
+          aria-label="Step back one minute"
         >
           <FaStepBackward aria-hidden="true" />
         </button>
@@ -81,7 +81,7 @@ function TransportControls() {
           type="button"
           onClick={requestNext}
           disabled={transportDisabled}
-          aria-label="Step forward ten minutes"
+          aria-label="Step forward one minute"
         >
           <FaStepForward aria-hidden="true" />
         </button>

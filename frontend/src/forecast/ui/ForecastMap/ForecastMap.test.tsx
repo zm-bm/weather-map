@@ -10,7 +10,7 @@ import {
 import type { ForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
 import type { UseForecastSyncArgs, ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
-  createFieldWindowFixture,
+  createRasterWindowFixture,
   createMapFixture,
   createMapRefFixture,
 } from '@/test/fixtures'
@@ -18,15 +18,15 @@ import type { MapControlRailProps } from '../MapControlRail'
 import ForecastMap from './ForecastMap'
 
 const FULL_RENDER_PROFILE = {
-  rendererIds: ['field', 'cloud-layers', 'field-overlay', 'contour-overlay', 'particles'],
+  layerIds: ['raster', 'overlay', 'contour', 'particles'],
 }
 
-const FIELD_ONLY_RENDER_PROFILE = {
-  rendererIds: ['field', 'cloud-layers', 'field-overlay'],
+const RASTER_ONLY_RENDER_PROFILE = {
+  layerIds: ['raster', 'overlay'],
 }
 
 const PARTICLES_ONLY_RENDER_PROFILE = {
-  rendererIds: ['field', 'cloud-layers', 'field-overlay', 'particles'],
+  layerIds: ['raster', 'overlay', 'particles'],
 }
 
 const mocks = vi.hoisted(() => ({
@@ -78,7 +78,7 @@ vi.mock('../MapControlRail', () => ({
 }))
 
 const DEFAULT_RENDER_SETTINGS = {
-  field: DEFAULT_FORECAST_SETTINGS.field,
+  raster: DEFAULT_FORECAST_SETTINGS.raster,
   particles: expect.objectContaining({
     clearTrailsOnViewChange: true,
     particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
@@ -183,7 +183,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
       renderHost,
       config,
-      dataOptions: { pressure: false, windVectors: true },
+      syncOptions: { contour: false, particles: true },
       onProbeFrameChange: expect.any(Function),
     })
     const placeProbeProps = getLatestPlaceProbeProps()
@@ -202,7 +202,7 @@ describe('ForecastMap', () => {
       mapReadyVersion,
       settings: DEFAULT_FORECAST_SETTINGS,
       settingsActions: expect.objectContaining({
-        updateField: expect.any(Function),
+        updateRaster: expect.any(Function),
         updateParticles: expect.any(Function),
         updatePressureContours: expect.any(Function),
       }),
@@ -238,7 +238,7 @@ describe('ForecastMap', () => {
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
-      profile: FIELD_ONLY_RENDER_PROFILE,
+      profile: RASTER_ONLY_RENDER_PROFILE,
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       settings: expect.objectContaining({
@@ -248,7 +248,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: getLatestRenderHost(),
       config,
-      dataOptions: { pressure: false, windVectors: false },
+      syncOptions: { contour: false, particles: false },
       onProbeFrameChange: expect.any(Function),
     })
   })
@@ -273,7 +273,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: getLatestRenderHost(),
       config,
-      dataOptions: { pressure: true, windVectors: true },
+      syncOptions: { contour: true, particles: true },
       onProbeFrameChange: expect.any(Function),
     })
   })
@@ -285,19 +285,19 @@ describe('ForecastMap', () => {
     const settingsActions = controlProps.settingsActions as ForecastSettingsActions
 
     act(() => {
-      settingsActions.updateField({ colorSamplingMode: 'interpolated' })
+      settingsActions.updateRaster({ colorSamplingMode: 'interpolated' })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
       renderSettings: {
-        field: { colorSamplingMode: 'interpolated' },
+        raster: { colorSamplingMode: 'interpolated' },
         particles: expect.objectContaining({ clearTrailsOnViewChange: true }),
       },
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       settings: expect.objectContaining({
-        field: { colorSamplingMode: 'interpolated' },
+        raster: { colorSamplingMode: 'interpolated' },
       }),
     }))
 
@@ -310,7 +310,7 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
       renderSettings: {
-        field: { colorSamplingMode: 'interpolated' },
+        raster: { colorSamplingMode: 'interpolated' },
         particles: expect.objectContaining({ clearTrailsOnViewChange: false }),
       },
     }))
@@ -345,7 +345,7 @@ describe('ForecastMap', () => {
   })
 
   it('publishes sync probe frames into the place-probe channel', () => {
-    const frame = createFieldWindowFixture()
+    const frame = createRasterWindowFixture()
 
     renderForecastMap()
 

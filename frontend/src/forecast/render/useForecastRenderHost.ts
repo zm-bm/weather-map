@@ -3,15 +3,20 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { normalizeError } from '@/core/abort'
 import {
-  applyData,
+  applyWindows,
   configureProfile,
   reconcileProfile,
 } from './registry'
 import {
-  type ForecastRenderHost,
   type ForecastRenderProfile,
-} from './types'
+} from './profile'
+import type { ForecastWindows } from '@/forecast/frames'
 import type { ForecastRenderSettings } from '@/forecast/settings/settings'
+
+export type ForecastRenderHost = {
+  version: number
+  apply: (windows: ForecastWindows) => void
+}
 
 type UseForecastRenderHostArgs = {
   getMap: () => MapLibreMap | null
@@ -71,7 +76,7 @@ export function useForecastRenderHost({
       installedRef.current = { map, mapReadyVersion, profileKey }
       hostStore.publish({
         version: (hostStore.getSnapshot()?.version ?? 0) + 1,
-        apply: (data) => applyData(map, profile, data),
+        apply: (windows) => applyWindows(map, profile, windows),
       })
       return
     }
@@ -87,7 +92,7 @@ export function useForecastRenderHost({
 }
 
 function createProfileKey(profile: ForecastRenderProfile): string {
-  return profile.rendererIds.join(',')
+  return profile.layerIds.join(',')
 }
 
 type HostStore = {

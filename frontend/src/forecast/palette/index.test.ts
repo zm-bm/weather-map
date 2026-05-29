@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FIELD_PALETTES, getLayerPalette, samplePaletteColor } from './index'
+import { RASTER_PALETTES, getRasterPalette, samplePaletteColor } from './index'
 import { parseForecastPalettes } from './schema'
 
 const VALID_PALETTE = {
@@ -16,17 +16,17 @@ const VALID_PALETTE = {
 }
 
 describe('forecast palettes', () => {
-  it('validates and resolves known built-in layer palettes', () => {
-    expect(FIELD_PALETTES.length).toBeGreaterThan(0)
-    expect(getLayerPalette('temperature.air.c.v1').stops.length).toBeGreaterThan(0)
-    expect(getLayerPalette('pressure.msl.pa.v1').stops[0]).toEqual({
+  it('validates and resolves known built-in raster palettes', () => {
+    expect(RASTER_PALETTES.length).toBeGreaterThan(0)
+    expect(getRasterPalette('temperature.air.c.v1').stops.length).toBeGreaterThan(0)
+    expect(getRasterPalette('pressure.msl.pa.v1').stops[0]).toEqual({
       value: 98000,
       color: [70, 155, 225],
     })
   })
 
   it('rejects unknown palette ids', () => {
-    expect(() => getLayerPalette('missing.palette.v1')).toThrow('Unknown layer paletteId: missing.palette.v1')
+    expect(() => getRasterPalette('missing.palette.v1')).toThrow('Unknown raster paletteId: missing.palette.v1')
   })
 
   it('rejects invalid palette contracts', () => {

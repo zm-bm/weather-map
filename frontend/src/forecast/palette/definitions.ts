@@ -1,4 +1,4 @@
-import type { FieldPaletteDefinition, PaletteColorStop } from './schema'
+import type { RasterPaletteDefinition, PaletteColorStop } from './schema'
 
 const fahrenheitToCelsius = (value: number) => ((value - 32) * 5) / 9
 
@@ -46,7 +46,7 @@ function palette(
   label: string,
   valueUnit: string,
   stops: readonly PaletteColorStop[],
-): FieldPaletteDefinition {
+): RasterPaletteDefinition {
   return {
     id,
     label,
@@ -57,7 +57,7 @@ function palette(
   }
 }
 
-export const BUILT_IN_FIELD_PALETTES = [
+export const BUILT_IN_RASTER_PALETTES = [
   palette('temperature.air.c.v1', 'Air Temperature', 'C', TEMPERATURE_COLOR_STOPS),
   palette('moisture.relative_humidity.percent.v1', 'Relative Humidity', '%', [
     stop(0, [218, 192, 146]),
@@ -114,6 +114,18 @@ export const BUILT_IN_FIELD_PALETTES = [
     stop(80, [70, 145, 190]),
     stop(90, [65, 135, 180]),
     stop(100, [60, 120, 170]),
+  ]),
+  palette('cloud.layers.low.v1', 'Low Cloud Layer', '%', [
+    stop(0, [96, 104, 112, 0]),
+    stop(100, [96, 104, 112]),
+  ]),
+  palette('cloud.layers.middle.v1', 'Middle Cloud Layer', '%', [
+    stop(0, [166, 172, 178, 0]),
+    stop(100, [166, 172, 178]),
+  ]),
+  palette('cloud.layers.high.v1', 'High Cloud Layer', '%', [
+    stop(0, [236, 244, 252, 0]),
+    stop(100, [236, 244, 252]),
   ]),
   palette('cloud.layers.composite.v1', 'Cloud Layers Composite', '%', [
     stop(0, [180, 180, 180]),
@@ -244,4 +256,4 @@ export const BUILT_IN_FIELD_PALETTES = [
     stop(70, [112, 48, 150]),
     stop(75, [245, 245, 245]),
   ]),
-] as const satisfies readonly FieldPaletteDefinition[]
+] as const satisfies readonly RasterPaletteDefinition[]

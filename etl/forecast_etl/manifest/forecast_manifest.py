@@ -17,9 +17,6 @@ FORECAST_MANIFEST_SCHEMA_VERSION = 1
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
 LayerSupport = Literal["native", "frontend-derived", "etl-derived", "unavailable"]
 ArtifactKind = Literal["scalar", "vector"]
-PRECIP_TYPE_OVERLAY_COMPONENTS = ("snow_frac", "mix_frac")
-CLOUD_LAYERS_COMPONENTS = ("low", "middle", "high")
-
 
 @dataclass(frozen=True)
 class ArtifactRequirement:
@@ -55,6 +52,8 @@ def build_forecast_manifest(
         for model_id in pipeline_config.models
     }
 
+    overlay_layers_by_id = _catalog_overlay_layers_by_id(forecast_catalog)
+
     return {
         "schema": FORECAST_MANIFEST_SCHEMA,
         "schemaVersion": FORECAST_MANIFEST_SCHEMA_VERSION,
@@ -73,7 +72,10 @@ def build_forecast_manifest(
                 "models": {
                     model_id: _layer_model_entry(
                         model=model,
-                        layer_requirements=_layer_requirements(layer),
+                        layer_requirements=_layer_requirements(
+                            layer,
+                            overlay_layers_by_id=overlay_layers_by_id,
+                        ),
                         latest_manifest=latest_manifests[model_id],
                     )
                     for model_id, model in pipeline_config.models.items()
@@ -101,13 +103,29 @@ def publish_forecast_manifest(
 
 
 def _catalog_layers(catalog: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
-    layers = catalog.get("layers")
+    layers = catalog.get("rasterLayers")
     if not isinstance(layers, list):
-        raise SystemExit("Forecast catalog must contain a layers array")
+        raise SystemExit("Forecast catalog must contain a rasterLayers array")
     for layer in layers:
         if not isinstance(layer, dict):
-            raise SystemExit("Forecast catalog layers must be objects")
+            raise SystemExit("Forecast catalog rasterLayers must be objects")
         yield layer
+
+
+def _catalog_overlay_layers_by_id(catalog: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    overlay_layers = catalog.get("overlayLayers", [])
+    if not isinstance(overlay_layers, list):
+        raise SystemExit("Forecast catalog overlayLayers must be a list")
+
+    overlays_by_id: dict[str, Mapping[str, Any]] = {}
+    for overlay in overlay_layers:
+        if not isinstance(overlay, dict):
+            raise SystemExit("Forecast catalog overlayLayers must be objects")
+        overlay_id = overlay.get("id")
+        if overlay_id is None:
+            raise SystemExit("Forecast catalog overlayLayers entries must contain id")
+        overlays_by_id[str(overlay_id)] = overlay
+    return overlays_by_id
 
 
 def _embedded_latest_manifest(manifest: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -252,7 +270,11 @@ def _manifest_satisfies(
     return True
 
 
-def _layer_requirements(layer: Mapping[str, Any]) -> LayerRequirements:
+def _layer_requirements(
+    layer: Mapping[str, Any],
+    *,
+    overlay_layers_by_id: Mapping[str, Mapping[str, Any]],
+) -> LayerRequirements:
     source = layer.get("source")
     if not isinstance(source, dict):
         raise SystemExit(f"Layer {layer.get('id')!r} must contain a source object")
@@ -266,11 +288,14 @@ def _layer_requirements(layer: Mapping[str, Any]) -> LayerRequirements:
         raise SystemExit(f"Layer {layer.get('id')!r} overlays must be a list")
 
     for overlay in overlays:
-        if not isinstance(overlay, dict):
-            raise SystemExit(f"Layer {layer.get('id')!r} overlays must be objects")
+        if not isinstance(overlay, str):
+            raise SystemExit(f"Layer {layer.get('id')!r} overlays must reference overlay layer ids")
+        overlay_layer = overlay_layers_by_id.get(overlay)
+        if overlay_layer is None:
+            raise SystemExit(f"Layer {layer.get('id')!r} references missing overlay layer {overlay!r}")
         overlay_requirements = _layer_overlay_requirements(
-            overlay,
-            optional=bool(overlay.get("optional")),
+            overlay_layer,
+            optional=bool(overlay_layer.get("optional")),
         )
         required.extend(overlay_requirements.required)
         optional_requirements.extend(overlay_requirements.optional)
@@ -289,23 +314,14 @@ def _layer_requirements(layer: Mapping[str, Any]) -> LayerRequirements:
 
 
 def _layer_overlay_requirements(overlay: Mapping[str, Any], *, optional: bool) -> LayerRequirements:
-    overlay_kind = overlay.get("kind")
-    if overlay_kind == "precipitation-type":
-        artifact_id = overlay.get("artifactId")
-        if artifact_id is None:
-            raise SystemExit("Precipitation-type layer overlay must contain artifactId")
-        requirement = ArtifactRequirement(
-            str(artifact_id),
-            "vector",
-            PRECIP_TYPE_OVERLAY_COMPONENTS,
-        )
-        return LayerRequirements(
-            required=() if optional else (requirement,),
-            optional=(requirement,) if optional else (),
-            support_hint="native",
-        )
+    overlay_style = overlay.get("style")
+    if overlay_style == "precipitation-type-pattern":
+        source = overlay.get("source")
+        if not isinstance(source, dict):
+            raise SystemExit("Precipitation-type pattern layer overlay must contain a source object")
+        return _source_requirements(source, optional=optional)
 
-    raise SystemExit(f"Unsupported layer overlay kind: {overlay_kind!r}")
+    raise SystemExit(f"Unsupported layer overlay style: {overlay_style!r}")
 
 
 def _dedupe_requirements(requirements: Iterable[ArtifactRequirement]) -> tuple[ArtifactRequirement, ...]:
@@ -320,8 +336,8 @@ def _dedupe_requirements(requirements: Iterable[ArtifactRequirement]) -> tuple[A
 
 
 def _source_requirements(source: Mapping[str, Any], *, optional: bool) -> LayerRequirements:
-    source_kind = source.get("kind")
-    if source_kind == "artifact":
+    band_ids = _source_band_ids(source)
+    if band_ids == ("value",):
         requirement = ArtifactRequirement(str(source["artifactId"]), "scalar")
         return LayerRequirements(
             required=() if optional else (requirement,),
@@ -329,33 +345,30 @@ def _source_requirements(source: Mapping[str, Any], *, optional: bool) -> LayerR
             support_hint="native",
         )
 
-    if source_kind == "derived":
-        requirement = ArtifactRequirement(str(source["artifactId"]), "vector", _derived_components(source))
-        return LayerRequirements(
-            required=() if optional else (requirement,),
-            optional=(requirement,) if optional else (),
-            support_hint="frontend-derived",
-        )
-
-    if source_kind == "cloud-layers":
-        requirement = ArtifactRequirement(
-            str(source["artifactId"]),
-            "vector",
-            CLOUD_LAYERS_COMPONENTS,
-        )
-        return LayerRequirements(
-            required=() if optional else (requirement,),
-            optional=(requirement,) if optional else (),
-            support_hint="frontend-derived",
-        )
-
-    raise SystemExit(f"Unsupported layer source kind: {source_kind!r}")
+    requirement = ArtifactRequirement(str(source["artifactId"]), "vector", band_ids)
+    return LayerRequirements(
+        required=() if optional else (requirement,),
+        optional=(requirement,) if optional else (),
+        support_hint="frontend-derived",
+    )
 
 
-def _derived_components(source: Mapping[str, Any]) -> tuple[str, ...]:
-    if source.get("recipe") == "wind-speed":
-        return ("u", "v")
-    return ()
+def _source_band_ids(source: Mapping[str, Any]) -> tuple[str, ...]:
+    bands = source.get("bands")
+    has_bands = isinstance(bands, list) and bool(bands)
+    if not has_bands:
+        raise SystemExit("Raster source must define non-empty bands")
+
+    return tuple(
+        _raster_band_id(_as_mapping(band, owner="raster source band"))
+        for band in bands
+    )
+
+
+def _raster_band_id(band: Mapping[str, Any]) -> str:
+    if "input" in band:
+        raise SystemExit("Raster source bands must not define 'input'")
+    return str(_required_value(band, "id", owner="raster source band"))
 
 
 def _read_latest_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:

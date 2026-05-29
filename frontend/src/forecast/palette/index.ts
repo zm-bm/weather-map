@@ -1,14 +1,14 @@
 import { lerp } from '@/core/math'
-import { BUILT_IN_FIELD_PALETTES } from './definitions'
+import { BUILT_IN_RASTER_PALETTES } from './definitions'
 import {
   parseForecastPalettes,
-  type FieldPaletteDefinition,
+  type RasterPaletteDefinition,
   type PaletteColor,
   type PaletteColorStop,
 } from './schema'
 
 export type {
-  FieldPaletteDefinition,
+  RasterPaletteDefinition,
   PaletteColor,
   PaletteColorStop,
 } from './schema'
@@ -17,20 +17,20 @@ export type PaletteSamplingMode = 'banded' | 'interpolated'
 
 export type SampledPaletteColor = readonly [number, number, number, number]
 
-export const FIELD_PALETTES = parseForecastPalettes(BUILT_IN_FIELD_PALETTES)
+export const RASTER_PALETTES = parseForecastPalettes(BUILT_IN_RASTER_PALETTES)
 
-const FIELD_PALETTES_BY_ID: Record<string, FieldPaletteDefinition> = Object.fromEntries(
-  FIELD_PALETTES.map((palette) => [palette.id, palette])
+const RASTER_PALETTES_BY_ID: Record<string, RasterPaletteDefinition> = Object.fromEntries(
+  RASTER_PALETTES.map((palette) => [palette.id, palette])
 )
 
-export function isLayerPaletteId(paletteId: unknown): paletteId is string {
-  return typeof paletteId === 'string' && FIELD_PALETTES_BY_ID[paletteId] != null
+export function isRasterPaletteId(paletteId: unknown): paletteId is string {
+  return typeof paletteId === 'string' && RASTER_PALETTES_BY_ID[paletteId] != null
 }
 
-export function getLayerPalette(paletteId: string): FieldPaletteDefinition {
-  const palette = FIELD_PALETTES_BY_ID[paletteId]
+export function getRasterPalette(paletteId: string): RasterPaletteDefinition {
+  const palette = RASTER_PALETTES_BY_ID[paletteId]
   if (!palette) {
-    throw new Error(`Unknown layer paletteId: ${paletteId}`)
+    throw new Error(`Unknown raster paletteId: ${paletteId}`)
   }
   return palette
 }

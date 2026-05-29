@@ -12,7 +12,6 @@ import {
   isLayerAvailableForActiveRun,
   isLayerAvailableForModel,
   resolveActiveForecastRun,
-  resolveActiveRunFrameRef,
   resolveCompatibleActiveForecastRun,
 } from './resolution'
 
@@ -83,28 +82,4 @@ describe('forecast manifest active run resolution', () => {
     expect(compatibleRun?.modelId).toBe('gfs')
   })
 
-  it('infers frame payload refs from active run metadata', () => {
-    const manifest = createMultiModelManifestFixture({
-      gfsManifest: createSingleTimeManifestFixture({
-        model: { id: 'gfs', label: 'GFS' },
-        cycle: '2026041312',
-        forecastHours: ['000'],
-      }),
-      iconManifest: null,
-    })
-    const activeRun = resolveActiveForecastRun(manifest, 'gfs')
-    if (!activeRun) throw new Error('Expected active run fixture')
-
-    const frameRef = resolveActiveRunFrameRef({
-      activeRun,
-      artifactId: 'tmp_surface',
-      hourToken: '000',
-      kind: 'scalar',
-    })
-
-    expect(frameRef).toEqual({
-      path: 'fields/gfs/2026041312/000/tmp_surface.field.i16.bin',
-      byteLength: 8,
-    })
-  })
 })

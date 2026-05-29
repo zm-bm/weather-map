@@ -3,18 +3,12 @@ import type {
   ArtifactKind,
   ForecastModelId,
   ForecastModelOption,
-  FramePayloadRef,
   LayerModelAvailability,
   Manifest,
   ManifestArtifactSpec,
   ScalarArtifactSpec,
   VectorArtifactSpec,
 } from './schema'
-
-const FIELD_DTYPE_SUFFIX = {
-  int16: 'i16',
-  int8: 'i8',
-} satisfies Record<ManifestArtifactSpec['encoding']['dtype'], string>
 
 type ArtifactSpecByKind = {
   scalar: ScalarArtifactSpec
@@ -153,48 +147,4 @@ export function resolveActiveRunArtifact<D extends ArtifactKind>(
     throw new Error(`Artifact ${artifactId} is not ${kind} (got ${artifact.kind})`)
   }
   return artifact as ArtifactSpecByKind[D]
-}
-
-export function resolveActiveRunFrameRef(args: {
-  activeRun: ActiveForecastRun
-  artifactId: string
-  hourToken: string
-  kind: ArtifactKind
-}): FramePayloadRef {
-  const artifact = resolveActiveRunArtifact(
-    args.activeRun,
-    args.artifactId,
-    args.kind
-  )
-  const time = args.activeRun.latest.times.find((entry) => entry.id === args.hourToken)
-  if (!time) {
-    throw new Error(`No ${args.kind} frame ref for model=${args.activeRun.modelId} artifact=${args.artifactId} hour=${args.hourToken}`)
-  }
-
-  return {
-    path: inferFramePayloadPath({
-      artifact,
-      artifactId: args.artifactId,
-      cycle: args.activeRun.latest.run.cycle,
-      modelId: args.activeRun.modelId,
-      timeId: time.id,
-    }),
-    byteLength: artifact.byteLength,
-  }
-}
-
-function inferFramePayloadPath(args: {
-  artifact: { encoding: { dtype: ManifestArtifactSpec['encoding']['dtype'] } }
-  artifactId: string
-  cycle: string
-  modelId: string
-  timeId: string
-}): string {
-  return [
-    'fields',
-    args.modelId,
-    args.cycle,
-    args.timeId,
-    `${args.artifactId}.field.${FIELD_DTYPE_SUFFIX[args.artifact.encoding.dtype]}.bin`,
-  ].join('/')
 }

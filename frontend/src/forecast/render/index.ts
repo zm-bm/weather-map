@@ -1,8 +1,8 @@
 export {
   useForecastRenderHost,
+  type ForecastRenderHost,
 } from './useForecastRenderHost'
 export type {
-  ForecastRenderHost,
-  ForecastRendererId,
+  ForecastRenderLayerId,
   ForecastRenderProfile,
-} from './types'
+} from './profile'

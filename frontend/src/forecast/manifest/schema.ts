@@ -1,10 +1,8 @@
 import { z } from 'zod'
 
-import {
-  FORECAST_MANIFEST_SCHEMA,
-  FORECAST_MANIFEST_SCHEMA_VERSION,
-  FORECAST_PAYLOAD_CONTRACT,
-} from './constants'
+export const FORECAST_MANIFEST_SCHEMA = 'weather-map.forecast-manifest'
+export const FORECAST_MANIFEST_SCHEMA_VERSION = 1
+export const FORECAST_PAYLOAD_CONTRACT = 'forecast-binary-v2'
 
 const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
 
@@ -45,18 +43,6 @@ const finiteValueRangeSchema = z.object({
   max: finiteNumberSchema,
 })
 
-const scalarLinearInt16EncodingSchema = z.object({
-  id: z.string(),
-  format: z.literal('linear-i16-v1'),
-  dtype: z.literal('int16'),
-  byteOrder: z.enum(['little', 'big']),
-  nodata: finiteNumberSchema,
-  scale: finiteNumberSchema,
-  offset: finiteNumberSchema,
-  decodeFormula: z.string(),
-  finiteValueRange: finiteValueRangeSchema.optional(),
-})
-
 const scalarLinearInt8EncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i8-v1'),
@@ -78,7 +64,6 @@ const scalarTempCPiecewiseEncodingSchema = z.object({
 })
 
 const scalarEncodingSchema = z.discriminatedUnion('format', [
-  scalarLinearInt16EncodingSchema,
   scalarLinearInt8EncodingSchema,
   scalarTempCPiecewiseEncodingSchema,
 ])
@@ -202,26 +187,22 @@ export const manifestSchema = z.object({
   layers: z.record(z.string(), manifestLayerSchema),
 })
 
+export function parseManifest(value: unknown): Manifest {
+  return manifestSchema.parse(value)
+}
+
 export type ForecastRunSpec = z.infer<typeof runSchema>
 export type ForecastTimeSpec = z.infer<typeof timeSchema>
-export type ScalarGridSpec = z.infer<typeof gridSchema>
-export type ScalarLinearInt16EncodingSpec = z.infer<typeof scalarLinearInt16EncodingSchema>
+export type GridSpec = z.infer<typeof gridSchema>
 export type ScalarLinearInt8EncodingSpec = z.infer<typeof scalarLinearInt8EncodingSchema>
 export type ScalarTempCPiecewiseEncodingSpec = z.infer<typeof scalarTempCPiecewiseEncodingSchema>
 export type ScalarEncodingSpec = z.infer<typeof scalarEncodingSchema>
 export type VectorEncodingSpec = z.infer<typeof vectorEncodingSchema>
 export type ManifestEncodingSpec = ScalarEncodingSpec | VectorEncodingSpec
-export type FramePayloadRef = {
-  path: string
-  byteLength: number
-}
-export type ArtifactTemporalKind = typeof ARTIFACT_TEMPORAL_KINDS[number]
 export type ArtifactKind = ManifestArtifactSpec['kind']
 export type ScalarArtifactSpec = z.infer<typeof scalarArtifactSchema>
 export type VectorArtifactSpec = z.infer<typeof vectorArtifactSchema>
 export type ManifestArtifactSpec = z.infer<typeof manifestArtifactSchema>
-export type LayerAvailabilityState = z.infer<typeof layerAvailabilityStateSchema>
-export type LayerSupport = z.infer<typeof layerSupportSchema>
 export type LayerModelAvailability = z.infer<typeof layerModelAvailabilitySchema>
 export type LatestForecastRun = z.infer<typeof latestForecastRunSchema>
 export type Manifest = z.infer<typeof manifestSchema>

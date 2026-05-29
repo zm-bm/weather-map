@@ -1,33 +1,40 @@
-import { renderHook } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createActiveRunFixture,
   createConfigFixture,
-  createDataSessionFixture,
-  createForecastDataTargetFixture,
+  createForecastSyncSessionFixture,
   createForecastTimeContextValue,
+  createDeferred,
+  createForecastSelectionContextValue,
+  createManifestFixture,
 } from '@/test/fixtures'
-import type { ForecastDataTarget } from '@/forecast/data'
 import type { ForecastRenderHost } from '@/forecast/render'
-import type { InitialSyncController } from './initialSync'
+import type { ForecastSyncPlan } from './plan'
+import type { InitialSyncController } from './request/initialSync'
 import { useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
   useInitialSyncController: vi.fn(),
-  useDataTarget: vi.fn(),
+  useForecastSelectionContext: vi.fn(),
   useForecastTimeContext: vi.fn(),
-  createForecastDataSession: vi.fn(),
+  resolveForecastSyncPlan: vi.fn(),
+  createForecastSyncSession: vi.fn(),
   useRequestRunner: vi.fn(),
-  useDataPrefetch: vi.fn(),
 }))
 
-vi.mock('./initialSync', () => ({
+vi.mock('./request/initialSync', () => ({
   useInitialSyncController: () => mocks.useInitialSyncController(),
 }))
 
-vi.mock('./useDataTarget', () => ({
-  useDataTarget: () => mocks.useDataTarget(),
-}))
+vi.mock('@/forecast/selection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/forecast/selection')>()
+  return {
+    ...actual,
+    useForecastSelectionContext: () => mocks.useForecastSelectionContext(),
+  }
+})
 
 vi.mock('@/forecast/time', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/forecast/time')>()
@@ -37,20 +44,20 @@ vi.mock('@/forecast/time', async (importOriginal) => {
   }
 })
 
-vi.mock('@/forecast/data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/forecast/data')>()
+vi.mock('./load/session', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./load/session')>()
   return {
     ...actual,
-    createForecastDataSession: () => mocks.createForecastDataSession(),
+    createForecastSyncSession: () => mocks.createForecastSyncSession(),
   }
 })
 
-vi.mock('./useRequestRunner', () => ({
+vi.mock('./request/useRequestRunner', () => ({
   useRequestRunner: (args: unknown) => mocks.useRequestRunner(args),
 }))
 
-vi.mock('./useDataPrefetch', () => ({
-  useDataPrefetch: (args: unknown) => mocks.useDataPrefetch(args),
+vi.mock('./plan', () => ({
+  resolveForecastSyncPlan: (args: unknown) => mocks.resolveForecastSyncPlan(args),
 }))
 
 function createInitialSyncController(
@@ -73,50 +80,101 @@ function createInitialSyncController(
   }
 }
 
-function createDataTarget(overrides: Partial<ForecastDataTarget> = {}): ForecastDataTarget {
-  return createForecastDataTargetFixture({ overrides })
-}
-
 type ForecastSyncArgs = Parameters<typeof useForecastSync>[0]
 
 type ForecastSyncHarnessOptions = Partial<ForecastSyncArgs> & {
   initialSync?: InitialSyncController
-  target?: ForecastDataTarget | null
+  plan?: ForecastSyncPlan | null
   syncCallbacks?: ReturnType<typeof createForecastTimeContextValue>['syncCallbacks']
-  dataSession?: ReturnType<typeof createDataSessionFixture>
+  syncSession?: ReturnType<typeof createForecastSyncSessionFixture>
+  targetTimeMs?: number
+}
+
+function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): ForecastSyncPlan {
+  const activeRun = createActiveRunFixture(createManifestFixture({
+    cycle: '2026040900',
+    forecastHours: ['000', '003', '006'],
+  }))
+  const rasterWindowKey = 'test:raster:temperature'
+
+  return {
+    activeRun,
+    forecastHourTokens: ['000', '003', '006'],
+    windowPlans: [{
+      id: 'raster',
+      key: rasterWindowKey,
+      failurePolicy: 'required',
+      output: 'single',
+      frames: [{
+        source: {
+          layerId: 'temperature',
+          artifactId: 'tmp_surface',
+          displayRange: { min: -40, max: 50 },
+          overlays: [],
+          bands: [{ id: 'value', paletteId: 'temperature.air.c.v1' }],
+        },
+        artifactId: 'tmp_surface',
+        bandIds: ['value'],
+        cacheKeyPrefix: rasterWindowKey,
+      }],
+    }],
+    windowPlanKeys: {
+      raster: rasterWindowKey,
+    },
+    windowPlanSetKey: rasterWindowKey,
+    selectedValidTimeMs: Date.UTC(2026, 3, 9, 3),
+    lowerHourToken: '003',
+    upperHourToken: '006',
+    mix: 0,
+    minuteOffset: 0,
+    ...overrides,
+  }
 }
 
 function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
   const defaultRenderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
+  const manifest = createManifestFixture({
+    cycle: '2026040900',
+    forecastHours: ['000', '003', '006'],
+  })
   const renderHost = options.renderHost === undefined ? defaultRenderHost : options.renderHost
   const config = options.config ?? createConfigFixture()
-  const dataOptions = options.dataOptions ?? { pressure: true, windVectors: true }
+  const syncOptions = options.syncOptions ?? { contour: true, particles: true }
   const initialSync = options.initialSync ?? createInitialSyncController()
-  const target = 'target' in options ? options.target : createDataTarget()
+  const plan = 'plan' in options ? options.plan : createHookPlanFixture()
   const syncCallbacks = options.syncCallbacks ?? createForecastTimeContextValue(null).syncCallbacks
-  const dataSession = options.dataSession ?? createDataSessionFixture()
+  const syncSession = options.syncSession ?? createForecastSyncSessionFixture({
+    prefetch: vi.fn().mockResolvedValue(undefined),
+  })
+  const targetTimeMs = options.targetTimeMs ?? Date.UTC(2026, 3, 9, 3, 30)
 
   mocks.useInitialSyncController.mockReturnValue(initialSync)
-  mocks.useDataTarget.mockReturnValue(target)
-  mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
+  mocks.useForecastSelectionContext.mockReturnValue(createForecastSelectionContextValue(manifest))
+  mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(manifest, {
+    state: {
+      appliedTimeMs: targetTimeMs,
+      targetTimeMs,
+    },
     syncCallbacks,
   }))
-  mocks.createForecastDataSession.mockReturnValue(dataSession)
+  mocks.resolveForecastSyncPlan.mockReturnValue(plan)
+  mocks.createForecastSyncSession.mockReturnValue(syncSession)
 
   return {
     ...renderHook(() => useForecastSync({
       renderHost,
       config,
-      dataOptions,
+      syncOptions,
       onProbeFrameChange: options.onProbeFrameChange,
     })),
     renderHost,
     config,
-    dataOptions,
+    syncOptions,
     initialSync,
-    target,
+    plan,
+    targetTimeMs,
     syncCallbacks,
-    dataSession,
+    syncSession,
     onProbeFrameChange: options.onProbeFrameChange,
   }
 }
@@ -124,57 +182,66 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
 describe('useForecastSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createForecastDataSession.mockReturnValue(createDataSessionFixture())
+    mocks.createForecastSyncSession.mockReturnValue(createForecastSyncSessionFixture())
     mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null))
     mocks.useRequestRunner.mockReturnValue(undefined)
+    mocks.resolveForecastSyncPlan.mockReturnValue(createHookPlanFixture())
   })
 
-  it('wires initial sync state into target composition, runner execution, prefetch, and return status', () => {
+  it('composes the plan, wires request execution, starts prefetch, and returns initial status', async () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
     const initialSync = createInitialSyncController({ retryToken: 2 })
-    const target = createDataTarget()
+    const plan = createHookPlanFixture()
     const syncCallbacks = createForecastTimeContextValue(null).syncCallbacks
     const onProbeFrameChange = vi.fn()
-    const dataSession = createDataSessionFixture()
-    const dataOptions = { pressure: false, windVectors: true }
+    const syncSession = createForecastSyncSessionFixture({ prefetch: vi.fn().mockResolvedValue(undefined) })
+    const syncOptions = { contour: false, particles: true }
 
     const { result } = renderForecastSync({
       renderHost,
       config,
       initialSync,
-      target,
+      plan,
       syncCallbacks,
-      dataSession,
-      dataOptions,
+      syncSession,
+      syncOptions,
       onProbeFrameChange,
     })
 
     expect(mocks.useInitialSyncController).toHaveBeenCalledTimes(1)
-    expect(mocks.useDataTarget).toHaveBeenCalledWith()
+    expect(mocks.resolveForecastSyncPlan).toHaveBeenCalledWith(expect.objectContaining({
+      activeRun: expect.any(Object),
+      selectedLayerId: 'temperature',
+      selectedParticleLayerId: 'wind',
+      targetTimeMs: Date.UTC(2026, 3, 9, 3, 30),
+      syncOptions,
+    }))
     expect(mocks.useRequestRunner).toHaveBeenCalledWith({
       renderHost,
       config,
-      dataOptions,
-      target,
+      plan,
       syncCallbacks,
       initialSync,
-      dataSession,
+      syncSession,
       onProbeFrameChange,
     })
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
-      config,
-      target,
-      enabled: true,
-      dataSession,
-      dataOptions,
+    await waitFor(() => {
+      expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
     })
+    expect(syncSession.prefetch).toHaveBeenCalledWith(expect.objectContaining({
+      plan,
+      config,
+      aheadHourCount: 2,
+      concurrency: 2,
+      signal: expect.any(AbortSignal),
+    }))
     expect(result.current).toEqual({
       initialStatus: initialSync.status,
     })
   })
 
-  it('passes null targets through to the sync runner', () => {
+  it('passes null plans through to the sync runner', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const initialSync = createInitialSyncController()
@@ -183,20 +250,17 @@ describe('useForecastSync', () => {
       renderHost,
       config,
       initialSync,
-      target: null,
-      dataOptions: { pressure: true, windVectors: true },
+      plan: null,
+      syncOptions: { contour: true, particles: true },
     })
 
     expect(mocks.useRequestRunner).toHaveBeenCalledWith(expect.objectContaining({
-      target: null,
+      plan: null,
       initialSync,
-      dataSession: expect.any(Object),
+      syncSession: expect.any(Object),
     }))
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith(expect.objectContaining({
-      target: null,
-      enabled: true,
-      dataSession: expect.any(Object),
-    }))
+    expect((mocks.createForecastSyncSession.mock.results[0]?.value as ReturnType<typeof createForecastSyncSessionFixture>).prefetch)
+      .not.toHaveBeenCalled()
     expect(result.current).toEqual({
       initialStatus: initialSync.status,
     })
@@ -206,39 +270,84 @@ describe('useForecastSync', () => {
     const renderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
     const config = createConfigFixture()
     const initialSync = createInitialSyncController({ isBlocked: true })
-    const target = createDataTarget()
+    const syncSession = createForecastSyncSessionFixture({ prefetch: vi.fn().mockResolvedValue(undefined) })
 
     renderForecastSync({
       renderHost,
       config,
       initialSync,
-      target,
-      dataOptions: { pressure: true, windVectors: true },
+      syncSession,
+      syncOptions: { contour: true, particles: true },
     })
 
-    expect(mocks.useDataPrefetch).toHaveBeenCalledWith({
-      config,
-      target,
-      enabled: false,
-      dataSession: expect.any(Object),
-      dataOptions: { pressure: true, windVectors: true },
-    })
+    expect(syncSession.prefetch).not.toHaveBeenCalled()
   })
 
-  it('reuses one data session across rerenders', () => {
-    const dataSession = createDataSessionFixture()
-    const { rerender } = renderForecastSync({ dataSession })
+  it('reuses one loading session across rerenders', () => {
+    const syncSession = createForecastSyncSessionFixture({
+      prefetch: vi.fn().mockResolvedValue(undefined),
+    })
+    const { rerender } = renderForecastSync({ syncSession })
 
-    expect(mocks.createForecastDataSession).toHaveBeenCalledTimes(1)
+    expect(mocks.createForecastSyncSession).toHaveBeenCalledTimes(1)
 
     rerender()
 
-    expect(mocks.createForecastDataSession).toHaveBeenCalledTimes(1)
+    expect(mocks.createForecastSyncSession).toHaveBeenCalledTimes(1)
     expect(mocks.useRequestRunner).toHaveBeenLastCalledWith(expect.objectContaining({
-      dataSession,
+      syncSession,
     }))
-    expect(mocks.useDataPrefetch).toHaveBeenLastCalledWith(expect.objectContaining({
-      dataSession,
+  })
+
+  it('aborts queued prefetch work when target dependencies change', async () => {
+    const observedSignals: AbortSignal[] = []
+    const pendingPrefetch = createDeferred<void>()
+    const syncSession = createForecastSyncSessionFixture({
+      prefetch: vi.fn((args: { signal: AbortSignal }) => {
+        observedSignals.push(args.signal)
+        return pendingPrefetch.promise
+      }),
+    })
+    const firstTarget = createHookPlanFixture()
+    const secondTarget = createHookPlanFixture({
+      selectedValidTimeMs: Date.UTC(2026, 3, 9, 6),
+      lowerHourToken: '006',
+      upperHourToken: '006',
+    })
+    const firstTargetTimeMs = Date.UTC(2026, 3, 9, 3, 30)
+    const secondTargetTimeMs = Date.UTC(2026, 3, 9, 6)
+    mocks.resolveForecastSyncPlan
+      .mockReturnValueOnce(firstTarget)
+      .mockReturnValue(secondTarget)
+
+    const { rerender } = renderForecastSync({
+      syncSession,
+      targetTimeMs: firstTargetTimeMs,
+    })
+    await waitFor(() => {
+      expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
+    })
+
+    mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
+      state: {
+        appliedTimeMs: secondTargetTimeMs,
+        targetTimeMs: secondTargetTimeMs,
+      },
     }))
+    rerender()
+
+    expect(observedSignals[0]?.aborted).toBe(true)
+  })
+
+  it('suppresses prefetch failures', async () => {
+    const syncSession = createForecastSyncSessionFixture({
+      prefetch: vi.fn().mockRejectedValue(new Error('prefetch failed')),
+    })
+
+    renderForecastSync({ syncSession })
+
+    await waitFor(() => {
+      expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
+    })
   })
 })

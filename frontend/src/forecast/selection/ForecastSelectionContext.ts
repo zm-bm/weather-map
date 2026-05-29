@@ -4,47 +4,25 @@ import type {
   ActiveForecastRun,
   ForecastModelId,
   ForecastModelOption,
-  LayerModelAvailability,
 } from '@/forecast/manifest'
-import type {
-  LayerGroupId,
-  ParticleLayerId,
-  ParticleLayerSpec,
-  LayerGroupSpec,
-  LayerId,
-  LayerSpec,
-} from '@/forecast/catalog'
 
 type ForecastSelectionBaseValue = {
   activeRun: ActiveForecastRun | null
   modelOptions: readonly ForecastModelOption[]
   setActiveModel: (value: ForecastModelId) => void
-  setSelectedLayerGroup: (value: LayerGroupId) => void
-  setSelectedLayer: (value: LayerId) => void
-  setSelectedParticleLayer: (value: ParticleLayerId) => void
+  setSelectedLayer: (value: string) => void
+  setSelectedParticleLayer: (value: string) => void
 }
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
   activeRun: ActiveForecastRun
-  groups: readonly LayerGroupSpec[]
-  layers: Record<string, LayerSpec>
-  particleLayers: Record<string, ParticleLayerSpec>
-  selectedLayerGroupId: LayerGroupId | null
-  selectedLayerId: LayerId | null
-  selectedLayerAvailability: LayerModelAvailability | null
-  selectedLayerIsRenderable: boolean
-  selectedParticleLayerId: ParticleLayerId | null
+  selectedLayerId: string | null
+  selectedParticleLayerId: string | null
 }
 
 type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
   activeRun: null
-  groups: []
-  layers: null
-  particleLayers: null
-  selectedLayerGroupId: null
   selectedLayerId: null
-  selectedLayerAvailability: null
-  selectedLayerIsRenderable: false
   selectedParticleLayerId: null
 }
 

@@ -6,7 +6,7 @@ import type {
   ForecastPlaceProbeFrameChannel,
 } from '@/forecast/place-probes'
 import {
-  createFieldWindowFixture,
+  createRasterWindowFixture,
   createMapRefFixture,
 } from '@/test/fixtures'
 import ForecastPlaceProbes from './ForecastPlaceProbes'
@@ -87,7 +87,7 @@ describe('ForecastPlaceProbes', () => {
   it('creates, starts, and destroys a feature session', () => {
     const map = {}
     const mapRef = createMapRefFixture(map)
-    const initialFrame = createFieldWindowFixture()
+    const initialFrame = createRasterWindowFixture()
     const probeFrameChannel = createFrameChannel(initialFrame)
 
     const { unmount } = render(
@@ -113,7 +113,7 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('forwards layer, formatter, and published frame changes', () => {
-    const secondFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 2 })
+    const secondFrame = createRasterWindowFixture({ layerId: 'temperature', frame: 2 })
     const mapRef = createMapRefFixture()
     const probeFrameChannel = createFrameChannel()
 
@@ -166,8 +166,8 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('applies the latest channel frame after subscribing', () => {
-    const initialFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 1 })
-    const publishedFrame = createFieldWindowFixture({ layerId: 'temperature', frame: 2 })
+    const initialFrame = createRasterWindowFixture({ layerId: 'temperature', frame: 1 })
+    const publishedFrame = createRasterWindowFixture({ layerId: 'temperature', frame: 2 })
     let snapshotFrame: ForecastPlaceProbeFrame = initialFrame
     const probeFrameChannel: ForecastPlaceProbeFrameChannel = {
       getSnapshot: vi.fn(() => snapshotFrame),
@@ -193,7 +193,7 @@ describe('ForecastPlaceProbes', () => {
   })
 
   it('unsubscribes from the frame channel on unmount', () => {
-    const frame = createFieldWindowFixture()
+    const frame = createRasterWindowFixture()
     const mapRef = createMapRefFixture()
     const probeFrameChannel = createFrameChannel()
 

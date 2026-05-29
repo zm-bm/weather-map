@@ -8,11 +8,13 @@ import {
 } from '@/forecast/time'
 import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import {
+  getActiveRunLayerAvailability,
   isLayerAvailableForModel,
   hasAnyAvailableModelForLayer,
 } from '@/forecast/manifest'
 import {
-  type LayerId,
+  FORECAST_RASTER_LAYER_GROUPS,
+  FORECAST_RASTER_LAYERS_BY_ID,
 } from '@/forecast/catalog'
 import {
   clearPointerShortcut,
@@ -27,11 +29,7 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const {
     activeRun,
     modelOptions,
-    groups,
-    layers,
     selectedLayerId,
-    selectedLayerAvailability,
-    selectedLayerIsRenderable,
     setActiveModel,
     setSelectedLayer,
   } = useLoadedForecastSelectionContext()
@@ -48,7 +46,11 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const validTimeLabel = formatValidTimeTickLabel(selectedValidTimeMs) ?? '--'
   const validTimeTitle = formatValidTimeLabel(selectedValidTimeMs) ?? validTimeLabel
   const activeModelLabel = activeRun.label
+  const groups = FORECAST_RASTER_LAYER_GROUPS
+  const layers = FORECAST_RASTER_LAYERS_BY_ID
   const selectedLayer = selectedLayerId == null ? null : layers[selectedLayerId]
+  const selectedLayerAvailability = getActiveRunLayerAvailability(activeRun, selectedLayerId)
+  const selectedLayerIsRenderable = selectedLayerAvailability?.state === 'available'
   const showUnavailableMessage = selectedLayer != null && (
     selectedLayerAvailability?.state === 'temporarily_unavailable' ||
     selectedLayerAvailability?.state === 'unsupported' ||
@@ -57,8 +59,8 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const unavailableMessage = selectedLayer == null
     ? null
     : selectedLayerAvailability?.state === 'unsupported'
-      ? `${selectedLayer.label} is not available from ${activeModelLabel}.`
-      : `${selectedLayer.label} is temporarily unavailable for this ${activeModelLabel} cycle.`
+      ? `${selectedLayer.display.label} is not available from ${activeModelLabel}.`
+      : `${selectedLayer.display.label} is temporarily unavailable for this ${activeModelLabel} cycle.`
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -73,16 +75,16 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                 onPointerDown={(event) => markPointerShortcut(event.currentTarget)}
                 onBlur={(event) => clearPointerShortcut(event.currentTarget)}
                 onChange={(event) => {
-                  setSelectedLayer(event.currentTarget.value as LayerId)
+                  setSelectedLayer(event.currentTarget.value)
                   event.currentTarget.blur()
                 }}
               >
                 {groups.map((group) => (
                   <optgroup key={group.id} label={group.label}>
-                    {group.layers.map((layerId) => {
+                    {group.rasterLayerIds.map((layerId) => {
                       const layer = layers[layerId]
                       const hasSource = hasAnyAvailableModelForLayer(manifest, layerId)
-                      const label = layer?.label ?? String(layerId)
+                      const label = layer?.display.label ?? String(layerId)
 
                       return (
                         <option key={layerId} value={layerId} disabled={!hasSource}>

@@ -192,9 +192,9 @@ class PublishManifestTest(unittest.TestCase):
         cfg = parse_pipeline_config(minimal_pipeline_config())
         catalog = {
             "catalogVersion": "test-forecast-catalog",
-            "layers": [
-                {"id": "published_artifact", "source": {"kind": "artifact", "artifactId": "tmp_surface"}},
-                {"id": "unsupported_artifact", "source": {"kind": "artifact", "artifactId": "rh_surface"}},
+            "rasterLayers": [
+                {"id": "published_artifact", "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]}},
+                {"id": "unsupported_artifact", "source": {"artifactId": "rh_surface", "bands": [{"id": "value"}]}},
             ],
         }
 

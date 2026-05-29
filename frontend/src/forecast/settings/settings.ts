@@ -1,14 +1,14 @@
 import type { UnitSystem } from '@/forecast/units'
 
-export const FIELD_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
+export const RASTER_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
 
-export type FieldColorSamplingMode = typeof FIELD_COLOR_SAMPLING_MODES[number]
+export type RasterColorSamplingMode = typeof RASTER_COLOR_SAMPLING_MODES[number]
 
-export type FieldRenderSettings = {
-  colorSamplingMode: FieldColorSamplingMode
+export type RasterRenderSettings = {
+  colorSamplingMode: RasterColorSamplingMode
 }
 
-export const DEFAULT_FIELD_RENDER_SETTINGS: Readonly<FieldRenderSettings> = {
+export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
   colorSamplingMode: 'banded',
 }
 
@@ -108,7 +108,7 @@ export const DEFAULT_PARTICLE_RENDER_SETTINGS: Readonly<ParticleRenderSettings> 
 }
 
 export type ForecastRenderSettings = {
-  field: FieldRenderSettings
+  raster: RasterRenderSettings
   particles: ParticleRenderSettings
 }
 
@@ -125,14 +125,14 @@ export type UnitSettings = {
 }
 
 export type ForecastSettings = {
-  field: FieldRenderSettings
+  raster: RasterRenderSettings
   particles: ParticleSettings
   pressureContours: PressureContourSettings
   units: UnitSettings
 }
 
 export type ForecastSettingsActions = {
-  updateField: (patch: Partial<FieldRenderSettings>) => void
+  updateRaster: (patch: Partial<RasterRenderSettings>) => void
   updateParticles: (patch: Partial<ParticleSettings>) => void
   updatePressureContours: (patch: Partial<PressureContourSettings>) => void
   updateUnits: (patch: Partial<UnitSettings>) => void
@@ -145,8 +145,8 @@ export type ForecastSettingsValue = {
 }
 
 export const DEFAULT_FORECAST_SETTINGS = {
-  field: {
-    ...DEFAULT_FIELD_RENDER_SETTINGS,
+  raster: {
+    ...DEFAULT_RASTER_RENDER_SETTINGS,
   },
   particles: {
     enabled: true,

@@ -43,7 +43,7 @@ const DISABLED_ZOOM_BUTTON_STATE: ZoomButtonState = {
 
 const noopSettingsPatch = () => undefined
 const NOOP_SETTINGS_ACTIONS: ForecastSettingsActions = {
-  updateField: noopSettingsPatch,
+  updateRaster: noopSettingsPatch,
   updateParticles: noopSettingsPatch,
   updatePressureContours: noopSettingsPatch,
   updateUnits: noopSettingsPatch,

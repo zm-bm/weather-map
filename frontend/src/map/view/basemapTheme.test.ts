@@ -5,15 +5,15 @@ import { readStandardBasemapPaintValue } from './basemapStyle'
 import { BASEMAP_LAYER_IDS } from '../basemap'
 import {
   applyForecastBasemapStyle,
-  basemapStyleForForecastLayer,
+  basemapStyleForForecastRasterLayer,
 } from './basemapTheme'
 
 describe('basemap theme', () => {
   it('maps forecast layers to basemap styles', () => {
-    expect(basemapStyleForForecastLayer('cloud_layers')).toBe('cloud-layers')
-    expect(basemapStyleForForecastLayer('snow_depth')).toBe('standard')
-    expect(basemapStyleForForecastLayer('cloud_cover')).toBe('standard')
-    expect(basemapStyleForForecastLayer(null)).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('cloud_layers')).toBe('cloud-layers')
+    expect(basemapStyleForForecastRasterLayer('snow_depth')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('cloud_cover')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer(null)).toBe('standard')
   })
 
   it('applies the Cloud Layers theme and restores standard style paints', () => {

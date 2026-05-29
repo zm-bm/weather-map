@@ -2,7 +2,7 @@ import type { RefObject } from 'react'
 import type { IControl, Map as MapLibreMap } from 'maplibre-gl'
 import { vi } from 'vitest'
 
-export type ControllableMapFixture = MapLibreMap & {
+type ControllableMapFixture = MapLibreMap & {
   addControl: ReturnType<typeof vi.fn>
   getMaxZoom: ReturnType<typeof vi.fn>
   getMinZoom: ReturnType<typeof vi.fn>
@@ -77,7 +77,7 @@ export function createMapRefFixture(
   }
 }
 
-export type BasemapThemeMapFixture = MapLibreMap & {
+type BasemapThemeMapFixture = MapLibreMap & {
   addLayer: ReturnType<typeof vi.fn>
   getLayer: ReturnType<typeof vi.fn>
   getSource: ReturnType<typeof vi.fn>

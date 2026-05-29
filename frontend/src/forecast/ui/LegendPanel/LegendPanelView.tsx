@@ -1,12 +1,40 @@
-import type { LayerDisplay } from '@/forecast/catalog'
-import { getLegendTicks, toLegendContinuousGradient, toLegendSteppedGradient } from '@/forecast/legend'
-import type { FieldColorSamplingMode } from '@/forecast/settings'
-import type { UnitOption } from '@/forecast/units'
+import {
+  getLegendTicks,
+  toLegendContinuousGradient,
+  toLegendSteppedGradient,
+  type LegendScale,
+} from '@/forecast/legend'
+import type {
+  PaletteColorStop,
+  SampledPaletteColor,
+} from '@/forecast/palette'
+import type { RasterColorSamplingMode } from '@/forecast/settings'
+import type { UnitBehavior, UnitOption } from '@/forecast/units'
+
+export type LegendRasterBandDisplay = {
+  id: string
+  paletteId: string
+  color: SampledPaletteColor
+}
+
+export type LegendPanelDisplay = {
+  id: string
+  label: string
+  units: string
+  parameter: string
+  min: number
+  max: number
+  paletteId: string
+  unitBehavior: UnitBehavior
+  legendScale: LegendScale
+  stops: readonly PaletteColorStop[]
+  rasterBands: readonly LegendRasterBandDisplay[]
+}
 
 type LegendPanelViewProps = {
-  display: LayerDisplay
+  display: LegendPanelDisplay
   selectedOption: UnitOption
-  colorSamplingMode: FieldColorSamplingMode
+  colorSamplingMode: RasterColorSamplingMode
   canCycleUnits: boolean
   onCycleUnits: () => void
 }
@@ -28,7 +56,7 @@ export function LegendPanelView({
   const legendScaleGradient = colorSamplingMode === 'interpolated'
     ? toLegendContinuousGradient(display, 'to top')
     : toLegendSteppedGradient(display, 'to top')
-  const isCloudLayersLegend = display.id === 'cloud_layers'
+  const isCloudLayersLegend = hasRasterBands(display.rasterBands, ['low', 'middle', 'high'])
 
   return (
     <section className="legend-panel" aria-label={`${display.label} legend`}>
@@ -49,7 +77,7 @@ export function LegendPanelView({
         )}
 
         {isCloudLayersLegend ? (
-          <CloudLayersLegend />
+          <CloudLayersLegend bands={display.rasterBands} />
         ) : (
           <div className="legend-panel__scale-frame">
             <div className="legend-panel__scale-wrap">
@@ -91,19 +119,26 @@ export function LegendPanelView({
   )
 }
 
-function CloudLayersLegend() {
+function CloudLayersLegend({ bands }: { bands: LegendPanelDisplay['rasterBands'] }) {
+  const swatches = [
+    { id: 'low', label: 'LOW', ariaLabel: 'Low darker lower cloud deck' },
+    { id: 'middle', label: 'MID', ariaLabel: 'Middle bright cloud deck' },
+    { id: 'high', label: 'HIGH', ariaLabel: 'High pale upper cloud deck' },
+  ] as const
+
   return (
     <div className="legend-panel__cloud-layers-frame" aria-label="Cloud layer stacked decks and coverage opacity">
       <div className="legend-panel__cloud-layers-swatches" aria-label="Cloud layer stacked decks">
-        <span className="legend-panel__cloud-layers-swatch legend-panel__cloud-layers-swatch--low" aria-label="Low darker lower cloud deck">
-          <span>LOW</span>
-        </span>
-        <span className="legend-panel__cloud-layers-swatch legend-panel__cloud-layers-swatch--middle" aria-label="Middle bright cloud deck">
-          <span>MID</span>
-        </span>
-        <span className="legend-panel__cloud-layers-swatch legend-panel__cloud-layers-swatch--high" aria-label="High pale upper cloud deck">
-          <span>HIGH</span>
-        </span>
+        {swatches.map((swatch) => (
+          <span
+            key={swatch.id}
+            className={`legend-panel__cloud-layers-swatch legend-panel__cloud-layers-swatch--${swatch.id}`}
+            aria-label={swatch.ariaLabel}
+            style={{ background: cloudSwatchBackground(bands.find((band) => band.id === swatch.id)?.color) }}
+          >
+            <span>{swatch.label}</span>
+          </span>
+        ))}
       </div>
       <div className="legend-panel__cloud-layers-opacity-scale" aria-label="Composite coverage opacity from 0 to 100 percent">
         <div className="legend-panel__cloud-layers-opacity-wrap">
@@ -117,4 +152,28 @@ function CloudLayersLegend() {
       </div>
     </div>
   )
+}
+
+function hasRasterBands(
+  bands: LegendPanelDisplay['rasterBands'],
+  expectedBandIds: readonly string[],
+): boolean {
+  if (bands.length !== expectedBandIds.length) return false
+  return bands.every((band, index) => band.id === expectedBandIds[index])
+}
+
+function cloudSwatchBackground(color: LegendPanelDisplay['rasterBands'][number]['color'] | undefined): string | undefined {
+  if (!color) return undefined
+  const lower: [number, number, number, number] = [
+    Math.round(color[0] * 0.72),
+    Math.round(color[1] * 0.72),
+    Math.round(color[2] * 0.72),
+    color[3],
+  ]
+  return `linear-gradient(180deg, ${rgba(color, 0.96)}, ${rgba(lower, 0.92)})`
+}
+
+function rgba(color: readonly [number, number, number, number], alphaScale: number): string {
+  const alpha = Math.max(0, Math.min(1, (color[3] / 255) * alphaScale))
+  return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha.toFixed(3)})`
 }

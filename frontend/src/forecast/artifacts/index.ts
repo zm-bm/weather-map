@@ -1,11 +1,9 @@
 export {
+  canLoadRasterBandsForRun,
   createArtifactLoader,
-} from './data'
+} from './loader'
 export type {
   ArtifactLoader,
-} from './data'
-export type {
-  VectorComponentArtifactData,
-  RawVectorComponentArtifactData,
-  ScalarArtifactData,
-} from './types'
+  RawRasterBands,
+  RasterBandOrder,
+} from './loader'

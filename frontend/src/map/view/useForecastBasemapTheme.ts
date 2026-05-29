@@ -3,7 +3,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   applyForecastBasemapStyle,
-  basemapStyleForForecastLayer,
+  basemapStyleForForecastRasterLayer,
 } from './basemapTheme'
 
 type UseForecastBasemapThemeArgs = {
@@ -21,6 +21,6 @@ export function useForecastBasemapTheme({
     if (mapReadyVersion < 1) return
     const map = getMap()
     if (!map) return
-    applyForecastBasemapStyle(map, basemapStyleForForecastLayer(selectedLayerId))
+    applyForecastBasemapStyle(map, basemapStyleForForecastRasterLayer(selectedLayerId))
   }, [getMap, mapReadyVersion, selectedLayerId])
 }

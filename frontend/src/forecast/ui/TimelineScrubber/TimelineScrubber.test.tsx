@@ -85,7 +85,7 @@ describe('TimelineScrubber', () => {
     expect(screen.queryByText('Ready')).not.toBeInTheDocument()
 
     const slider = forecastSlider()
-    expect(slider).toHaveAttribute('step', '10')
+    expect(slider).toHaveAttribute('step', '1')
     dragSliderTo(30, slider)
     expect(mocks.requestTime).not.toHaveBeenCalled()
 
@@ -183,10 +183,10 @@ describe('TimelineScrubber', () => {
     })
     renderScrubber()
 
-    expect(screen.getByText(validTimeText(Date.UTC(2026, 3, 9, 0, 40)))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step back ten minutes' })).not.toBeInTheDocument()
+    expect(screen.getByText(validTimeText(Date.UTC(2026, 3, 9, 0, 45)))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Step back one minute' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Play forecast timeline' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step forward ten minutes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Step forward one minute' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Previous forecast minute')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Next forecast minute')).not.toBeInTheDocument()
     expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()

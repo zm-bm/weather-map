@@ -8,12 +8,15 @@ import {
 } from '@/forecast/settings'
 import {
   useForecastRenderHost,
-  type ForecastRendererId,
+  type ForecastRenderLayerId,
   type ForecastRenderProfile,
 } from '@/forecast/render'
-import type { ForecastDataOptions } from '@/forecast/data'
 import { useForecastSelectionContext } from '@/forecast/selection'
-import { useForecastSync, type ForecastSyncInitialStatus } from '@/forecast/sync'
+import {
+  useForecastSync,
+  type ForecastSyncOptions,
+  type ForecastSyncInitialStatus,
+} from '@/forecast/sync'
 import { createForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
 import { useMap } from '@/map/useMap'
 import { useForecastBasemapTheme } from '@/map/view/useForecastBasemapTheme'
@@ -50,8 +53,8 @@ export default function ForecastMap({
     [particlesEnabled, pressureContoursEnabled],
   )
 
-  const dataOptions = useMemo(
-    () => createDataOptions({ particlesEnabled, pressureContoursEnabled }),
+  const syncOptions = useMemo(
+    () => createSyncOptions({ particlesEnabled, pressureContoursEnabled }),
     [particlesEnabled, pressureContoursEnabled],
   )
 
@@ -71,7 +74,7 @@ export default function ForecastMap({
   const { initialStatus } = useForecastSync({
     renderHost,
     config,
-    dataOptions,
+    syncOptions,
     onProbeFrameChange: probeFrameChannel.publish,
   })
 
@@ -103,7 +106,7 @@ export default function ForecastMap({
   )
 }
 
-type DataFeatureFlags = {
+type ForecastFeatureFlags = {
   particlesEnabled: boolean
   pressureContoursEnabled: boolean
 }
@@ -111,30 +114,30 @@ type DataFeatureFlags = {
 function createRenderProfile({
   particlesEnabled,
   pressureContoursEnabled,
-}: DataFeatureFlags): ForecastRenderProfile {
-  const rendererIds: ForecastRendererId[] = ['field', 'cloud-layers', 'field-overlay']
-  if (pressureContoursEnabled) rendererIds.push('contour-overlay')
-  if (particlesEnabled) rendererIds.push('particles')
+}: ForecastFeatureFlags): ForecastRenderProfile {
+  const layerIds: ForecastRenderLayerId[] = ['raster', 'overlay']
+  if (pressureContoursEnabled) layerIds.push('contour')
+  if (particlesEnabled) layerIds.push('particles')
 
-  return { rendererIds }
+  return { layerIds }
 }
 
 function createRenderSettings(settings: ForecastSettings): ForecastRenderSettings {
   return {
-    field: {
-      ...settings.field,
+    raster: {
+      ...settings.raster,
     },
     particles: createParticleRenderSettings(settings.particles),
   }
 }
 
-function createDataOptions({
+function createSyncOptions({
   particlesEnabled,
   pressureContoursEnabled,
-}: DataFeatureFlags): ForecastDataOptions {
+}: ForecastFeatureFlags): ForecastSyncOptions {
   return {
-    pressure: pressureContoursEnabled,
-    windVectors: particlesEnabled,
+    contour: pressureContoursEnabled,
+    particles: particlesEnabled,
   }
 }
 

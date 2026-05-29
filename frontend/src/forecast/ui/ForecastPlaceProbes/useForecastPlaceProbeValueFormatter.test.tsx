@@ -33,7 +33,7 @@ vi.mock('@/forecast/settings', async (importOriginal) => {
         },
       },
       actions: {
-        updateField: vi.fn(),
+        updateRaster: vi.fn(),
         updateParticles: vi.fn(),
         updatePressureContours: vi.fn(),
         updateUnits: vi.fn(),

@@ -4,52 +4,21 @@ import {
   type ActiveForecastRun,
   type ForecastModelId,
   type ForecastModelOption,
-  getActiveRunLayerAvailability,
   isLayerAvailableForModel,
   resolveCompatibleActiveForecastRun,
 } from '@/forecast/manifest'
 import {
-  FORECAST_LAYER_GROUPS,
-  FORECAST_LAYERS_BY_ID,
-  getAvailableParticleLayers,
-  getDefaultParticleLayer,
-  type ParticleLayerId,
-  type LayerGroupSpec,
-  type LayerGroupId,
-  type LayerId,
+  getAvailableParticleLayer,
+  getDefaultAvailableParticleLayerId,
+  getDefaultRasterLayerId,
 } from '@/forecast/catalog'
 import {
   ForecastSelectionContext,
   type ForecastSelectionContextValue,
 } from './ForecastSelectionContext'
 
-const EMPTY_GROUPS: [] = []
-const DEFAULT_LAYER_ID = FORECAST_LAYER_GROUPS[0]?.defaultLayer ?? null
+const DEFAULT_LAYER_ID = getDefaultRasterLayerId()
 const noopActiveModelChange = () => undefined
-
-function availableParticleCatalog(activeRun: ActiveForecastRun | null) {
-  if (!activeRun) {
-    return { layers: null, defaultLayer: null }
-  }
-  const layers = getAvailableParticleLayers(activeRun)
-  return { layers, defaultLayer: getDefaultParticleLayer(layers) }
-}
-
-function findLayerGroupId(
-  groups: readonly LayerGroupSpec[],
-  layerId: LayerId | null
-): LayerGroupId | null {
-  if (layerId == null) return null
-  return groups.find((group) => group.layers.includes(layerId))?.id ?? null
-}
-
-function defaultLayerForGroupId(
-  groups: readonly LayerGroupSpec[],
-  groupId: LayerGroupId | null
-): LayerId | null {
-  if (groupId == null) return null
-  return groups.find((group) => group.id === groupId)?.defaultLayer ?? null
-}
 
 export default function ForecastSelectionProvider({
   activeRun,
@@ -62,9 +31,9 @@ export default function ForecastSelectionProvider({
   onActiveModelChange?: (modelId: ForecastModelId) => void
   children: ReactNode
 }) {
-  const [selectedLayerId, setSelectedLayerId] = useState<LayerId | null>(DEFAULT_LAYER_ID)
-  const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<ParticleLayerId | null>(
-    () => availableParticleCatalog(activeRun).defaultLayer
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(DEFAULT_LAYER_ID)
+  const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<string | null>(
+    () => getDefaultAvailableParticleLayerId(activeRun)
   )
 
   const setActiveModel = useCallback((value: ForecastModelId) => {
@@ -82,10 +51,6 @@ export default function ForecastSelectionProvider({
     onActiveModelChange,
     selectedLayerId,
   ])
-
-  const setSelectedLayerGroup = useCallback((value: LayerGroupId) => {
-    setSelectedLayerId(defaultLayerForGroupId(FORECAST_LAYER_GROUPS, value))
-  }, [])
 
   useEffect(() => {
     if (activeRun == null) return
@@ -106,7 +71,6 @@ export default function ForecastSelectionProvider({
     const baseValue = {
       modelOptions,
       setActiveModel,
-      setSelectedLayerGroup,
       setSelectedLayer: setSelectedLayerId,
       setSelectedParticleLayer: setSelectedParticleLayerId,
     }
@@ -115,38 +79,22 @@ export default function ForecastSelectionProvider({
       return {
         ...baseValue,
         activeRun: null,
-        groups: EMPTY_GROUPS,
-        layers: null,
-        particleLayers: null,
-        selectedLayerGroupId: null,
         selectedLayerId: null,
-        selectedLayerAvailability: null,
-        selectedLayerIsRenderable: false,
         selectedParticleLayerId: null,
       }
     }
 
-    const particleCatalog = availableParticleCatalog(activeRun)
-    const particleLayerIds = Object.keys(particleCatalog.layers ?? {}) as ParticleLayerId[]
     const resolvedSelectedLayerId = selectedLayerId ?? DEFAULT_LAYER_ID
     const resolvedSelectedParticleLayerId =
       selectedParticleLayerId != null
-      && particleLayerIds.includes(selectedParticleLayerId)
+      && getAvailableParticleLayer(activeRun, selectedParticleLayerId) != null
         ? selectedParticleLayerId
-        : particleCatalog.defaultLayer
-    const selectedLayerAvailability = getActiveRunLayerAvailability(activeRun, resolvedSelectedLayerId)
-    const selectedLayerIsRenderable = selectedLayerAvailability?.state === 'available'
+        : getDefaultAvailableParticleLayerId(activeRun)
 
     return {
       ...baseValue,
       activeRun,
-      groups: FORECAST_LAYER_GROUPS,
-      layers: FORECAST_LAYERS_BY_ID,
-      particleLayers: particleCatalog.layers ?? {},
-      selectedLayerGroupId: findLayerGroupId(FORECAST_LAYER_GROUPS, resolvedSelectedLayerId),
       selectedLayerId: resolvedSelectedLayerId,
-      selectedLayerAvailability,
-      selectedLayerIsRenderable,
       selectedParticleLayerId: resolvedSelectedParticleLayerId,
     }
   }, [
@@ -155,7 +103,6 @@ export default function ForecastSelectionProvider({
     selectedLayerId,
     selectedParticleLayerId,
     setActiveModel,
-    setSelectedLayerGroup,
   ])
 
   return (

@@ -594,15 +594,16 @@ class ForecastArtifactEncodingContractTest(unittest.TestCase):
 
 def _field_source_artifact_ids(forecast_catalog: dict) -> set[str]:
     artifact_ids: set[str] = set()
-    for layer in forecast_catalog["layers"]:
+    for layer in forecast_catalog["rasterLayers"]:
         source = layer["source"]
         artifact_id = source.get("artifactId")
         if artifact_id is not None:
             artifact_ids.add(str(artifact_id))
-        for overlay in layer.get("overlays", ()):
-            overlay_artifact_id = overlay.get("artifactId")
-            if overlay_artifact_id is not None:
-                artifact_ids.add(str(overlay_artifact_id))
+    for overlay in forecast_catalog.get("overlayLayers", ()):
+        overlay_source = overlay.get("source", {})
+        overlay_artifact_id = overlay_source.get("artifactId")
+        if overlay_artifact_id is not None:
+            artifact_ids.add(str(overlay_artifact_id))
     return artifact_ids
 
 

@@ -7,7 +7,12 @@ import {
 } from './places'
 import type { ForecastPlaceProbeFrame } from './frameChannel'
 import {
-  placeProbeLayer,
+  ensurePlaceProbeLayer,
+  getPlaceProbeSelectionContext,
+  queryBasemapPlaceFeatures,
+  removePlaceProbeLayer,
+  setPlaceProbeLabels,
+  updatePlaceProbeLabels,
   type PlaceProbeLabelSnapshot,
 } from './layer'
 import { createPlaceProbeHoverSession } from './hover'
@@ -42,8 +47,8 @@ export function createForecastPlaceProbeSession({
   let started = false
   let selectedLayerId = layerId
   let formatProbeValue = valueFormatter
-  let publishedFrame = initialFrame
-  let activeFrame: ForecastPlaceProbeFrame = null
+  let latestPublishedFrame = initialFrame
+  let probeableFrame: ForecastPlaceProbeFrame = null
   let visiblePlaces: PlaceProbe[] = []
   let visiblePlaceKey = ''
   let samplerState: PlaceProbeSamplers = refreshPlaceProbeSamplers(null, [])
@@ -55,7 +60,7 @@ export function createForecastPlaceProbeSession({
 
   const rebuildSamplers = (force: boolean) => {
     samplerState = refreshPlaceProbeSamplers(
-      activeFrame,
+      probeableFrame,
       visiblePlaces,
       samplerState,
       force,
@@ -66,20 +71,20 @@ export function createForecastPlaceProbeSession({
     pendingSourceUpdateId = null
     const labels = createPlaceProbeLabels(
       visiblePlaces,
-      activeFrame,
+      probeableFrame,
       samplerState,
       formatProbeValue,
     )
 
     if (needsFullSourceUpdate) {
       labelsByPlaceId = labelsByPlaceId.size === 0
-        ? placeProbeLayer.setLabels(map, labels)
-        : placeProbeLayer.updateLabels(map, labels, labelsByPlaceId)
+        ? setPlaceProbeLabels(map, labels)
+        : updatePlaceProbeLabels(map, labels, labelsByPlaceId)
       needsFullSourceUpdate = false
       return
     }
 
-    labelsByPlaceId = placeProbeLayer.updateLabels(
+    labelsByPlaceId = updatePlaceProbeLabels(
       map,
       labels,
       labelsByPlaceId,
@@ -102,22 +107,22 @@ export function createForecastPlaceProbeSession({
     return true
   }
 
-  const applyFrame = (frame: ForecastPlaceProbeFrame) => {
-    activeFrame = frame?.lower.layerId === selectedLayerId ? frame : null
+  const applyLatestPublishedFrame = () => {
+    probeableFrame = probeFrameForSelectedLayer(latestPublishedFrame, selectedLayerId)
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
 
   const setFrame = (frame: ForecastPlaceProbeFrame) => {
-    publishedFrame = frame
-    applyFrame(frame)
+    latestPublishedFrame = frame
+    applyLatestPublishedFrame()
   }
 
   const refreshPlaces = (followUpOnIdle = false) => {
     refreshOnNextIdle = false
-    const selectionContext = placeProbeLayer.getSelectionContext(map)
+    const selectionContext = getPlaceProbeSelectionContext(map)
     const nextVisiblePlaces = selectVisiblePlaceProbes(
-      placeProbeLayer.queryBasemapPlaces(map),
+      queryBasemapPlaceFeatures(map),
       {
         zoom: map.getZoom(),
         bounds: selectionContext.bounds,
@@ -166,11 +171,11 @@ export function createForecastPlaceProbeSession({
     if (started) {
       detachViewportListeners()
       hoverSession.destroy()
-      placeProbeLayer.remove(map)
+      removePlaceProbeLayer(map)
     }
 
     started = false
-    activeFrame = null
+    probeableFrame = null
     visiblePlaces = []
     visiblePlaceKey = ''
     samplerState = refreshPlaceProbeSamplers(null, [])
@@ -184,19 +189,19 @@ export function createForecastPlaceProbeSession({
       if (started) return
 
       try {
-        placeProbeLayer.ensure(map)
+        ensurePlaceProbeLayer(map)
         hoverSession.start()
         attachViewportListeners()
       } catch (error) {
         detachViewportListeners()
         hoverSession.destroy()
-        placeProbeLayer.remove(map)
+        removePlaceProbeLayer(map)
         throw error
       }
 
       started = true
       try {
-        applyFrame(publishedFrame)
+        applyLatestPublishedFrame()
         refreshPlaces(true)
       } catch (error) {
         destroySession()
@@ -209,7 +214,7 @@ export function createForecastPlaceProbeSession({
     setLayerId(nextLayerId) {
       if (selectedLayerId === nextLayerId) return
       selectedLayerId = nextLayerId
-      applyFrame(publishedFrame)
+      applyLatestPublishedFrame()
     },
     setValueFormatter(nextValueFormatter) {
       if (formatProbeValue === nextValueFormatter) return
@@ -218,6 +223,13 @@ export function createForecastPlaceProbeSession({
     },
     setFrame,
   }
+}
+
+function probeFrameForSelectedLayer(
+  frame: ForecastPlaceProbeFrame,
+  selectedLayerId: string,
+): ForecastPlaceProbeFrame {
+  return frame?.lower.source.layerId === selectedLayerId ? frame : null
 }
 
 function shouldDeferProvisionalPlaceRefresh(

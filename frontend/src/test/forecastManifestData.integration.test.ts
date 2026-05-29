@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchManifest, resolveActiveForecastRun } from '@/forecast/manifest'
 import {
-  createForecastDataSession,
-} from '@/forecast/data'
+  createForecastSyncSession,
+} from '@/forecast/sync/load/session'
+import {
+  createRasterProbeSampler,
+  sampleRasterFrameWithSampler,
+} from '@/forecast/place-probes'
 import {
   createMultiModelManifestFixture,
   createConfigFixture,
-  createForecastDataTargetFixture,
+  createForecastSyncPlanFixture,
   createSingleTimeManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
@@ -29,16 +33,18 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('forecast manifest + data loading end-to-end', () => {
+describe('forecast manifest + forecast loading end-to-end', () => {
   it('fetches forecast manifest once and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
+    const gfsManifest = createSingleTimeManifestFixture({
+      model: { id: 'gfs', label: 'GFS' },
+      cycle: '2026041312',
+    })
     const manifestPayload = createMultiModelManifestFixture({
-      gfsManifest: createSingleTimeManifestFixture({
-        model: { id: 'gfs', label: 'GFS' },
-        cycle: '2026041312',
-      }),
+      gfsManifest,
       iconManifest: null,
+      layers: gfsManifest.layers,
     })
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -48,7 +54,7 @@ describe('forecast manifest + data loading end-to-end', () => {
         return createFetchJsonResponse(manifestPayload)
       }
 
-      if (url.endsWith('/fields/gfs/2026041312/000/tmp_surface.field.i16.bin')) {
+      if (url.endsWith('/fields/gfs/2026041312/000/tmp_surface.field.i8.bin')) {
         return createFetchArrayBufferResponse(scalarPayload)
       }
 
@@ -69,7 +75,7 @@ describe('forecast manifest + data loading end-to-end', () => {
       artifactBaseUrl: 'http://localhost:3000',
     })
 
-    const target = createForecastDataTargetFixture({
+    const plan = createForecastSyncPlanFixture({
       activeRun,
       interpolationWindow: {
         selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
@@ -80,8 +86,8 @@ describe('forecast manifest + data loading end-to-end', () => {
         mix: 0,
       },
     })
-    const loadedData = await createForecastDataSession().createLoadJob({
-      target,
+    const windows = await createForecastSyncSession().createLoadJob({
+      plan,
       config,
       signal,
       retryToken: 0,
@@ -89,9 +95,17 @@ describe('forecast manifest + data loading end-to-end', () => {
       .load()
 
     expect(activeRun.latest.run.cycle).toBe('2026041312')
-    expect(Array.from(loadedData.windows.field?.lower.values ?? [], (value) => Number(value.toFixed(2)))).toEqual([0.01, 0.02, 0.03, 0.04])
-    expect(Array.from(loadedData.windows.windVectors?.lower.u ?? [])).toEqual([5, 6, 7, 8])
-    expect(Array.from(loadedData.windows.windVectors?.lower.v ?? [])).toEqual([-1, -2, -3, -4])
+    const rasterFrame = windows.raster?.lower
+    expect(rasterFrame?.source.bands[0].id).toBe('value')
+    const rasterSampler = rasterFrame
+      ? createRasterProbeSampler(rasterFrame, { lon: rasterFrame.raster.grid.lon0, lat: rasterFrame.raster.grid.lat0 })
+      : null
+    expect(rasterSampler).not.toBeNull()
+    expect(rasterFrame && rasterSampler
+      ? Number(sampleRasterFrameWithSampler(rasterFrame, rasterSampler)?.toFixed(2))
+      : null).toBe(1)
+    expect(Array.from(windows.particles?.lower.raster.bands[0] ?? [])).toEqual([5, 6, 7, 8])
+    expect(Array.from(windows.particles?.lower.raster.bands[1] ?? [])).toEqual([-1, -2, -3, -4])
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(fetchMock.mock.calls.map(([input]) => toUrl(input)).some((url) => url.endsWith('/latest.json')))
       .toBe(false)

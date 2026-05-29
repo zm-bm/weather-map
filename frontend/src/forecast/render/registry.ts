@@ -2,28 +2,26 @@ import type {
   Map as MapLibreMap,
 } from 'maplibre-gl'
 
-import type { LoadedForecastData } from '@/forecast/data'
+import type { ForecastWindows } from '@/forecast/frames'
 import type {
   ForecastRenderProfile,
-  ForecastRendererId,
-} from './types'
+  ForecastRenderLayerId,
+} from './profile'
 import type { ForecastRenderSettings } from '@/forecast/settings/settings'
-import type { RenderAdapter } from './adapter'
-import { fieldAdapter } from './field/adapter'
-import { cloudLayersAdapter } from './cloud-layers/adapter'
-import { fieldOverlayAdapter } from './field-overlay/adapter'
-import { contourOverlayAdapter } from './contour-overlay/adapter'
-import { particleAdapter } from './particles/adapter'
+import type { RenderLayerAdapter } from './maplibre/layerAdapter'
+import { rasterAdapter } from './layers/raster/adapter'
+import { overlayAdapter } from './layers/overlay/adapter'
+import { contourAdapter } from './layers/contour/adapter'
+import { particlesAdapter } from './layers/particles/adapter'
 
-const renderAdapters: readonly RenderAdapter[] = [
-  fieldAdapter,
-  cloudLayersAdapter,
-  fieldOverlayAdapter,
-  contourOverlayAdapter,
-  particleAdapter,
+const renderAdapters: readonly RenderLayerAdapter[] = [
+  rasterAdapter,
+  overlayAdapter,
+  contourAdapter,
+  particlesAdapter,
 ] as const
 
-const adaptersById = new Map<ForecastRendererId, RenderAdapter>(
+const adaptersById = new Map<ForecastRenderLayerId, RenderLayerAdapter>(
   renderAdapters.map((adapter) => [adapter.id, adapter])
 )
 
@@ -55,21 +53,21 @@ export function configureProfile(
   }
 }
 
-export function applyData(
+export function applyWindows(
   map: MapLibreMap,
   profile: ForecastRenderProfile,
-  data: LoadedForecastData,
+  windows: ForecastWindows,
 ): void {
   for (const adapter of adaptersForProfile(profile)) {
-    adapter.apply(map, data)
+    adapter.apply(map, windows)
   }
 }
 
-function adaptersForProfile(profile: ForecastRenderProfile): RenderAdapter[] {
-  const seenIds = new Set<ForecastRendererId>()
-  const adapters: RenderAdapter[] = []
+function adaptersForProfile(profile: ForecastRenderProfile): RenderLayerAdapter[] {
+  const seenIds = new Set<ForecastRenderLayerId>()
+  const adapters: RenderLayerAdapter[] = []
 
-  for (const rendererId of profile.rendererIds) {
+  for (const rendererId of profile.layerIds) {
     if (seenIds.has(rendererId)) continue
     seenIds.add(rendererId)
     adapters.push(adapterForId(rendererId))
@@ -78,7 +76,7 @@ function adaptersForProfile(profile: ForecastRenderProfile): RenderAdapter[] {
   return adapters
 }
 
-function adapterForId(rendererId: ForecastRendererId): RenderAdapter {
+function adapterForId(rendererId: ForecastRenderLayerId): RenderLayerAdapter {
   const adapter = adaptersById.get(rendererId)
   if (!adapter) {
     throw new Error(`Unknown forecast renderer ${rendererId}`)
@@ -86,11 +84,6 @@ function adapterForId(rendererId: ForecastRendererId): RenderAdapter {
   return adapter
 }
 
-function uninstallAdapter(map: MapLibreMap, adapter: RenderAdapter): void {
-  if (!map.getLayer(adapter.layerId)) return
-  if (adapter.uninstall) {
-    adapter.uninstall(map)
-    return
-  }
-  map.removeLayer(adapter.layerId)
+function uninstallAdapter(map: MapLibreMap, adapter: RenderLayerAdapter): void {
+  adapter.uninstall(map)
 }

@@ -21,7 +21,7 @@ describe('forecastTime helpers', () => {
     expect(initialForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 8, 23, 30)))
       .toBe(Date.UTC(2026, 3, 9, 0, 0))
     expect(initialForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 4, 14)))
-      .toBe(Date.UTC(2026, 3, 9, 4, 10))
+      .toBe(Date.UTC(2026, 3, 9, 4, 14))
     expect(initialForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 9, 0)))
       .toBe(Date.UTC(2026, 3, 9, 6, 0))
   })
@@ -40,7 +40,12 @@ describe('forecastTime helpers', () => {
       .toBe(30)
   })
 
-  it('wraps timeline stepping across the forecast window on 10-minute boundaries', () => {
+  it('wraps timeline stepping across the forecast window on minute boundaries', () => {
+    expect(stepForecastValidTimeMs(
+      TIMES,
+      Date.UTC(2026, 3, 9, 0, 0),
+      1
+    )).toBe(Date.UTC(2026, 3, 9, 0, 1))
     expect(stepForecastValidTimeMs(
       TIMES,
       Date.UTC(2026, 3, 9, 6, 0),
@@ -76,7 +81,7 @@ describe('forecastTime helpers', () => {
     expect(clampForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
       .toBe(Date.UTC(2026, 3, 9, 6, 0))
     expect(clampForecastValidTimeMs(TIMES, Date.UTC(2026, 3, 9, 4, 19)))
-      .toBe(Date.UTC(2026, 3, 9, 4, 10))
+      .toBe(Date.UTC(2026, 3, 9, 4, 19))
     expect(resolveForecastInterpolationWindow(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
       .toEqual({
         selectedValidTimeMs: Date.UTC(2026, 3, 9, 6, 0),

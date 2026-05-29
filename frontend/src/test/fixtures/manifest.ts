@@ -1,6 +1,5 @@
 import type {
   ActiveForecastRun,
-  ArtifactId,
   ForecastModelId,
   ForecastModelOption,
   ForecastTimeSpec,
@@ -11,32 +10,29 @@ import type {
   ManifestArtifactSpec,
   ScalarArtifactSpec,
   ScalarEncodingSpec,
-  ScalarGridSpec,
-  VectorArtifactId,
+  GridSpec,
   VectorArtifactSpec,
   VectorEncodingSpec,
 } from '@/forecast/manifest'
 import {
-  asArtifactId,
-  asVectorArtifactId,
   FORECAST_MANIFEST_SCHEMA,
   FORECAST_MANIFEST_SCHEMA_VERSION,
   FORECAST_PAYLOAD_CONTRACT,
   activeForecastRunForModel,
 } from '@/forecast/manifest'
 
-export const FIXTURE_MODEL_ID = 'gfs'
-export const FIXTURE_MODEL_LABEL = 'GFS'
-export const FIXTURE_CYCLE = '2026041312'
-export const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'
-export const FIXTURE_REVISION = 'rev'
-export const FIXTURE_HOUR_TOKEN = '000'
-export const FIXTURE_GRID_ID = 'g0'
-export const FIXTURE_SCALAR_ENCODING_ID = 'e0'
-export const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_1ms_v1'
-export const FIXTURE_SCALAR_ID = asArtifactId('tmp_surface')
-export const FIXTURE_VECTOR_ID = asVectorArtifactId('wind10m_uv')
-export const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
+const FIXTURE_MODEL_ID = 'gfs'
+const FIXTURE_MODEL_LABEL = 'GFS'
+const FIXTURE_CYCLE = '2026041312'
+const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'
+const FIXTURE_REVISION = 'rev'
+const FIXTURE_HOUR_TOKEN = '000'
+const FIXTURE_GRID_ID = 'g0'
+const FIXTURE_SCALAR_ENCODING_ID = 'e0'
+const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_1ms_v1'
+const FIXTURE_SCALAR_ID = 'tmp_surface'
+const FIXTURE_VECTOR_ID = 'wind10m_uv'
+const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
 
 export type ManifestFixtureOverrides = {
   model?: { id: ForecastModelId; label: string }
@@ -52,23 +48,16 @@ export type ManifestFixtureOverrides = {
   vectorArtifactIds?: string[]
 }
 
-export type ScalarArtifactFixtureOverrides = Partial<ScalarArtifactSpec> & {
+type ScalarArtifactFixtureOverrides = Partial<ScalarArtifactSpec> & {
   cycle?: string
   forecastHours?: string[]
   times?: ForecastTimeSpec[]
 }
 
-export type VectorArtifactFixtureOverrides = Partial<VectorArtifactSpec> & {
+type VectorArtifactFixtureOverrides = Partial<VectorArtifactSpec> & {
   cycle?: string
   forecastHours?: string[]
   times?: ForecastTimeSpec[]
-}
-
-function toArtifactIds<T>(
-  values: string[],
-  brand: (value: string) => T,
-): T[] {
-  return values.map(brand)
 }
 
 function toForecastValidAt(cycle: string, hourId: string): string {
@@ -93,7 +82,7 @@ export function createForecastTimesFixture(
   }))
 }
 
-export function createGridFixture(overrides: Partial<ScalarGridSpec> = {}): ScalarGridSpec {
+export function createGridFixture(overrides: Partial<GridSpec> = {}): GridSpec {
   return {
     id: FIXTURE_GRID_ID,
     crs: 'EPSG:4326',
@@ -114,11 +103,11 @@ export function createGridFixture(overrides: Partial<ScalarGridSpec> = {}): Scal
 export function createScalarEncodingFixture(overrides: Partial<ScalarEncodingSpec> = {}): ScalarEncodingSpec {
   return {
     id: FIXTURE_SCALAR_ENCODING_ID,
-    format: 'linear-i16-v1',
-    dtype: 'int16',
-    byteOrder: 'little',
-    nodata: -32768,
-    scale: 0.01,
+    format: 'linear-i8-v1',
+    dtype: 'int8',
+    byteOrder: 'none',
+    nodata: -128,
+    scale: 1,
     offset: 0,
     decodeFormula: 'value = stored * scale + offset',
     ...overrides,
@@ -139,12 +128,12 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
 }
 
 function payloadByteLength(args: {
-  grid: ScalarGridSpec
+  grid: GridSpec
   components: readonly string[]
   dtype: ManifestArtifactSpec['encoding']['dtype']
 }): number {
-  const bytesPerValue = args.dtype === 'int16' ? 2 : 1
-  return args.grid.nx * args.grid.ny * args.components.length * bytesPerValue
+  void args.dtype
+  return args.grid.nx * args.grid.ny * args.components.length
 }
 
 export function createScalarArtifactFixture(
@@ -211,8 +200,8 @@ function artifactIdsByKind(
 }
 
 function createManifestArtifacts(args: {
-  scalarArtifactIds: ArtifactId[]
-  vectorArtifactIds: VectorArtifactId[]
+  scalarArtifactIds: string[]
+  vectorArtifactIds: string[]
   overrides?: Record<string, ManifestArtifactSpec>
 }): Record<string, ManifestArtifactSpec> {
   const manifestArtifacts: Record<string, ManifestArtifactSpec> = {}
@@ -236,7 +225,7 @@ function createManifestArtifacts(args: {
 
 function retargetArtifactOverride(
   artifact: ManifestArtifactSpec,
-  artifactId: ArtifactId
+  artifactId: string
 ): ManifestArtifactSpec {
   return {
     ...artifact,
@@ -282,14 +271,14 @@ export function createLatestRunFixture(
     },
     times,
     artifacts: createManifestArtifacts({
-      scalarArtifactIds: toArtifactIds(defaultScalarArtifactIdValues, asArtifactId),
-      vectorArtifactIds: toArtifactIds(defaultVectorArtifactIdValues, asVectorArtifactId),
+      scalarArtifactIds: defaultScalarArtifactIdValues,
+      vectorArtifactIds: defaultVectorArtifactIdValues,
       overrides: overrides.artifacts,
     }),
   }
 }
 
-export function createManifestLayersFixture(
+function createManifestLayersFixture(
   artifacts: Record<string, ManifestArtifactSpec> = {},
   modelId: ForecastModelId = FIXTURE_MODEL_ID
 ): Manifest['layers'] {

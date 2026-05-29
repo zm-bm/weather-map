@@ -44,7 +44,7 @@ describe('MapControlRail', () => {
 
   it('requests render setting changes from the options panel', () => {
     const actions: ForecastSettingsActions = {
-      updateField: vi.fn(),
+      updateRaster: vi.fn(),
       updateParticles: vi.fn(),
       updatePressureContours: vi.fn(),
       updateUnits: vi.fn(),
@@ -58,7 +58,7 @@ describe('MapControlRail', () => {
         playlistUrl={PLAYLIST_URL}
         settings={{
           ...DEFAULT_FORECAST_SETTINGS,
-          field: {
+          raster: {
             colorSamplingMode: 'interpolated',
           },
           pressureContours: {
@@ -77,7 +77,7 @@ describe('MapControlRail', () => {
 
     expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
     expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
-    expect(actions.updateField).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
+    expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
     expect(actions.updateParticles).toHaveBeenCalledWith({ clearTrailsOnViewChange: false })
   })
 })

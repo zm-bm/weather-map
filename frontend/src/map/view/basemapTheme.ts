@@ -81,7 +81,7 @@ const BASEMAP_STYLES: Record<ForecastBasemapStyleId, ForecastBasemapStyle> = {
   },
 }
 
-export function basemapStyleForForecastLayer(selectedLayerId: string | null): ForecastBasemapStyleId {
+export function basemapStyleForForecastRasterLayer(selectedLayerId: string | null): ForecastBasemapStyleId {
   if (selectedLayerId === 'cloud_layers') return 'cloud-layers'
   return 'standard'
 }

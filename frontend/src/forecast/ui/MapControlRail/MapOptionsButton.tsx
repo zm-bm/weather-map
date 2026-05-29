@@ -2,8 +2,8 @@ import type { ChangeEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import {
-  FIELD_COLOR_SAMPLING_MODES,
-  type FieldColorSamplingMode,
+  RASTER_COLOR_SAMPLING_MODES,
+  type RasterColorSamplingMode,
   type ForecastSettings,
   type ForecastSettingsActions,
 } from '@/forecast/settings'
@@ -58,8 +58,8 @@ export default function MapOptionsButton({
   }
 
   const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.value as FieldColorSamplingMode
-    settingsActions.updateField({ colorSamplingMode: nextValue })
+    const nextValue = event.currentTarget.value as RasterColorSamplingMode
+    settingsActions.updateRaster({ colorSamplingMode: nextValue })
   }
 
   return (
@@ -79,13 +79,13 @@ export default function MapOptionsButton({
         <div className="map-control-options-section">
           <div className="map-control-options-heading wm-mono-caps">Layer Color</div>
           <div className="map-control-options-radio-group" role="radiogroup" aria-label="Layer color sampling mode">
-            {FIELD_COLOR_SAMPLING_MODES.map((mode) => (
+            {RASTER_COLOR_SAMPLING_MODES.map((mode) => (
               <label className="map-control-options-row wm-mono-caps" key={mode}>
                 <input
                   type="radio"
                   name="layer-color-sampling-mode"
                   value={mode}
-                  checked={settings.field.colorSamplingMode === mode}
+                  checked={settings.raster.colorSamplingMode === mode}
                   onChange={handleLayerColorSamplingModeChange}
                 />
                 <span>{mode === 'interpolated' ? 'Interpolated' : 'Banded'}</span>

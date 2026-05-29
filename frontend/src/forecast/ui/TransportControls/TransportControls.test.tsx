@@ -50,11 +50,11 @@ function pressSpace(target: Document | Element = document, options: Partial<Keyb
 }
 
 function stepBackButton() {
-  return screen.getByRole('button', { name: 'Step back ten minutes' })
+  return screen.getByRole('button', { name: 'Step back one minute' })
 }
 
 function stepForwardButton() {
-  return screen.getByRole('button', { name: 'Step forward ten minutes' })
+  return screen.getByRole('button', { name: 'Step forward one minute' })
 }
 
 function playButton() {

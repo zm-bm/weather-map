@@ -2,16 +2,15 @@
 
 Canonical registry of user-facing Weather Map forecast choices. Keep this
 document in sync with `config/forecast_catalog.json`, plus the frontend catalog
-adapters in `frontend/src/forecast/catalog/layer.ts` and
-`frontend/src/forecast/catalog/particle.ts`.
+entries in `frontend/src/forecast/catalog/entries.ts`.
 
 This document defines the forecast choices the product presents to users:
 
-- `layer_id`: selectable field layer
+- `raster_layer_id`: selectable filled raster layer
 - `particle_layer_id`: selectable particle layer
-- `overlay_id`: non-selectable renderer overlay, either automatic from a layer
+- `overlay_id`: non-selectable renderer overlay, either automatic from a raster layer
   recipe or controlled by map options
-- `group_id`: layer browsing group
+- `raster_layer_group_id`: raster-layer browsing group
 
 It does **not** define ETL payload schemas, artifact encodings, or per-model
 upstream field selection. It names source artifacts only to keep each frontend
@@ -25,28 +24,30 @@ Related docs:
 
 ## Scope And Rules
 
-1. A layer is a user-facing weather concept, not a raw provider field or ETL payload.
+1. A raster layer is a user-facing filled weather concept, not a raw provider field or ETL payload.
 2. An overlay is a renderer behavior, not a selectable filled layer.
-3. A particle layer is a separate user-facing render choice, not a field layer.
-4. A group is a browsing category for layers, not an artifact family.
+3. A particle layer is a separate user-facing render choice, not a raster layer.
+4. A group is a browsing category for raster layers, not an artifact family.
 5. Time semantics must be explicit: instantaneous, rate, fixed-window accumulation, or run total.
 6. Source descriptions here stay at the frontend recipe level: direct artifact, derived artifact recipe, or optional overlay.
 7. Model-specific availability, upstream field selection, and derivation details belong in `forecast-model-mapping.md`.
 8. ETL payload kinds, components, and encodings belong in `forecast-artifact-registry.md`.
 
-## Layer Groups
+## Raster Layer Groups
 
-| Group id | Label | Default layer | Layers |
-| --- | --- | --- | --- |
-| `temperature` | Temperature | `temperature` | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
-| `wind_pressure` | Wind & Pressure | `wind_gust` | `wind_speed`, `wind_gust`, `air_pressure` |
-| `precipitation` | Precipitation | `precipitation_rate` | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
-| `clouds_visibility` | Clouds & Visibility | `cloud_layers` | `cloud_layers`, `cloud_cover`, `visibility` |
-| `radar_storms` | Radar & Storms | `cape` | `composite_reflectivity`, `cape`, `cin` |
+The first id in each `rasterLayerIds` list is the group default.
 
-In field-layer tables, `Display` is `units; display_range; palette_id;
-unit_behavior/legend_scale`. These values mirror frontend display metadata, not
-ETL encoding ranges.
+| Group id | Label | Raster layer ids |
+| --- | --- | --- |
+| `temperature` | Temperature | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
+| `wind_pressure` | Wind & Pressure | `wind_gust`, `wind_speed`, `air_pressure` |
+| `precipitation` | Precipitation | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
+| `clouds_visibility` | Clouds & Visibility | `cloud_layers`, `cloud_cover`, `visibility` |
+| `radar_storms` | Radar & Storms | `cape`, `composite_reflectivity`, `cin` |
+
+In raster-layer tables, `Display` is `units; display.range; source band
+palette id; display.unitBehavior/display.legendScale`. These values mirror
+frontend display metadata, not ETL encoding ranges.
 
 ## Display Behavior
 
@@ -55,10 +56,10 @@ ETL encoding ranges.
 2. Probe labels show decoded physical values converted by each layer's unit
    behavior, unless the sampled value is nodata.
 3. Nodata renders as no value rather than being clamped into the display range.
-4. Field color sampling is controlled by the global rendering setting. The
+4. Raster color sampling is controlled by the global rendering setting. The
    default sampling mode is banded.
 
-## Field Layers
+## Raster Layers
 
 ### Temperature
 
@@ -100,7 +101,7 @@ at z6.
 
 | Layer id | Label | Source recipe | Time semantics | Display | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `cloud_layers` | Cloud Layers | cloud layers renderer from vector artifact `cloud_layers` with `low`, `middle`, `high` components | instantaneous | `%`; `0..100`; `cloud.layers.composite.v1`; `percent/percent` | Dedicated renderer uses low, middle, and high cloud cover as grayscale cloud-structure inputs, with derived composite coverage for opacity and probe labels. |
+| `cloud_layers` | Cloud Layers | multi-band raster from vector artifact `cloud_layers` with `low`, `middle`, `high` components | instantaneous | `%`; `0..100`; `cloud.layers.composite.v1`; `percent/percent` | The raster renderer uses low, middle, and high cloud cover as grayscale cloud-structure inputs, with derived composite coverage for opacity and probe labels. |
 | `cloud_cover` | Total/Sky Cover | direct scalar artifact `tcdc` | instantaneous | `%`; `0..100`; `cloud.cover.percent.v1`; `percent/percent` | Total cloud cover across the atmospheric column. |
 | `visibility` | Visibility | direct scalar artifact `visibility_surface` | instantaneous | `m`; `0..50000`; `atmosphere.visibility.m.v1`; `visibility/stop-based` | Horizontal surface visibility. |
 
@@ -122,8 +123,8 @@ at z6.
 
 | Overlay id | Label | Source recipe | Time semantics | Renderer | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `precipitation_type` | Precipitation Type Pattern | optional vector artifact `precip_type_surface` with `snow_frac` and `mix_frac` components | source-interval derived overlay | `field-overlay` | Automatic optional overlay for `precipitation_rate`; renders snowflake and winter-mix glyph patterns when available. |
-| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour-overlay` | Map-option-controlled GPU-rendered `400 Pa` / `4 hPa` mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
+| `precipitation_type` | Precipitation Type Pattern | optional vector artifact `precip_type_surface` with `snow_frac` and `mix_frac` components | source-interval derived overlay | `overlay` | Automatic optional overlay for `precipitation_rate`; renders snowflake and winter-mix glyph patterns when available. |
+| `pressure_contours` | Pressure Contours | direct scalar artifact `prmsl_msl` | instantaneous | `contour` | Map-option-controlled GPU-rendered `400 Pa` / `4 hPa` mean-sea-level pressure contours from a lightly smoothed pressure surface. ICON uses its downsampled `0.25` pressure artifact. V1 draws unlabeled solid white lines with a faint separation halo. |
 
 ## Candidate Future Layers
 

@@ -1,15 +1,18 @@
 export function createScalarPayloadFixture(values: number[]): ArrayBuffer {
-  return new Int16Array(values).buffer
+  return new Int8Array(values).buffer
 }
 
 export function createVectorPayloadFixture(
   uValues: number[],
-  vValues: number[]
+  vValues: number[],
+  ...extraComponentValues: number[][]
 ): ArrayBuffer {
-  const u = new Int8Array(uValues)
-  const v = new Int8Array(vValues)
-  const payload = new Uint8Array(u.byteLength + v.byteLength)
-  payload.set(new Uint8Array(u.buffer), 0)
-  payload.set(new Uint8Array(v.buffer), u.byteLength)
+  const components = [uValues, vValues, ...extraComponentValues].map((values) => new Int8Array(values))
+  const payload = new Uint8Array(components.reduce((total, component) => total + component.byteLength, 0))
+  let offset = 0
+  for (const component of components) {
+    payload.set(new Uint8Array(component.buffer), offset)
+    offset += component.byteLength
+  }
   return payload.buffer
 }

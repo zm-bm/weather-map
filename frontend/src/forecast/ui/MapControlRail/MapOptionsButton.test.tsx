@@ -10,8 +10,8 @@ import MapOptionsButton from './MapOptionsButton'
 
 const SETTINGS: ForecastSettings = {
   ...DEFAULT_FORECAST_SETTINGS,
-  field: {
-    ...DEFAULT_FORECAST_SETTINGS.field,
+  raster: {
+    ...DEFAULT_FORECAST_SETTINGS.raster,
     colorSamplingMode: 'interpolated',
   },
   pressureContours: {
@@ -21,7 +21,7 @@ const SETTINGS: ForecastSettings = {
 
 function createActions(): ForecastSettingsActions {
   return {
-    updateField: vi.fn(),
+    updateRaster: vi.fn(),
     updateParticles: vi.fn(),
     updatePressureContours: vi.fn(),
     updateUnits: vi.fn(),
@@ -100,12 +100,12 @@ describe('MapOptionsButton', () => {
 
     bandedRadio?.click()
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(actions.updateField).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
+    expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
     rerender(
       <MapOptionsButton
         settings={{
           ...SETTINGS,
-          field: {
+          raster: {
             colorSamplingMode: 'banded',
           },
           particles: {
@@ -128,7 +128,7 @@ describe('MapOptionsButton', () => {
       <MapOptionsButton
         settings={{
           ...SETTINGS,
-          field: {
+          raster: {
             colorSamplingMode: 'banded',
           },
           particles: {

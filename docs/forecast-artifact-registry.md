@@ -49,7 +49,7 @@ definitions live in `forecast-layer-registry.md`.
 
 ## Selectable Field Sources
 
-Artifacts that directly back current field layers.
+Artifacts that directly back current raster layers.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -72,9 +72,9 @@ Artifacts that directly back current field layers.
 
 ## Particle And Derived Field Sources
 
-Artifacts consumed by particle layers or frontend-derived field recipes. These
-artifacts are not listed as direct field-layer sources unless they also back a
-selectable field layer directly.
+Artifacts consumed by particle layers or frontend-derived raster recipes. These
+artifacts are not listed as direct raster-layer sources unless they also back a
+selectable raster layer directly.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -86,7 +86,7 @@ Artifacts published for custom renderers, overlays, or future derived products.
 
 | Artifact id | Kind | Semantic summary | Units | Components | Time semantics | Encoding | Consumed by | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cloud_layers` | `vector` | Low, middle, and high cloud-layer cover packed for the Cloud Layers renderer. | `%` | `low`, `middle`, `high` | instantaneous | `cloud_layers_vector_i8_4pct_v1`; linear-i8-v1; int8; scale `4`; offset `0`; nodata `-128`; finite_value_range `0..100` | layer `cloud_layers` | Source artifact for the selectable Cloud Layers visualization. |
+| `cloud_layers` | `vector` | Low, middle, and high cloud-layer cover packed for the planes renderer `cloud-layers` style. | `%` | `low`, `middle`, `high` | instantaneous | `cloud_layers_vector_i8_4pct_v1`; linear-i8-v1; int8; scale `4`; offset `0`; nodata `-128`; finite_value_range `0..100` | layer `cloud_layers` | Source artifact for the selectable Cloud Layers visualization. |
 | `precip_type_surface` | `vector` | Soft precipitation-type overlay fractions derived from model precipitation-type inputs. | `fraction` | `snow_frac`, `mix_frac` | source-interval derived overlay | `precip_type_surface_i8_frac_v1`; linear-i8-v1; int8; scale `0.003937007874015748`; offset `0.5`; nodata `-128`; finite_value_range `0..1` | automatic `precipitation_rate` pattern overlay | Optional GFS/ICON artifact; precipitation intensity still renders when this artifact is missing. |
 | `thunderstorm_mask` | `scalar` | Normalized thunderstorm flag mask. | `flag` | `value` | instantaneous | `thunderstorm_mask_i8_flag_v1`; linear-i8-v1; int8; scale `1`; offset `0`; nodata `-128`; finite_value_range `0..1` | future thunderstorm rendering; no current selectable layer | Published when configured by a model; not currently consumed by the frontend catalog. |
 
@@ -94,8 +94,9 @@ Artifacts published for custom renderers, overlays, or future derived products.
 
 ### `cloud_layers`
 
-`cloud_layers` backs the selectable Cloud Layers renderer. The payload
-stores three same-grid component planes in fixed order:
+`cloud_layers` backs the selectable Cloud Layers visualization through the
+planes renderer `cloud-layers` style. The payload
+stores three same-grid component bands in fixed order:
 
 | Component | Range | Meaning |
 | --- | --- | --- |

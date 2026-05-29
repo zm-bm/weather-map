@@ -4,10 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ForecastModelId, Manifest } from '@/forecast/manifest'
 import { activeForecastRunForModel, modelOptionsFromManifest } from '@/forecast/manifest'
-import { asParticleLayerId, asLayerId } from '@/forecast/catalog'
 import {
   createCatalogManifestFixture,
-  createLayerModelAvailabilityFixture,
   createManifestFixture,
 } from '@/test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
@@ -20,17 +18,16 @@ function ForecastSelectionProbe() {
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
-      <div data-testid="selected-layer-renderable">{String(context.selectedLayerIsRenderable)}</div>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('relative_humidity'))}>
+      <button type="button" onClick={() => context.setSelectedLayer('relative_humidity')}>
         set-layer-rh
       </button>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('precipitation_rate'))}>
+      <button type="button" onClick={() => context.setSelectedLayer('precipitation_rate')}>
         set-layer-prate
       </button>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('accumulated_precipitation'))}>
+      <button type="button" onClick={() => context.setSelectedLayer('accumulated_precipitation')}>
         set-layer-accum
       </button>
-      <button type="button" onClick={() => context.setSelectedLayer(asLayerId('visibility'))}>
+      <button type="button" onClick={() => context.setSelectedLayer('visibility')}>
         set-layer-visibility
       </button>
       <button type="button" onClick={() => context.setActiveModel('gfs')}>
@@ -39,7 +36,7 @@ function ForecastSelectionProbe() {
       <button type="button" onClick={() => context.setActiveModel('icon')}>
         set-model-icon
       </button>
-      <button type="button" onClick={() => context.setSelectedParticleLayer(asParticleLayerId('wind'))}>
+      <button type="button" onClick={() => context.setSelectedParticleLayer('wind')}>
         set-particle-wind
       </button>
     </div>
@@ -107,41 +104,6 @@ describe('ForecastSelectionContext', () => {
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
-  })
-
-  it('uses forecast manifest layer availability for renderability', () => {
-    const unavailableManifest = createManifestFixture({
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface'],
-      vectorArtifactIds: [],
-      layers: {
-        temperature: { models: {
-          gfs: createLayerModelAvailabilityFixture({
-            state: 'temporarily_unavailable',
-            requiredArtifacts: ['tmp_surface'],
-          }),
-        } },
-      },
-    })
-
-    const { rerender } = renderSelection({
-      manifest: unavailableManifest,
-      activeModelId: 'gfs',
-    })
-
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
-    expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('false')
-
-    const availableManifest = createManifestFixture({
-      cycle: '2026040900',
-      scalarArtifactIds: ['tmp_surface'],
-      vectorArtifactIds: [],
-    })
-
-    rerender(selectionProvider({ manifest: availableManifest }))
-
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
-    expect(screen.getByTestId('selected-layer-renderable')).toHaveTextContent('true')
   })
 
   it('preserves selected layer and particle choices when the manifest changes within the same cycle', () => {

@@ -109,7 +109,7 @@ describe('legend scale behavior', () => {
     expect(ticks.find((tick) => tick.value === 1)?.positionPct).toBe(100)
   })
 
-  it('uses Windy-style nonlinear metric snow depth ticks', () => {
+  it('uses nonlinear metric snow depth ticks', () => {
     const spec: LegendSpec = {
       min: 0,
       max: 3,
@@ -127,7 +127,7 @@ describe('legend scale behavior', () => {
     expect(majorTicks.map((tick) => tick.positionPct)).toEqual([0, 16.666666666666664, 33.33333333333333, 50, 66.66666666666666, 83.33333333333334, 100])
   })
 
-  it('uses Windy-style nonlinear imperial snow depth labels', () => {
+  it('uses nonlinear imperial snow depth labels', () => {
     const spec: LegendSpec = {
       min: 0,
       max: 3,

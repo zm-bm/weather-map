@@ -1,5 +1,5 @@
 export const MINUTE_MS = 60 * 1000
-export const FORECAST_TIME_STEP_MINUTES = 10
+export const FORECAST_TIME_STEP_MINUTES = 1
 export const FORECAST_TIME_STEP_MS = FORECAST_TIME_STEP_MINUTES * MINUTE_MS
 
 export type ForecastTimelineTime = {

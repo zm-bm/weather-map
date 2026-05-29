@@ -7,12 +7,12 @@ import {
 
 import {
   DEFAULT_FORECAST_SETTINGS,
-  type FieldRenderSettings,
   type ForecastSettings,
   type ForecastSettingsActions,
   type ForecastSettingsValue,
   type ParticleSettings,
   type PressureContourSettings,
+  type RasterRenderSettings,
   type UnitSettings,
 } from './settings'
 import { ForecastSettingsContext } from './ForecastSettingsContext'
@@ -22,13 +22,13 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
     ...DEFAULT_FORECAST_SETTINGS,
   }))
 
-  const updateField = useCallback((patch: Partial<FieldRenderSettings>) => {
+  const updateRaster = useCallback((patch: Partial<RasterRenderSettings>) => {
     setSettings((current) => {
-      const field = applySettingsPatch(current.field, patch)
-      if (field === current.field) return current
+      const raster = applySettingsPatch(current.raster, patch)
+      if (raster === current.raster) return current
       return {
         ...current,
-        field,
+        raster,
       }
     })
   }, [])
@@ -76,14 +76,14 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
   }, [])
 
   const actions = useMemo<ForecastSettingsActions>(() => ({
-    updateField,
+    updateRaster,
     updateParticles,
     updatePressureContours,
     updateUnits,
     toggleUnitSystem,
   }), [
     toggleUnitSystem,
-    updateField,
+    updateRaster,
     updateParticles,
     updatePressureContours,
     updateUnits,

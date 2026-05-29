@@ -1,30 +1,31 @@
 import type {
   ActiveForecastRun,
-  FramePayloadRef,
   ManifestArtifactSpec,
 } from '@/forecast/manifest'
 import type { WeatherMapConfig } from '@/core/config'
 import { createAbortError } from '@/core/abort'
 import { joinUrl } from '@/core/url/joinUrl'
 import {
-  ensureFramePayloadCacheScope,
-  framePayloadCacheKey,
-  readCachedFramePayload,
-  writeCachedFramePayload,
-} from './framePayloadCache'
-import type { ArtifactKind } from './types'
+  ensurePayloadCacheScope,
+  payloadCacheKey,
+  readCachedPayload,
+  writeCachedPayload,
+} from './payloadCache'
 
-type ResolvedArtifactPayload = {
-  artifactId: string
-  hourToken: string
-  artifact: ManifestArtifactSpec
-  frameRef: FramePayloadRef
+const FIELD_DTYPE_SUFFIX = {
+  int8: 'i8',
+} satisfies Record<ManifestArtifactSpec['encoding']['dtype'], string>
+
+type PayloadRef = {
+  path: string
+  byteLength: number
 }
 
 type ReadArtifactPayloadArgs = {
   config: WeatherMapConfig
   activeRun: ActiveForecastRun
-  resolved: ResolvedArtifactPayload
+  hourToken: string
+  artifact: ManifestArtifactSpec
   signal: AbortSignal
 }
 
@@ -35,14 +36,18 @@ export async function readArtifactPayload(
 ): Promise<ArrayBuffer> {
   const {
     artifact,
-    frameRef,
     hourToken,
-  } = args.resolved
+  } = args
   const artifactKind = artifact.kind
+  const frameRef = resolvePayloadRef({
+    activeRun: args.activeRun,
+    hourToken,
+    artifact,
+  })
 
-  await ensureFramePayloadCacheScope(args.activeRun)
-  const cacheKey = framePayloadCacheKey(args.activeRun, frameRef)
-  const cachedPayload = await readCachedFramePayload(cacheKey)
+  await ensurePayloadCacheScope(args.activeRun)
+  const cacheKey = payloadCacheKey(args.activeRun, frameRef)
+  const cachedPayload = await readCachedPayload(cacheKey)
   const payload = cachedPayload ?? await waitForSharedPayloadFetch({
     cacheKey,
     signal: args.signal,
@@ -53,7 +58,7 @@ export async function readArtifactPayload(
         artifactKind,
       })
 
-      await writeCachedFramePayload({
+      await writeCachedPayload({
         activeRun: args.activeRun,
         key: cacheKey,
         payload: fetchedPayload,
@@ -126,7 +131,7 @@ function waitForPayloadOrAbort<T>(promise: Promise<T>, signal: AbortSignal): Pro
 async function fetchFramePayloadBuffer(args: {
   artifactBaseUrl: string
   payloadPath: string
-  artifactKind: ArtifactKind
+  artifactKind: ManifestArtifactSpec['kind']
 }): Promise<ArrayBuffer> {
   const payloadUrl = joinUrl(args.artifactBaseUrl, args.payloadPath)
   const response = await fetch(payloadUrl)
@@ -136,6 +141,45 @@ async function fetchFramePayloadBuffer(args: {
     )
   }
   return response.arrayBuffer()
+}
+
+function resolvePayloadRef(args: {
+  activeRun: ActiveForecastRun
+  hourToken: string
+  artifact: ManifestArtifactSpec
+}): PayloadRef {
+  const artifactId = String(args.artifact.id)
+  const time = args.activeRun.latest.times.find((entry) => entry.id === args.hourToken)
+  if (!time) {
+    throw new Error(`No ${args.artifact.kind} frame ref for model=${args.activeRun.modelId} artifact=${artifactId} hour=${args.hourToken}`)
+  }
+
+  return {
+    path: inferFramePayloadPath({
+      artifact: args.artifact,
+      artifactId,
+      cycle: args.activeRun.latest.run.cycle,
+      modelId: args.activeRun.modelId,
+      timeId: time.id,
+    }),
+    byteLength: args.artifact.byteLength,
+  }
+}
+
+function inferFramePayloadPath(args: {
+  artifact: { encoding: { dtype: ManifestArtifactSpec['encoding']['dtype'] } }
+  artifactId: string
+  cycle: string
+  modelId: string
+  timeId: string
+}): string {
+  return [
+    'fields',
+    args.modelId,
+    args.cycle,
+    args.timeId,
+    `${args.artifactId}.field.${FIELD_DTYPE_SUFFIX[args.artifact.encoding.dtype]}.bin`,
+  ].join('/')
 }
 
 function assertPayloadSize(args: {
@@ -154,15 +198,6 @@ function assertPayloadSize(args: {
   if (actualByteLength !== expectedFrameByteLength) {
     throw new Error(
       `Unexpected ${artifact.kind} payload size for artifact=${artifactId} hour=${hourToken}: got=${actualByteLength} expected=${expectedFrameByteLength}`
-    )
-  }
-
-  if (artifact.kind !== 'vector') return
-
-  const expectedGridByteLength = artifact.grid.nx * artifact.grid.ny * artifact.components.length
-  if (actualByteLength !== expectedGridByteLength) {
-    throw new Error(
-      `${artifact.kind} payload bytes do not match grid dimensions for ${artifactId}: got=${actualByteLength} expected=${expectedGridByteLength}`
     )
   }
 }
