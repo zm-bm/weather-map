@@ -1,8 +1,8 @@
-# Forecast Field Layer Requirements
+# Forecast Raster Layer Requirements
 
-Last updated: 2026-05-24
+Last updated: 2026-05-29
 
-Draft staging contract for field-rendered forecast layers. Use this document to
+Draft staging contract for raster-rendered forecast layers. Use this document to
 settle layer requirements before updating the canonical artifact and layer
 registries.
 
@@ -15,7 +15,7 @@ Related docs:
 
 ## Scope And Rules
 
-1. This document records draft v1 requirements for current field-rendered
+1. This document records draft v1 requirements for current raster-rendered
    layers. It is not yet the canonical artifact or layer registry.
 2. Existing facts in this document should match `config/forecast_catalog.json`
    and `config/pipeline/base.json`.
@@ -34,7 +34,7 @@ Related docs:
    investigated as data quality, not that invalid values can be ignored.
 8. Preserve natural or critical boundaries exactly when representable. Ordinary
    domain thresholds may tolerate one half of the encoding quantum.
-9. Field color sampling remains a global rendering setting. The default stays
+9. Raster color sampling remains a global rendering setting. The default stays
    banded.
 
 ## V1 Policy Decisions
@@ -68,7 +68,7 @@ This table records current catalog and artifact facts as of the date above.
 | `precipitation_rate` | `prate_surface` | `mm/hr` | `0..30` | finite clamp `0..38.1` | `0.15 mm/hr` | `-128` | global banded |
 | `accumulated_precipitation` | `precip_total_surface` | `mm` | `0..254` | finite clamp `0..254` | `1 mm` | `-128` | global banded |
 | `snow_depth` | `snow_depth_surface` | `m` | `0..3` | finite clamp `0..3` | `~0.011811 m` | `-128` | global banded |
-| `cloud_layers` | `cloud_layers` coverage field | `%` | `0..100` | finite clamp `0..100`; storage `-508..508` | `4%` | `-128` | global banded coverage; dedicated renderer |
+| `cloud_layers` | `cloud_layers` low/middle/high bands | `%` | `0..100` | finite clamp `0..100`; storage `-508..508` | `4%` | `-128` | global banded coverage; cloud-layer raster style |
 | `cloud_cover` | `tcdc` | `%` | `0..100` | finite clamp `0..100`; storage `-508..508` | `4%` | `-128` | global banded |
 | `visibility` | `visibility_surface` | `m` | `0..50000` | finite clamp `0..50800` | `200 m` | `-128` | global banded |
 | `freezing_level` | `freezing_level` | `m` | `0..8000` | finite clamp `0..8128` | `32 m` | `-128` | global banded |
@@ -140,7 +140,7 @@ Applies to `relative_humidity`, `cloud_cover`, and `cloud_layers`.
 | Nodata policy | Expected-complete with sentinel retained |
 | Invalid values | Non-finite values become nodata; finite out-of-range values clamp to `0..100%` before encoding |
 | Render behavior | Clamp colors and derived cloud coverage to `0..100%` |
-| Sampling | Global setting defaulted to banded for field/coverage color |
+| Sampling | Global setting defaulted to banded for raster/coverage color |
 | Status | Draft accepted for encoding audit |
 
 Notes:
@@ -199,7 +199,7 @@ Applies to `air_pressure` and the pressure contour overlay.
 | Nodata policy | Sentinel retained; expected mostly complete |
 | Invalid values | Non-finite values become nodata |
 | Render behavior | Clamp colors to display range; contour overlay keeps `400 Pa` interval behavior |
-| Sampling | Global setting defaulted to banded for filled field |
+| Sampling | Global setting defaulted to banded for filled raster |
 | Status | Draft accepted for encoding audit |
 
 ### Precipitation Rate
@@ -391,7 +391,7 @@ correctness audit.
 
 ## Acceptance Checklist
 
-- Every field-rendered layer in `config/forecast_catalog.json` appears in the
+- Every raster layer in `config/forecast_catalog.json` appears in the
   inventory table.
 - Every source artifact named in the inventory exists in
   `config/pipeline/base.json`.

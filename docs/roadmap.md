@@ -2,15 +2,11 @@
 
 Last updated: 2026-05-24
 
-This roadmap tracks the next meaningful app and engineering directions for
-Weather Map. It is intentionally concise: use it to decide what matters next,
-then create a focused implementation plan when a task is ready to execute.
-
 ## Next Priorities
 
 ### 1. Audit Default Palette And Boundary Correctness
 
-Confirm that every field-rendered layer maps decoded physical values to the
+Confirm that every raster-rendered layer maps decoded physical values to the
 right visual output after the encoding contract is sound.
 
 This is the frontend/rendering contract. It covers default palette selection,
@@ -19,7 +15,7 @@ mode, and boundary handling.
 
 Key work:
 
-- audit every field-rendered layer's `paletteId`, color stops, display range,
+- audit every raster-rendered layer's `paletteId`, color stops, display range,
   unit behavior, legend scale, and expected legend ticks
 - define boundary semantics for continuous and threshold palettes
 - add exact-boundary checks for values just below, exactly at, and just above
@@ -112,14 +108,14 @@ unless they are opt-in or otherwise low-noise.
 ### Define Field Layer Requirements
 
 Created `forecast-field-layer-requirements.md` as a staging contract for
-field-rendered layer units, display ranges, encoded ranges, precision,
+raster-rendered layer units, display ranges, encoded ranges, precision,
 thresholds, nodata behavior, clipping behavior, and sampling expectations.
 
 ### Audit Artifact Encoding Correctness
 
 Added explicit ETL finite clamp support, updated artifact encoding contracts,
 and added encoding-contract tests that lock range, quantum, nodata, clamp, and
-boundary behavior for field-rendered artifacts.
+boundary behavior for raster-rendered artifacts.
 
 ## Design Evaluations
 

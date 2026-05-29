@@ -42,7 +42,7 @@ initial sync, request building, payload loading, and layer application.
 
 - `forecast/manifest/*`: fetch, parse, validate, and expose the public forecast manifest. This owns startup request state, active model state, and model/layer availability helpers. It is the only startup network request for forecast metadata.
 
-- `forecast/artifacts/*`: manifest artifact I/O and raster-band loading. This module resolves artifact payload paths/refs, fetches and caches frame payload bytes, validates payload size, and returns ordered encoded raster bands from scalar or vector artifacts. Semantic meanings such as wind speed belong in catalog source helpers plus sync/render/probe consumers.
+- `forecast/artifacts/*`: manifest artifact I/O and raster-band loading. This module resolves artifact payload paths/refs, fetches and caches frame payload bytes, validates payload size, and returns ordered encoded raster bands from scalar or vector artifacts. Band lists stay generic through sync; render and probe consumers interpret source-band shapes such as `value`, `u/v`, and `low/middle/high`.
 
 - `forecast/frames/*`: shared boundary types for encoded raster frames and forecast windows. Renderers, sync, and place probes depend on these frame shapes instead of importing each other's implementation modules.
 

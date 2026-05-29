@@ -20,7 +20,7 @@ forecast time concepts, render layers, and MapLibre implementation details.
   cloud layers use ordered `low/middle/high` bands. Base layer bands also carry
   palette ids.
 - `particle layer`: a user-facing animated particle visualization choice,
-  separate from field-rendered layers. The current particle layer is wind
+  separate from raster-rendered layers. The current particle layer is wind
   particles.
 - `overlay`: a non-selectable render addition attached to a selected layer or
   enabled by map options. Examples are precipitation-type patterns and pressure
@@ -110,7 +110,7 @@ forecast time concepts, render layers, and MapLibre implementation details.
 - `wind vector raster`: raw encoded ordered `u/v` bands used by particles and
   by raster wind-speed derivation. It does not itself compute wind speed.
 - `probe window`: the base raster window published to place probes. It may
-  represent a direct scalar raster, shader-derived wind speed, or cloud-layer coverage
+  represent a value-band raster, shader-derived wind speed, or cloud-layer coverage
   depending on the selected `ForecastLayerSource`.
 
 ## Rendering Terms
