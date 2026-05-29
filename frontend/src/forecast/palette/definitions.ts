@@ -68,7 +68,7 @@ const HUMIDITY_COLOR_RAMP = [
 const RELATIVE_HUMIDITY_PERCENT_VALUES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const
 
 // Dew point uses the shared humidity color ramp with Celsius thresholds.
-const DEW_POINT_C_VALUES = [-30, -25, -20, -15, -10, 0, 5, 10, 15, 20, 30] as const
+const DEW_POINT_C_VALUES = [-30, -22, -15, -8, 0, 8, 12, 16, 20, 24, 30] as const
 
 function palette(
   id: string,

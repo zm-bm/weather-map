@@ -34,7 +34,7 @@ describe('forecast palettes', () => {
     expect(relativeHumidity.stops.map((stop) => stop.value))
       .toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     expect(dewPoint.stops.map((stop) => stop.value))
-      .toEqual([-30, -25, -20, -15, -10, 0, 5, 10, 15, 20, 30])
+      .toEqual([-30, -22, -15, -8, 0, 8, 12, 16, 20, 24, 30])
   })
 
   it('rejects unknown palette ids', () => {
