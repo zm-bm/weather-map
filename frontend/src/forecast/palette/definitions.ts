@@ -6,6 +6,16 @@ function stop(value: number, color: PaletteColorStop['color']): PaletteColorStop
   return { value, color }
 }
 
+function stopsFromRamp(
+  values: readonly number[],
+  colors: readonly PaletteColorStop['color'][],
+): PaletteColorStop[] {
+  if (values.length !== colors.length) {
+    throw new Error(`Palette ramp has ${colors.length} colors but ${values.length} stop values`)
+  }
+  return values.map((value, index) => stop(value, colors[index]!))
+}
+
 const TEMPERATURE_COLOR_STOPS = [
   stop(-35, [169, 192, 228]),
   stop(fahrenheitToCelsius(-30), [167, 191, 227]),
@@ -41,6 +51,25 @@ const TEMPERATURE_COLOR_STOPS = [
   stop(50, [61, 2, 22]),
 ]
 
+const HUMIDITY_COLOR_RAMP = [
+  [153, 103, 50],
+  [181, 123, 58],
+  [205, 145, 70],
+  [226, 178, 92],
+  [239, 210, 120],
+  [246, 237, 165],
+  [211, 240, 176],
+  [150, 235, 204],
+  [84, 209, 218],
+  [36, 151, 202],
+  [16, 56, 112],
+] satisfies readonly PaletteColorStop['color'][]
+
+const RELATIVE_HUMIDITY_PERCENT_VALUES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const
+
+// Dew point uses the shared humidity color ramp with Celsius thresholds.
+const DEW_POINT_C_VALUES = [-30, -25, -20, -15, -10, 0, 5, 10, 15, 20, 30] as const
+
 function palette(
   id: string,
   label: string,
@@ -59,19 +88,12 @@ function palette(
 
 export const BUILT_IN_RASTER_PALETTES = [
   palette('temperature.air.c.v1', 'Air Temperature', 'C', TEMPERATURE_COLOR_STOPS),
-  palette('moisture.relative_humidity.percent.v1', 'Relative Humidity', '%', [
-    stop(0, [218, 192, 146]),
-    stop(10, [232, 214, 171]),
-    stop(20, [244, 234, 196]),
-    stop(30, [230, 238, 202]),
-    stop(40, [196, 232, 203]),
-    stop(50, [153, 220, 206]),
-    stop(60, [105, 201, 212]),
-    stop(70, [67, 173, 214]),
-    stop(80, [44, 141, 205]),
-    stop(90, [29, 101, 176]),
-    stop(100, [19, 72, 140]),
-  ]),
+  palette(
+    'moisture.relative_humidity.percent.v1',
+    'Relative Humidity',
+    '%',
+    stopsFromRamp(RELATIVE_HUMIDITY_PERCENT_VALUES, HUMIDITY_COLOR_RAMP),
+  ),
   palette('wind.gust.mps.v1', 'Wind Speed', 'm/s', [
     stop(0, [200, 210, 215]),
     stop(4, [148, 199, 213]),
@@ -85,21 +107,12 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(45, [174, 49, 105]),
     stop(60, [110, 42, 150]),
   ]),
-  palette('temperature.dewpoint.c.v1', 'Dew Point', 'C', [
-    stop(-60, [98, 81, 140]),
-    stop(-45, [95, 112, 182]),
-    stop(-30, [82, 151, 202]),
-    stop(-20, [72, 177, 194]),
-    stop(-10, [82, 190, 155]),
-    stop(0, [116, 197, 108]),
-    stop(8, [165, 203, 88]),
-    stop(14, [210, 203, 82]),
-    stop(18, [233, 178, 76]),
-    stop(22, [235, 134, 75]),
-    stop(26, [213, 88, 94]),
-    stop(30, [166, 63, 119]),
-    stop(40, [94, 53, 126]),
-  ]),
+  palette(
+    'temperature.dewpoint.c.v1',
+    'Dew Point',
+    'C',
+    stopsFromRamp(DEW_POINT_C_VALUES, HUMIDITY_COLOR_RAMP),
+  ),
   palette('cloud.cover.percent.v1', 'Cloud Cover', '%', [
     stop(0, [180, 180, 180]),
     stop(5, [170, 185, 200]),

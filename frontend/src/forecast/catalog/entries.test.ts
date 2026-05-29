@@ -77,8 +77,9 @@ describe('layer catalog', () => {
   it('resolves forecast layer defaults and lookups', () => {
     expect(getDefaultRasterLayerId()).toBe('temperature')
     const cloudGroup = FORECAST_RASTER_LAYER_GROUPS.find((group) => group.rasterLayerIds.includes(FORECAST_RASTER_LAYERS_BY_ID.cloud_layers!.id))
+    const windGroup = FORECAST_RASTER_LAYER_GROUPS.find((group) => group.id === 'wind_pressure')
     expect(cloudGroup?.id).toBe('clouds_visibility')
-    expect(FORECAST_RASTER_LAYER_GROUPS[1]?.rasterLayerIds[0]).toBe('wind_gust')
+    expect(windGroup?.rasterLayerIds[0]).toBe('wind_gust')
     expect(getForecastRasterLayer(null)).toBeNull()
     expect(getForecastRasterLayer('temperature')).toBe(FORECAST_RASTER_LAYERS_BY_ID.temperature)
     expect(getForecastRasterLayer('missing-layer')).toBeNull()

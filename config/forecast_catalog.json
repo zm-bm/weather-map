@@ -6,7 +6,13 @@
       "label": "Temperature",
       "rasterLayerIds": [
         "temperature",
-        "apparent_temperature",
+        "apparent_temperature"
+      ]
+    },
+    {
+      "id": "humidity",
+      "label": "Humidity",
+      "rasterLayerIds": [
         "dew_point",
         "relative_humidity"
       ]
@@ -97,7 +103,7 @@
     },
     {
       "id": "dew_point",
-      "groupId": "temperature",
+      "groupId": "humidity",
       "display": {
         "label": "Dew Point",
         "range": {
@@ -119,7 +125,7 @@
     },
     {
       "id": "relative_humidity",
-      "groupId": "temperature",
+      "groupId": "humidity",
       "display": {
         "label": "Relative Humidity",
         "range": {

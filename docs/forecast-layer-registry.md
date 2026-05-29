@@ -43,7 +43,8 @@ The first id in each `rasterLayerIds` list is the group default.
 
 | Group id | Label | Raster layer ids |
 | --- | --- | --- |
-| `temperature` | Temperature | `temperature`, `apparent_temperature`, `dew_point`, `relative_humidity` |
+| `temperature` | Temperature | `temperature`, `apparent_temperature` |
+| `humidity` | Humidity | `dew_point`, `relative_humidity` |
 | `wind_pressure` | Wind & Pressure | `wind_gust`, `wind_speed`, `air_pressure` |
 | `precipitation` | Precipitation | `precipitation_rate`, `accumulated_precipitation`, `precipitable_water`, `snow_depth`, `freezing_level` |
 | `clouds_visibility` | Clouds & Visibility | `cloud_layers`, `cloud_cover`, `visibility` |
@@ -71,6 +72,11 @@ frontend display metadata, not ETL encoding ranges.
 | --- | --- | --- | --- | --- | --- |
 | `temperature` | Temperature | raster source `tmp_surface` with `value` band | instantaneous | `C`; `-35..50`; `temperature.air.c.v1`; `temperature/temperature` | Near-surface screen temperature. |
 | `apparent_temperature` | Apparent Temperature | raster source `aptmp_surface` with `value` band | instantaneous | `C`; `-35..50`; `temperature.air.c.v1`; `temperature/temperature` | Perceived near-surface temperature when available. |
+
+### Humidity
+
+| Layer id | Label | Source recipe | Time semantics | Display | Notes |
+| --- | --- | --- | --- | --- | --- |
 | `dew_point` | Dew Point | raster source `dewpoint_surface` with `value` band | instantaneous | `C`; `-60..40`; `temperature.dewpoint.c.v1`; `temperature/temperature` | Near-surface dew point. |
 | `relative_humidity` | Relative Humidity | raster source `rh_surface` with `value` band | instantaneous | `%`; `0..100`; `moisture.relative_humidity.percent.v1`; `percent/percent` | Near-surface relative humidity. |
 
