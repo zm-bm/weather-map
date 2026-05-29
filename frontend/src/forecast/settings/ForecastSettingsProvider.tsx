@@ -1,12 +1,12 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
 
 import {
-  DEFAULT_FORECAST_SETTINGS,
   type ForecastSettings,
   type ForecastSettingsActions,
   type ForecastSettingsValue,
@@ -16,11 +16,17 @@ import {
   type UnitSettings,
 } from './settings'
 import { ForecastSettingsContext } from './ForecastSettingsContext'
+import {
+  loadStoredForecastSettings,
+  saveStoredForecastSettings,
+} from './settingsPersistence'
 
 export function ForecastSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<ForecastSettings>(() => ({
-    ...DEFAULT_FORECAST_SETTINGS,
-  }))
+  const [settings, setSettings] = useState<ForecastSettings>(() => loadStoredForecastSettings())
+
+  useEffect(() => {
+    saveStoredForecastSettings(settings)
+  }, [settings])
 
   const updateRaster = useCallback((patch: Partial<RasterRenderSettings>) => {
     setSettings((current) => {

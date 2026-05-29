@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ForecastModelId, Manifest } from '@/forecast/manifest'
 import { activeForecastRunForModel, modelOptionsFromManifest } from '@/forecast/manifest'
@@ -10,14 +11,17 @@ import {
 } from '@/test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
+import { SELECTED_LAYER_STORAGE_KEY } from './selectedLayerPersistence'
 
 function ForecastSelectionProbe() {
   const context = useForecastSelectionContext()
+  const location = useLocation()
 
   return (
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
+      <div data-testid="location-search">{location.search}</div>
       <button type="button" onClick={() => context.setSelectedLayer('relative_humidity')}>
         set-layer-rh
       </button>
@@ -47,6 +51,7 @@ type SelectionProviderProps =
   Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children' | 'activeRun'> & {
     manifest: Manifest | null
     activeModelId?: ForecastModelId | null
+    route?: string
   }
 
 function selectionProvider(props: SelectionProviderProps) {
@@ -54,18 +59,21 @@ function selectionProvider(props: SelectionProviderProps) {
     manifest,
     activeModelId: requestedActiveModelId,
     modelOptions,
+    route = '/',
     ...providerProps
   } = props
   const activeModelId = requestedActiveModelId ?? firstLatestModelId(manifest)
 
   return (
-    <ForecastSelectionProvider
-      {...providerProps}
-      activeRun={activeForecastRunForModel(manifest, activeModelId)}
-      modelOptions={modelOptions ?? modelOptionsFromManifest(manifest)}
-    >
-      <ForecastSelectionProbe />
-    </ForecastSelectionProvider>
+    <MemoryRouter initialEntries={[route]}>
+      <ForecastSelectionProvider
+        {...providerProps}
+        activeRun={activeForecastRunForModel(manifest, activeModelId)}
+        modelOptions={modelOptions ?? modelOptionsFromManifest(manifest)}
+      >
+        <ForecastSelectionProbe />
+      </ForecastSelectionProvider>
+    </MemoryRouter>
   )
 }
 
@@ -79,6 +87,10 @@ function firstLatestModelId(manifest: Manifest | null): ForecastModelId | null {
 }
 
 describe('ForecastSelectionContext', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   it('preserves selected layer choices when forecast cycle changes', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
@@ -253,4 +265,76 @@ describe('ForecastSelectionContext', () => {
 
     expect(screen.getByTestId('selected-particle')).toBeEmptyDOMElement()
   })
+
+  it('uses a valid layer query param before localStorage', async () => {
+    const manifest = createCatalogManifestFixture()
+    localStorage.setItem(SELECTED_LAYER_STORAGE_KEY, 'wind_speed')
+
+    renderSelection({
+      manifest,
+      route: '/?layer=relative_humidity',
+    })
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
+    await waitFor(() => {
+      expect(localStorage.getItem(SELECTED_LAYER_STORAGE_KEY)).toBe('relative_humidity')
+    })
+    expect(searchParam('layer')).toBe('relative_humidity')
+  })
+
+  it('uses localStorage when no layer query param is present', async () => {
+    const manifest = createCatalogManifestFixture()
+    localStorage.setItem(SELECTED_LAYER_STORAGE_KEY, 'wind_speed')
+
+    renderSelection({
+      manifest,
+      route: '/?mode=debug',
+    })
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('wind_speed')
+    await waitFor(() => {
+      expect(searchParam('layer')).toBe('wind_speed')
+    })
+    expect(searchParam('mode')).toBe('debug')
+    expect(localStorage.getItem(SELECTED_LAYER_STORAGE_KEY)).toBe('wind_speed')
+  })
+
+  it('falls back to temperature when query and localStorage values are invalid', async () => {
+    const manifest = createCatalogManifestFixture()
+    localStorage.setItem(SELECTED_LAYER_STORAGE_KEY, 'missing_layer')
+
+    renderSelection({
+      manifest,
+      route: '/?mode=debug&layer=missing_layer',
+    })
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
+    await waitFor(() => {
+      expect(searchParam('layer')).toBe('temperature')
+    })
+    expect(searchParam('mode')).toBe('debug')
+    expect(localStorage.getItem(SELECTED_LAYER_STORAGE_KEY)).toBe('temperature')
+  })
+
+  it('updates localStorage and replaces the layer query param when selection changes', async () => {
+    const manifest = createCatalogManifestFixture()
+
+    renderSelection({
+      manifest,
+      route: '/?mode=debug&layer=temperature',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
+
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
+    await waitFor(() => {
+      expect(localStorage.getItem(SELECTED_LAYER_STORAGE_KEY)).toBe('relative_humidity')
+    })
+    expect(searchParam('layer')).toBe('relative_humidity')
+    expect(searchParam('mode')).toBe('debug')
+  })
 })
+
+function searchParam(name: string): string | null {
+  return new URLSearchParams(screen.getByTestId('location-search').textContent ?? '').get(name)
+}

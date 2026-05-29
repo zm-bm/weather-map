@@ -9,7 +9,7 @@ export type RasterRenderSettings = {
 }
 
 export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
-  colorSamplingMode: 'banded',
+  colorSamplingMode: 'interpolated',
 }
 
 export type ParticleColor = readonly [number, number, number, number]

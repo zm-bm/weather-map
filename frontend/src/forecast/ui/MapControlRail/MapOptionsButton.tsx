@@ -42,11 +42,6 @@ export default function MapOptionsButton({
     setIsOpen((value) => !value)
   }
 
-  const handleClearTrailsOnViewChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.checked
-    settingsActions.updateParticles({ clearTrailsOnViewChange: nextValue })
-  }
-
   const handleParticlesEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.checked
     settingsActions.updateParticles({ enabled: nextValue })
@@ -115,14 +110,6 @@ export default function MapOptionsButton({
               onChange={handleParticlesEnabledChange}
             />
             <span>Show particles</span>
-          </label>
-          <label className="map-control-options-row wm-mono-caps">
-            <input
-              type="checkbox"
-              checked={settings.particles.clearTrailsOnViewChange}
-              onChange={handleClearTrailsOnViewChange}
-            />
-            <span>Clear trails on view change</span>
           </label>
         </div>
       </div>

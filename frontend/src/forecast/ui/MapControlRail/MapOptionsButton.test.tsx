@@ -30,39 +30,33 @@ function createActions(): ForecastSettingsActions {
 }
 
 describe('MapOptionsButton', () => {
-  it('toggles panel visibility and requests map setting changes', async () => {
+  it('toggles panel visibility and requests map setting changes', () => {
     const actions = createActions()
-    const { container, rerender } = render(
+    const { rerender } = render(
       <MapOptionsButton
         settings={SETTINGS}
         settingsActions={actions}
       />
     )
 
-    const button = container.querySelector('button')
-    const panel = container.querySelector('.map-control-options-panel') as HTMLDivElement | null
+    const button = screen.getByRole('button', { name: 'Map options' })
+    const panel = screen.getByText('Layer Color').closest('.map-control-options-panel') as HTMLDivElement | null
     const showParticlesCheckbox = screen.getByRole('checkbox', { name: 'Show particles', hidden: true })
     const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Show pressure contours', hidden: true })
-    const clearTrailsCheckbox = screen.getByRole('checkbox', { name: 'Clear trails on view change', hidden: true })
-    const bandedRadio = container.querySelector(
-      'input[type="radio"][name="layer-color-sampling-mode"][value="banded"]'
-    ) as HTMLInputElement | null
+    const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
 
-    expect(button).toBeTruthy()
     expect(panel).toBeTruthy()
-    expect(bandedRadio).toBeTruthy()
     expect(panel?.hidden).toBe(true)
-    expect(bandedRadio?.checked).toBe(false)
+    expect(bandedRadio).not.toBeChecked()
     expect(showParticlesCheckbox).toBeChecked()
     expect(pressureContoursCheckbox).toBeChecked()
-    expect(clearTrailsCheckbox).toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: 'Clear trails on view change', hidden: true }))
+      .not.toBeInTheDocument()
 
-    button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(button)
     expect(panel?.hidden).toBe(false)
 
-    showParticlesCheckbox.click()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(showParticlesCheckbox)
     expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
     rerender(
       <MapOptionsButton
@@ -78,8 +72,7 @@ describe('MapOptionsButton', () => {
     )
     expect(showParticlesCheckbox).not.toBeChecked()
 
-    pressureContoursCheckbox.click()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(pressureContoursCheckbox)
     expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
     rerender(
       <MapOptionsButton
@@ -98,8 +91,7 @@ describe('MapOptionsButton', () => {
     )
     expect(pressureContoursCheckbox).not.toBeChecked()
 
-    bandedRadio?.click()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(bandedRadio)
     expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
     rerender(
       <MapOptionsButton
@@ -119,54 +111,25 @@ describe('MapOptionsButton', () => {
         settingsActions={actions}
       />
     )
-    expect(bandedRadio?.checked).toBe(true)
-
-    clearTrailsCheckbox.click()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(actions.updateParticles).toHaveBeenCalledWith({ clearTrailsOnViewChange: false })
-    rerender(
-      <MapOptionsButton
-        settings={{
-          ...SETTINGS,
-          raster: {
-            colorSamplingMode: 'banded',
-          },
-          particles: {
-            ...SETTINGS.particles,
-            enabled: false,
-            clearTrailsOnViewChange: false,
-          },
-          pressureContours: {
-            enabled: false,
-          },
-        }}
-        settingsActions={actions}
-      />
-    )
-    expect(clearTrailsCheckbox).not.toBeChecked()
+    expect(bandedRadio).toBeChecked()
   })
 
-  it('closes the panel when clicking outside without closing on inside clicks', async () => {
-    const { container } = render(
+  it('closes the panel when clicking outside without closing on inside clicks', () => {
+    render(
       <MapOptionsButton
         settings={SETTINGS}
         settingsActions={createActions()}
       />
     )
 
-    const button = container.querySelector('button')
-    const panel = container.querySelector('.map-control-options-panel') as HTMLDivElement | null
-    const bandedRadio = container.querySelector(
-      'input[type="radio"][name="layer-color-sampling-mode"][value="banded"]'
-    ) as HTMLInputElement | null
+    const button = screen.getByRole('button', { name: 'Map options' })
+    const panel = screen.getByText('Layer Color').closest('.map-control-options-panel') as HTMLDivElement | null
+    const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
 
-    button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(button)
     expect(panel?.hidden).toBe(false)
 
-    if (bandedRadio) {
-      fireEvent.pointerDown(bandedRadio)
-    }
+    fireEvent.pointerDown(bandedRadio)
     expect(panel?.hidden).toBe(false)
 
     fireEvent.pointerDown(document.body)

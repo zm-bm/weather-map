@@ -73,11 +73,9 @@ describe('MapControlRail', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show pressure contours' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Clear trails on view change' }))
 
     expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
     expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
     expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
-    expect(actions.updateParticles).toHaveBeenCalledWith({ clearTrailsOnViewChange: false })
   })
 })

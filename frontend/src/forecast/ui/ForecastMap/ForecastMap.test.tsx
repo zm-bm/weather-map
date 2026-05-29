@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import config from '@/core/config'
 import {
   DEFAULT_FORECAST_SETTINGS,
-  type ForecastSettingsActions,
   ForecastSettingsProvider,
 } from '@/forecast/settings'
 import type { ForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
@@ -80,7 +79,6 @@ vi.mock('../MapControlRail', () => ({
 const DEFAULT_RENDER_SETTINGS = {
   raster: DEFAULT_FORECAST_SETTINGS.raster,
   particles: expect.objectContaining({
-    clearTrailsOnViewChange: true,
     particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
   }),
 }
@@ -140,6 +138,7 @@ function createInitialSyncStatus(
 describe('ForecastMap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
 
     const map = createMapFixture()
     const mapRef = createMapRefFixture(map)
@@ -282,41 +281,20 @@ describe('ForecastMap', () => {
     renderForecastMap()
 
     const controlProps = getLatestControlProps()
-    const settingsActions = controlProps.settingsActions as ForecastSettingsActions
 
     act(() => {
-      settingsActions.updateRaster({ colorSamplingMode: 'interpolated' })
+      controlProps.settingsActions?.updateRaster({ colorSamplingMode: 'banded' })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
-      renderSettings: {
-        raster: { colorSamplingMode: 'interpolated' },
-        particles: expect.objectContaining({ clearTrailsOnViewChange: true }),
-      },
-    }))
-    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      settings: expect.objectContaining({
-        raster: { colorSamplingMode: 'interpolated' },
+      renderSettings: expect.objectContaining({
+        raster: { colorSamplingMode: 'banded' },
       }),
     }))
-
-    const latestControlProps = getLatestControlProps()
-    const latestSettingsActions = latestControlProps.settingsActions as ForecastSettingsActions
-    act(() => {
-      latestSettingsActions.updateParticles({ clearTrailsOnViewChange: false })
-    })
-
-    expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
-      profile: PARTICLES_ONLY_RENDER_PROFILE,
-      renderSettings: {
-        raster: { colorSamplingMode: 'interpolated' },
-        particles: expect.objectContaining({ clearTrailsOnViewChange: false }),
-      },
-    }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       settings: expect.objectContaining({
-        particles: expect.objectContaining({ clearTrailsOnViewChange: false }),
+        raster: { colorSamplingMode: 'banded' },
       }),
     }))
   })

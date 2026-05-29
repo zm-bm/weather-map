@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 
 import {
@@ -74,24 +75,26 @@ export function renderWithForecastSelection(
     : options.activeModelId ?? 'gfs'
   const activeRun = createActiveRunFixture(manifest, activeModelId)
   return render(
-    <ForecastSettingsProvider>
-      <ForecastSelectionProvider
-        activeRun={activeRun}
-        modelOptions={typeof options === 'string' ? [{
-          id: activeModelId,
-          label: activeRun.label,
-        }] : options.modelOptions ?? [{
-          id: activeModelId,
-          label: activeRun.label,
-        }]}
-        onActiveModelChange={typeof options === 'string'
-          ? undefined
-          : options.onActiveModelChange}
-      >
-        <ForecastTimeProvider activeRun={activeRun}>
-          {ui}
-        </ForecastTimeProvider>
-      </ForecastSelectionProvider>
-    </ForecastSettingsProvider>
+    <MemoryRouter initialEntries={['/?layer=temperature']}>
+      <ForecastSettingsProvider>
+        <ForecastSelectionProvider
+          activeRun={activeRun}
+          modelOptions={typeof options === 'string' ? [{
+            id: activeModelId,
+            label: activeRun.label,
+          }] : options.modelOptions ?? [{
+            id: activeModelId,
+            label: activeRun.label,
+          }]}
+          onActiveModelChange={typeof options === 'string'
+            ? undefined
+            : options.onActiveModelChange}
+        >
+          <ForecastTimeProvider activeRun={activeRun}>
+            {ui}
+          </ForecastTimeProvider>
+        </ForecastSelectionProvider>
+      </ForecastSettingsProvider>
+    </MemoryRouter>
   )
 }

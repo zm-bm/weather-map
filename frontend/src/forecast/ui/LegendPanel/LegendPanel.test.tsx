@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   createManifestFixture,
@@ -83,6 +83,10 @@ function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | '
 }
 
 describe('LegendPanel', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   it('uses the legend pill as the global imperial/metric unit toggle', () => {
     const { container } = renderLegendHarness('tmp_surface')
 

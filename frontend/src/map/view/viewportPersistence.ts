@@ -1,5 +1,10 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
+import {
+  loadLocalStorageJson,
+  saveLocalStorageJson,
+} from '@/core/storage/localStorage'
+
 const VIEWPORT_STORAGE_KEY = 'weather-map:viewport'
 
 export type StoredViewport = {
@@ -8,18 +13,7 @@ export type StoredViewport = {
 }
 
 export function loadStoredViewport(): StoredViewport | null {
-  try {
-    const raw = localStorage.getItem(VIEWPORT_STORAGE_KEY)
-    if (!raw) return null
-    const viewport = JSON.parse(raw) as Partial<StoredViewport>
-    if (!Array.isArray(viewport.center) || viewport.center.length !== 2) return null
-    if (typeof viewport.zoom !== 'number') return null
-    const [lng, lat] = viewport.center
-    if (typeof lng !== 'number' || typeof lat !== 'number') return null
-    return { center: [lng, lat], zoom: viewport.zoom }
-  } catch {
-    return null
-  }
+  return loadLocalStorageJson(VIEWPORT_STORAGE_KEY, validateStoredViewport)
 }
 
 export function saveStoredViewport(map: MapLibreMap) {
@@ -29,8 +23,21 @@ export function saveStoredViewport(map: MapLibreMap) {
       center: [Number(center.lng.toFixed(5)), Number(center.lat.toFixed(5))],
       zoom: Number(map.getZoom().toFixed(2)),
     }
-    localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport))
+    saveLocalStorageJson(VIEWPORT_STORAGE_KEY, viewport)
   } catch {
-    // ignore (private mode / quota / etc.)
+    // ignore
   }
+}
+
+function validateStoredViewport(value: unknown): StoredViewport | null {
+  if (!isRecord(value)) return null
+  if (!Array.isArray(value.center) || value.center.length !== 2) return null
+  if (typeof value.zoom !== 'number') return null
+  const [lng, lat] = value.center
+  if (typeof lng !== 'number' || typeof lat !== 'number') return null
+  return { center: [lng, lat], zoom: value.zoom }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value)
 }
