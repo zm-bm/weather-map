@@ -47,15 +47,15 @@
   --wm-timeline-bar-scale-top: 12px;
   --wm-timeline-bar-scale-height: 18px;
   --wm-timeline-bar-scale-label-top: 12px;
-  --wm-timeline-bar-scale-major-height: 10px;
+  --wm-timeline-bar-scale-major-height: 12px;
   --wm-timeline-slider-thumb-size: 16px;
   --wm-timeline-slider-thumb-offset: 8px;
   --wm-timeline-slider-track-height: 6px;
   --wm-timeline-slider-track-top: 5px;
   --wm-timeline-slider-track-border: rgba(214, 224, 248, 0.58);
   --wm-timeline-slider-track-fill: rgba(124, 143, 190, 0.68);
-  --wm-timeline-scale-minor-color: rgba(214, 224, 248, 0.58);
-  --wm-timeline-scale-major-color: rgba(239, 243, 255, 0.88);
+  --wm-timeline-scale-minor-color: rgba(225, 233, 255, 0.74);
+  --wm-timeline-scale-major-color: rgba(255, 249, 235, 0.94);
   --wm-timeline-bar-transport-button-size: calc(
     var(--wm-timeline-bar-meta-height) +
     var(--wm-timeline-bar-control-height)
@@ -883,7 +883,7 @@
   align-items: flex-start;
   top: 0;
   width: 1px;
-  height: 7px;
+  height: 9px;
   background: var(--wm-timeline-scale-minor-color);
   box-shadow: 0 1px 0 rgba(4, 10, 34, 0.72);
   transform: translateX(-50%);
@@ -1028,6 +1028,10 @@
 
   .timeline-scrubber__selected-time {
     font-size: 16px;
+  }
+
+  .timeline-scrubber__scale-label {
+    font-size: 12px;
   }
 
   .legend-panel {

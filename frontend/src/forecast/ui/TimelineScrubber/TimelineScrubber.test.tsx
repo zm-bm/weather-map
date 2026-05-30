@@ -194,18 +194,19 @@ describe('TimelineScrubber', () => {
     expect(screen.queryByText('Local Timeline')).not.toBeInTheDocument()
   })
 
-  it('renders labeled major day ticks and minor six-hour scale ticks', () => {
+  it('renders labeled major day ticks and minor two-hour scale ticks', () => {
     setForecastTimeContext({
       hours: ['000', '006', '012', '018', '024', '030', '036', '042', '048'],
     })
 
     const { container } = renderScrubber()
     const majorTicks = container.querySelectorAll('.timeline-scrubber__scale-tick--major')
+    const minorTicks = container.querySelectorAll('.timeline-scrubber__scale-tick--minor')
 
     expect(container.querySelector('.timeline-scrubber__scale')).not.toBeNull()
     expect(majorTicks.length).toBeGreaterThan(0)
     expect(container.querySelector('.timeline-scrubber__scale-label')?.textContent).toMatch(/\d/)
-    expect(container.querySelectorAll('.timeline-scrubber__scale-tick--minor').length).toBeGreaterThan(0)
+    expect(minorTicks.length).toBeGreaterThanOrEqual(20)
     expect(container.querySelector('.timeline-scrubber__tick--edge')).toBeNull()
     expect(container.querySelector('.timeline-scrubber__ticks')).toBeNull()
   })

@@ -39,7 +39,7 @@ type TimelineScaleTick = {
 
 type TimelineBounds = NonNullable<ReturnType<typeof forecastTimeBounds>>
 
-const SCALE_MINOR_HOUR_STEP = 6
+const SCALE_MINOR_HOUR_STEP = 2
 
 function nextLocalDayMs(epochMs: number): number {
   const date = new Date(epochMs)

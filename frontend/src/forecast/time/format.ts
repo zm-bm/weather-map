@@ -19,6 +19,7 @@ const LOCAL_SCALE_TICK_TIME = new Intl.DateTimeFormat(undefined, {
 })
 
 const LOCAL_SCALE_TICK_DATE = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
   month: 'short',
   day: 'numeric',
 })
