@@ -28,6 +28,7 @@ function formatModelRunLabel(runTime: string): string {
 const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
   const {
     activeRun,
+    activeModelId,
     modelOptions,
     selectedLayerId,
     setActiveModel,
@@ -115,7 +116,7 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                 <select
                   className="forecast-controls__quiet-select forecast-controls__model-select"
                   aria-label="Forecast source"
-                  value={activeRun.modelId}
+                  value={activeModelId}
                   onPointerDown={(event) => markPointerShortcut(event.currentTarget)}
                   onBlur={(event) => clearPointerShortcut(event.currentTarget)}
                   onChange={(event) => {

@@ -19,6 +19,7 @@ import {
   FORECAST_MANIFEST_SCHEMA_VERSION,
   FORECAST_PAYLOAD_CONTRACT,
   activeForecastRunForModel,
+  modelOptionsFromManifest,
 } from '@/forecast/manifest'
 
 const FIXTURE_MODEL_ID = 'gfs'
@@ -420,18 +421,13 @@ export function createManifestPayloadFixture(
 
 export function createForecastManifestDataFixture(args: {
   manifest?: Manifest
-  activeModelId?: ForecastModelId
   modelOptions?: readonly ForecastModelOption[]
-  setActiveModel?: (modelId: ForecastModelId) => void
 } = {}): ForecastManifestData {
   const manifest = args.manifest ?? createManifestFixture()
 
   return {
-    activeRun: createActiveRunFixture(manifest, args.activeModelId ?? FIXTURE_MODEL_ID),
-    modelOptions: args.modelOptions ?? [
-      { id: FIXTURE_MODEL_ID, label: FIXTURE_MODEL_LABEL },
-    ],
-    setActiveModel: args.setActiveModel ?? (() => undefined),
+    manifest,
+    modelOptions: args.modelOptions ?? modelOptionsFromManifest(manifest),
   }
 }
 

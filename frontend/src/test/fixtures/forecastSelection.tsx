@@ -10,7 +10,6 @@ import {
   type ForecastModelId,
   type Manifest,
 } from '@/forecast/manifest'
-import { ForecastTimeProvider } from '@/forecast/time'
 import {
   getDefaultAvailableParticleLayerId,
   getDefaultRasterLayerId,
@@ -19,9 +18,10 @@ import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
 } from '@/forecast/selection'
+import { ACTIVE_MODEL_STORAGE_KEY } from '@/forecast/selection/activeModelPersistence'
 import { ForecastSettingsProvider } from '@/forecast/settings'
+import ForecastSelectionFixtureTimeProvider from './ForecastSelectionFixtureTimeProvider'
 import { createActiveRunFixture } from './manifest'
-
 
 type ForecastSelectionContextOptions = Partial<{
   selectedLayerId: string
@@ -48,12 +48,14 @@ export function createForecastSelectionContextValue(
     activeRun == null
       ? {
           activeRun: null,
+          activeModelId: null,
           selectedLayerId: null,
           selectedParticleLayerId: null,
           ...shared,
         }
       : {
           activeRun,
+          activeModelId: activeRun.modelId,
           selectedLayerId,
           selectedParticleLayerId: options.selectedParticleLayerId ?? getDefaultAvailableParticleLayerId(activeRun),
           ...shared,
@@ -67,18 +69,18 @@ export function renderWithForecastSelection(
   options: ForecastModelId | {
     activeModelId?: ForecastModelId
     modelOptions?: readonly ForecastModelOption[]
-    onActiveModelChange?: (modelId: ForecastModelId) => void
   } = 'gfs'
 ) {
   const activeModelId = typeof options === 'string'
     ? options
     : options.activeModelId ?? 'gfs'
   const activeRun = createActiveRunFixture(manifest, activeModelId)
+  localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, activeModelId)
   return render(
     <MemoryRouter initialEntries={['/?layer=temperature']}>
       <ForecastSettingsProvider>
         <ForecastSelectionProvider
-          activeRun={activeRun}
+          manifest={manifest}
           modelOptions={typeof options === 'string' ? [{
             id: activeModelId,
             label: activeRun.label,
@@ -86,13 +88,10 @@ export function renderWithForecastSelection(
             id: activeModelId,
             label: activeRun.label,
           }]}
-          onActiveModelChange={typeof options === 'string'
-            ? undefined
-            : options.onActiveModelChange}
         >
-          <ForecastTimeProvider activeRun={activeRun}>
+          <ForecastSelectionFixtureTimeProvider>
             {ui}
-          </ForecastTimeProvider>
+          </ForecastSelectionFixtureTimeProvider>
         </ForecastSelectionProvider>
       </ForecastSettingsProvider>
     </MemoryRouter>

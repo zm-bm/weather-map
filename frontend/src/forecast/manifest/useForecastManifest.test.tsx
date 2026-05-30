@@ -91,12 +91,11 @@ describe('useForecastManifest', () => {
     await waitFor(() => {
       expect(result.current.phase).toBe('ready')
     })
-    expect(result.current.data?.activeRun.modelId).toBe('gfs')
-    expect(result.current.data?.activeRun.label).toBe('GFS')
-    expect(result.current.data?.activeRun.latest.run.cycle).toBe('2026040900')
+    expect(result.current.data?.manifest).toBe(manifest)
+    expect(result.current.data?.modelOptions).toContainEqual({ id: 'gfs', label: 'GFS' })
   })
 
-  it('switches models synchronously without fetching a model manifest', async () => {
+  it('keeps model selection outside of manifest loading', async () => {
     const manifest = createMultiModelManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
         model: { id: 'gfs', label: 'GFS' },
@@ -111,17 +110,14 @@ describe('useForecastManifest', () => {
 
     const { result } = renderHook(() => useForecastManifest())
     await waitFor(() => {
-      expect(result.current.data?.activeRun.modelId).toBe('gfs')
+      expect(result.current.phase).toBe('ready')
     })
 
-    act(() => {
-      result.current.data?.setActiveModel('icon')
-    })
-
-    expect(result.current.phase).toBe('ready')
-    expect(result.current.data?.activeRun.modelId).toBe('icon')
-    expect(result.current.data?.activeRun.label).toBe('ICON')
-    expect(result.current.data?.activeRun.latest.run.cycle).toBe('2026040912')
+    expect(result.current.data?.manifest).toBe(manifest)
+    expect(result.current.data?.modelOptions).toEqual([
+      { id: 'gfs', label: 'GFS' },
+      { id: 'icon', label: 'ICON' },
+    ])
     expect(mocks.fetchManifest).toHaveBeenCalledTimes(1)
   })
 })

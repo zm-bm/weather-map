@@ -1,16 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { ForecastModelId, Manifest } from '@/forecast/manifest'
-import { activeForecastRunForModel, modelOptionsFromManifest } from '@/forecast/manifest'
+import { modelOptionsFromManifest } from '@/forecast/manifest'
 import {
   createCatalogManifestFixture,
   createManifestFixture,
 } from '@/test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
+import { ACTIVE_MODEL_STORAGE_KEY } from './activeModelPersistence'
 import { SELECTED_LAYER_STORAGE_KEY } from './selectedLayerPersistence'
 
 function ForecastSelectionProbe() {
@@ -21,6 +22,7 @@ function ForecastSelectionProbe() {
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
+      <div data-testid="active-model">{context.activeModelId}</div>
       <div data-testid="location-search">{location.search}</div>
       <button type="button" onClick={() => context.setSelectedLayer('relative_humidity')}>
         set-layer-rh
@@ -48,7 +50,7 @@ function ForecastSelectionProbe() {
 }
 
 type SelectionProviderProps =
-  Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children' | 'activeRun'> & {
+  Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children' | 'manifest'> & {
     manifest: Manifest | null
     activeModelId?: ForecastModelId | null
     route?: string
@@ -57,18 +59,20 @@ type SelectionProviderProps =
 function selectionProvider(props: SelectionProviderProps) {
   const {
     manifest,
-    activeModelId: requestedActiveModelId,
+    activeModelId,
     modelOptions,
     route = '/',
     ...providerProps
   } = props
-  const activeModelId = requestedActiveModelId ?? firstLatestModelId(manifest)
+  if (activeModelId != null) {
+    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, activeModelId)
+  }
 
   return (
     <MemoryRouter initialEntries={[route]}>
       <ForecastSelectionProvider
         {...providerProps}
-        activeRun={activeForecastRunForModel(manifest, activeModelId)}
+        manifest={manifest}
         modelOptions={modelOptions ?? modelOptionsFromManifest(manifest)}
       >
         <ForecastSelectionProbe />
@@ -79,11 +83,6 @@ function selectionProvider(props: SelectionProviderProps) {
 
 function renderSelection(props: SelectionProviderProps) {
   return render(selectionProvider(props))
-}
-
-function firstLatestModelId(manifest: Manifest | null): ForecastModelId | null {
-  return Object.keys(manifest?.models ?? {})
-    .find((modelId) => manifest?.models[modelId]?.latest) ?? null
 }
 
 describe('ForecastSelectionContext', () => {
@@ -184,32 +183,29 @@ describe('ForecastSelectionContext', () => {
     expectedLayerId,
     expectedModelId,
   }) => {
-    const onActiveModelChange = vi.fn()
     void activeModelLabel
     const manifest = createCatalogManifestFixture()
 
     renderSelection({
       manifest,
       activeModelId,
-      onActiveModelChange,
     })
 
     fireEvent.click(screen.getByRole('button', { name: buttonName }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent(expectedLayerId)
     await waitFor(() => {
-      expect(onActiveModelChange).toHaveBeenCalledWith(expectedModelId)
+      expect(screen.getByTestId('active-model')).toHaveTextContent(expectedModelId)
     })
+    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe(expectedModelId)
   })
 
   it('does not let an incompatible model choice replace the selected layer', () => {
-    const onActiveModelChange = vi.fn()
     const manifest = createCatalogManifestFixture()
 
     renderSelection({
       manifest,
       activeModelId: 'gfs',
-      onActiveModelChange,
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
@@ -217,33 +213,25 @@ describe('ForecastSelectionContext', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'set-model-icon' }))
 
-    expect(onActiveModelChange).not.toHaveBeenCalledWith('icon')
+    expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
+    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
   })
 
-  it('preserves selected layer intent while repairing incompatible active model props', async () => {
-    const onActiveModelChange = vi.fn()
+  it('preserves selected layer intent while repairing an incompatible stored active model', async () => {
     const manifest = createCatalogManifestFixture()
+    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'icon')
 
-    const { rerender } = renderSelection({
+    renderSelection({
       manifest,
-      activeModelId: 'gfs',
-      onActiveModelChange,
+      route: '/?layer=visibility',
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
-
-    rerender(selectionProvider({
-      manifest,
-      activeModelId: 'icon',
-      onActiveModelChange,
-    }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
     await waitFor(() => {
-      expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
+      expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
     })
+    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
   })
 
   it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
@@ -332,6 +320,41 @@ describe('ForecastSelectionContext', () => {
     })
     expect(searchParam('layer')).toBe('relative_humidity')
     expect(searchParam('mode')).toBe('debug')
+  })
+
+  it('uses a valid stored active model when the manifest supports it', async () => {
+    const manifest = createCatalogManifestFixture()
+    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'icon')
+
+    renderSelection({ manifest })
+
+    expect(screen.getByTestId('active-model')).toHaveTextContent('icon')
+    await waitFor(() => {
+      expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('icon')
+    })
+  })
+
+  it('falls back to the first latest model when stored active model is invalid', async () => {
+    const manifest = createCatalogManifestFixture()
+    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'missing')
+
+    renderSelection({ manifest })
+
+    expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
+    await waitFor(() => {
+      expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
+    })
+  })
+
+  it('saves active model changes to localStorage', () => {
+    const manifest = createCatalogManifestFixture()
+
+    renderSelection({ manifest })
+
+    fireEvent.click(screen.getByRole('button', { name: 'set-model-icon' }))
+
+    expect(screen.getByTestId('active-model')).toHaveTextContent('icon')
+    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('icon')
   })
 })
 

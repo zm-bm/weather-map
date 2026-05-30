@@ -2,7 +2,10 @@ import { useLayoutEffect, useRef } from 'react'
 
 import { ForecastSettingsProvider } from '@/forecast/settings'
 import type { ForecastManifestData } from '@/forecast/manifest'
-import { ForecastSelectionProvider } from '@/forecast/selection'
+import {
+  ForecastSelectionProvider,
+  useForecastSelectionContext,
+} from '@/forecast/selection'
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import { ForecastTimeProvider } from '@/forecast/time'
 import TimelineBar from '../TimelineBar'
@@ -22,9 +25,29 @@ export default function ForecastShell({
   forecast,
   onInitialSyncStatusChange,
 }: ForecastShellProps) {
+  return (
+    <main className="forecast-screen">
+      <ForecastSettingsProvider>
+        <ForecastSelectionProvider
+          key={forecast?.manifest == null ? 'loading' : 'ready'}
+          manifest={forecast?.manifest ?? null}
+          modelOptions={forecast?.modelOptions ?? []}
+        >
+          <ForecastShellStage onInitialSyncStatusChange={onInitialSyncStatusChange} />
+        </ForecastSelectionProvider>
+      </ForecastSettingsProvider>
+    </main>
+  )
+}
+
+function ForecastShellStage({
+  onInitialSyncStatusChange,
+}: {
+  onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+}) {
   const forecastStageRef = useRef<HTMLDivElement | null>(null)
   const forecastPanelRef = useRef<HTMLElement | null>(null)
-  const activeRun = forecast?.activeRun ?? null
+  const { activeRun } = useForecastSelectionContext()
 
   useLayoutEffect(() => {
     const stage = forecastStageRef.current
@@ -63,34 +86,24 @@ export default function ForecastShell({
   }, [activeRun])
 
   return (
-    <main className="forecast-screen">
-      <ForecastSettingsProvider>
-        <ForecastSelectionProvider
-          activeRun={activeRun}
-          modelOptions={forecast?.modelOptions ?? []}
-          onActiveModelChange={forecast?.setActiveModel}
-        >
-          <ForecastTimeProvider activeRun={activeRun}>
-            <div ref={forecastStageRef} className="forecast-stage">
-              <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
+    <ForecastTimeProvider activeRun={activeRun}>
+      <div ref={forecastStageRef} className="forecast-stage">
+        <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
 
-              {activeRun && (
-                <>
-                  <MapSyncIndicator />
-                  <ForecastPanel ref={forecastPanelRef} />
-                  <div className="forecast-stage__legend">
-                    <LegendPanel />
-                  </div>
-                </>
-              )}
+        {activeRun && (
+          <>
+            <MapSyncIndicator />
+            <ForecastPanel ref={forecastPanelRef} />
+            <div className="forecast-stage__legend">
+              <LegendPanel />
             </div>
+          </>
+        )}
+      </div>
 
-            {activeRun && (
-              <TimelineBar />
-            )}
-          </ForecastTimeProvider>
-        </ForecastSelectionProvider>
-      </ForecastSettingsProvider>
-    </main>
+      {activeRun && (
+        <TimelineBar />
+      )}
+    </ForecastTimeProvider>
   )
 }

@@ -39,7 +39,7 @@ vi.mock('@/forecast/ui/ForecastShell', () => ({
 }))
 
 function createReadyManifestState(
-  data = createForecastManifestDataFixture({ setActiveModel: vi.fn() })
+  data = createForecastManifestDataFixture()
 ): ForecastManifestState {
   return createForecastManifestStateFixture({
     data,
@@ -86,7 +86,7 @@ describe('ForecastApp', () => {
   })
 
   it('passes forecast manifest data to the shell', () => {
-    const data = createForecastManifestDataFixture({ setActiveModel: vi.fn() })
+    const data = createForecastManifestDataFixture()
     mocks.manifestState = createReadyManifestState(data)
 
     renderForecastApp()

@@ -8,6 +8,7 @@ import type {
 
 type ForecastSelectionBaseValue = {
   activeRun: ActiveForecastRun | null
+  activeModelId: ForecastModelId | null
   modelOptions: readonly ForecastModelOption[]
   setActiveModel: (value: ForecastModelId) => void
   setSelectedLayer: (value: string) => void
@@ -16,12 +17,14 @@ type ForecastSelectionBaseValue = {
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
   activeRun: ActiveForecastRun
+  activeModelId: ForecastModelId
   selectedLayerId: string | null
   selectedParticleLayerId: string | null
 }
 
 type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
   activeRun: null
+  activeModelId: null
   selectedLayerId: null
   selectedParticleLayerId: null
 }

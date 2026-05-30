@@ -7,16 +7,13 @@ import {
   resolveActiveForecastRun,
 } from './resolution'
 import type {
-  ActiveForecastRun,
-  ForecastModelId,
   ForecastModelOption,
   Manifest,
 } from './schema'
 
 export type ForecastManifestData = {
-  activeRun: ActiveForecastRun
+  manifest: Manifest
   modelOptions: readonly ForecastModelOption[]
-  setActiveModel: (modelId: ForecastModelId) => void
 }
 
 export type ForecastManifestState = {
@@ -32,12 +29,7 @@ type ManifestRequest =
   | { phase: 'error'; error: Error }
 
 export function useForecastManifest(): ForecastManifestState {
-  const [preferredModelId, setPreferredModelId] = useState<ForecastModelId | null>(null)
   const { request, retry } = useManifestRequest()
-
-  const setActiveModel = useCallback((modelId: ForecastModelId) => {
-    setPreferredModelId(modelId)
-  }, [])
 
   return useMemo(() => {
     if (request.phase === 'loading') {
@@ -53,7 +45,7 @@ export function useForecastManifest(): ForecastManifestState {
       return startupError('Forecast manifest did not list any models.', retry)
     }
 
-    const activeRun = resolveActiveForecastRun(manifest, preferredModelId)
+    const activeRun = resolveActiveForecastRun(manifest)
     if (activeRun == null) {
       return startupError('Forecast manifest did not include latest render data for any model.', retry)
     }
@@ -61,14 +53,13 @@ export function useForecastManifest(): ForecastManifestState {
     return {
       phase: 'ready',
       data: {
-        activeRun,
+        manifest,
         modelOptions,
-        setActiveModel,
       },
       error: null,
       retry,
     }
-  }, [preferredModelId, request, retry, setActiveModel])
+  }, [request, retry])
 }
 
 function useManifestRequest(): {

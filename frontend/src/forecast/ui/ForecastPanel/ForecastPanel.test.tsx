@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import type { ForecastModelId, ForecastModelOption, Manifest } from '@/forecast/manifest'
 import {
@@ -35,13 +35,11 @@ function renderPanelWithManifest(
   options: {
     activeModelId?: ForecastModelId
     modelOptions?: readonly ForecastModelOption[]
-    onActiveModelChange?: (modelId: ForecastModelId) => void
   } = {}
 ) {
   return renderWithForecastSelection(<ForecastPanel />, manifest, {
     activeModelId: options.activeModelId ?? 'gfs',
     modelOptions: options.modelOptions ?? MODEL_OPTIONS,
-    onActiveModelChange: options.onActiveModelChange,
   })
 }
 
@@ -149,7 +147,6 @@ describe('ForecastPanel', () => {
   })
 
   it('updates the active forecast model from the model selector', () => {
-    const onActiveModelChange = vi.fn()
     const catalogManifest = createCatalogManifestFixture()
     const manifest = createMultiModelManifestFixture({
       gfsManifest: createPanelManifest(['tmp_surface', 'rh_surface'], {
@@ -163,7 +160,6 @@ describe('ForecastPanel', () => {
 
     renderPanelWithManifest(manifest, {
       activeModelId: 'icon',
-      onActiveModelChange,
     })
 
     expect(screen.getByLabelText('Forecast source ICON, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
@@ -174,7 +170,7 @@ describe('ForecastPanel', () => {
     expect(source).toHaveFocus()
     selectSource('gfs', source)
 
-    expect(onActiveModelChange).toHaveBeenCalledWith('gfs')
+    expect(sourceSelect()).toHaveValue('gfs')
     expect(source).not.toHaveFocus()
   })
 
@@ -198,7 +194,6 @@ describe('ForecastPanel', () => {
   })
 
   it('keeps model selection secondary to the selected measurement', () => {
-    const onActiveModelChange = vi.fn()
     const catalogManifest = createCatalogManifestFixture()
     const manifest = createMultiModelManifestFixture({
       gfsManifest: createManifestFixture({
@@ -218,7 +213,6 @@ describe('ForecastPanel', () => {
 
     renderPanelWithManifest(manifest, {
       activeModelId: 'gfs',
-      onActiveModelChange,
     })
 
     selectMeasurement('visibility')
@@ -228,7 +222,7 @@ describe('ForecastPanel', () => {
 
     selectSource('icon')
 
-    expect(onActiveModelChange).not.toHaveBeenCalledWith('icon')
+    expect(sourceSelect()).toHaveValue('gfs')
     expect(measurementSelect()).toHaveValue('visibility')
   })
 

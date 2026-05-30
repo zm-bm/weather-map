@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   Manifest,
-  ForecastModelId,
   ForecastModelOption,
 } from '@/forecast/manifest'
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
@@ -52,8 +51,6 @@ vi.mock('../ForecastMap/ForecastMap', () => ({
 
 function createForecastShellProps(overrides: {
   manifest?: Manifest | null
-  activeModelId?: ForecastModelId
-  onActiveModelChange?: (modelId: ForecastModelId) => void
 } = {}): Parameters<typeof ForecastShell>[0] {
   const manifest = overrides.manifest ?? null
   return {
@@ -61,9 +58,7 @@ function createForecastShellProps(overrides: {
       ? null
       : createForecastManifestDataFixture({
           manifest,
-          activeModelId: overrides.activeModelId ?? 'gfs',
           modelOptions: MODEL_OPTIONS,
-          setActiveModel: overrides.onActiveModelChange ?? vi.fn(),
         }),
   }
 }
@@ -129,7 +124,7 @@ describe('ForecastShell', () => {
       forecastHours: ['000', '003'],
     })
 
-    const { container } = renderForecastShell(createForecastShellProps({ manifest, activeModelId: 'gfs' }))
+    const { container } = renderForecastShell(createForecastShellProps({ manifest }))
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
