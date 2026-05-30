@@ -100,6 +100,7 @@ describe('LegendPanel', () => {
       .join(' ')
     expect(tickLabelsAfterSelect).toContain('50')
     expect(tickLabelsAfterSelect).not.toContain(' C')
+    expect(container.querySelector('.legend-panel__scale .legend-panel__tick-label')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Measurement'), {
       target: { value: 'precipitation_rate' },
@@ -130,6 +131,7 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('in/hr')
     expect(tickLabels).not.toContain('mm/hr')
     expect(tickLabels).not.toContain('0.000')
+    expect(container.querySelector('.legend-panel__scale-frame .legend-panel__scale')).toBeInTheDocument()
   })
 
   it('shows normal layer legend for total sky cover', () => {
@@ -138,6 +140,9 @@ describe('LegendPanel', () => {
     expect(screen.getByLabelText('Total/Sky Cover units %.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Cloud layer stacked decks and coverage opacity')).not.toBeInTheDocument()
     expect(container.querySelector('.legend-panel__scale')).toBeInTheDocument()
+    expect((container.querySelector('.legend-panel__scale') as HTMLElement).style.backgroundImage)
+      .toContain('to top')
+    expect(container.querySelector('.legend-panel__' + 'ticks')).not.toBeInTheDocument()
   })
 
   it('shows a custom layer-tone legend for cloud layers', () => {

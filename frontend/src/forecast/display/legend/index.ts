@@ -15,6 +15,9 @@ export type LegendTick = {
   label: string
 }
 
+const LEGEND_EDGE_PADDING_PCT = 6
+const LEGEND_LABEL_SPAN_PCT = 100 - (LEGEND_EDGE_PADDING_PCT * 2)
+
 export function getLegendTicks(
   option: GradientUnitOption,
 ): LegendTick[] {
@@ -24,7 +27,7 @@ export function getLegendTicks(
 
   return labels.map((value, index) => ({
     value: legendLabelValue(value),
-    positionPct: (index / intervalCount) * 100,
+    positionPct: legendLabelPositionPct(index, intervalCount),
     label: legendLabelText(value, option),
   }))
 }
@@ -37,12 +40,19 @@ export function toLegendContinuousGradient(
   const labels = option.legendLabels
   assertLegendLabels(labels, option)
   const intervalCount = Math.max(1, labels.length - 1)
-  const gradientStops = labels
+  const labelStops = labels
     .map((value, index) => {
       const color = samplePaletteColor(stops, toNative(legendLabelValue(value), option), 'interpolated')
-      return `${legendColor(...color)} ${((index / intervalCount) * 100).toFixed(1)}%`
+      return {
+        color: legendColor(...color),
+        positionPct: legendLabelPositionPct(index, intervalCount),
+      }
     })
-    .join(', ')
+  const gradientStops = [
+    gradientStop(labelStops[0].color, 0),
+    ...labelStops.map((stop) => gradientStop(stop.color, stop.positionPct)),
+    gradientStop(labelStops[labelStops.length - 1].color, 100),
+  ].join(', ')
 
   return `linear-gradient(${direction}, ${gradientStops})`
 }
@@ -62,6 +72,14 @@ function legendLabelValue(label: LegendLabel): number {
 
 function legendLabelText(label: LegendLabel, option: GradientUnitOption): string {
   return typeof label === 'number' ? formatUnitLegendValue(label, option) : label.label
+}
+
+function legendLabelPositionPct(index: number, intervalCount: number): number {
+  return LEGEND_EDGE_PADDING_PCT + ((index / intervalCount) * LEGEND_LABEL_SPAN_PCT)
+}
+
+function gradientStop(color: string, positionPct: number): string {
+  return `${color} ${positionPct.toFixed(1)}%`
 }
 
 function legendColor(r: number, g: number, b: number, a: number): string {

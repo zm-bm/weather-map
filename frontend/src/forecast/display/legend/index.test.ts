@@ -43,7 +43,7 @@ describe('legend behavior', () => {
     const ticks = getLegendTicks(CELSIUS_OPTION)
 
     expect(ticks.map((tick) => tick.value)).toEqual([-30, -10, 0, 5, 30])
-    expect(ticks.map((tick) => tick.positionPct)).toEqual([0, 25, 50, 75, 100])
+    expect(ticks.map((tick) => tick.positionPct)).toEqual([6, 28, 50, 72, 94])
     expect(ticks.map((tick) => tick.label)).toEqual(['-30', '-10', '0', '5', '30'])
   })
 
@@ -56,7 +56,7 @@ describe('legend behavior', () => {
     const gradient = toLegendContinuousGradient(stops, FAHRENHEIT_OPTION, 'to top')
 
     expect(gradient).toBe(
-      'linear-gradient(to top, rgb(0 0 0) 0.0%, rgb(50 50 50) 50.0%, rgb(100 100 100) 100.0%)'
+      'linear-gradient(to top, rgb(0 0 0) 0.0%, rgb(0 0 0) 6.0%, rgb(50 50 50) 50.0%, rgb(100 100 100) 94.0%, rgb(100 100 100) 100.0%)'
     )
   })
 
@@ -69,7 +69,7 @@ describe('legend behavior', () => {
     expect(getLegendTicks(CENTIMETERS_OPTION).map((tick) => tick.label))
       .toEqual(['0', '50', '1m', '3m'])
     expect(toLegendContinuousGradient(stops, CENTIMETERS_OPTION, 'to top'))
-      .toContain('rgb(85 85 85) 66.7%')
+      .toContain('rgb(85 85 85) 64.7%')
   })
 
   it('throws when a unit option has no configured labels', () => {

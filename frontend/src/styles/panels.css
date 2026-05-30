@@ -400,10 +400,8 @@
 
 /* Legend panel */
 .legend-panel {
-  --wm-legend-scale-height: 242px;
-  --wm-legend-ticks-height: 250px;
-  width: 84px;
-  padding: 8px 5px 8px;
+  width: 72px;
+  padding: 5px;
   border: 1px solid rgba(239, 212, 158, 0.48);
   border-radius: 6px;
   background:
@@ -420,8 +418,13 @@
     inset 0 0 0 1px rgba(255, 246, 222, 0.12);
 }
 
+.legend-panel--cloud-layers {
+  width: 104px;
+}
+
 .legend-panel__body {
   display: grid;
+  align-items: start;
   gap: 4px;
 }
 
@@ -430,10 +433,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
+  width: 52px;
+  min-width: 0;
   height: 20px;
   margin-inline: auto;
-  padding: 0 7px;
+  padding: 0 4px;
   border: 1px solid rgba(240, 214, 167, 0.46);
   border-radius: 2px;
   background:
@@ -444,7 +448,7 @@
     inset 0 1px 0 rgba(255, 250, 233, 0.12),
     0 1px 0 rgba(0, 0, 0, 0.18);
   font-family: var(--wm-font-display);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1;
@@ -493,7 +497,7 @@
 }
 
 .legend-panel__scale-frame {
-  padding: 6px 4px 4px 5px;
+  padding: 2px;
   border: 1px solid rgba(245, 224, 185, 0.24);
   border-radius: 2px;
   background:
@@ -512,84 +516,29 @@
 
 .legend-panel__scale-wrap {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
-  gap: 5px;
-  align-items: start;
-  min-height: var(--wm-legend-scale-height);
+  place-items: center;
 }
 
 .legend-panel__scale {
-  width: 14px;
-  min-height: var(--wm-legend-scale-height);
+  position: relative;
+  width: 52px;
+  height: 242px;
   border: 1px solid rgba(255, 242, 208, 0.18);
-  border-radius: 1px;
+  border-radius: 4px;
   overflow: hidden;
   background-repeat: no-repeat;
   background-size: 100% 100%;
   background-clip: padding-box;
   box-shadow:
     inset 0 0 0 1px rgba(7, 12, 37, 0.24),
+    inset 0 1px 0 rgba(255, 242, 208, 0.12),
     1px 0 0 rgba(255, 242, 208, 0.05);
 }
 
-.legend-panel__ticks {
-  position: relative;
-  min-height: var(--wm-legend-ticks-height);
-  margin-top: -5px;
-  margin-right: -4px;
-  margin-bottom: -3px;
-  border-left: 1px solid rgba(255, 242, 214, 0.16);
-  background:
-    linear-gradient(180deg, rgba(6, 13, 38, 0.72), rgba(4, 10, 31, 0.9)),
-    repeating-linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.018) 0 2px,
-      rgba(0, 0, 0, 0.016) 2px 4px
-    );
-  box-shadow:
-    inset 1px 0 0 rgba(5, 10, 30, 0.8),
-    inset 0 0 0 1px rgba(255, 251, 235, 0.04);
-}
-
-.legend-panel__annotations {
-  position: absolute;
-  top: 5px;
-  right: 4px;
-  bottom: 3px;
-  left: 2px;
-}
-
-.legend-panel__tick {
-  position: absolute;
-  right: 0;
-  left: 0;
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr);
-  column-gap: 4px;
-  align-items: center;
-  transform: translateY(50%);
-}
-
-.legend-panel__tick-mark {
-  position: static;
-  width: 7px;
-  height: 0;
-  border-top: 1px solid rgba(255, 249, 229, 0.76);
-  box-shadow: 0 1px 0 rgba(5, 10, 31, 0.52);
-  transform: none;
-}
-
-.legend-panel__tick-mark--minor {
-  width: 3px;
-  border-top-color: rgba(214, 225, 245, 0.28);
-  box-shadow: none;
-}
-
 .legend-panel__tick-label {
-  position: relative;
-  top: -1px;
-  justify-self: end;
-  min-width: 0;
+  position: absolute;
+  left: calc(50% - 0.65ch);
+  width: 4ch;
   color: #f2eedb;
   font-size: 16px;
   font-family: var(--wm-font-mono);
@@ -600,17 +549,13 @@
   line-height: 1;
   white-space: nowrap;
   text-align: right;
+  transform: translate(-50%, 50%);
+  pointer-events: none;
   text-shadow:
-    0 1px 0 rgba(4, 10, 34, 0.86),
-    0 0 2px rgba(255, 243, 214, 0.08);
-}
-
-.legend-panel__tick-label--top {
-  transform: none;
-}
-
-.legend-panel__tick-label--bottom {
-  transform: none;
+    0 0 2px rgba(4, 10, 34, 0.96),
+    0 1px 1px rgba(4, 10, 34, 0.9),
+    1px 0 1px rgba(4, 10, 34, 0.76),
+    -1px 0 1px rgba(4, 10, 34, 0.76);
 }
 
 .legend-panel__cloud-layers-frame {
@@ -987,9 +932,11 @@
   }
 
   .legend-panel {
-    --wm-legend-scale-height: 220px;
-    --wm-legend-ticks-height: 231px;
-    width: 78px;
+    width: 72px;
+  }
+
+  .legend-panel--cloud-layers {
+    width: 100px;
   }
 }
 
@@ -1084,10 +1031,8 @@
   }
 
   .legend-panel {
-    --wm-legend-scale-height: 168px;
-    --wm-legend-ticks-height: 175px;
-    width: 72px;
-    padding: 6px 4px;
+    width: 66px;
+    padding: 5px;
     border-radius: 5px;
     box-shadow:
       inset 0 0 0 1px rgba(8, 12, 37, 0.82),
@@ -1095,69 +1040,38 @@
       inset 0 0 0 1px rgba(255, 246, 222, 0.12);
   }
 
+  .legend-panel--cloud-layers {
+    width: 96px;
+  }
+
   .legend-panel__body {
     gap: 3px;
   }
 
   .legend-panel__unit-pill {
-    width: 58px;
-    height: 18px;
-    padding-inline: 5px;
+    width: 48px;
+    min-width: 0;
+    height: 20px;
+    padding-inline: 4px;
     font-size: 12px;
   }
 
   .legend-panel__scale-frame {
-    padding: 5px 3px 3px 4px;
-  }
-
-  .legend-panel__scale-wrap {
-    grid-template-columns: 12px minmax(0, 1fr);
-    gap: 4px;
+    padding: 2px;
   }
 
   .legend-panel__scale {
-    width: 12px;
-  }
-
-  .legend-panel__ticks {
-    margin-top: -4px;
-    margin-right: -3px;
-    margin-bottom: -3px;
-  }
-
-  .legend-panel__annotations {
-    top: 4px;
-    right: 3px;
-    bottom: 3px;
-    left: 2px;
-  }
-
-  .legend-panel__tick {
-    grid-template-columns: 6px minmax(0, 1fr);
-  }
-
-  .legend-panel__tick-mark {
-    width: 6px;
-  }
-
-  .legend-panel__tick-mark--minor {
-    width: 3px;
+    width: 48px;
+    height: 168px;
   }
 
   .legend-panel__tick-label {
-    font-size: 14.5px;
+    font-size: 12px;
   }
 }
 
 @media (max-width: 360px) {
   .forecast-controls__select {
     font-size: 19px;
-  }
-}
-
-@media (max-width: 760px) and (max-height: 760px) {
-  .legend-panel {
-    --wm-legend-scale-height: 144px;
-    --wm-legend-ticks-height: 151px;
   }
 }

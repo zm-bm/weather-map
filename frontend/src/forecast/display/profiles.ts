@@ -167,7 +167,7 @@ const PRECIP_RATE_UNITS: UnitDisplay<GradientUnitOption> = {
     scale: 1 / 25.4,
     valueFormat: 'fixed-2',
     legendValueFormat: 'precip-rate',
-    legendLabels: [0, 0.03, 0.1, 0.3, 0.7, 1],
+    legendLabels: [0, 0.03, 0.1, 0.3, 0.7, { value: 1, label: '1.0' }],
   },
   {
     id: 'mm_per_hour',
