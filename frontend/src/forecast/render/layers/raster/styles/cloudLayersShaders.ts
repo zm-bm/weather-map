@@ -18,6 +18,7 @@ uniform float u_dx;
 uniform float u_dy;
 uniform float u_scale;
 uniform float u_offset;
+uniform float u_opacity;
 uniform float u_zoom;
 uniform vec3 u_low_cloud_color;
 uniform vec3 u_middle_cloud_color;
@@ -164,7 +165,7 @@ vec4 windyGrayscaleCloud(vec3 decks, float coverage, float reliefShade, float te
 void main() {
   float nx = u_grid_size.x;
   float ny = u_grid_size.y;
-  if (nx < 2.0 || ny < 2.0) {
+  if (nx < 2.0 || ny < 2.0 || u_opacity <= 0.0) {
     outColor = vec4(0.0);
     return;
   }
@@ -189,6 +190,6 @@ void main() {
     return;
   }
 
-  outColor = cloud;
+  outColor = vec4(cloud.rgb, cloud.a * u_opacity);
 }
 `

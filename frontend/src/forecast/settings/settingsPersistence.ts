@@ -5,9 +5,23 @@ import {
 import type { UnitSystem } from '@/forecast/display/units'
 import {
   DEFAULT_FORECAST_SETTINGS,
+  PARTICLE_COUNT_MAX,
+  PARTICLE_COUNT_MIN,
+  PARTICLE_FLOW_SPEED_SCALE_MAX,
+  PARTICLE_FLOW_SPEED_SCALE_MIN,
+  PARTICLE_SIZE_RATIO_MAX,
+  PARTICLE_SIZE_RATIO_MIN,
+  PARTICLE_TRAIL_FADE_MAX,
+  PARTICLE_TRAIL_FADE_MIN,
+  PARTICLE_TRAIL_OPACITY_MAX,
+  PARTICLE_TRAIL_OPACITY_MIN,
   RASTER_COLOR_SAMPLING_MODES,
+  RASTER_OPACITY_MAX,
+  RASTER_OPACITY_MIN,
   type ForecastSettings,
+  type ParticleSizeSettings,
   type RasterColorSamplingMode,
+  particleSizeSettingsForRatio,
 } from './settings'
 
 export const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
@@ -15,9 +29,16 @@ export const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
 type PersistedForecastSettings = {
   raster: {
     colorSamplingMode: RasterColorSamplingMode
+    opacity: number
   }
   particles: {
     enabled: boolean
+    particleCount: number
+    flowSpeedScale: number
+    dotMinPx: number
+    dotMaxPx: number
+    trailCompositeOpacity: number
+    trailFade: number
   }
   pressureContours: {
     enabled: boolean
@@ -65,9 +86,16 @@ function toStoredForecastSettings(settings: ForecastSettings): PersistedForecast
   return {
     raster: {
       colorSamplingMode: settings.raster.colorSamplingMode,
+      opacity: settings.raster.opacity,
     },
     particles: {
       enabled: settings.particles.enabled,
+      particleCount: settings.particles.particleCount,
+      flowSpeedScale: settings.particles.flowSpeedScale,
+      dotMinPx: settings.particles.dotMinPx,
+      dotMaxPx: settings.particles.dotMaxPx,
+      trailCompositeOpacity: settings.particles.trailCompositeOpacity,
+      trailFade: settings.particles.trailFade,
     },
     pressureContours: {
       enabled: settings.pressureContours.enabled,
@@ -100,10 +128,16 @@ function validateStoredForecastSettings(value: unknown): StoredForecastSettings 
 
 function validRasterSettings(value: unknown): StoredForecastSettings['raster'] | null {
   if (!isRecord(value)) return null
-  if (!isRasterColorSamplingMode(value.colorSamplingMode)) return null
-  return {
-    colorSamplingMode: value.colorSamplingMode,
+
+  const raster: NonNullable<StoredForecastSettings['raster']> = {}
+  if (isRasterColorSamplingMode(value.colorSamplingMode)) {
+    raster.colorSamplingMode = value.colorSamplingMode
   }
+  if (isNumberInRange(value.opacity, RASTER_OPACITY_MIN, RASTER_OPACITY_MAX)) {
+    raster.opacity = value.opacity
+  }
+
+  return Object.keys(raster).length > 0 ? raster : null
 }
 
 function validParticleSettings(value: unknown): StoredForecastSettings['particles'] | null {
@@ -111,8 +145,40 @@ function validParticleSettings(value: unknown): StoredForecastSettings['particle
 
   const particles: NonNullable<StoredForecastSettings['particles']> = {}
   if (typeof value.enabled === 'boolean') particles.enabled = value.enabled
+  if (isIntegerInRange(value.particleCount, PARTICLE_COUNT_MIN, PARTICLE_COUNT_MAX)) {
+    particles.particleCount = value.particleCount
+  }
+  if (isNumberInRange(value.flowSpeedScale, PARTICLE_FLOW_SPEED_SCALE_MIN, PARTICLE_FLOW_SPEED_SCALE_MAX)) {
+    particles.flowSpeedScale = value.flowSpeedScale
+  }
+  const size = validParticleSizeSettings(value)
+  if (size) {
+    particles.dotMinPx = size.dotMinPx
+    particles.dotMaxPx = size.dotMaxPx
+  }
+  if (isNumberInRange(value.trailCompositeOpacity, PARTICLE_TRAIL_OPACITY_MIN, PARTICLE_TRAIL_OPACITY_MAX)) {
+    particles.trailCompositeOpacity = value.trailCompositeOpacity
+  }
+  if (isNumberInRange(value.trailFade, PARTICLE_TRAIL_FADE_MIN, PARTICLE_TRAIL_FADE_MAX)) {
+    particles.trailFade = value.trailFade
+  }
 
   return Object.keys(particles).length > 0 ? particles : null
+}
+
+function validParticleSizeSettings(value: Record<string, unknown>): ParticleSizeSettings | null {
+  const minSize = particleSizeSettingsForRatio(PARTICLE_SIZE_RATIO_MIN)
+  const maxSize = particleSizeSettingsForRatio(PARTICLE_SIZE_RATIO_MAX)
+  const { dotMinPx, dotMaxPx } = value
+  if (!isNumberInRange(dotMinPx, minSize.dotMinPx, maxSize.dotMinPx)) return null
+  if (!isNumberInRange(dotMaxPx, minSize.dotMaxPx, maxSize.dotMaxPx)) return null
+  if (dotMinPx >= dotMaxPx) return null
+
+  const dotMinRatio = dotMinPx / DEFAULT_FORECAST_SETTINGS.particles.dotMinPx
+  const dotMaxRatio = dotMaxPx / DEFAULT_FORECAST_SETTINGS.particles.dotMaxPx
+  if (Math.abs(dotMinRatio - dotMaxRatio) > 0.000001) return null
+
+  return particleSizeSettingsForRatio(dotMinRatio)
 }
 
 function validPressureContourSettings(value: unknown): StoredForecastSettings['pressureContours'] | null {
@@ -137,6 +203,14 @@ function isRasterColorSamplingMode(value: unknown): value is RasterColorSampling
 
 function isUnitSystem(value: unknown): value is UnitSystem {
   return value === 'imperial' || value === 'metric'
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+}
+
+function isNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

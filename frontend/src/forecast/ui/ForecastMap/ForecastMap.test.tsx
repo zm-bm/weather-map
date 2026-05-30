@@ -289,12 +289,12 @@ describe('ForecastMap', () => {
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
       renderSettings: expect.objectContaining({
-        raster: { colorSamplingMode: 'banded' },
+        raster: expect.objectContaining({ colorSamplingMode: 'banded' }),
       }),
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       settings: expect.objectContaining({
-        raster: { colorSamplingMode: 'banded' },
+        raster: expect.objectContaining({ colorSamplingMode: 'banded' }),
       }),
     }))
   })

@@ -59,6 +59,7 @@ describe('MapControlRail', () => {
         settings={{
           ...DEFAULT_FORECAST_SETTINGS,
           raster: {
+            ...DEFAULT_FORECAST_SETTINGS.raster,
             colorSamplingMode: 'interpolated',
           },
           pressureContours: {

@@ -4,12 +4,42 @@ export const RASTER_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
 
 export type RasterColorSamplingMode = typeof RASTER_COLOR_SAMPLING_MODES[number]
 
+export const RASTER_OPACITY_MIN = 0.35
+export const RASTER_OPACITY_MAX = 1
+export const RASTER_OPACITY_STEP = 0.05
+
+export const PARTICLE_COUNT_MIN = 3000
+export const PARTICLE_COUNT_MAX = 18000
+export const PARTICLE_COUNT_STEP = 1000
+
+export const PARTICLE_FLOW_SPEED_SCALE_MIN = 3200
+export const PARTICLE_FLOW_SPEED_SCALE_MAX = 9600
+export const PARTICLE_FLOW_SPEED_RATIO_MIN = 0.5
+export const PARTICLE_FLOW_SPEED_RATIO_MAX = 1.5
+export const PARTICLE_FLOW_SPEED_RATIO_STEP = 0.1
+
+export const PARTICLE_SIZE_RATIO_MIN = 0.75
+export const PARTICLE_SIZE_RATIO_MAX = 1.5
+export const PARTICLE_SIZE_RATIO_STEP = 0.05
+
+export const PARTICLE_TRAIL_OPACITY_MIN = 0.1
+export const PARTICLE_TRAIL_OPACITY_MAX = 0.6
+export const PARTICLE_TRAIL_OPACITY_STEP = 0.05
+
+export const PARTICLE_TRAIL_LENGTH_MIN = 1
+export const PARTICLE_TRAIL_LENGTH_MAX = 10
+export const PARTICLE_TRAIL_LENGTH_STEP = 1
+export const PARTICLE_TRAIL_FADE_MIN = 0.94
+export const PARTICLE_TRAIL_FADE_MAX = 0.992
+
 export type RasterRenderSettings = {
   colorSamplingMode: RasterColorSamplingMode
+  opacity: number
 }
 
 export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
   colorSamplingMode: 'interpolated',
+  opacity: 0.9,
 }
 
 export type ParticleColor = readonly [number, number, number, number]
@@ -107,6 +137,44 @@ export const DEFAULT_PARTICLE_RENDER_SETTINGS: Readonly<ParticleRenderSettings> 
   clearTrailsOnViewChange: true,
 }
 
+export type ParticleSizeSettings = Pick<ParticleRenderSettings, 'dotMinPx' | 'dotMaxPx'>
+
+export function particleSizeSettingsForRatio(ratio: number): ParticleSizeSettings {
+  const clampedRatio = clampNumber(ratio, PARTICLE_SIZE_RATIO_MIN, PARTICLE_SIZE_RATIO_MAX)
+  return {
+    dotMinPx: roundParticleSetting(DEFAULT_PARTICLE_RENDER_SETTINGS.dotMinPx * clampedRatio),
+    dotMaxPx: roundParticleSetting(DEFAULT_PARTICLE_RENDER_SETTINGS.dotMaxPx * clampedRatio),
+  }
+}
+
+export function particleSizeRatioForSettings(settings: ParticleSizeSettings): number {
+  return roundParticleSetting(
+    clampNumber(
+      settings.dotMinPx / DEFAULT_PARTICLE_RENDER_SETTINGS.dotMinPx,
+      PARTICLE_SIZE_RATIO_MIN,
+      PARTICLE_SIZE_RATIO_MAX,
+    )
+  )
+}
+
+export function particleTrailFadeFromLength(value: number): number {
+  const clampedValue = clampNumber(value, PARTICLE_TRAIL_LENGTH_MIN, PARTICLE_TRAIL_LENGTH_MAX)
+  const range = PARTICLE_TRAIL_LENGTH_MAX - PARTICLE_TRAIL_LENGTH_MIN
+  const progress = range <= 0 ? 0 : (clampedValue - PARTICLE_TRAIL_LENGTH_MIN) / range
+  return roundParticleSetting(
+    PARTICLE_TRAIL_FADE_MIN + progress * (PARTICLE_TRAIL_FADE_MAX - PARTICLE_TRAIL_FADE_MIN)
+  )
+}
+
+export function particleTrailLengthFromFade(value: number): number {
+  const clampedValue = clampNumber(value, PARTICLE_TRAIL_FADE_MIN, PARTICLE_TRAIL_FADE_MAX)
+  const range = PARTICLE_TRAIL_FADE_MAX - PARTICLE_TRAIL_FADE_MIN
+  const progress = range <= 0 ? 0 : (clampedValue - PARTICLE_TRAIL_FADE_MIN) / range
+  return Math.round(
+    PARTICLE_TRAIL_LENGTH_MIN + progress * (PARTICLE_TRAIL_LENGTH_MAX - PARTICLE_TRAIL_LENGTH_MIN)
+  )
+}
+
 export type ForecastRenderSettings = {
   raster: RasterRenderSettings
   particles: ParticleRenderSettings
@@ -159,3 +227,12 @@ export const DEFAULT_FORECAST_SETTINGS = {
     system: 'imperial',
   },
 } as const satisfies ForecastSettings
+
+function roundParticleSetting(value: number): number {
+  return Number(value.toFixed(6))
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, value))
+}

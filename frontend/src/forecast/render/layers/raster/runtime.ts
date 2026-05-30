@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
+import { clamp } from '@/core/math'
 import { worldSizeAtZoom, worldWrapForLng } from '@/core/geo'
 import type {
   RasterWindow,
@@ -50,7 +51,6 @@ import {
   type ColormapRasterRenderSpec,
 } from './styles/colormapSource'
 
-const RASTER_ACTIVE_OPACITY = 1.0
 const COLORMAP_LUT_SIZE = 256
 const BANDED_COLORMAP_LUT_SIZE = 2048
 
@@ -68,6 +68,7 @@ export type RasterController = MapFrameController<RasterWindow | null> & {
 type RasterState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
+  enabled: boolean
   opacity: number
   colorSamplingMode: RasterColorSamplingMode
   colormapProgramInfo: ProgramInfo | null
@@ -125,7 +126,8 @@ export function createRasterRuntime(
     ...initialSettings,
   }
   const state: RasterState = {
-    opacity: RASTER_ACTIVE_OPACITY,
+    enabled: true,
+    opacity: sanitizeOpacity(settings.opacity),
     colorSamplingMode: settings.colorSamplingMode,
     colormapProgramInfo: null,
     cloudLayersProgramInfo: null,
@@ -183,13 +185,19 @@ export function createRasterRuntime(
       state.map?.triggerRepaint()
     },
     setEnabled: (enabled) => {
-      state.opacity = enabled ? RASTER_ACTIVE_OPACITY : 0
+      state.enabled = enabled
       state.map?.triggerRepaint()
     },
     applySettings: (nextSettings) => {
-      if (settings.colorSamplingMode === nextSettings.colorSamplingMode) return
+      const nextOpacity = sanitizeOpacity(nextSettings.opacity)
+      if (
+        settings.colorSamplingMode === nextSettings.colorSamplingMode &&
+        settings.opacity === nextOpacity
+      ) return
       settings.colorSamplingMode = nextSettings.colorSamplingMode
+      settings.opacity = nextOpacity
       state.colorSamplingMode = nextSettings.colorSamplingMode
+      state.opacity = nextOpacity
       state.map?.triggerRepaint()
     },
   }
@@ -223,7 +231,7 @@ export function createRasterRuntime(
 
     render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
-      if (!gl2 || !state.map || !state.quad || state.opacity <= 0) return
+      if (!gl2 || !state.map || !state.quad || !state.enabled || state.opacity <= 0) return
       const { framePair, activeStyleId } = state
       if (!framePair || !activeStyleId) return
 
@@ -244,6 +252,7 @@ export function createRasterRuntime(
 
       state.map = undefined
       state.gl = undefined
+      state.enabled = true
       state.framePair = null
       state.activeStyleId = null
       state.colormapProgramInfo = null
@@ -356,6 +365,7 @@ function renderCloudLayersRaster(
       u_matrix: matrix,
       u_scale: encoding.scale,
       u_offset: encoding.offset,
+      u_opacity: state.opacity,
       u_world_size: worldSize,
       u_zoom: zoom,
       ...cloudLayerColorUniforms(framePair.lowerFrame),
@@ -399,6 +409,10 @@ function rasterStyleForFrame(frame: RasterFrame): RasterStyle {
 
 function rasterStyleById(id: RasterStyleId | null): RasterStyle | null {
   return RASTER_STYLES.find((entry) => entry.id === id) ?? null
+}
+
+function sanitizeOpacity(value: number): number {
+  return clamp(Number.isFinite(value) ? value : DEFAULT_RASTER_RENDER_SETTINGS.opacity, 0, 1)
 }
 
 function createColormapTexture(

@@ -5,9 +5,14 @@ import type { ReactNode } from 'react'
 import {
   DEFAULT_FORECAST_SETTINGS,
   ForecastSettingsProvider,
+  particleSizeSettingsForRatio,
+  particleTrailFadeFromLength,
   useForecastSettings,
 } from './index'
 import { FORECAST_SETTINGS_STORAGE_KEY } from './settingsPersistence'
+
+const PARTICLE_SIZE = particleSizeSettingsForRatio(1.25)
+const TRAIL_FADE = particleTrailFadeFromLength(5)
 
 function wrapper({ children }: { children: ReactNode }) {
   return (
@@ -32,15 +37,29 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     act(() => {
-      result.current.actions.updateRaster({ colorSamplingMode: 'banded' })
-      result.current.actions.updateParticles({ enabled: false })
+      result.current.actions.updateRaster({ colorSamplingMode: 'banded', opacity: 0.7 })
+      result.current.actions.updateParticles({
+        enabled: false,
+        particleCount: 12000,
+        flowSpeedScale: 8000,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      })
       result.current.actions.updatePressureContours({ enabled: true })
       result.current.actions.updateUnits({ system: 'metric' })
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      raster: expect.objectContaining({ colorSamplingMode: 'banded' }),
-      particles: expect.objectContaining({ enabled: false }),
+      raster: expect.objectContaining({ colorSamplingMode: 'banded', opacity: 0.7 }),
+      particles: expect.objectContaining({
+        enabled: false,
+        particleCount: 12000,
+        flowSpeedScale: 8000,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      }),
       pressureContours: { enabled: true },
       units: { system: 'metric' },
     }))
@@ -64,8 +83,15 @@ describe('ForecastSettingsProvider', () => {
 
   it('loads valid stored UI preferences', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'banded' },
-      particles: { enabled: false },
+      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      particles: {
+        enabled: false,
+        particleCount: 11000,
+        flowSpeedScale: 7200,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      },
       pressureContours: { enabled: true },
       units: { system: 'metric' },
     })
@@ -73,8 +99,15 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      raster: { colorSamplingMode: 'banded' },
-      particles: expect.objectContaining({ enabled: false }),
+      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      particles: expect.objectContaining({
+        enabled: false,
+        particleCount: 11000,
+        flowSpeedScale: 7200,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      }),
       pressureContours: { enabled: true },
       units: { system: 'metric' },
     }))
@@ -82,8 +115,16 @@ describe('ForecastSettingsProvider', () => {
 
   it('falls back to defaults for invalid stored settings', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'invalid' },
-      particles: { enabled: 'false' },
+      raster: { colorSamplingMode: 'invalid', opacity: 2 },
+      particles: {
+        enabled: 'false',
+        particleCount: 1,
+        flowSpeedScale: 12000,
+        dotMinPx: 100,
+        dotMaxPx: -1,
+        trailCompositeOpacity: 2,
+        trailFade: 0.5,
+      },
       pressureContours: { enabled: 'true' },
       units: { system: 'kelvin' },
     })
@@ -97,8 +138,15 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     act(() => {
-      result.current.actions.updateRaster({ colorSamplingMode: 'banded' })
-      result.current.actions.updateParticles({ enabled: false })
+      result.current.actions.updateRaster({ colorSamplingMode: 'banded', opacity: 0.75 })
+      result.current.actions.updateParticles({
+        enabled: false,
+        particleCount: 15000,
+        flowSpeedScale: 8800,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      })
       result.current.actions.updatePressureContours({ enabled: true })
       result.current.actions.updateUnits({ system: 'metric' })
     })
@@ -107,9 +155,15 @@ describe('ForecastSettingsProvider', () => {
       expect(JSON.parse(localStorage.getItem(FORECAST_SETTINGS_STORAGE_KEY) ?? '')).toEqual({
         raster: {
           colorSamplingMode: 'banded',
+          opacity: 0.75,
         },
         particles: {
           enabled: false,
+          particleCount: 15000,
+          flowSpeedScale: 8800,
+          ...PARTICLE_SIZE,
+          trailCompositeOpacity: 0.45,
+          trailFade: TRAIL_FADE,
         },
         pressureContours: {
           enabled: true,
