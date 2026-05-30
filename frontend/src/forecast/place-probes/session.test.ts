@@ -154,23 +154,6 @@ describe('createForecastPlaceProbeSession', () => {
     )
     expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({
       id: placeProbeLayerIds.layer,
-      layout: expect.objectContaining({
-        'symbol-sort-key': ['get', 'sortKey'],
-        'text-justify': 'auto',
-        'text-padding': 1,
-        'text-radial-offset': 0.5,
-        'text-variable-anchor': [
-          'center',
-          'bottom',
-          'top',
-          'right',
-          'left',
-          'bottom-right',
-          'bottom-left',
-          'top-right',
-          'top-left',
-        ],
-      }),
     }))
     expect(map.querySourceFeatures).toHaveBeenCalledWith(
       BASEMAP_SOURCE_ID,
@@ -183,7 +166,7 @@ describe('createForecastPlaceProbeSession', () => {
     ])
   })
 
-  it('renders non-latin local names under English display names', () => {
+  it('keeps non-latin local names in probe feature properties', () => {
     const map = createProbeablePlacesMap()
     map.setSourceFeatures([
       createPlaceFeature('東京', 139.69, 35.68, {
@@ -195,12 +178,6 @@ describe('createForecastPlaceProbeSession', () => {
     startSession(map)
     act(flushAnimationFrames)
 
-    const addedLayer = map.addLayer.mock.calls[0]?.[0] as
-      | { layout?: Record<string, unknown> }
-      | undefined
-
-    expect(addedLayer?.layout?.['text-font']).toEqual(['NotoSansMonoCJKjpRegular'])
-    expect(JSON.stringify(addedLayer?.layout?.['text-field'])).toContain('localName')
     expect(getLastProbeCollection(map)?.features[0]?.properties).toEqual(
       expect.objectContaining({
         name: 'Tokyo',

@@ -57,8 +57,8 @@ export const placeProbeLayerIds = {
 
 const PLACE_LABEL_FONT_STACK = 'NotoSansMonoCJKjpRegular'
 const PLACE_PROBE_FORMAT = {
-  'font-scale': 1.15,
-  'text-color':'#e9cf3a',
+  'font-scale': 1.08,
+  'text-color': '#e9cf3a',
 }
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
@@ -88,7 +88,7 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
     ],
     'text-font': [PLACE_LABEL_FONT_STACK],
     'text-justify': 'auto',
-    'text-letter-spacing': 0.01,
+    'text-letter-spacing': 0,
     'text-line-height': 1.05,
     'text-max-width': 10,
     'text-overlap': 'never',
@@ -117,20 +117,20 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       'rgba(255, 255, 255, 1)',
-      'rgba(244, 247, 255, 0.96)',
+      'rgba(241, 246, 250, 0.98)',
     ],
-    'text-halo-blur': 0.7,
+    'text-halo-blur': 0.12,
     'text-halo-color': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
-      'rgba(16, 24, 44, 1)',
-      'rgba(27, 35, 60, 0.96)',
+      'rgba(5, 8, 15, 0.96)',
+      'rgba(16, 22, 34, 0.78)',
     ],
     'text-halo-width': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
-      2.35,
-      1.75,
+      1.55,
+      1.15,
     ],
   },
 }
