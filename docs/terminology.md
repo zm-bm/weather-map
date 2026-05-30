@@ -17,8 +17,8 @@ forecast time concepts, render layers, and MapLibre implementation details.
 - `layer source`: a catalog raster recipe describing how a raster layer obtains data.
   A source names one backing artifact and one or more output bands. Direct
   scalar layers use `value`, wind-speed layers use ordered `u/v` bands, and
-  cloud layers use ordered `low/middle/high` bands. Base layer bands also carry
-  palette ids.
+  cloud layers use ordered `low/middle/high` bands. Source bands describe data
+  loading only; display colors live in display profiles.
 - `particle layer`: a user-facing animated particle visualization choice,
   separate from raster-rendered layers. The current particle layer is wind
   particles.
@@ -28,12 +28,14 @@ forecast time concepts, render layers, and MapLibre implementation details.
   overlay renderer; pressure contours use the separate `contour` render layer.
 - `forecast catalog`: the frontend-owned list of `rasterLayerGroups`,
   `rasterLayers`, overlay layers, contour layers, particle layers, grouped
-  display metadata, palettes, and source recipes. The first id in a group's
+  display-profile references, and source recipes. The first id in a group's
   `rasterLayerIds` list is the group default. The catalog package owns JSON
-  schema validation and normalized catalog entries; active-run/palette-enriched
-  display info is built outside the catalog package.
-- `palette` / `colortable`: a catalog-owned display mapping from scalar
-  magnitude to color.
+  schema validation and normalized catalog entries.
+- `display profile`: frontend display metadata referenced by raster layers.
+  A display profile owns the label, display range, unit options, legend labels,
+  and palette colors for one or more layers.
+- `palette` / `colortable`: a display-owned mapping from scalar magnitude to
+  color.
 
 ## Time Terms
 
@@ -85,10 +87,10 @@ forecast time concepts, render layers, and MapLibre implementation details.
   selection, time selection, active-run availability, and render feature
   options.
 - `source descriptor`: a frontend descriptor that adapts selected catalog state
-  into artifact ids, display metadata, raster band ids, and raster band palettes
-  needed by window plans and render/probe consumers. Catalog sources use
-  `{ artifactId, bands }`; selected `ForecastLayerSource` adds layer context,
-  display range, and resolved overlay entries.
+  into artifact ids, raster band ids, display profile data, and resolved
+  overlays needed by window plans and render/probe consumers. Catalog sources
+  use `{ artifactId, bands }`; selected `ForecastLayerSource` adds layer
+  context, resolved display data, and resolved overlay entries.
 - `window plan`: a sync-resolved forecast-window plan that names the output
   window id, request/cache identity, raster frame entries, band ids, and
   required/optional failure policy.

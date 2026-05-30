@@ -43,21 +43,21 @@ describe('forecast catalog source helpers', () => {
   it('derives raster band semantics from direct source bands', () => {
     const valueSource = {
       artifactId: 'tmp_surface',
-      bands: [{ id: 'value', paletteId: 'temperature.air.c.v1' }],
+      bands: [{ id: 'value' }],
     } satisfies RasterSource
     const wind = {
       artifactId: 'wind10m_uv',
       bands: [
-        { id: 'u', paletteId: 'wind.gust.mps.v1' },
-        { id: 'v', paletteId: 'wind.gust.mps.v1' },
+        { id: 'u' },
+        { id: 'v' },
       ],
     } satisfies RasterSource
     const cloud = {
       artifactId: 'cloud_layers',
       bands: [
-        { id: 'low', paletteId: 'cloud.layers.low.v1' },
-        { id: 'middle', paletteId: 'cloud.layers.middle.v1' },
-        { id: 'high', paletteId: 'cloud.layers.high.v1' },
+        { id: 'low' },
+        { id: 'middle' },
+        { id: 'high' },
       ],
     } satisfies RasterSource
 

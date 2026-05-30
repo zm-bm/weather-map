@@ -1,27 +1,10 @@
 import { z } from 'zod'
 import type { ReadonlyNonEmptyArray } from '@/core/types'
+import type { ForecastDisplayProfile } from '@/forecast/display'
 
 const idSchema = z.string().trim().min(1)
-const finiteNumberSchema = z.number().finite()
-
-export const displayRangeSchema = z.object({
-  min: finiteNumberSchema,
-  max: finiteNumberSchema,
-}).superRefine((range, ctx) => {
-  if (range.max > range.min) return
-  ctx.addIssue({
-    code: 'custom',
-    path: ['max'],
-    message: 'display range max must be greater than min',
-  })
-})
 
 export const rasterBandSchema = z.object({
-  id: idSchema,
-  paletteId: idSchema,
-}).strict()
-
-export const sourceBandSchema = z.object({
   id: idSchema,
 }).strict()
 
@@ -29,6 +12,8 @@ export const rasterSourceSchema = z.object({
   artifactId: idSchema,
   bands: z.array(rasterBandSchema).nonempty(),
 }).strict()
+
+export const sourceBandSchema = rasterBandSchema
 
 export const loadSourceSchema = z.object({
   artifactId: idSchema,
@@ -45,7 +30,6 @@ export const overlaySourceSchema = z.object({
 export const contourSourceSchema = loadSourceSchema
 export const particleSourceSchema = loadSourceSchema
 
-export type DisplayRange = z.infer<typeof displayRangeSchema>
 export type RasterSource = z.infer<typeof rasterSourceSchema>
 export type LoadSource = z.infer<typeof loadSourceSchema>
 export type OverlaySource = z.infer<typeof overlaySourceSchema>
@@ -54,7 +38,7 @@ export type ParticleSource = { id: string; source: LoadSource }
 
 export type ForecastLayerSource = RasterSource & {
   layerId: string
-  displayRange: DisplayRange
+  display: ForecastDisplayProfile
   overlays: readonly OverlaySource[]
 }
 

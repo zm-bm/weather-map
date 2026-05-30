@@ -79,8 +79,8 @@ describe('resolveForecastSyncPlan', () => {
             layerId: 'wind_speed',
             artifactId: 'wind10m_uv',
             bands: [
-              { id: 'u', paletteId: 'wind.gust.mps.v1' },
-              { id: 'v', paletteId: 'wind.gust.mps.v1' },
+              { id: 'u' },
+              { id: 'v' },
             ],
             overlays: [],
           }),
@@ -161,9 +161,9 @@ describe('resolveForecastSyncPlan', () => {
             layerId: 'cloud_layers',
             artifactId: 'cloud_layers',
             bands: [
-              { id: 'low', paletteId: 'cloud.layers.low.v1' },
-              { id: 'middle', paletteId: 'cloud.layers.middle.v1' },
-              { id: 'high', paletteId: 'cloud.layers.high.v1' },
+              { id: 'low' },
+              { id: 'middle' },
+              { id: 'high' },
             ],
             overlays: [],
           }),

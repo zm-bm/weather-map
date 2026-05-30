@@ -10,6 +10,7 @@ import {
   createForecastSelectionContextValue,
   createManifestFixture,
 } from '@/test/fixtures'
+import { getDisplayProfile } from '@/forecast/display'
 import type { ForecastRenderHost } from '@/forecast/render'
 import type { ForecastSyncPlan } from './plan'
 import type { InitialSyncController } from './request/initialSync'
@@ -109,9 +110,9 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
         source: {
           layerId: 'temperature',
           artifactId: 'tmp_surface',
-          displayRange: { min: -40, max: 50 },
+          display: getDisplayProfile('temperature'),
           overlays: [],
-          bands: [{ id: 'value', paletteId: 'temperature.air.c.v1' }],
+          bands: [{ id: 'value' }],
         },
         artifactId: 'tmp_surface',
         bandIds: ['value'],

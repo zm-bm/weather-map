@@ -19,8 +19,9 @@ Related docs:
    layers. It is not yet the canonical artifact or layer registry.
 2. Existing facts in this document should match `config/forecast_catalog.json`
    and `config/pipeline/base.json`.
-3. Display range means renderer color clamp and default legend range. It does
-   not automatically mean the artifact cannot preserve a small useful overrange.
+3. Display range means renderer color clamp. Legend labels are configured
+   separately in the forecast catalog, and display range does not automatically
+   mean the artifact cannot preserve a small useful overrange.
 4. Probe labels should report decoded physical values. Rendering should clamp
    colors below the display minimum and above the display maximum.
 5. ETL should clamp finite extreme values to each layer's agreed encoded range.
@@ -93,7 +94,7 @@ Applies to `temperature` and `apparent_temperature`.
 | Domain thresholds | `0 C` freezing; display min and max |
 | Nodata policy | Expected-complete with sentinel retained |
 | Invalid values | Non-finite values become nodata |
-| Render behavior | Clamp colors to `-35..50 C`; probe labels show decoded `C` converted by unit behavior |
+| Render behavior | Clamp colors to `-35..50 C`; probe labels show decoded `C` converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -119,7 +120,7 @@ Applies to `dew_point`.
 | Domain thresholds | `-20 C`, `-10 C`, `10 C`, `16 C`, `18 C`, `21 C`, `24 C`, `27 C` |
 | Nodata policy | Sentinel retained; expected mostly complete |
 | Invalid values | Non-finite values become nodata |
-| Render behavior | Clamp colors to `-60..40 C`; probe labels show decoded `C` converted by unit behavior |
+| Render behavior | Clamp colors to `-60..40 C`; probe labels show decoded `C` converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -169,7 +170,7 @@ Applies to `wind_speed` and `wind_gust`.
 | Domain thresholds | `5 m/s`, `10 m/s`, `15 m/s`, `17 m/s`, `25 m/s`, `33 m/s`, `50 m/s`, `60 m/s` |
 | Nodata policy | `wind10m_uv` is expected-complete with no nodata sentinel; `wind_gust` keeps sentinel support |
 | Invalid values | If either `wind10m_uv` component is non-finite for a cell, encode both `u` and `v` as `0 m/s`; non-finite gust values become nodata |
-| Render behavior | Clamp speed colors to `0..60 m/s`; probe labels show decoded speed converted by unit behavior |
+| Render behavior | Clamp speed colors to `0..60 m/s`; probe labels show decoded speed converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted; ongoing audits should verify the expected-complete `wind10m_uv` assumption |
 
@@ -216,7 +217,7 @@ Applies to `precipitation_rate`.
 | Domain thresholds | `0.15`, `0.3`, `0.75`, `1.5`, `3`, `7.5`, `12`, `25`, `30 mm/hr` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values become nodata; negative finite rates clamp to zero |
-| Render behavior | Clamp colors to `0..30 mm/hr`; probe labels show decoded rate converted by unit behavior |
+| Render behavior | Clamp colors to `0..30 mm/hr`; probe labels show decoded rate converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted; current `38.1 mm/hr` max is close enough to the about-`40 mm/hr` overrange target |
 
@@ -240,7 +241,7 @@ Applies to `accumulated_precipitation`.
 | Domain thresholds | `1`, `5`, `10`, `25`, `50`, `100`, `150`, `250 mm` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values become nodata; negative finite totals clamp to zero |
-| Render behavior | Clamp colors to `0..254 mm`; probe labels show decoded total converted by unit behavior |
+| Render behavior | Clamp colors to `0..254 mm`; probe labels show decoded total converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -263,7 +264,7 @@ Applies to `snow_depth`.
 | Domain thresholds | `0.02`, `0.05`, `0.1`, `0.2`, `0.5`, `1`, `2`, `3 m` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values and source nodata become artifact nodata before finite clamp; negative finite depths clamp to zero |
-| Render behavior | Clamp colors to `0..3 m`; probe labels show decoded depth converted by unit behavior |
+| Render behavior | Clamp colors to `0..3 m`; probe labels show decoded depth converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -286,7 +287,7 @@ Applies to `visibility`.
 | Domain thresholds | `500`, `1000`, `1600`, `5000`, `10000`, `20000 m` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values become nodata; negative finite visibility clamps to zero |
-| Render behavior | Clamp colors to `0..50000 m`; probe labels show decoded visibility converted by unit behavior |
+| Render behavior | Clamp colors to `0..50000 m`; probe labels show decoded visibility converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -304,7 +305,7 @@ Applies to `freezing_level`.
 | Domain thresholds | `500`, `1000`, `1500`, `2500`, `3500`, `5000`, `6500 m` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values become nodata; negative finite heights clamp to zero |
-| Render behavior | Clamp colors to `0..8000 m`; probe labels show decoded height converted by unit behavior |
+| Render behavior | Clamp colors to `0..8000 m`; probe labels show decoded height converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 
@@ -322,7 +323,7 @@ Applies to `precipitable_water`.
 | Domain thresholds | `10`, `20`, `30`, `40`, `50`, `65 mm` |
 | Nodata policy | Sentinel retained |
 | Invalid values | Non-finite values become nodata; negative finite water depth clamps to zero |
-| Render behavior | Clamp colors to `0..80 mm`; probe labels show decoded water depth converted by unit behavior |
+| Render behavior | Clamp colors to `0..80 mm`; probe labels show decoded water depth converted by the display profile's unit settings |
 | Sampling | Global setting defaulted to banded |
 | Status | Draft accepted for encoding audit |
 

@@ -1,9 +1,13 @@
 import type {
   ContourSource,
-  DisplayRange,
   ForecastLayerSource,
   ParticleSource,
 } from '@/forecast/catalog/source'
+import {
+  getDisplayProfile,
+  type DisplayProfileId,
+  type ForecastDisplayProfile,
+} from '@/forecast/display'
 
 type OverlaySource = ForecastLayerSource['overlays'][number]
 
@@ -39,37 +43,37 @@ export function createOverlaySourceFixture(
 
 export function createRasterLayerSourceFixture(args: {
   layerId?: string
-  paletteId?: string
-  displayRange?: DisplayRange
   artifactId?: string
   bands?: ForecastLayerSource['bands']
+  display?: ForecastDisplayProfile
+  displayProfile?: DisplayProfileId
   overlays?: readonly OverlaySource[]
 } = {}): ForecastLayerSource {
-  const paletteId = args.paletteId ?? 'temperature.air.c.v1'
+  const layerId = args.layerId ?? 'temperature'
   return {
-    layerId: args.layerId ?? 'temperature',
+    layerId,
     artifactId: args.artifactId ?? 'tmp_surface',
-    displayRange: args.displayRange ?? { min: -35, max: 50 },
+    display: args.display ?? getDisplayProfile(args.displayProfile ?? displayProfileForLayerId(layerId)),
     overlays: args.overlays ?? [],
-    bands: args.bands ?? [{ id: 'value', paletteId }],
+    bands: args.bands ?? [{ id: 'value' }],
   }
 }
 
 export function createCloudLayersRasterSourceFixture(args: {
   layerId?: string
-  displayRange?: DisplayRange
   artifactId?: string
+  display?: ForecastDisplayProfile
   overlays?: readonly OverlaySource[]
 } = {}): ForecastLayerSource {
   return {
     layerId: args.layerId ?? 'cloud_layers',
     artifactId: args.artifactId ?? 'cloud_layers',
-    displayRange: args.displayRange ?? { min: 0, max: 100 },
+    display: args.display ?? getDisplayProfile('cloud-layers'),
     overlays: args.overlays ?? [],
     bands: [
-      { id: 'low', paletteId: 'cloud.layers.low.v1' },
-      { id: 'middle', paletteId: 'cloud.layers.middle.v1' },
-      { id: 'high', paletteId: 'cloud.layers.high.v1' },
+      { id: 'low' },
+      { id: 'middle' },
+      { id: 'high' },
     ],
   }
 }
@@ -86,4 +90,14 @@ export function createParticleSourceFixture(
     },
     ...sourceOverrides,
   }
+}
+
+function displayProfileForLayerId(layerId: string): DisplayProfileId {
+  if (layerId === 'relative_humidity') return 'relative-humidity'
+  if (layerId === 'wind_speed') return 'wind-speed'
+  if (layerId === 'wind_gust') return 'wind-gust'
+  if (layerId === 'cloud_layers') return 'cloud-layers'
+  if (layerId === 'snow_depth') return 'snow-depth'
+  if (layerId === 'precipitation_rate') return 'precipitation-rate'
+  return 'temperature'
 }

@@ -1,62 +1,58 @@
 import {
   getLegendTicks,
   toLegendContinuousGradient,
-  toLegendSteppedGradient,
-  type LegendScale,
-} from '@/forecast/legend'
+} from '@/forecast/display/legend'
 import type {
-  PaletteColorStop,
   SampledPaletteColor,
-} from '@/forecast/palette'
-import type { RasterColorSamplingMode } from '@/forecast/settings'
-import type { UnitBehavior, UnitOption } from '@/forecast/units'
+} from '@/forecast/display/palette'
+import type { ForecastDisplayProfile } from '@/forecast/display'
+import {
+  canToggleUnitSystem,
+  getUnitOptionForSystem,
+  type UnitSystem,
+} from '@/forecast/display/units'
 
 export type LegendRasterBandDisplay = {
   id: string
-  paletteId: string
   color: SampledPaletteColor
 }
 
 export type LegendPanelDisplay = {
   id: string
   label: string
-  units: string
-  parameter: string
-  min: number
-  max: number
-  paletteId: string
-  unitBehavior: UnitBehavior
-  legendScale: LegendScale
-  stops: readonly PaletteColorStop[]
+  profile: ForecastDisplayProfile
   rasterBands: readonly LegendRasterBandDisplay[]
 }
 
 type LegendPanelViewProps = {
   display: LegendPanelDisplay
-  selectedOption: UnitOption
-  colorSamplingMode: RasterColorSamplingMode
-  canCycleUnits: boolean
+  unitSystem: UnitSystem
   onCycleUnits: () => void
 }
 
 export function LegendPanelView({
   display,
-  selectedOption,
-  colorSamplingMode,
-  canCycleUnits,
+  unitSystem,
   onCycleUnits,
 }: LegendPanelViewProps) {
+  const selectedOption = getUnitOptionForSystem(display.profile.units, unitSystem)
+  const canCycleUnits = canToggleUnitSystem(display.profile.units)
   const unitPillClassName = [
     'legend-panel__unit-pill',
-    selectedOption.casing === 'literal' ? 'legend-panel__unit-pill--literal' : '',
     canCycleUnits ? 'legend-panel__unit-pill--interactive' : '',
     !canCycleUnits ? 'legend-panel__unit-pill--static' : '',
   ].filter(Boolean).join(' ')
-  const legendTicks = getLegendTicks(display, selectedOption)
-  const legendScaleGradient = colorSamplingMode === 'interpolated'
-    ? toLegendContinuousGradient(display, 'to top')
-    : toLegendSteppedGradient(display, 'to top')
-  const isCloudLayersLegend = hasRasterBands(display.rasterBands, ['low', 'middle', 'high'])
+  let legendTicks: ReturnType<typeof getLegendTicks> = []
+  let legendGradient: string | undefined
+  if (display.profile.kind === 'gradient') {
+    const gradientOption = getUnitOptionForSystem(display.profile.units, unitSystem)
+    legendTicks = getLegendTicks(gradientOption)
+    legendGradient = toLegendContinuousGradient(
+      display.profile.palette.stops,
+      gradientOption,
+      'to top'
+    )
+  }
 
   return (
     <section className="legend-panel" aria-label={`${display.label} legend`}>
@@ -65,25 +61,25 @@ export function LegendPanelView({
           <button
             type="button"
             className={unitPillClassName}
-            aria-label={`Cycle ${display.label} units. Current units ${selectedOption.units}.`}
+            aria-label={`Cycle ${display.label} units. Current units ${selectedOption.label}.`}
             onClick={onCycleUnits}
           >
-            <span className="legend-panel__unit-current">{selectedOption.buttonLabel}</span>
+            <span className="legend-panel__unit-current">{selectedOption.label}</span>
           </button>
         ) : (
-          <span className={unitPillClassName} aria-label={`${display.label} units ${selectedOption.units}.`}>
-            <span className="legend-panel__unit-current">{selectedOption.buttonLabel}</span>
+          <span className={unitPillClassName} aria-label={`${display.label} units ${selectedOption.label}.`}>
+            <span className="legend-panel__unit-current">{selectedOption.label}</span>
           </span>
         )}
 
-        {isCloudLayersLegend ? (
+        {display.profile.kind === 'cloud-layers' ? (
           <CloudLayersLegend bands={display.rasterBands} />
         ) : (
           <div className="legend-panel__scale-frame">
             <div className="legend-panel__scale-wrap">
               <div
                 className="legend-panel__scale"
-                style={{ backgroundImage: legendScaleGradient }}
+                style={{ backgroundImage: legendGradient }}
               />
               <div className="legend-panel__ticks">
                 <div className="legend-panel__annotations">
@@ -94,19 +90,17 @@ export function LegendPanelView({
                       style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
                     >
                       <span
-                        className={`legend-panel__tick-mark${tick.variant === 'minor' ? ' legend-panel__tick-mark--minor' : ''}`}
+                        className="legend-panel__tick-mark"
                       />
-                      {tick.label != null && (
-                        <span
-                          className={[
-                            'legend-panel__tick-label',
-                            tick.positionPct >= 99.9 ? 'legend-panel__tick-label--top' : '',
-                            tick.positionPct <= 0.1 ? 'legend-panel__tick-label--bottom' : '',
-                          ].filter(Boolean).join(' ')}
-                        >
-                          {tick.label}
-                        </span>
-                      )}
+                      <span
+                        className={[
+                          'legend-panel__tick-label',
+                          tick.positionPct >= 99.9 ? 'legend-panel__tick-label--top' : '',
+                          tick.positionPct <= 0.1 ? 'legend-panel__tick-label--bottom' : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {tick.label}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -152,14 +146,6 @@ function CloudLayersLegend({ bands }: { bands: LegendPanelDisplay['rasterBands']
       </div>
     </div>
   )
-}
-
-function hasRasterBands(
-  bands: LegendPanelDisplay['rasterBands'],
-  expectedBandIds: readonly string[],
-): boolean {
-  if (bands.length !== expectedBandIds.length) return false
-  return bands.every((band, index) => band.id === expectedBandIds[index])
 }
 
 function cloudSwatchBackground(color: LegendPanelDisplay['rasterBands'][number]['color'] | undefined): string | undefined {

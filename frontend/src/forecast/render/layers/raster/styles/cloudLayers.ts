@@ -4,9 +4,8 @@ import {
 } from '@/forecast/catalog/source'
 import type { RasterWindow } from '@/forecast/frames'
 import {
-  getRasterPalette,
   samplePaletteColor,
-} from '@/forecast/palette'
+} from '@/forecast/display/palette'
 import {
   encodedRasterFrameSpec,
   type EncodedGridFrameSpec,
@@ -52,11 +51,18 @@ function cloudBandColor(
   frame: RasterFrame,
   bandId: 'low' | 'middle' | 'high'
 ): [number, number, number] {
+  if (frame.source.display.kind !== 'cloud-layers') {
+    throw new Error(`Cloud layers received ${frame.source.display.kind} display profile`)
+  }
   const band = frame.source.bands.find((entry) => entry.id === bandId)
   if (!band) {
     throw new Error(`Cloud layers missing ${bandId} band palette`)
   }
-  const color = samplePaletteColor(getRasterPalette(band.paletteId).stops, 100, 'interpolated')
+  const palette = frame.source.display.bandPalettes[band.id]
+  if (!palette) {
+    throw new Error(`Cloud layers missing ${band.id} band palette`)
+  }
+  const color = samplePaletteColor(palette.stops, 100, 'interpolated')
   return [color[0] / 255, color[1] / 255, color[2] / 255]
 }
 

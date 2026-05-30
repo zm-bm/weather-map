@@ -11,10 +11,6 @@ export type PaletteColorStop = {
 
 export type RasterPaletteDefinition = {
   readonly id: string
-  readonly label: string
-  readonly valueUnit: string
-  readonly outOfRange: 'clamp'
-  readonly boundaryMode: 'lower-bound-inclusive'
   readonly stops: readonly PaletteColorStop[]
 }
 
@@ -28,16 +24,12 @@ const colorSchema = z.union([
 const colorStopSchema = z.object({
   value: z.number().finite(),
   color: colorSchema,
-})
+}).strict()
 
 const rasterPaletteDefinitionSchema = z.object({
   id: idSchema,
-  label: idSchema,
-  valueUnit: idSchema,
-  outOfRange: z.literal('clamp'),
-  boundaryMode: z.literal('lower-bound-inclusive'),
   stops: z.array(colorStopSchema).nonempty(),
-}).superRefine((palette, ctx) => {
+}).strict().superRefine((palette, ctx) => {
   let previousValue = Number.NEGATIVE_INFINITY
   for (const [index, stop] of palette.stops.entries()) {
     if (stop.value > previousValue) {

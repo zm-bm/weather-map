@@ -60,415 +60,248 @@
     {
       "id": "temperature",
       "groupId": "temperature",
-      "display": {
-        "label": "Temperature",
-        "range": {
-          "min": -35,
-          "max": 50
-        },
-        "unitBehavior": "temperature",
-        "legendScale": "temperature"
-      },
       "source": {
         "artifactId": "tmp_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "temperature.air.c.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "temperature"
     },
     {
       "id": "apparent_temperature",
       "groupId": "temperature",
-      "display": {
-        "label": "Apparent Temperature",
-        "range": {
-          "min": -35,
-          "max": 50
-        },
-        "unitBehavior": "temperature",
-        "legendScale": "temperature"
-      },
       "source": {
         "artifactId": "aptmp_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "temperature.air.c.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "apparent-temperature"
     },
     {
       "id": "dew_point",
       "groupId": "humidity",
-      "display": {
-        "label": "Dew Point",
-        "range": {
-          "min": -60,
-          "max": 40
-        },
-        "unitBehavior": "temperature",
-        "legendScale": "temperature"
-      },
       "source": {
         "artifactId": "dewpoint_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "temperature.dewpoint.c.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "dew-point"
     },
     {
       "id": "relative_humidity",
       "groupId": "humidity",
-      "display": {
-        "label": "Relative Humidity",
-        "range": {
-          "min": 0,
-          "max": 100
-        },
-        "unitBehavior": "percent",
-        "legendScale": "percent"
-      },
       "source": {
         "artifactId": "rh_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "moisture.relative_humidity.percent.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "relative-humidity"
     },
     {
       "id": "wind_speed",
       "groupId": "wind_pressure",
-      "display": {
-        "label": "Wind Speed",
-        "range": {
-          "min": 0,
-          "max": 60
-        },
-        "unitBehavior": "wind-speed",
-        "legendScale": "stop-based",
-        "parameter": "wind_speed"
-      },
       "source": {
         "artifactId": "wind10m_uv",
         "bands": [
           {
-            "id": "u",
-            "paletteId": "wind.gust.mps.v1"
+            "id": "u"
           },
           {
-            "id": "v",
-            "paletteId": "wind.gust.mps.v1"
+            "id": "v"
           }
         ]
-      }
+      },
+      "displayProfile": "wind-speed"
     },
     {
       "id": "wind_gust",
       "groupId": "wind_pressure",
-      "display": {
-        "label": "Wind Gust",
-        "range": {
-          "min": 0,
-          "max": 60
-        },
-        "unitBehavior": "wind-speed",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "gust_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "wind.gust.mps.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "wind-gust"
     },
     {
       "id": "air_pressure",
       "groupId": "wind_pressure",
-      "display": {
-        "label": "Air Pressure",
-        "range": {
-          "min": 98000,
-          "max": 103600
-        },
-        "unitBehavior": "pressure",
-        "legendScale": "pressure"
-      },
       "source": {
         "artifactId": "prmsl_msl",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "pressure.msl.pa.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "air-pressure"
     },
     {
       "id": "precipitation_rate",
       "groupId": "precipitation",
-      "display": {
-        "label": "Precipitation Rate",
-        "range": {
-          "min": 0,
-          "max": 30
-        },
-        "unitBehavior": "precip-rate",
-        "legendScale": "precip-rate"
-      },
       "source": {
         "artifactId": "prate_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "precip.rate.mm_hr.v1"
+            "id": "value"
           }
         ]
       },
       "overlays": [
         "precipitation_type"
-      ]
+      ],
+      "displayProfile": "precipitation-rate"
     },
     {
       "id": "accumulated_precipitation",
       "groupId": "precipitation",
-      "display": {
-        "label": "Run-Total Precipitation",
-        "range": {
-          "min": 0,
-          "max": 254
-        },
-        "unitBehavior": "precip-total",
-        "legendScale": "precip-total"
-      },
       "source": {
         "artifactId": "precip_total_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "precip.total.mm.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "accumulated-precipitation"
     },
     {
       "id": "snow_depth",
       "groupId": "precipitation",
-      "display": {
-        "label": "Snow Depth",
-        "range": {
-          "min": 0,
-          "max": 3
-        },
-        "unitBehavior": "snow-depth",
-        "legendScale": "snow-depth"
-      },
       "source": {
         "artifactId": "snow_depth_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "snow.depth.m.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "snow-depth"
     },
     {
       "id": "cloud_layers",
       "groupId": "clouds_visibility",
-      "display": {
-        "label": "Cloud Layers",
-        "range": {
-          "min": 0,
-          "max": 100
-        },
-        "unitBehavior": "percent",
-        "legendScale": "percent",
-        "parameter": "cloud_layers"
-      },
       "source": {
         "artifactId": "cloud_layers",
         "bands": [
           {
-            "id": "low",
-            "paletteId": "cloud.layers.low.v1"
+            "id": "low"
           },
           {
-            "id": "middle",
-            "paletteId": "cloud.layers.middle.v1"
+            "id": "middle"
           },
           {
-            "id": "high",
-            "paletteId": "cloud.layers.high.v1"
+            "id": "high"
           }
         ]
-      }
+      },
+      "displayProfile": "cloud-layers"
     },
     {
       "id": "cloud_cover",
       "groupId": "clouds_visibility",
-      "display": {
-        "label": "Total/Sky Cover",
-        "range": {
-          "min": 0,
-          "max": 100
-        },
-        "unitBehavior": "percent",
-        "legendScale": "percent"
-      },
       "source": {
         "artifactId": "tcdc",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "cloud.cover.percent.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "cloud-cover"
     },
     {
       "id": "visibility",
       "groupId": "clouds_visibility",
-      "display": {
-        "label": "Visibility",
-        "range": {
-          "min": 0,
-          "max": 50000
-        },
-        "unitBehavior": "visibility",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "visibility_surface",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "atmosphere.visibility.m.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "visibility"
     },
     {
       "id": "freezing_level",
       "groupId": "precipitation",
-      "display": {
-        "label": "Freezing Level",
-        "range": {
-          "min": 0,
-          "max": 8000
-        },
-        "unitBehavior": "height",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "freezing_level",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "atmosphere.freezing_level.m.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "freezing-level"
     },
     {
       "id": "precipitable_water",
       "groupId": "precipitation",
-      "display": {
-        "label": "Precipitable Water",
-        "range": {
-          "min": 0,
-          "max": 80
-        },
-        "unitBehavior": "water-depth",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "precipitable_water",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "atmosphere.precipitable_water.mm.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "precipitable-water"
     },
     {
       "id": "composite_reflectivity",
       "groupId": "radar_storms",
-      "display": {
-        "label": "Simulated Radar",
-        "range": {
-          "min": 0,
-          "max": 75
-        },
-        "unitBehavior": "reflectivity",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "refc_entire_atmosphere",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "radar.reflectivity.dbz.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "composite-reflectivity"
     },
     {
       "id": "cape",
       "groupId": "radar_storms",
-      "display": {
-        "label": "CAPE Index",
-        "range": {
-          "min": 0,
-          "max": 5000
-        },
-        "unitBehavior": "energy-per-mass",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "cape_index",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "severe.cape.jkg.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "cape"
     },
     {
       "id": "cin",
       "groupId": "radar_storms",
-      "display": {
-        "label": "CIN",
-        "range": {
-          "min": 0,
-          "max": 500
-        },
-        "unitBehavior": "energy-per-mass",
-        "legendScale": "stop-based"
-      },
       "source": {
         "artifactId": "cin_index",
         "bands": [
           {
-            "id": "value",
-            "paletteId": "severe.cin.jkg.v1"
+            "id": "value"
           }
         ]
-      }
+      },
+      "displayProfile": "cin"
     }
   ],
   "overlayLayers": [

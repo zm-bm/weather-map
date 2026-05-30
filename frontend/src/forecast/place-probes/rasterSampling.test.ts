@@ -41,7 +41,7 @@ function createUnknownBandFrame(): ProbeWindow['lower'] {
     source: createRasterLayerSourceFixture({
       layerId: 'unknown',
       artifactId: 'unknown_artifact',
-      bands: [{ id: 'unknown', paletteId: 'temperature.air.c.v1' }],
+      bands: [{ id: 'unknown' }],
     }),
     raster: {
       ...baseFrame.raster,

@@ -1,44 +1,76 @@
 import { describe, expect, it } from 'vitest'
 
-import { RASTER_PALETTES, getRasterPalette, samplePaletteColor } from './index'
+import {
+  AIR_TEMPERATURE_PALETTE,
+  CAPE_PALETTE,
+  CIN_PALETTE,
+  CLOUD_COMPOSITE_PALETTE,
+  CLOUD_COVER_PALETTE,
+  CLOUD_HIGH_PALETTE,
+  CLOUD_LOW_PALETTE,
+  CLOUD_MIDDLE_PALETTE,
+  DEW_POINT_PALETTE,
+  FREEZING_LEVEL_PALETTE,
+  PRECIPITABLE_WATER_PALETTE,
+  PRECIP_RATE_PALETTE,
+  PRECIP_TOTAL_PALETTE,
+  PRESSURE_PALETTE,
+  REFLECTIVITY_PALETTE,
+  RELATIVE_HUMIDITY_PALETTE,
+  SNOW_DEPTH_PALETTE,
+  VISIBILITY_PALETTE,
+  WIND_SPEED_PALETTE,
+  samplePaletteColor,
+} from './index'
 import { parseForecastPalettes } from './schema'
 
 const VALID_PALETTE = {
   id: 'test.palette.v1',
-  label: 'Test Palette',
-  valueUnit: 'unit',
-  outOfRange: 'clamp',
-  boundaryMode: 'lower-bound-inclusive',
   stops: [
     { value: 0, color: [1, 2, 3] },
     { value: 1, color: [4, 5, 6, 128] },
   ],
 }
 
+const BUILT_IN_PALETTE_FIXTURES = [
+  AIR_TEMPERATURE_PALETTE,
+  RELATIVE_HUMIDITY_PALETTE,
+  WIND_SPEED_PALETTE,
+  DEW_POINT_PALETTE,
+  CLOUD_COVER_PALETTE,
+  CLOUD_LOW_PALETTE,
+  CLOUD_MIDDLE_PALETTE,
+  CLOUD_HIGH_PALETTE,
+  CLOUD_COMPOSITE_PALETTE,
+  PRESSURE_PALETTE,
+  PRECIP_RATE_PALETTE,
+  PRECIP_TOTAL_PALETTE,
+  SNOW_DEPTH_PALETTE,
+  VISIBILITY_PALETTE,
+  FREEZING_LEVEL_PALETTE,
+  PRECIPITABLE_WATER_PALETTE,
+  CAPE_PALETTE,
+  CIN_PALETTE,
+  REFLECTIVITY_PALETTE,
+]
+
 describe('forecast palettes', () => {
   it('validates and resolves known built-in raster palettes', () => {
-    expect(RASTER_PALETTES.length).toBeGreaterThan(0)
-    expect(getRasterPalette('temperature.air.c.v1').stops.length).toBeGreaterThan(0)
-    expect(getRasterPalette('pressure.msl.pa.v1').stops[0]).toEqual({
+    expect(parseForecastPalettes(BUILT_IN_PALETTE_FIXTURES).length).toBeGreaterThan(0)
+    expect(AIR_TEMPERATURE_PALETTE.stops.length).toBeGreaterThan(0)
+    expect(PRESSURE_PALETTE.stops[0]).toEqual({
       value: 98000,
       color: [70, 155, 225],
     })
   })
 
   it('uses one humidity color ramp with layer-specific stop values', () => {
-    const relativeHumidity = getRasterPalette('moisture.relative_humidity.percent.v1')
-    const dewPoint = getRasterPalette('temperature.dewpoint.c.v1')
-
-    expect(relativeHumidity.stops.map((stop) => stop.color))
-      .toEqual(dewPoint.stops.map((stop) => stop.color))
-    expect(relativeHumidity.stops.map((stop) => stop.value))
+    expect(RELATIVE_HUMIDITY_PALETTE.stops.map((stop) => stop.color))
+      .toEqual(DEW_POINT_PALETTE.stops.map((stop) => stop.color))
+    expect(RELATIVE_HUMIDITY_PALETTE.stops.map((stop) => stop.value))
       .toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
-    expect(dewPoint.stops.map((stop) => stop.value))
+    expect(DEW_POINT_PALETTE.stops.map((stop) => stop.value))
       .toEqual([-30, -22, -15, -8, 0, 8, 12, 16, 20, 24, 30])
-  })
-
-  it('rejects unknown palette ids', () => {
-    expect(() => getRasterPalette('missing.palette.v1')).toThrow('Unknown raster paletteId: missing.palette.v1')
   })
 
   it('rejects invalid palette contracts', () => {
@@ -82,11 +114,7 @@ describe('forecast palettes', () => {
     ])).toThrow()
 
     expect(() => parseForecastPalettes([
-      { ...VALID_PALETTE, outOfRange: 'extend' },
-    ])).toThrow()
-
-    expect(() => parseForecastPalettes([
-      { ...VALID_PALETTE, boundaryMode: 'nearest' },
+      { ...VALID_PALETTE, outOfRange: 'clamp' },
     ])).toThrow()
   })
 

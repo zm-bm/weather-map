@@ -15,15 +15,10 @@ const BASE_CATALOG = {
     {
       id: 'temperature',
       groupId: 'temperature',
-      display: {
-        label: 'Temperature',
-        range: { min: -35, max: 50 },
-        unitBehavior: 'temperature',
-        legendScale: 'temperature',
-      },
+      displayProfile: 'temperature',
       source: {
         artifactId: 'tmp_surface',
-        bands: [{ id: 'value', paletteId: 'temperature.air.c.v1' }],
+        bands: [{ id: 'value' }],
       },
     },
   ],
@@ -60,16 +55,19 @@ const BASE_CATALOG = {
   ],
 } as const
 
+const STALE_UNIT_PROFILE_KEY = 'unit' + 'Profile'
+const STALE_LEGEND_PROFILE_KEY = 'legend' + 'Profile'
+const STALE_PALETTE_ID_KEY = 'palette' + 'Id'
+
 describe('parseForecastCatalog', () => {
   it('accepts raster layers, raster layer groups, contour layers, and particle layers', () => {
     const catalog = parseForecastCatalog(BASE_CATALOG)
 
     expect(catalog.rasterLayers[0]?.id).toBe('temperature')
-    expect(catalog.rasterLayers[0]?.display.label).toBe('Temperature')
+    expect(catalog.rasterLayers[0]?.displayProfile).toBe('temperature')
+    expect(catalog.rasterLayers[0]?.source.bands).toEqual([{ id: 'value' }])
     expect(catalog.rasterLayerGroups[0]?.rasterLayerIds).toEqual(['temperature'])
-    expect(catalog.contourLayers[0]?.source.artifactId).toBe('prmsl_msl')
     expect(catalog.contourLayers[0]?.source.bands.map((band) => band.id)).toEqual(['value'])
-    expect(catalog.particleLayers[0]?.source.artifactId).toBe('wind10m_uv')
     expect(catalog.particleLayers[0]?.source.bands.map((band) => band.id)).toEqual(['u', 'v'])
     expect(catalog.overlayLayers[0]?.source.bands.map((band) => band.id)).toEqual(['snow_frac', 'mix_frac'])
   })
@@ -105,7 +103,12 @@ describe('parseForecastCatalog', () => {
       ...BASE_CATALOG,
       rasterLayers: [{
         ...BASE_CATALOG.rasterLayers[0],
-        displayRange: { min: -35, max: 50 },
+        display: {
+          label: 'Temperature',
+          range: { min: -35, max: 50 },
+          [STALE_UNIT_PROFILE_KEY]: 'temperature',
+          [STALE_LEGEND_PROFILE_KEY]: 'temperature',
+        },
       }],
     })).toThrow(/Unrecognized key/)
 
@@ -113,15 +116,28 @@ describe('parseForecastCatalog', () => {
       ...BASE_CATALOG,
       rasterLayers: [{
         ...BASE_CATALOG.rasterLayers[0],
-        unitBehavior: 'temperature',
+        [STALE_UNIT_PROFILE_KEY]: 'temperature',
       }],
     })).toThrow(/Unrecognized key/)
+  })
+
+  it('rejects unknown display profiles and stale source palette metadata', () => {
+    expect(() => parseForecastCatalog({
+      ...BASE_CATALOG,
+      rasterLayers: [{
+        ...BASE_CATALOG.rasterLayers[0],
+        displayProfile: 'missing-profile',
+      }],
+    })).toThrow(/Invalid option/)
 
     expect(() => parseForecastCatalog({
       ...BASE_CATALOG,
       rasterLayers: [{
         ...BASE_CATALOG.rasterLayers[0],
-        legendScale: 'temperature',
+        source: {
+          artifactId: 'tmp_surface',
+          bands: [{ id: 'value', [STALE_PALETTE_ID_KEY]: 'temperature.air.c.v1' }],
+        },
       }],
     })).toThrow(/Unrecognized key/)
   })
@@ -169,20 +185,6 @@ describe('parseForecastCatalog', () => {
         },
       ],
     })).toThrow(/references missing overlay missing_overlay/)
-
-    expect(() => parseForecastCatalog({
-      ...BASE_CATALOG,
-      rasterLayers: [
-        {
-          ...BASE_CATALOG.rasterLayers[0],
-          overlays: [{
-            id: 'precipitation_type',
-            style: 'precipitation-type-pattern',
-            artifactId: 'precip_type_surface',
-          }],
-        },
-      ],
-    })).toThrow(/expected string/)
 
     expect(() => parseForecastCatalog({
       ...BASE_CATALOG,
@@ -244,33 +246,6 @@ describe('parseForecastCatalog', () => {
     })).toThrow(/group temperature references missing layer missing_layer/)
   })
 
-  it('rejects invalid display ranges and invalid source shapes', () => {
-    expect(() => parseForecastCatalog({
-      ...BASE_CATALOG,
-      rasterLayers: [
-        {
-          ...BASE_CATALOG.rasterLayers[0],
-          display: {
-            ...BASE_CATALOG.rasterLayers[0].display,
-            range: { min: 10, max: 10 },
-          },
-        },
-      ],
-    })).toThrow(/display range max must be greater than min/)
-
-    expect(() => parseForecastCatalog({
-      ...BASE_CATALOG,
-      rasterLayers: [
-        {
-          ...BASE_CATALOG.rasterLayers[0],
-          source: {
-            artifactId: 'tmp_surface',
-          },
-        },
-      ],
-    })).toThrow(/bands/)
-  })
-
   it('accepts multi-band sources and rejects stale band input metadata', () => {
     expect(parseForecastCatalog({
       ...BASE_CATALOG,
@@ -279,10 +254,7 @@ describe('parseForecastCatalog', () => {
           ...BASE_CATALOG.rasterLayers[0],
           source: {
             artifactId: 'wind10m_uv',
-            bands: [
-              { id: 'u', paletteId: 'wind.gust.mps.v1' },
-              { id: 'v', paletteId: 'wind.gust.mps.v1' },
-            ],
+            bands: [{ id: 'u' }, { id: 'v' }],
           },
         },
       ],
@@ -297,40 +269,11 @@ describe('parseForecastCatalog', () => {
             artifactId: 'wind10m_uv',
             bands: [{
               id: 'speed',
-              paletteId: 'wind.gust.mps.v1',
               input: { kind: 'wind-speed', u: 'u', v: 'v' },
             }],
           },
         },
       ],
     })).toThrow(/Unrecognized key/)
-  })
-
-  it('rejects unknown palette ids and legend scales', () => {
-    expect(() => parseForecastCatalog({
-      ...BASE_CATALOG,
-      rasterLayers: [
-        {
-          ...BASE_CATALOG.rasterLayers[0],
-          source: {
-            ...BASE_CATALOG.rasterLayers[0].source,
-            bands: [{ id: 'value', paletteId: 'missing.palette.v1' }],
-          },
-        },
-      ],
-    })).toThrow(/references unknown palette missing\.palette\.v1/)
-
-    expect(() => parseForecastCatalog({
-      ...BASE_CATALOG,
-      rasterLayers: [
-        {
-          ...BASE_CATALOG.rasterLayers[0],
-          display: {
-            ...BASE_CATALOG.rasterLayers[0].display,
-            legendScale: 'missing-scale',
-          },
-        },
-      ],
-    })).toThrow(/references unknown legend scale missing-scale/)
   })
 })

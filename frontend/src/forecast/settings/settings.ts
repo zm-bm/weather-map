@@ -1,4 +1,4 @@
-import type { UnitSystem } from '@/forecast/units'
+import type { UnitSystem } from '@/forecast/display/units'
 
 export const RASTER_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
 

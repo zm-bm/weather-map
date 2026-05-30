@@ -320,7 +320,7 @@ function renderColormapRaster(
     uniforms: {
       ...encodedFramePairUniforms(framePair),
       u_colormap_tex: colormapTexture,
-      u_display_range: displayRangeUniform(framePair.lowerFrame.source.displayRange),
+      u_display_range: displayRangeUniform(framePair.lowerFrame.source.display.range),
       u_source_mode: colormapRenderSpec.mode,
       ...encodedLinearUniforms(colormapRenderSpec),
       u_matrix: matrix,
@@ -330,7 +330,7 @@ function renderColormapRaster(
   })
 }
 
-function displayRangeUniform(displayRange: RasterFrame['source']['displayRange']): [number, number] {
+function displayRangeUniform(displayRange: RasterFrame['source']['display']['range']): [number, number] {
   return [displayRange.min, displayRange.max]
 }
 

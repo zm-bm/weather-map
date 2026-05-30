@@ -72,29 +72,22 @@ const DEW_POINT_C_VALUES = [-30, -22, -15, -8, 0, 8, 12, 16, 20, 24, 30] as cons
 
 function palette(
   id: string,
-  label: string,
-  valueUnit: string,
   stops: readonly PaletteColorStop[],
 ): RasterPaletteDefinition {
   return {
     id,
-    label,
-    valueUnit,
-    outOfRange: 'clamp',
-    boundaryMode: 'lower-bound-inclusive',
     stops,
   }
 }
 
-export const BUILT_IN_RASTER_PALETTES = [
-  palette('temperature.air.c.v1', 'Air Temperature', 'C', TEMPERATURE_COLOR_STOPS),
-  palette(
-    'moisture.relative_humidity.percent.v1',
-    'Relative Humidity',
-    '%',
-    stopsFromRamp(RELATIVE_HUMIDITY_PERCENT_VALUES, HUMIDITY_COLOR_RAMP),
-  ),
-  palette('wind.gust.mps.v1', 'Wind Speed', 'm/s', [
+export const AIR_TEMPERATURE_PALETTE = palette('temperature.air.c.v1', TEMPERATURE_COLOR_STOPS)
+
+export const RELATIVE_HUMIDITY_PALETTE = palette(
+  'moisture.relative_humidity.percent.v1',
+  stopsFromRamp(RELATIVE_HUMIDITY_PERCENT_VALUES, HUMIDITY_COLOR_RAMP),
+)
+
+export const WIND_SPEED_PALETTE = palette('wind.gust.mps.v1', [
     stop(0, [200, 210, 215]),
     stop(4, [148, 199, 213]),
     stop(8, [96, 185, 185]),
@@ -106,14 +99,14 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(35, [220, 74, 64]),
     stop(45, [174, 49, 105]),
     stop(60, [110, 42, 150]),
-  ]),
-  palette(
-    'temperature.dewpoint.c.v1',
-    'Dew Point',
-    'C',
-    stopsFromRamp(DEW_POINT_C_VALUES, HUMIDITY_COLOR_RAMP),
-  ),
-  palette('cloud.cover.percent.v1', 'Cloud Cover', '%', [
+])
+
+export const DEW_POINT_PALETTE = palette(
+  'temperature.dewpoint.c.v1',
+  stopsFromRamp(DEW_POINT_C_VALUES, HUMIDITY_COLOR_RAMP),
+)
+
+export const CLOUD_COVER_PALETTE = palette('cloud.cover.percent.v1', [
     stop(0, [180, 180, 180]),
     stop(5, [170, 185, 200]),
     stop(10, [150, 185, 210]),
@@ -127,20 +120,24 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(80, [70, 145, 190]),
     stop(90, [65, 135, 180]),
     stop(100, [60, 120, 170]),
-  ]),
-  palette('cloud.layers.low.v1', 'Low Cloud Layer', '%', [
+])
+
+export const CLOUD_LOW_PALETTE = palette('cloud.layers.low.v1', [
     stop(0, [96, 104, 112, 0]),
     stop(100, [96, 104, 112]),
-  ]),
-  palette('cloud.layers.middle.v1', 'Middle Cloud Layer', '%', [
+])
+
+export const CLOUD_MIDDLE_PALETTE = palette('cloud.layers.middle.v1', [
     stop(0, [166, 172, 178, 0]),
     stop(100, [166, 172, 178]),
-  ]),
-  palette('cloud.layers.high.v1', 'High Cloud Layer', '%', [
+])
+
+export const CLOUD_HIGH_PALETTE = palette('cloud.layers.high.v1', [
     stop(0, [236, 244, 252, 0]),
     stop(100, [236, 244, 252]),
-  ]),
-  palette('cloud.layers.composite.v1', 'Cloud Layers Composite', '%', [
+])
+
+export const CLOUD_COMPOSITE_PALETTE = palette('cloud.layers.composite.v1', [
     stop(0, [180, 180, 180]),
     stop(10, [116, 126, 138]),
     stop(30, [138, 146, 154]),
@@ -148,8 +145,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(70, [192, 198, 204]),
     stop(90, [218, 226, 236]),
     stop(100, [236, 244, 252]),
-  ]),
-  palette('pressure.msl.pa.v1', 'Mean Sea Level Pressure', 'Pa', [
+])
+
+export const PRESSURE_PALETTE = palette('pressure.msl.pa.v1', [
     stop(98000, [70, 155, 225]),
     stop(98400, [82, 182, 230]),
     stop(98800, [98, 205, 228]),
@@ -165,8 +163,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(102800, [218, 128, 82]),
     stop(103200, [202, 103, 71]),
     stop(103600, [180, 78, 62]),
-  ]),
-  palette('precip.rate.mm_hr.v1', 'Precipitation Rate', 'mm/hr', [
+])
+
+export const PRECIP_RATE_PALETTE = palette('precip.rate.mm_hr.v1', [
     stop(0, [180, 180, 180]),
     stop(0.15, [200, 210, 240]),
     stop(0.3, [160, 190, 255]),
@@ -181,8 +180,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(21, [255, 120, 60]),
     stop(25, [255, 70, 70]),
     stop(30, [180, 40, 140]),
-  ]),
-  palette('precip.total.mm.v1', 'Run-Total Precipitation', 'mm', [
+])
+
+export const PRECIP_TOTAL_PALETTE = palette('precip.total.mm.v1', [
     stop(0, [180, 180, 180]),
     stop(1, [200, 210, 240]),
     stop(2, [160, 190, 255]),
@@ -193,8 +193,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(100, [255, 180, 60]),
     stop(150, [255, 100, 60]),
     stop(250, [180, 40, 140]),
-  ]),
-  palette('snow.depth.m.v1', 'Snow Depth', 'm', [
+])
+
+export const SNOW_DEPTH_PALETTE = palette('snow.depth.m.v1', [
     stop(0, [56, 68, 124, 0]),
     stop(0.011811023622047244, [56, 68, 124]),
     stop(0.02, [68, 84, 150]),
@@ -205,8 +206,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(1, [172, 92, 122]),
     stop(2, [154, 66, 126]),
     stop(3, [166, 58, 112]),
-  ]),
-  palette('atmosphere.visibility.m.v1', 'Visibility', 'm', [
+])
+
+export const VISIBILITY_PALETTE = palette('atmosphere.visibility.m.v1', [
     stop(0, [120, 118, 116]),
     stop(500, [165, 100, 90]),
     stop(1000, [204, 128, 78]),
@@ -215,8 +217,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(10000, [140, 204, 170]),
     stop(20000, [96, 172, 206]),
     stop(50000, [72, 126, 190]),
-  ]),
-  palette('atmosphere.freezing_level.m.v1', 'Freezing Level', 'm', [
+])
+
+export const FREEZING_LEVEL_PALETTE = palette('atmosphere.freezing_level.m.v1', [
     stop(0, [70, 118, 180]),
     stop(500, [75, 162, 210]),
     stop(1000, [96, 198, 190]),
@@ -226,8 +229,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(5000, [220, 92, 86]),
     stop(6500, [172, 72, 142]),
     stop(8000, [112, 64, 158]),
-  ]),
-  palette('atmosphere.precipitable_water.mm.v1', 'Precipitable Water', 'mm', [
+])
+
+export const PRECIPITABLE_WATER_PALETTE = palette('atmosphere.precipitable_water.mm.v1', [
     stop(0, [174, 168, 138]),
     stop(5, [202, 199, 154]),
     stop(10, [164, 204, 180]),
@@ -237,8 +241,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(50, [210, 202, 76]),
     stop(65, [232, 132, 70]),
     stop(80, [174, 64, 132]),
-  ]),
-  palette('severe.cape.jkg.v1', 'CAPE', 'J/kg', [
+])
+
+export const CAPE_PALETTE = palette('severe.cape.jkg.v1', [
     stop(0, [174, 176, 172]),
     stop(250, [142, 190, 118]),
     stop(500, [198, 210, 92]),
@@ -247,8 +252,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(2500, [214, 76, 82]),
     stop(3500, [176, 58, 130]),
     stop(5000, [104, 50, 156]),
-  ]),
-  palette('severe.cin.jkg.v1', 'CIN', 'J/kg', [
+])
+
+export const CIN_PALETTE = palette('severe.cin.jkg.v1', [
     stop(0, [180, 186, 182]),
     stop(25, [158, 204, 172]),
     stop(50, [214, 216, 112]),
@@ -256,8 +262,9 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(200, [222, 104, 70]),
     stop(300, [172, 70, 128]),
     stop(500, [96, 58, 148]),
-  ]),
-  palette('radar.reflectivity.dbz.v1', 'Composite Reflectivity', 'dBZ', [
+])
+
+export const REFLECTIVITY_PALETTE = palette('radar.reflectivity.dbz.v1', [
     stop(0, [180, 180, 180]),
     stop(5, [110, 225, 110]),
     stop(10, [60, 205, 75]),
@@ -268,5 +275,4 @@ export const BUILT_IN_RASTER_PALETTES = [
     stop(60, [166, 56, 146]),
     stop(70, [112, 48, 150]),
     stop(75, [245, 245, 245]),
-  ]),
-] as const satisfies readonly RasterPaletteDefinition[]
+])

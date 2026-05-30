@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import type { Ref } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -86,6 +87,14 @@ function timelineControls(): HTMLElement {
   return screen.getByLabelText('Forecast timeline controls')
 }
 
+function renderForecastShell(props: Parameters<typeof ForecastShell>[0]) {
+  return render(
+    <MemoryRouter initialEntries={['/?layer=temperature']}>
+      <ForecastShell {...props} />
+    </MemoryRouter>
+  )
+}
+
 describe('ForecastShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -93,7 +102,7 @@ describe('ForecastShell', () => {
   })
 
   it('always renders forecast map even when manifest is unavailable', () => {
-    render(<ForecastShell {...createForecastShellProps()} />)
+    renderForecastShell(createForecastShellProps())
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.queryByTestId('forecast-panel')).not.toBeInTheDocument()
@@ -104,12 +113,10 @@ describe('ForecastShell', () => {
   it('forwards initial sync status changes to the map', () => {
     const onInitialSyncStatusChange = vi.fn<(status: ForecastSyncInitialStatus | null) => void>()
 
-    render(
-      <ForecastShell
-        {...createForecastShellProps()}
-        onInitialSyncStatusChange={onInitialSyncStatusChange}
-      />
-    )
+    renderForecastShell({
+      ...createForecastShellProps(),
+      onInitialSyncStatusChange,
+    })
 
     expect(latestForecastMapProps()).toEqual({
       onInitialSyncStatusChange,
@@ -122,7 +129,7 @@ describe('ForecastShell', () => {
       forecastHours: ['000', '003'],
     })
 
-    const { container } = render(<ForecastShell {...createForecastShellProps({ manifest, activeModelId: 'gfs' })} />)
+    const { container } = renderForecastShell(createForecastShellProps({ manifest, activeModelId: 'gfs' }))
 
     expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
     expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
@@ -185,7 +192,7 @@ describe('ForecastShell', () => {
       }
     })
 
-    const { container } = render(<ForecastShell {...createForecastShellProps({ manifest })} />)
+    const { container } = renderForecastShell(createForecastShellProps({ manifest }))
 
     expect(forecastStage(container))
       .toHaveStyle({ '--wm-map-control-rail-top': '142px' })

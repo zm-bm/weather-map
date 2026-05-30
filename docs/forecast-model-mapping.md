@@ -30,8 +30,8 @@ normalization and scalar encoding are artifact concerns; they are documented in
 
 These requirements come from the frontend raster layer, overlay layer, contour
 layer, and particle layer catalogs. Every loadable catalog entry uses
-`source: { artifactId, bands }`; raster layer bands also carry palette ids for
-display.
+`source: { artifactId, bands }`; raster layer display profiles own labels,
+ranges, unit options, legend labels, and palettes.
 
 | Catalog id | Kind | Required artifact(s) | Optional artifact(s) | Frontend recipe |
 | --- | --- | --- | --- | --- |

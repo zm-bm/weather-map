@@ -126,8 +126,7 @@ describe('window plan loading raster window', () => {
     const frame = await load.loadFrame('000')
 
     expect(frame.source.layerId).toBe('temperature')
-    expect(frame.source.bands[0].paletteId).toBe('temperature.air.c.v1')
-    expect(frame.source.displayRange).toEqual({ min: -35, max: 50 })
+    expect(frame.source.display.range).toEqual({ min: -35, max: 50 })
     expect(frame.raster.grid.nx).toBe(2)
     expect(frame.source.bands[0].id).toBe('value')
     expect(frame.raster.cacheKey).toBe(`${load.frames[0].cacheKeyPrefix}:000`)
@@ -170,8 +169,8 @@ describe('window plan loading raster window', () => {
 
     expect(frame.source.layerId).toBe('wind_speed')
     expect(frame.source.bands).toMatchObject([
-      { id: 'u', paletteId: 'wind.gust.mps.v1' },
-      { id: 'v', paletteId: 'wind.gust.mps.v1' },
+      { id: 'u' },
+      { id: 'v' },
     ])
     expect(frame.raster.bandIds).toEqual(['u', 'v'])
     expect(Array.from(frame.raster.bands[0] ?? [])).toEqual([3, 0, -3, 0])
@@ -194,7 +193,7 @@ describe('window plan loading raster window', () => {
     }).loadFrame('000')
 
     expect(frame.source.layerId).toBe('precipitation_rate')
-    expect(frame.source.bands[0]).toMatchObject({ id: 'value', paletteId: 'precip.rate.mm_hr.v1' })
+    expect(frame.source.bands[0]).toMatchObject({ id: 'value' })
     expect(Array.from(frame.raster.bands[0] ?? [])).toEqual([10, 20, 30, 40])
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })

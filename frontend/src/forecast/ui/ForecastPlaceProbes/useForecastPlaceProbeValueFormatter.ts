@@ -5,29 +5,28 @@ import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import { useForecastSettings } from '@/forecast/settings'
 import {
   formatUnitValue,
-  getUnitDisplay,
+  fromNative,
   getUnitOptionForSystem,
-} from '@/forecast/units'
+} from '@/forecast/display/units'
 import type { ForecastPlaceProbeValueFormatter } from '@/forecast/place-probes'
 
 export function useForecastPlaceProbeValueFormatter(): ForecastPlaceProbeValueFormatter {
   const { selectedLayerId } = useLoadedForecastSelectionContext()
   const { settings } = useForecastSettings()
   const layer = getForecastRasterLayer(selectedLayerId)
-  const unitDisplay = layer == null ? null : getUnitDisplay(layer.display.unitBehavior)
-  const unitOption = unitDisplay == null ? null : getUnitOptionForSystem(unitDisplay, settings.units.system)
+  const unitOption = layer == null ? null : getUnitOptionForSystem(layer.display.units, settings.units.system)
 
   return useCallback((rawValue, loading = false) => {
     const convertedValue = rawValue == null || unitOption == null
       ? rawValue
-      : unitOption.convert(rawValue)
+      : fromNative(rawValue, unitOption)
     const valueText = loading
       ? 'Loading'
       : convertedValue == null
         ? 'No data'
         : formatUnitValue(convertedValue, unitOption)
-    const unitText = convertedValue != null && unitOption?.buttonLabel
-      ? ` ${unitOption.buttonLabel}`
+    const unitText = convertedValue != null && unitOption?.label
+      ? ` ${unitOption.label}`
       : ''
 
     return { text: `${valueText}${unitText}` }

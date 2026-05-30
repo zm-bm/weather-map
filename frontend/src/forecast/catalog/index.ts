@@ -9,7 +9,6 @@ export {
 export type {
   ContourLayer,
   ForecastRasterLayer,
-  ForecastRasterLayerDisplay,
   ForecastRasterLayerGroup,
   ParticleLayer,
 } from './entries'
@@ -26,7 +25,6 @@ export {
 } from './source'
 export type {
   ContourSource,
-  DisplayRange,
   ForecastLayerSource,
   LoadSource,
   OverlaySource,

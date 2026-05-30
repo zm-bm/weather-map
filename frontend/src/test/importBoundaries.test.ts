@@ -64,7 +64,7 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
-        'forecast/legend must stay independent of app, catalog, frame, map, render, and sync modules',
+        'forecast/display/legend must stay independent of app, catalog, frame, map, render, and sync modules',
         (file) => isForecastLegendFile(file.path) &&
           file.imports.some((reference) => (
             isAppImport(reference.resolvedPath) ||
@@ -74,12 +74,11 @@ describe('frontend import boundaries', () => {
             isForecastManifestImport(reference.resolvedPath) ||
             isForecastRenderImport(reference.resolvedPath) ||
             isForecastSyncImport(reference.resolvedPath) ||
-            isMapImport(reference.resolvedPath) ||
-            isUnitsImport(reference.resolvedPath)
+            isMapImport(reference.resolvedPath)
           ))
       ),
       ...findSourceImportViolations(
-        'forecast/palette must stay independent of app and forecast runtime modules',
+        'forecast/display/palette must stay independent of app and forecast runtime modules',
         (file) => isForecastPaletteFile(file.path) &&
           file.imports.some((reference) => (
             isAppImport(reference.resolvedPath) ||
@@ -95,6 +94,22 @@ describe('frontend import boundaries', () => {
             isUnitsImport(reference.resolvedPath) ||
             reference.resolvedPath === '/react' ||
             reference.resolvedPath.includes('/test/')
+          ))
+      ),
+      ...findSourceImportViolations(
+        'forecast/display/profiles must stay display-only',
+        (file) => isForecastDisplayProfilesFile(file.path) &&
+          file.imports.some((reference) => (
+            isAppImport(reference.resolvedPath) ||
+            isForecastCatalogImport(reference.resolvedPath) ||
+            isForecastFrameImport(reference.resolvedPath) ||
+            isForecastManifestImport(reference.resolvedPath) ||
+            isForecastRenderImport(reference.resolvedPath) ||
+            isForecastSettingsImport(reference.resolvedPath) ||
+            isForecastSyncImport(reference.resolvedPath) ||
+            isForecastUiImport(reference.resolvedPath) ||
+            isMapImport(reference.resolvedPath) ||
+            reference.resolvedPath === '/react'
           ))
       ),
       ...findSourceImportViolations(
@@ -279,12 +294,12 @@ describe('frontend import boundaries', () => {
           ))
       ),
       ...findSourceImportViolations(
-        'Import forecast/legend through its public module',
+        'Import forecast/display/legend through its public module',
         (file) => !isForecastLegendFile(file.path) &&
           file.imports.some((reference) => isForecastLegendSubmoduleImport(reference.resolvedPath))
       ),
       ...findSourceImportViolations(
-        'Import forecast/palette through its public module',
+        'Import forecast/display/palette through its public module',
         (file) => !isForecastPaletteFile(file.path) &&
           file.imports.some((reference) => isForecastPaletteSubmoduleImport(reference.resolvedPath))
       ),
@@ -418,11 +433,15 @@ function isForecastCatalogFile(path: string): boolean {
 }
 
 function isForecastLegendFile(path: string): boolean {
-  return path.includes('/forecast/legend/')
+  return path.includes('/forecast/display/legend/')
 }
 
 function isForecastPaletteFile(path: string): boolean {
-  return path.includes('/forecast/palette/')
+  return path.includes('/forecast/display/palette/')
+}
+
+function isForecastDisplayProfilesFile(path: string): boolean {
+  return path === '../forecast/display/profiles.ts'
 }
 
 function isForecastSettingsFile(path: string): boolean {
@@ -462,7 +481,7 @@ function isForecastRuntimeFile(path: string): boolean {
 }
 
 function isUnitsFile(path: string): boolean {
-  return path.includes('/forecast/units/')
+  return path.includes('/forecast/display/units/')
 }
 
 function isMapControlRailFile(path: string): boolean {
@@ -486,7 +505,7 @@ function isForecastCatalogImport(path: string): boolean {
 }
 
 function isForecastLegendImport(path: string): boolean {
-  return path === '/forecast/legend' || path.includes('/forecast/legend/')
+  return path === '/forecast/display/legend' || path.includes('/forecast/display/legend/')
 }
 
 function isForecastCatalogSubmoduleImport(path: string): boolean {
@@ -546,7 +565,7 @@ function isMapImport(path: string): boolean {
 }
 
 function isUnitsImport(path: string): boolean {
-  return path === '/forecast/units' || path.includes('/forecast/units/')
+  return path === '/forecast/display/units' || path.includes('/forecast/display/units/')
 }
 
 function isProductionMapFile(path: string): boolean {
@@ -574,11 +593,11 @@ function isForecastSettingsSubmoduleImport(path: string): boolean {
 }
 
 function isForecastLegendSubmoduleImport(path: string): boolean {
-  return path.includes('/forecast/legend/')
+  return path.includes('/forecast/display/legend/')
 }
 
 function isForecastPaletteSubmoduleImport(path: string): boolean {
-  return path.includes('/forecast/palette/')
+  return path.includes('/forecast/display/palette/')
 }
 
 function isForecastSettingsContractImport(path: string): boolean {

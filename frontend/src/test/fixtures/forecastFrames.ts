@@ -8,8 +8,9 @@ import type {
   RasterWindow,
 } from '@/forecast/frames'
 import type {
-  DisplayRange,
-} from '@/forecast/catalog/source'
+  DisplayProfileId,
+  ForecastDisplayProfile,
+} from '@/forecast/display'
 import type {
   GridSpec,
   ManifestEncodingSpec,
@@ -63,9 +64,9 @@ function createRasterLayerFrameFixture<TSource>(args: {
 export function createRasterFrameFixture(args: {
   hourToken?: string
   layerId?: string
-  paletteId?: string
   values?: number[] | Int8Array
-  displayRange?: DisplayRange
+  display?: ForecastDisplayProfile
+  displayProfile?: DisplayProfileId
   frame?: number
 } = {}): RasterFixtureFrame {
   const values = args.values instanceof Int8Array
@@ -75,8 +76,8 @@ export function createRasterFrameFixture(args: {
   const layerId = args.layerId ?? 'temperature'
   const source = createRasterLayerSourceFixture({
     layerId,
-    paletteId: args.paletteId,
-    displayRange: args.displayRange,
+    display: args.display,
+    displayProfile: args.displayProfile,
     artifactId: layerId,
   })
 
@@ -106,10 +107,10 @@ export function createUvRasterFrameFixture(args: {
   const source = createRasterLayerSourceFixture({
     layerId,
     artifactId,
-    displayRange: { min: 0, max: 55 },
+    displayProfile: 'wind-speed',
     bands: [
-      { id: 'u', paletteId: 'wind.gust.mps.v1' },
-      { id: 'v', paletteId: 'wind.gust.mps.v1' },
+      { id: 'u' },
+      { id: 'v' },
     ],
   })
 

@@ -3,14 +3,12 @@ import { describe, expect, it } from 'vitest'
 import {
   type ActiveForecastRun,
 } from '@/forecast/manifest'
-import { isLegendScale } from '@/forecast/legend'
 import {
   createActiveRunFixture,
   createSingleTimeManifestFixture,
   createScalarArtifactFixture,
   createVectorArtifactFixture,
 } from '@/test/fixtures'
-import { isUnitBehavior } from '@/forecast/units'
 import {
   FORECAST_RASTER_LAYER_GROUPS,
   FORECAST_RASTER_LAYERS,
@@ -40,9 +38,14 @@ function isLayerAvailableForActiveRun(
 
 describe('layer catalog', () => {
   it('defines display behavior for every layer', () => {
-    expect(FORECAST_RASTER_LAYERS.every((layer) => layer.display.unitBehavior && layer.display.legendScale)).toBe(true)
-    expect(FORECAST_RASTER_LAYERS.every((layer) => isUnitBehavior(layer.display.unitBehavior))).toBe(true)
-    expect(FORECAST_RASTER_LAYERS.every((layer) => isLegendScale(layer.display.legendScale))).toBe(true)
+    expect(FORECAST_RASTER_LAYERS.every((layer) => layer.displayProfile && layer.display.units && layer.display.kind)).toBe(true)
+    expect(FORECAST_RASTER_LAYERS.every((layer) => ['gradient', 'cloud-layers'].includes(layer.display.kind))).toBe(true)
+    expect(FORECAST_RASTER_LAYERS_BY_ID.temperature?.displayProfile).toBe('temperature')
+    expect(FORECAST_RASTER_LAYERS_BY_ID.apparent_temperature?.displayProfile).toBe('apparent-temperature')
+    expect(FORECAST_RASTER_LAYERS_BY_ID.wind_speed?.displayProfile).toBe('wind-speed')
+    expect(FORECAST_RASTER_LAYERS_BY_ID.wind_gust?.displayProfile).toBe('wind-gust')
+    expect(FORECAST_RASTER_LAYERS_BY_ID.relative_humidity?.displayProfile).toBe('relative-humidity')
+    expect(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover?.displayProfile).toBe('cloud-cover')
   })
 
   it('keeps layer ids and group membership internally consistent', () => {
@@ -141,9 +144,9 @@ describe('layer catalog', () => {
       source: {
         artifactId: 'cloud_layers',
         bands: [
-          { id: 'low', paletteId: 'cloud.layers.low.v1' },
-          { id: 'middle', paletteId: 'cloud.layers.middle.v1' },
-          { id: 'high', paletteId: 'cloud.layers.high.v1' },
+          { id: 'low' },
+          { id: 'middle' },
+          { id: 'high' },
         ],
       },
     })
@@ -185,8 +188,8 @@ describe('layer catalog', () => {
     expect(windSpeed.source).toMatchObject({
       artifactId: 'wind10m_uv',
       bands: [
-        { id: 'u', paletteId: 'wind.gust.mps.v1' },
-        { id: 'v', paletteId: 'wind.gust.mps.v1' },
+        { id: 'u' },
+        { id: 'v' },
       ],
     })
     expect(isLayerAvailableForActiveRun(activeRun, windSpeed)).toBe(true)
@@ -244,7 +247,7 @@ describe('layer catalog', () => {
 
     expect(precipLayer.source).toMatchObject({
       artifactId: 'prate_surface',
-      bands: [{ id: 'value', paletteId: 'precip.rate.mm_hr.v1' }],
+      bands: [{ id: 'value' }],
     })
     expect(precipLayer.overlays).toEqual([{
       id: 'precipitation_type',

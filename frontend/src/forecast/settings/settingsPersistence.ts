@@ -2,7 +2,7 @@ import {
   loadLocalStorageJson,
   saveLocalStorageJson,
 } from '@/core/storage/localStorage'
-import type { UnitSystem } from '@/forecast/units'
+import type { UnitSystem } from '@/forecast/display/units'
 import {
   DEFAULT_FORECAST_SETTINGS,
   RASTER_COLOR_SAMPLING_MODES,

@@ -1,35 +1,24 @@
-import {
-  assertLegendScale,
-  type LegendScale,
-} from '@/forecast/legend'
 import type { NonEmptyArray } from '@/core/types'
 import {
-  type DisplayRange,
+  getDisplayProfile,
+  type DisplayProfileId,
+  type ForecastDisplayProfile,
+} from '@/forecast/display'
+import {
   type ForecastLayerSource,
   type LoadSource,
   type OverlaySource,
   type RasterSource,
 } from './source'
-import {
-  assertUnitBehavior,
-  type UnitBehavior,
-} from '@/forecast/units'
 import { FORECAST_CATALOG } from './schema'
 
 export type ForecastRasterLayer = {
   id: string
   groupId: string
-  display: ForecastRasterLayerDisplay
+  displayProfile: DisplayProfileId
+  display: ForecastDisplayProfile
   source: RasterSource
   overlays: readonly OverlaySource[]
-}
-
-export type ForecastRasterLayerDisplay = {
-  label: string
-  range: DisplayRange
-  unitBehavior: UnitBehavior
-  legendScale: LegendScale
-  parameter?: string
 }
 
 export type ForecastRasterLayerGroup = {
@@ -83,7 +72,7 @@ export function getDefaultRasterLayerId(): string | null {
 export function forecastRasterLayerSourceFromLayer(layer: ForecastRasterLayer): ForecastLayerSource {
   return {
     layerId: layer.id,
-    displayRange: layer.display.range,
+    display: layer.display,
     overlays: layer.overlays,
     artifactId: layer.source.artifactId,
     bands: layer.source.bands,
@@ -109,20 +98,11 @@ export function requireForecastRasterLayer(
 }
 
 function layerFromRaw(raw: RawForecastRasterLayer): ForecastRasterLayer {
-  const display: ForecastRasterLayerDisplay = {
-    label: raw.display.label,
-    range: raw.display.range,
-    unitBehavior: assertUnitBehavior(raw.display.unitBehavior),
-    legendScale: assertLegendScale(raw.display.legendScale),
-  }
-  if (raw.display.parameter !== undefined) {
-    display.parameter = raw.display.parameter
-  }
-
   return {
     id: raw.id,
     groupId: raw.groupId,
-    display,
+    displayProfile: raw.displayProfile,
+    display: getDisplayProfile(raw.displayProfile),
     source: raw.source,
     overlays: raw.overlays.map((overlayId) => requireOverlayLayer(overlayId)),
   }

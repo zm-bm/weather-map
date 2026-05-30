@@ -34,7 +34,7 @@ initial sync, request building, payload loading, and layer application.
 
 - `forecast/ui/*`: React composition and panel/control UI for the forecast route. UI should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly.
 
-- `forecast/catalog/*`: parsed and validated frontend catalog for user-facing raster layers, raster-layer groups, overlay layers, contour layers, particle layers, grouped display metadata, color palettes, raster band metadata, and pure source helpers. Catalog entries reference unit and legend behavior contracts owned by `forecast/units` and `forecast/legend`.
+- `forecast/catalog/*`: parsed and validated frontend catalog for user-facing raster layers, raster-layer groups, overlay layers, contour layers, particle layers, display-profile references, raster source metadata, and pure source helpers. Catalog source bands are load metadata only.
 
 - `forecast/selection/*`: selected layer and selected particle layer derived from the loaded manifest and frontend catalog. Keep layer selection concerns here, separate from time selection and presentation settings.
 
@@ -56,11 +56,7 @@ initial sync, request building, payload loading, and layer application.
 
 - `forecast/place-probes/*`: forecast place-probe feature orchestration, including visible place selection, raster sampling, label creation, MapLibre source/layer updates, hover state, and viewport refresh handling. React UI wraps this feature but does not own the session behavior.
 
-- `forecast/palette/*`: shared palette stop contract and frontend palette registry used by catalog display, legend gradients, and raster renderer LUT input.
-
-- `forecast/legend/*`: legend scale behavior, tick generation, and gradient helpers shared by forecast display UI.
-
-- `forecast/units/*`: unit behavior contracts, conversion, and formatting primitives shared by UI and probe display.
+- `forecast/display/*`: resolved raster-layer display profiles plus display-only helpers. Profiles own labels, display ranges, unit options, legend labels, and palettes; submodules provide unit conversion, legend layout, and palette sampling.
 
 - `map/*`: MapLibre host platform, basemap contracts, style construction, viewport persistence, map controls, and base map interactions. Keep forecast domain logic out of this layer.
 

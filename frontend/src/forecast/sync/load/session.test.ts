@@ -51,8 +51,7 @@ function createTarget(args: {
 function relativeHumiditySource(): ForecastLayerSource {
   return createRasterLayerSourceFixture({
     layerId: 'relative_humidity',
-    paletteId: 'humidity.relative.percent.v1',
-    displayRange: { min: 0, max: 100 },
+    displayProfile: 'relative-humidity',
     artifactId: 'rh_surface',
   })
 }

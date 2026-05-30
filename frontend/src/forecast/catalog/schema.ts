@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 import catalogJson from '../../../../config/forecast_catalog.json'
-import { isLegendScale } from '@/forecast/legend'
-import { isRasterPaletteId } from '@/forecast/palette'
+import {
+  DISPLAY_PROFILE_IDS,
+} from '@/forecast/display'
 import {
   contourSourceSchema,
-  displayRangeSchema,
   overlaySourceSchema,
   particleSourceSchema,
   rasterSourceSchema,
@@ -14,18 +14,10 @@ import {
 const idSchema = z.string().trim().min(1)
 const nonEmptyLabelSchema = z.string().trim().min(1)
 
-const rasterLayerDisplaySchema = z.object({
-  label: nonEmptyLabelSchema,
-  range: displayRangeSchema,
-  unitBehavior: idSchema,
-  legendScale: idSchema,
-  parameter: idSchema.optional(),
-}).strict()
-
 const rasterLayerSchema = z.object({
   id: idSchema,
   groupId: idSchema,
-  display: rasterLayerDisplaySchema,
+  displayProfile: z.enum(DISPLAY_PROFILE_IDS),
   source: rasterSourceSchema,
   overlays: z.array(idSchema).default([]),
 }).strict()
@@ -95,20 +87,12 @@ const forecastCatalogSchema = z.object({
         message: `layer ${layer.id} is not listed in group ${layer.groupId}`,
       })
     }
-    addSourcePaletteIssues(ctx, layer.source, ['rasterLayers', layerIndex, 'source'], layer.id)
     for (const [overlayIndex, overlayId] of layer.overlays.entries()) {
       if (overlayIds.has(overlayId)) continue
       ctx.addIssue({
         code: 'custom',
         path: ['rasterLayers', layerIndex, 'overlays', overlayIndex],
         message: `layer ${layer.id} references missing overlay ${overlayId}`,
-      })
-    }
-    if (!isLegendScale(layer.display.legendScale)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['rasterLayers', layerIndex, 'display', 'legendScale'],
-        message: `layer ${layer.id} references unknown legend scale ${layer.display.legendScale}`,
       })
     }
   }
@@ -121,22 +105,6 @@ export function parseForecastCatalog(value: unknown): RawForecastCatalog {
 }
 
 export const FORECAST_CATALOG = parseForecastCatalog(catalogJson)
-
-function addSourcePaletteIssues(
-  ctx: z.RefinementCtx,
-  source: z.infer<typeof rasterSourceSchema>,
-  path: (string | number)[],
-  layerId: string,
-) {
-  for (const [bandIndex, band] of source.bands.entries()) {
-    if (isRasterPaletteId(band.paletteId)) continue
-    ctx.addIssue({
-      code: 'custom',
-      path: [...path, 'bands', bandIndex, 'paletteId'],
-      message: `layer ${layerId} band ${band.id} references unknown palette ${band.paletteId}`,
-    })
-  }
-}
 
 function addDuplicateIdIssues(
   ctx: z.RefinementCtx,

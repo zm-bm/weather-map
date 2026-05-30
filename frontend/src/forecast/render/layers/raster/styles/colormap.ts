@@ -1,22 +1,23 @@
+import type {
+  DisplayRange,
+  GradientDisplayProfile,
+} from '@/forecast/display'
 import {
-  getRasterPalette,
   samplePaletteColor,
   type PaletteColorStop,
-} from '@/forecast/palette'
+} from '@/forecast/display/palette'
 import type { RasterWindow } from '@/forecast/frames'
-import type { DisplayRange } from '@/forecast/catalog/source'
 import type { RasterColorSamplingMode } from '@/forecast/settings/settings'
 
 type RasterFrame = RasterWindow['lower']
 
 export function createColormapKey(frame: RasterFrame): string {
-  const paletteId = rasterPaletteId(frame)
-  const palette = getRasterPalette(paletteId)
+  const display = gradientDisplay(frame)
   // Deterministic key for LUT texture reuse.
   return JSON.stringify({
-    paletteId,
-    displayRange: frame.source.displayRange,
-    stops: palette.stops,
+    palette: display.palette.id,
+    displayRange: display.range,
+    stops: display.palette.stops,
   })
 }
 
@@ -25,9 +26,10 @@ export function buildRasterColormapLut(
   size: number,
   colorSamplingMode: RasterColorSamplingMode
 ): Uint8Array {
+  const display = gradientDisplay(frame)
   return buildColormapLut(
-    getRasterPalette(rasterPaletteId(frame)).stops,
-    frame.source.displayRange,
+    display.palette.stops,
+    display.range,
     size,
     colorSamplingMode
   )
@@ -56,6 +58,10 @@ export function buildColormapLut(
   return lut
 }
 
-function rasterPaletteId(frame: RasterFrame): string {
-  return frame.source.bands[0].paletteId
+function gradientDisplay(frame: RasterFrame): GradientDisplayProfile {
+  const { display } = frame.source
+  if (display.kind !== 'gradient') {
+    throw new Error(`Colormap raster received ${display.kind} display profile`)
+  }
+  return display
 }

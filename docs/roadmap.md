@@ -10,13 +10,13 @@ Confirm that every raster-rendered layer maps decoded physical values to the
 right visual output after the encoding contract is sound.
 
 This is the frontend/rendering contract. It covers default palette selection,
-color stops, display range, unit behavior, legend scale, legend ticks, sampling
-mode, and boundary handling.
+color stops, display profile, legend labels,
+sampling mode, and boundary handling.
 
 Key work:
 
-- audit every raster-rendered layer's `paletteId`, color stops, display range,
-  unit behavior, legend scale, and expected legend ticks
+- audit every raster-rendered layer's display profile, palette color stops,
+  display range, and expected legend labels
 - define boundary semantics for continuous and threshold palettes
 - add exact-boundary checks for values just below, exactly at, and just above
   every color stop

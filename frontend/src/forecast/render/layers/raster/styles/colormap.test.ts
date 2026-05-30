@@ -33,7 +33,7 @@ describe('raster colormap helpers', () => {
     expect(getLutRgb(lut, 3)).toEqual([200, 0, 0])
   })
 
-  it('resolves raster palette stops from the frame palette id', () => {
+  it('resolves raster palette stops from the frame display profile', () => {
     const frame = createRasterFrameFixture()
     const lut = buildRasterColormapLut(frame, 4, 'banded')
 
@@ -55,8 +55,8 @@ describe('raster colormap helpers', () => {
 
   it('makes exact zero snow depth transparent and positive snow visible', () => {
     const frame = createRasterFrameFixture({
-      paletteId: 'snow.depth.m.v1',
-      displayRange: { min: 0, max: 3 },
+      layerId: 'snow_depth',
+      displayProfile: 'snow-depth',
     })
     const lut = buildRasterColormapLut(frame, 2048, 'banded')
 

@@ -115,11 +115,11 @@ describe('raster runtime encoded sources', () => {
     const slice: ForecastFrameMap['raster'] = {
       source: createRasterLayerSourceFixture({
         layerId: 'wind_speed',
-        displayRange: { min: 0, max: 55 },
+        displayProfile: 'wind-speed',
         artifactId: 'wind10m_uv',
         bands: [
-          { id: 'u', paletteId: 'wind.gust.mps.v1' },
-          { id: 'v', paletteId: 'wind.gust.mps.v1' },
+          { id: 'u' },
+          { id: 'v' },
         ],
       }),
       raster: {

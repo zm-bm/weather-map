@@ -2,14 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { FORECAST_RASTER_LAYERS } from '@/forecast/catalog'
 import {
-  getRasterPalette,
   normalizePaletteColor,
   samplePaletteColor,
   type RasterPaletteDefinition,
   type PaletteColorStop,
   type PaletteSamplingMode,
   type SampledPaletteColor,
-} from '@/forecast/palette'
+} from '@/forecast/display/palette'
 import type { ForecastRasterLayer } from '@/forecast/catalog'
 import { buildColormapLut } from './colormap'
 import { COLORMAP_FRAGMENT_SHADER_SOURCE } from './colormapShaders'
@@ -109,14 +108,17 @@ function boundaryDelta(
   return Math.max(smallestUsefulGap * 1e-4, 1e-9)
 }
 
+function hasGradientDisplay(
+  layer: ForecastRasterLayer,
+): layer is ForecastRasterLayer & { display: Extract<ForecastRasterLayer['display'], { kind: 'gradient' }> } {
+  return layer.display.kind === 'gradient'
+}
+
 describe('production raster palette contracts', () => {
-  for (const layer of FORECAST_RASTER_LAYERS) {
-    const palette = getRasterPalette(primaryPaletteId(layer))
+  for (const layer of FORECAST_RASTER_LAYERS.filter(hasGradientDisplay)) {
+    const palette = layer.display.palette
 
     it(`${layer.id} clamps display range and preserves color-stop boundaries`, () => {
-      expect(palette.outOfRange).toBe('clamp')
-      expect(palette.boundaryMode).toBe('lower-bound-inclusive')
-
       const displaySpan = layer.display.range.max - layer.display.range.min
       const outsideDelta = Math.max(displaySpan * 0.01, 1)
 
@@ -142,8 +144,8 @@ describe('production raster palette contracts', () => {
   }
 
   it('builds LUT endpoints from the same production palette contract', () => {
-    for (const layer of FORECAST_RASTER_LAYERS) {
-      const palette = getRasterPalette(primaryPaletteId(layer))
+    for (const layer of FORECAST_RASTER_LAYERS.filter(hasGradientDisplay)) {
+      const palette = layer.display.palette
       const displayRange = layer.display.range
 
       for (const samplingMode of SAMPLING_MODES) {
@@ -157,7 +159,8 @@ describe('production raster palette contracts', () => {
   it('keeps exact zero snow depth transparent and positive snow visible', () => {
     const layer = FORECAST_RASTER_LAYERS.find((candidate) => candidate.id === 'snow_depth')
     expect(layer).toBeDefined()
-    const palette = getRasterPalette(primaryPaletteId(layer!))
+    if (layer!.display.kind !== 'gradient') throw new Error('snow_depth must use a gradient display')
+    const palette = layer!.display.palette
 
     expect(renderedColor(layer!, palette, 0, 'banded')[3]).toBe(0)
     expect(renderedColor(layer!, palette, 0.02, 'banded')[3]).toBe(255)
@@ -170,7 +173,3 @@ describe('production raster palette contracts', () => {
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('outColor = vec4(0.0);')
   })
 })
-
-function primaryPaletteId(layer: typeof FORECAST_RASTER_LAYERS[number]): string {
-  return layer.source.bands[0].paletteId
-}
