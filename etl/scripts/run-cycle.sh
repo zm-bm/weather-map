@@ -9,7 +9,7 @@ Usage:
 Description:
 	Refreshes local forecast artifacts by running the same ETL worker container
 	used by production Batch. The script runs one local container per configured
-	forecast hour and publishes manifests directly into artifacts/. When --model
+	forecast hour, then publishes manifests once into artifacts/. When --model
 	is omitted, every configured model is refreshed sequentially.
 
 Options:
@@ -17,7 +17,7 @@ Options:
 	--model <model>  Forecast model id (default: all configured models)
 	--artifact <id>  Artifact id to process; repeat to process multiple artifacts
 	--procs <n>  Maximum concurrent local worker containers (default: 1)
-	--no-publish  Skip manifest publishing in worker containers
+	--no-publish  Skip the final manifest publish step
 	--rebuild  Force a local worker image rebuild before resolving forecast hours
 	--dry-run  Prepare the worker image, resolve hours inside it, and print run-hour commands
 	-h, --help  Show this help and exit
@@ -282,12 +282,27 @@ worker_cmd_for_hour() {
 	done
 
 	cmd+=("$LOCAL_ETL_IMAGE" run-hour)
-	if [[ "$NO_PUBLISH" == "true" ]]; then
-		cmd+=(--no-publish)
-	fi
 	for artifact in "${SELECTED_ARTIFACTS[@]}"; do
 		cmd+=(--artifact "$artifact")
 	done
+	printf '%s\0' "${cmd[@]}"
+}
+
+publish_cmd_for_model() {
+	local model="$1"
+	local cmd=(
+		docker run --rm
+		--network host
+		--user "$(id -u):$(id -g)"
+		--volume "$ARTIFACTS_DIR:/artifacts"
+		--env "ARTIFACT_ROOT_URI=file:///artifacts"
+		--env "PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json"
+		--env "PYTHONDONTWRITEBYTECODE=1"
+		--env "MODEL=$model"
+		--env "CYCLE=$CYCLE"
+		"$LOCAL_ETL_IMAGE" publish-cycle
+		--cycle "$CYCLE"
+	)
 	printf '%s\0' "${cmd[@]}"
 }
 
@@ -318,6 +333,21 @@ run_worker_hour() {
 			printf 'log_path=%s\n' "$log_path"
 		} > "$FAILURE_DIR/$fhour.status"
 		return "$status"
+	fi
+}
+
+run_publish_cycle() {
+	local model="$1"
+	local cmd=()
+	while IFS= read -r -d '' item; do
+		cmd+=("$item")
+	done < <(publish_cmd_for_model "$model")
+
+	echo "Publishing local cycle manifest: model=$model cycle=$CYCLE"
+	if [[ "$DRY_RUN" == "true" ]]; then
+		print_command "dry-run:" "${cmd[@]}"
+	else
+		"${cmd[@]}"
 	fi
 }
 
@@ -459,6 +489,9 @@ run_model_cycle() {
 	fi
 
 	run_forecast_hours "$model" "${FORECAST_HOURS[@]}" || exit 1
+	if [[ "$NO_PUBLISH" != "true" ]]; then
+		run_publish_cycle "$model"
+	fi
 }
 
 require_docker

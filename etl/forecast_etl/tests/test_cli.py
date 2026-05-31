@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import os
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from forecast_etl import cli
@@ -13,6 +13,7 @@ from forecast_etl.config.resolved import (
     IconDwdSourceConfig,
     NomadsConfig,
 )
+from forecast_etl.manifest.publish import PublishResult
 
 
 class _FakeWorkload:
@@ -91,7 +92,7 @@ class CliTest(unittest.TestCase):
                     ]
                 )
 
-    def test_run_hour_processes_and_publishes_by_default(self) -> None:
+    def test_run_hour_processes_without_publishing(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("003",))
 
         with (
@@ -125,7 +126,7 @@ class CliTest(unittest.TestCase):
             run_process_hour.call_args.kwargs["artifact_specs"],
             {"tmp_surface": {"kind": "scalar"}},
         )
-        run_publish.assert_called_once()
+        run_publish.assert_not_called()
 
     def test_run_hour_filters_selected_artifacts(self) -> None:
         fake_cfg = _FakePipelineConfig(artifacts=("tmp_surface", "rh_surface"))
@@ -152,15 +153,11 @@ class CliTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(run_process_hour.call_args.kwargs["artifact_ids"], ("rh_surface",))
 
-    def test_run_hour_no_publish_skips_publish(self) -> None:
-        fake_cfg = _FakePipelineConfig(forecast_hours=("003",))
+    def test_run_hour_rejects_removed_no_publish_flag(self) -> None:
+        err = io.StringIO()
 
-        with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.commands.run_hour.run_process_hour"),
-            patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
-        ):
-            result = cli.main(
+        with redirect_stderr(err), self.assertRaises(SystemExit) as raised:
+            cli.main(
                 [
                     "run-hour",
                     "--model",
@@ -175,8 +172,8 @@ class CliTest(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(result, 0)
-        run_publish.assert_not_called()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("--no-publish", err.getvalue())
 
     def test_run_hour_uses_env_fallbacks(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("006",))
@@ -206,7 +203,42 @@ class CliTest(unittest.TestCase):
             "https://example.test/gfs.t00z.pgrb2.0p25.f006",
         )
         self.assertEqual(run_process_hour.call_args.kwargs["artifact_ids"], ("tmp_surface",))
+        run_publish.assert_not_called()
+
+    def test_publish_cycle_publishes_ready_cycle(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch(
+                "forecast_etl.commands.publish_cycle.run_publish",
+                return_value=PublishResult(ready=True, already_published=False),
+            ) as run_publish,
+        ):
+            result = cli.main(["publish-cycle", "--model", "gfs", "--cycle", "2026021300"])
+
+        self.assertEqual(result, 0)
         run_publish.assert_called_once()
+        self.assertEqual(run_publish.call_args.kwargs["cycle"], "2026021300")
+        self.assertEqual(run_publish.call_args.kwargs["artifact_ids"], ("tmp_surface",))
+
+    def test_publish_cycle_returns_not_ready_exit_code(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
+
+        with (
+            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch(
+                "forecast_etl.commands.publish_cycle.run_publish",
+                return_value=PublishResult(
+                    ready=False,
+                    already_published=False,
+                    missing_markers=("s3://artifacts/status/gfs/2026021300/tmp_surface/003._SUCCESS.json",),
+                ),
+            ),
+        ):
+            result = cli.main(["publish-cycle", "--model", "gfs", "--cycle", "2026021300"])
+
+        self.assertEqual(result, 2)
 
     def test_run_cycle_processes_all_hours_and_publishes_once(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"), rate_limit_seconds=0.0)

@@ -405,6 +405,8 @@ if [[ "$DRY_RUN" == "true" ]]; then
 else
   echo "Submitted $SUBMITTED Batch jobs."
   echo
+  echo "The scheduled weather-etl-publisher Lambda will publish manifests after all expected success markers exist."
+  echo
   echo "Check recent jobs:"
   echo "  aws batch list-jobs --job-queue \"$QUEUE\" --job-status SUBMITTED"
   echo "  aws batch list-jobs --job-queue \"$QUEUE\" --job-status RUNNING"

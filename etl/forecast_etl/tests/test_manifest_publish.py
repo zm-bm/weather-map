@@ -441,6 +441,7 @@ class PublishManifestTest(unittest.TestCase):
                 artifacts_cfg=artifacts_cfg,
             )
             self.assertTrue(result_new.ready)
+            self.assertTrue(result_new.latest_promoted)
 
             result_old = fx.publish(
                 cycle=cycle_old,
@@ -448,12 +449,52 @@ class PublishManifestTest(unittest.TestCase):
                 artifacts_cfg=artifacts_cfg,
             )
             self.assertTrue(result_old.ready)
+            self.assertFalse(result_old.latest_promoted)
 
             latest_manifest = fx.latest_manifest()
             old_cycle_manifest = fx.cycle_manifest(cycle=cycle_old)
             new_cycle_manifest = fx.cycle_manifest(cycle=cycle_new)
             self.assertEqual(latest_manifest, new_cycle_manifest)
             self.assertNotEqual(latest_manifest["run"]["cycle"], old_cycle_manifest["run"]["cycle"])
+
+    def test_older_cycle_publish_does_not_rebuild_forecast_manifest(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-older-no-forecast-manifest-") as fx:
+            cycle_old = "2026041100"
+            cycle_new = "2026041200"
+            scalar_artifacts = ("tmp_surface",)
+            artifacts_cfg = {
+                "tmp_surface": minimal_artifact_config(),
+            }
+            pipeline_config = parse_pipeline_config(minimal_pipeline_config())
+
+            for cycle_value, base in ((cycle_new, 10.0), (cycle_old, -10.0)):
+                fx.write_scalar_marker(
+                    cycle=cycle_value,
+                    artifact_id="tmp_surface",
+                    base=base,
+                    artifact_config=artifacts_cfg["tmp_surface"],
+                )
+
+            with patch(
+                "forecast_etl.manifest.publish.publish_forecast_manifest",
+                return_value="file:///manifest.json",
+            ) as publish_forecast_manifest:
+                result_new = fx.publish(
+                    cycle=cycle_new,
+                    artifact_ids=scalar_artifacts,
+                    artifacts_cfg=artifacts_cfg,
+                    pipeline_config=pipeline_config,
+                )
+                result_old = fx.publish(
+                    cycle=cycle_old,
+                    artifact_ids=scalar_artifacts,
+                    artifacts_cfg=artifacts_cfg,
+                    pipeline_config=pipeline_config,
+                )
+
+            self.assertTrue(result_new.latest_promoted)
+            self.assertFalse(result_old.latest_promoted)
+            self.assertEqual(publish_forecast_manifest.call_count, 1)
 
     def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-refresh-") as fx:

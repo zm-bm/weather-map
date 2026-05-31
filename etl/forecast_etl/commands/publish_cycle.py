@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ModelConfig, PipelineConfig
-from ..manifest.publish import run_publish
+from ..manifest.publish import PublishResult, run_publish
 from ..runtime import ExecutionContext
 from ..storage.base import UriStore
 from ..storage.routing import make_store
@@ -17,12 +17,12 @@ def publish_cycle(
     cycle: str,
     pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
-) -> None:
+) -> PublishResult:
     """Publish the manifest for a processed model cycle."""
 
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
-    run_publish(
+    return run_publish(
         ctx=ctx,
         cycle=cycle,
         model_label=model.label,

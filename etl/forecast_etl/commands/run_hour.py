@@ -9,7 +9,7 @@ from typing import Iterable, Mapping
 from ..artifacts.markers_schema import build_artifact_marker_payload
 from ..artifacts.paths import WorkItem
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ArtifactSpec, ModelConfig, PipelineConfig
+from ..config.resolved import ArtifactSpec, ModelConfig
 from ..encoding.artifact_payload import encode_artifact_payload
 from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
@@ -19,7 +19,6 @@ from ..runtime import ExecutionContext
 from ..source_adapters import acquire_prepared_source
 from ..storage.base import UriStore
 from ..storage.routing import make_store
-from .publish_cycle import publish_cycle
 
 
 def run_process_hour(
@@ -96,7 +95,7 @@ def run_process_hour(
             artifact_done += 1
 
     print(
-        f"Done. Published fhour bundle cycle={cycle} fhour={fhour}: "
+        f"Done. Processed fhour bundle cycle={cycle} fhour={fhour}: "
         f"model={ctx.model_id} artifacts={artifact_done}",
         flush=True,
     )
@@ -110,12 +109,10 @@ def run_hour(
     fhour: str,
     source_uri: str | None,
     artifact_ids: Iterable[str] | None = None,
-    publish: bool,
-    pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
     run: RunFn | None = None,
 ) -> None:
-    """Process one forecast hour and optionally publish the cycle."""
+    """Process one forecast hour."""
 
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
@@ -132,5 +129,3 @@ def run_hour(
         artifact_repo=artifact_repo,
         run=resolved_run,
     )
-    if publish:
-        publish_cycle(ctx=ctx, model=model, cycle=cycle, pipeline_config=pipeline_config, store=resolved_store)

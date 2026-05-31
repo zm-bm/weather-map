@@ -60,7 +60,7 @@ if [[ "${1:-}" == "run" ]]; then
 \t\t\t\tesac
 \t\t\t\tshift 2
 \t\t\t\t;;
-\t\t\tlist-forecast-hours|run-hour)
+\t\t\tlist-forecast-hours|run-hour|publish-cycle)
 \t\t\t\tmode="$1"
 \t\t\t\tshift
 \t\t\t\t;;
@@ -75,7 +75,12 @@ if [[ "${1:-}" == "run" ]]; then
 \t\t\techo "simulated worker failure for fhour=$fhour" >&2
 \t\t\texit 42
 \t\tfi
-\t\techo "Done. Published fhour bundle cycle=${CYCLE:-unknown} fhour=$fhour: model=$model artifacts=18"
+\t\techo "Done. Processed fhour bundle cycle=${CYCLE:-unknown} fhour=$fhour: model=$model artifacts=18"
+\t\texit 0
+\tfi
+
+\tif [[ "$mode" == "publish-cycle" ]]; then
+\t\techo "Published: model=$model cycle=${CYCLE:-unknown}"
 \t\texit 0
 \tfi
 
@@ -168,6 +173,21 @@ exit 1
         self.assertIn("--env FHOUR=001", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)
         self.assertNotIn("GRIB_SOURCE_URI", result.stdout)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local publish-cycle"), 1)
+
+    def test_no_publish_skips_final_publish_container(self) -> None:
+        result = self.run_script(
+            "--model",
+            "icon",
+            "--cycle",
+            "2026021606",
+            "--no-publish",
+            "--dry-run",
+        )
+
+        self.assertIn("forecast_hours: 24", result.stdout)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertNotIn("weather-map-forecast-etl:local publish-cycle", result.stdout)
 
     def test_dry_run_reuses_current_worker_image_without_rebuilding(self) -> None:
         docker_log = self.fake_bin_dir / "docker.log"

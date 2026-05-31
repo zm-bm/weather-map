@@ -10,7 +10,8 @@ GFS is event-driven:
 2. `weather-etl-ingest-gfs` filters the object key against the shared ETL
    config.
 3. The Lambda submits one Batch `run-hour` job for the accepted `(cycle, fhour)`.
-4. The worker reads the NOAA S3 object, writes artifacts, and attempts publish.
+4. The worker reads the NOAA S3 object and writes field artifacts plus success
+   markers.
 
 ICON is polled:
 
@@ -21,7 +22,14 @@ ICON is polled:
    configured forecast hour, and uses DynamoDB leases to avoid duplicate
    submissions.
 4. Batch workers download ICON files from DWD, decompress, regrid with direct
-   CDO, write artifacts, and attempt publish.
+   CDO, and write field artifacts plus success markers.
+
+Publication is scheduled separately:
+
+1. EventBridge invokes `weather-etl-publisher` every 10 minutes.
+2. The publisher checks recent synoptic cycles for configured models.
+3. Complete cycles publish model manifests, latest aliases, `_PUBLISHED.json`,
+   and the aggregate frontend forecast manifest.
 
 Both models use the same worker image and the same shared pipeline config.
 
@@ -61,7 +69,7 @@ From the repo root, push the worker image after ETL code or dependency changes:
 infra/scripts/weather-etl/release/build-push-worker-image.sh
 ```
 
-The Lambda artifact is shared by both ingest Lambdas:
+The Lambda artifact is shared by the ingest and publisher Lambdas:
 
 ```text
 etl/dist/weather-etl-ingest-lambda.zip

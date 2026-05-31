@@ -160,7 +160,7 @@ class IconIngestTest(unittest.TestCase):
         self.store = _FakeStore()
         self.model = _FakeModel()
 
-    def _run(self, *, ready, publish_result: bool = False) -> dict:
+    def _run(self, *, ready) -> dict:
         def fake_client(name: str):
             if name == "batch":
                 return self.batch
@@ -174,7 +174,6 @@ class IconIngestTest(unittest.TestCase):
             patch("forecast_etl.aws.icon_ingest._url_ready", side_effect=ready),
             patch("forecast_etl.aws.icon_ingest.make_store", return_value=self.store),
             patch("forecast_etl.aws.icon_ingest.boto3.client", side_effect=fake_client),
-            patch("forecast_etl.aws.icon_ingest._publish_if_complete", return_value=publish_result),
         ):
             return icon_ingest.handler(_event(), None)
 
@@ -280,7 +279,7 @@ class IconIngestTest(unittest.TestCase):
         self.assertIn("#cycle = :cycle", complete_update["UpdateExpression"])
         self.assertEqual(complete_update["ExpressionAttributeNames"]["#cycle"], "cycle")
 
-    def test_complete_cycle_attempts_publish(self) -> None:
+    def test_complete_cycle_response_omits_published_count(self) -> None:
         paths = ArtifactPaths("s3://artifacts")
         self.store = _FakeStore(
             {
@@ -293,9 +292,9 @@ class IconIngestTest(unittest.TestCase):
             }
         )
 
-        result = self._run(ready=lambda url, min_bytes: True, publish_result=True)
+        result = self._run(ready=lambda url, min_bytes: True)
 
-        self.assertEqual(result["published"], 1)
+        self.assertNotIn("published", result)
 
 
 if __name__ == "__main__":

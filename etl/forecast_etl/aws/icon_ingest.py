@@ -16,8 +16,6 @@ from ..artifacts.repository import ArtifactRepository
 from ..config.load import load_pipeline_config
 from ..config.resolved import IconDwdSourceConfig, ModelConfig, PipelineConfig
 from ..cycles import latest_synoptic_cycles
-from ..manifest.publish import run_publish
-from ..runtime import execution_context_for_model
 from ..source_adapters.icon_dwd import (
     icon_dwd_url,
     previous_icon_fhour,
@@ -162,19 +160,6 @@ def _hour_complete(
     )
 
 
-def _cycle_complete(
-    *,
-    paths: ArtifactPaths,
-    existing_markers: set[str],
-    model: ModelConfig,
-    cycle: str,
-) -> bool:
-    return all(
-        _hour_complete(paths=paths, existing_markers=existing_markers, model=model, cycle=cycle, fhour=fhour)
-        for fhour in model.workload.forecast_hours
-    )
-
-
 def _lease_pk(*, cycle: str, fhour: str) -> str:
     return f"{MODEL_ID}#{cycle}#{fhour}"
 
@@ -283,35 +268,6 @@ def _submit_job(
     return job_id
 
 
-def _publish_if_complete(
-    *,
-    model: ModelConfig,
-    artifact_root_uri: str,
-    cycle: str,
-    pipeline_config: PipelineConfig | None = None,
-    pipeline_config_uri: str | None = None,
-    store: UriStore | None = None,
-) -> bool:
-    resolved_pipeline_config = pipeline_config
-    if resolved_pipeline_config is None:
-        resolved_pipeline_config = _pipeline_config(
-            pipeline_config_uri or os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
-        )
-    ctx = execution_context_for_model(model, artifact_root_uri)
-    resolved_store = store if store is not None else make_store()
-    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=artifact_root_uri)
-    result = run_publish(
-        ctx=ctx,
-        cycle=cycle,
-        model_label=model.label,
-        artifact_ids=model.workload.artifacts,
-        artifact_specs=model.artifacts,
-        artifact_repo=artifact_repo,
-        pipeline_config=resolved_pipeline_config,
-    )
-    return result.ready
-
-
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Poll DWD for ready ICON files and submit Batch jobs."""
 
@@ -325,7 +281,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     model = _model(pipeline_config_uri)
     if not model.workload.artifacts or not model.workload.forecast_hours:
         print("ICON workload is empty; nothing to submit", flush=True)
-        return {"ok": True, "submitted": 0, "published": 0}
+        return {"ok": True, "submitted": 0}
 
     now = _event_now(event)
     now_epoch = int(now.timestamp())
@@ -344,7 +300,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     paths = ArtifactPaths(artifact_root_uri)
 
     submitted = 0
-    published = 0
     completed = 0
     pending = 0
     leased = 0
@@ -410,20 +365,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             )
             submitted += 1
 
-        if _cycle_complete(paths=paths, existing_markers=existing_markers, model=model, cycle=cycle):
-            if _publish_if_complete(
-                model=model,
-                artifact_root_uri=artifact_root_uri,
-                cycle=cycle,
-                pipeline_config_uri=pipeline_config_uri,
-                store=store,
-            ):
-                published += 1
-
     return {
         "ok": True,
         "submitted": submitted,
-        "published": published,
         "completed": completed,
         "pending": pending,
         "leased": leased,

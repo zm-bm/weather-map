@@ -27,10 +27,11 @@ etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH> --artifact cloud_layers --artifact
 
 The script prepares `weather-map-forecast-etl:local`, resolves configured
 forecast hours inside that image, then runs one `forecast-etl run-hour`
-container per forecast hour. Omitting `--model` refreshes every configured model
-sequentially. It automatically rebuilds the image when the ETL Dockerfile,
-package code, package metadata, or forecast config changes; use `--rebuild` to
-force a rebuild when needed.
+container per forecast hour and one final `forecast-etl publish-cycle` per
+model unless `--no-publish` is set. Omitting `--model` refreshes every
+configured model sequentially. It automatically rebuilds the image when the ETL
+Dockerfile, package code, package metadata, or forecast config changes; use
+`--rebuild` to force a rebuild when needed.
 
 Local outputs are written under the repo-level `artifacts/` directory.
 Downloads and prepared GRIB files are cached under `etl/cache/`.

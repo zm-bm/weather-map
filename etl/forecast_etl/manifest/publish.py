@@ -21,6 +21,7 @@ class PublishResult:
 
     ready: bool
     already_published: bool
+    latest_promoted: bool = False
     missing_markers: tuple[str, ...] = ()
 
 
@@ -95,13 +96,13 @@ def run_publish(
     else:
         cycle_manifest_uri = artifact_repo.write_cycle_manifest(model_id=ctx.model_id, cycle=cycle, manifest=manifest_obj)
 
-    _maybe_promote_latest(
+    latest_promoted = _maybe_promote_latest(
         artifacts=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
         manifest_obj=manifest_to_publish,
     )
-    if pipeline_config is not None:
+    if latest_promoted and pipeline_config is not None:
         forecast_manifest_uri = publish_forecast_manifest(
             pipeline_config=pipeline_config,
             artifact_repo=artifact_repo,
@@ -123,7 +124,7 @@ def run_publish(
         )
 
     print(f"Published: {cycle_manifest_uri}")
-    return PublishResult(ready=True, already_published=already_published)
+    return PublishResult(ready=True, already_published=already_published, latest_promoted=latest_promoted)
 
 
 def _is_already_published(
@@ -166,19 +167,20 @@ def _maybe_promote_latest(
     model_id: str,
     cycle: str,
     manifest_obj: dict,
-) -> None:
+) -> bool:
     """Promote the cycle manifest to latest unless latest is a newer cycle."""
 
     current_latest_cycle = _read_latest_cycle(artifacts=artifacts, model_id=model_id)
     if current_latest_cycle is None or cycle >= current_latest_cycle:
         artifacts.write_latest_manifest(model_id=model_id, manifest=manifest_obj)
-        return
+        return True
 
     print(
         "Skipping latest manifest promotion for older cycle.\n"
         f"  cycle={cycle}\n"
         f"  current_latest_cycle={current_latest_cycle}"
     )
+    return False
 
 
 def _read_latest_cycle(*, artifacts: ArtifactRepository, model_id: str) -> str | None:

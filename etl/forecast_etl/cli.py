@@ -3,6 +3,7 @@
 Subcommands:
 - run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
+- publish-cycle: publish manifests for one processed model cycle
 - list-models: print configured forecast model ids
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
@@ -13,7 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from .commands import run_cycle, run_hour
+from .commands import publish_cycle, run_cycle, run_hour
 from .config.load import load_pipeline_config
 from .config.resolved import PipelineConfig
 from .cycles import parse_cycle
@@ -79,11 +80,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--source-uri",
         help="Input model source URI (file://..., s3://..., http(s)://); falls back to $GRIB_SOURCE_URI",
     )
-    ap_run_hour.add_argument(
-        "--no-publish",
-        action="store_true",
-        help="Skip publish after processing this forecast hour",
-    )
     _add_artifact_filter_arg(ap_run_hour)
     ap_run_hour.set_defaults(_handler=_cmd_run_hour)
 
@@ -106,6 +102,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     _add_artifact_filter_arg(ap_run_cycle)
     ap_run_cycle.set_defaults(_handler=_cmd_run_cycle)
+
+    ap_publish_cycle = sub.add_parser(
+        "publish-cycle",
+        help="Publish manifests for one processed forecast cycle",
+        parents=[runtime],
+    )
+    ap_publish_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_publish_cycle.set_defaults(_handler=_cmd_publish_cycle)
 
     ap_list_fhours = sub.add_parser(
         "list-forecast-hours",
@@ -181,7 +185,7 @@ def _resolve_artifact_ids(model, selected: list[str] | None) -> tuple[str, ...]:
 
 
 def _cmd_run_hour(args: argparse.Namespace) -> int:
-    """Run one hour and publish by default."""
+    """Run one hour without publishing."""
     store = make_store()
     cfg = _load_cfg(args, store=store)
     model = cfg.model(_require_model_id(args))
@@ -203,8 +207,6 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         fhour=fhour,
         source_uri=source_uri,
         artifact_ids=_resolve_artifact_ids(model, args.artifacts),
-        publish=not args.no_publish,
-        pipeline_config=cfg,
         store=store,
     )
     return 0
@@ -230,6 +232,25 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
         store=store,
     )
     return 0
+
+
+def _cmd_publish_cycle(args: argparse.Namespace) -> int:
+    """Publish one processed model cycle."""
+    store = make_store()
+    cfg = _load_cfg(args, store=store)
+    model = cfg.model(_require_model_id(args))
+    ctx = execution_context_for_model(model, args.artifact_root_uri)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+
+    result = publish_cycle(
+        model=model,
+        ctx=ctx,
+        cycle=cycle,
+        pipeline_config=cfg,
+        store=store,
+    )
+    return 0 if result.ready else 2
 
 
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:

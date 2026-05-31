@@ -41,3 +41,11 @@ output "icon_ingest_lambda_name" {
 output "icon_ingest_lambda_arn" {
   value = aws_lambda_function.ingest_icon.arn
 }
+
+output "publisher_lambda_name" {
+  value = aws_lambda_function.publisher.function_name
+}
+
+output "publisher_lambda_arn" {
+  value = aws_lambda_function.publisher.arn
+}
