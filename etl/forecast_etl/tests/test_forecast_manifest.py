@@ -459,14 +459,53 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertIsNone(manifest["models"]["gfs"]["latest"])
         self.assertIsNone(manifest["models"]["icon"]["latest"])
 
-    def test_rejects_embedded_latest_with_missing_or_inconsistent_frame_metadata(self) -> None:
+    def test_ignores_incompatible_latest_manifest_when_building_forecast_manifest(self) -> None:
+        cfg = _pipeline_config()
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-stale-latest-") as td:
+            repo = ArtifactRepository.for_root(
+                store=make_store(),
+                artifact_root_uri=f"file://{Path(td).as_posix()}",
+            )
+            repo.write_latest_manifest(
+                model_id="gfs",
+                manifest={
+                    "schema": MANIFEST_SCHEMA,
+                    "schemaVersion": MANIFEST_SCHEMA_VERSION,
+                    "payloadContract": FORECAST_BINARY_CONTRACT,
+                    "model": {"id": "gfs", "label": "GFS"},
+                    "run": {
+                        "cycle": "2026051606",
+                        "generatedAt": "2026-05-16T00:00:00Z",
+                        "revision": "legacy-products-manifest",
+                    },
+                    "times": [{"id": "000", "leadHours": 0, "validAt": "2026-05-16T00:00:00Z"}],
+                    "products": {},
+                    "groups": [],
+                },
+            )
+
+            manifest = build_forecast_manifest(
+                pipeline_config=cfg,
+                artifact_repo=repo,
+                generated_at="2026-05-16T00:00:00Z",
+                catalog=_forecast_catalog(),
+            )
+
+        self.assertIsNone(manifest["models"]["gfs"]["latest"])
+        self.assertEqual(
+            manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+            "temporarily_unavailable",
+        )
+
+    def test_ignores_latest_with_missing_or_inconsistent_frame_metadata(self) -> None:
         cfg = _pipeline_config()
 
         cases = (
-            ("missing", "must be an object"),
-            ("inconsistent", "byteLength mismatch"),
+            "missing",
+            "inconsistent",
         )
-        for case, expected_error in cases:
+        for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
                 prefix="weather-map-forecast-manifest-invalid-latest-"
             ) as td:
@@ -482,13 +521,18 @@ class ForecastManifestTest(unittest.TestCase):
                     manifest["artifacts"]["tmp_surface"]["frames"]["003"]["byteLength"] = 8
                 repo.write_latest_manifest(model_id="gfs", manifest=manifest)
 
-                with self.assertRaisesRegex(SystemExit, expected_error):
-                    build_forecast_manifest(
-                        pipeline_config=cfg,
-                        artifact_repo=repo,
-                        generated_at="2026-05-16T00:00:00Z",
-                        catalog=_forecast_catalog(),
-                    )
+                forecast_manifest = build_forecast_manifest(
+                    pipeline_config=cfg,
+                    artifact_repo=repo,
+                    generated_at="2026-05-16T00:00:00Z",
+                    catalog=_forecast_catalog(),
+                )
+
+            self.assertIsNone(forecast_manifest["models"]["gfs"]["latest"])
+            self.assertEqual(
+                forecast_manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+                "temporarily_unavailable",
+            )
 
 
 if __name__ == "__main__":

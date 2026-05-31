@@ -51,6 +51,15 @@ def build_forecast_manifest(
         model_id: _read_latest_manifest(artifact_repo=artifact_repo, model_id=model_id)
         for model_id in pipeline_config.models
     }
+    embedded_latest_manifests: dict[str, dict[str, Any] | None] = {}
+    compatible_latest_manifests: dict[str, Mapping[str, Any] | None] = {}
+    for model_id, latest_manifest in latest_manifests.items():
+        embedded_latest = _safe_embedded_latest_manifest(
+            model_id=model_id,
+            manifest=latest_manifest,
+        )
+        embedded_latest_manifests[model_id] = embedded_latest
+        compatible_latest_manifests[model_id] = latest_manifest if embedded_latest is not None else None
 
     overlay_layers_by_id = _catalog_overlay_layers_by_id(forecast_catalog)
 
@@ -63,7 +72,7 @@ def build_forecast_manifest(
         "models": {
             model_id: {
                 "label": model.label,
-                "latest": _embedded_latest_manifest(latest_manifests[model_id]),
+                "latest": embedded_latest_manifests[model_id],
             }
             for model_id, model in pipeline_config.models.items()
         },
@@ -76,7 +85,7 @@ def build_forecast_manifest(
                             layer,
                             overlay_layers_by_id=overlay_layers_by_id,
                         ),
-                        latest_manifest=latest_manifests[model_id],
+                        latest_manifest=compatible_latest_manifests[model_id],
                     )
                     for model_id, model in pipeline_config.models.items()
                 }
@@ -154,6 +163,14 @@ def _embedded_latest_manifest(manifest: Mapping[str, Any] | None) -> dict[str, A
             for artifact_id, artifact in artifacts.items()
         },
     }
+
+
+def _safe_embedded_latest_manifest(*, model_id: str, manifest: Any) -> dict[str, Any] | None:
+    try:
+        return _embedded_latest_manifest(manifest)
+    except (Exception, SystemExit) as exc:
+        print(f"Ignoring incompatible latest manifest for forecast manifest model={model_id}: {exc}")
+        return None
 
 
 def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, ...]) -> dict[str, Any]:
@@ -252,6 +269,9 @@ def _manifest_satisfies(
     manifest: Mapping[str, Any],
     requirements: Iterable[ArtifactRequirement],
 ) -> bool:
+    if not isinstance(manifest, Mapping):
+        return False
+
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, dict):
         return False
