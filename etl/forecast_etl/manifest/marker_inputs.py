@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..artifacts.markers_schema import ArtifactMarkerPayload
+from ..artifacts.markers_schema import ArtifactMarkerPayload, ArtifactSuccessMarker
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec
 from ..encoding.codecs import LINEAR_DECODE_FORMULA, is_linear_encoding_format
@@ -30,6 +30,7 @@ def artifact_manifest_inputs_from_markers(
     fhours: tuple[str, ...],
     artifact_id: str,
     artifact: ArtifactSpec,
+    markers_by_fhour: Mapping[str, ArtifactSuccessMarker] | None = None,
 ) -> ArtifactManifestInputs:
     """Read artifact markers and validate them against publish context/config."""
 
@@ -48,7 +49,11 @@ def artifact_manifest_inputs_from_markers(
             fhour=fhour,
             artifact_id=artifact_id,
         )
-        marker = artifact_repo.read_artifact_success_marker_uri(marker_uri)
+        marker = (
+            markers_by_fhour[fhour]
+            if markers_by_fhour is not None
+            else artifact_repo.read_artifact_success_marker_uri(marker_uri)
+        )
         artifact_marker = marker.artifact
 
         _assert_fields_match(

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any, Iterable, Mapping
 
+from ..artifacts.markers_schema import ArtifactSuccessMarker
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec
 from ..cycles import cycle_datetime
@@ -32,6 +33,7 @@ def build_manifest_artifacts(
     fhours: Iterable[str],
     artifact_ids: Iterable[str],
     artifact_specs: Mapping[str, ArtifactSpec],
+    marker_cache: Mapping[tuple[str, str], ArtifactSuccessMarker] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build manifest artifact entries from success markers and artifact config."""
 
@@ -51,6 +53,11 @@ def build_manifest_artifacts(
             fhours=fhours,
             artifact_id=artifact_id,
             artifact=artifact,
+            markers_by_fhour=(
+                {fhour: marker_cache[(artifact_id, fhour)] for fhour in fhours}
+                if marker_cache is not None
+                else None
+            ),
         )
         artifact_entry: dict[str, Any] = {
             "id": artifact_id,

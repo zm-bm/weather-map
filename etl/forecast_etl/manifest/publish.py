@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
+from ..artifacts.markers_schema import ArtifactSuccessMarker, parse_artifact_success_marker
 from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, PipelineConfig
@@ -74,6 +75,17 @@ def run_publish(
         print("Publish not ready: no run found")
         return PublishResult(ready=False, already_published=False)
 
+    fast_result = _try_publish_from_existing_run(
+        artifacts=artifact_repo,
+        model_id=ctx.model_id,
+        cycle=cycle,
+        run_id=resolved_run_id,
+        pipeline_config=pipeline_config,
+        generated_at=_utc_now_iso(),
+    )
+    if fast_result is not None:
+        return fast_result
+
     missing = artifact_repo.missing_success_markers(
         model_id=ctx.model_id,
         cycle=cycle,
@@ -89,7 +101,13 @@ def run_publish(
             print(f"... and {len(missing) - 10} more")
         return PublishResult(ready=False, already_published=False, missing_markers=tuple(missing))
 
-    resolved_run_id, marker_errors = _resolve_marker_run_id(
+    expected_marker_count = len(fhours) * len(artifact_ids)
+    print(
+        f"Publish reading {expected_marker_count} success markers "
+        f"model={ctx.model_id} cycle={cycle} run_id={resolved_run_id}",
+        flush=True,
+    )
+    marker_cache, marker_errors = _read_publish_markers(
         artifact_repo=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
@@ -114,6 +132,7 @@ def run_publish(
         print("Publish not ready: no run_id found in success markers")
         return PublishResult(ready=False, already_published=False)
 
+    print(f"Publish building manifest model={ctx.model_id} cycle={cycle} run_id={resolved_run_id}", flush=True)
     manifest_artifacts = build_manifest_artifacts(
         artifact_repo=artifact_repo,
         model_id=ctx.model_id,
@@ -122,6 +141,7 @@ def run_publish(
         fhours=fhours,
         artifact_ids=artifact_ids,
         artifact_specs=artifact_specs,
+        marker_cache=marker_cache,
     )
 
     generated_at = _utc_now_iso()
@@ -173,7 +193,14 @@ def run_publish(
         cycle=cycle,
         manifest_obj=manifest_to_publish,
     )
-    if latest_promoted and pipeline_config is not None:
+    revision = str(manifest_to_publish["run"]["revision"])
+    if pipeline_config is not None and _should_refresh_forecast_manifest(
+        artifacts=artifact_repo,
+        model_id=ctx.model_id,
+        cycle=cycle,
+        revision=revision,
+        latest_promoted=latest_promoted,
+    ):
         forecast_manifest_uri = publish_forecast_manifest(
             pipeline_config=pipeline_config,
             artifact_repo=artifact_repo,
@@ -204,6 +231,105 @@ def run_publish(
     )
 
 
+def _try_publish_from_existing_run(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    cycle: str,
+    run_id: str,
+    pipeline_config: PipelineConfig | None,
+    generated_at: str,
+) -> PublishResult | None:
+    """Fast path for a run that already has a matching manifest and published marker."""
+
+    if not artifacts.published_marker_exists(model_id=model_id, cycle=cycle, run_id=run_id):
+        return None
+    if not artifacts.run_manifest_exists(model_id=model_id, cycle=cycle, run_id=run_id):
+        return None
+
+    try:
+        published_marker = artifacts.read_published_marker(model_id=model_id, cycle=cycle, run_id=run_id)
+        manifest_obj = artifacts.read_run_manifest(model_id=model_id, cycle=cycle, run_id=run_id)
+    except (Exception, SystemExit) as exc:
+        print(f"Unable to reuse existing published run; republishing from markers: {exc}")
+        return None
+
+    run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
+    revision = run.get("revision") if isinstance(run, Mapping) else None
+    manifest_run_id = run.get("runId") if isinstance(run, Mapping) else None
+    if not isinstance(revision, str) or published_marker.revision != revision:
+        return None
+    if manifest_run_id != run_id:
+        print(
+            "Unable to reuse existing published run; run manifest runId mismatch.\n"
+            f"  expected={run_id!r}\n"
+            f"  found={manifest_run_id!r}"
+        )
+        return None
+
+    cycle_manifest_uri = artifacts.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle)
+    if not _cycle_alias_matches_revision(
+        artifacts=artifacts,
+        model_id=model_id,
+        cycle=cycle,
+        revision=revision,
+    ):
+        cycle_manifest_uri = artifacts.write_cycle_manifest(model_id=model_id, cycle=cycle, manifest=manifest_obj)
+
+    latest_promoted = _maybe_promote_latest(
+        artifacts=artifacts,
+        model_id=model_id,
+        cycle=cycle,
+        manifest_obj=manifest_obj,
+    )
+    if pipeline_config is not None and _should_refresh_forecast_manifest(
+        artifacts=artifacts,
+        model_id=model_id,
+        cycle=cycle,
+        revision=revision,
+        latest_promoted=latest_promoted,
+    ):
+        forecast_manifest_uri = publish_forecast_manifest(
+            pipeline_config=pipeline_config,
+            artifact_repo=artifacts,
+            generated_at=generated_at,
+        )
+        print(f"Published forecast manifest: {forecast_manifest_uri}")
+
+    print(f"Already published (reused run manifest): {artifacts.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id)}")
+    print(f"Published: {cycle_manifest_uri}")
+    return PublishResult(
+        ready=True,
+        already_published=True,
+        latest_promoted=latest_promoted,
+        run_id=run_id,
+    )
+
+
+def _should_refresh_forecast_manifest(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    cycle: str,
+    revision: str,
+    latest_promoted: bool,
+) -> bool:
+    if latest_promoted:
+        return True
+    if not _latest_alias_matches_revision(
+        artifacts=artifacts,
+        model_id=model_id,
+        cycle=cycle,
+        revision=revision,
+    ):
+        return False
+    return not _forecast_manifest_model_matches_revision(
+        artifacts=artifacts,
+        model_id=model_id,
+        revision=revision,
+    )
+
+
 def _select_publish_run_id(
     *,
     artifact_repo: ArtifactRepository,
@@ -222,7 +348,7 @@ def _select_publish_run_id(
     return run_ids[0], []
 
 
-def _resolve_marker_run_id(
+def _read_publish_markers(
     *,
     artifact_repo: ArtifactRepository,
     model_id: str,
@@ -231,9 +357,10 @@ def _resolve_marker_run_id(
     fhours: tuple[str, ...],
     artifact_ids: tuple[str, ...],
     required_run_id: str | None,
-) -> tuple[str | None, list[str]]:
-    """Read expected markers and require one consistent run id."""
+) -> tuple[dict[tuple[str, str], ArtifactSuccessMarker], list[str]]:
+    """Read expected markers once and require one consistent run id."""
 
+    markers: dict[tuple[str, str], ArtifactSuccessMarker] = {}
     run_ids: set[str] = set()
     errors: list[str] = []
     for artifact_id in artifact_ids:
@@ -255,7 +382,9 @@ def _resolve_marker_run_id(
                 errors.append(f"{uri}: missing run_id")
                 continue
             try:
-                run_ids.add(validate_run_id(raw_run_id))
+                marker_run_id = validate_run_id(raw_run_id)
+                run_ids.add(marker_run_id)
+                markers[(artifact_id, fhour)] = parse_artifact_success_marker(raw_marker, uri=uri)
             except ValueError as exc:
                 errors.append(f"{uri}: {exc}")
 
@@ -266,10 +395,10 @@ def _resolve_marker_run_id(
     if len(run_ids) > 1:
         errors.append(f"success markers contain multiple run_id values: {sorted(run_ids)!r}")
     if errors:
-        return (next(iter(run_ids)) if len(run_ids) == 1 else None), errors
+        return markers, errors
     if required_run_id is not None and not run_ids:
-        return None, [f"success markers missing required run_id {required_run_id!r}"]
-    return (next(iter(run_ids)) if run_ids else None), []
+        return markers, [f"success markers missing required run_id {required_run_id!r}"]
+    return markers, []
 
 
 def _is_already_published(
@@ -318,6 +447,15 @@ def _maybe_promote_latest(
 
     current_latest_cycle = _read_latest_cycle(artifacts=artifacts, model_id=model_id)
     if current_latest_cycle is None or cycle >= current_latest_cycle:
+        run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
+        revision = run.get("revision") if isinstance(run, Mapping) else None
+        if isinstance(revision, str) and _latest_alias_matches_revision(
+            artifacts=artifacts,
+            model_id=model_id,
+            cycle=cycle,
+            revision=revision,
+        ):
+            return False
         artifacts.write_latest_manifest(model_id=model_id, manifest=manifest_obj)
         return True
 
@@ -327,6 +465,60 @@ def _maybe_promote_latest(
         f"  current_latest_cycle={current_latest_cycle}"
     )
     return False
+
+
+def _cycle_alias_matches_revision(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    cycle: str,
+    revision: str,
+) -> bool:
+    if not artifacts.cycle_manifest_exists(model_id=model_id, cycle=cycle):
+        return False
+    try:
+        manifest = artifacts.read_cycle_manifest(model_id=model_id, cycle=cycle)
+    except (Exception, SystemExit):
+        return False
+    info = manifest_info_from_obj(manifest, fallback_cycle=cycle)
+    return info is not None and info.cycle == cycle and info.revision == revision
+
+
+def _latest_alias_matches_revision(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    cycle: str,
+    revision: str,
+) -> bool:
+    if not artifacts.latest_manifest_exists(model_id=model_id):
+        return False
+    try:
+        manifest = artifacts.read_latest_manifest(model_id=model_id)
+    except (Exception, SystemExit):
+        return False
+    info = manifest_info_from_obj(manifest)
+    return info is not None and info.cycle == cycle and info.revision == revision
+
+
+def _forecast_manifest_model_matches_revision(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    revision: str,
+) -> bool:
+    if not artifacts.forecast_manifest_exists():
+        return False
+    try:
+        forecast_manifest = artifacts.read_forecast_manifest()
+    except (Exception, SystemExit):
+        return False
+
+    models = forecast_manifest.get("models") if isinstance(forecast_manifest, Mapping) else None
+    model_entry = models.get(model_id) if isinstance(models, Mapping) else None
+    latest = model_entry.get("latest") if isinstance(model_entry, Mapping) else None
+    info = manifest_info_from_obj(latest) if isinstance(latest, Mapping) else None
+    return info is not None and info.revision == revision
 
 
 def _read_latest_cycle(*, artifacts: ArtifactRepository, model_id: str) -> str | None:

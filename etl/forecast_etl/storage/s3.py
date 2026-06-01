@@ -7,10 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
 import boto3  # type: ignore
+from botocore.config import Config  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
 from .base import UriObject, UriStore, UriWriteMetadata
@@ -33,8 +35,7 @@ class S3Store(UriStore):
         return bucket, key
 
     def _client(self):
-        # Cheap to create; boto3 internally caches connections.
-        return boto3.client("s3")
+        return _s3_client()
 
     def _put_extra_args(self, *, metadata: UriWriteMetadata | None) -> dict[str, str]:
         if metadata is None:
@@ -152,3 +153,15 @@ def _optional_datetime(value: object) -> datetime | None:
 
 def _optional_int(value: object) -> int | None:
     return value if isinstance(value, int) else None
+
+
+@lru_cache(maxsize=1)
+def _s3_client():
+    return boto3.client(
+        "s3",
+        config=Config(
+            max_pool_connections=64,
+            connect_timeout=10,
+            read_timeout=60,
+        ),
+    )
