@@ -100,9 +100,12 @@ and success markers, writes `validation.json`, and currently verifies marker
 metadata without re-reading payload bytes. Publishing is marker-based and
 idempotent; it refuses incomplete cycles, cycles whose expected markers are
 missing or mixed across run ids, and runs without a passing validation report.
+Publishing writes immutable run manifests and promotes by small public pointers;
+direct `manifests/<model>/latest.json` reads now return a pointer, not a full
+cycle manifest.
 
 ```text
-source adapter -> prepared GRIB -> artifact payloads -> success markers -> validation -> cycle manifest
+source adapter -> prepared GRIB -> artifact payloads -> success markers -> validation -> run manifest -> pointers
 ```
 
 The cycle manifest is artifact-only: it advertises produced scalar/vector
@@ -134,10 +137,16 @@ runs/<model>/<cycle>/<run_id>/status/<artifact>/<fhour>._SUCCESS.json
 runs/<model>/<cycle>/<run_id>/validation.json
 runs/<model>/<cycle>/<run_id>/manifest.json
 runs/<model>/<cycle>/<run_id>/_PUBLISHED.json
-manifests/<model>/<cycle>.json
+manifests/<model>/cycles/<cycle>/runs/<run_id>.json
+manifests/<model>/cycles/<cycle>/current.json
 manifests/<model>/latest.json
 manifests/forecast-manifest.json
 ```
+
+`manifests/<model>/latest.json` has schema
+`weather-map.model-latest-pointer` and `current.json` has schema
+`weather-map.model-cycle-current-pointer`; both point at the immutable public
+run manifest under `manifests/<model>/cycles/.../runs/...`.
 
 ## Checks
 

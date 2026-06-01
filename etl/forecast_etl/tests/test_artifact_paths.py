@@ -37,6 +37,23 @@ class ArtifactPathContractTest(unittest.TestCase):
             f"runs/gfs/2026041200/{DEFAULT_RUN_ID}/validation.json",
         )
 
+    def test_public_manifest_pointer_paths(self) -> None:
+        paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
+
+        self.assertEqual(
+            paths.public_run_manifest_key(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
+            f"manifests/gfs/cycles/2026041200/runs/{DEFAULT_RUN_ID}.json",
+        )
+        self.assertEqual(
+            paths.public_run_manifest_uri(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
+            "file:///tmp/weather-map-artifacts/"
+            f"manifests/gfs/cycles/2026041200/runs/{DEFAULT_RUN_ID}.json",
+        )
+        self.assertEqual(
+            paths.cycle_current_pointer_uri(model_id="gfs", cycle="2026041200"),
+            "file:///tmp/weather-map-artifacts/manifests/gfs/cycles/2026041200/current.json",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

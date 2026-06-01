@@ -36,8 +36,9 @@ Publication is scheduled separately:
 2. The publisher checks recent synoptic cycles for configured models.
 3. Complete runs are validated into run-scoped `validation.json` reports when
    needed.
-4. Runs with passing validation publish model manifest aliases, the run-scoped
-   `_PUBLISHED.json`, and the aggregate frontend forecast manifest.
+4. Runs with passing validation publish immutable public run manifests, update
+   `current.json`/`latest.json` pointers, write the run-scoped `_PUBLISHED.json`,
+   and rebuild the aggregate frontend forecast manifest when latest changes.
 
 Both models use the same worker image. Each run uses pinned copies of the
 pipeline config and forecast catalog stored under its run prefix.
@@ -58,6 +59,19 @@ runs/<model>/<cycle>/<run_id>/
 
 Public aliases remain under `manifests/`, and legacy `/fields/*` payloads stay
 available while old public manifests age out.
+
+Pointer-era public manifests use:
+
+```text
+manifests/<model>/cycles/<cycle>/runs/<run_id>.json
+manifests/<model>/cycles/<cycle>/current.json
+manifests/<model>/latest.json
+manifests/forecast-manifest.json
+```
+
+Direct reads of `manifests/<model>/latest.json` return a small
+`weather-map.model-latest-pointer` object. The frontend hot path continues to
+read only `manifests/forecast-manifest.json`.
 
 Automatic GFS and ICON ingest share a small DynamoDB run coordinator table:
 

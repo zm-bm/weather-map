@@ -13,6 +13,7 @@ from forecast_etl.artifacts.repository import (
     LATEST_MANIFEST_METADATA,
     ArtifactRepository,
 )
+from forecast_etl.manifest.pointers import LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.run_metadata import RunMetadata, RunSnapshot
 from forecast_etl.storage.base import UriObject, UriWriteMetadata
 from forecast_etl.tests.fixtures.artifacts import (
@@ -89,10 +90,31 @@ class ArtifactRepositoryTests(unittest.TestCase):
             cycle="2026042700",
             manifest={"run": {"cycle": "2026042700"}},
         )
+        public_manifest_uri = repo.write_public_run_manifest(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+        )
+        pointer = manifest_pointer_dict(
+            schema_name=LATEST_POINTER_SCHEMA,
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            revision="abc123",
+            generated_at="2026-04-27T01:00:00+00:00",
+            manifest_path=repo.paths.relative_key(public_manifest_uri),
+        )
+        current_pointer_uri = repo.write_cycle_current_pointer(
+            model_id="gfs",
+            cycle="2026042700",
+            pointer={**pointer, "schema": "weather-map.model-cycle-current-pointer"},
+        )
         latest_manifest_uri = repo.write_latest_manifest(
             model_id="gfs",
             manifest={"run": {"cycle": "2026042700"}},
         )
+        latest_pointer_uri = repo.write_latest_pointer(model_id="gfs", pointer=pointer)
         validation_uri = repo.write_validation_report(
             model_id="gfs",
             cycle="2026042700",
@@ -113,9 +135,37 @@ class ArtifactRepositoryTests(unittest.TestCase):
         )
 
         self.assertEqual(store.metadata[cycle_manifest_uri], FORECAST_JSON_METADATA)
+        self.assertEqual(store.metadata[public_manifest_uri], FORECAST_JSON_METADATA)
+        self.assertEqual(store.metadata[current_pointer_uri], LATEST_MANIFEST_METADATA)
         self.assertEqual(store.metadata[latest_manifest_uri], LATEST_MANIFEST_METADATA)
+        self.assertEqual(store.metadata[latest_pointer_uri], LATEST_MANIFEST_METADATA)
         self.assertEqual(store.metadata[validation_uri], INTERNAL_JSON_METADATA)
         self.assertEqual(store.metadata[published_uri], INTERNAL_JSON_METADATA)
+
+    def test_public_run_manifest_is_immutable(self) -> None:
+        store = RecordingStore()
+        repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
+
+        repo.write_public_run_manifest(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+        )
+        repo.write_public_run_manifest(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+        )
+
+        with self.assertRaisesRegex(SystemExit, "Existing immutable run object conflicts"):
+            repo.write_public_run_manifest(
+                model_id="gfs",
+                cycle="2026042700",
+                run_id=DEFAULT_RUN_ID,
+                manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID, "revision": "other"}},
+            )
 
     def test_write_success_marker_builds_and_validates_marker_envelope(self) -> None:
         store = RecordingStore()

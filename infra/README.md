@@ -46,7 +46,9 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
 Manual submits use the Terraform-deployed pipeline config and forecast catalog
 to create a run-scoped snapshot before Batch workers start. The scheduled
 publisher validates complete runs and publishes only runs with a passing
-`validation.json`.
+`validation.json`. Publishing writes immutable public run manifests and updates
+small `current.json`/`latest.json` pointers; direct
+`manifests/<model>/latest.json` reads now return a pointer.
 
 See [terraform/weather-etl/README.md](terraform/weather-etl/README.md) for the
 GFS/ICON production architecture and operational details.

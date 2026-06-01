@@ -206,11 +206,27 @@ class PublishFixture:
         return uri
 
     def cycle_manifest(self, *, cycle: str | None = None) -> dict[str, Any]:
-        uri = self.ap.manifest_cycle_uri(model_id=self.model_id, cycle=cycle or self.cycle)
+        uri = self.ap.public_run_manifest_uri(
+            model_id=self.model_id,
+            cycle=cycle or self.cycle,
+            run_id=self.run_id,
+        )
         return json.loads(self.store.read_bytes(uri=uri).decode("utf-8"))
 
     def latest_manifest(self) -> dict[str, Any]:
+        pointer = self.latest_pointer()
+        uri = f"{self.artifact_root_uri.rstrip('/')}/{pointer['manifestPath']}"
+        return json.loads(self.store.read_bytes(uri=uri).decode("utf-8"))
+
+    def latest_pointer(self) -> dict[str, Any]:
         return json.loads(self.store.read_bytes(uri=self.ap.manifest_latest_uri(model_id=self.model_id)).decode("utf-8"))
+
+    def current_pointer(self, *, cycle: str | None = None) -> dict[str, Any]:
+        return json.loads(
+            self.store.read_bytes(
+                uri=self.ap.cycle_current_pointer_uri(model_id=self.model_id, cycle=cycle or self.cycle)
+            ).decode("utf-8")
+        )
 
     def payload_bytes(self, *, artifact_id: str, fhour: str, dtype: str, cycle: str | None = None) -> bytes:
         payload_uri = self.ap.output_field_payload_uri(

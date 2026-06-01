@@ -17,6 +17,7 @@ from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_artifacts
 from .forecast_manifest import publish_forecast_manifest
 from .inspect import manifest_info_from_obj
+from .pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
 
 
 @dataclass(frozen=True)
@@ -185,7 +186,6 @@ def run_publish(
     )
     revision = str(manifest_obj["run"]["revision"])
 
-    run_manifest_uri = artifact_repo.paths.run_manifest_uri(model_id=ctx.model_id, cycle=cycle, run_id=resolved_run_id)
     already_published = _is_already_published(
         artifacts=artifact_repo,
         model_id=ctx.model_id,
@@ -198,24 +198,43 @@ def run_publish(
     if already_published:
         manifest_to_publish = artifact_repo.read_run_manifest(model_id=ctx.model_id, cycle=cycle, run_id=resolved_run_id)
     else:
-        run_manifest_uri = artifact_repo.write_run_manifest(
+        artifact_repo.write_run_manifest(
             model_id=ctx.model_id,
             cycle=cycle,
             run_id=resolved_run_id,
             manifest=manifest_obj,
         )
 
-    cycle_manifest_uri = artifact_repo.write_cycle_manifest(
+    public_manifest_uri = artifact_repo.write_public_run_manifest(
         model_id=ctx.model_id,
         cycle=cycle,
+        run_id=resolved_run_id,
         manifest=manifest_to_publish,
     )
+    current_pointer = _manifest_pointer_for_manifest(
+        artifacts=artifact_repo,
+        schema_name=CURRENT_POINTER_SCHEMA,
+        model_id=ctx.model_id,
+        cycle=cycle,
+        run_id=resolved_run_id,
+        manifest_obj=manifest_to_publish,
+        public_manifest_uri=public_manifest_uri,
+    )
+    artifact_repo.write_cycle_current_pointer(model_id=ctx.model_id, cycle=cycle, pointer=current_pointer)
 
     latest_promoted = _maybe_promote_latest(
         artifacts=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
-        manifest_obj=manifest_to_publish,
+        latest_pointer=_manifest_pointer_for_manifest(
+            artifacts=artifact_repo,
+            schema_name=LATEST_POINTER_SCHEMA,
+            model_id=ctx.model_id,
+            cycle=cycle,
+            run_id=resolved_run_id,
+            manifest_obj=manifest_to_publish,
+            public_manifest_uri=public_manifest_uri,
+        ),
     )
     revision = str(manifest_to_publish["run"]["revision"])
     if pipeline_config is not None and _should_refresh_forecast_manifest(
@@ -243,11 +262,11 @@ def run_publish(
                 model=ctx.model_id,
                 generated_at=generated_at,
                 revision=revision,
-                manifest_uri=run_manifest_uri,
+                manifest_uri=public_manifest_uri,
             ),
         )
 
-    print(f"Published: {cycle_manifest_uri}")
+    print(f"Published: {public_manifest_uri}")
     return PublishResult(
         ready=True,
         already_published=already_published,
@@ -293,20 +312,43 @@ def _try_publish_from_existing_run(
         )
         return None
 
-    cycle_manifest_uri = artifacts.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle)
-    if not _cycle_alias_matches_revision(
+    public_manifest_uri = artifacts.write_public_run_manifest(
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+        manifest=manifest_obj,
+    )
+    current_pointer = _manifest_pointer_for_manifest(
+        artifacts=artifacts,
+        schema_name=CURRENT_POINTER_SCHEMA,
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+        manifest_obj=manifest_obj,
+        public_manifest_uri=public_manifest_uri,
+    )
+    if not _cycle_current_pointer_matches_revision(
         artifacts=artifacts,
         model_id=model_id,
         cycle=cycle,
+        run_id=run_id,
         revision=revision,
     ):
-        cycle_manifest_uri = artifacts.write_cycle_manifest(model_id=model_id, cycle=cycle, manifest=manifest_obj)
+        artifacts.write_cycle_current_pointer(model_id=model_id, cycle=cycle, pointer=current_pointer)
 
     latest_promoted = _maybe_promote_latest(
         artifacts=artifacts,
         model_id=model_id,
         cycle=cycle,
-        manifest_obj=manifest_obj,
+        latest_pointer=_manifest_pointer_for_manifest(
+            artifacts=artifacts,
+            schema_name=LATEST_POINTER_SCHEMA,
+            model_id=model_id,
+            cycle=cycle,
+            run_id=run_id,
+            manifest_obj=manifest_obj,
+            public_manifest_uri=public_manifest_uri,
+        ),
     )
     if pipeline_config is not None and _should_refresh_forecast_manifest(
         artifacts=artifacts,
@@ -324,7 +366,7 @@ def _try_publish_from_existing_run(
         print(f"Published forecast manifest: {forecast_manifest_uri}")
 
     print(f"Already published (reused run manifest): {artifacts.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id)}")
-    print(f"Published: {cycle_manifest_uri}")
+    print(f"Published: {public_manifest_uri}")
     return PublishResult(
         ready=True,
         already_published=True,
@@ -445,27 +487,54 @@ def _is_already_published(
     return False
 
 
+def _manifest_pointer_for_manifest(
+    *,
+    artifacts: ArtifactRepository,
+    schema_name: str,
+    model_id: str,
+    cycle: str,
+    manifest_obj: dict,
+    run_id: str,
+    public_manifest_uri: str,
+) -> dict:
+    run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
+    revision = run.get("revision") if isinstance(run, Mapping) else None
+    generated_at = run.get("generatedAt") if isinstance(run, Mapping) else None
+    if not isinstance(revision, str) or not isinstance(generated_at, str):
+        raise SystemExit("Cannot publish manifest pointer without run revision and generatedAt")
+    return manifest_pointer_dict(
+        schema_name=schema_name,
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+        revision=revision,
+        generated_at=generated_at,
+        manifest_path=artifacts.paths.relative_key(public_manifest_uri),
+    )
+
+
 def _maybe_promote_latest(
     *,
     artifacts: ArtifactRepository,
     model_id: str,
     cycle: str,
-    manifest_obj: dict,
+    latest_pointer: Mapping,
 ) -> bool:
     """Promote the cycle manifest to latest unless latest is a newer cycle."""
 
     current_latest_cycle = _read_latest_cycle(artifacts=artifacts, model_id=model_id)
     if current_latest_cycle is None or cycle >= current_latest_cycle:
-        run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
-        revision = run.get("revision") if isinstance(run, Mapping) else None
-        if isinstance(revision, str) and _latest_alias_matches_revision(
+        revision = latest_pointer.get("revision") if isinstance(latest_pointer, Mapping) else None
+        run_id = latest_pointer.get("runId") if isinstance(latest_pointer, Mapping) else None
+        if isinstance(revision, str) and isinstance(run_id, str) and _latest_pointer_matches_revision(
             artifacts=artifacts,
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             revision=revision,
         ):
             return False
-        artifacts.write_latest_manifest(model_id=model_id, manifest=manifest_obj)
+        artifacts.write_latest_pointer(model_id=model_id, pointer=latest_pointer)
         return True
 
     print(
@@ -476,21 +545,42 @@ def _maybe_promote_latest(
     return False
 
 
-def _cycle_alias_matches_revision(
+def _cycle_current_pointer_matches_revision(
     *,
     artifacts: ArtifactRepository,
     model_id: str,
     cycle: str,
+    run_id: str,
     revision: str,
 ) -> bool:
-    if not artifacts.cycle_manifest_exists(model_id=model_id, cycle=cycle):
+    if not artifacts.cycle_current_pointer_exists(model_id=model_id, cycle=cycle):
         return False
     try:
-        manifest = artifacts.read_cycle_manifest(model_id=model_id, cycle=cycle)
+        pointer = artifacts.read_cycle_current_pointer(model_id=model_id, cycle=cycle)
     except (Exception, SystemExit):
         return False
-    info = manifest_info_from_obj(manifest, fallback_cycle=cycle)
-    return info is not None and info.cycle == cycle and info.revision == revision
+    info = manifest_info_from_obj(pointer, fallback_cycle=cycle)
+    return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
+
+
+def _latest_pointer_matches_revision(
+    *,
+    artifacts: ArtifactRepository,
+    model_id: str,
+    cycle: str,
+    run_id: str,
+    revision: str,
+) -> bool:
+    if not artifacts.latest_manifest_exists(model_id=model_id):
+        return False
+    try:
+        pointer = artifacts.read_latest_pointer(model_id=model_id)
+    except (Exception, SystemExit):
+        return False
+    if pointer.get("schema") != LATEST_POINTER_SCHEMA:
+        return False
+    info = manifest_info_from_obj(pointer)
+    return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
 
 
 def _latest_alias_matches_revision(

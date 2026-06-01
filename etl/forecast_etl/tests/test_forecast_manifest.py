@@ -18,6 +18,7 @@ from forecast_etl.manifest.forecast_manifest import (
     FORECAST_MANIFEST_SCHEMA_VERSION,
     build_forecast_manifest,
 )
+from forecast_etl.manifest.pointers import LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.storage.routing import make_store
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_layers_config,
@@ -276,6 +277,83 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertEqual(top_level["support"], "native")
         self.assertEqual(top_level["requiredArtifacts"], ["tmp_surface"])
         self.assertEqual(top_level["optionalArtifacts"], ["precip_type_surface"])
+
+    def test_builds_from_pointer_backed_latest_manifest(self) -> None:
+        cfg = _pipeline_config()
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-pointer-") as td:
+            repo = ArtifactRepository.for_root(
+                store=make_store(),
+                artifact_root_uri=f"file://{Path(td).as_posix()}",
+            )
+            gfs = cfg.model("gfs")
+            latest_manifest = _latest_manifest(gfs, cycle="2026051606", artifact_ids=("tmp_surface",))
+            public_uri = repo.write_public_run_manifest(
+                model_id="gfs",
+                cycle="2026051606",
+                run_id=DEFAULT_RUN_ID,
+                manifest=latest_manifest,
+            )
+            repo.write_latest_pointer(
+                model_id="gfs",
+                pointer=manifest_pointer_dict(
+                    schema_name=LATEST_POINTER_SCHEMA,
+                    model_id="gfs",
+                    cycle="2026051606",
+                    run_id=DEFAULT_RUN_ID,
+                    revision=latest_manifest["run"]["revision"],
+                    generated_at=latest_manifest["run"]["generatedAt"],
+                    manifest_path=repo.paths.relative_key(public_uri),
+                ),
+            )
+
+            manifest = build_forecast_manifest(
+                pipeline_config=cfg,
+                artifact_repo=repo,
+                generated_at="2026-05-16T00:00:00Z",
+                catalog=_forecast_catalog(),
+            )
+
+        latest = manifest["models"]["gfs"]["latest"]
+        self.assertIsNotNone(latest)
+        self.assertEqual(latest["run"]["cycle"], "2026051606")
+        self.assertEqual(latest["run"]["runId"], DEFAULT_RUN_ID)
+        self.assertEqual(latest["artifacts"]["tmp_surface"]["payloadFile"], "tmp_surface.field.i16.bin")
+        self.assertEqual(manifest["layers"]["native_scalar"]["models"]["gfs"]["state"], "available")
+
+    def test_sets_latest_to_null_when_latest_pointer_target_is_missing(self) -> None:
+        cfg = _pipeline_config()
+
+        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-missing-pointer-") as td:
+            repo = ArtifactRepository.for_root(
+                store=make_store(),
+                artifact_root_uri=f"file://{Path(td).as_posix()}",
+            )
+            repo.write_latest_pointer(
+                model_id="gfs",
+                pointer=manifest_pointer_dict(
+                    schema_name=LATEST_POINTER_SCHEMA,
+                    model_id="gfs",
+                    cycle="2026051606",
+                    run_id=DEFAULT_RUN_ID,
+                    revision="missing",
+                    generated_at="2026-05-16T00:00:00Z",
+                    manifest_path=f"manifests/gfs/cycles/2026051606/runs/{DEFAULT_RUN_ID}.json",
+                ),
+            )
+
+            manifest = build_forecast_manifest(
+                pipeline_config=cfg,
+                artifact_repo=repo,
+                generated_at="2026-05-16T00:00:00Z",
+                catalog=_forecast_catalog(),
+            )
+
+        self.assertIsNone(manifest["models"]["gfs"]["latest"])
+        self.assertEqual(
+            manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+            "temporarily_unavailable",
+        )
 
     def test_cloud_layers_layer_requires_vector_low_middle_high_components(self) -> None:
         cfg = _pipeline_config()

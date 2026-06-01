@@ -12,7 +12,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
 from ..storage.base import UriObject, UriStore
+from ..uris import join_uri
 from ..validation import NonEmptyStr
+from .pointers import LATEST_POINTER_SCHEMA, is_manifest_pointer, parse_manifest_pointer
 
 
 class _ManifestRunProjection(BaseModel):
@@ -24,10 +26,11 @@ class _ManifestRunProjection(BaseModel):
     )
 
     cycle: str | None = None
+    run_id: str | None = Field(default=None, alias="runId")
     generated_at: datetime | None = Field(default=None, alias="generatedAt")
     revision: str | None = None
 
-    @field_validator("cycle", "revision", mode="before")
+    @field_validator("cycle", "run_id", "revision", mode="before")
     @classmethod
     def _optional_non_empty_string(cls, value: object) -> str | None:
         if value is None:
@@ -65,6 +68,7 @@ class ManifestInfo(BaseModel):
     )
 
     cycle: NonEmptyStr
+    run_id: str | None = None
     generated_at: datetime | None = None
     revision: str | None = None
 
@@ -77,21 +81,39 @@ class ManifestInfo(BaseModel):
 
 
 def manifest_cycle_from_key(*, model_id: str, key: str) -> str | None:
-    """Return the cycle from manifests/{model}/{cycle}.json, excluding latest.json."""
+    """Return the cycle from legacy manifests or pointer-era current aliases."""
 
     prefix = f"manifests/{model_id}/"
     if not key.startswith(prefix) or not key.endswith(".json"):
         return None
-    name = key[len(prefix) : -len(".json")]
-    if name == "latest":
+    relative = key[len(prefix) :]
+    if relative == "latest.json":
         return None
+
+    cycles_prefix = "cycles/"
+    if relative.startswith(cycles_prefix):
+        parts = relative.split("/")
+        if len(parts) == 3 and parts[0] == "cycles" and parts[2] == "current.json":
+            cycle = parts[1]
+            if len(cycle) == 10 and cycle.isdigit():
+                return cycle
+        return None
+
+    name = relative[: -len(".json")]
     if len(name) == 10 and name.isdigit():
         return name
     return None
 
 
 def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None = None) -> ManifestInfo | None:
-    """Extract tolerant run metadata from a cycle manifest object."""
+    """Extract tolerant run metadata from a manifest object or pointer."""
+
+    if is_manifest_pointer(raw):
+        try:
+            pointer = parse_manifest_pointer(raw)
+            return _manifest_info_from_pointer(pointer)
+        except (Exception, SystemExit):
+            return None
 
     run = raw.get("run") if isinstance(raw, Mapping) else None
     if not isinstance(run, Mapping):
@@ -109,6 +131,7 @@ def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None
     try:
         return ManifestInfo(
             cycle=cycle,
+            run_id=projection.run_id,
             generated_at=projection.generated_at,
             revision=projection.revision,
         )
@@ -117,13 +140,64 @@ def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None
 
 
 def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id: str) -> ManifestInfo | None:
-    """Read the model's latest manifest projection, if present and valid."""
+    """Read the model's latest alias projection, if present and valid."""
 
     artifacts = ArtifactRepository(store=store, paths=paths)
     try:
-        return manifest_info_from_obj(artifacts.read_latest_manifest(model_id=model_id))
-    except FileNotFoundError:
+        raw = artifacts.read_latest_manifest(model_id=model_id)
+        if is_manifest_pointer(raw):
+            pointer = parse_manifest_pointer(raw, expected_schema=LATEST_POINTER_SCHEMA)
+            return _manifest_info_from_pointer(pointer)
+        return manifest_info_from_obj(raw)
+    except (FileNotFoundError, SystemExit):
         return None
+
+
+def read_latest_manifest_object(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
+    """Read and dereference a model's latest alias into a full manifest object."""
+
+    if not artifact_repo.latest_manifest_exists(model_id=model_id):
+        return None
+    raw = artifact_repo.read_latest_manifest(model_id=model_id)
+    if not is_manifest_pointer(raw):
+        return raw
+    return read_manifest_object_from_pointer(
+        artifact_repo=artifact_repo,
+        pointer_obj=raw,
+        expected_model_id=model_id,
+        expected_schema=LATEST_POINTER_SCHEMA,
+    )
+
+
+def read_manifest_object_from_pointer(
+    *,
+    artifact_repo: ArtifactRepository,
+    pointer_obj: Mapping[str, Any],
+    expected_model_id: str | None = None,
+    expected_schema: str | None = None,
+) -> dict[str, Any]:
+    """Dereference one manifest pointer and require it to match the target run."""
+
+    pointer = parse_manifest_pointer(pointer_obj, expected_schema=expected_schema)
+    if expected_model_id is not None and pointer.model != expected_model_id:
+        raise SystemExit(
+            "manifest pointer model mismatch: "
+            f"expected={expected_model_id!r} found={pointer.model!r} manifestPath={pointer.manifest_path}"
+        )
+
+    manifest_uri = join_uri(artifact_repo.paths.artifact_root_uri, [pointer.manifest_path])
+    manifest = artifact_repo.read_json_uri(manifest_uri)
+    info = manifest_info_from_obj(manifest)
+    if info is None:
+        raise SystemExit(f"manifest pointer target has no valid run metadata: {manifest_uri}")
+    if info.cycle != pointer.cycle or info.run_id != pointer.run_id or info.revision != pointer.revision:
+        raise SystemExit(
+            "manifest pointer target mismatch: "
+            f"pointer=({pointer.cycle}, {pointer.run_id}, {pointer.revision}) "
+            f"target=({info.cycle}, {info.run_id}, {info.revision}) "
+            f"uri={manifest_uri}"
+        )
+    return manifest
 
 
 def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str, limit: int) -> list[ManifestInfo]:
@@ -165,3 +239,26 @@ def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _manifest_info_from_pointer(pointer) -> ManifestInfo:
+    return ManifestInfo(
+        cycle=pointer.cycle,
+        run_id=pointer.run_id,
+        generated_at=_parse_optional_datetime(pointer.generated_at),
+        revision=pointer.revision,
+    )
+
+
+def _parse_optional_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return _utc(value)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        return _utc(datetime.fromisoformat(stripped.replace("Z", "+00:00")))
+    except ValueError:
+        return None

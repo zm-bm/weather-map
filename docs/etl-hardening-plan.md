@@ -147,14 +147,21 @@ Implemented direction:
 - local `run-cycle` and `etl/scripts/run-cycle.sh` validate after workers
   finish; `--no-publish` skips only public publication, not validation
 
-## Proposed Work
-
 ### 6. Publish by Pointer, Not by Overwrite
 
-Promotion should update small public aliases to point at a validated run. The
-validated run outputs should remain immutable.
+Implemented direction:
 
-Provisional target layout:
+- publishing writes an immutable public run manifest for each promoted run
+- cycle `current.json` and model `latest.json` are small pointer objects, not
+  full manifest rewrites
+- same-cycle rollback is a pointer update to a previously validated/published
+  run via `publish-cycle --run-id`
+- older-cycle latest rollback remains intentionally out of scope until explicit
+  operator force-promotion tooling exists
+- legacy `manifests/<model>/<cycle>.json` objects are no longer written for new
+  publishes, but low-cost read fallback remains while old objects age out
+
+Public manifest layout:
 
 ```text
 manifests/<model>/cycles/<cycle>/runs/<run_id>.json
@@ -163,34 +170,36 @@ manifests/<model>/latest.json
 manifests/forecast-manifest.json
 ```
 
-Rollback should be a pointer update to a previous validated run, not a rerun or
-manual object rewrite.
-
 ### 7. Keep Latest Pointer Schema Stable
 
-Implement this together with Task 6. Publishing by pointer and the stable latest
-pointer schema are one public-contract change, and the frontend/backend reader
-transition should be handled in the same implementation phase.
+Implemented direction:
 
-Public latest aliases should have a small, stable schema that can survive cycle
-manifest format changes.
+- `manifests/<model>/latest.json` now uses the stable latest-pointer schema
+- `manifests/<model>/cycles/<cycle>/current.json` uses the matching
+  cycle-current-pointer schema
+- ETL and backend readers dereference pointers before inspecting latest run
+  metadata or building the aggregate frontend manifest
+- malformed or stale pointers fail closed for that model instead of corrupting
+  `manifests/forecast-manifest.json`
+- the frontend still starts from `manifests/forecast-manifest.json`; it does
+  not fetch model `latest.json` on the hot path
 
-Provisional pointer shape:
+Latest pointer shape:
 
 ```json
 {
   "schema": "weather-map.model-latest-pointer",
+  "schemaVersion": 1,
   "model": "gfs",
   "cycle": "2026053018",
   "runId": "20260531T012233Z-a1b2c3d4",
+  "revision": "manifest-revision",
+  "generatedAt": "2026-05-31T01:22:33Z",
   "manifestPath": "manifests/gfs/cycles/2026053018/runs/20260531T012233Z-a1b2c3d4.json"
 }
 ```
 
-If frontend or backend consumers still require full manifests at
-`manifests/<model>/latest.json`, transition in phases: keep writing the full
-latest manifest first, then add or switch to the pointer once readers support
-it.
+## Proposed Work
 
 ### 8. Pin and Record Release Identity
 
@@ -272,6 +281,11 @@ Lower-priority additions:
   missing markers, and manifest paths
 - publish or promote an explicit run when more than one run exists for the same
   cycle
+- inspect current public pointers and their dereferenced manifests, including
+  stale or malformed pointer diagnostics
+- force-promote an older validated run to latest as an explicit rollback or
+  backfill recovery action; keep this separate from normal monotonic promotion
+  so accidental wrong-year submits do not become public latest cycles
 
 ### 12. Add Cleanup and Retention Policy
 
@@ -287,6 +301,13 @@ Provisional implementation:
 - keep validation reports and promoted manifests long enough for audit and
   rollback
 - provide dry-run cleanup commands before destructive deletes
+- identify orphaned local or S3 run prefixes left by failed `init-run`, aborted
+  local cycles, interrupted Batch pushes, or incomplete manual submits
+- distinguish cleanup candidates by promotion state: published/current/latest,
+  validated but unpromoted, complete but failed validation, incomplete, and
+  conflicting snapshot metadata
+- add an operator-safe cleanup path for old local `artifacts/runs/...` attempts
+  so repeated test runs do not require manual directory inspection
 
 ### 13. Improve Observability
 
@@ -337,6 +358,12 @@ Catalog and remove compatibility code introduced for the run-first transition:
   and `artifact.payloadFile`
 - frontend tests and fixtures that exist only to prove old inferred `/fields/`
   payload paths still work
+- ETL/backend fallback readers for legacy full-manifest
+  `manifests/<model>/latest.json` objects
+- ETL/backend fallback readers for legacy cycle manifests at
+  `manifests/<model>/<cycle>.json`
+- health/history compatibility that lists legacy cycle manifests once all
+  current production history comes from `cycles/<cycle>/current.json` pointers
 - Vite dev proxy and artificial-delay handling for legacy `/fields/*`
 - local nginx `/fields/` serving once local artifacts no longer need old
   manifests

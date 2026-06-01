@@ -227,32 +227,78 @@ class ArtifactRepository:
 
         return self.store.exists(uri=self.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id))
 
+    def write_public_run_manifest(self, *, model_id: str, cycle: str, run_id: str, manifest: Mapping[str, Any]) -> str:
+        """Write or verify the immutable public run manifest."""
+
+        uri = self.paths.public_run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        self._write_json_once_or_same(uri=uri, obj=dict(manifest), metadata=FORECAST_JSON_METADATA)
+        return uri
+
+    def read_public_run_manifest(self, *, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+        """Read one immutable public run manifest."""
+
+        return self._read_json(uri=self.paths.public_run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def public_run_manifest_exists(self, *, model_id: str, cycle: str, run_id: str) -> bool:
+        """Return whether one immutable public run manifest exists."""
+
+        return self.store.exists(uri=self.paths.public_run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def write_cycle_current_pointer(self, *, model_id: str, cycle: str, pointer: Mapping[str, Any]) -> str:
+        """Write the public current pointer for one model cycle."""
+
+        uri = self.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle)
+        self._write_json(uri=uri, obj=dict(pointer), metadata=LATEST_MANIFEST_METADATA)
+        return uri
+
+    def read_cycle_current_pointer(self, *, model_id: str, cycle: str) -> dict[str, Any]:
+        """Read the public current pointer for one model cycle."""
+
+        return self._read_json(uri=self.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle))
+
+    def cycle_current_pointer_exists(self, *, model_id: str, cycle: str) -> bool:
+        """Return whether the public current pointer for one model cycle exists."""
+
+        return self.store.exists(uri=self.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle))
+
     def write_cycle_manifest(self, *, model_id: str, cycle: str, manifest: Mapping[str, Any]) -> str:
-        """Write one cycle manifest and return its artifact URI."""
+        """Write one legacy cycle manifest and return its artifact URI."""
 
         uri = self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle)
         self._write_json(uri=uri, obj=dict(manifest), metadata=FORECAST_JSON_METADATA)
         return uri
 
     def read_cycle_manifest(self, *, model_id: str, cycle: str) -> dict[str, Any]:
-        """Read one cycle manifest."""
+        """Read one legacy cycle manifest."""
 
         return self._read_json(uri=self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle))
 
     def cycle_manifest_exists(self, *, model_id: str, cycle: str) -> bool:
-        """Return whether the cycle manifest exists."""
+        """Return whether the legacy cycle manifest exists."""
 
         return self.store.exists(uri=self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle))
 
+    def write_latest_pointer(self, *, model_id: str, pointer: Mapping[str, Any]) -> str:
+        """Write the latest manifest pointer alias and return its artifact URI."""
+
+        uri = self.paths.manifest_latest_uri(model_id=model_id)
+        self._write_json(uri=uri, obj=dict(pointer), metadata=LATEST_MANIFEST_METADATA)
+        return uri
+
+    def read_latest_pointer(self, *, model_id: str) -> dict[str, Any]:
+        """Read the latest manifest pointer alias."""
+
+        return self._read_json(uri=self.paths.manifest_latest_uri(model_id=model_id))
+
     def write_latest_manifest(self, *, model_id: str, manifest: Mapping[str, Any]) -> str:
-        """Write the latest manifest alias and return its artifact URI."""
+        """Write the legacy full latest manifest alias and return its artifact URI."""
 
         uri = self.paths.manifest_latest_uri(model_id=model_id)
         self._write_json(uri=uri, obj=dict(manifest), metadata=LATEST_MANIFEST_METADATA)
         return uri
 
     def read_latest_manifest(self, *, model_id: str) -> dict[str, Any]:
-        """Read the latest manifest alias."""
+        """Read the raw latest alias, which may be a pointer or legacy full manifest."""
 
         return self._read_json(uri=self.paths.manifest_latest_uri(model_id=model_id))
 
@@ -319,14 +365,20 @@ class ArtifactRepository:
             json_text = json.dumps(obj, sort_keys=True)
         self._write_bytes(uri=uri, data=(json_text + "\n").encode("utf-8"), metadata=metadata)
 
-    def _write_json_once_or_same(self, *, uri: str, obj: Mapping[str, Any]) -> None:
+    def _write_json_once_or_same(
+        self,
+        *,
+        uri: str,
+        obj: Mapping[str, Any],
+        metadata: UriWriteMetadata = INTERNAL_JSON_METADATA,
+    ) -> None:
         expected = dict(obj)
         if self.store.exists(uri=uri):
             existing = self._read_json(uri=uri)
             if existing != expected:
                 raise SystemExit(f"Existing immutable run object conflicts: {uri}")
             return
-        self._write_json(uri=uri, obj=expected, metadata=INTERNAL_JSON_METADATA)
+        self._write_json(uri=uri, obj=expected, metadata=metadata)
 
     def _write_bytes(self, *, uri: str, data: bytes, metadata: UriWriteMetadata) -> None:
         if isinstance(self.store, MetadataUriStore):

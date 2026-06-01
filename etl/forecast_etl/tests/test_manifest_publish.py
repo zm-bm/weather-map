@@ -12,6 +12,7 @@ from forecast_etl.manifest.constants import (
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
+from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_layers_config,
@@ -135,6 +136,8 @@ class PublishManifestTest(unittest.TestCase):
 
             cycle_manifest = fx.cycle_manifest()
             latest_manifest = fx.latest_manifest()
+            latest_pointer = fx.latest_pointer()
+            current_pointer = fx.current_pointer()
 
             self.assertEqual(cycle_manifest["schema"], MANIFEST_SCHEMA)
             self.assertEqual(cycle_manifest["schemaVersion"], MANIFEST_SCHEMA_VERSION)
@@ -178,12 +181,34 @@ class PublishManifestTest(unittest.TestCase):
                 f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/003/rh_surface.field.i16.bin",
             )
             self.assertEqual(latest_manifest, cycle_manifest)
+            self.assertEqual(latest_pointer["schema"], LATEST_POINTER_SCHEMA)
+            self.assertEqual(latest_pointer["schemaVersion"], 1)
+            self.assertEqual(latest_pointer["model"], "gfs")
+            self.assertEqual(latest_pointer["cycle"], fx.cycle)
+            self.assertEqual(latest_pointer["runId"], fx.run_id)
+            self.assertEqual(latest_pointer["revision"], cycle_manifest["run"]["revision"])
+            self.assertEqual(
+                latest_pointer["manifestPath"],
+                f"manifests/gfs/cycles/{fx.cycle}/runs/{fx.run_id}.json",
+            )
+            self.assertEqual(current_pointer["schema"], CURRENT_POINTER_SCHEMA)
+            self.assertEqual(current_pointer["runId"], fx.run_id)
+            self.assertEqual(current_pointer["manifestPath"], latest_pointer["manifestPath"])
+            self.assertFalse(fx.artifacts.cycle_manifest_exists(model_id=fx.model_id, cycle=fx.cycle))
             self.assertEqual(
                 fx.artifacts.read_run_manifest(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id),
                 cycle_manifest,
             )
             self.assertTrue(
                 fx.artifacts.published_marker_exists(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id)
+            )
+            self.assertEqual(
+                fx.artifacts.read_published_marker(
+                    model_id=fx.model_id,
+                    cycle=fx.cycle,
+                    run_id=fx.run_id,
+                ).manifest_uri,
+                fx.ap.public_run_manifest_uri(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id),
             )
 
             for fhour in fx.fhours:
@@ -537,10 +562,63 @@ class PublishManifestTest(unittest.TestCase):
             self.assertFalse(result_old.latest_promoted)
 
             latest_manifest = fx.latest_manifest()
+            latest_pointer = fx.latest_pointer()
             old_cycle_manifest = fx.cycle_manifest(cycle=cycle_old)
             new_cycle_manifest = fx.cycle_manifest(cycle=cycle_new)
             self.assertEqual(latest_manifest, new_cycle_manifest)
+            self.assertEqual(latest_pointer["schema"], LATEST_POINTER_SCHEMA)
+            self.assertEqual(latest_pointer["cycle"], cycle_new)
+            self.assertEqual(latest_pointer["runId"], fx.run_id)
+            self.assertEqual(fx.current_pointer(cycle=cycle_old)["cycle"], cycle_old)
+            self.assertEqual(fx.current_pointer(cycle=cycle_new)["cycle"], cycle_new)
             self.assertNotEqual(latest_manifest["run"]["cycle"], old_cycle_manifest["run"]["cycle"])
+
+    def test_publish_can_repromote_previous_run_for_same_cycle(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-same-cycle-rollback-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            later_run_id = "20260411T010203Z-abcdef12"
+
+            fx.write_scalar_marker(
+                artifact_id=artifact_id,
+                base=-10.0,
+                artifact_config=artifact_cfg,
+                run_id=fx.run_id,
+            )
+            result_first = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                run_id=fx.run_id,
+            )
+            self.assertTrue(result_first.ready)
+            first_revision = fx.latest_pointer()["revision"]
+
+            fx.write_scalar_marker(
+                artifact_id=artifact_id,
+                base=10.0,
+                artifact_config=artifact_cfg,
+                run_id=later_run_id,
+            )
+            result_second = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                run_id=later_run_id,
+            )
+            self.assertTrue(result_second.ready)
+            self.assertEqual(fx.latest_pointer()["runId"], later_run_id)
+            self.assertNotEqual(fx.latest_pointer()["revision"], first_revision)
+
+            result_rollback = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                run_id=fx.run_id,
+            )
+
+            self.assertTrue(result_rollback.ready)
+            self.assertTrue(result_rollback.already_published)
+            self.assertEqual(fx.latest_pointer()["runId"], fx.run_id)
+            self.assertEqual(fx.latest_pointer()["revision"], first_revision)
+            self.assertEqual(fx.current_pointer()["runId"], fx.run_id)
 
     def test_older_cycle_publish_does_not_rebuild_forecast_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-older-no-forecast-manifest-") as fx:
@@ -618,6 +696,7 @@ class PublishManifestTest(unittest.TestCase):
 
             refreshed_latest = fx.latest_manifest()
             self.assertEqual(refreshed_latest, initial_latest)
+            self.assertEqual(fx.latest_pointer()["schema"], LATEST_POINTER_SCHEMA)
 
     def test_publish_writes_vector_only_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-vector-only-", cycle="2026041200", fhours=("000", "003")) as fx:

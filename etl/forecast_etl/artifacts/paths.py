@@ -213,8 +213,36 @@ class ArtifactPaths:
         path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), VALIDATION_REPORT_FILENAME]
         return join_uri(self.artifact_root_uri, path)
 
+    def public_run_manifest_key(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Relative key for an immutable public run manifest."""
+
+        return "/".join(
+            [
+                "manifests",
+                _safe_segment(model_id),
+                "cycles",
+                _safe_segment(cycle),
+                "runs",
+                f"{validate_run_id(run_id)}.json",
+            ]
+        )
+
+    def public_run_manifest_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Public full manifest URI for one immutable run."""
+
+        return join_uri(
+            self.artifact_root_uri,
+            [self.public_run_manifest_key(model_id=model_id, cycle=cycle, run_id=run_id)],
+        )
+
+    def cycle_current_pointer_uri(self, *, model_id: str, cycle: str) -> str:
+        """Cycle current pointer URI: {root}/manifests/{model}/cycles/{cycle}/current.json"""
+
+        path = ["manifests", _safe_segment(model_id), "cycles", _safe_segment(cycle), "current.json"]
+        return join_uri(self.artifact_root_uri, path)
+
     def manifest_cycle_uri(self, *, model_id: str, cycle: str) -> str:
-        """Cycle manifest URI: {root}/manifests/{model}/{cycle}.json"""
+        """Legacy cycle manifest URI: {root}/manifests/{model}/{cycle}.json"""
         path = ["manifests", _safe_segment(model_id), f"{_safe_segment(cycle)}.json"]
         return join_uri(self.artifact_root_uri, path)
 
@@ -224,7 +252,7 @@ class ArtifactPaths:
         return join_uri(self.artifact_root_uri, path)
 
     def manifest_latest_uri(self, *, model_id: str) -> str:
-        """Canonical latest manifest alias: {root}/manifests/{model}/latest.json"""
+        """Canonical latest manifest pointer alias: {root}/manifests/{model}/latest.json"""
         path = ["manifests", _safe_segment(model_id), "latest.json"]
         return join_uri(self.artifact_root_uri, path)
 

@@ -225,7 +225,9 @@ resolve_forecast_hours_with_worker() {
 			--model "$model" \
 			--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
 	else
-		docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
+		docker run --rm \
+			--volume "$ARTIFACTS_DIR:/artifacts" \
+			"$LOCAL_ETL_IMAGE" list-forecast-hours \
 			--model "$model" \
 			--pipeline-config-uri "$pipeline_config_uri"
 	fi

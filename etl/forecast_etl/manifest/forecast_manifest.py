@@ -10,6 +10,7 @@ from ..artifacts.repository import ArtifactRepository
 from ..catalog import load_forecast_catalog
 from ..config.resolved import ModelConfig, PipelineConfig
 from .constants import FORECAST_BINARY_CONTRACT
+from .inspect import read_latest_manifest_object
 
 FORECAST_MANIFEST_SCHEMA = "weather-map.forecast-manifest"
 FORECAST_MANIFEST_SCHEMA_VERSION = 1
@@ -428,11 +429,9 @@ def _raster_band_id(band: Mapping[str, Any]) -> str:
 
 
 def _read_latest_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
-    if not artifact_repo.latest_manifest_exists(model_id=model_id):
-        return None
     try:
-        return artifact_repo.read_latest_manifest(model_id=model_id)
-    except Exception as exc:
+        return read_latest_manifest_object(artifact_repo=artifact_repo, model_id=model_id)
+    except (Exception, SystemExit) as exc:
         print(f"Unable to read latest manifest for forecast manifest model={model_id}: {exc}")
         return None
 
