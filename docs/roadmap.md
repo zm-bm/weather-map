@@ -4,6 +4,8 @@ Last updated: 2026-05-24
 
 ## Next Priorities
 
+### 0. Add "nearest" layer sampling mode
+
 ### 1. Audit Default Palette And Boundary Correctness
 
 Confirm that every raster-rendered layer maps decoded physical values to the
