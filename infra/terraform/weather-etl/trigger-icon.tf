@@ -70,7 +70,10 @@ resource "aws_iam_role_policy" "ingest_icon_lambda" {
         Action = [
           "dynamodb:UpdateItem"
         ]
-        Resource = aws_dynamodb_table.icon_ingest_state.arn
+        Resource = [
+          aws_dynamodb_table.icon_ingest_state.arn,
+          aws_dynamodb_table.run_coordinator.arn
+        ]
       },
       {
         Effect = "Allow"
@@ -89,6 +92,7 @@ resource "aws_iam_role_policy" "ingest_icon_lambda" {
         Resource = [
           "arn:aws:s3:::${local.config_bucket_name}/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/status/icon/*"
         ]
       },
@@ -99,6 +103,7 @@ resource "aws_iam_role_policy" "ingest_icon_lambda" {
         ]
         Resource = [
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/status/icon/*"
         ]
       }
@@ -124,6 +129,7 @@ resource "aws_lambda_function" "ingest_icon" {
       ICON_POLL_CYCLE_COUNT = "1"
       ICON_STATE_TABLE      = aws_dynamodb_table.icon_ingest_state.name
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
+      RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name
     }
   }
 

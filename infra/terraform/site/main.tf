@@ -10,6 +10,7 @@ locals {
     path_patterns = tolist([
       "/manifests/latest.json",
       "/manifests/*",
+      "/runs/*/fields/*",
       "/fields/*",
       "/glyphs/*",
       "/pmtiles/*",

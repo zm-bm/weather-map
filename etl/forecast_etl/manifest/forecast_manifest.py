@@ -182,12 +182,46 @@ def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, 
     )
     artifact_entry.pop("path", None)
     artifact_entry.pop("sha256", None)
+    if "payloadFile" not in artifact_entry:
+        payload_file = _artifact_payload_file(
+            artifact_id=artifact_id,
+            frames=frames,
+            time_ids=time_ids,
+        )
+        if payload_file is not None:
+            artifact_entry["payloadFile"] = payload_file
     artifact_entry["byteLength"] = _artifact_byte_length(
         artifact_id=artifact_id,
         frames=frames,
         time_ids=time_ids,
     )
     return artifact_entry
+
+
+def _artifact_payload_file(
+    *,
+    artifact_id: str,
+    frames: Mapping[str, Any],
+    time_ids: tuple[str, ...],
+) -> str | None:
+    payload_file: str | None = None
+    for time_id in time_ids:
+        frame = _as_mapping(
+            frames.get(time_id),
+            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r}",
+        )
+        raw_path = frame.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            return None
+        current = raw_path.rstrip("/").rsplit("/", 1)[-1]
+        if not current:
+            return None
+        if payload_file is None:
+            payload_file = current
+            continue
+        if payload_file != current:
+            return None
+    return payload_file
 
 
 def _artifact_byte_length(

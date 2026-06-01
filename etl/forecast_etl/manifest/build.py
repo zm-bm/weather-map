@@ -28,6 +28,7 @@ def build_manifest_artifacts(
     artifact_repo: ArtifactRepository,
     model_id: str,
     cycle: str,
+    run_id: str,
     fhours: Iterable[str],
     artifact_ids: Iterable[str],
     artifact_specs: Mapping[str, ArtifactSpec],
@@ -46,6 +47,7 @@ def build_manifest_artifacts(
             artifact_repo=artifact_repo,
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             fhours=fhours,
             artifact_id=artifact_id,
             artifact=artifact,
@@ -60,6 +62,10 @@ def build_manifest_artifacts(
             "grid": marker_inputs.grid,
             "encoding": marker_inputs.encoding,
             "frames": marker_inputs.frames,
+            "payloadFile": artifact_repo.paths.field_payload_filename(
+                artifact_id=artifact_id,
+                dtype=artifact.encoding.dtype,
+            ),
         }
         if artifact.temporal is not None:
             artifact_entry["temporalKind"] = artifact.temporal.kind
@@ -80,6 +86,8 @@ def build_cycle_manifest(
     model_id: str,
     model_label: str,
     cycle: str,
+    run_id: str,
+    payload_root: str,
     generated_at: str,
     fhours: Iterable[str],
     artifacts: Mapping[str, Mapping[str, Any]],
@@ -88,6 +96,8 @@ def build_cycle_manifest(
 
     run = {
         "cycle": cycle,
+        "runId": run_id,
+        "payloadRoot": payload_root,
         "generatedAt": generated_at,
     }
     manifest_obj = {

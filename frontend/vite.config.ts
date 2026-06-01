@@ -19,7 +19,8 @@ function devArtifactDelay(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
-        if (DEV_ARTIFACT_DELAY_MS <= 0 || !req.url?.startsWith('/fields/')) {
+        const artifactPath = req.url?.startsWith('/fields/') || req.url?.startsWith('/runs/')
+        if (DEV_ARTIFACT_DELAY_MS <= 0 || !artifactPath) {
           next()
           return
         }
@@ -45,6 +46,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/fields': {
+        target: DEV_ARTIFACT_ORIGIN,
+        changeOrigin: true,
+      },
+      '/runs': {
         target: DEV_ARTIFACT_ORIGIN,
         changeOrigin: true,
       },

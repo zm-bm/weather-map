@@ -18,6 +18,7 @@ from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.routing import make_store
 
 from .artifact_configs import artifact_specs, minimal_artifact_config
+from .artifacts import DEFAULT_CODE_REVISION, DEFAULT_CONFIG_DIGEST, DEFAULT_IMAGE_IDENTITY, DEFAULT_RUN_ID
 from .grids import grid_meta_fixture
 from .markers import write_scalar_marker, write_vector_marker
 
@@ -29,6 +30,7 @@ class PublishFixture:
     fhours: tuple[str, ...]
     model_id: str
     model_label: str
+    run_id: str
     ctx: ExecutionContext
     ap: ArtifactPaths
     store: UriStore
@@ -49,6 +51,7 @@ class PublishFixture:
         return self.ap.success_marker_uri_parts(
             model_id=self.model_id,
             cycle=cycle or self.cycle,
+            run_id=self.run_id,
             fhour=fhour or self.fhours[0],
             artifact_id=artifact_id,
         )
@@ -59,6 +62,7 @@ class PublishFixture:
         artifact_id: str = "tmp_surface",
         artifact_config: dict | None = None,
         cycle: str | None = None,
+        run_id: str | None = None,
         fhour: str | None = None,
         values: Sequence[float] | None = None,
         base: float = 0.0,
@@ -67,6 +71,7 @@ class PublishFixture:
             store=self.store,
             ap=self.ap,
             cycle=cycle or self.cycle,
+            run_id=run_id or self.run_id,
             fhour=fhour or self.fhours[0],
             artifact_id=artifact_id,
             source_values=list(values) if values is not None else self.values(base),
@@ -80,6 +85,7 @@ class PublishFixture:
         artifact_id: str = "tmp_surface",
         artifact_config: dict | None = None,
         cycle: str | None = None,
+        run_id: str | None = None,
         base: float = 0.0,
     ) -> None:
         for fhour in self.fhours:
@@ -87,6 +93,7 @@ class PublishFixture:
                 artifact_id=artifact_id,
                 artifact_config=artifact_config,
                 cycle=cycle,
+                run_id=run_id,
                 fhour=fhour,
                 base=base,
             )
@@ -97,12 +104,14 @@ class PublishFixture:
         artifact_id: str = "wind10m_uv",
         artifact_config: dict | None = None,
         cycle: str | None = None,
+        run_id: str | None = None,
         fhour: str | None = None,
     ) -> None:
         write_vector_marker(
             store=self.store,
             ap=self.ap,
             cycle=cycle or self.cycle,
+            run_id=run_id or self.run_id,
             fhour=fhour or self.fhours[0],
             artifact_id=artifact_id,
             grid_meta=self.grid_meta,
@@ -115,12 +124,14 @@ class PublishFixture:
         artifact_id: str = "wind10m_uv",
         artifact_config: dict | None = None,
         cycle: str | None = None,
+        run_id: str | None = None,
     ) -> None:
         for fhour in self.fhours:
             self.write_vector_marker(
                 artifact_id=artifact_id,
                 artifact_config=artifact_config,
                 cycle=cycle,
+                run_id=run_id,
                 fhour=fhour,
             )
 
@@ -131,11 +142,13 @@ class PublishFixture:
         artifacts_cfg: dict[str, dict],
         pipeline_config: PipelineConfig | None = None,
         cycle: str | None = None,
+        run_id: str | None = None,
     ) -> PublishResult:
         return run_publish(
             model_label=self.model_label,
             ctx=self.ctx,
             cycle=cycle or self.cycle,
+            run_id=run_id,
             artifact_ids=tuple(artifact_ids),
             artifact_specs=artifact_specs(artifacts_cfg),
             artifact_repo=self.artifacts,
@@ -154,9 +167,13 @@ class PublishFixture:
             item=WorkItem(
                 model_id=self.model_id,
                 cycle=cycle or self.cycle,
+                run_id=self.run_id,
                 fhour=fhour,
                 artifact_id=artifact_id,
                 source_uri="file:///dev/null",
+                code_revision=DEFAULT_CODE_REVISION,
+                image_identity=DEFAULT_IMAGE_IDENTITY,
+                config_digest=DEFAULT_CONFIG_DIGEST,
             ),
             dtype=dtype,
         )
@@ -181,6 +198,7 @@ def publish_fixture(
             fhours=fhours,
             model_id=model_id,
             model_label=model_label,
+            run_id=DEFAULT_RUN_ID,
             ctx=ExecutionContext(
                 model_id=model_id,
                 artifact_root_uri=artifact_root_uri,

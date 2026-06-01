@@ -2,10 +2,15 @@ FROM deutscherwetterdienst/regrid:icon AS dwd_regrid
 
 FROM python:3.11-slim-bookworm
 
+ARG ETL_CODE_REVISION=unknown
+ARG ETL_IMAGE_IDENTITY=unknown
+
 ENV PYTHONUNBUFFERED=1
 ENV FORECAST_ETL_DIR=/app/etl
 ENV ICON_REGRID_DESCRIPTION_FILE=/opt/dwd-regrid/descriptions/icon/icon_description.txt
 ENV ICON_REGRID_WEIGHTS_FILE=/opt/dwd-regrid/weights/icon/icon_weights.nc
+ENV ETL_CODE_REVISION=${ETL_CODE_REVISION}
+ENV ETL_IMAGE_IDENTITY=${ETL_IMAGE_IDENTITY}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

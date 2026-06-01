@@ -8,6 +8,8 @@ from typing import Any, Mapping
 from pydantic import field_validator
 
 from ..config.resolved import ArtifactSpec
+from ..run_ids import validate_run_id
+from ..run_metadata import metadata_value
 from ..validation import (
     FiniteNumber,
     FrozenModel,
@@ -60,9 +62,27 @@ class StoredArtifactSuccessMarker(FrozenModel):
     """Success marker JSON persisted for one artifact, cycle, and forecast hour."""
 
     artifact: ArtifactMarkerPayload
+    model_id: NonEmptyStr = "unknown"
     cycle: NonEmptyStr
+    run_id: NonEmptyStr
     fhour: NonEmptyStr
     artifact_id: NonEmptyStr
+    code_revision: NonEmptyStr = "unknown"
+    image_identity: NonEmptyStr = "unknown"
+    config_digest: NonEmptyStr = "unknown"
+
+    @field_validator("run_id")
+    @classmethod
+    def _validate_run_id(cls, value: str) -> str:
+        try:
+            return validate_run_id(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+    @field_validator("code_revision", "image_identity", "config_digest")
+    @classmethod
+    def _normalize_metadata(cls, value: str) -> str:
+        return metadata_value(value)
 
 
 class ArtifactSuccessMarker(StoredArtifactSuccessMarker):

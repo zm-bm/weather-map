@@ -21,16 +21,16 @@ aliases:
 
 ## Current Fragility
 
-Today, each hour job can write outputs and then attempt publication. That makes
-publication race with partial completion and stale state. Outputs are also
-organized by artifact type first, which makes reruns overwrite prior attempts
-and makes wrong-cycle cleanup more error-prone.
+Before the first hardening tasks, each hour job could write outputs and then
+attempt publication. That made publication race with partial completion and
+stale state. Outputs were also organized by artifact type first, which made
+reruns overwrite prior attempts and made wrong-cycle cleanup more error-prone.
 
 Recent stale `latest.json` issues are an example: an otherwise successful hour
 job failed because aggregate forecast-manifest publishing read an old model
 latest manifest with an incompatible schema.
 
-## Proposed Work
+## Completed
 
 ### 1. Stop Publishing From Every Hour Job
 
@@ -38,31 +38,57 @@ Hour workers should only process source data and write payloads plus success
 markers. They should not attempt to publish cycle manifests or aggregate
 forecast manifests.
 
-Provisional implementation:
+Implemented direction:
 
-- keep `forecast-etl run-hour` focused on one `(model, cycle, fhour)`
-- add a separate publish or promote command/job
-- have submit tooling create or trigger a publisher only after expected hour
-  work has finished, or let an operator run it explicitly
+- `forecast-etl run-hour` is focused on one `(model, cycle, fhour)` and only
+  writes field payloads plus success markers
+- `forecast-etl publish-cycle` provides an explicit publish command
+- the scheduled publisher owns production manifest publication
+- local `forecast-etl run-cycle` and `etl/scripts/run-cycle.sh` keep the
+  ergonomic behavior of publishing once after all local hour work completes
 
-### 2. Add a Run ID
+### 2. Add a Run ID and Public Run Contract
 
-Each cycle attempt should have a stable `run_id`. All outputs, markers, logs,
-and validation reports for that attempt should carry the same `run_id`.
+Implemented direction:
 
-Provisional implementation:
+- `cycle` remains the canonical forecast cycle id in `YYYYMMDDHH` format
+- `run_id` identifies one rerun/attempt and is generated once per submitted
+  cycle
+- Batch workers receive the shared `RUN_ID`
+- success markers include `run_id`, code revision, image identity,
+  config digest, model, cycle, forecast hour, and artifact ids
+- automatic GFS and ICON ingest share a small per-cycle run-id coordinator so
+  individual events for the same cycle do not fragment into separate runs
+- public run identity includes `cycle`, `runId`, `generatedAt`, and `revision`
+- the frontend manifest supports compact payload references:
+  run-level `payloadRoot`, artifact-level `payloadFile`, and artifact-level
+  `byteLength` when uniform across frames
+- the frontend payload loader and payload cache scope use model, cycle, run id,
+  and revision, with fallback to the old inferred
+  `fields/<model>/<cycle>/<fhour>/...` layout while old manifests exist
 
-- generate `run_id` at submit time
-- pass it to every Batch worker as an environment variable
-- include `run_id`, code revision, image identity, config digest, model, cycle,
-  forecast hour, and artifact ids in run metadata and success markers
+Public payload resolution:
+
+```text
+run.payloadRoot = runs/gfs/2026053018/<run_id>/fields
+artifact.payloadFile = tmp_surface.field.i8.bin
+payload path = <payloadRoot>/<fhour>/<payloadFile>
+```
 
 ### 3. Move Produced Outputs to a Run-First Layout
 
-Produced ETL outputs should be grouped by model, cycle, and run id instead of
-being split first by `fields/`, `status/`, and `manifests/`.
+Implemented direction:
 
-Provisional target layout:
+- new ETL field payloads, success markers, logs, run metadata, config/catalog
+  snapshots, internal run manifests, and publish markers are written under the
+  run prefix
+- publisher inputs read run-first markers only; without an explicit run id,
+  publishing requires exactly one run id for the model/cycle
+- public model cycle/latest aliases and the aggregate forecast manifest still
+  live under `manifests/`
+- public `payloadRoot` points at the selected run's field prefix
+- lifecycle, IAM, CloudFront, and local dev serving now cover
+  `/runs/*/fields/*` while retaining legacy `/fields/*` during transition
 
 ```text
 runs/<model>/<cycle>/<run_id>/
@@ -73,24 +99,32 @@ runs/<model>/<cycle>/<run_id>/
   fields/<fhour>/<artifact>.field.<dtype>.bin
   status/<artifact>/<fhour>._SUCCESS.json
   manifest.json
-  validation.json
+  _PUBLISHED.json
 ```
 
 This keeps reruns isolated, makes wrong-cycle cleanup straightforward, and
 allows multiple attempts for the same cycle to coexist.
 
+Detailed per-frame evidence, including exact payload paths, byte lengths,
+checksums, source metadata, and marker provenance, belongs in internal run
+manifests and validation reports under the run prefix. The hot-path frontend
+manifest should continue to expose only compact payload references.
+
+## Proposed Work
+
 ### 4. Snapshot Config Per Run
 
-Workers in the same run should use the exact same pipeline config and forecast
-catalog. A mid-run config deployment should not change what remaining workers
-produce.
+Workers now snapshot the effective pipeline config and forecast catalog into
+the run prefix. The remaining hardening step is to make workers read from an
+already-created run snapshot, so a mid-run config deployment cannot change what
+remaining workers produce.
 
 Provisional implementation:
 
-- submit tooling copies the effective pipeline config and forecast catalog into
-  the run prefix
-- workers read config from the run snapshot
-- run metadata records config digests
+- submit tooling or an orchestrator creates the run snapshot before hour
+  workers launch
+- workers read config from the run snapshot URI
+- run metadata continues to record config digests
 
 ### 5. Make Validation Explicit
 
@@ -193,6 +227,7 @@ Provisional commands:
 ```bash
 etlctl submit --model gfs --cycle 2026053018
 etlctl status --model gfs --cycle 2026053018
+etlctl runs --model gfs --cycle 2026053018
 etlctl validate --model gfs --cycle 2026053018 --run-id <run_id>
 etlctl promote --model gfs --cycle 2026053018 --run-id <run_id>
 etlctl rollback --model gfs --to-cycle 2026053012
@@ -200,6 +235,15 @@ etlctl cleanup --model gfs --cycle 2025053018 --dry-run
 ```
 
 Existing shell scripts can wrap this initially.
+
+Lower-priority additions:
+
+- list all known run ids for a cycle with completeness, validation, and
+  published status
+- inspect one run's `run.json`, config digest, image identity, marker count,
+  missing markers, and manifest paths
+- publish or promote an explicit run when more than one run exists for the same
+  cycle
 
 ### 12. Add Cleanup and Retention Policy
 
@@ -224,20 +268,48 @@ Provisional implementation:
 - link run state to CloudWatch logs and Batch job ids
 - expose a compact status command before adding dashboards
 
+### 14. Remove Transition Compatibility After Cutover
+
+This is intentionally a final cleanup task. Do not do it until all public
+manifests that infer legacy `fields/<model>/<cycle>/<fhour>/...` payload paths
+have aged out and production has been stable on run-first manifests.
+
+Catalog and remove compatibility code introduced for the run-first transition:
+
+- frontend legacy payload path fallback for manifests without `run.payloadRoot`
+  and `artifact.payloadFile`
+- frontend tests and fixtures that exist only to prove old inferred `/fields/`
+  payload paths still work
+- Vite dev proxy and artificial-delay handling for legacy `/fields/*`
+- local nginx `/fields/` serving once local artifacts no longer need old
+  manifests
+- CloudFront artifact-origin coverage for `/fields/*`
+- S3 lifecycle rules for old top-level `fields/`, `status/`, and `logs/`
+  prefixes after those objects have expired
+- IAM permissions for old top-level `fields/`, `status/`, and `logs/` prefixes
+  where no current Lambda, backend, or worker path still needs them
+- docs that describe the old type-first layout as anything other than
+  historical context
+
+Keep a checklist in the PR for this task. The risk is not technical complexity;
+it is deleting a fallback before the last old manifest or local workflow has
+stopped using it.
+
 ## Priority
 
-Highest leverage first:
+Remaining highest leverage first:
 
-1. Stop hour-job publishing.
-2. Add separate validate and promote steps.
-3. Snapshot config per run.
-4. Add `run_id` and run-first output layout.
-5. Validate marker contents and require one consistent run.
-6. Add stable latest pointers and rollback.
-7. Add DynamoDB run state and promotion locks.
-8. Add backfill safety checks.
-9. Add operator CLI.
-10. Tighten image digest pinning and cleanup policies.
+1. Add separate validate and promote steps.
+2. Snapshot config per run.
+3. Validate marker contents and require one consistent run.
+4. Add stable latest pointers and rollback.
+5. Add backfill safety checks.
+6. Add DynamoDB run state and promotion locks.
+7. Pin and record release identity more strictly.
+8. Add the operator CLI.
+9. Add cleanup/retention automation.
+10. Improve observability.
+11. Remove transition compatibility after old manifests age out.
 
 ## De-Prioritized Work
 
@@ -249,14 +321,23 @@ Highest leverage first:
   artifact evidence and use DynamoDB for workflow state.
 - Do not require strict digest-pinned execution before run metadata exists.
   Record image digests first, then tighten execution controls later.
+- Do not remove `/fields/*` compatibility immediately. It is operational
+  cleanup, not part of making current run-first publishing work.
+- Do not add duplicate-skip logic to GFS ingest unless duplicate job submission
+  becomes a real cost or operational issue. GFS ingest is event-driven and does
+  not currently list marker state before submitting.
 
 ## Transition Notes
 
 The existing type-first layout can coexist with the new run-first layout during
 the transition. New runs should write to `runs/`, while existing frontend and
-backend readers can continue using current public manifest paths until pointer
-support is added.
+backend readers can continue using current public manifest paths until compact
+run-first payload references are supported.
 
 During migration, public behavior should remain: the frontend reads a current
 forecast manifest and model latest references. The internal mechanism for
 choosing and promoting those references can change behind that contract.
+
+The frontend should first support compact run-first payload references with a
+fallback to the old inferred `fields/<model>/<cycle>/<fhour>/...` layout. Once
+old manifests have aged out, the fallback can be removed.

@@ -156,6 +156,7 @@ artifacts/radio/*
 !artifacts/radio/playlist.json
 artifacts/glyphs/*
 !artifacts/glyphs/.gitignore
+artifacts/runs/*
 
 # Local-only glyph source font.
 frontend/src/assets/fonts/NotoSansMonoCJKjp-Regular-BMP.*

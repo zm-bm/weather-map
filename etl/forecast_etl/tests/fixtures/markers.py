@@ -11,6 +11,7 @@ from forecast_etl.extract.types import ExtractedBand
 from forecast_etl.storage.routing import make_store
 
 from .artifact_configs import artifact_spec, wind_artifact_config
+from .artifacts import DEFAULT_CODE_REVISION, DEFAULT_CONFIG_DIGEST, DEFAULT_IMAGE_IDENTITY, DEFAULT_RUN_ID
 from .grids import pack_f32
 
 
@@ -24,6 +25,7 @@ def write_scalar_marker(
     store,
     ap: ArtifactPaths,
     cycle: str,
+    run_id: str = DEFAULT_RUN_ID,
     fhour: str,
     artifact_id: str,
     source_values: list[float],
@@ -35,6 +37,7 @@ def write_scalar_marker(
         store=store,
         ap=ap,
         cycle=cycle,
+        run_id=run_id,
         fhour=fhour,
         artifact_id=artifact_id,
         artifact_config=artifact_config,
@@ -48,6 +51,7 @@ def write_vector_marker(
     store,
     ap: ArtifactPaths,
     cycle: str,
+    run_id: str = DEFAULT_RUN_ID,
     fhour: str,
     artifact_id: str,
     grid_meta: dict[str, Any],
@@ -71,6 +75,7 @@ def write_vector_marker(
         store=store,
         ap=ap,
         cycle=cycle,
+        run_id=run_id,
         fhour=fhour,
         artifact_id=artifact_id,
         artifact_config=artifact_config,
@@ -84,6 +89,7 @@ def write_artifact_marker(
     store,
     ap: ArtifactPaths,
     cycle: str,
+    run_id: str = DEFAULT_RUN_ID,
     fhour: str,
     artifact_id: str,
     artifact_config: dict,
@@ -101,7 +107,17 @@ def write_artifact_marker(
         for component in artifact.components
     ]
     payload = encode_artifact_payload(artifact=artifact, grid=grid_meta, bands=bands)
-    item = WorkItem(model_id="gfs", cycle=cycle, fhour=fhour, artifact_id=artifact_id, source_uri="file:///dev/null")
+    item = WorkItem(
+        model_id="gfs",
+        cycle=cycle,
+        run_id=run_id,
+        fhour=fhour,
+        artifact_id=artifact_id,
+        source_uri="file:///dev/null",
+        code_revision=DEFAULT_CODE_REVISION,
+        image_identity=DEFAULT_IMAGE_IDENTITY,
+        config_digest=DEFAULT_CONFIG_DIGEST,
+    )
     artifacts = ArtifactRepository(store=store, paths=ap)
     payload_uri = artifacts.write_field_payload(item=item, dtype=artifact.encoding.dtype, payload=payload)
     artifact_marker = build_artifact_marker_payload(

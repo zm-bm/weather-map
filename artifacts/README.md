@@ -8,17 +8,19 @@ Typical contents:
 
 - `manifests/<model>/latest.json`
 - `manifests/<model>/<cycle>.json`
-- `fields/<model>/<cycle>/<fhour>/<artifact>.field.<dtype>.bin`
+- `runs/<model>/<cycle>/<run_id>/fields/<fhour>/<artifact>.field.<dtype>.bin`
+- `runs/<model>/<cycle>/<run_id>/status/<artifact>/<fhour>._SUCCESS.json`
 - `pmtiles/<name>.pmtiles`
 - `radio/playlist.json`
 - `radio/<track>.mp3`
-- `status/...`
+- legacy `fields/...` and `status/...` objects while old manifests age out
 
 How it is used:
 
 - `etl/scripts/run-cycle.sh` writes local ETL outputs here.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
-- nginx serves `/manifests/*`, `/fields/*`, `/pmtiles/*`, and `/radio/*` directly from here.
+- nginx serves `/manifests/*`, `/runs/*/fields/*`, legacy `/fields/*`, `/pmtiles/*`, and `/radio/*`
+  directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
 - `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
   bucket with `infra/scripts/weather-etl/release/upload-static-artifacts.sh`.

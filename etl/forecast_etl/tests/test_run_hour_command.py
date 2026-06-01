@@ -10,10 +10,17 @@ from forecast_etl.commands.run_hour import run_process_hour
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.extract.types import ExtractedBand
 from forecast_etl.proc import RunResult
+from forecast_etl.run_metadata import RunMetadata
 from forecast_etl.runtime import ExecutionContext
 from forecast_etl.source_adapters.base import PreparedSource
 from forecast_etl.storage.local import LocalFSStore
 from forecast_etl.tests.fixtures.artifact_configs import minimal_artifact_config
+from forecast_etl.tests.fixtures.artifacts import (
+    DEFAULT_CODE_REVISION,
+    DEFAULT_CONFIG_DIGEST,
+    DEFAULT_IMAGE_IDENTITY,
+    DEFAULT_RUN_ID,
+)
 from forecast_etl.tests.fixtures.grids import pack_f32, small_grid_meta_fixture
 from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
 
@@ -84,6 +91,7 @@ class RunHourCommandTest(unittest.TestCase):
                     ),
                     model=model,
                     cycle="2026041200",
+                    run_id=DEFAULT_RUN_ID,
                     fhour="000",
                     source_uri=None,
                     artifact_ids=model.workload.artifacts,
@@ -91,16 +99,58 @@ class RunHourCommandTest(unittest.TestCase):
                     store=artifacts.store,
                     artifact_repo=artifacts,
                     run=_unused_run,
+                    run_metadata=RunMetadata(
+                        code_revision=DEFAULT_CODE_REVISION,
+                        image_identity=DEFAULT_IMAGE_IDENTITY,
+                        config_digest=DEFAULT_CONFIG_DIGEST,
+                    ),
                 )
 
             for artifact_id in ("tmp_surface", "rh_surface"):
                 marker = artifacts.read_artifact_success_marker(
                     model_id="gfs",
                     cycle="2026041200",
+                    run_id=DEFAULT_RUN_ID,
                     fhour="000",
                     artifact_id=artifact_id,
                 )
                 self.assertEqual(marker.artifact.byte_length, 8)
+                self.assertEqual(marker.run_id, DEFAULT_RUN_ID)
+                self.assertEqual(marker.code_revision, DEFAULT_CODE_REVISION)
+                self.assertEqual(marker.image_identity, DEFAULT_IMAGE_IDENTITY)
+                self.assertEqual(marker.config_digest, DEFAULT_CONFIG_DIGEST)
+                self.assertTrue(
+                    artifacts.store.exists(
+                        uri=artifacts.paths.success_marker_uri_parts(
+                            model_id="gfs",
+                            cycle="2026041200",
+                            run_id=DEFAULT_RUN_ID,
+                            artifact_id=artifact_id,
+                            fhour="000",
+                        )
+                    )
+                )
+
+            self.assertTrue(
+                artifacts.store.exists(
+                    uri=artifacts.paths.run_metadata_uri(
+                        model_id="gfs",
+                        cycle="2026041200",
+                        run_id=DEFAULT_RUN_ID,
+                    )
+                )
+            )
+            self.assertTrue(
+                artifacts.store.exists(
+                    uri=artifacts.paths.run_pipeline_config_uri(
+                        model_id="gfs",
+                        cycle="2026041200",
+                        run_id=DEFAULT_RUN_ID,
+                    )
+                )
+            )
+            self.assertFalse((root / "out" / "fields" / "gfs" / "2026041200").exists())
+            self.assertFalse((root / "out" / "status" / "gfs" / "2026041200").exists())
 
         grid_meta.assert_called_once_with(grib_path=grib_path, run=_unused_run)
         self.assertEqual(extract_bands.call_count, 2)

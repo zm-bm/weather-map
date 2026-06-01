@@ -117,10 +117,19 @@ class ArtifactSnapshotTest(unittest.TestCase):
                 publish_lag_policy=_policy(),
             )
 
-        status_prefixes = [prefix for prefix in store.list_object_prefixes if "/status/" in prefix]
-        self.assertIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051112"), status_prefixes)
-        self.assertNotIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051100"), status_prefixes)
-        self.assertNotIn(artifacts.paths.status_prefix_uri(model_id=model.id, cycle="2026051106"), status_prefixes)
+        run_prefixes = [prefix for prefix in store.list_object_prefixes if "/runs/" in prefix]
+        self.assertIn(
+            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051112"),
+            run_prefixes,
+        )
+        self.assertNotIn(
+            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051100"),
+            run_prefixes,
+        )
+        self.assertNotIn(
+            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051106"),
+            run_prefixes,
+        )
 
 
 def _policy() -> PublishLagPolicy:

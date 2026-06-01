@@ -39,6 +39,24 @@ Use repeatable `--artifact` filters for local iteration when only specific
 artifacts need to be regenerated. Filtered runs still use full-workload publish
 readiness; add `--no-publish` when intentionally running an isolated subset.
 
+Each local cycle run gets one run id in `YYYYMMDDTHHMMSSZ-<8hex>` format. The
+script generates it by default and passes the same `RUN_ID` to every hour
+container and the final publisher. Use `--run-id <run_id>` only when
+intentionally resuming or reproducing the same attempt.
+
+Local reruns are the fastest way to validate ETL changes before a production
+deploy:
+
+```bash
+etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH> --dry-run
+etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
+```
+
+The dry run should show the same `RUN_ID` on every `run-hour` command and one
+final `publish-cycle` command. A real local run exercises the worker image,
+success markers, publish readiness checks, and frontend manifest contract
+without requiring Lambda, Batch, or Terraform changes.
+
 ## Direct CLI
 
 Use the venv only when you want to run the package directly for development or
@@ -48,6 +66,8 @@ tests:
 etl/scripts/bootstrap.sh
 .venv/bin/forecast-etl list-models
 .venv/bin/forecast-etl list-forecast-hours --model <model>
+.venv/bin/forecast-etl run-hour --model <model> --cycle <YYYYMMDDHH> --run-id <run_id> --fhour <FFF>
+.venv/bin/forecast-etl publish-cycle --model <model> --cycle <YYYYMMDDHH>
 ```
 
 Normal local cycle execution should use `scripts/run-cycle.sh`, not the host
@@ -61,26 +81,47 @@ The config is model-aware:
 - `models.icon` reads DWD ICON data and regrids it inside the worker image.
 - `models.<model>.workload` controls forecast hours and artifact ids.
 
-Each `run-hour` writes artifact payloads and success markers. Publishing is
-marker-based and idempotent.
+Each `run-hour` writes artifact payloads and success markers. New success
+markers include a strict `run_id` plus provenance fields for model, code
+revision, image identity, and config digest. Publishing is marker-based and
+idempotent; it refuses incomplete cycles and cycles whose expected markers are
+missing or mixed across run ids.
 
 ```text
 source adapter -> prepared GRIB -> artifact payloads -> success markers -> cycle manifest
 ```
 
 The cycle manifest is artifact-only: it advertises produced scalar/vector
-artifacts, decode metadata, frame refs, and model/run identity. User-facing
-layer groups, labels, palettes, display ranges, unit behavior, and derived
-frontend layer recipes live in the frontend forecast catalog.
+artifacts, decode metadata, compact payload refs, and model/run identity.
+User-facing layer groups, labels, palettes, display ranges, unit behavior, and
+derived frontend layer recipes live in the frontend forecast catalog.
+
+The public manifest includes compact payload references instead of thousands of
+per-frame payload paths:
+
+```text
+run.payloadRoot = runs/<model>/<cycle>/<run_id>/fields
+artifact.payloadFile = <artifact>.field.<dtype>.bin
+frontend path = <payloadRoot>/<fhour>/<payloadFile>
+```
+
+Legacy frontend code can still infer `fields/<model>/<cycle>/<fhour>/...` for
+older public manifests. New ETL output is run-scoped and immutable enough that
+multiple attempts for the same cycle can coexist.
 
 ## Artifacts
 
 ```text
-fields/<model>/<cycle>/<fhour>/<artifact>.field.<dtype>.bin
-status/<model>/<cycle>/<artifact>/<fhour>._SUCCESS.json
-status/<model>/<cycle>/_PUBLISHED.json
+runs/<model>/<cycle>/<run_id>/run.json
+runs/<model>/<cycle>/<run_id>/config/pipeline_config.json
+runs/<model>/<cycle>/<run_id>/config/forecast_catalog.json
+runs/<model>/<cycle>/<run_id>/fields/<fhour>/<artifact>.field.<dtype>.bin
+runs/<model>/<cycle>/<run_id>/status/<artifact>/<fhour>._SUCCESS.json
+runs/<model>/<cycle>/<run_id>/manifest.json
+runs/<model>/<cycle>/<run_id>/_PUBLISHED.json
 manifests/<model>/<cycle>.json
 manifests/<model>/latest.json
+manifests/forecast-manifest.json
 ```
 
 ## Checks

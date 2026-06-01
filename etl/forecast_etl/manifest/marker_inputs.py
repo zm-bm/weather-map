@@ -26,6 +26,7 @@ def artifact_manifest_inputs_from_markers(
     artifact_repo: ArtifactRepository,
     model_id: str,
     cycle: str,
+    run_id: str,
     fhours: tuple[str, ...],
     artifact_id: str,
     artifact: ArtifactSpec,
@@ -43,6 +44,7 @@ def artifact_manifest_inputs_from_markers(
         marker_uri = artifact_repo.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             fhour=fhour,
             artifact_id=artifact_id,
         )

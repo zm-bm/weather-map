@@ -70,6 +70,7 @@ class ManifestArtifact(FrozenAliasModel):
     grid: ManifestGrid
     encoding: ManifestEncoding
     frames: dict[NonEmptyStr, ManifestFrame] = Field(min_length=1)
+    payload_file: NonEmptyStr | None = Field(default=None, alias="payloadFile")
     temporal_kind: NonEmptyStr | None = Field(default=None, alias="temporalKind")
     source_interval_hours: FiniteNumber | None = Field(default=None, alias="sourceIntervalHours")
 
@@ -88,6 +89,8 @@ class ManifestTime(FrozenAliasModel):
 
 class ManifestRun(FrozenAliasModel):
     cycle: NonEmptyStr
+    run_id: NonEmptyStr = Field(alias="runId")
+    payload_root: NonEmptyStr = Field(alias="payloadRoot")
     generated_at: NonEmptyStr = Field(alias="generatedAt")
     revision: NonEmptyStr
 
@@ -101,7 +104,7 @@ class CycleManifest(FrozenAliasModel):
     """Top-level internal cycle manifest."""
 
     schema_name: Literal["weather-map.cycle-manifest"] = Field(alias="schema")
-    schema_version: Literal[5] = Field(alias="schemaVersion")
+    schema_version: Literal[6] = Field(alias="schemaVersion")
     payload_contract: Literal["forecast-binary-v2"] = Field(alias="payloadContract")
     model: ManifestModelIdentity
     run: ManifestRun

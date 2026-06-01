@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..encoding.codecs import payload_suffix_for_dtype
+from ..run_ids import validate_run_id
+from ..run_metadata import metadata_value
 from ..uris import join_uri
 
 SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
@@ -40,21 +42,29 @@ class WorkItem:
     """Execution identity for one cycle, forecast hour, and optional artifact."""
 
     cycle: str  # YYYYMMDDHH
+    run_id: str
     fhour: str  # FFF
     source_uri: str
     model_id: str
     artifact_id: Optional[str] = None
+    code_revision: str = "unknown"
+    image_identity: str = "unknown"
+    config_digest: str = "unknown"
 
     def __post_init__(self) -> None:
         _ = _safe_segment(self.model_id)
         if len(self.cycle) != 10 or not self.cycle.isdigit():
             raise ValueError(f"cycle must be YYYYMMDDHH (10 digits), got: {self.cycle!r}")
+        validate_run_id(self.run_id)
         if len(self.fhour) != 3 or not self.fhour.isdigit():
             raise ValueError(f"fhour must be FFF (3 digits), got: {self.fhour!r}")
         if not str(self.source_uri).strip():
             raise ValueError("source_uri must be non-empty")
         if self.artifact_id is not None:
             _ = _safe_segment(self.artifact_id)  # validate artifact segment
+        object.__setattr__(self, "code_revision", metadata_value(self.code_revision))
+        object.__setattr__(self, "image_identity", metadata_value(self.image_identity))
+        object.__setattr__(self, "config_digest", metadata_value(self.config_digest))
 
 
 @dataclass(frozen=True)
@@ -66,53 +76,134 @@ class ArtifactPaths:
     def _model_cycle_fhour_artifact_parts(self, item: WorkItem) -> tuple[str, str, str, str]:
         model_id = _safe_segment(item.model_id)
         cycle = _safe_segment(item.cycle)
+        validate_run_id(item.run_id)
         fhour = _safe_segment(item.fhour)
         if item.artifact_id is None:
             raise ValueError("artifact_id is required for artifact paths")
         artifact_id = _safe_segment(item.artifact_id)
         return model_id, cycle, fhour, artifact_id
 
-    def success_marker_uri(self, item: WorkItem) -> str:
-        """Success marker URI: {root}/status/{model}/{cycle}/{artifact}/{fhour}._SUCCESS.json"""
-        model_id, cycle, fhour, artifact_id = self._model_cycle_fhour_artifact_parts(item)
-        path = ["status", model_id, cycle, artifact_id, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
-        return join_uri(self.artifact_root_uri, path)
+    def run_prefix_key(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Relative key prefix for one immutable ETL run."""
 
-    def output_field_payload_uri(self, item: WorkItem, *, dtype: str) -> str:
-        """Field payload URI: {root}/fields/{model}/{cycle}/{fhour}/{artifact}.field.<dtype>.bin"""
+        return "/".join([
+            "runs",
+            _safe_segment(model_id),
+            _safe_segment(cycle),
+            validate_run_id(run_id),
+        ])
+
+    def run_prefix_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """URI prefix for one immutable ETL run."""
+
+        return join_uri(self.artifact_root_uri, [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id)])
+
+    def cycle_runs_prefix_uri(self, *, model_id: str, cycle: str) -> str:
+        """URI prefix under which all runs for one model cycle live."""
+
+        return join_uri(self.artifact_root_uri, ["runs", _safe_segment(model_id), _safe_segment(cycle)])
+
+    def run_metadata_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Run metadata URI: {root}/runs/{model}/{cycle}/{run_id}/run.json"""
+
+        return join_uri(self.artifact_root_uri, [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "run.json"])
+
+    def run_pipeline_config_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Pipeline config snapshot URI for one run."""
+
+        return join_uri(
+            self.artifact_root_uri,
+            [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "config", "pipeline_config.json"],
+        )
+
+    def run_forecast_catalog_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Forecast catalog snapshot URI for one run."""
+
+        return join_uri(
+            self.artifact_root_uri,
+            [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "config", "forecast_catalog.json"],
+        )
+
+    def success_marker_uri(self, item: WorkItem) -> str:
+        """Success marker URI: {root}/runs/{model}/{cycle}/{run_id}/status/{artifact}/{fhour}._SUCCESS.json"""
         model_id, cycle, fhour, artifact_id = self._model_cycle_fhour_artifact_parts(item)
         path = [
-            "fields",
-            model_id,
-            cycle,
-            fhour,
-            f"{artifact_id}.field.{payload_suffix_for_dtype(dtype)}.bin",
+            self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=item.run_id),
+            "status",
+            artifact_id,
+            f"{fhour}{SUCCESS_MARKER_SUFFIX}",
         ]
         return join_uri(self.artifact_root_uri, path)
 
-    def logs_uri(self, item: WorkItem) -> str:
-        """Log file URI for given WorkItem: {root}/logs/{model}/{cycle}/{artifact}/{fhour}.log"""
+    def output_field_payload_uri(self, item: WorkItem, *, dtype: str) -> str:
+        """Field payload URI: {root}/runs/{model}/{cycle}/{run_id}/fields/{fhour}/{artifact}.field.<dtype>.bin"""
         model_id, cycle, fhour, artifact_id = self._model_cycle_fhour_artifact_parts(item)
-        path = ["logs", model_id, cycle, artifact_id, f"{fhour}.log"]
+        path = [
+            self.field_payload_root_key(model_id=model_id, cycle=cycle, run_id=item.run_id),
+            fhour,
+            self.field_payload_filename(artifact_id=artifact_id, dtype=dtype),
+        ]
         return join_uri(self.artifact_root_uri, path)
 
-    def success_marker_uri_parts(self, *, model_id: str, cycle: str, fhour: str, artifact_id: str) -> str:
-        """Success marker URI for given parts: {root}/status/{model}/{cycle}/{artifact}/{fhour}._SUCCESS.json"""
+    def field_payload_root_key(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Relative public field payload root key for one run."""
+
+        return "/".join([self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "fields"])
+
+    def field_payload_filename(self, *, artifact_id: str, dtype: str) -> str:
+        """Field payload filename for one artifact and dtype."""
+
+        artifact_id = _safe_segment(artifact_id)
+        return f"{artifact_id}.field.{payload_suffix_for_dtype(dtype)}.bin"
+
+    def logs_uri(self, item: WorkItem) -> str:
+        """Log file URI for given WorkItem: {root}/runs/{model}/{cycle}/{run_id}/logs/{artifact}/{fhour}.log"""
+        model_id, cycle, fhour, artifact_id = self._model_cycle_fhour_artifact_parts(item)
+        path = [
+            self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=item.run_id),
+            "logs",
+            artifact_id,
+            f"{fhour}.log",
+        ]
+        return join_uri(self.artifact_root_uri, path)
+
+    def success_marker_uri_parts(
+        self,
+        *,
+        model_id: str,
+        cycle: str,
+        run_id: str,
+        fhour: str,
+        artifact_id: str,
+    ) -> str:
+        """Success marker URI for given parts under a run prefix."""
         model_id = _safe_segment(model_id)
         cycle = _safe_segment(cycle)
+        run_id = validate_run_id(run_id)
         fhour = _safe_segment(fhour)
         artifact_id = _safe_segment(artifact_id)
-        path = ["status", model_id, cycle, artifact_id, f"{fhour}{SUCCESS_MARKER_SUFFIX}"]
+        path = [
+            self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id),
+            "status",
+            artifact_id,
+            f"{fhour}{SUCCESS_MARKER_SUFFIX}",
+        ]
         return join_uri(self.artifact_root_uri, path)
 
-    def status_prefix_uri(self, *, model_id: str, cycle: str) -> str:
-        """Prefix under which status markers live: {root}/status/{model}/{cycle}/"""
-        path = ["status", _safe_segment(model_id), _safe_segment(cycle)]
+    def status_prefix_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Prefix under which one run's status markers live."""
+        path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "status"]
         return join_uri(self.artifact_root_uri, path)
 
-    def published_marker_uri(self, *, model_id: str, cycle: str) -> str:
-        """Marker written by publish role when the cycle is published."""
-        path = ["status", _safe_segment(model_id), _safe_segment(cycle), PUBLISHED_MARKER_FILENAME]
+    def published_marker_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Marker written by publish role when the run is published."""
+        path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), PUBLISHED_MARKER_FILENAME]
+        return join_uri(self.artifact_root_uri, path)
+
+    def run_manifest_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Canonical internal manifest URI for one immutable run."""
+
+        path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "manifest.json"]
         return join_uri(self.artifact_root_uri, path)
 
     def manifest_cycle_uri(self, *, model_id: str, cycle: str) -> str:

@@ -13,8 +13,15 @@ from forecast_etl.artifacts.repository import (
     LATEST_MANIFEST_METADATA,
     ArtifactRepository,
 )
+from forecast_etl.run_metadata import RunMetadata, RunSnapshot
 from forecast_etl.storage.base import UriObject, UriWriteMetadata
-from forecast_etl.tests.fixtures.artifacts import artifact_marker_payload
+from forecast_etl.tests.fixtures.artifacts import (
+    DEFAULT_CODE_REVISION,
+    DEFAULT_CONFIG_DIGEST,
+    DEFAULT_IMAGE_IDENTITY,
+    DEFAULT_RUN_ID,
+    artifact_marker_payload,
+)
 
 
 class RecordingStore:
@@ -61,6 +68,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
         item = WorkItem(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             fhour="003",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
@@ -88,6 +96,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
         published_uri = repo.write_published_marker(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             marker={
                 "cycle": "2026042700",
                 "model": "gfs",
@@ -107,9 +116,13 @@ class ArtifactRepositoryTests(unittest.TestCase):
         item = WorkItem(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             fhour="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
+            code_revision=DEFAULT_CODE_REVISION,
+            image_identity=DEFAULT_IMAGE_IDENTITY,
+            config_digest=DEFAULT_CONFIG_DIGEST,
         )
 
         uri = repo.write_success_marker(
@@ -119,8 +132,13 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         stored = json.loads(store.objects[uri].decode("utf-8"))
         self.assertEqual(stored["cycle"], "2026042700")
+        self.assertEqual(stored["model_id"], "gfs")
+        self.assertEqual(stored["run_id"], DEFAULT_RUN_ID)
         self.assertEqual(stored["fhour"], "000")
         self.assertEqual(stored["artifact_id"], "tmp_surface")
+        self.assertEqual(stored["code_revision"], DEFAULT_CODE_REVISION)
+        self.assertEqual(stored["image_identity"], DEFAULT_IMAGE_IDENTITY)
+        self.assertEqual(stored["config_digest"], DEFAULT_CONFIG_DIGEST)
         self.assertEqual(stored["artifact"]["payload_uri"], "s3://bucket/fields/tmp.bin")
         self.assertEqual(store.metadata[uri], INTERNAL_JSON_METADATA)
 
@@ -130,6 +148,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
         item = WorkItem(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             fhour="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
@@ -140,12 +159,88 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         self.assertEqual(store.objects, {})
 
+    def test_ensure_run_snapshot_writes_immutable_run_metadata_and_snapshots(self) -> None:
+        store = RecordingStore()
+        repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
+        snapshot = RunSnapshot(
+            metadata=RunMetadata(
+                code_revision=DEFAULT_CODE_REVISION,
+                image_identity=DEFAULT_IMAGE_IDENTITY,
+                config_digest=DEFAULT_CONFIG_DIGEST,
+            ),
+            pipeline_config={"models": {"gfs": {}}},
+            forecast_catalog={"catalogVersion": "test"},
+        )
+
+        run_uri = repo.ensure_run_snapshot(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            snapshot=snapshot,
+        )
+        repo.ensure_run_snapshot(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            snapshot=snapshot,
+        )
+
+        self.assertEqual(run_uri, f"s3://bucket/artifacts/runs/gfs/2026042700/{DEFAULT_RUN_ID}/run.json")
+        run_doc = json.loads(store.objects[run_uri].decode("utf-8"))
+        self.assertEqual(run_doc["runId"], DEFAULT_RUN_ID)
+        self.assertEqual(run_doc["configDigest"], DEFAULT_CONFIG_DIGEST)
+        self.assertEqual(
+            run_doc["pipelineConfigPath"],
+            f"runs/gfs/2026042700/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        )
+        self.assertIn(
+            f"s3://bucket/artifacts/runs/gfs/2026042700/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+            store.objects,
+        )
+
+    def test_ensure_run_snapshot_rejects_conflicting_existing_metadata(self) -> None:
+        store = RecordingStore()
+        repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
+        snapshot = RunSnapshot(
+            metadata=RunMetadata(
+                code_revision=DEFAULT_CODE_REVISION,
+                image_identity=DEFAULT_IMAGE_IDENTITY,
+                config_digest=DEFAULT_CONFIG_DIGEST,
+            ),
+            pipeline_config={"models": {"gfs": {}}},
+            forecast_catalog={"catalogVersion": "test"},
+        )
+        repo.ensure_run_snapshot(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            snapshot=snapshot,
+        )
+        conflicting = RunSnapshot(
+            metadata=RunMetadata(
+                code_revision="other",
+                image_identity=DEFAULT_IMAGE_IDENTITY,
+                config_digest=DEFAULT_CONFIG_DIGEST,
+            ),
+            pipeline_config=snapshot.pipeline_config,
+            forecast_catalog=snapshot.forecast_catalog,
+        )
+
+        with self.assertRaises(SystemExit):
+            repo.ensure_run_snapshot(
+                model_id="gfs",
+                cycle="2026042700",
+                run_id=DEFAULT_RUN_ID,
+                snapshot=conflicting,
+            )
+
     def test_missing_success_markers_uses_status_repository_listing(self) -> None:
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             fhour="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
@@ -158,13 +253,17 @@ class ArtifactRepositoryTests(unittest.TestCase):
         missing = repo.missing_success_markers(
             model_id="gfs",
             cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
             fhours=("000", "003"),
             artifact_ids=("tmp_surface",),
         )
 
         self.assertEqual(
             missing,
-            ["s3://bucket/artifacts/status/gfs/2026042700/tmp_surface/003._SUCCESS.json"],
+            [
+                "s3://bucket/artifacts/"
+                f"runs/gfs/2026042700/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json"
+            ],
         )
 
 

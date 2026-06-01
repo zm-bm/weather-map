@@ -25,6 +25,7 @@ from ..source_adapters.icon_dwd import (
 from ..storage.base import UriStore
 from ..storage.routing import make_store
 from ..uris import default_pipeline_config_uri
+from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_POLL_CYCLE_COUNT = 1
@@ -141,8 +142,19 @@ def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterabl
     return True
 
 
-def _existing_success_markers(*, store: UriStore, paths: ArtifactPaths, model_id: str, cycle: str) -> set[str]:
-    return ArtifactRepository(store=store, paths=paths).list_success_marker_uris(model_id=model_id, cycle=cycle)
+def _existing_success_markers(
+    *,
+    store: UriStore,
+    paths: ArtifactPaths,
+    model_id: str,
+    cycle: str,
+    run_id: str,
+) -> set[str]:
+    return ArtifactRepository(store=store, paths=paths).list_success_marker_uris(
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+    )
 
 
 def _hour_complete(
@@ -151,10 +163,17 @@ def _hour_complete(
     existing_markers: set[str],
     model: ModelConfig,
     cycle: str,
+    run_id: str,
     fhour: str,
 ) -> bool:
     return all(
-        paths.success_marker_uri_parts(model_id=model.id, cycle=cycle, fhour=fhour, artifact_id=artifact_id)
+        paths.success_marker_uri_parts(
+            model_id=model.id,
+            cycle=cycle,
+            run_id=run_id,
+            fhour=fhour,
+            artifact_id=artifact_id,
+        )
         in existing_markers
         for artifact_id in model.workload.artifacts
     )
@@ -246,14 +265,16 @@ def _submit_job(
     job_definition: str,
     pipeline_config_uri: str,
     cycle: str,
+    run_id: str,
     fhour: str,
     attempt: int,
 ) -> str:
-    suffix = hashlib.sha1(f"{cycle}:{fhour}:{attempt}".encode("utf-8")).hexdigest()[:8]
-    job_name = f"icon-{cycle}-{fhour}-{suffix}"[:128]
+    suffix = hashlib.sha1(f"{cycle}:{run_id}:{fhour}:{attempt}".encode("utf-8")).hexdigest()[:8]
+    job_name = f"icon-{cycle}-{run_id}-{fhour}-{suffix}"[:128]
     env_vars = [
         {"name": "MODEL", "value": MODEL_ID},
         {"name": "CYCLE", "value": cycle},
+        {"name": "RUN_ID", "value": run_id},
         {"name": "FHOUR", "value": fhour},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
     ]
@@ -264,7 +285,10 @@ def _submit_job(
         containerOverrides={"environment": env_vars},
     )
     job_id = str(response.get("jobId", ""))
-    print(f"submitted ICON job: jobName={job_name} jobId={job_id} cycle={cycle} fhour={fhour}", flush=True)
+    print(
+        f"submitted ICON job: jobName={job_name} jobId={job_id} cycle={cycle} run_id={run_id} fhour={fhour}",
+        flush=True,
+    )
     return job_id
 
 
@@ -275,6 +299,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
     state_table = os.environ["ICON_STATE_TABLE"]
+    run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
     artifact_root_uri = os.environ["ARTIFACT_ROOT_URI"]
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
 
@@ -310,9 +335,30 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             skipped_cycles += 1
             continue
 
-        existing_markers = _existing_success_markers(store=store, paths=paths, model_id=model.id, cycle=cycle)
+        cycle_run_id = coordinated_run_id(
+            ddb=ddb,
+            table_name=run_coordinator_table,
+            model_id=MODEL_ID,
+            cycle=cycle,
+            now=now,
+            ttl_seconds=run_coordinator_ttl_seconds(),
+        )
+        existing_markers = _existing_success_markers(
+            store=store,
+            paths=paths,
+            model_id=model.id,
+            cycle=cycle,
+            run_id=cycle_run_id,
+        )
         for fhour in model.workload.forecast_hours:
-            if _hour_complete(paths=paths, existing_markers=existing_markers, model=model, cycle=cycle, fhour=fhour):
+            if _hour_complete(
+                paths=paths,
+                existing_markers=existing_markers,
+                model=model,
+                cycle=cycle,
+                run_id=cycle_run_id,
+                fhour=fhour,
+            ):
                 _mark_complete(ddb=ddb, table_name=state_table, cycle=cycle, fhour=fhour, now_epoch=now_epoch)
                 completed += 1
                 continue
@@ -352,6 +398,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 job_definition=job_definition,
                 pipeline_config_uri=pipeline_config_uri,
                 cycle=cycle,
+                run_id=cycle_run_id,
                 fhour=fhour,
                 attempt=attempt,
             )

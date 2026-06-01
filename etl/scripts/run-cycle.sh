@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle.sh --cycle <cycle> [--model <model>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--run-id <run_id>] [--model <model>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
 
 Description:
 	Refreshes local forecast artifacts by running the same ETL worker container
@@ -14,6 +14,7 @@ Description:
 
 Options:
 	--cycle <cycle>  Forecast cycle string (example: 2026021600)
+	--run-id <run_id>  Run id for this cycle attempt (default: generated)
 	--model <model>  Forecast model id (default: all configured models)
 	--artifact <id>  Artifact id to process; repeat to process multiple artifacts
 	--procs <n>  Maximum concurrent local worker containers (default: 1)
@@ -23,6 +24,9 @@ Options:
 	-h, --help  Show this help and exit
 
 Environment:
+	RUN_ID  Run id override; same format as --run-id
+	ETL_CODE_REVISION  Code revision recorded in success markers
+	ETL_IMAGE_IDENTITY  Image identity recorded in success markers
 	LOCAL_ETL_IMAGE  Local worker image tag (default: weather-map-forecast-etl:local)
 	ETL_WORKER_STAGGER_SECONDS  Delay between parallel worker starts (default: 5)
 EOF
@@ -47,6 +51,7 @@ print_command() {
 }
 
 CYCLE=""
+RUN_ID="${RUN_ID:-}"
 SELECTED_MODEL=""
 SELECTED_ARTIFACTS=()
 PROCS="1"
@@ -54,6 +59,8 @@ DRY_RUN="${DRY_RUN:-false}"
 FORCE_REBUILD="false"
 NO_PUBLISH="false"
 LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-forecast-etl:local}"
+ETL_CODE_REVISION="${ETL_CODE_REVISION:-}"
+ETL_IMAGE_IDENTITY="${ETL_IMAGE_IDENTITY:-}"
 ETL_WORKER_STAGGER_SECONDS="${ETL_WORKER_STAGGER_SECONDS:-5}"
 artifact=""
 
@@ -71,6 +78,16 @@ while [[ $# -gt 0 ]]; do
 		--cycle=*)
 			CYCLE="${1#*=}"
 			require_value "--cycle" "$CYCLE"
+			shift
+			;;
+		--run-id)
+			require_value "$1" "${2:-}"
+			RUN_ID="$2"
+			shift 2
+			;;
+		--run-id=*)
+			RUN_ID="${1#*=}"
+			require_value "--run-id" "$RUN_ID"
 			shift
 			;;
 		--model)
@@ -135,6 +152,14 @@ if [[ ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
 	exit 1
 fi
 
+if [[ -z "$RUN_ID" ]]; then
+	RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(printf '%s' "$CYCLE-$$-${RANDOM:-0}-$(date +%s%N)" | sha256sum | awk '{print substr($1,1,8)}')"
+fi
+if [[ ! "$RUN_ID" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]]; then
+	echo "Error: --run-id must match YYYYMMDDTHHMMSSZ-<8 lowercase hex chars>, got: $RUN_ID" >&2
+	exit 1
+fi
+
 if [[ ! "$PROCS" =~ ^[0-9]+$ ]]; then
 	echo "Error: --procs must be a non-negative integer." >&2
 	usage >&2
@@ -158,6 +183,13 @@ CACHE_DIR="$ETL_DIR/cache"
 IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.forecast-etl.source-fingerprint"
 RUN_LOG_DIR=""
 FAILURE_DIR=""
+
+if [[ -z "$ETL_CODE_REVISION" ]]; then
+	ETL_CODE_REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+fi
+if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
+	ETL_IMAGE_IDENTITY="$LOCAL_ETL_IMAGE"
+fi
 
 mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
 
@@ -220,6 +252,8 @@ build_worker_image() {
 	local docker_build_cmd=(
 		docker build
 		--network=host
+		--build-arg "ETL_CODE_REVISION=$ETL_CODE_REVISION"
+		--build-arg "ETL_IMAGE_IDENTITY=$LOCAL_ETL_IMAGE@$fingerprint"
 		--label "$IMAGE_FINGERPRINT_LABEL=$fingerprint"
 		-f "$ETL_DIR/Dockerfile"
 		-t "$LOCAL_ETL_IMAGE"
@@ -267,7 +301,10 @@ worker_cmd_for_hour() {
 		--env "PYTHONDONTWRITEBYTECODE=1"
 		--env "MODEL=$model"
 		--env "CYCLE=$CYCLE"
+		--env "RUN_ID=$RUN_ID"
 		--env "FHOUR=$fhour"
+		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
+		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
 	)
 
 	local optional_env
@@ -300,8 +337,12 @@ publish_cmd_for_model() {
 		--env "PYTHONDONTWRITEBYTECODE=1"
 		--env "MODEL=$model"
 		--env "CYCLE=$CYCLE"
+		--env "RUN_ID=$RUN_ID"
+		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
+		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
 		"$LOCAL_ETL_IMAGE" publish-cycle
 		--cycle "$CYCLE"
+		--run-id "$RUN_ID"
 	)
 	printf '%s\0' "${cmd[@]}"
 }
@@ -469,6 +510,7 @@ run_model_cycle() {
 	echo "Running local containerized pipeline"
 	echo "  model:          $model"
 	echo "  cycle:          $CYCLE"
+	echo "  run_id:         $RUN_ID"
 	echo "  image:          $LOCAL_ETL_IMAGE"
 	echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
 	if [[ "${#SELECTED_ARTIFACTS[@]}" -gt 0 ]]; then

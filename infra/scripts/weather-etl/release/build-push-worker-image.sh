@@ -7,6 +7,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 ECR_REPOSITORY="${ECR_REPOSITORY:-weather-etl-worker}"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
+ETL_CODE_REVISION="${ETL_CODE_REVISION:-$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)}"
 PUSH_IMAGE="${PUSH_IMAGE:-true}"
 CREATE_REPO_IF_MISSING="${CREATE_REPO_IF_MISSING:-false}"
 
@@ -30,6 +31,7 @@ echo "Account:       ${ACCOUNT_ID}"
 echo "Repository:    ${ECR_REPOSITORY}"
 echo "Image URI:     ${ECR_IMAGE_URI}"
 echo "Image tag:     ${IMAGE_TAG}"
+echo "Code revision: ${ETL_CODE_REVISION}"
 
 if [[ "$CREATE_REPO_IF_MISSING" == "true" ]]; then
   if ! aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>&1; then
@@ -47,6 +49,8 @@ fi
 
 echo "Building ETL image from etl/Dockerfile"
 docker build \
+  --build-arg "ETL_CODE_REVISION=${ETL_CODE_REVISION}" \
+  --build-arg "ETL_IMAGE_IDENTITY=${ECR_IMAGE_URI}:${IMAGE_TAG}" \
   -f "$REPO_ROOT/etl/Dockerfile" \
   -t "${ECR_IMAGE_URI}:${IMAGE_TAG}" \
   -t "${ECR_IMAGE_URI}:latest" \

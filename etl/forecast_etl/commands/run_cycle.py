@@ -11,6 +11,7 @@ from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig, PipelineConfig
 from ..cycles import parse_cycle
 from ..proc import RunFn, make_runner
+from ..run_metadata import RunMetadata, RunSnapshot, run_metadata_from_env
 from ..runtime import ExecutionContext
 from ..storage.base import UriStore
 from ..storage.routing import make_store
@@ -24,7 +25,9 @@ HourTask = tuple[
     tuple[str, ...],
     str,
     str,
+    str,
     str | None,
+    RunSnapshot,
 ]
 
 
@@ -37,16 +40,31 @@ def run_cycle(
     model: ModelConfig,
     ctx: ExecutionContext,
     cycle: str,
+    run_id: str,
     artifact_ids: Iterable[str] | None = None,
     procs: int | None = None,
     publish: bool,
     pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
     run: RunFn | None = None,
+    run_metadata: RunMetadata | None = None,
+    run_snapshot: RunSnapshot | None = None,
 ) -> None:
     """Process every configured forecast hour and optionally publish once."""
 
-    tasks = build_run_cycle_tasks(model=model, ctx=ctx, cycle=cycle, artifact_ids=artifact_ids)
+    snapshot = run_snapshot or RunSnapshot(
+        metadata=run_metadata or run_metadata_from_env(config_digest="unknown"),
+        pipeline_config={},
+        forecast_catalog={},
+    )
+    tasks = build_run_cycle_tasks(
+        model=model,
+        ctx=ctx,
+        cycle=cycle,
+        run_id=run_id,
+        artifact_ids=artifact_ids,
+        run_snapshot=snapshot,
+    )
     process_count = int(procs) if procs is not None else default_run_cycle_procs(model)
     if process_count != 1 and run is not None:
         raise SystemExit("Injected command runner for run-cycle requires --procs 1")
@@ -65,13 +83,13 @@ def run_cycle(
         raise SystemExit(str(exc)) from None
 
     if publish:
-        publish_cycle(ctx=ctx, model=model, cycle=cycle, pipeline_config=pipeline_config, store=store)
+        publish_cycle(ctx=ctx, model=model, cycle=cycle, run_id=run_id, pipeline_config=pipeline_config, store=store)
 
 
 def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunFn | None = None) -> None:
     """Run one serialized cycle task inside the current process."""
 
-    ctx, model, artifact_specs, artifact_ids, cycle, fhour, source_uri = payload
+    ctx, model, artifact_specs, artifact_ids, cycle, run_id, fhour, source_uri, run_snapshot = payload
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
     resolved_run = run if run is not None else make_runner()
@@ -80,6 +98,7 @@ def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunF
             ctx=ctx,
             model=model,
             cycle=cycle,
+            run_id=run_id,
             fhour=fhour,
             source_uri=source_uri,
             artifact_ids=artifact_ids,
@@ -87,6 +106,7 @@ def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunF
             store=resolved_store,
             artifact_repo=artifact_repo,
             run=resolved_run,
+            run_snapshot=run_snapshot,
         )
     except KeyboardInterrupt:
         raise
@@ -102,17 +122,25 @@ def build_run_cycle_tasks(
     model: ModelConfig,
     ctx: ExecutionContext,
     cycle: str,
+    run_id: str,
     artifact_ids: Iterable[str] | None = None,
+    run_metadata: RunMetadata | None = None,
+    run_snapshot: RunSnapshot | None = None,
 ) -> list[HourTask]:
     """Build pickle-friendly per-hour tasks for local multiprocessing."""
 
     parse_cycle(cycle)
+    snapshot = run_snapshot or RunSnapshot(
+        metadata=run_metadata or run_metadata_from_env(config_digest="unknown"),
+        pipeline_config={},
+        forecast_catalog={},
+    )
     fhours = model.workload.forecast_hours
     resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts or ())
     tasks: list[HourTask] = []
 
     for fhour in fhours:
-        tasks.append((ctx, model, model.artifacts, resolved_artifact_ids, cycle, fhour, None))
+        tasks.append((ctx, model, model.artifacts, resolved_artifact_ids, cycle, run_id, fhour, None, snapshot))
 
     return tasks
 

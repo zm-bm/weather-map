@@ -14,10 +14,13 @@ from __future__ import annotations
 import argparse
 import os
 
+from .catalog import load_forecast_catalog
 from .commands import publish_cycle, run_cycle, run_hour
-from .config.load import load_pipeline_config
+from .config.load import LoadedPipelineConfig, load_pipeline_config, load_pipeline_config_document
 from .config.resolved import PipelineConfig
 from .cycles import parse_cycle
+from .run_ids import generate_run_id, parse_run_id
+from .run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
 from .runtime import execution_context_for_model
 from .storage.base import UriStore
 from .storage.routing import make_store
@@ -75,6 +78,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         parents=[runtime],
     )
     ap_run_hour.add_argument("--cycle", help="Cycle YYYYMMDDHH (falls back to $CYCLE)")
+    ap_run_hour.add_argument("--run-id", help="Run id (falls back to $RUN_ID)")
     ap_run_hour.add_argument("--fhour", help="Forecast hour FFF (falls back to $FHOUR)")
     ap_run_hour.add_argument(
         "--source-uri",
@@ -89,6 +93,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         parents=[runtime],
     )
     ap_run_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_run_cycle.add_argument(
+        "--run-id",
+        help="Run id for this local cycle attempt (default: generated once per run-cycle invocation)",
+    )
     ap_run_cycle.add_argument(
         "--procs",
         type=int,
@@ -109,6 +117,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         parents=[runtime],
     )
     ap_publish_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_publish_cycle.add_argument(
+        "--run-id",
+        help="Optional run id to require while publishing; otherwise derived from success markers",
+    )
     ap_publish_cycle.set_defaults(_handler=_cmd_publish_cycle)
 
     ap_list_fhours = sub.add_parser(
@@ -136,6 +148,22 @@ def _load_cfg(args: argparse.Namespace, *, store: UriStore | None = None) -> Pip
         args.pipeline_config_uri,
         overlay_uri=args.pipeline_config_overlay_uri,
         store=store,
+    )
+
+
+def _load_cfg_document(args: argparse.Namespace, *, store: UriStore | None = None) -> LoadedPipelineConfig:
+    return load_pipeline_config_document(
+        args.pipeline_config_uri,
+        overlay_uri=args.pipeline_config_overlay_uri,
+        store=store,
+    )
+
+
+def _run_snapshot(args: argparse.Namespace, *, store: UriStore, loaded: LoadedPipelineConfig) -> RunSnapshot:
+    return RunSnapshot(
+        metadata=run_metadata_from_env(config_digest=json_document_digest(loaded.raw)),
+        pipeline_config=loaded.raw,
+        forecast_catalog=load_forecast_catalog(store=store),
     )
 
 
@@ -187,11 +215,13 @@ def _resolve_artifact_ids(model, selected: list[str] | None) -> tuple[str, ...]:
 def _cmd_run_hour(args: argparse.Namespace) -> int:
     """Run one hour without publishing."""
     store = make_store()
-    cfg = _load_cfg(args, store=store)
+    loaded = _load_cfg_document(args, store=store)
+    cfg = loaded.config
     model = cfg.model(_require_model_id(args))
     ctx = execution_context_for_model(model, args.artifact_root_uri)
     cycle = _require_str(args.cycle, env_name="CYCLE", cli_flag="--cycle")
     parse_cycle(cycle)
+    run_id = parse_run_id(_require_str(getattr(args, "run_id", None), env_name="RUN_ID", cli_flag="--run-id"))
     fhour = _require_str(args.fhour, env_name="FHOUR", cli_flag="--fhour")
     source_uri = (
         args.source_uri
@@ -204,10 +234,12 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         model=model,
         ctx=ctx,
         cycle=cycle,
+        run_id=run_id,
         fhour=fhour,
         source_uri=source_uri,
         artifact_ids=_resolve_artifact_ids(model, args.artifacts),
         store=store,
+        run_snapshot=_run_snapshot(args, store=store, loaded=loaded),
     )
     return 0
 
@@ -215,21 +247,25 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
     """Fan out model forecast-hour workers locally, and publish once by default."""
     store = make_store()
-    cfg = _load_cfg(args, store=store)
+    loaded = _load_cfg_document(args, store=store)
+    cfg = loaded.config
     model = cfg.model(_require_model_id(args))
     ctx = execution_context_for_model(model, args.artifact_root_uri)
     cycle = str(args.cycle)
     parse_cycle(cycle)
+    run_id = parse_run_id(args.run_id) if args.run_id else generate_run_id()
 
     run_cycle(
         model=model,
         ctx=ctx,
         cycle=cycle,
+        run_id=run_id,
         artifact_ids=_resolve_artifact_ids(model, args.artifacts),
         procs=args.procs,
         publish=not args.no_publish,
         pipeline_config=cfg,
         store=store,
+        run_snapshot=_run_snapshot(args, store=store, loaded=loaded),
     )
     return 0
 
@@ -242,11 +278,13 @@ def _cmd_publish_cycle(args: argparse.Namespace) -> int:
     ctx = execution_context_for_model(model, args.artifact_root_uri)
     cycle = str(args.cycle)
     parse_cycle(cycle)
+    run_id = parse_run_id(args.run_id) if args.run_id else None
 
     result = publish_cycle(
         model=model,
         ctx=ctx,
         cycle=cycle,
+        run_id=run_id,
         pipeline_config=cfg,
         store=store,
     )

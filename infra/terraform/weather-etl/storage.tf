@@ -73,6 +73,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
   }
 
   rule {
+    id     = "expire-runs"
+    status = "Enabled"
+
+    filter {
+      prefix = "runs/"
+    }
+
+    expiration {
+      days = 14
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
+
+  rule {
     id     = "expire-manifests"
     status = "Enabled"
 

@@ -178,6 +178,13 @@ resource "aws_iam_role_policy" "ingest_lambda" {
       {
         Effect = "Allow"
         Action = [
+          "dynamodb:UpdateItem"
+        ]
+        Resource = aws_dynamodb_table.run_coordinator.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "s3:GetObject"
         ]
         Resource = [

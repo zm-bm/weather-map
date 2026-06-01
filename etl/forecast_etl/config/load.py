@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
 from ._types import parse_config_model
@@ -21,6 +22,14 @@ from .validate import (
 
 if TYPE_CHECKING:
     from ..storage.base import UriStore
+
+
+@dataclass(frozen=True)
+class LoadedPipelineConfig:
+    """Effective raw config plus parsed resolved config."""
+
+    raw: dict[str, Any]
+    config: PipelineConfig
 
 
 def parse_pipeline_config(obj: Mapping[str, Any]) -> PipelineConfig:
@@ -113,6 +122,21 @@ def load_pipeline_config(
 ) -> PipelineConfig:
     """Read and parse pipeline config JSON from a URI-backed store."""
 
+    return load_pipeline_config_document(
+        pipeline_config_uri,
+        overlay_uri=overlay_uri,
+        store=store,
+    ).config
+
+
+def load_pipeline_config_document(
+    pipeline_config_uri: str,
+    *,
+    overlay_uri: str | None = None,
+    store: "UriStore | None" = None,
+) -> LoadedPipelineConfig:
+    """Read the effective raw pipeline config and parse it."""
+
     from ..storage.routing import make_store
 
     resolved_store = store if store is not None else make_store()
@@ -123,7 +147,7 @@ def load_pipeline_config(
             _read_config_json(uri=overlay_uri, store=resolved_store),
         )
 
-    return parse_pipeline_config(obj)
+    return LoadedPipelineConfig(raw=obj, config=parse_pipeline_config(obj))
 
 
 def _read_config_json(*, uri: str, store: "UriStore") -> dict[str, Any]:

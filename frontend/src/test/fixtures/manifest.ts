@@ -159,6 +159,7 @@ export function createScalarArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
+    payloadFile: overrides.payloadFile,
     temporalKind: overrides.temporalKind,
     sourceIntervalHours: overrides.sourceIntervalHours,
   }
@@ -186,6 +187,7 @@ export function createVectorArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
+    payloadFile: overrides.payloadFile,
     temporalKind: overrides.temporalKind,
     sourceIntervalHours: overrides.sourceIntervalHours,
   }
@@ -266,6 +268,7 @@ export function createLatestRunFixture(
 
   return {
     run: {
+      ...overrides.run,
       cycle,
       generatedAt,
       revision,

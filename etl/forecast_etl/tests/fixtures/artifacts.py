@@ -16,6 +16,11 @@ from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.local import LocalFSStore
 
+DEFAULT_RUN_ID = "20260411T000000Z-00000000"
+DEFAULT_CODE_REVISION = "test-revision"
+DEFAULT_IMAGE_IDENTITY = "test-image"
+DEFAULT_CONFIG_DIGEST = "sha256:" + "0" * 64
+
 
 @dataclass(frozen=True)
 class ArtifactFixture:
@@ -49,15 +54,20 @@ class ArtifactFixture:
         cycle: str,
         artifact_id: str,
         fhour: str,
+        run_id: str = DEFAULT_RUN_ID,
         modified: datetime | None = None,
     ) -> str:
         marker_uri = self.repository.write_success_marker(
             item=WorkItem(
                 model_id=model_id,
                 cycle=cycle,
+                run_id=run_id,
                 artifact_id=artifact_id,
                 fhour=fhour,
                 source_uri="file:///dev/null",
+                code_revision=DEFAULT_CODE_REVISION,
+                image_identity=DEFAULT_IMAGE_IDENTITY,
+                config_digest=DEFAULT_CONFIG_DIGEST,
             ),
             artifact=artifact_marker_payload(),
         )
@@ -71,11 +81,13 @@ class ArtifactFixture:
         cycle: str,
         artifact_id: str,
         fhour: str,
+        run_id: str = DEFAULT_RUN_ID,
         modified: datetime | None = None,
     ) -> str:
         marker_uri = self.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             artifact_id=artifact_id,
             fhour=fhour,
         )
@@ -94,6 +106,7 @@ class ArtifactFixture:
         model_id: str = "gfs",
         cycle: str,
         generated_at: datetime,
+        run_id: str = DEFAULT_RUN_ID,
         modified: datetime | None = None,
         revision: str = "abc123",
         manifest_uri: str | None = None,
@@ -101,6 +114,7 @@ class ArtifactFixture:
         marker_uri = self.repository.write_published_marker(
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             marker=published_marker_dict(
                 cycle=cycle,
                 model=model_id,
@@ -133,6 +147,8 @@ def manifest_payload(*, cycle: str, generated_at: datetime, revision: str = "abc
     return {
         "run": {
             "cycle": cycle,
+            "runId": DEFAULT_RUN_ID,
+            "payloadRoot": f"runs/gfs/{cycle}/{DEFAULT_RUN_ID}/fields",
             "generatedAt": iso_utc(generated_at),
             "revision": revision,
         }
@@ -142,14 +158,20 @@ def manifest_payload(*, cycle: str, generated_at: datetime, revision: str = "abc
 def success_marker_payload(
     *,
     cycle: str,
+    run_id: str = DEFAULT_RUN_ID,
     fhour: str,
     artifact_id: str,
     payload_uri: str = "file:///payload.bin",
 ) -> dict[str, Any]:
     return {
         "cycle": cycle,
+        "run_id": run_id,
+        "model_id": "gfs",
         "fhour": fhour,
         "artifact_id": artifact_id,
+        "code_revision": DEFAULT_CODE_REVISION,
+        "image_identity": DEFAULT_IMAGE_IDENTITY,
+        "config_digest": DEFAULT_CONFIG_DIGEST,
         "artifact": artifact_marker_payload(payload_uri=payload_uri),
     }
 
@@ -186,10 +208,11 @@ def artifact_marker_payload(*, payload_uri: str = "file:///payload.bin", **overr
 
 def success_marker_payload_from_uri(uri: str) -> dict[str, Any]:
     parts = uri.rstrip("/").split("/")
-    cycle = parts[-3]
+    cycle = parts[-5]
+    run_id = parts[-4]
     artifact_id = parts[-2]
     fhour = parts[-1].removesuffix(SUCCESS_MARKER_SUFFIX)
-    return success_marker_payload(cycle=cycle, fhour=fhour, artifact_id=artifact_id)
+    return success_marker_payload(cycle=cycle, run_id=run_id, fhour=fhour, artifact_id=artifact_id)
 
 
 def invalid_success_marker_payload(*, cycle: str, fhour: str) -> dict[str, Any]:

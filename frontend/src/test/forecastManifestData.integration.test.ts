@@ -12,9 +12,11 @@ import {
   createMultiModelManifestFixture,
   createConfigFixture,
   createForecastSyncPlanFixture,
+  createScalarArtifactFixture,
   createSingleTimeManifestFixture,
   createScalarPayloadFixture,
   createSignalFixture,
+  createVectorArtifactFixture,
   createVectorPayloadFixture,
 } from './fixtures'
 import {
@@ -40,6 +42,23 @@ describe('forecast manifest + forecast loading end-to-end', () => {
     const gfsManifest = createSingleTimeManifestFixture({
       model: { id: 'gfs', label: 'GFS' },
       cycle: '2026041312',
+      run: {
+        cycle: '2026041312',
+        runId: '20260413T120000Z-abcdef12',
+        payloadRoot: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+        generatedAt: '2026-04-13T12:00:00Z',
+        revision: 'rev',
+      },
+      artifacts: {
+        tmp_surface: createScalarArtifactFixture({
+          id: 'tmp_surface',
+          payloadFile: 'tmp_surface.field.i8.bin',
+        }),
+        wind10m_uv: createVectorArtifactFixture({
+          id: 'wind10m_uv',
+          payloadFile: 'wind10m_uv.field.i8.bin',
+        }),
+      },
     })
     const manifestPayload = createMultiModelManifestFixture({
       gfsManifest,
@@ -54,15 +73,15 @@ describe('forecast manifest + forecast loading end-to-end', () => {
         return createFetchJsonResponse(manifestPayload)
       }
 
-      if (url.endsWith('/fields/gfs/2026041312/000/tmp_surface.field.i8.bin')) {
+      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin')) {
         return createFetchArrayBufferResponse(scalarPayload)
       }
 
-      if (url.endsWith('/fields/gfs/2026041312/000/wind10m_uv.field.i8.bin')) {
+      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/wind10m_uv.field.i8.bin')) {
         return createFetchArrayBufferResponse(vectorPayload)
       }
 
-      return createFetchErrorResponse(404, 'Not Found')
+      return createFetchErrorResponse(404, `Not Found: ${url}`)
     })
 
     vi.stubGlobal('fetch', fetchMock)

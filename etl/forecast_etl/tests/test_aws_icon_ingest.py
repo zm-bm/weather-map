@@ -8,6 +8,7 @@ from unittest.mock import patch
 from forecast_etl.artifacts.paths import ArtifactPaths
 from forecast_etl.aws import icon_ingest
 from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
 @dataclass(frozen=True)
@@ -93,10 +94,21 @@ class _FakeDynamoClient:
         values = kwargs.get("ExpressionAttributeValues", {})
         update_expression = kwargs.get("UpdateExpression", "")
         item = dict(existing or {})
+        if ":model" in values:
+            item.setdefault("model", values[":model"]["S"])
         if ":cycle" in values:
-            item["cycle"] = values[":cycle"]["S"]
+            if "if_not_exists(#cycle" in update_expression:
+                item.setdefault("cycle", values[":cycle"]["S"])
+            else:
+                item["cycle"] = values[":cycle"]["S"]
         if ":fhour" in values:
             item["fhour"] = values[":fhour"]["S"]
+        if ":run_id" in values:
+            item.setdefault("runId", DEFAULT_RUN_ID)
+        if ":created_at" in values:
+            item.setdefault("createdAt", values[":created_at"]["S"])
+        if ":ttl" in values and "#ttl = if_not_exists" in update_expression:
+            item.setdefault("ttl", int(values[":ttl"]["N"]))
         if ":lease_until" in values:
             item["leaseUntil"] = int(values[":lease_until"]["N"])
         if ":job_id" in values:
@@ -109,7 +121,12 @@ class _FakeDynamoClient:
         if ":complete" in values and ":complete" in update_expression:
             item["state"] = values[":complete"]["S"]
         self.items[pk] = item
-        return {"Attributes": {"attempt": {"N": str(item.get("attempt", 1))}}}
+        return {
+            "Attributes": {
+                "attempt": {"N": str(item.get("attempt", 1))},
+                "runId": {"S": str(item.get("runId", DEFAULT_RUN_ID))},
+            }
+        }
 
 
 class _FakeStore:
@@ -149,6 +166,7 @@ def _env() -> dict[str, str]:
         "ICON_SENTINEL_PARAMS": "t_2m",
         "ICON_STATE_TABLE": "icon-state",
         "PIPELINE_CONFIG_URI": "file:///tmp/config.json",
+        "RUN_COORDINATOR_TABLE": "run-coordinator",
     }
 
 
@@ -233,12 +251,16 @@ class IconIngestTest(unittest.TestCase):
         env = {item["name"]: item["value"] for item in submission["containerOverrides"]["environment"]}
         self.assertEqual(env["MODEL"], "icon")
         self.assertEqual(env["CYCLE"], "2026051112")
+        self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
         self.assertEqual(env["FHOUR"], "001")
         self.assertEqual(env["PIPELINE_CONFIG_URI"], "file:///tmp/config.json")
         self.assertNotIn("GRIB_SOURCE_URI", env)
-        lease_update = self.ddb.updates[0]
+        lease_update = next(
+            update for update in self.ddb.updates if "#state = :processing" in update["UpdateExpression"]
+        )
         self.assertIn("#cycle = :cycle", lease_update["UpdateExpression"])
         self.assertEqual(lease_update["ExpressionAttributeNames"]["#cycle"], "cycle")
+        self.assertEqual(self.ddb.items["icon#2026051112"]["runId"], DEFAULT_RUN_ID)
 
     def test_active_lease_blocks_duplicate_submit(self) -> None:
         self.ddb.items["icon#2026051112#001"] = {"leaseUntil": 2000000000, "attempt": 1}
@@ -264,6 +286,7 @@ class IconIngestTest(unittest.TestCase):
                 paths.success_marker_uri_parts(
                     model_id="icon",
                     cycle="2026051112",
+                    run_id=DEFAULT_RUN_ID,
                     fhour="001",
                     artifact_id="tmp_surface",
                 )
@@ -275,7 +298,9 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(result["submitted"], 0)
         self.assertEqual(result["completed"], 1)
         self.assertEqual(self.ddb.items["icon#2026051112#001"]["state"], "complete")
-        complete_update = self.ddb.updates[0]
+        complete_update = next(
+            update for update in self.ddb.updates if "#state = :complete" in update["UpdateExpression"]
+        )
         self.assertIn("#cycle = :cycle", complete_update["UpdateExpression"])
         self.assertEqual(complete_update["ExpressionAttributeNames"]["#cycle"], "cycle")
 
@@ -286,6 +311,7 @@ class IconIngestTest(unittest.TestCase):
                 paths.success_marker_uri_parts(
                     model_id="icon",
                     cycle="2026051112",
+                    run_id=DEFAULT_RUN_ID,
                     fhour="001",
                     artifact_id="tmp_surface",
                 )

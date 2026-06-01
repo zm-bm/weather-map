@@ -626,7 +626,8 @@ class GribCollectionArtifactTest(unittest.TestCase):
             self.assertEqual(payload_bytes, expected_payload)
             self.assertEqual(
                 result["payload_uri"],
-                f"{fx.artifact_root_uri}/fields/icon/2026041200/003/precip_total_surface.field.i8.bin",
+                f"{fx.artifact_root_uri}/runs/icon/2026041200/{fx.run_id}/fields/003/"
+                "precip_total_surface.field.i8.bin",
             )
             self.assertEqual(result["encoding_id"], "precip_total_surface_i8_1mm_v1")
             self.assertEqual(result["units"], "mm")

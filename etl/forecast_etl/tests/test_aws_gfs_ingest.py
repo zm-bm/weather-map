@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from forecast_etl.aws import gfs_ingest
 from forecast_etl.tests.fixtures.artifact_configs import wind_artifact_config
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
 
 
@@ -18,6 +19,29 @@ class _FakeBatchClient:
 
     def submit_job(self, **kwargs) -> None:
         self.submissions.append(kwargs)
+
+
+class _FakeDynamoClient:
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, str]] = {}
+        self.updates: list[dict] = []
+
+    def update_item(self, **kwargs) -> dict:
+        self.updates.append(kwargs)
+        pk = kwargs["Key"]["pk"]["S"]
+        item = dict(self.items.get(pk, {}))
+        values = kwargs.get("ExpressionAttributeValues", {})
+        item.setdefault("model", values[":model"]["S"])
+        item.setdefault("cycle", values[":cycle"]["S"])
+        item.setdefault("runId", DEFAULT_RUN_ID)
+        item.setdefault("createdAt", values[":created_at"]["S"])
+        item.setdefault("ttl", values[":ttl"]["N"])
+        self.items[pk] = item
+        return {
+            "Attributes": {
+                "runId": {"S": item["runId"]},
+            }
+        }
 
 
 class _FakeWorkload:
@@ -64,11 +88,13 @@ class AwsGfsIngestTest(unittest.TestCase):
     def setUp(self) -> None:
         gfs_ingest._FILTERS_CACHE_BY_URI.clear()
         self.batch = _FakeBatchClient()
+        self.ddb = _FakeDynamoClient()
         self.env_patch = patch.dict(
             os.environ,
             {
                 "BATCH_JOB_QUEUE": "weather-etl",
                 "BATCH_JOB_DEFINITION": "weather-etl-worker:1",
+                "RUN_COORDINATOR_TABLE": "run-coordinator",
             },
             clear=False,
         )
@@ -94,7 +120,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             cfg_path.write_text(json.dumps(payload), encoding="utf-8")
             with (
                 patch.dict(os.environ, {"PIPELINE_CONFIG_URI": f"file://{cfg_path.as_posix()}"}, clear=False),
-                patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
+                patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
             ):
                 result = gfs_ingest.handler(
                     _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003"),
@@ -108,6 +134,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         self.assertEqual(submission["jobDefinition"], "weather-etl-worker:1")
         env = {item["name"]: item["value"] for item in submission["containerOverrides"]["environment"]}
         self.assertEqual(env["CYCLE"], "2026021300")
+        self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
         self.assertEqual(env["FHOUR"], "003")
         self.assertEqual(env["MODEL"], "gfs")
         self.assertEqual(
@@ -115,6 +142,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             "s3://noaa-gfs-bdp-pds/gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003",
         )
         self.assertNotIn("PIPELINE_CONFIG_URI", env)
+        self.assertEqual(self.ddb.items["gfs#2026021300"]["runId"], DEFAULT_RUN_ID)
 
     def test_handler_filters_by_forecast_hour(self) -> None:
         fake_cfg = _FakePipelineConfig(
@@ -123,7 +151,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f006"),
@@ -140,7 +168,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f000"),
@@ -157,7 +185,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/03/atmos/gfs.t03z.pgrb2.0p25.f000"),
@@ -174,7 +202,7 @@ class AwsGfsIngestTest(unittest.TestCase):
         )
         with (
             patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
-            patch("forecast_etl.aws.gfs_ingest.boto3.client", return_value=self.batch),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
                 _sns_event("gfs.20260213/00/atmos/not-a-match.grib2"),
@@ -183,3 +211,32 @@ class AwsGfsIngestTest(unittest.TestCase):
 
         self.assertEqual(result, {"ok": True, "submitted": 0, "seen": 1})
         self.assertEqual(self.batch.submissions, [])
+
+    def test_handler_reuses_existing_run_id_for_same_cycle(self) -> None:
+        self.ddb.items["gfs#2026021300"] = {"runId": "20260213T010203Z-abcdef12"}
+        fake_cfg = _FakePipelineConfig(
+            forecast_hours=("000", "003"),
+            artifacts=("tmp_surface",),
+        )
+        with (
+            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
+        ):
+            result = gfs_ingest.handler(
+                _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003"),
+                None,
+            )
+
+        self.assertEqual(result["submitted"], 1)
+        env = {
+            item["name"]: item["value"]
+            for item in self.batch.submissions[0]["containerOverrides"]["environment"]
+        }
+        self.assertEqual(env["RUN_ID"], "20260213T010203Z-abcdef12")
+
+    def _client(self, name: str):
+        if name == "batch":
+            return self.batch
+        if name == "dynamodb":
+            return self.ddb
+        raise AssertionError(f"unexpected boto3 client: {name}")

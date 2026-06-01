@@ -155,28 +155,36 @@ function resolvePayloadRef(args: {
   }
 
   return {
-    path: inferFramePayloadPath({
+    path: resolveFramePayloadPath({
+      activeRun: args.activeRun,
       artifact: args.artifact,
       artifactId,
-      cycle: args.activeRun.latest.run.cycle,
-      modelId: args.activeRun.modelId,
       timeId: time.id,
     }),
     byteLength: args.artifact.byteLength,
   }
 }
 
-function inferFramePayloadPath(args: {
-  artifact: { encoding: { dtype: ManifestArtifactSpec['encoding']['dtype'] } }
+function resolveFramePayloadPath(args: {
+  activeRun: ActiveForecastRun
+  artifact: Pick<ManifestArtifactSpec, 'encoding' | 'payloadFile'>
   artifactId: string
-  cycle: string
-  modelId: string
   timeId: string
 }): string {
+  const { payloadRoot } = args.activeRun.latest.run
+  const { payloadFile } = args.artifact
+  if (payloadRoot && payloadFile) {
+    return [
+      payloadRoot,
+      args.timeId,
+      payloadFile,
+    ].join('/')
+  }
+
   return [
     'fields',
-    args.modelId,
-    args.cycle,
+    args.activeRun.modelId,
+    args.activeRun.latest.run.cycle,
     args.timeId,
     `${args.artifactId}.field.${FIELD_DTYPE_SUFFIX[args.artifact.encoding.dtype]}.bin`,
   ].join('/')

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from ..config.resolved import ModelConfig
+from ..run_ids import validate_run_id
 from ..storage.base import UriObject, UriStore
 from .markers_schema import parse_artifact_success_marker
 from .paths import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX, ArtifactPaths
@@ -37,6 +38,8 @@ class CycleProgress:
     last_progress_at: datetime | None
     missing_sample: tuple[str, ...]
     invalid_marker_sample: tuple[str, ...]
+    run_id: str | None = None
+    run_count: int = 0
 
     @property
     def complete(self) -> bool:
@@ -49,14 +52,38 @@ def expected_success_marker_ids(*, artifact_ids: Iterable[str], fhours: Iterable
     return {f"{artifact_id}/{fhour}" for artifact_id in artifact_ids for fhour in fhours}
 
 
-def success_marker_id_from_key(*, model_id: str, cycle: str, key: str) -> str | None:
+def run_id_from_key(*, model_id: str, cycle: str, key: str) -> str | None:
+    """Return run id for a run-scoped key, or None."""
+
+    parts = key.split("/")
+    if len(parts) < 4 or parts[:3] != ["runs", model_id, cycle]:
+        return None
+    try:
+        return validate_run_id(parts[3])
+    except ValueError:
+        return None
+
+
+def success_marker_id_from_key(
+    *,
+    model_id: str,
+    cycle: str,
+    key: str,
+    run_id: str | None = None,
+) -> str | None:
     """Return {artifact_id}/{fhour} for a success marker key, or None."""
 
     parts = key.split("/")
-    if len(parts) != 5:
+    if len(parts) != 7:
         return None
-    status_part, key_model, key_cycle, artifact_id, filename = parts
-    if status_part != "status" or key_model != model_id or key_cycle != cycle:
+    runs_part, key_model, key_cycle, key_run_id, status_part, artifact_id, filename = parts
+    if runs_part != "runs" or status_part != "status" or key_model != model_id or key_cycle != cycle:
+        return None
+    try:
+        parsed_run_id = validate_run_id(key_run_id)
+    except ValueError:
+        return None
+    if run_id is not None and parsed_run_id != run_id:
         return None
     if not filename.endswith(SUCCESS_MARKER_SUFFIX):
         return None
@@ -66,12 +93,12 @@ def success_marker_id_from_key(*, model_id: str, cycle: str, key: str) -> str | 
     return f"{artifact_id}/{fhour}"
 
 
-def published_marker_key(*, model_id: str, cycle: str) -> str:
-    return f"status/{model_id}/{cycle}/{PUBLISHED_MARKER_FILENAME}"
+def published_marker_key(*, model_id: str, cycle: str, run_id: str) -> str:
+    return f"runs/{model_id}/{cycle}/{validate_run_id(run_id)}/{PUBLISHED_MARKER_FILENAME}"
 
 
-def is_published_marker_key(*, model_id: str, cycle: str, key: str) -> bool:
-    return key == published_marker_key(model_id=model_id, cycle=cycle)
+def is_published_marker_key(*, model_id: str, cycle: str, run_id: str, key: str) -> bool:
+    return key == published_marker_key(model_id=model_id, cycle=cycle, run_id=run_id)
 
 
 def summarize_cycle_progress(
@@ -83,6 +110,7 @@ def summarize_cycle_progress(
     fhours: Iterable[str],
     objects: Iterable[UriObject],
     read_json: Callable[[str], Mapping[str, Any]],
+    run_id: str | None = None,
     manifest_present: bool = False,
     missing_sample_limit: int = DEFAULT_MISSING_SAMPLE_LIMIT,
     marker_validation_sample_limit: int = DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
@@ -98,12 +126,28 @@ def summarize_cycle_progress(
         )
         for obj in objects
     )
-    published = any(is_published_marker_key(model_id=model_id, cycle=cycle, key=obj.key) for obj in listed)
-    marker_objects = [obj for obj in listed if obj.key.endswith(SUCCESS_MARKER_SUFFIX)]
+    run_ids = sorted({
+        parsed
+        for obj in listed
+        for parsed in [run_id_from_key(model_id=model_id, cycle=cycle, key=obj.key)]
+        if parsed is not None
+    })
+    selected_run_id = validate_run_id(run_id) if run_id is not None else (run_ids[-1] if run_ids else None)
+    published = (
+        selected_run_id is not None
+        and any(is_published_marker_key(model_id=model_id, cycle=cycle, run_id=selected_run_id, key=obj.key) for obj in listed)
+    )
+    marker_objects = [
+        obj
+        for obj in listed
+        if selected_run_id is not None
+        and obj.key.endswith(SUCCESS_MARKER_SUFFIX)
+        and run_id_from_key(model_id=model_id, cycle=cycle, key=obj.key) == selected_run_id
+    ]
     marker_by_id = {
         marker_id: obj
         for obj in marker_objects
-        for marker_id in [success_marker_id_from_key(model_id=model_id, cycle=cycle, key=obj.key)]
+        for marker_id in [success_marker_id_from_key(model_id=model_id, cycle=cycle, key=obj.key, run_id=selected_run_id)]
         if marker_id is not None
     }
 
@@ -119,7 +163,14 @@ def summarize_cycle_progress(
     last_progress_at = _latest_modified(
         obj.last_modified
         for obj in listed
-        if obj.key.endswith(SUCCESS_MARKER_SUFFIX) or is_published_marker_key(model_id=model_id, cycle=cycle, key=obj.key)
+        if selected_run_id is not None
+        and (
+            (
+                obj.key.endswith(SUCCESS_MARKER_SUFFIX)
+                and run_id_from_key(model_id=model_id, cycle=cycle, key=obj.key) == selected_run_id
+            )
+            or is_published_marker_key(model_id=model_id, cycle=cycle, run_id=selected_run_id, key=obj.key)
+        )
     )
 
     return CycleProgress(
@@ -132,6 +183,8 @@ def summarize_cycle_progress(
         last_progress_at=last_progress_at,
         missing_sample=tuple(missing[:missing_sample_limit]),
         invalid_marker_sample=tuple(invalid),
+        run_id=selected_run_id,
+        run_count=len(run_ids),
     )
 
 
@@ -154,7 +207,7 @@ def read_cycle_progress(
         cycle=cycle,
         artifact_ids=model.workload.artifacts,
         fhours=model.workload.forecast_hours,
-        objects=artifacts.list_status_objects(model_id=model.id, cycle=cycle),
+        objects=artifacts.list_cycle_run_objects(model_id=model.id, cycle=cycle),
         read_json=artifacts.read_json_uri,
         manifest_present=manifest_present,
         missing_sample_limit=missing_sample_limit,

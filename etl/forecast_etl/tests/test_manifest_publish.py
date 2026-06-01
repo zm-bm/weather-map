@@ -19,6 +19,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     precip_rate_config,
     wind_artifact_config,
 )
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 from forecast_etl.tests.fixtures.markers import write_json
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.publish import publish_fixture
@@ -58,7 +59,7 @@ def _manifest_artifact(artifact_id: str, *, parameter: str = "tmp") -> dict:
         },
         "frames": {
             "000": {
-                "path": "fields/gfs/2026041100/000/tmp_surface.field.i16.bin",
+                "path": f"runs/gfs/2026041100/{DEFAULT_RUN_ID}/fields/000/tmp_surface.field.i16.bin",
                 "byteLength": 2,
                 "sha256": "a" * 64,
             },
@@ -72,6 +73,8 @@ class PublishManifestTest(unittest.TestCase):
             model_id="gfs",
             model_label="GFS",
             cycle="2026041100",
+            run_id=DEFAULT_RUN_ID,
+            payload_root=f"runs/gfs/2026041100/{DEFAULT_RUN_ID}/fields",
             generated_at="2026-04-11T01:00:00+00:00",
             fhours=("000",),
             artifacts={
@@ -138,6 +141,8 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(cycle_manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
             self.assertEqual(cycle_manifest["model"], {"id": "gfs", "label": "GFS"})
             self.assertEqual(cycle_manifest["run"]["cycle"], fx.cycle)
+            self.assertEqual(cycle_manifest["run"]["runId"], fx.run_id)
+            self.assertEqual(cycle_manifest["run"]["payloadRoot"], f"runs/gfs/{fx.cycle}/{fx.run_id}/fields")
             self.assertIn("generatedAt", cycle_manifest["run"])
             self.assertIn("revision", cycle_manifest["run"])
             self.assertEqual(
@@ -151,6 +156,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(set(cycle_manifest["artifacts"].keys()), set(artifact_ids))
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["kind"], "scalar")
             self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["components"], ["value"])
+            self.assertEqual(cycle_manifest["artifacts"]["tmp_surface"]["payloadFile"], "tmp_surface.field.i16.bin")
             self.assertNotIn("label", cycle_manifest["artifacts"]["tmp_surface"])
             self.assertNotIn("valueRange", cycle_manifest["artifacts"]["tmp_surface"])
             self.assertNotIn("temporalKind", cycle_manifest["artifacts"]["tmp_surface"])
@@ -165,13 +171,20 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertEqual(
                 cycle_manifest["artifacts"]["tmp_surface"]["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/tmp_surface.field.i16.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/000/tmp_surface.field.i16.bin",
             )
             self.assertEqual(
                 cycle_manifest["artifacts"]["rh_surface"]["frames"]["003"]["path"],
-                f"fields/gfs/{fx.cycle}/003/rh_surface.field.i16.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/003/rh_surface.field.i16.bin",
             )
             self.assertEqual(latest_manifest, cycle_manifest)
+            self.assertEqual(
+                fx.artifacts.read_run_manifest(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id),
+                cycle_manifest,
+            )
+            self.assertTrue(
+                fx.artifacts.published_marker_exists(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id)
+            )
 
             for fhour in fx.fhours:
                 for artifact_id in artifact_ids:
@@ -224,12 +237,15 @@ class PublishManifestTest(unittest.TestCase):
             self.assertNotIn("latestManifestPath", forecast_manifest["models"]["gfs"])
             latest = forecast_manifest["models"]["gfs"]["latest"]
             self.assertEqual(latest["run"]["cycle"], fx.cycle)
+            self.assertEqual(latest["run"]["runId"], fx.run_id)
+            self.assertEqual(latest["run"]["payloadRoot"], f"runs/gfs/{fx.cycle}/{fx.run_id}/fields")
             self.assertEqual(latest["times"][0]["id"], "000")
             self.assertNotIn("schema", latest)
             self.assertNotIn("schemaVersion", latest)
             self.assertNotIn("payloadContract", latest)
             latest_artifact = latest["artifacts"]["tmp_surface"]
             self.assertEqual(latest_artifact["byteLength"], fx.cell_count * 2)
+            self.assertEqual(latest_artifact["payloadFile"], "tmp_surface.field.i16.bin")
             self.assertNotIn("frames", latest_artifact)
             self.assertNotIn("path", latest_artifact)
             self.assertNotIn("sha256", latest_artifact)
@@ -315,6 +331,44 @@ class PublishManifestTest(unittest.TestCase):
                     artifacts_cfg={artifact_id: artifact_cfg},
                 )
 
+    def test_publish_returns_not_ready_for_missing_run_id_marker(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-missing-run-id-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
+            marker_uri = fx.marker_uri(artifact_id)
+            marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
+            del marker["run_id"]
+            write_json(marker_uri, marker)
+
+            result = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+            )
+
+            self.assertFalse(result.ready)
+            self.assertIn("missing run_id", result.marker_errors[0])
+
+    def test_publish_returns_not_ready_for_mixed_run_ids(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-mixed-run-id-", fhours=("000", "003")) as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg, fhour="000")
+            fx.write_scalar_marker(
+                artifact_id=artifact_id,
+                artifact_config=artifact_cfg,
+                fhour="003",
+                run_id="20260411T010203Z-abcdef12",
+            )
+
+            result = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+            )
+
+            self.assertFalse(result.ready)
+            self.assertIn("multiple runs found", result.marker_errors[0])
+
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
             artifact_ids = ("tmp_surface",)
@@ -362,7 +416,7 @@ class PublishManifestTest(unittest.TestCase):
             )
             self.assertEqual(
                 artifact["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/tmp_surface.field.i8.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/000/tmp_surface.field.i8.bin",
             )
             self.assertEqual(
                 artifact["frames"]["000"]["byteLength"],
@@ -411,7 +465,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertNotIn("valueRange", artifact)
             self.assertEqual(
                 artifact["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/cloud_layers.field.i8.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/000/cloud_layers.field.i8.bin",
             )
             self.assertEqual(
                 artifact["frames"]["000"]["byteLength"],
@@ -556,7 +610,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(latest_manifest, cycle_manifest)
             self.assertEqual(
                 cycle_manifest["artifacts"]["wind10m_uv"]["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/wind10m_uv.field.i8.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/000/wind10m_uv.field.i8.bin",
             )
 
     def test_publish_includes_wind_frames_and_metadata_without_sidecars(self) -> None:
@@ -592,7 +646,7 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(list(cycle_manifest["artifacts"].keys()), ["tmp_surface", "wind10m_uv"])
             self.assertEqual(
                 cycle_manifest["artifacts"]["wind10m_uv"]["frames"]["000"]["path"],
-                f"fields/gfs/{fx.cycle}/000/wind10m_uv.field.i8.bin",
+                f"runs/gfs/{fx.cycle}/{fx.run_id}/fields/000/wind10m_uv.field.i8.bin",
             )
             self.assertEqual(
                 cycle_manifest["artifacts"]["wind10m_uv"]["components"],

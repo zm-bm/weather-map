@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
+
 
 class RunCycleScriptTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -159,6 +161,8 @@ exit 1
             "icon",
             "--cycle",
             "2026021606",
+            "--run-id",
+            DEFAULT_RUN_ID,
             "--dry-run",
         )
 
@@ -170,6 +174,7 @@ exit 1
         self.assertNotIn("--env PIPELINE_CONFIG_URI", result.stdout)
         self.assertIn("--env PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json", result.stdout)
         self.assertIn("--env MODEL=icon", result.stdout)
+        self.assertIn(f"--env RUN_ID={DEFAULT_RUN_ID}", result.stdout)
         self.assertIn("--env FHOUR=001", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)
         self.assertNotIn("GRIB_SOURCE_URI", result.stdout)
@@ -181,6 +186,8 @@ exit 1
             "icon",
             "--cycle",
             "2026021606",
+            "--run-id",
+            DEFAULT_RUN_ID,
             "--no-publish",
             "--dry-run",
         )
@@ -197,6 +204,8 @@ exit 1
             "icon",
             "--cycle",
             "2026021606",
+            "--run-id",
+            DEFAULT_RUN_ID,
             "--dry-run",
             env_overrides={
                 "FAKE_DOCKER_IMAGE_FINGERPRINT": self.current_image_source_fingerprint(),
@@ -215,6 +224,8 @@ exit 1
             "icon",
             "--cycle",
             "2026021606",
+            "--run-id",
+            DEFAULT_RUN_ID,
             "--dry-run",
             env_overrides={
                 "FAKE_DOCKER_IMAGE_FINGERPRINT": "stale",
@@ -236,11 +247,14 @@ exit 1
             "gfs",
             "--cycle",
             "2026051100",
+            "--run-id",
+            DEFAULT_RUN_ID,
             "--dry-run",
         )
 
         self.assertIn("forecast_hours: 25", result.stdout)
         self.assertIn("--env MODEL=gfs", result.stdout)
+        self.assertIn(f"--env RUN_ID={DEFAULT_RUN_ID}", result.stdout)
         self.assertIn("--env FHOUR=000", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)
 

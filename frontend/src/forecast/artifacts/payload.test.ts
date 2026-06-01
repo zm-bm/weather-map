@@ -72,6 +72,34 @@ describe('readArtifactPayload', () => {
     )
   })
 
+  it('uses compact run payload refs when present', async () => {
+    const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
+      run: {
+        ...BASE_LATEST_RUN.run,
+        runId: '20260413T120000Z-abcdef12',
+        payloadRoot: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+      },
+      artifacts: {
+        tmp_surface: {
+          ...SCALAR_ARTIFACT,
+          payloadFile: 'tmp_surface.field.i8.bin',
+        },
+      },
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: [],
+    }))
+    const fetchMock = stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
+
+    await readArtifactPayload(payloadArgs({
+      activeRun,
+      artifact: activeRun.latest.artifacts.tmp_surface,
+    }))
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin'
+    )
+  })
+
   it('uses the in-memory cache for repeated manifest-scoped loads', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

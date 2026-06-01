@@ -52,6 +52,7 @@ resource "aws_iam_role_policy" "publisher_lambda" {
         Resource = [
           "arn:aws:s3:::${local.config_bucket_name}/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/status/*"
         ]
       },
@@ -62,6 +63,7 @@ resource "aws_iam_role_policy" "publisher_lambda" {
         ]
         Resource = [
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/status/*"
         ]
       }

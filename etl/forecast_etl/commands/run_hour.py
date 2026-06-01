@@ -15,6 +15,7 @@ from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
 from ..extract.grid_transforms import apply_artifact_grid_transform
 from ..proc import RunFn, make_runner
+from ..run_metadata import RunMetadata, RunSnapshot, run_metadata_from_env
 from ..runtime import ExecutionContext
 from ..source_adapters import acquire_prepared_source
 from ..storage.base import UriStore
@@ -26,6 +27,7 @@ def run_process_hour(
     ctx: ExecutionContext,
     model: ModelConfig,
     cycle: str,
+    run_id: str,
     fhour: str,
     source_uri: str | None,
     artifact_ids: Iterable[str],
@@ -33,13 +35,28 @@ def run_process_hour(
     store: UriStore,
     artifact_repo: ArtifactRepository,
     run: RunFn,
+    run_metadata: RunMetadata | None = None,
+    run_snapshot: RunSnapshot | None = None,
 ) -> None:
     """Run all configured artifacts for one (cycle, fhour)."""
 
     artifact_ids = tuple(artifact_ids or ())
+    snapshot = run_snapshot or RunSnapshot(
+        metadata=run_metadata or run_metadata_from_env(config_digest="unknown"),
+        pipeline_config={},
+        forecast_catalog={},
+    )
+    metadata = snapshot.metadata
 
     if not artifact_ids:
         raise SystemExit("No workload.artifacts configured for process-hour")
+
+    artifact_repo.ensure_run_snapshot(
+        model_id=ctx.model_id,
+        cycle=cycle,
+        run_id=run_id,
+        snapshot=snapshot,
+    )
 
     with tempfile.TemporaryDirectory(prefix="forecast-work-hour-") as td:
         workdir = Path(td)
@@ -64,9 +81,13 @@ def run_process_hour(
             item = WorkItem(
                 model_id=ctx.model_id,
                 cycle=cycle,
+                run_id=run_id,
                 fhour=fhour,
                 source_uri=source.uri,
                 artifact_id=str(artifact_id),
+                code_revision=metadata.code_revision,
+                image_identity=metadata.image_identity,
+                config_digest=metadata.config_digest,
             )
             bands = extract_artifact_bands(
                 artifact=artifact,
@@ -95,7 +116,7 @@ def run_process_hour(
             artifact_done += 1
 
     print(
-        f"Done. Processed fhour bundle cycle={cycle} fhour={fhour}: "
+        f"Done. Processed fhour bundle cycle={cycle} run_id={run_id} fhour={fhour}: "
         f"model={ctx.model_id} artifacts={artifact_done}",
         flush=True,
     )
@@ -106,11 +127,14 @@ def run_hour(
     model: ModelConfig,
     ctx: ExecutionContext,
     cycle: str,
+    run_id: str,
     fhour: str,
     source_uri: str | None,
     artifact_ids: Iterable[str] | None = None,
     store: UriStore | None = None,
     run: RunFn | None = None,
+    run_metadata: RunMetadata | None = None,
+    run_snapshot: RunSnapshot | None = None,
 ) -> None:
     """Process one forecast hour."""
 
@@ -121,6 +145,7 @@ def run_hour(
         ctx=ctx,
         model=model,
         cycle=cycle,
+        run_id=run_id,
         fhour=fhour,
         source_uri=source_uri,
         artifact_ids=tuple(artifact_ids or model.workload.artifacts),
@@ -128,4 +153,6 @@ def run_hour(
         store=resolved_store,
         artifact_repo=artifact_repo,
         run=resolved_run,
+        run_metadata=run_metadata,
+        run_snapshot=run_snapshot,
     )

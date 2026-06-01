@@ -26,6 +26,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     precip_type_config,
     wind_artifact_config,
 )
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 from forecast_etl.tests.fixtures.pipeline import catalog_artifact, minimal_pipeline_config, model_artifact
 
 
@@ -157,7 +158,10 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
             "sha256": "b" * 64,
             "frames": {
                 fhour: {
-                    "path": f"fields/{model.id}/{cycle}/{fhour}/{artifact_id}.field.{dtype_suffix}.bin",
+                    "path": (
+                        f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields/"
+                        f"{fhour}/{artifact_id}.field.{dtype_suffix}.bin"
+                    ),
                     "byteLength": len(artifact.component_ids) * 4,
                     "sha256": "a" * 64,
                 }
@@ -175,6 +179,8 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
         },
         "run": {
             "cycle": cycle,
+            "runId": DEFAULT_RUN_ID,
+            "payloadRoot": f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields",
             "generatedAt": "2026-05-16T00:00:00Z",
             "revision": f"{model.id}-{cycle}-revision",
         },
@@ -236,6 +242,7 @@ class ForecastManifestTest(unittest.TestCase):
         self.assertEqual(latest["times"][0]["id"], "000")
         latest_artifact = latest["artifacts"]["tmp_surface"]
         self.assertEqual(latest_artifact["byteLength"], 4)
+        self.assertEqual(latest_artifact["payloadFile"], "tmp_surface.field.i16.bin")
         self.assertNotIn("frames", latest_artifact)
         self.assertNotIn("path", latest_artifact)
         self.assertNotIn("sha256", latest_artifact)

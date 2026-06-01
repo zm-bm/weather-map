@@ -7,6 +7,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+from ..run_ids import validate_run_id
+from ..run_metadata import RunSnapshot
 from ..storage.base import MetadataUriStore, UriObject, UriStore, UriWriteMetadata
 from .markers_schema import ArtifactSuccessMarker, artifact_success_marker_dict, parse_artifact_success_marker
 from .paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths, WorkItem
@@ -58,9 +60,14 @@ class ArtifactRepository:
 
         uri = self.paths.success_marker_uri(item)
         marker = artifact_success_marker_dict({
+            "model_id": item.model_id,
             "cycle": item.cycle,
+            "run_id": item.run_id,
             "fhour": item.fhour,
             "artifact_id": item.artifact_id,
+            "code_revision": item.code_revision,
+            "image_identity": item.image_identity,
+            "config_digest": item.config_digest,
             "artifact": dict(artifact),
         })
         self._write_json(uri=uri, obj=marker, metadata=INTERNAL_JSON_METADATA, indent=None)
@@ -71,6 +78,7 @@ class ArtifactRepository:
         *,
         model_id: str,
         cycle: str,
+        run_id: str,
         fhour: str,
         artifact_id: str,
     ) -> ArtifactSuccessMarker:
@@ -79,6 +87,7 @@ class ArtifactRepository:
         uri = self.paths.success_marker_uri_parts(
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             fhour=fhour,
             artifact_id=artifact_id,
         )
@@ -94,34 +103,112 @@ class ArtifactRepository:
 
         return self._read_json(uri=uri)
 
-    def list_success_marker_uris(self, *, model_id: str, cycle: str) -> set[str]:
-        """List artifact success marker URIs for a model cycle."""
+    def ensure_run_snapshot(
+        self,
+        *,
+        model_id: str,
+        cycle: str,
+        run_id: str,
+        snapshot: RunSnapshot,
+    ) -> str:
+        """Write or verify immutable run metadata and config/catalog snapshots."""
 
-        prefix = self.paths.status_prefix_uri(model_id=model_id, cycle=cycle)
+        run_uri = self.paths.run_metadata_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        pipeline_config_uri = self.paths.run_pipeline_config_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        forecast_catalog_uri = self.paths.run_forecast_catalog_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        run_doc = {
+            "schema": "weather-map.etl-run",
+            "schemaVersion": 1,
+            "model": model_id,
+            "cycle": cycle,
+            "runId": validate_run_id(run_id),
+            "codeRevision": snapshot.metadata.code_revision,
+            "imageIdentity": snapshot.metadata.image_identity,
+            "configDigest": snapshot.metadata.config_digest,
+            "pipelineConfigPath": self.paths.relative_key(pipeline_config_uri),
+            "forecastCatalogPath": self.paths.relative_key(forecast_catalog_uri),
+        }
+
+        self._write_json_once_or_same(uri=pipeline_config_uri, obj=snapshot.pipeline_config)
+        self._write_json_once_or_same(uri=forecast_catalog_uri, obj=snapshot.forecast_catalog)
+        self._write_json_once_or_same(uri=run_uri, obj=run_doc)
+        return run_uri
+
+    def list_run_ids(self, *, model_id: str, cycle: str) -> tuple[str, ...]:
+        """List known run ids for one model cycle."""
+
+        prefix = self.paths.cycle_runs_prefix_uri(model_id=model_id, cycle=cycle)
+        run_ids: set[str] = set()
+        for uri in self.store.list_prefix(prefix_uri=prefix):
+            try:
+                key = self.paths.relative_key(uri)
+            except ValueError:
+                continue
+            parts = key.split("/")
+            if len(parts) >= 4 and parts[:3] == ["runs", model_id, cycle]:
+                try:
+                    run_ids.add(validate_run_id(parts[3]))
+                except ValueError:
+                    continue
+        return tuple(sorted(run_ids))
+
+    def list_success_marker_uris(self, *, model_id: str, cycle: str, run_id: str) -> set[str]:
+        """List artifact success marker URIs for one run."""
+
+        prefix = self.paths.status_prefix_uri(model_id=model_id, cycle=cycle, run_id=run_id)
         return {uri for uri in self.store.list_prefix(prefix_uri=prefix) if uri.endswith(SUCCESS_MARKER_SUFFIX)}
 
-    def list_status_objects(self, *, model_id: str, cycle: str) -> list[UriObject]:
-        """List status artifact objects for a model cycle."""
+    def list_status_objects(self, *, model_id: str, cycle: str, run_id: str) -> list[UriObject]:
+        """List status artifact objects for one run."""
 
-        return self.store.list_objects(prefix_uri=self.paths.status_prefix_uri(model_id=model_id, cycle=cycle))
+        return self.store.list_objects(prefix_uri=self.paths.status_prefix_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def list_cycle_run_objects(self, *, model_id: str, cycle: str) -> list[UriObject]:
+        """List all run-scoped objects for one model cycle."""
+
+        return self.store.list_objects(prefix_uri=self.paths.cycle_runs_prefix_uri(model_id=model_id, cycle=cycle))
 
     def missing_success_markers(
         self,
         *,
         model_id: str,
         cycle: str,
+        run_id: str,
         fhours: Iterable[str],
         artifact_ids: Iterable[str],
     ) -> list[str]:
         """Return expected artifact success markers missing from storage."""
 
-        existing = self.list_success_marker_uris(model_id=model_id, cycle=cycle)
+        existing = self.list_success_marker_uris(model_id=model_id, cycle=cycle, run_id=run_id)
         expected = {
-            self.paths.success_marker_uri_parts(model_id=model_id, cycle=cycle, fhour=fhour, artifact_id=artifact_id)
+            self.paths.success_marker_uri_parts(
+                model_id=model_id,
+                cycle=cycle,
+                run_id=run_id,
+                fhour=fhour,
+                artifact_id=artifact_id,
+            )
             for artifact_id in artifact_ids
             for fhour in fhours
         }
         return sorted(expected - existing)
+
+    def write_run_manifest(self, *, model_id: str, cycle: str, run_id: str, manifest: Mapping[str, Any]) -> str:
+        """Write one immutable run manifest and return its artifact URI."""
+
+        uri = self.paths.run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        self._write_json(uri=uri, obj=dict(manifest), metadata=FORECAST_JSON_METADATA)
+        return uri
+
+    def read_run_manifest(self, *, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+        """Read one immutable run manifest."""
+
+        return self._read_json(uri=self.paths.run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def run_manifest_exists(self, *, model_id: str, cycle: str, run_id: str) -> bool:
+        """Return whether the immutable run manifest exists."""
+
+        return self.store.exists(uri=self.paths.run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id))
 
     def write_cycle_manifest(self, *, model_id: str, cycle: str, manifest: Mapping[str, Any]) -> str:
         """Write one cycle manifest and return its artifact URI."""
@@ -179,23 +266,23 @@ class ArtifactRepository:
 
         return self.store.list_objects(prefix_uri=self.paths.manifest_prefix_uri(model_id=model_id))
 
-    def write_published_marker(self, *, model_id: str, cycle: str, marker: Mapping[str, Any]) -> str:
+    def write_published_marker(self, *, model_id: str, cycle: str, run_id: str, marker: Mapping[str, Any]) -> str:
         """Write the published marker and return its artifact URI."""
 
-        uri = self.paths.published_marker_uri(model_id=model_id, cycle=cycle)
+        uri = self.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id)
         self._write_json(uri=uri, obj=dict(marker), metadata=INTERNAL_JSON_METADATA)
         return uri
 
-    def read_published_marker(self, *, model_id: str, cycle: str) -> PublishedMarker:
-        """Read and validate the published marker for a cycle."""
+    def read_published_marker(self, *, model_id: str, cycle: str, run_id: str) -> PublishedMarker:
+        """Read and validate the published marker for a run."""
 
-        uri = self.paths.published_marker_uri(model_id=model_id, cycle=cycle)
+        uri = self.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id)
         return parse_published_marker(self._read_json(uri=uri), uri=uri)
 
-    def published_marker_exists(self, *, model_id: str, cycle: str) -> bool:
+    def published_marker_exists(self, *, model_id: str, cycle: str, run_id: str) -> bool:
         """Return whether the published marker exists."""
 
-        return self.store.exists(uri=self.paths.published_marker_uri(model_id=model_id, cycle=cycle))
+        return self.store.exists(uri=self.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id))
 
     def _read_json(self, *, uri: str) -> dict[str, Any]:
         data = self.store.read_bytes(uri=uri)
@@ -214,6 +301,15 @@ class ArtifactRepository:
         else:
             json_text = json.dumps(obj, sort_keys=True)
         self._write_bytes(uri=uri, data=(json_text + "\n").encode("utf-8"), metadata=metadata)
+
+    def _write_json_once_or_same(self, *, uri: str, obj: Mapping[str, Any]) -> None:
+        expected = dict(obj)
+        if self.store.exists(uri=uri):
+            existing = self._read_json(uri=uri)
+            if existing != expected:
+                raise SystemExit(f"Existing immutable run object conflicts: {uri}")
+            return
+        self._write_json(uri=uri, obj=expected, metadata=INTERNAL_JSON_METADATA)
 
     def _write_bytes(self, *, uri: str, data: bytes, metadata: UriWriteMetadata) -> None:
         if isinstance(self.store, MetadataUriStore):

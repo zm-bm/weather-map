@@ -6,12 +6,14 @@ import hashlib
 import json
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import boto3  # type: ignore
 
 from ..config.load import load_pipeline_config
 from ..uris import default_pipeline_config_uri
+from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
 ALLOWED_CYCLES = {"00", "06", "12", "18"}
@@ -106,8 +108,10 @@ def _extract_from_event(event: dict[str, Any]) -> list[tuple[str, str]]:
 def _submit_job(
     *,
     batch,
+    ddb,
     queue: str,
     job_definition: str,
+    run_coordinator_table: str,
     bucket: str,
     key: str,
     filters: dict[str, Any],
@@ -138,11 +142,20 @@ def _submit_job(
         return 0
 
     grib_source_uri = f"s3://{bucket}/{key}"
-    suffix = hashlib.sha1(f"{cycle}:{fhour}:{key}".encode("utf-8")).hexdigest()[:8]
-    job_name = f"gfs-{cycle}-{fhour}-{suffix}"[:128]
+    run_id = coordinated_run_id(
+        ddb=ddb,
+        table_name=run_coordinator_table,
+        model_id=MODEL_ID,
+        cycle=cycle,
+        now=datetime.now(timezone.utc),
+        ttl_seconds=run_coordinator_ttl_seconds(),
+    )
+    suffix = hashlib.sha1(f"{cycle}:{run_id}:{fhour}:{key}".encode("utf-8")).hexdigest()[:8]
+    job_name = f"gfs-{cycle}-{run_id}-{fhour}-{suffix}"[:128]
 
     env_vars = [
         {"name": "CYCLE", "value": cycle},
+        {"name": "RUN_ID", "value": run_id},
         {"name": "FHOUR", "value": fhour},
         {"name": "MODEL", "value": MODEL_ID},
         {"name": "GRIB_SOURCE_URI", "value": grib_source_uri},
@@ -157,7 +170,7 @@ def _submit_job(
         containerOverrides={"environment": env_vars},
     )
     print(
-        f"submitted: {job_name} key={key} "
+        f"submitted: {job_name} key={key} run_id={run_id} "
         f"artifacts={len(filters.get('artifacts', ()))}"
     )
     return 1
@@ -168,9 +181,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
+    run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
 
     batch = boto3.client("batch")
+    ddb = boto3.client("dynamodb")
     filters = _filters(pipeline_config_uri)
 
     s3_objects = _extract_from_event(event)
@@ -182,8 +197,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     for bucket, key in s3_objects:
         submitted += _submit_job(
             batch=batch,
+            ddb=ddb,
             queue=queue,
             job_definition=job_definition,
+            run_coordinator_table=run_coordinator_table,
             bucket=bucket,
             key=key,
             filters=filters,

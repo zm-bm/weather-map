@@ -45,6 +45,8 @@ def test_health_serializes_model_health_and_aggregates_status(monkeypatch) -> No
         "latestPublishedGeneratedAt": "2026-05-11T07:00:00Z",
         "progress": {
             "cycle": "2026051112",
+            "runId": "20260511T183000Z-abcdef12",
+            "runCount": 1,
             "published": False,
             "expectedMarkers": 4,
             "foundMarkers": 2,
@@ -154,6 +156,8 @@ def _progress() -> CycleProgress:
         last_progress_at=NOW,
         missing_sample=("tmp_surface/002",),
         invalid_marker_sample=(),
+        run_id="20260511T183000Z-abcdef12",
+        run_count=1,
     )
 
 

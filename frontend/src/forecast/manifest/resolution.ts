@@ -58,7 +58,10 @@ export function resolveActiveForecastRun(
 }
 
 export function forecastRunScopeKey(activeRun: ActiveForecastRun): string {
-  return `${activeRun.modelId}:${activeRun.latest.run.cycle}:${activeRun.latest.run.revision}`
+  const { cycle, revision, runId } = activeRun.latest.run
+  return runId
+    ? `${activeRun.modelId}:${cycle}:${runId}:${revision}`
+    : `${activeRun.modelId}:${cycle}:${revision}`
 }
 
 export function normalizeForecastHourToken(value: string): string {

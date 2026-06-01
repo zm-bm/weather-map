@@ -11,6 +11,7 @@ from forecast_etl.artifacts.status import (
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.storage.base import UriObject
 from forecast_etl.tests.fixtures.artifacts import (
+    DEFAULT_RUN_ID,
     invalid_success_marker_payload,
     success_marker_payload_from_uri,
     temp_artifact_fixture,
@@ -23,7 +24,7 @@ class CycleStatusTest(unittest.TestCase):
         marker_id = success_marker_id_from_key(
             model_id="gfs",
             cycle="2026051106",
-            key="status/gfs/2026051106/tmp_surface/003._SUCCESS.json",
+            key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
         )
 
         self.assertEqual(marker_id, "tmp_surface/003")
@@ -33,30 +34,30 @@ class CycleStatusTest(unittest.TestCase):
             success_marker_id_from_key(
                 model_id="gfs",
                 cycle="2026051106",
-                key="status/icon/2026051106/tmp_surface/003._SUCCESS.json",
+                key=f"runs/icon/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
             )
         )
         self.assertIsNone(
             success_marker_id_from_key(
                 model_id="gfs",
                 cycle="2026051106",
-                key="status/gfs/2026051106/tmp_surface/003.json",
+                key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003.json",
             )
         )
         self.assertIsNone(
             success_marker_id_from_key(
                 model_id="gfs",
                 cycle="2026051106",
-                key="status/gfs/2026051106/_PUBLISHED.json",
+                key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/_PUBLISHED.json",
             )
         )
 
     def test_summarize_cycle_progress_reports_complete_published_cycle(self) -> None:
         modified = datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)
         objects = [
-            _obj("status/gfs/2026051106/tmp/000._SUCCESS.json", modified),
-            _obj("status/gfs/2026051106/tmp/003._SUCCESS.json", modified),
-            _obj("status/gfs/2026051106/_PUBLISHED.json", modified),
+            _obj(f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp/000._SUCCESS.json", modified),
+            _obj(f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp/003._SUCCESS.json", modified),
+            _obj(f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/_PUBLISHED.json", modified),
         ]
 
         progress = summarize_cycle_progress(
@@ -77,9 +78,10 @@ class CycleStatusTest(unittest.TestCase):
         self.assertEqual(progress.found_markers, 2)
         self.assertEqual(progress.missing_markers, 0)
         self.assertEqual(progress.last_progress_at, modified)
+        self.assertEqual(progress.run_id, DEFAULT_RUN_ID)
 
     def test_summarize_cycle_progress_reports_missing_markers(self) -> None:
-        objects = [_obj("status/gfs/2026051106/tmp/000._SUCCESS.json", None)]
+        objects = [_obj(f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp/000._SUCCESS.json", None)]
 
         progress = summarize_cycle_progress(
             artifact_root_uri="file:///artifacts",
@@ -100,7 +102,7 @@ class CycleStatusTest(unittest.TestCase):
         self.assertEqual(progress.missing_sample, ("rh/000", "rh/003"))
 
     def test_summarize_cycle_progress_reports_invalid_marker_sample(self) -> None:
-        objects = [_obj("status/gfs/2026051106/tmp/000._SUCCESS.json", None)]
+        objects = [_obj(f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp/000._SUCCESS.json", None)]
 
         progress = summarize_cycle_progress(
             artifact_root_uri="file:///artifacts",

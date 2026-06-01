@@ -9,7 +9,7 @@ STACK_DIR="$INFRA_DIR/terraform/weather-etl"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/weather-etl/ops/submit-cycle.sh --cycle <cycle> [--model <model>]
+  infra/scripts/weather-etl/ops/submit-cycle.sh --cycle <cycle> [--run-id <run_id>] [--model <model>]
 
 Description:
   Submits one AWS Batch worker job per configured forecast hour for a prod ETL
@@ -18,6 +18,7 @@ Description:
 
 Options:
   --cycle <cycle>                 Forecast cycle string, e.g. 2026021600.
+  --run-id <run_id>               Run id for this cycle attempt. Default: generated.
   --model <model>                 Forecast model id. Default: gfs.
   --fhours <hours>                Forecast-hour override, e.g. "000 001 006" or "000,001,006".
   --config-file <path>            Config to read. Default: config/pipeline/base.json.
@@ -30,8 +31,9 @@ Options:
   -h, --help                      Show this help and exit.
 
 Environment defaults:
-  CYCLE, MODEL, FHOURS, CONFIG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
-  SUBMIT_DELAY_SECONDS, DRY_RUN, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE.
+  CYCLE, RUN_ID, MODEL, FHOURS, CONFIG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
+  SUBMIT_DELAY_SECONDS, DRY_RUN, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE,
+  ETL_CODE_REVISION, ETL_IMAGE_IDENTITY.
 EOF
 }
 
@@ -54,6 +56,7 @@ require_value() {
 }
 
 CYCLE="${CYCLE:-}"
+RUN_ID="${RUN_ID:-}"
 MODEL="${MODEL:-gfs}"
 FHOURS_ARG="${FHOURS:-}"
 CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/config/pipeline/base.json}"
@@ -63,6 +66,8 @@ SUBMIT_DELAY_SECONDS="${SUBMIT_DELAY_SECONDS:-0}"
 DRY_RUN="${DRY_RUN:-false}"
 SKIP_CONFIG_CHECK="${SKIP_CONFIG_CHECK:-false}"
 ALLOW_NON_SYNOPTIC_CYCLE="${ALLOW_NON_SYNOPTIC_CYCLE:-false}"
+ETL_CODE_REVISION="${ETL_CODE_REVISION:-$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)}"
+ETL_IMAGE_IDENTITY="${ETL_IMAGE_IDENTITY:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,6 +83,16 @@ while [[ $# -gt 0 ]]; do
     --cycle=*)
       CYCLE="${1#*=}"
       require_value "--cycle" "$CYCLE"
+      shift
+      ;;
+    --run-id)
+      require_value "$1" "${2:-}"
+      RUN_ID="$2"
+      shift 2
+      ;;
+    --run-id=*)
+      RUN_ID="${1#*=}"
+      require_value "--run-id" "$RUN_ID"
       shift
       ;;
     --model)
@@ -181,6 +196,21 @@ if [[ ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
   exit 1
 fi
 
+if [[ -z "$RUN_ID" ]]; then
+  RUN_ID="$(
+    python3 - <<'PY'
+import secrets
+from datetime import datetime, timezone
+print(f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{secrets.token_hex(4)}")
+PY
+  )"
+fi
+
+if [[ ! "$RUN_ID" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]]; then
+  echo "Error: --run-id must match YYYYMMDDTHHMMSSZ-<8 lowercase hex chars>, got: $RUN_ID" >&2
+  exit 1
+fi
+
 case "$MODEL" in
   gfs|icon) ;;
   *)
@@ -222,6 +252,9 @@ else
   JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
 fi
 PIPELINE_CONFIG_URI="$(terraform output -raw pipeline_config_uri)"
+if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
+  ETL_IMAGE_IDENTITY="$JOB_DEFINITION"
+fi
 
 if [[ "$SKIP_CONFIG_CHECK" != "true" ]]; then
   read -r CONFIG_BUCKET CONFIG_KEY < <(
@@ -341,6 +374,9 @@ if [[ "$MODEL" == "gfs" ]]; then
   echo "  source_bucket:       $SOURCE_BUCKET"
 fi
 echo "  cycle:               $CYCLE"
+echo "  run_id:              $RUN_ID"
+echo "  code_revision:       $ETL_CODE_REVISION"
+echo "  image_identity:      $ETL_IMAGE_IDENTITY"
 echo "  forecast_hours:      ${#FORECAST_HOURS[@]}"
 echo "  dry_run:             $DRY_RUN"
 echo
@@ -353,20 +389,23 @@ for FHOUR in "${FORECAST_HOURS[@]}"; do
   else
     GRIB_SOURCE_URI=""
   fi
-  JOB_NAME="${JOB_NAME_PREFIX}-${MODEL}-${CYCLE}-${FHOUR}-$(date +%s)"
+  JOB_NAME="${JOB_NAME_PREFIX}-${MODEL}-${CYCLE}-${RUN_ID}-${FHOUR}-$(date +%s)"
   JOB_NAME="${JOB_NAME:0:128}"
 
   CONTAINER_OVERRIDES="$(
-    python3 - "$MODEL" "$CYCLE" "$FHOUR" "$GRIB_SOURCE_URI" "$PIPELINE_CONFIG_URI" <<'PY'
+    python3 - "$MODEL" "$CYCLE" "$RUN_ID" "$FHOUR" "$GRIB_SOURCE_URI" "$PIPELINE_CONFIG_URI" "$ETL_CODE_REVISION" "$ETL_IMAGE_IDENTITY" <<'PY'
 import json
 import sys
 
-model, cycle, fhour, source_uri, pipeline_config_uri = sys.argv[1:]
+model, cycle, run_id, fhour, source_uri, pipeline_config_uri, code_revision, image_identity = sys.argv[1:]
 environment = [
         {"name": "MODEL", "value": model},
         {"name": "CYCLE", "value": cycle},
+        {"name": "RUN_ID", "value": run_id},
         {"name": "FHOUR", "value": fhour},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
+        {"name": "ETL_CODE_REVISION", "value": code_revision},
+        {"name": "ETL_IMAGE_IDENTITY", "value": image_identity},
 ]
 if source_uri:
     environment.append({"name": "GRIB_SOURCE_URI", "value": source_uri})

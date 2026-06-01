@@ -21,6 +21,7 @@ from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.routing import make_store
 
 from .artifact_configs import artifact_spec
+from .artifacts import DEFAULT_CODE_REVISION, DEFAULT_CONFIG_DIGEST, DEFAULT_IMAGE_IDENTITY, DEFAULT_RUN_ID
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class ArtifactRunFixture:
     artifact_root_uri: str
     model_id: str
     cycle: str
+    run_id: str
     fhour: str
     source_uri: str
     store: UriStore
@@ -44,9 +46,13 @@ class ArtifactRunFixture:
         return WorkItem(
             model_id=self.model_id,
             cycle=self.cycle,
+            run_id=self.run_id,
             fhour=self.fhour,
             artifact_id=artifact_id,
             source_uri=source_uri or self.source_uri,
+            code_revision=DEFAULT_CODE_REVISION,
+            image_identity=DEFAULT_IMAGE_IDENTITY,
+            config_digest=DEFAULT_CONFIG_DIGEST,
         )
 
     def single_grib_source(self, *, grid_id: str = "gfs_0p25_global", path: Path | None = None) -> PreparedSource:
@@ -101,7 +107,16 @@ class ArtifactRunFixture:
 
     def payload_path(self, *, artifact_id: str, dtype: str) -> Path:
         suffix = "i16" if dtype == "int16" else "i8"
-        return self.out_dir / "fields" / self.model_id / self.cycle / self.fhour / f"{artifact_id}.field.{suffix}.bin"
+        return (
+            self.out_dir
+            / "runs"
+            / self.model_id
+            / self.cycle
+            / self.run_id
+            / "fields"
+            / self.fhour
+            / f"{artifact_id}.field.{suffix}.bin"
+        )
 
     def payload_uri(self, *, artifact_id: str, dtype: str) -> str:
         return ArtifactPaths(self.artifact_root_uri).output_field_payload_uri(
@@ -119,6 +134,7 @@ def artifact_run_fixture(
     prefix: str = "weather-map-artifact-",
     model_id: str = "gfs",
     cycle: str = "2026041200",
+    run_id: str = DEFAULT_RUN_ID,
     fhour: str = "003",
     source_uri: str = "file:///dev/null",
 ) -> Iterator[ArtifactRunFixture]:
@@ -135,6 +151,7 @@ def artifact_run_fixture(
             artifact_root_uri=artifact_root_uri,
             model_id=model_id,
             cycle=cycle,
+            run_id=run_id,
             fhour=fhour,
             source_uri=source_uri,
             store=make_store(),

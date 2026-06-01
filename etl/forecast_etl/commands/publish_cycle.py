@@ -15,6 +15,7 @@ def publish_cycle(
     ctx: ExecutionContext,
     model: ModelConfig,
     cycle: str,
+    run_id: str | None = None,
     pipeline_config: PipelineConfig | None = None,
     store: UriStore | None = None,
 ) -> PublishResult:
@@ -25,6 +26,7 @@ def publish_cycle(
     return run_publish(
         ctx=ctx,
         cycle=cycle,
+        run_id=run_id,
         model_label=model.label,
         artifact_ids=model.workload.artifacts,
         artifact_specs=model.artifacts,

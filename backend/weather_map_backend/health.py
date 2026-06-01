@@ -116,6 +116,8 @@ def _publish_lag_policy(settings: Settings) -> PublishLagPolicy:
 def _progress_dict(progress: Any) -> dict[str, Any]:
     return {
         "cycle": progress.cycle,
+        "runId": progress.run_id,
+        "runCount": progress.run_count,
         "published": progress.published,
         "expectedMarkers": progress.expected_markers,
         "foundMarkers": progress.found_markers,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
 class ArtifactPathContractTest(unittest.TestCase):
@@ -11,6 +12,7 @@ class ArtifactPathContractTest(unittest.TestCase):
         item = WorkItem(
             model_id="gfs",
             cycle="2026041200",
+            run_id=DEFAULT_RUN_ID,
             fhour="003",
             artifact_id="wind10m_uv",
             source_uri="file:///dev/null",
@@ -20,7 +22,8 @@ class ArtifactPathContractTest(unittest.TestCase):
 
         self.assertEqual(
             uri,
-            "file:///tmp/weather-map-artifacts/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
+            "file:///tmp/weather-map-artifacts/"
+            f"runs/gfs/2026041200/{DEFAULT_RUN_ID}/fields/003/wind10m_uv.field.i8.bin",
         )
 
 
