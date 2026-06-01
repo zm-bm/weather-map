@@ -68,6 +68,10 @@ class RoutingStore(UriStore):
             return store.write_bytes_with_metadata(uri=u, data=data, metadata=metadata)
         return store.write_bytes(uri=u, data=data)
 
+    def delete_uri(self, *, uri: str) -> None:
+        store, u = self._route(uri)
+        return store.delete_uri(uri=u)
+
     def exists(self, *, uri: str) -> bool:
         store, u = self._route(uri)
         return store.exists(uri=u)

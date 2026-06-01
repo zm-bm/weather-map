@@ -71,6 +71,10 @@ class S3Store(UriStore):
         bucket, key = self._parse_s3_uri(uri)
         self._client().put_object(Bucket=bucket, Key=key, Body=data, **self._put_extra_args(metadata=metadata))
 
+    def delete_uri(self, *, uri: str) -> None:
+        bucket, key = self._parse_s3_uri(uri)
+        self._client().delete_object(Bucket=bucket, Key=key)
+
     def exists(self, *, uri: str) -> bool:
         bucket, key = self._parse_s3_uri(uri)
         s3 = self._client()

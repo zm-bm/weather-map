@@ -14,6 +14,7 @@ class FakeS3Client:
     def __init__(self, payload: bytes = b"") -> None:
         self.payload = payload
         self.put_object_calls: list[dict[str, object]] = []
+        self.delete_object_calls: list[dict[str, object]] = []
         self.upload_fileobj_calls: list[dict[str, object]] = []
         self.list_pages: list[dict[str, object]] = []
 
@@ -24,6 +25,9 @@ class FakeS3Client:
 
     def put_object(self, **kwargs: object) -> None:
         self.put_object_calls.append(kwargs)
+
+    def delete_object(self, **kwargs: object) -> None:
+        self.delete_object_calls.append(kwargs)
 
     def upload_fileobj(self, handle, bucket: str, key: str, ExtraArgs: dict[str, str] | None = None) -> None:
         self.upload_fileobj_calls.append({
@@ -106,6 +110,18 @@ class S3StoreTests(unittest.TestCase):
         self.assertEqual(call["ContentType"], "application/json")
         self.assertEqual(call["CacheControl"], "public, max-age=60")
         self.assertEqual(call["ContentEncoding"], "gzip")
+
+    def test_delete_uri_deletes_object(self) -> None:
+        client = FakeS3Client()
+        store = S3Store()
+
+        with patch.object(S3Store, "_client", return_value=client):
+            store.delete_uri(uri="s3://example-bucket/runs/gfs/2026042700/run.json")
+
+        self.assertEqual(
+            client.delete_object_calls,
+            [{"Bucket": "example-bucket", "Key": "runs/gfs/2026042700/run.json"}],
+        )
 
     def test_put_file_copies_raw_payloads_without_artifact_headers(self) -> None:
         client = FakeS3Client()

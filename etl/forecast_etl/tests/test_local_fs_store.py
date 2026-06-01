@@ -20,6 +20,19 @@ class LocalFSStoreTests(unittest.TestCase):
 
             self.assertEqual(path.read_bytes(), payload)
 
+    def test_delete_uri_removes_file_if_present(self) -> None:
+        store = LocalFSStore()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "runs" / "gfs" / "2026042700" / "run.json"
+            path.parent.mkdir(parents=True)
+            path.write_text("{}", encoding="utf-8")
+
+            store.delete_uri(uri=path.as_uri())
+            store.delete_uri(uri=path.as_uri())
+
+            self.assertFalse(path.exists())
+
     def test_put_file_copies_raw_payloads(self) -> None:
         store = LocalFSStore()
         payload = b"\x00\x01\x02\x03" * 128

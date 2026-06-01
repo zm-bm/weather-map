@@ -607,6 +607,122 @@ class CliTest(unittest.TestCase):
         self.assertEqual(parsed["schema"], "weather-map.etl-operator-pointers")
         self.assertEqual(parsed["latest"]["status"], "valid")
 
+    def test_cleanup_runs_json_outputs_candidate_report(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-cleanup-candidates",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": None,
+            "candidateCount": 1,
+            "protectedCount": 0,
+            "runs": [
+                {
+                    "model": "gfs",
+                    "cycle": "2026021300",
+                    "runId": DEFAULT_RUN_ID,
+                    "state": "incomplete",
+                    "candidate": True,
+                    "protected": False,
+                    "reason": "incomplete older than 24h",
+                    "ageHours": 25.0,
+                    "objectCount": 1,
+                    "totalBytes": 2,
+                    "runPrefix": f"runs/gfs/2026021300/{DEFAULT_RUN_ID}",
+                }
+            ],
+        }
+
+        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["cleanup-runs", "--model", "gfs", "--json"])
+
+        self.assertEqual(result, 0)
+        parsed = json.loads(out.getvalue())
+        self.assertEqual(parsed["schema"], "weather-map.etl-cleanup-candidates")
+        self.assertEqual(parsed["candidateCount"], 1)
+
+    def test_cleanup_runs_passes_cycle_filter(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-cleanup-candidates",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "candidateCount": 0,
+            "protectedCount": 0,
+            "runs": [],
+        }
+
+        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
+            result = cli.main(["cleanup-runs", "--model", "gfs", "--cycle", "2026021300", "--json"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(cleanup_runs_report.call_args.kwargs["cycle"], "2026021300")
+
+    def test_cleanup_runs_human_output_includes_candidate_reason(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-cleanup-candidates",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "candidateCount": 1,
+            "protectedCount": 0,
+            "runs": [
+                {
+                    "model": "gfs",
+                    "cycle": "2026021300",
+                    "runId": DEFAULT_RUN_ID,
+                    "state": "incomplete",
+                    "candidate": True,
+                    "protected": False,
+                    "reason": "incomplete older than 24h",
+                    "ageHours": 25.0,
+                    "objectCount": 1,
+                    "totalBytes": 2,
+                    "runPrefix": f"runs/gfs/2026021300/{DEFAULT_RUN_ID}",
+                }
+            ],
+        }
+
+        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["cleanup-runs", "--model", "gfs", "--cycle", "2026021300"])
+
+        text = out.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("candidateCount=1", text)
+        self.assertIn("runs.0.candidate=true", text)
+        self.assertIn("runs.0.reason=incomplete older than 24h", text)
+
+    def test_cleanup_runs_delete_requires_yes(self) -> None:
+        with self.assertRaises(SystemExit) as raised:
+            cli.main(["cleanup-runs", "--model", "gfs", "--delete"])
+
+        self.assertIn("--yes", str(raised.exception))
+
+    def test_cleanup_runs_delete_yes_passes_delete_flag(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-cleanup-candidates",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": None,
+            "mode": "delete",
+            "candidateCount": 1,
+            "protectedCount": 0,
+            "deletedObjectCount": 2,
+            "deletedBytes": 5,
+            "deleteErrorCount": 0,
+            "runs": [],
+        }
+
+        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
+            result = cli.main(["cleanup-runs", "--model", "gfs", "--delete", "--yes", "--json"])
+
+        self.assertEqual(result, 0)
+        self.assertTrue(cleanup_runs_report.call_args.kwargs["delete_candidates"])
+        self.assertEqual(json.loads(out.getvalue())["mode"], "delete")
+
     def test_list_forecast_hours_prints_configured_hours(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003", "006"))
         out = io.StringIO()

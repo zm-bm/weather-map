@@ -257,28 +257,34 @@ forecast-etl pointers --model gfs [--cycle 2026053018] [--json]
 - no separate `etlctl`, dashboard, DynamoDB-derived status view, or broader
   operator wrapper was introduced
 
-## Proposed Work
-
 ### 10. Add Cleanup and Retention Policy
 
 Run-scoped outputs make cleanup safer, but cleanup still needs explicit policy.
 
-Defer until the new run-first validation/promotion flow has been deployed and
-trusted. Start with dry-run reporting before destructive deletes.
+Implemented direction:
 
-Provisional implementation:
+```bash
+forecast-etl cleanup-runs --model gfs [--cycle 2026060118] [--json]
+forecast-etl cleanup-runs --model gfs [--cycle 2026060118] --delete --yes
+```
 
-- identify orphaned local or S3 run prefixes left by failed `init-run`, aborted
-  local cycles, interrupted Batch pushes, or incomplete manual submits
+- cleanup reports candidates by default and deletes only when `--delete --yes`
+  is provided
+- cleanup scans run-first outputs only; legacy `/fields`, `/status`, and old
+  manifest compatibility cleanup remains separate
 - distinguish cleanup candidates by promotion state: published/current/latest,
   validated but unpromoted, complete but failed validation, incomplete, and
   conflicting snapshot metadata
-- provide a dry-run cleanup command before destructive deletes
-- add an operator-safe cleanup path for old local `artifacts/runs/...` attempts
-  so repeated test runs do not require manual directory inspection
-- keep promoted/current/latest runs longer than failed or unpromoted attempts
-- keep validation reports and promoted public manifests long enough to diagnose
-  recent failures and support same-cycle rollback
+- model-latest and cycle-current runs are protected and never candidates
+- aggressive default candidate ages are used for reporting: failed/incomplete
+  after 1 day, complete or validated-but-unpromoted after 3 days, and
+  published but superseded after 14 days
+- output includes candidate/protected status, reason, age, object count, known
+  bytes, unknown-size count, delete counts, and run prefix
+- S3 lifecycle remains unchanged for now: `runs/` expires after 14 days and
+  `manifests/` expires after 45 days
+
+## Proposed Work
 
 ### 11. Remove Transition Compatibility After Cutover
 

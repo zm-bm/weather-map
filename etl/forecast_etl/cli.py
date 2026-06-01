@@ -10,6 +10,7 @@ Subcommands:
 - runs: inspect known run attempts for one model cycle
 - status: inspect one run attempt for one model cycle
 - pointers: inspect public manifest pointers for one model
+- cleanup-runs: report run cleanup candidates without deleting objects
 - list-models: print configured forecast model ids
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
@@ -23,6 +24,7 @@ import os
 
 from .backfill import check_backfill_safety
 from .catalog import load_forecast_catalog
+from .cleanup_candidates import cleanup_runs_report
 from .commands import publish_cycle, run_cycle, run_hour
 from .config.load import LoadedPipelineConfig, load_pipeline_config, load_pipeline_config_document
 from .config.resolved import PipelineConfig
@@ -202,6 +204,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_pointers.add_argument("--cycle", help="Optional cycle YYYYMMDDHH for current pointer inspection")
     ap_pointers.add_argument("--json", action="store_true", help="Emit structured JSON")
     ap_pointers.set_defaults(_handler=_cmd_pointers)
+
+    ap_cleanup_runs = sub.add_parser(
+        "cleanup-runs",
+        help="Report or delete run cleanup candidates",
+        parents=[runtime],
+    )
+    ap_cleanup_runs.add_argument("--cycle", help="Optional cycle YYYYMMDDHH to restrict cleanup inspection")
+    ap_cleanup_runs.add_argument(
+        "--delete",
+        action="store_true",
+        help="Delete objects for cleanup candidates; requires --yes",
+    )
+    ap_cleanup_runs.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm deletion when --delete is set",
+    )
+    ap_cleanup_runs.add_argument("--json", action="store_true", help="Emit structured JSON")
+    ap_cleanup_runs.set_defaults(_handler=_cmd_cleanup_runs)
 
     ap_list_fhours = sub.add_parser(
         "list-forecast-hours",
@@ -541,6 +562,26 @@ def _cmd_pointers(args: argparse.Namespace) -> int:
     )
     _print_operator_report(report, as_json=bool(args.json))
     return 0
+
+
+def _cmd_cleanup_runs(args: argparse.Namespace) -> int:
+    """Report or delete run cleanup candidates."""
+    if args.delete and not args.yes:
+        raise SystemExit("cleanup-runs --delete requires --yes")
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle) if args.cycle else None
+    if cycle is not None:
+        parse_cycle(cycle)
+    report = cleanup_runs_report(
+        artifact_repo=_artifact_repo(args, store=store),
+        store=store,
+        model_id=model_id,
+        cycle=cycle,
+        delete_candidates=bool(args.delete),
+    )
+    _print_operator_report(report, as_json=bool(args.json))
+    return 2 if int(report.get("deleteErrorCount") or 0) else 0
 
 
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:

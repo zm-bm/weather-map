@@ -104,6 +104,11 @@ class ArtifactPaths:
 
         return join_uri(self.artifact_root_uri, ["runs", _safe_segment(model_id), _safe_segment(cycle)])
 
+    def model_runs_prefix_uri(self, *, model_id: str) -> str:
+        """URI prefix under which all cycles for one model live."""
+
+        return join_uri(self.artifact_root_uri, ["runs", _safe_segment(model_id)])
+
     def run_metadata_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
         """Run metadata URI: {root}/runs/{model}/{cycle}/{run_id}/run.json"""
 

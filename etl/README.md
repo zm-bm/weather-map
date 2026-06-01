@@ -74,6 +74,11 @@ etl/scripts/bootstrap.sh
 .venv/bin/forecast-etl run-hour --model <model> --cycle <YYYYMMDDHH> --run-id <run_id> --fhour <FFF>
 .venv/bin/forecast-etl validate-cycle --model <model> --cycle <YYYYMMDDHH> --run-id <run_id>
 .venv/bin/forecast-etl publish-cycle --model <model> --cycle <YYYYMMDDHH>
+.venv/bin/forecast-etl runs --model <model> --cycle <YYYYMMDDHH>
+.venv/bin/forecast-etl status --model <model> --cycle <YYYYMMDDHH> [--run-id <run_id>]
+.venv/bin/forecast-etl pointers --model <model> [--cycle <YYYYMMDDHH>]
+.venv/bin/forecast-etl cleanup-runs --model <model> [--cycle <YYYYMMDDHH>] [--json]
+.venv/bin/forecast-etl cleanup-runs --model <model> [--cycle <YYYYMMDDHH>] --delete --yes
 ```
 
 Normal local cycle execution should use `scripts/run-cycle.sh`, not the host
@@ -84,6 +89,11 @@ config/catalog files or the pinned copies under `runs/<model>/<cycle>/<run_id>/c
 `run-hour`, `validate-cycle`, and `publish-cycle` should use the pinned run
 snapshot once it exists. `publish-cycle` refuses runs without a passing
 `validation.json`.
+
+The operator inspection commands are read-only unless `cleanup-runs --delete
+--yes` is used. Cleanup deletion only removes objects under candidate
+`runs/<model>/<cycle>/<run_id>/` prefixes; public manifests and compatibility
+paths are left to lifecycle rules or later explicit cleanup.
 
 ## Pipeline Shape
 

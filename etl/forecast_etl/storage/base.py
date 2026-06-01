@@ -43,6 +43,10 @@ class UriStore(Protocol):
         """Write bytes atomically where possible."""
         ...
 
+    def delete_uri(self, *, uri: str) -> None:
+        """Delete one object URI if it exists."""
+        ...
+
     def exists(self, *, uri: str) -> bool:
         """Return True if the object exists."""
         ...

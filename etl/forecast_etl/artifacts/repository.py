@@ -152,6 +152,36 @@ class ArtifactRepository:
                     continue
         return tuple(sorted(run_ids))
 
+    def list_run_cycles(self, *, model_id: str) -> tuple[str, ...]:
+        """List known cycles with run-scoped objects for one model."""
+
+        prefix = self.paths.model_runs_prefix_uri(model_id=model_id)
+        cycles: set[str] = set()
+        for uri in self.store.list_prefix(prefix_uri=prefix):
+            try:
+                key = self.paths.relative_key(uri)
+            except ValueError:
+                continue
+            parts = key.split("/")
+            if len(parts) >= 3 and parts[:2] == ["runs", model_id]:
+                cycle = parts[2]
+                if len(cycle) == 10 and cycle.isdigit():
+                    cycles.add(cycle)
+        return tuple(sorted(cycles))
+
+    def list_run_objects(self, *, model_id: str, cycle: str, run_id: str) -> list[UriObject]:
+        """List all objects for one run prefix."""
+
+        return self.store.list_objects(prefix_uri=self.paths.run_prefix_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def delete_run_objects(self, *, model_id: str, cycle: str, run_id: str) -> list[UriObject]:
+        """Delete all objects for one run prefix and return the listed objects."""
+
+        objects = self.list_run_objects(model_id=model_id, cycle=cycle, run_id=run_id)
+        for obj in objects:
+            self.store.delete_uri(uri=obj.uri)
+        return objects
+
     def list_success_marker_uris(self, *, model_id: str, cycle: str, run_id: str) -> set[str]:
         """List artifact success marker URIs for one run."""
 

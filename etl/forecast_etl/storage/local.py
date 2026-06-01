@@ -38,6 +38,9 @@ class LocalFSStore(UriStore):
         del metadata
         self.write_bytes(uri=uri, data=data)
 
+    def delete_uri(self, *, uri: str) -> None:
+        path_from_file_uri(uri).unlink(missing_ok=True)
+
     def exists(self, *, uri: str) -> bool:
         return path_from_file_uri(uri).exists()
 

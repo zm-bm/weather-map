@@ -34,6 +34,9 @@ class HttpStore(UriStore):
     def write_bytes(self, *, uri: str, data: bytes) -> None:
         raise NotImplementedError("HttpStore is read-only")
 
+    def delete_uri(self, *, uri: str) -> None:
+        raise NotImplementedError("HttpStore is read-only")
+
     def exists(self, *, uri: str) -> bool:
         self._check_scheme(uri)
         try:
