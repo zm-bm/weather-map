@@ -1,11 +1,15 @@
 """forecast_etl CLI.
 
 Subcommands:
+- check-backfill: guard against accidental older-than-latest submits
 - init-run: create or verify immutable run config/catalog snapshots
 - run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
 - publish-cycle: publish manifests for one processed model cycle
 - validate-cycle: validate one processed model cycle before publication
+- runs: inspect known run attempts for one model cycle
+- status: inspect one run attempt for one model cycle
+- pointers: inspect public manifest pointers for one model
 - list-models: print configured forecast model ids
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
@@ -14,13 +18,16 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 
+from .backfill import check_backfill_safety
 from .catalog import load_forecast_catalog
 from .commands import publish_cycle, run_cycle, run_hour
 from .config.load import LoadedPipelineConfig, load_pipeline_config, load_pipeline_config_document
 from .config.resolved import PipelineConfig
 from .cycles import parse_cycle
+from .operator_status import pointers_report, runs_report, status_report
 from .run_ids import generate_run_id, parse_run_id
 from .run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
 from .run_snapshots import ensure_run_snapshot, load_run_snapshot, select_run_id_for_cycle
@@ -92,6 +99,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_init_run.add_argument("--run-id", required=True, help="Run id")
     ap_init_run.set_defaults(_handler=_cmd_init_run)
 
+    ap_check_backfill = sub.add_parser(
+        "check-backfill",
+        help="Check whether a requested cycle is older than the current latest manifest",
+        parents=[runtime],
+    )
+    ap_check_backfill.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_check_backfill.add_argument(
+        "--backfill",
+        action="store_true",
+        help="Allow submitting a cycle older than the current latest manifest",
+    )
+    ap_check_backfill.set_defaults(_handler=_cmd_check_backfill)
+
     ap_run_hour = sub.add_parser(
         "run-hour",
         help="Run one (cycle, fhour) across all configured artifacts",
@@ -154,6 +174,34 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional run id to require while validating; otherwise derived from run objects",
     )
     ap_validate_cycle.set_defaults(_handler=_cmd_validate_cycle)
+
+    ap_runs = sub.add_parser(
+        "runs",
+        help="Inspect known run attempts for one model cycle",
+        parents=[runtime],
+    )
+    ap_runs.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_runs.add_argument("--json", action="store_true", help="Emit structured JSON")
+    ap_runs.set_defaults(_handler=_cmd_runs)
+
+    ap_status = sub.add_parser(
+        "status",
+        help="Inspect one run attempt for one model cycle",
+        parents=[runtime],
+    )
+    ap_status.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_status.add_argument("--run-id", help="Optional run id to inspect; defaults to the only/newest run")
+    ap_status.add_argument("--json", action="store_true", help="Emit structured JSON")
+    ap_status.set_defaults(_handler=_cmd_status)
+
+    ap_pointers = sub.add_parser(
+        "pointers",
+        help="Inspect public manifest pointers for one model",
+        parents=[runtime],
+    )
+    ap_pointers.add_argument("--cycle", help="Optional cycle YYYYMMDDHH for current pointer inspection")
+    ap_pointers.add_argument("--json", action="store_true", help="Emit structured JSON")
+    ap_pointers.set_defaults(_handler=_cmd_pointers)
 
     ap_list_fhours = sub.add_parser(
         "list-forecast-hours",
@@ -274,6 +322,23 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
         run_snapshot=_run_snapshot(args, store=store, loaded=loaded),
     )
     return 0
+
+
+def _cmd_check_backfill(args: argparse.Namespace) -> int:
+    """Guard against accidental older-than-latest submits."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+    result = check_backfill_safety(
+        artifact_repo=_artifact_repo(args, store=store),
+        model_id=model_id,
+        cycle=cycle,
+        allow_backfill=bool(args.backfill),
+    )
+    for key, value in result.key_values():
+        print(f"{key}={value}")
+    return 0 if result.ok else 2
 
 
 def _cmd_init_run(args: argparse.Namespace) -> int:
@@ -428,6 +493,56 @@ def _cmd_validate_cycle(args: argparse.Namespace) -> int:
     return 0 if result.passed else 2
 
 
+def _cmd_runs(args: argparse.Namespace) -> int:
+    """Inspect known runs for one model cycle."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+    report = runs_report(
+        artifact_repo=_artifact_repo(args, store=store),
+        store=store,
+        model_id=model_id,
+        cycle=cycle,
+    )
+    _print_operator_report(report, as_json=bool(args.json))
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    """Inspect one run for one model cycle."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+    run_id = parse_run_id(args.run_id) if args.run_id else None
+    report = status_report(
+        artifact_repo=_artifact_repo(args, store=store),
+        store=store,
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+    )
+    _print_operator_report(report, as_json=bool(args.json))
+    return 0
+
+
+def _cmd_pointers(args: argparse.Namespace) -> int:
+    """Inspect public manifest pointers for one model."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle) if args.cycle else None
+    if cycle is not None:
+        parse_cycle(cycle)
+    report = pointers_report(
+        artifact_repo=_artifact_repo(args, store=store),
+        model_id=model_id,
+        cycle=cycle,
+    )
+    _print_operator_report(report, as_json=bool(args.json))
+    return 0
+
+
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
     """Print one configured forecast-hour id per line."""
     cfg = _load_cfg(args, store=make_store())
@@ -455,6 +570,37 @@ def _artifact_repo(args: argparse.Namespace, *, store: UriStore):
     from .artifacts.repository import ArtifactRepository
 
     return ArtifactRepository.for_root(store=store, artifact_root_uri=args.artifact_root_uri)
+
+
+def _print_operator_report(report: dict, *, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(report, sort_keys=True, indent=2))
+        return
+    _print_key_values(report)
+
+
+def _print_key_values(value: object, *, prefix: str = "") -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            nested_prefix = f"{prefix}.{key}" if prefix else str(key)
+            _print_key_values(nested, prefix=nested_prefix)
+        return
+    if isinstance(value, list):
+        if all(not isinstance(item, (dict, list)) for item in value):
+            print(f"{prefix}={','.join(_operator_value(item) for item in value)}")
+            return
+        for index, item in enumerate(value):
+            _print_key_values(item, prefix=f"{prefix}.{index}")
+        return
+    print(f"{prefix}={_operator_value(value)}")
+
+
+def _operator_value(value: object) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def main(argv: list[str] | None = None) -> int:

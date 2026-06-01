@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from dataclasses import dataclass
@@ -153,20 +154,27 @@ class _FakeDynamoClient:
 
 
 class _FakeStore:
-    def __init__(self, listed: set[str] | None = None) -> None:
+    def __init__(self, listed: set[str] | None = None, objects: dict[str, bytes] | None = None) -> None:
         self.listed = listed or set()
+        self.objects = objects or {}
 
     def list_prefix(self, *, prefix_uri: str) -> list[str]:
-        return sorted(uri for uri in self.listed if uri.startswith(prefix_uri))
+        return sorted(
+            uri
+            for uri in {*self.listed, *self.objects}
+            if uri.startswith(prefix_uri)
+        )
 
     def read_bytes(self, *, uri: str) -> bytes:
-        raise AssertionError(f"unexpected read: {uri}")
+        if uri in self.objects:
+            return self.objects[uri]
+        raise FileNotFoundError(uri)
 
     def write_bytes(self, *, uri: str, data: bytes) -> None:
         raise AssertionError(f"unexpected write: {uri}")
 
     def exists(self, *, uri: str) -> bool:
-        return uri in self.listed
+        return uri in self.listed or uri in self.objects
 
     def get_to_file(self, *, uri: str, dst) -> None:
         raise AssertionError(f"unexpected get_to_file: {uri}")
@@ -332,6 +340,22 @@ class IconIngestTest(unittest.TestCase):
         )
         self.assertIn("#cycle = :cycle", complete_update["UpdateExpression"])
         self.assertEqual(complete_update["ExpressionAttributeNames"]["#cycle"], "cycle")
+
+    def test_older_than_latest_cycle_skips_before_run_coordination(self) -> None:
+        self.store = _FakeStore(
+            objects={
+                "s3://artifacts/manifests/icon/latest.json": json.dumps(
+                    {"run": {"cycle": "2026051118"}}
+                ).encode("utf-8")
+            }
+        )
+
+        result = self._run(ready=lambda url, min_bytes: True)
+
+        self.assertEqual(result["submitted"], 0)
+        self.assertEqual(result["skippedCycles"], 1)
+        self.assertEqual(self.batch.submissions, [])
+        self.assertEqual(self.ddb.updates, [])
 
     def test_complete_cycle_response_omits_published_count(self) -> None:
         paths = ArtifactPaths("s3://artifacts")

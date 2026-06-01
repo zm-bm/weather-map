@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -515,6 +516,96 @@ class CliTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(run_process_hour.call_count, 2)
         pool.assert_not_called()
+
+    def test_runs_json_outputs_operator_report(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-operator-runs",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "runCount": 0,
+            "runs": [],
+        }
+
+        with patch("forecast_etl.cli.runs_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["runs", "--model", "gfs", "--cycle", "2026021300", "--json"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(json.loads(out.getvalue())["schema"], "weather-map.etl-operator-runs")
+
+    def test_status_human_output_includes_core_run_state(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-operator-status",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "runId": DEFAULT_RUN_ID,
+            "state": "complete",
+            "ambiguous": False,
+            "runCount": 1,
+            "warnings": [],
+            "run": {
+                "runId": DEFAULT_RUN_ID,
+                "markers": {"expected": 1, "completed": 1, "missing": 0},
+                "validation": {"status": "passed"},
+                "published": {"status": "present"},
+            },
+        }
+
+        with patch("forecast_etl.cli.status_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["status", "--model", "gfs", "--cycle", "2026021300"])
+
+        text = out.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("model=gfs", text)
+        self.assertIn(f"runId={DEFAULT_RUN_ID}", text)
+        self.assertIn("state=complete", text)
+        self.assertIn("run.markers.completed=1", text)
+        self.assertIn("run.validation.status=passed", text)
+        self.assertIn("run.published.status=present", text)
+
+    def test_status_multiple_runs_warns_but_exits_zero(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-operator-status",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "runId": DEFAULT_RUN_ID,
+            "state": "incomplete",
+            "ambiguous": True,
+            "runCount": 2,
+            "warnings": ["multiple runs exist; publishing requires an explicit run id"],
+            "run": None,
+        }
+
+        with patch("forecast_etl.cli.status_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["status", "--model", "gfs", "--cycle", "2026021300"])
+
+        self.assertEqual(result, 0)
+        self.assertIn("ambiguous=true", out.getvalue())
+        self.assertIn("publishing requires an explicit run id", out.getvalue())
+
+    def test_pointers_json_outputs_operator_report(self) -> None:
+        out = io.StringIO()
+        report = {
+            "schema": "weather-map.etl-operator-pointers",
+            "schemaVersion": 1,
+            "model": "gfs",
+            "cycle": "2026021300",
+            "latest": {"status": "valid"},
+            "current": {"status": "valid"},
+        }
+
+        with patch("forecast_etl.cli.pointers_report", return_value=report), redirect_stdout(out):
+            result = cli.main(["pointers", "--model", "gfs", "--cycle", "2026021300", "--json"])
+
+        self.assertEqual(result, 0)
+        parsed = json.loads(out.getvalue())
+        self.assertEqual(parsed["schema"], "weather-map.etl-operator-pointers")
+        self.assertEqual(parsed["latest"]["status"], "valid")
 
     def test_list_forecast_hours_prints_configured_hours(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003", "006"))

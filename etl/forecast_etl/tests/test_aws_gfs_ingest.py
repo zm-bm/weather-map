@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,7 +12,7 @@ from forecast_etl.aws import gfs_ingest
 from forecast_etl.config.load import LoadedPipelineConfig
 from forecast_etl.run_snapshots import LoadedRunSnapshot
 from forecast_etl.tests.fixtures.artifact_configs import wind_artifact_config
-from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID, temp_artifact_fixture
 from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
 
 
@@ -101,9 +102,12 @@ class AwsGfsIngestTest(unittest.TestCase):
     def setUp(self) -> None:
         self.batch = _FakeBatchClient()
         self.ddb = _FakeDynamoClient()
+        self.artifact_root = tempfile.TemporaryDirectory()
+        self.addCleanup(self.artifact_root.cleanup)
         self.env_patch = patch.dict(
             os.environ,
             {
+                "ARTIFACT_ROOT_URI": f"file://{Path(self.artifact_root.name).as_posix()}",
                 "BATCH_JOB_QUEUE": "weather-etl",
                 "BATCH_JOB_DEFINITION": "weather-etl-worker:1",
                 "RUN_COORDINATOR_TABLE": "run-coordinator",
@@ -263,6 +267,28 @@ class AwsGfsIngestTest(unittest.TestCase):
             for item in self.batch.submissions[0]["containerOverrides"]["environment"]
         }
         self.assertEqual(env["RUN_ID"], "20260213T010203Z-abcdef12")
+
+    def test_handler_skips_older_than_latest_cycle(self) -> None:
+        with temp_artifact_fixture() as artifacts:
+            artifacts.write_manifest(
+                model_id="gfs",
+                cycle="2026021306",
+                generated_at=datetime(2026, 2, 13, 6, tzinfo=timezone.utc),
+            )
+            with (
+                patch.dict(os.environ, {"ARTIFACT_ROOT_URI": artifacts.paths.artifact_root_uri}, clear=False),
+                patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot") as ensure_snapshot,
+                patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
+            ):
+                result = gfs_ingest.handler(
+                    _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003"),
+                    None,
+                )
+
+        self.assertEqual(result, {"ok": True, "submitted": 0, "seen": 1})
+        self.assertEqual(self.batch.submissions, [])
+        self.assertEqual(self.ddb.updates, [])
+        ensure_snapshot.assert_not_called()
 
     def _client(self, name: str):
         if name == "batch":

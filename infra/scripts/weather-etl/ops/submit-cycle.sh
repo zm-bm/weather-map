@@ -26,13 +26,14 @@ Options:
   --job-name-prefix <prefix>      Batch job name prefix. Default: weather-etl-manual.
   --submit-delay-seconds <n>      Delay between submissions. Default: 0.
   --dry-run                       Print jobs without submitting.
+  --backfill                      Allow submitting a cycle older than current latest.
   --skip-config-check             Skip local-vs-S3 config md5 check.
   --allow-non-synoptic-cycle      Allow cycles outside 00/06/12/18.
   -h, --help                      Show this help and exit.
 
 Environment defaults:
   CYCLE, RUN_ID, MODEL, FHOURS, CONFIG_FILE, CATALOG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
-  SUBMIT_DELAY_SECONDS, DRY_RUN, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE,
+  SUBMIT_DELAY_SECONDS, DRY_RUN, BACKFILL, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE,
   ETL_CODE_REVISION, ETL_IMAGE_IDENTITY.
 EOF
 }
@@ -65,6 +66,7 @@ SOURCE_BUCKET="${SOURCE_BUCKET:-noaa-gfs-bdp-pds}"
 JOB_NAME_PREFIX="${JOB_NAME_PREFIX:-weather-etl-manual}"
 SUBMIT_DELAY_SECONDS="${SUBMIT_DELAY_SECONDS:-0}"
 DRY_RUN="${DRY_RUN:-false}"
+BACKFILL="${BACKFILL:-false}"
 SKIP_CONFIG_CHECK="${SKIP_CONFIG_CHECK:-false}"
 ALLOW_NON_SYNOPTIC_CYCLE="${ALLOW_NON_SYNOPTIC_CYCLE:-false}"
 ETL_CODE_REVISION="${ETL_CODE_REVISION:-$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)}"
@@ -158,6 +160,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN="true"
+      shift
+      ;;
+    --backfill)
+      BACKFILL="true"
       shift
       ;;
     --skip-config-check)
@@ -261,6 +267,34 @@ FORECAST_CATALOG_URI="$(terraform output -raw forecast_catalog_uri)"
 ARTIFACT_ROOT_URI="s3://$(terraform output -raw artifacts_bucket_name)"
 if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
   ETL_IMAGE_IDENTITY="$JOB_DEFINITION"
+fi
+
+PYTHON_BIN="${PYTHON_BIN:-$REPO_ROOT/.venv/bin/python}"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="python3"
+fi
+
+BACKFILL_ARGS=()
+if [[ "$BACKFILL" == "true" ]]; then
+  BACKFILL_ARGS+=(--backfill)
+fi
+set +e
+BACKFILL_OUTPUT="$(
+  PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \
+    "$PYTHON_BIN" -m forecast_etl.cli check-backfill \
+      --model "$MODEL" \
+      --cycle "$CYCLE" \
+      --artifact-root-uri "$ARTIFACT_ROOT_URI" \
+      "${BACKFILL_ARGS[@]}" \
+      2>&1
+)"
+BACKFILL_STATUS=$?
+set -e
+if [[ "$BACKFILL_STATUS" -ne 0 ]]; then
+  echo "Backfill safety check failed." >&2
+  echo "$BACKFILL_OUTPUT" | sed 's/^/  /' >&2
+  echo "Use --backfill only when intentionally submitting an older cycle." >&2
+  exit "$BACKFILL_STATUS"
 fi
 
 if [[ "$SKIP_CONFIG_CHECK" != "true" ]]; then
@@ -424,6 +458,10 @@ echo "  code_revision:       $ETL_CODE_REVISION"
 echo "  image_identity:      $ETL_IMAGE_IDENTITY"
 echo "  forecast_hours:      ${#FORECAST_HOURS[@]}"
 echo "  dry_run:             $DRY_RUN"
+echo "  backfill:            $BACKFILL"
+echo
+echo "Backfill safety"
+echo "$BACKFILL_OUTPUT" | sed 's/^/  /'
 echo
 
 RUN_PIPELINE_CONFIG_URI="${ARTIFACT_ROOT_URI%/}/runs/${MODEL}/${CYCLE}/${RUN_ID}/config/pipeline_config.json"
@@ -435,10 +473,6 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "  forecast_catalog_uri=$RUN_FORECAST_CATALOG_URI"
   echo
 else
-  PYTHON_BIN="${PYTHON_BIN:-$REPO_ROOT/.venv/bin/python}"
-  if [[ ! -x "$PYTHON_BIN" ]]; then
-    PYTHON_BIN="python3"
-  fi
   INIT_OUTPUT="$(
     PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \
       "$PYTHON_BIN" -m forecast_etl.cli init-run \

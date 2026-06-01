@@ -13,6 +13,7 @@ import boto3  # type: ignore
 
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
+from ..backfill import check_backfill_safety
 from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..cycles import latest_synoptic_cycles
 from ..run_snapshots import ensure_or_load_run_snapshot
@@ -310,6 +311,16 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     skipped_cycles = 0
 
     for cycle in cycles:
+        backfill = check_backfill_safety(
+            artifact_repo=artifact_repo,
+            model_id=MODEL_ID,
+            cycle=cycle,
+        )
+        if not backfill.ok:
+            print(f"skip ICON cycle (backfill safety): {backfill.message}", flush=True)
+            skipped_cycles += 1
+            continue
+
         cycle_run_id = coordinated_run_id(
             ddb=ddb,
             table_name=run_coordinator_table,

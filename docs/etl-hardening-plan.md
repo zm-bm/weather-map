@@ -199,158 +199,93 @@ Latest pointer shape:
 }
 ```
 
-## Proposed Work
-
-### 8. Pin and Record Release Identity
-
-Each run should record the exact worker image and code/config identity used to
-produce it.
-
-Keep the first pass mostly observational: record identity accurately before
-requiring strict digest-pinned execution.
-
-Provisional implementation:
-
-- record ECR image digest in `run.json`
-- record git SHA and pipeline config digest
-- later, allow submit tooling to choose an explicit image digest for rollback
-  or controlled backfill runs
-
-### 9. Use a Small State Table for Orchestration
-
-DynamoDB should track workflow state and locks, not replace S3 artifact
-markers.
-
-Defer this until validation and pointer promotion are in place and have had at
-least one real deploy/run. It is useful, but it adds another moving piece and
-should not be required for the next production cutover.
-
-Provisional implementation:
-
-- one run row keyed by model, cycle, and run id
-- optional per-hour state rows for progress and retry accounting
-- states such as `submitted`, `processing`, `processed`, `validated`,
-  `promoted`, `superseded`, and `failed`
-- conditional writes for promotion locks and latest pointer updates
-
-S3 remains the source of truth for payload evidence: field payloads, success
-markers, manifests, and validation reports.
-
-### 10. Add Backfill Safety
+### 8. Add Backfill Safety
 
 Submitting an older cycle should be explicit. This protects against accidental
 wrong-year or wrong-cycle runs.
 
-This is small and high-value, and should be done before adding broader operator
-tooling.
+Implemented direction:
 
-Provisional implementation:
+- `forecast-etl check-backfill` compares a requested cycle against the current
+  model latest alias
+- manual `submit-cycle.sh` runs the guard before creating run snapshots or
+  submitting Batch jobs
+- manual older-cycle submits fail closed unless `--backfill` is passed
+- automatic GFS and ICON ingest skip older-than-latest candidates instead of
+  submitting them by default
+- missing latest aliases are treated as bootstrap and allowed
+- malformed or unreadable latest aliases fail closed for manual submits and are
+  skipped by automatic ingest
+- dry-run submit output includes the backfill check result
 
-- compare requested cycle against current latest for the model
-- require a `--backfill` or `--force-older-than-latest` flag when submitting an
-  older cycle
-- include clear dry-run output before submission
+### 9. Add Minimal Operator Status Commands
 
-### 11. Add an Operator CLI
+A small operator surface should answer common questions without growing every
+shell script into a dashboard. Keep it intentionally narrow until real
+operations create pressure for more.
 
-A small operator command can make recurring actions safer than shell scripts
-with growing flag sets.
-
-Do this after the underlying validate/promote/rollback commands stabilize.
-Existing shell scripts can keep wrapping the lower-level commands until then.
-
-Provisional commands:
+Implemented direction:
 
 ```bash
-etlctl submit --model gfs --cycle 2026053018
-etlctl status --model gfs --cycle 2026053018
-etlctl runs --model gfs --cycle 2026053018
-etlctl validate --model gfs --cycle 2026053018 --run-id <run_id>
-etlctl promote --model gfs --cycle 2026053018 --run-id <run_id>
-etlctl rollback --model gfs --to-cycle 2026053012
-etlctl cleanup --model gfs --cycle 2025053018 --dry-run
+forecast-etl runs --model gfs --cycle 2026053018 [--json]
+forecast-etl status --model gfs --cycle 2026053018 [--run-id <run_id>] [--json]
+forecast-etl pointers --model gfs [--cycle 2026053018] [--json]
 ```
 
-Existing shell scripts can wrap this initially.
+- the first operator commands stay inside the existing `forecast-etl` CLI
+- commands are read-only and do not submit, validate, publish, clean up, or
+  write state
+- each command supports line-oriented human output and `--json` for scripts
+- `forecast_etl.operator_status` reads artifact state and returns structured
+  status objects; CLI code only parses arguments and formats reports
+- use the run-first artifacts and public manifest pointers as the source of
+  truth; do not create a separate operator state store
+- `runs` lists known run ids for a cycle, newest first, with completeness,
+  validation, and published/current/latest status
+- `status` summarizes one selected run's `run.json`, config digest, expected
+  marker count, completed marker count, missing hours/artifacts, validation
+  status, published marker state, public run manifest path, cycle current
+  pointer, and model latest pointer
+- without `--run-id`, `status` may select the only run for the cycle or the
+  newest run for operator visibility, but should clearly report when multiple
+  runs exist and publication would require an explicit run id
+- `pointers` inspects model latest and cycle current pointers, dereferences the
+  referenced public run manifests, and reports stale or malformed pointer
+  diagnostics
+- keep same-cycle promotion as the existing explicit operation:
+  `forecast-etl publish-cycle --model <model> --cycle <cycle> --run-id <run_id>`
+- no separate `etlctl`, dashboard, DynamoDB-derived status view, or broader
+  operator wrapper was introduced
 
-Lower-priority additions:
+## Proposed Work
 
-- list all known run ids for a cycle with completeness, validation, and
-  published status
-- inspect one run's `run.json`, config digest, image identity, marker count,
-  missing markers, and manifest paths
-- publish or promote an explicit run when more than one run exists for the same
-  cycle
-- inspect current public pointers and their dereferenced manifests, including
-  stale or malformed pointer diagnostics
-- force-promote an older validated run to latest as an explicit rollback or
-  backfill recovery action; keep this separate from normal monotonic promotion
-  so accidental wrong-year submits do not become public latest cycles
-
-### 12. Add Cleanup and Retention Policy
+### 10. Add Cleanup and Retention Policy
 
 Run-scoped outputs make cleanup safer, but cleanup still needs explicit policy.
 
 Defer until the new run-first validation/promotion flow has been deployed and
-trusted.
+trusted. Start with dry-run reporting before destructive deletes.
 
 Provisional implementation:
 
-- keep promoted runs longer
-- expire failed or unpromoted runs sooner
-- keep validation reports and promoted manifests long enough for audit and
-  rollback
-- provide dry-run cleanup commands before destructive deletes
 - identify orphaned local or S3 run prefixes left by failed `init-run`, aborted
   local cycles, interrupted Batch pushes, or incomplete manual submits
 - distinguish cleanup candidates by promotion state: published/current/latest,
   validated but unpromoted, complete but failed validation, incomplete, and
   conflicting snapshot metadata
+- provide a dry-run cleanup command before destructive deletes
 - add an operator-safe cleanup path for old local `artifacts/runs/...` attempts
   so repeated test runs do not require manual directory inspection
+- keep promoted/current/latest runs longer than failed or unpromoted attempts
+- keep validation reports and promoted public manifests long enough to diagnose
+  recent failures and support same-cycle rollback
 
-### 13. Improve Observability
+### 11. Remove Transition Compatibility After Cutover
 
-Operators need one run-level answer for current state.
-
-Add minimal status output as new workflow states are introduced, but defer
-larger dashboards or reporting until the orchestration shape settles.
-
-Provisional implementation:
-
-- summarize expected jobs, completed jobs, failed jobs, missing hours,
-  validation status, promoted manifest path, and latest pointer state
-- link run state to CloudWatch logs and Batch job ids
-- expose a compact status command before adding dashboards
-
-### 14. Add Full Payload Byte and Checksum Validation
-
-The first validation pass is intentionally marker-metadata-only. After the
-marker validation and promotion flow has been deployed and observed, strengthen
-validation by reading payload objects.
-
-Provisional implementation:
-
-- read/decompress every expected payload object or a configurable bounded
-  sample if full validation proves too expensive
-- verify marker `byte_length` and `sha256` against actual decoded payload bytes
-- record payload validation mode, object read counts, and failures in
-  `validation.json`
-- keep marker-only validation available as an explicit emergency/degraded mode
-  if S3 object reads become the bottleneck
-- keep the initial publisher-owned validation path unless real Lambda runtime
-  or concurrency pressure appears; if it does, split validation into a separate
-  scheduled Lambda or Batch job that writes `validation.json` for the publisher
-  to consume
-- revisit whether `publish-cycle` still needs to re-read all success markers
-  once pointer promotion is in place and validation reports are trusted as the
-  publish gate
-
-### 15. Remove Transition Compatibility After Cutover
-
-This is intentionally a final cleanup task. Do not do it until all public
-manifests that infer legacy `fields/<model>/<cycle>/<fhour>/...` payload paths
-have aged out and production has been stable on run-first manifests.
+This is intentionally a final cleanup checklist, not immediate hardening. Do
+not do it until all public manifests that infer legacy
+`fields/<model>/<cycle>/<fhour>/...` payload paths have aged out and production
+has been stable on run-first manifests.
 
 Catalog and remove compatibility code introduced for the run-first transition:
 
@@ -383,21 +318,14 @@ stopped using it.
 
 Recommended implementation order:
 
-1. Commit completed Tasks 4 and 5 before continuing so the snapshot and
-   validation cutovers are isolated.
-2. Implement Tasks 6 and 7 together: pointer promotion, stable latest pointer
-   schema, rollback, and required frontend/backend reader changes.
-3. Implement Task 10: backfill safety checks for manual and automated submits.
-4. Implement Task 8: record release identity more strictly, without requiring
-   strict digest-pinned execution yet.
-5. Deploy and run at least one real production cycle before adding more moving
+1. Deploy and run at least one real production cycle before adding more moving
    pieces.
-6. Implement Task 9: DynamoDB run state and promotion locks.
-7. Implement Task 11: operator CLI over the now-stable lower-level commands.
-8. Implement Task 12: cleanup/retention automation.
-9. Implement Task 13: broader observability.
-10. Implement Task 14 if marker-only validation is not enough operationally.
-11. Implement Task 15 only after old public manifests have aged out.
+2. Implement Task 10 when local or S3 run clutter becomes operationally
+   annoying; start with dry-run cleanup.
+3. Add an `etlctl` wrapper or promotion aliases only if the direct
+   `forecast-etl` commands become awkward in real operation.
+4. Implement Task 11 only after old public manifests have aged out and
+   production has been stable on run-first manifests.
 
 ## De-Prioritized Work
 
@@ -407,8 +335,12 @@ Recommended implementation order:
   new runs and keep readers compatible during transition.
 - Do not move success markers into DynamoDB. Keep S3 markers as immutable
   artifact evidence and use DynamoDB for workflow state.
-- Do not require strict digest-pinned execution before run metadata exists.
-  Record image digests first, then tighten execution controls later.
+- Do not add a DynamoDB orchestration state table until S3 run evidence,
+  validation reports, and pointer state are insufficient for real operations.
+- Do not require strict digest-pinned execution or ECR digest provenance until
+  production forensics become important. Existing run id, code revision, image
+  identity, config digest, and config/catalog snapshots are enough for current
+  fix-forward operation.
 - Do not remove `/fields/*` compatibility immediately. It is operational
   cleanup, not part of making current run-first publishing work.
 - Do not make validation read every payload object until marker-only validation

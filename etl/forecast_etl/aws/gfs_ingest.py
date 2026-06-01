@@ -12,6 +12,7 @@ from typing import Any
 import boto3  # type: ignore
 
 from ..artifacts.repository import ArtifactRepository
+from ..backfill import check_backfill_safety
 from ..config.resolved import PipelineConfig
 from ..run_snapshots import ensure_or_load_run_snapshot
 from ..storage.base import UriStore
@@ -118,6 +119,15 @@ def _submit_job(
 
     if cycle_hour not in ALLOWED_CYCLES:
         print(f"skip key (cycle filter): cycle_hour={cycle_hour} key={key}")
+        return 0
+
+    backfill = check_backfill_safety(
+        artifact_repo=artifact_repo,
+        model_id=MODEL_ID,
+        cycle=cycle,
+    )
+    if not backfill.ok:
+        print(f"skip key (backfill safety): {backfill.message} key={key}")
         return 0
 
     grib_source_uri = f"s3://{bucket}/{key}"
