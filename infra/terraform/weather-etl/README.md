@@ -57,8 +57,9 @@ runs/<model>/<cycle>/<run_id>/
   _PUBLISHED.json
 ```
 
-Public aliases remain under `manifests/`, and legacy `/fields/*` payloads stay
-available while old public manifests age out.
+Public aliases remain under `manifests/`. Public payload serving is run-first
+only through `/runs/*/fields/*`; legacy top-level `/fields/*` payload paths are
+no longer exposed.
 
 Pointer-era public manifests use:
 

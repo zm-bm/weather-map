@@ -27,7 +27,10 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                 "image_identity": DEFAULT_IMAGE_IDENTITY,
                 "config_digest": DEFAULT_CONFIG_DIGEST,
                 "artifact": artifact_marker_payload(
-                    payload_uri="file:///tmp/out/fields/gfs/2026041200/003/wind10m_uv.field.i8.bin",
+                    payload_uri=(
+                        "file:///tmp/out/runs/gfs/2026041200/"
+                        f"{DEFAULT_RUN_ID}/fields/003/wind10m_uv.field.i8.bin"
+                    ),
                     byte_length=24,
                     format="linear-i8-v1",
                     encoding_id="wind10m_uv_vector_i8_1ms_v1",

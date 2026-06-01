@@ -92,8 +92,7 @@ resource "aws_iam_role_policy" "ingest_icon_lambda" {
         Resource = [
           "arn:aws:s3:::${local.config_bucket_name}/*",
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/status/icon/*"
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
         ]
       },
       {
@@ -103,8 +102,7 @@ resource "aws_iam_role_policy" "ingest_icon_lambda" {
         ]
         Resource = [
           "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/status/icon/*"
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
         ]
       }
     ]

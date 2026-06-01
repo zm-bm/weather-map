@@ -13,8 +13,8 @@ const optionalSourceIntervalHoursSchema = finiteNumberSchema.positive().optional
 
 const runSchema = z.object({
   cycle: z.string(),
-  runId: z.string().optional(),
-  payloadRoot: z.string().optional(),
+  runId: z.string().min(1),
+  payloadRoot: z.string().min(1),
   generatedAt: z.string(),
   revision: z.string(),
 })
@@ -110,7 +110,7 @@ const manifestArtifactCommonSchema = {
   components: z.array(componentNameSchema).nonempty(),
   grid: gridSchema,
   byteLength: finiteNumberSchema.positive(),
-  payloadFile: z.string().optional(),
+  payloadFile: z.string().min(1),
   temporalKind: optionalTemporalKindSchema,
   sourceIntervalHours: optionalSourceIntervalHoursSchema,
 }

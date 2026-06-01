@@ -12,10 +12,6 @@ import {
   writeCachedPayload,
 } from './payloadCache'
 
-const FIELD_DTYPE_SUFFIX = {
-  int8: 'i8',
-} satisfies Record<ManifestArtifactSpec['encoding']['dtype'], string>
-
 type PayloadRef = {
   path: string
   byteLength: number
@@ -158,7 +154,6 @@ function resolvePayloadRef(args: {
     path: resolveFramePayloadPath({
       activeRun: args.activeRun,
       artifact: args.artifact,
-      artifactId,
       timeId: time.id,
     }),
     byteLength: args.artifact.byteLength,
@@ -167,26 +162,15 @@ function resolvePayloadRef(args: {
 
 function resolveFramePayloadPath(args: {
   activeRun: ActiveForecastRun
-  artifact: Pick<ManifestArtifactSpec, 'encoding' | 'payloadFile'>
-  artifactId: string
+  artifact: Pick<ManifestArtifactSpec, 'payloadFile'>
   timeId: string
 }): string {
   const { payloadRoot } = args.activeRun.latest.run
   const { payloadFile } = args.artifact
-  if (payloadRoot && payloadFile) {
-    return [
-      payloadRoot,
-      args.timeId,
-      payloadFile,
-    ].join('/')
-  }
-
   return [
-    'fields',
-    args.activeRun.modelId,
-    args.activeRun.latest.run.cycle,
+    payloadRoot,
     args.timeId,
-    `${args.artifactId}.field.${FIELD_DTYPE_SUFFIX[args.artifact.encoding.dtype]}.bin`,
+    payloadFile,
   ].join('/')
 }
 

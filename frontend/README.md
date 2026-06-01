@@ -2,9 +2,9 @@
 
 React/Vite frontend for the weather map. The app boots forecast metadata from
 `/manifests/forecast-manifest.json`, renders run-scoped payloads from
-`/runs/*/fields/*` through compact manifest refs, keeps a legacy `/fields/*`
-fallback for old manifests, loads optional PMTiles basemaps from `/pmtiles/*`,
-and serves frontend-owned static assets from `public/`.
+`/runs/*/fields/*` through compact manifest refs, loads optional PMTiles
+basemaps from `/pmtiles/*`, and serves frontend-owned static assets from
+`public/`.
 
 ## Development
 
@@ -29,9 +29,9 @@ Runtime config is read from Vite env variables:
   before being proxied to nginx.
 - `VITE_BASEMAP_FILENAME` enables an optional PMTiles basemap served from
   `/pmtiles/<filename>`.
-- `VITE_DEV_ARTIFACT_DELAY_MS=<ms>` delays proxied local `/runs/*/fields/*` and
-  `/fields/*` responses during `npm run dev`; use this to smoke-test loading
-  and prefetch behavior.
+- `VITE_DEV_ARTIFACT_DELAY_MS=<ms>` delays proxied local `/runs/*/fields/*`
+  responses during `npm run dev`; use this to smoke-test loading and prefetch
+  behavior.
 - `VITE_DEV_ARTIFACT_PROXY_TARGET` is the Vite proxy target. It defaults to
   `http://localhost:3000`; compose sets it to `http://nginx:3000`.
 - `VITE_DEV_API_PROXY_TARGET` is the Vite `/api/*` proxy target. It defaults to
@@ -64,8 +64,8 @@ VITE_DEV_ARTIFACT_DELAY_MS=700 docker compose up --build
 ```
 
 The delay only applies when the browser requests artifacts through Vite, for
-example `http://localhost:5173/fields/...`. Direct nginx requests to
-`http://localhost:3000/runs/...` or `http://localhost:3000/fields/...` bypass it.
+example `http://localhost:5173/runs/...`. Direct nginx requests to
+`http://localhost:3000/runs/...` bypass it.
 
 ## Code Notes
 

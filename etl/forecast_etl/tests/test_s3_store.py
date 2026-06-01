@@ -75,14 +75,17 @@ class S3StoreTests(unittest.TestCase):
 
         with patch.object(S3Store, "_client", return_value=client):
             store.write_bytes(
-                uri="s3://example-bucket/prefix/fields/2026042700/003/tmp_surface.custom.bin",
+                uri="s3://example-bucket/prefix/runs/gfs/2026042700/20260427T000000Z-00000000/fields/003/tmp_surface.custom.bin",
                 data=payload,
             )
 
         self.assertEqual(len(client.put_object_calls), 1)
         call = client.put_object_calls[0]
         self.assertEqual(call["Bucket"], "example-bucket")
-        self.assertEqual(call["Key"], "prefix/fields/2026042700/003/tmp_surface.custom.bin")
+        self.assertEqual(
+            call["Key"],
+            "prefix/runs/gfs/2026042700/20260427T000000Z-00000000/fields/003/tmp_surface.custom.bin",
+        )
         self.assertEqual(call["Body"], payload)
         self.assertNotIn("ContentType", call)
         self.assertNotIn("CacheControl", call)
@@ -134,7 +137,7 @@ class S3StoreTests(unittest.TestCase):
 
             with patch.object(S3Store, "_client", return_value=client):
                 store.put_file(
-                    uri="s3://example-bucket/fields/2026042700/006/wind10m_uv.field.i8.bin",
+                    uri="s3://example-bucket/runs/gfs/2026042700/20260427T000000Z-00000000/fields/006/wind10m_uv.field.i8.bin",
                     src=src,
                 )
 

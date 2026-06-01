@@ -291,23 +291,6 @@ class ArtifactRepository:
 
         return self.store.exists(uri=self.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle))
 
-    def write_cycle_manifest(self, *, model_id: str, cycle: str, manifest: Mapping[str, Any]) -> str:
-        """Write one legacy cycle manifest and return its artifact URI."""
-
-        uri = self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle)
-        self._write_json(uri=uri, obj=dict(manifest), metadata=FORECAST_JSON_METADATA)
-        return uri
-
-    def read_cycle_manifest(self, *, model_id: str, cycle: str) -> dict[str, Any]:
-        """Read one legacy cycle manifest."""
-
-        return self._read_json(uri=self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle))
-
-    def cycle_manifest_exists(self, *, model_id: str, cycle: str) -> bool:
-        """Return whether the legacy cycle manifest exists."""
-
-        return self.store.exists(uri=self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle))
-
     def write_latest_pointer(self, *, model_id: str, pointer: Mapping[str, Any]) -> str:
         """Write the latest manifest pointer alias and return its artifact URI."""
 
@@ -317,18 +300,6 @@ class ArtifactRepository:
 
     def read_latest_pointer(self, *, model_id: str) -> dict[str, Any]:
         """Read the latest manifest pointer alias."""
-
-        return self._read_json(uri=self.paths.manifest_latest_uri(model_id=model_id))
-
-    def write_latest_manifest(self, *, model_id: str, manifest: Mapping[str, Any]) -> str:
-        """Write the legacy full latest manifest alias and return its artifact URI."""
-
-        uri = self.paths.manifest_latest_uri(model_id=model_id)
-        self._write_json(uri=uri, obj=dict(manifest), metadata=LATEST_MANIFEST_METADATA)
-        return uri
-
-    def read_latest_manifest(self, *, model_id: str) -> dict[str, Any]:
-        """Read the raw latest alias, which may be a pointer or legacy full manifest."""
 
         return self._read_json(uri=self.paths.manifest_latest_uri(model_id=model_id))
 

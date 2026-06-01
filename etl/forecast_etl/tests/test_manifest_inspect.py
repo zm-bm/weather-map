@@ -19,11 +19,7 @@ from forecast_etl.tests.fixtures.artifacts import (
 
 
 class ManifestInspectTest(unittest.TestCase):
-    def test_manifest_cycle_from_key_accepts_cycle_manifest(self) -> None:
-        self.assertEqual(
-            manifest_cycle_from_key(model_id="gfs", key="manifests/gfs/2026051106.json"),
-            "2026051106",
-        )
+    def test_manifest_cycle_from_key_accepts_current_pointer(self) -> None:
         self.assertEqual(
             manifest_cycle_from_key(
                 model_id="gfs",
@@ -34,6 +30,7 @@ class ManifestInspectTest(unittest.TestCase):
 
     def test_manifest_cycle_from_key_rejects_latest_and_non_matching_keys(self) -> None:
         self.assertIsNone(manifest_cycle_from_key(model_id="gfs", key="manifests/gfs/latest.json"))
+        self.assertIsNone(manifest_cycle_from_key(model_id="gfs", key="manifests/gfs/2026051106.json"))
         self.assertIsNone(manifest_cycle_from_key(model_id="gfs", key="manifests/icon/2026051106.json"))
         self.assertIsNone(manifest_cycle_from_key(model_id="gfs", key="manifests/gfs/not-a-cycle.json"))
         self.assertIsNone(
@@ -63,18 +60,6 @@ class ManifestInspectTest(unittest.TestCase):
         self.assertIsNotNone(info.generated_at)
         assert info.generated_at is not None
         self.assertEqual(info.generated_at.isoformat(), "2026-05-11T14:05:00+00:00")
-        self.assertEqual(info.revision, "abc123")
-
-    def test_manifest_info_from_obj_uses_fallback_cycle(self) -> None:
-        info = manifest_info_from_obj(
-            {"run": {"generatedAt": "not-a-date", "revision": "abc123"}},
-            fallback_cycle="2026051106",
-        )
-
-        self.assertIsNotNone(info)
-        assert info is not None
-        self.assertEqual(info.cycle, "2026051106")
-        self.assertIsNone(info.generated_at)
         self.assertEqual(info.revision, "abc123")
 
     def test_manifest_info_from_obj_returns_none_without_valid_cycle(self) -> None:

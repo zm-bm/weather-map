@@ -92,8 +92,8 @@ snapshot once it exists. `publish-cycle` refuses runs without a passing
 
 The operator inspection commands are read-only unless `cleanup-runs --delete
 --yes` is used. Cleanup deletion only removes objects under candidate
-`runs/<model>/<cycle>/<run_id>/` prefixes; public manifests and compatibility
-paths are left to lifecycle rules or later explicit cleanup.
+`runs/<model>/<cycle>/<run_id>/` prefixes; public manifests and old top-level
+objects require separate explicit cleanup if they still exist.
 
 ## Pipeline Shape
 
@@ -132,9 +132,10 @@ artifact.payloadFile = <artifact>.field.<dtype>.bin
 frontend path = <payloadRoot>/<fhour>/<payloadFile>
 ```
 
-Legacy frontend code can still infer `fields/<model>/<cycle>/<fhour>/...` for
-older public manifests. New ETL output is run-scoped and immutable enough that
-multiple attempts for the same cycle can coexist.
+New ETL output is run-scoped and immutable enough that multiple attempts for
+the same cycle can coexist. Public manifests must include `runId`,
+`payloadRoot`, and per-artifact `payloadFile`; legacy inferred `/fields/...`
+payload paths are no longer supported.
 
 ## Artifacts
 

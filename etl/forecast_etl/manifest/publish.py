@@ -17,7 +17,7 @@ from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_artifacts
 from .forecast_manifest import publish_forecast_manifest
 from .inspect import manifest_info_from_obj
-from .pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
+from .pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict, parse_manifest_pointer
 
 
 @dataclass(frozen=True)
@@ -241,6 +241,7 @@ def run_publish(
         artifacts=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
+        run_id=resolved_run_id,
         revision=revision,
         latest_promoted=latest_promoted,
     ):
@@ -354,6 +355,7 @@ def _try_publish_from_existing_run(
         artifacts=artifacts,
         model_id=model_id,
         cycle=cycle,
+        run_id=run_id,
         revision=revision,
         latest_promoted=latest_promoted,
     ):
@@ -380,15 +382,17 @@ def _should_refresh_forecast_manifest(
     artifacts: ArtifactRepository,
     model_id: str,
     cycle: str,
+    run_id: str,
     revision: str,
     latest_promoted: bool,
 ) -> bool:
     if latest_promoted:
         return True
-    if not _latest_alias_matches_revision(
+    if not _latest_pointer_matches_revision(
         artifacts=artifacts,
         model_id=model_id,
         cycle=cycle,
+        run_id=run_id,
         revision=revision,
     ):
         return False
@@ -559,7 +563,9 @@ def _cycle_current_pointer_matches_revision(
         pointer = artifacts.read_cycle_current_pointer(model_id=model_id, cycle=cycle)
     except (Exception, SystemExit):
         return False
-    info = manifest_info_from_obj(pointer, fallback_cycle=cycle)
+    if pointer.get("schema") != CURRENT_POINTER_SCHEMA:
+        return False
+    info = manifest_info_from_obj(pointer)
     return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
 
 
@@ -581,23 +587,6 @@ def _latest_pointer_matches_revision(
         return False
     info = manifest_info_from_obj(pointer)
     return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
-
-
-def _latest_alias_matches_revision(
-    *,
-    artifacts: ArtifactRepository,
-    model_id: str,
-    cycle: str,
-    revision: str,
-) -> bool:
-    if not artifacts.latest_manifest_exists(model_id=model_id):
-        return False
-    try:
-        manifest = artifacts.read_latest_manifest(model_id=model_id)
-    except (Exception, SystemExit):
-        return False
-    info = manifest_info_from_obj(manifest)
-    return info is not None and info.cycle == cycle and info.revision == revision
 
 
 def _forecast_manifest_model_matches_revision(
@@ -628,13 +617,13 @@ def _read_latest_cycle(*, artifacts: ArtifactRepository, model_id: str) -> str |
         return None
 
     try:
-        latest = artifacts.read_latest_manifest(model_id=model_id)
+        latest = artifacts.read_latest_pointer(model_id=model_id)
     except Exception as exc:
         print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
-        return None
+        raise SystemExit(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}") from exc
 
-    info = manifest_info_from_obj(latest)
-    return info.cycle if info is not None else None
+    pointer = parse_manifest_pointer(latest, expected_schema=LATEST_POINTER_SCHEMA, uri=latest_manifest_uri)
+    return pointer.cycle
 
 
 def _utc_now_iso() -> str:

@@ -246,13 +246,8 @@ class ArtifactPaths:
         path = ["manifests", _safe_segment(model_id), "cycles", _safe_segment(cycle), "current.json"]
         return join_uri(self.artifact_root_uri, path)
 
-    def manifest_cycle_uri(self, *, model_id: str, cycle: str) -> str:
-        """Legacy cycle manifest URI: {root}/manifests/{model}/{cycle}.json"""
-        path = ["manifests", _safe_segment(model_id), f"{_safe_segment(cycle)}.json"]
-        return join_uri(self.artifact_root_uri, path)
-
     def manifest_prefix_uri(self, *, model_id: str) -> str:
-        """Prefix under which cycle manifests live: {root}/manifests/{model}/"""
+        """Prefix under which public model manifests and pointers live."""
         path = ["manifests", _safe_segment(model_id)]
         return join_uri(self.artifact_root_uri, path)
 

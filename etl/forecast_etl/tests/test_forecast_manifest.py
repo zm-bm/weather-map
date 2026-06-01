@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -157,6 +158,7 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
             },
             "path": "legacy-artifact-path",
             "sha256": "b" * 64,
+            "payloadFile": f"{artifact_id}.field.{dtype_suffix}.bin",
             "frames": {
                 fhour: {
                     "path": (
@@ -193,6 +195,33 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
     }
 
 
+def _write_latest_pointer_manifest(repo: ArtifactRepository, *, model_id: str, manifest: dict) -> str:
+    run = manifest["run"]
+    cycle = str(run["cycle"])
+    run_id = str(run["runId"])
+    revision = str(run["revision"])
+    generated_at = str(run["generatedAt"])
+    public_uri = repo.write_public_run_manifest(
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+        manifest=manifest,
+    )
+    repo.write_latest_pointer(
+        model_id=model_id,
+        pointer=manifest_pointer_dict(
+            schema_name=LATEST_POINTER_SCHEMA,
+            model_id=model_id,
+            cycle=cycle,
+            run_id=run_id,
+            revision=revision,
+            generated_at=generated_at,
+            manifest_path=repo.paths.relative_key(public_uri),
+        ),
+    )
+    return public_uri
+
+
 class ForecastManifestTest(unittest.TestCase):
     def test_builds_layer_model_availability_from_config_and_latest_manifests(self) -> None:
         cfg = _pipeline_config()
@@ -204,7 +233,8 @@ class ForecastManifestTest(unittest.TestCase):
             )
             gfs = cfg.model("gfs")
             icon = cfg.model("icon")
-            repo.write_latest_manifest(
+            _write_latest_pointer_manifest(
+                repo,
                 model_id="gfs",
                 manifest=_latest_manifest(
                     gfs,
@@ -212,7 +242,8 @@ class ForecastManifestTest(unittest.TestCase):
                     artifact_ids=("tmp_surface", "wind10m_uv"),
                 ),
             )
-            repo.write_latest_manifest(
+            _write_latest_pointer_manifest(
+                repo,
                 model_id="icon",
                 manifest=_latest_manifest(
                     icon,
@@ -379,7 +410,7 @@ class ForecastManifestTest(unittest.TestCase):
                 )
                 if mutation is not None:
                     latest_manifest["artifacts"]["cloud_layers"].update(mutation)
-                repo.write_latest_manifest(model_id="gfs", manifest=latest_manifest)
+                _write_latest_pointer_manifest(repo, model_id="gfs", manifest=latest_manifest)
 
                 manifest = build_forecast_manifest(
                     pipeline_config=cfg,
@@ -552,9 +583,10 @@ class ForecastManifestTest(unittest.TestCase):
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
-            repo.write_latest_manifest(
-                model_id="gfs",
-                manifest={
+            repo.store.write_bytes(
+                uri=repo.paths.manifest_latest_uri(model_id="gfs"),
+                data=(
+                    json.dumps({
                     "schema": MANIFEST_SCHEMA,
                     "schemaVersion": MANIFEST_SCHEMA_VERSION,
                     "payloadContract": FORECAST_BINARY_CONTRACT,
@@ -567,7 +599,9 @@ class ForecastManifestTest(unittest.TestCase):
                     "times": [{"id": "000", "leadHours": 0, "validAt": "2026-05-16T00:00:00Z"}],
                     "products": {},
                     "groups": [],
-                },
+                    }, sort_keys=True)
+                    + "\n"
+                ).encode("utf-8"),
             )
 
             manifest = build_forecast_manifest(
@@ -604,7 +638,7 @@ class ForecastManifestTest(unittest.TestCase):
                     del manifest["artifacts"]["tmp_surface"]["frames"]["003"]
                 else:
                     manifest["artifacts"]["tmp_surface"]["frames"]["003"]["byteLength"] = 8
-                repo.write_latest_manifest(model_id="gfs", manifest=manifest)
+                _write_latest_pointer_manifest(repo, model_id="gfs", manifest=manifest)
 
                 forecast_manifest = build_forecast_manifest(
                     pipeline_config=cfg,

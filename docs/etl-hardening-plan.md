@@ -64,8 +64,7 @@ Implemented direction:
   run-level `payloadRoot`, artifact-level `payloadFile`, and artifact-level
   `byteLength` when uniform across frames
 - the frontend payload loader and payload cache scope use model, cycle, run id,
-  and revision, with fallback to the old inferred
-  `fields/<model>/<cycle>/<fhour>/...` layout while old manifests exist
+  and revision
 
 Public payload resolution:
 
@@ -87,8 +86,7 @@ Implemented direction:
 - public model cycle/latest aliases and the aggregate forecast manifest still
   live under `manifests/`
 - public `payloadRoot` points at the selected run's field prefix
-- lifecycle, IAM, CloudFront, and local dev serving now cover
-  `/runs/*/fields/*` while retaining legacy `/fields/*` during transition
+- lifecycle, IAM, CloudFront, and local dev serving cover `/runs/*/fields/*`
 
 ```text
 runs/<model>/<cycle>/<run_id>/
@@ -158,8 +156,8 @@ Implemented direction:
   run via `publish-cycle --run-id`
 - older-cycle latest rollback remains intentionally out of scope until explicit
   operator force-promotion tooling exists
-- legacy `manifests/<model>/<cycle>.json` objects are no longer written for new
-  publishes, but low-cost read fallback remains while old objects age out
+- legacy `manifests/<model>/<cycle>.json` objects are no longer written or read
+  by current ETL/backend paths
 
 Public manifest layout:
 
@@ -270,8 +268,8 @@ forecast-etl cleanup-runs --model gfs [--cycle 2026060118] --delete --yes
 
 - cleanup reports candidates by default and deletes only when `--delete --yes`
   is provided
-- cleanup scans run-first outputs only; legacy `/fields`, `/status`, and old
-  manifest compatibility cleanup remains separate
+- cleanup scans run-first outputs only; old top-level objects require separate
+  explicit manual cleanup if they still exist
 - distinguish cleanup candidates by promotion state: published/current/latest,
   validated but unpromoted, complete but failed validation, incomplete, and
   conflicting snapshot metadata
@@ -284,41 +282,24 @@ forecast-etl cleanup-runs --model gfs [--cycle 2026060118] --delete --yes
 - S3 lifecycle remains unchanged for now: `runs/` expires after 14 days and
   `manifests/` expires after 45 days
 
-## Proposed Work
-
 ### 11. Remove Transition Compatibility After Cutover
 
-This is intentionally a final cleanup checklist, not immediate hardening. Do
-not do it until all public manifests that infer legacy
-`fields/<model>/<cycle>/<fhour>/...` payload paths have aged out and production
-has been stable on run-first manifests.
+Implemented direction:
 
-Catalog and remove compatibility code introduced for the run-first transition:
-
-- frontend legacy payload path fallback for manifests without `run.payloadRoot`
-  and `artifact.payloadFile`
-- frontend tests and fixtures that exist only to prove old inferred `/fields/`
-  payload paths still work
-- ETL/backend fallback readers for legacy full-manifest
-  `manifests/<model>/latest.json` objects
-- ETL/backend fallback readers for legacy cycle manifests at
-  `manifests/<model>/<cycle>.json`
-- health/history compatibility that lists legacy cycle manifests once all
-  current production history comes from `cycles/<cycle>/current.json` pointers
-- Vite dev proxy and artificial-delay handling for legacy `/fields/*`
-- local nginx `/fields/` serving once local artifacts no longer need old
-  manifests
-- CloudFront artifact-origin coverage for `/fields/*`
-- S3 lifecycle rules for old top-level `fields/`, `status/`, and `logs/`
-  prefixes after those objects have expired
-- IAM permissions for old top-level `fields/`, `status/`, and `logs/` prefixes
-  where no current Lambda, backend, or worker path still needs them
-- docs that describe the old type-first layout as anything other than
-  historical context
-
-Keep a checklist in the PR for this task. The risk is not technical complexity;
-it is deleting a fallback before the last old manifest or local workflow has
-stopped using it.
+- frontend manifests now require `run.runId`, `run.payloadRoot`, and artifact
+  `payloadFile`
+- frontend payload loading resolves only `<payloadRoot>/<fhour>/<payloadFile>`
+- ETL/backend latest aliases are pointer-only; full-manifest
+  `manifests/<model>/latest.json` aliases are treated as malformed
+- ETL/backend history and health inspect `cycles/<cycle>/current.json` pointers
+  and no longer list legacy `manifests/<model>/<cycle>.json` aliases
+- aggregate forecast-manifest generation requires compact payload refs and no
+  longer derives `payloadFile` from per-frame paths
+- Vite, local nginx, CloudFront, IAM, and S3 lifecycle coverage for old
+  top-level `/fields`, `/status`, and `/logs` prefixes was removed where it was
+  no longer needed
+- existing legacy objects were not deleted by this task; object deletion is
+  left to separate explicit manual cleanup
 
 ## Priority
 
@@ -330,15 +311,13 @@ Recommended implementation order:
    annoying; start with dry-run cleanup.
 3. Add an `etlctl` wrapper or promotion aliases only if the direct
    `forecast-etl` commands become awkward in real operation.
-4. Implement Task 11 only after old public manifests have aged out and
-   production has been stable on run-first manifests.
 
 ## De-Prioritized Work
 
 - Do not start with a large operator CLI. First make the underlying operations
   safe and explicit.
 - Do not migrate all historical artifacts in one pass. Use the new layout for
-  new runs and keep readers compatible during transition.
+  new runs and let old objects expire or clean them explicitly.
 - Do not move success markers into DynamoDB. Keep S3 markers as immutable
   artifact evidence and use DynamoDB for workflow state.
 - Do not add a DynamoDB orchestration state table until S3 run evidence,
@@ -347,8 +326,6 @@ Recommended implementation order:
   production forensics become important. Existing run id, code revision, image
   identity, config digest, and config/catalog snapshots are enough for current
   fix-forward operation.
-- Do not remove `/fields/*` compatibility immediately. It is operational
-  cleanup, not part of making current run-first publishing work.
 - Do not make validation read every payload object until marker-only validation
   and pointer promotion have proven stable in production.
 - Do not optimize away the duplicate marker reads in `publish-cycle` until the
@@ -359,20 +336,15 @@ Recommended implementation order:
   becomes a real cost or operational issue. GFS ingest is event-driven and does
   not currently list marker state before submitting.
 
-## Transition Notes
+## Cutover Notes
 
-The existing type-first layout can coexist with the new run-first layout during
-the transition. New runs should write to `runs/`, while existing frontend and
-backend readers can continue using current public manifest paths until compact
-run-first payload references are supported.
+The run-first cutover is complete for current readers and publishers. New
+public manifests must carry compact run-first payload references, and direct
+model latest reads return pointer objects rather than full manifests.
 
-During migration, public behavior should remain: the frontend reads a current
-forecast manifest and model latest references. The internal mechanism for
-choosing and promoting those references can change behind that contract.
-
-The frontend should first support compact run-first payload references with a
-fallback to the old inferred `fields/<model>/<cycle>/<fhour>/...` layout. Once
-old manifests have aged out, the fallback can be removed.
+Old type-first artifacts may still exist in S3 or local artifact directories,
+but current code does not depend on them. Remove them manually after confirming
+they are no longer needed.
 
 Local filtered runs are still full-workload validation runs. A fresh
 `--artifact` subset run is expected to fail validation unless the omitted

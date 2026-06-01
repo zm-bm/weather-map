@@ -49,7 +49,7 @@ def build_forecast_manifest(
     forecast_catalog = dict(catalog) if catalog is not None else load_forecast_catalog()
     generated_at = generated_at or _utc_now_iso()
     latest_manifests = {
-        model_id: _read_latest_manifest(artifact_repo=artifact_repo, model_id=model_id)
+        model_id: _read_latest_public_run_manifest(artifact_repo=artifact_repo, model_id=model_id)
         for model_id in pipeline_config.models
     }
     embedded_latest_manifests: dict[str, dict[str, Any] | None] = {}
@@ -185,46 +185,13 @@ def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, 
     )
     artifact_entry.pop("path", None)
     artifact_entry.pop("sha256", None)
-    if "payloadFile" not in artifact_entry:
-        payload_file = _artifact_payload_file(
-            artifact_id=artifact_id,
-            frames=frames,
-            time_ids=time_ids,
-        )
-        if payload_file is not None:
-            artifact_entry["payloadFile"] = payload_file
+    _required_value(artifact_entry, "payloadFile", owner=f"latest manifest artifact {artifact_id!r}")
     artifact_entry["byteLength"] = _artifact_byte_length(
         artifact_id=artifact_id,
         frames=frames,
         time_ids=time_ids,
     )
     return artifact_entry
-
-
-def _artifact_payload_file(
-    *,
-    artifact_id: str,
-    frames: Mapping[str, Any],
-    time_ids: tuple[str, ...],
-) -> str | None:
-    payload_file: str | None = None
-    for time_id in time_ids:
-        frame = _as_mapping(
-            frames.get(time_id),
-            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r}",
-        )
-        raw_path = frame.get("path")
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            return None
-        current = raw_path.rstrip("/").rsplit("/", 1)[-1]
-        if not current:
-            return None
-        if payload_file is None:
-            payload_file = current
-            continue
-        if payload_file != current:
-            return None
-    return payload_file
 
 
 def _artifact_byte_length(
@@ -428,7 +395,7 @@ def _raster_band_id(band: Mapping[str, Any]) -> str:
     return str(_required_value(band, "id", owner="raster source band"))
 
 
-def _read_latest_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
+def _read_latest_public_run_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
     try:
         return read_latest_manifest_object(artifact_repo=artifact_repo, model_id=model_id)
     except (Exception, SystemExit) as exc:

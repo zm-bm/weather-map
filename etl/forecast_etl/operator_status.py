@@ -143,7 +143,6 @@ def pointers_report(
         uri=artifact_repo.paths.manifest_latest_uri(model_id=model_id),
         expected_schema=LATEST_POINTER_SCHEMA,
         expected_cycle=None,
-        allow_legacy_manifest=True,
     )
     current_cycle = cycle
     if current_cycle is None and latest.get("status") == "valid":
@@ -160,7 +159,6 @@ def pointers_report(
             uri=artifact_repo.paths.cycle_current_pointer_uri(model_id=model_id, cycle=current_cycle),
             expected_schema=CURRENT_POINTER_SCHEMA,
             expected_cycle=current_cycle,
-            allow_legacy_manifest=False,
         )
 
     return {
@@ -181,7 +179,6 @@ def _cycle_pointer_state(*, artifact_repo: ArtifactRepository, model_id: str, cy
         uri=artifact_repo.paths.manifest_latest_uri(model_id=model_id),
         expected_schema=LATEST_POINTER_SCHEMA,
         expected_cycle=None,
-        allow_legacy_manifest=True,
     )
     current = _inspect_pointer_alias(
         artifact_repo=artifact_repo,
@@ -190,7 +187,6 @@ def _cycle_pointer_state(*, artifact_repo: ArtifactRepository, model_id: str, cy
         uri=artifact_repo.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle),
         expected_schema=CURRENT_POINTER_SCHEMA,
         expected_cycle=cycle,
-        allow_legacy_manifest=False,
     )
     return {"latest": latest, "current": current}
 
@@ -470,7 +466,6 @@ def _inspect_pointer_alias(
     uri: str,
     expected_schema: str,
     expected_cycle: str | None,
-    allow_legacy_manifest: bool,
 ) -> dict[str, Any]:
     path = artifact_repo.paths.relative_key(uri)
     if not artifact_repo.store.exists(uri=uri):
@@ -499,23 +494,13 @@ def _inspect_pointer_alias(
             expected_cycle=expected_cycle,
         )
 
-    info = manifest_info_from_obj(raw, fallback_cycle=expected_cycle)
-    if allow_legacy_manifest and info is not None:
-        return {
-            **_pointer_base(alias=alias, uri=uri, path=path, status="legacy_manifest", kind="legacy_manifest"),
-            "cycle": info.cycle,
-            "runId": info.run_id,
-            "revision": info.revision,
-            "generatedAt": _iso_or_none(info.generated_at),
-        }
-
     return _pointer_base(
         alias=alias,
         uri=uri,
         path=path,
         status="malformed",
         kind="unknown",
-        diagnostics=["alias is neither a valid pointer nor a supported legacy manifest"],
+        diagnostics=["alias is not a valid manifest pointer"],
     )
 
 
@@ -626,10 +611,7 @@ def _pointer_base(
 
 
 def _pointer_matches(pointer: object, *, run_id: str) -> bool:
-    return isinstance(pointer, Mapping) and pointer.get("runId") == run_id and pointer.get("status") in {
-        "valid",
-        "legacy_manifest",
-    }
+    return isinstance(pointer, Mapping) and pointer.get("runId") == run_id and pointer.get("status") == "valid"
 
 
 def _pointer_match_status(pointer: object, *, run_id: str) -> str:
@@ -638,7 +620,7 @@ def _pointer_match_status(pointer: object, *, run_id: str) -> str:
     status = pointer.get("status")
     if status == "missing":
         return "missing"
-    if status not in {"valid", "legacy_manifest"}:
+    if status != "valid":
         return str(status or "unknown")
     if pointer.get("runId") == run_id:
         return "matches"

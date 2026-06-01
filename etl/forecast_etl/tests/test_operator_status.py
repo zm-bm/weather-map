@@ -169,7 +169,7 @@ class OperatorStatusTest(unittest.TestCase):
         self.assertEqual(report["cycle"], CYCLE)
         self.assertEqual(report["latest"]["runId"], DEFAULT_RUN_ID)
 
-    def test_pointer_report_handles_missing_target_mismatch_malformed_and_legacy(self) -> None:
+    def test_pointer_report_handles_missing_target_mismatch_and_malformed_aliases(self) -> None:
         with temp_artifact_fixture() as artifacts:
             missing_pointer = manifest_pointer_dict(
                 schema_name=LATEST_POINTER_SCHEMA,
@@ -207,21 +207,24 @@ class OperatorStatusTest(unittest.TestCase):
             )
             malformed = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
 
-            artifacts.repository.write_latest_manifest(
-                model_id="gfs",
-                manifest=manifest_payload(
-                    cycle=CYCLE,
-                    generated_at=datetime(2026, 5, 11, 7, tzinfo=timezone.utc),
-                    revision="legacy",
-                ),
+            artifacts.store.write_bytes(
+                uri=artifacts.paths.manifest_latest_uri(model_id="gfs"),
+                data=json.dumps(
+                    manifest_payload(
+                        cycle=CYCLE,
+                        generated_at=datetime(2026, 5, 11, 7, tzinfo=timezone.utc),
+                        revision="full-manifest",
+                    ),
+                    sort_keys=True,
+                ).encode("utf-8"),
             )
-            legacy = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            full_manifest_alias = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
 
         self.assertEqual(missing["latest"]["status"], "target_missing")
         self.assertEqual(mismatch["latest"]["status"], "target_mismatch")
         self.assertEqual(malformed["latest"]["status"], "malformed")
-        self.assertEqual(legacy["latest"]["status"], "legacy_manifest")
-        self.assertEqual(legacy["latest"]["kind"], "legacy_manifest")
+        self.assertEqual(full_manifest_alias["latest"]["status"], "malformed")
+        self.assertEqual(full_manifest_alias["latest"]["kind"], "unknown")
 
 
 def _write_snapshot(

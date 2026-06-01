@@ -81,7 +81,7 @@ class ManifestInfo(BaseModel):
 
 
 def manifest_cycle_from_key(*, model_id: str, key: str) -> str | None:
-    """Return the cycle from legacy manifests or pointer-era current aliases."""
+    """Return the cycle from pointer-era current aliases."""
 
     prefix = f"manifests/{model_id}/"
     if not key.startswith(prefix) or not key.endswith(".json"):
@@ -99,13 +99,10 @@ def manifest_cycle_from_key(*, model_id: str, key: str) -> str | None:
                 return cycle
         return None
 
-    name = relative[: -len(".json")]
-    if len(name) == 10 and name.isdigit():
-        return name
     return None
 
 
-def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None = None) -> ManifestInfo | None:
+def manifest_info_from_obj(raw: Mapping[str, Any]) -> ManifestInfo | None:
     """Extract tolerant run metadata from a manifest object or pointer."""
 
     if is_manifest_pointer(raw):
@@ -124,13 +121,12 @@ def manifest_info_from_obj(raw: Mapping[str, Any], *, fallback_cycle: str | None
     except ValidationError:
         projection = _ManifestRunProjection()
 
-    cycle = projection.cycle or fallback_cycle
-    if cycle is None:
+    if projection.cycle is None:
         return None
 
     try:
         return ManifestInfo(
-            cycle=cycle,
+            cycle=projection.cycle,
             run_id=projection.run_id,
             generated_at=projection.generated_at,
             revision=projection.revision,
@@ -144,11 +140,11 @@ def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id
 
     artifacts = ArtifactRepository(store=store, paths=paths)
     try:
-        raw = artifacts.read_latest_manifest(model_id=model_id)
-        if is_manifest_pointer(raw):
-            pointer = parse_manifest_pointer(raw, expected_schema=LATEST_POINTER_SCHEMA)
-            return _manifest_info_from_pointer(pointer)
-        return manifest_info_from_obj(raw)
+        pointer = parse_manifest_pointer(
+            artifacts.read_latest_pointer(model_id=model_id),
+            expected_schema=LATEST_POINTER_SCHEMA,
+        )
+        return _manifest_info_from_pointer(pointer)
     except (FileNotFoundError, SystemExit):
         return None
 
@@ -158,12 +154,9 @@ def read_latest_manifest_object(*, artifact_repo: ArtifactRepository, model_id: 
 
     if not artifact_repo.latest_manifest_exists(model_id=model_id):
         return None
-    raw = artifact_repo.read_latest_manifest(model_id=model_id)
-    if not is_manifest_pointer(raw):
-        return raw
     return read_manifest_object_from_pointer(
         artifact_repo=artifact_repo,
-        pointer_obj=raw,
+        pointer_obj=artifact_repo.read_latest_pointer(model_id=model_id),
         expected_model_id=model_id,
         expected_schema=LATEST_POINTER_SCHEMA,
     )
@@ -218,12 +211,12 @@ def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str,
         return []
 
     def read_info(item: tuple[str, UriObject]) -> ManifestInfo | None:
-        fallback_cycle, obj = item
+        _cycle, obj = item
         try:
             manifest = artifacts.read_json_uri(obj.uri)
         except Exception:
             return None
-        return manifest_info_from_obj(manifest, fallback_cycle=fallback_cycle)
+        return manifest_info_from_obj(manifest)
 
     max_workers = min(8, len(selected))
     infos: list[ManifestInfo] = []

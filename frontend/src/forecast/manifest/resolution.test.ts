@@ -65,7 +65,7 @@ describe('forecast manifest active run resolution', () => {
       run: {
         cycle: '2026040912',
         runId: '20260409T130000Z-abcdef12',
-        payloadRoot: 'fields/gfs/2026040912',
+        payloadRoot: 'runs/gfs/2026040912/20260409T130000Z-abcdef12/fields',
         generatedAt: '2026-04-09T13:00:00Z',
         revision: 'rev-1',
       },
@@ -73,16 +73,6 @@ describe('forecast manifest active run resolution', () => {
     if (!activeRun) throw new Error('Expected active run fixture')
 
     expect(forecastRunScopeKey(activeRun)).toBe('gfs:2026040912:20260409T130000Z-abcdef12:rev-1')
-  })
-
-  it('keeps legacy cache scope without run id', () => {
-    const activeRun = resolveActiveForecastRun(createSingleTimeManifestFixture({
-      cycle: '2026040912',
-      revision: 'rev-1',
-    }), 'gfs')
-    if (!activeRun) throw new Error('Expected active run fixture')
-
-    expect(forecastRunScopeKey(activeRun)).toBe('gfs:2026040912:rev-1')
   })
 
   it('reads layer availability with plain manifest layer ids', () => {

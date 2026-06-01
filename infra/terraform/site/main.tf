@@ -11,7 +11,6 @@ locals {
       "/manifests/latest.json",
       "/manifests/*",
       "/runs/*/fields/*",
-      "/fields/*",
       "/glyphs/*",
       "/pmtiles/*",
       "/radio/*",

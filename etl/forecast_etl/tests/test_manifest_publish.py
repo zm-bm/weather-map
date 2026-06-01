@@ -12,7 +12,7 @@ from forecast_etl.manifest.constants import (
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
-from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA
+from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_layers_config,
@@ -194,7 +194,9 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(current_pointer["schema"], CURRENT_POINTER_SCHEMA)
             self.assertEqual(current_pointer["runId"], fx.run_id)
             self.assertEqual(current_pointer["manifestPath"], latest_pointer["manifestPath"])
-            self.assertFalse(fx.artifacts.cycle_manifest_exists(model_id=fx.model_id, cycle=fx.cycle))
+            self.assertFalse(
+                fx.store.exists(uri=f"{fx.artifact_root_uri.rstrip('/')}/manifests/{fx.model_id}/{fx.cycle}.json")
+            )
             self.assertEqual(
                 fx.artifacts.read_run_manifest(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id),
                 cycle_manifest,
@@ -678,13 +680,32 @@ class PublishManifestTest(unittest.TestCase):
             self.assertTrue(result_first.ready)
             initial_latest = fx.latest_manifest()
 
-            write_json(
-                fx.ap.manifest_latest_uri(model_id="gfs"),
-                {
+            stale_manifest = {
+                "run": {
                     "cycle": "2026041000",
-                    "generated_at": "2026-04-10T00:00:00+00:00",
+                    "runId": fx.run_id,
+                    "payloadRoot": f"runs/gfs/2026041000/{fx.run_id}/fields",
+                    "generatedAt": "2026-04-10T00:00:00+00:00",
                     "revision": "stale",
-                },
+                }
+            }
+            stale_uri = fx.artifacts.write_public_run_manifest(
+                model_id="gfs",
+                cycle="2026041000",
+                run_id=fx.run_id,
+                manifest=stale_manifest,
+            )
+            fx.artifacts.write_latest_pointer(
+                model_id="gfs",
+                pointer=manifest_pointer_dict(
+                    schema_name=LATEST_POINTER_SCHEMA,
+                    model_id="gfs",
+                    cycle="2026041000",
+                    run_id=fx.run_id,
+                    revision="stale",
+                    generated_at="2026-04-10T00:00:00+00:00",
+                    manifest_path=fx.ap.relative_key(stale_uri),
+                ),
             )
 
             result_second = fx.publish(

@@ -62,13 +62,13 @@ describe('readArtifactPayload', () => {
     expect(payload.byteLength).toBe(4)
   })
 
-  it('infers payload URLs from active run metadata', async () => {
+  it('resolves payload URLs from active run metadata', async () => {
     const fetchMock = stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
 
     await readArtifactPayload(payloadArgs())
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/fields/gfs/2026041312/000/tmp_surface.field.i8.bin'
+      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin'
     )
   })
 

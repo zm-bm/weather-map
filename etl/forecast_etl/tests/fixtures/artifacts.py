@@ -13,6 +13,7 @@ from typing import Any
 from forecast_etl.artifacts.paths import SUCCESS_MARKER_SUFFIX, ArtifactPaths, WorkItem
 from forecast_etl.artifacts.published_schema import published_marker_dict
 from forecast_etl.artifacts.repository import ArtifactRepository
+from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.local import LocalFSStore
 
@@ -41,10 +42,28 @@ class ArtifactFixture:
         latest: bool = True,
         revision: str = "abc123",
     ) -> str:
-        manifest = manifest_payload(cycle=cycle, generated_at=generated_at, revision=revision)
-        manifest_uri = self.repository.write_cycle_manifest(model_id=model_id, cycle=cycle, manifest=manifest)
+        manifest = manifest_payload(model_id=model_id, cycle=cycle, generated_at=generated_at, revision=revision)
+        manifest_uri = self.repository.write_public_run_manifest(
+            model_id=model_id,
+            cycle=cycle,
+            run_id=DEFAULT_RUN_ID,
+            manifest=manifest,
+        )
+        pointer = manifest_pointer_dict(
+            schema_name=CURRENT_POINTER_SCHEMA,
+            model_id=model_id,
+            cycle=cycle,
+            run_id=DEFAULT_RUN_ID,
+            revision=revision,
+            generated_at=iso_utc(generated_at),
+            manifest_path=self.paths.relative_key(manifest_uri),
+        )
+        self.repository.write_cycle_current_pointer(model_id=model_id, cycle=cycle, pointer=pointer)
         if latest:
-            self.repository.write_latest_manifest(model_id=model_id, manifest=manifest)
+            self.repository.write_latest_pointer(
+                model_id=model_id,
+                pointer={**pointer, "schema": LATEST_POINTER_SCHEMA},
+            )
         return manifest_uri
 
     def write_success_marker(
@@ -120,7 +139,8 @@ class ArtifactFixture:
                 model=model_id,
                 generated_at=iso_utc(generated_at),
                 revision=revision,
-                manifest_uri=manifest_uri or self.paths.manifest_cycle_uri(model_id=model_id, cycle=cycle),
+                manifest_uri=manifest_uri
+                or self.paths.public_run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id),
             ),
         )
         self.touch(marker_uri, modified)
@@ -143,12 +163,18 @@ def temp_artifact_fixture() -> Iterator[ArtifactFixture]:
         yield artifact_fixture(Path(td))
 
 
-def manifest_payload(*, cycle: str, generated_at: datetime, revision: str = "abc123") -> dict[str, Any]:
+def manifest_payload(
+    *,
+    cycle: str,
+    generated_at: datetime,
+    revision: str = "abc123",
+    model_id: str = "gfs",
+) -> dict[str, Any]:
     return {
         "run": {
             "cycle": cycle,
             "runId": DEFAULT_RUN_ID,
-            "payloadRoot": f"runs/gfs/{cycle}/{DEFAULT_RUN_ID}/fields",
+            "payloadRoot": f"runs/{model_id}/{cycle}/{DEFAULT_RUN_ID}/fields",
             "generatedAt": iso_utc(generated_at),
             "revision": revision,
         }

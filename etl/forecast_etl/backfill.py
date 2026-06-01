@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 
 from .artifacts.repository import ArtifactRepository
 from .cycles import parse_cycle
-from .manifest.inspect import manifest_info_from_obj
+from .manifest.pointers import LATEST_POINTER_SCHEMA, parse_manifest_pointer
 
 
 @dataclass(frozen=True)
@@ -66,7 +65,7 @@ def check_backfill_safety(
         )
 
     try:
-        latest = artifact_repo.read_latest_manifest(model_id=model_id)
+        latest = artifact_repo.read_latest_pointer(model_id=model_id)
     except FileNotFoundError:
         return BackfillCheckResult(
             model_id=model_id,
@@ -81,7 +80,9 @@ def check_backfill_safety(
     except Exception as exc:
         return _invalid_latest(model_id=model_id, cycle=cycle, latest_uri=latest_uri, error=exc)
 
-    if not isinstance(latest, Mapping):
+    try:
+        pointer = parse_manifest_pointer(latest, expected_schema=LATEST_POINTER_SCHEMA, uri=latest_uri)
+    except (Exception, SystemExit) as exc:
         return BackfillCheckResult(
             model_id=model_id,
             cycle=cycle,
@@ -90,29 +91,16 @@ def check_backfill_safety(
             backfill_required=False,
             backfill_allowed=allow_backfill,
             ok=False,
-            message=f"Latest manifest is not a JSON object: {latest_uri}",
+            message=f"Latest manifest pointer is invalid: {exc}",
         )
 
-    info = manifest_info_from_obj(latest)
-    if info is None:
-        return BackfillCheckResult(
-            model_id=model_id,
-            cycle=cycle,
-            latest_status="invalid",
-            latest_cycle=None,
-            backfill_required=False,
-            backfill_allowed=allow_backfill,
-            ok=False,
-            message=f"Latest manifest has no valid cycle metadata: {latest_uri}",
-        )
-
-    if cycle < info.cycle:
-        message = f"Requested cycle {cycle} is older than latest {info.cycle}."
+    if cycle < pointer.cycle:
+        message = f"Requested cycle {cycle} is older than latest {pointer.cycle}."
         return BackfillCheckResult(
             model_id=model_id,
             cycle=cycle,
             latest_status="valid",
-            latest_cycle=info.cycle,
+            latest_cycle=pointer.cycle,
             backfill_required=True,
             backfill_allowed=allow_backfill,
             ok=allow_backfill,
@@ -123,11 +111,11 @@ def check_backfill_safety(
         model_id=model_id,
         cycle=cycle,
         latest_status="valid",
-        latest_cycle=info.cycle,
+        latest_cycle=pointer.cycle,
         backfill_required=False,
         backfill_allowed=allow_backfill,
         ok=True,
-        message=f"Requested cycle {cycle} is current or newer than latest {info.cycle}.",
+        message=f"Requested cycle {cycle} is current or newer than latest {pointer.cycle}.",
     )
 
 

@@ -25,6 +25,7 @@ import {
 const FIXTURE_MODEL_ID = 'gfs'
 const FIXTURE_MODEL_LABEL = 'GFS'
 const FIXTURE_CYCLE = '2026041312'
+const FIXTURE_RUN_ID = '20260413T120000Z-abcdef12'
 const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'
 const FIXTURE_REVISION = 'rev'
 const FIXTURE_HOUR_TOKEN = '000'
@@ -34,6 +35,10 @@ const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_1ms_v1'
 const FIXTURE_SCALAR_ID = 'tmp_surface'
 const FIXTURE_VECTOR_ID = 'wind10m_uv'
 const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
+
+const FIELD_DTYPE_SUFFIX = {
+  int8: 'i8',
+} satisfies Record<ManifestArtifactSpec['encoding']['dtype'], string>
 
 export type ManifestFixtureOverrides = {
   model?: { id: ForecastModelId; label: string }
@@ -159,7 +164,7 @@ export function createScalarArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
-    payloadFile: overrides.payloadFile,
+    payloadFile: overrides.payloadFile ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
     temporalKind: overrides.temporalKind,
     sourceIntervalHours: overrides.sourceIntervalHours,
   }
@@ -187,7 +192,7 @@ export function createVectorArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
-    payloadFile: overrides.payloadFile,
+    payloadFile: overrides.payloadFile ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
     temporalKind: overrides.temporalKind,
     sourceIntervalHours: overrides.sourceIntervalHours,
   }
@@ -240,6 +245,7 @@ export function createLatestRunFixture(
   overrides: ManifestFixtureOverrides = {}
 ): LatestForecastRun {
   const cycle = overrides.cycle ?? overrides.run?.cycle ?? FIXTURE_CYCLE
+  const runId = overrides.run?.runId ?? FIXTURE_RUN_ID
   const generatedAt = overrides.generatedAt ?? overrides.run?.generatedAt ?? FIXTURE_GENERATED_AT
   const revision = overrides.revision ?? overrides.run?.revision ?? FIXTURE_REVISION
   const times = overrides.times ?? createForecastTimesFixture(
@@ -270,6 +276,8 @@ export function createLatestRunFixture(
     run: {
       ...overrides.run,
       cycle,
+      runId,
+      payloadRoot: overrides.run?.payloadRoot ?? `runs/${overrides.model?.id ?? FIXTURE_MODEL_ID}/${cycle}/${runId}/fields`,
       generatedAt,
       revision,
     },

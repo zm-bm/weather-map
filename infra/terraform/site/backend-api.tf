@@ -57,8 +57,7 @@ resource "aws_iam_role_policy" "weather_map_api_lambda" {
           StringLike = {
             "s3:prefix" = [
               "manifests/*",
-              "runs/*",
-              "status/*"
+              "runs/*"
             ]
           }
         }
@@ -71,7 +70,6 @@ resource "aws_iam_role_policy" "weather_map_api_lambda" {
         Resource = [
           "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/manifests/*",
           "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/runs/*",
-          "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/status/*",
           "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.config_bucket_name}/weather-etl/pipeline_config.json"
         ]
       }

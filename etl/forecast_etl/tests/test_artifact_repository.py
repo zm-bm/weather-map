@@ -13,7 +13,7 @@ from forecast_etl.artifacts.repository import (
     LATEST_MANIFEST_METADATA,
     ArtifactRepository,
 )
-from forecast_etl.manifest.pointers import LATEST_POINTER_SCHEMA, manifest_pointer_dict
+from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.run_metadata import RunMetadata, RunSnapshot
 from forecast_etl.storage.base import UriObject, UriWriteMetadata
 from forecast_etl.tests.fixtures.artifacts import (
@@ -85,11 +85,6 @@ class ArtifactRepositoryTests(unittest.TestCase):
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
 
-        cycle_manifest_uri = repo.write_cycle_manifest(
-            model_id="gfs",
-            cycle="2026042700",
-            manifest={"run": {"cycle": "2026042700"}},
-        )
         public_manifest_uri = repo.write_public_run_manifest(
             model_id="gfs",
             cycle="2026042700",
@@ -108,11 +103,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
         current_pointer_uri = repo.write_cycle_current_pointer(
             model_id="gfs",
             cycle="2026042700",
-            pointer={**pointer, "schema": "weather-map.model-cycle-current-pointer"},
-        )
-        latest_manifest_uri = repo.write_latest_manifest(
-            model_id="gfs",
-            manifest={"run": {"cycle": "2026042700"}},
+            pointer={**pointer, "schema": CURRENT_POINTER_SCHEMA},
         )
         latest_pointer_uri = repo.write_latest_pointer(model_id="gfs", pointer=pointer)
         validation_uri = repo.write_validation_report(
@@ -130,14 +121,12 @@ class ArtifactRepositoryTests(unittest.TestCase):
                 "model": "gfs",
                 "generated_at": "2026-04-27T01:00:00+00:00",
                 "revision": "abc123",
-                "manifest_uri": cycle_manifest_uri,
+                "manifest_uri": public_manifest_uri,
             },
         )
 
-        self.assertEqual(store.metadata[cycle_manifest_uri], FORECAST_JSON_METADATA)
         self.assertEqual(store.metadata[public_manifest_uri], FORECAST_JSON_METADATA)
         self.assertEqual(store.metadata[current_pointer_uri], LATEST_MANIFEST_METADATA)
-        self.assertEqual(store.metadata[latest_manifest_uri], LATEST_MANIFEST_METADATA)
         self.assertEqual(store.metadata[latest_pointer_uri], LATEST_MANIFEST_METADATA)
         self.assertEqual(store.metadata[validation_uri], INTERNAL_JSON_METADATA)
         self.assertEqual(store.metadata[published_uri], INTERNAL_JSON_METADATA)
@@ -184,7 +173,12 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         uri = repo.write_success_marker(
             item=item,
-            artifact=artifact_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
+            artifact=artifact_marker_payload(
+                payload_uri=(
+                    "s3://bucket/artifacts/runs/gfs/2026042700/"
+                    f"{DEFAULT_RUN_ID}/fields/000/tmp_surface.field.i8.bin"
+                )
+            ),
         )
 
         stored = json.loads(store.objects[uri].decode("utf-8"))
@@ -196,7 +190,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
         self.assertEqual(stored["code_revision"], DEFAULT_CODE_REVISION)
         self.assertEqual(stored["image_identity"], DEFAULT_IMAGE_IDENTITY)
         self.assertEqual(stored["config_digest"], DEFAULT_CONFIG_DIGEST)
-        self.assertEqual(stored["artifact"]["payload_uri"], "s3://bucket/fields/tmp.bin")
+        self.assertEqual(
+            stored["artifact"]["payload_uri"],
+            f"s3://bucket/artifacts/runs/gfs/2026042700/{DEFAULT_RUN_ID}/fields/000/tmp_surface.field.i8.bin",
+        )
         self.assertEqual(store.metadata[uri], INTERNAL_JSON_METADATA)
 
     def test_write_success_marker_rejects_invalid_artifact_payload(self) -> None:
@@ -304,7 +301,12 @@ class ArtifactRepositoryTests(unittest.TestCase):
         )
         repo.write_success_marker(
             item=item,
-            artifact=artifact_marker_payload(payload_uri="s3://bucket/fields/tmp.bin"),
+            artifact=artifact_marker_payload(
+                payload_uri=(
+                    "s3://bucket/artifacts/runs/gfs/2026042700/"
+                    f"{DEFAULT_RUN_ID}/fields/000/tmp_surface.field.i8.bin"
+                )
+            ),
         )
 
         missing = repo.missing_success_markers(
