@@ -93,6 +93,12 @@ class ArtifactRepositoryTests(unittest.TestCase):
             model_id="gfs",
             manifest={"run": {"cycle": "2026042700"}},
         )
+        validation_uri = repo.write_validation_report(
+            model_id="gfs",
+            cycle="2026042700",
+            run_id=DEFAULT_RUN_ID,
+            report={"status": "passed"},
+        )
         published_uri = repo.write_published_marker(
             model_id="gfs",
             cycle="2026042700",
@@ -108,6 +114,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         self.assertEqual(store.metadata[cycle_manifest_uri], FORECAST_JSON_METADATA)
         self.assertEqual(store.metadata[latest_manifest_uri], LATEST_MANIFEST_METADATA)
+        self.assertEqual(store.metadata[validation_uri], INTERNAL_JSON_METADATA)
         self.assertEqual(store.metadata[published_uri], INTERNAL_JSON_METADATA)
 
     def test_write_success_marker_builds_and_validates_marker_envelope(self) -> None:

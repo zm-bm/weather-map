@@ -331,6 +331,37 @@ class PublishManifestTest(unittest.TestCase):
                     artifacts_cfg={artifact_id: artifact_cfg},
                 )
 
+    def test_publish_returns_not_ready_without_validation_report(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-missing-validation-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
+
+            result = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                auto_validate=False,
+            )
+
+            self.assertFalse(result.ready)
+            self.assertIn("missing validation report", result.validation_errors[0])
+
+    def test_publish_returns_not_ready_for_failed_validation_report(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-failed-validation-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
+            fx.write_failed_validation(artifact_ids=(artifact_id,), error="marker mismatch")
+
+            result = fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                auto_validate=False,
+            )
+
+            self.assertFalse(result.ready)
+            self.assertIn("validation report status is not passed", result.validation_errors[0])
+
     def test_publish_returns_not_ready_for_missing_run_id_marker(self) -> None:
         with publish_fixture(prefix="weather-map-publish-missing-run-id-") as fx:
             artifact_id = "tmp_surface"

@@ -5,6 +5,7 @@ Subcommands:
 - run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
 - publish-cycle: publish manifests for one processed model cycle
+- validate-cycle: validate one processed model cycle before publication
 - list-models: print configured forecast model ids
 - list-forecast-hours: print configured forecast hours for one model
 - smoke: trivial health/debug command for Batch smoke tests
@@ -23,6 +24,7 @@ from .cycles import parse_cycle
 from .run_ids import generate_run_id, parse_run_id
 from .run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
 from .run_snapshots import ensure_run_snapshot, load_run_snapshot, select_run_id_for_cycle
+from .run_validation import validate_run
 from .runtime import execution_context_for_model
 from .storage.base import UriStore
 from .storage.routing import make_store
@@ -140,6 +142,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional run id to require while publishing; otherwise derived from success markers",
     )
     ap_publish_cycle.set_defaults(_handler=_cmd_publish_cycle)
+
+    ap_validate_cycle = sub.add_parser(
+        "validate-cycle",
+        help="Validate a processed forecast cycle before publication",
+        parents=[runtime],
+    )
+    ap_validate_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_validate_cycle.add_argument(
+        "--run-id",
+        help="Optional run id to require while validating; otherwise derived from run objects",
+    )
+    ap_validate_cycle.set_defaults(_handler=_cmd_validate_cycle)
 
     ap_list_fhours = sub.add_parser(
         "list-forecast-hours",
@@ -297,6 +311,17 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     cycle = str(args.cycle)
     parse_cycle(cycle)
     run_id = parse_run_id(args.run_id) if args.run_id else generate_run_id()
+    run_snapshot = _run_snapshot(args, store=store, loaded=loaded)
+    loaded_run_snapshot = ensure_run_snapshot(
+        artifact_repo=_artifact_repo(args, store=store),
+        store=store,
+        model_id=model.id,
+        cycle=cycle,
+        run_id=run_id,
+        pipeline_config_uri=args.pipeline_config_uri,
+        pipeline_config_overlay_uri=args.pipeline_config_overlay_uri,
+        forecast_catalog_uri=args.forecast_catalog_uri,
+    )
 
     run_cycle(
         model=model,
@@ -308,7 +333,8 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
         publish=not args.no_publish,
         pipeline_config=cfg,
         store=store,
-        run_snapshot=_run_snapshot(args, store=store, loaded=loaded),
+        run_snapshot=run_snapshot,
+        loaded_run_snapshot=loaded_run_snapshot,
     )
     return 0
 
@@ -358,6 +384,48 @@ def _cmd_publish_cycle(args: argparse.Namespace) -> int:
         store=store,
     )
     return 0 if result.ready else 2
+
+
+def _cmd_validate_cycle(args: argparse.Namespace) -> int:
+    """Validate one processed model cycle."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+    required_run_id = parse_run_id(args.run_id) if args.run_id else None
+    artifact_repo = _artifact_repo(args, store=store)
+    run_id, run_errors = select_run_id_for_cycle(
+        artifact_repo=artifact_repo,
+        model_id=model_id,
+        cycle=cycle,
+        required_run_id=required_run_id,
+    )
+    if run_errors or run_id is None:
+        print(f"Validation not ready: run selection failed for model={model_id} cycle={cycle}")
+        for error in run_errors:
+            print(f"run error: {error}")
+        return 2
+    try:
+        snapshot = load_run_snapshot(
+            artifact_repo=artifact_repo,
+            store=store,
+            model_id=model_id,
+            cycle=cycle,
+            run_id=run_id,
+        )
+    except FileNotFoundError as exc:
+        print(f"Validation not ready: {exc}")
+        return 2
+
+    model = snapshot.loaded_config.config.model(model_id)
+    result = validate_run(
+        artifact_repo=artifact_repo,
+        model=model,
+        cycle=cycle,
+        run_id=run_id,
+        snapshot=snapshot,
+    )
+    return 0 if result.passed else 2
 
 
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:

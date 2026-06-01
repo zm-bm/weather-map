@@ -26,6 +26,17 @@ class ArtifactPathContractTest(unittest.TestCase):
             f"runs/gfs/2026041200/{DEFAULT_RUN_ID}/fields/003/wind10m_uv.field.i8.bin",
         )
 
+    def test_validation_report_uri_is_run_scoped(self) -> None:
+        paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
+
+        uri = paths.validation_report_uri(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID)
+
+        self.assertEqual(
+            uri,
+            "file:///tmp/weather-map-artifacts/"
+            f"runs/gfs/2026041200/{DEFAULT_RUN_ID}/validation.json",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

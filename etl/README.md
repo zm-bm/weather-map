@@ -21,23 +21,25 @@ GDAL, CDO, eccodes, and ICON regrid assets live in the image.
 etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH>
 etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH> --artifact tmp_surface --no-publish
 etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH> --artifact cloud_layers --artifact wind10m_uv
 ```
 
 The script prepares `weather-map-forecast-etl:local`, creates one run-scoped
 config/catalog snapshot, resolves configured forecast hours from that snapshot,
 then runs one `forecast-etl run-hour` container per forecast hour and one final
+`forecast-etl validate-cycle` per model. It then runs one final
 `forecast-etl publish-cycle` per model unless `--no-publish` is set. Omitting
-`--model` refreshes every configured model sequentially. It automatically
+`--model` refreshes every configured model sequentially. `--no-publish`
+suppresses only public manifest publication; validation still runs. It automatically
 rebuilds the image when the ETL Dockerfile, package code, package metadata, or
 forecast config changes; use `--rebuild` to force a rebuild when needed.
 
 Local outputs are written under the repo-level `artifacts/` directory.
 Downloads and prepared GRIB files are cached under `etl/cache/`.
 Use repeatable `--artifact` filters for local iteration when only specific
-artifacts need to be regenerated. Filtered runs still use full-workload publish
-readiness; add `--no-publish` when intentionally running an isolated subset.
+artifacts need to be regenerated. Validation still checks full-workload
+readiness, so a fresh filtered run is expected to fail validation unless the
+remaining artifacts already exist under the same run id.
 
 Each local cycle run gets one run id in `YYYYMMDDTHHMMSSZ-<8hex>` format. The
 script generates it by default and passes the same `RUN_ID` to every hour
@@ -52,11 +54,12 @@ etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH> --dry-run
 etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 ```
 
-The dry run should show the same `RUN_ID` on every `run-hour` command and one
-`init-run` command before the workers, followed by one final `publish-cycle`
-command. A real local run exercises the worker image, run snapshot, success
-markers, publish readiness checks, and frontend manifest contract without
-requiring Lambda, Batch, or Terraform changes.
+The dry run should show the same `RUN_ID` on every `run-hour` command, one
+`init-run` command before the workers, one `validate-cycle` command after the
+workers, and one final `publish-cycle` command unless `--no-publish` is set.
+A real local run exercises the worker image, run snapshot, success markers,
+validation gate, publish readiness checks, and frontend manifest contract
+without requiring Lambda, Batch, or Terraform changes.
 
 ## Direct CLI
 
@@ -69,6 +72,7 @@ etl/scripts/bootstrap.sh
 .venv/bin/forecast-etl list-forecast-hours --model <model>
 .venv/bin/forecast-etl init-run --model <model> --cycle <YYYYMMDDHH> --run-id <run_id>
 .venv/bin/forecast-etl run-hour --model <model> --cycle <YYYYMMDDHH> --run-id <run_id> --fhour <FFF>
+.venv/bin/forecast-etl validate-cycle --model <model> --cycle <YYYYMMDDHH> --run-id <run_id>
 .venv/bin/forecast-etl publish-cycle --model <model> --cycle <YYYYMMDDHH>
 ```
 
@@ -77,8 +81,9 @@ CLI.
 
 `--pipeline-config-uri` and `--forecast-catalog-uri` can point at either source
 config/catalog files or the pinned copies under `runs/<model>/<cycle>/<run_id>/config/`.
-`run-hour` and `publish-cycle` should use the pinned run snapshot once it
-exists.
+`run-hour`, `validate-cycle`, and `publish-cycle` should use the pinned run
+snapshot once it exists. `publish-cycle` refuses runs without a passing
+`validation.json`.
 
 ## Pipeline Shape
 
@@ -90,12 +95,14 @@ The config is model-aware:
 
 Each `run-hour` writes artifact payloads and success markers. New success
 markers include a strict `run_id` plus provenance fields for model, code
-revision, image identity, and config digest. Publishing is marker-based and
-idempotent; it refuses incomplete cycles and cycles whose expected markers are
-missing or mixed across run ids.
+revision, image identity, and config digest. Validation reads the run snapshot
+and success markers, writes `validation.json`, and currently verifies marker
+metadata without re-reading payload bytes. Publishing is marker-based and
+idempotent; it refuses incomplete cycles, cycles whose expected markers are
+missing or mixed across run ids, and runs without a passing validation report.
 
 ```text
-source adapter -> prepared GRIB -> artifact payloads -> success markers -> cycle manifest
+source adapter -> prepared GRIB -> artifact payloads -> success markers -> validation -> cycle manifest
 ```
 
 The cycle manifest is artifact-only: it advertises produced scalar/vector
@@ -124,6 +131,7 @@ runs/<model>/<cycle>/<run_id>/config/pipeline_config.json
 runs/<model>/<cycle>/<run_id>/config/forecast_catalog.json
 runs/<model>/<cycle>/<run_id>/fields/<fhour>/<artifact>.field.<dtype>.bin
 runs/<model>/<cycle>/<run_id>/status/<artifact>/<fhour>._SUCCESS.json
+runs/<model>/<cycle>/<run_id>/validation.json
 runs/<model>/<cycle>/<run_id>/manifest.json
 runs/<model>/<cycle>/<run_id>/_PUBLISHED.json
 manifests/<model>/<cycle>.json

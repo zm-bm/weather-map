@@ -12,6 +12,8 @@ from ..config.resolved import ArtifactSpec, IconDwdSourceConfig, ModelConfig, Pi
 from ..cycles import parse_cycle
 from ..proc import RunFn, make_runner
 from ..run_metadata import RunMetadata, RunSnapshot, run_metadata_from_env
+from ..run_snapshots import LoadedRunSnapshot
+from ..run_validation import validate_run
 from ..runtime import ExecutionContext
 from ..storage.base import UriStore
 from ..storage.routing import make_store
@@ -49,6 +51,7 @@ def run_cycle(
     run: RunFn | None = None,
     run_metadata: RunMetadata | None = None,
     run_snapshot: RunSnapshot | None = None,
+    loaded_run_snapshot: LoadedRunSnapshot | None = None,
 ) -> None:
     """Process every configured forecast hour and optionally publish once."""
 
@@ -82,6 +85,19 @@ def run_cycle(
     except RunCycleTaskError as exc:
         raise SystemExit(str(exc)) from None
 
+    resolved_store = store if store is not None else make_store()
+    artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
+    if loaded_run_snapshot is not None:
+        validation = validate_run(
+            artifact_repo=artifact_repo,
+            model=model,
+            cycle=cycle,
+            run_id=run_id,
+            snapshot=loaded_run_snapshot,
+        )
+        if not validation.passed:
+            raise SystemExit(f"Validation failed for model={ctx.model_id} cycle={cycle} run_id={run_id}")
+
     if publish:
         publish_cycle(
             ctx=ctx,
@@ -90,7 +106,7 @@ def run_cycle(
             run_id=run_id,
             pipeline_config=pipeline_config,
             forecast_catalog=snapshot.forecast_catalog,
-            store=store,
+            store=resolved_store,
         )
 
 

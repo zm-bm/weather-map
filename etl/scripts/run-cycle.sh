@@ -380,6 +380,25 @@ publish_cmd_for_model() {
 	printf '%s\0' "${cmd[@]}"
 }
 
+validate_cmd_for_model() {
+	local model="$1"
+	local cmd=(
+		docker run --rm
+		--network host
+		--user "$(id -u):$(id -g)"
+		--volume "$ARTIFACTS_DIR:/artifacts"
+		--env "ARTIFACT_ROOT_URI=file:///artifacts"
+		--env "PYTHONDONTWRITEBYTECODE=1"
+		--env "MODEL=$model"
+		--env "CYCLE=$CYCLE"
+		--env "RUN_ID=$RUN_ID"
+		"$LOCAL_ETL_IMAGE" validate-cycle
+		--cycle "$CYCLE"
+		--run-id "$RUN_ID"
+	)
+	printf '%s\0' "${cmd[@]}"
+}
+
 init_run_for_model() {
 	local model="$1"
 	local cmd=()
@@ -457,6 +476,21 @@ run_publish_cycle() {
 	done < <(publish_cmd_for_model "$model")
 
 	echo "Publishing local cycle manifest: model=$model cycle=$CYCLE"
+	if [[ "$DRY_RUN" == "true" ]]; then
+		print_command "dry-run:" "${cmd[@]}"
+	else
+		"${cmd[@]}"
+	fi
+}
+
+run_validate_cycle() {
+	local model="$1"
+	local cmd=()
+	while IFS= read -r -d '' item; do
+		cmd+=("$item")
+	done < <(validate_cmd_for_model "$model")
+
+	echo "Validating local cycle: model=$model cycle=$CYCLE"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
@@ -607,6 +641,7 @@ run_model_cycle() {
 	fi
 
 	run_forecast_hours "$model" "${FORECAST_HOURS[@]}" || exit 1
+	run_validate_cycle "$model"
 	if [[ "$NO_PUBLISH" != "true" ]]; then
 		run_publish_cycle "$model"
 	fi

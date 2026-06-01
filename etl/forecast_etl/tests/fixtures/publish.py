@@ -13,6 +13,7 @@ from forecast_etl.artifacts.paths import ArtifactPaths, WorkItem
 from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.config.resolved import PipelineConfig
 from forecast_etl.manifest.publish import PublishResult, run_publish
+from forecast_etl.run_validation import PAYLOAD_CHECK_MODE, VALIDATION_SCHEMA, VALIDATION_SCHEMA_VERSION
 from forecast_etl.runtime import ExecutionContext
 from forecast_etl.storage.base import UriStore
 from forecast_etl.storage.routing import make_store
@@ -143,7 +144,10 @@ class PublishFixture:
         pipeline_config: PipelineConfig | None = None,
         cycle: str | None = None,
         run_id: str | None = None,
+        auto_validate: bool = True,
     ) -> PublishResult:
+        if auto_validate:
+            self.write_passing_validation(cycle=cycle, run_id=run_id, artifact_ids=artifact_ids)
         return run_publish(
             model_label=self.model_label,
             ctx=self.ctx,
@@ -154,6 +158,52 @@ class PublishFixture:
             artifact_repo=self.artifacts,
             pipeline_config=pipeline_config,
         )
+
+    def write_passing_validation(
+        self,
+        *,
+        cycle: str | None = None,
+        run_id: str | None = None,
+        artifact_ids: Sequence[str],
+    ) -> str:
+        resolved_cycle = cycle or self.cycle
+        resolved_run_id = run_id or self.run_id
+        return self.artifacts.write_validation_report(
+            model_id=self.model_id,
+            cycle=resolved_cycle,
+            run_id=resolved_run_id,
+            report={
+                "schema": VALIDATION_SCHEMA,
+                "schemaVersion": VALIDATION_SCHEMA_VERSION,
+                "model": self.model_id,
+                "cycle": resolved_cycle,
+                "runId": resolved_run_id,
+                "generatedAt": "2026-04-11T01:00:00+00:00",
+                "status": "passed",
+                "payloadCheckMode": PAYLOAD_CHECK_MODE,
+                "configDigest": DEFAULT_CONFIG_DIGEST,
+                "expected": {
+                    "forecastHours": list(self.fhours),
+                    "artifacts": list(artifact_ids),
+                    "markerCount": len(self.fhours) * len(artifact_ids),
+                },
+                "observed": {
+                    "expectedMarkers": len(self.fhours) * len(artifact_ids),
+                    "unexpectedMarkers": 0,
+                    "totalMarkers": len(self.fhours) * len(artifact_ids),
+                },
+                "errors": [],
+                "warnings": [],
+            },
+        )
+
+    def write_failed_validation(self, *, artifact_ids: Sequence[str], error: str = "failed") -> str:
+        uri = self.write_passing_validation(artifact_ids=artifact_ids)
+        report = self.artifacts.read_validation_report(model_id=self.model_id, cycle=self.cycle, run_id=self.run_id)
+        report["status"] = "failed"
+        report["errors"] = [error]
+        self.artifacts.write_validation_report(model_id=self.model_id, cycle=self.cycle, run_id=self.run_id, report=report)
+        return uri
 
     def cycle_manifest(self, *, cycle: str | None = None) -> dict[str, Any]:
         uri = self.ap.manifest_cycle_uri(model_id=self.model_id, cycle=cycle or self.cycle)

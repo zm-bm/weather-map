@@ -12,6 +12,7 @@ from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, PipelineConfig
 from ..run_ids import validate_run_id
 from ..run_snapshots import select_run_id_for_cycle
+from ..run_validation import validation_report_passed
 from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_artifacts
 from .forecast_manifest import publish_forecast_manifest
@@ -28,6 +29,7 @@ class PublishResult:
     run_id: str | None = None
     missing_markers: tuple[str, ...] = ()
     marker_errors: tuple[str, ...] = ()
+    validation_errors: tuple[str, ...] = ()
 
 
 def run_publish(
@@ -76,6 +78,25 @@ def run_publish(
     if resolved_run_id is None:
         print("Publish not ready: no run found")
         return PublishResult(ready=False, already_published=False)
+
+    validation_passed, validation_errors = validation_report_passed(
+        artifact_repo=artifact_repo,
+        model_id=ctx.model_id,
+        cycle=cycle,
+        run_id=resolved_run_id,
+    )
+    if not validation_passed:
+        print(f"Publish not ready: validation has not passed for model={ctx.model_id} cycle={cycle} run_id={resolved_run_id}")
+        for error in validation_errors[:10]:
+            print(f"validation error: {error}")
+        if len(validation_errors) > 10:
+            print(f"... and {len(validation_errors) - 10} more")
+        return PublishResult(
+            ready=False,
+            already_published=False,
+            run_id=resolved_run_id,
+            validation_errors=tuple(validation_errors),
+        )
 
     fast_result = _try_publish_from_existing_run(
         artifacts=artifact_repo,

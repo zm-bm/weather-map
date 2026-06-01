@@ -98,6 +98,7 @@ runs/<model>/<cycle>/<run_id>/
     forecast_catalog.json
   fields/<fhour>/<artifact>.field.<dtype>.bin
   status/<artifact>/<fhour>._SUCCESS.json
+  validation.json
   manifest.json
   _PUBLISHED.json
 ```
@@ -128,24 +129,25 @@ Implemented direction:
 - a mid-run config deployment no longer changes what remaining workers or the
   publisher read for that run
 
-## Proposed Work
-
 ### 5. Make Validation Explicit
 
-Validation should be a separate step between production and promotion.
-This is the best next task because it gives every later publish, promote, and
-rollback task a clean gate: processed -> validated -> promoted.
+Implemented direction:
 
-Provisional implementation:
+- `forecast-etl validate-cycle` validates one run and writes
+  `runs/<model>/<cycle>/<run_id>/validation.json`
+- first-pass validation checks run snapshot and success marker completeness,
+  identity, config digest, artifact metadata, payload URI shape, and grid
+  consistency
+- validation currently trusts marker byte-length/checksum metadata and does
+  not read/decompress every payload object
+- `publish-cycle` refuses missing or failed validation reports before writing
+  public aliases or `_PUBLISHED.json`
+- the scheduled publisher validates complete candidate runs when needed, then
+  publishes only runs with passing validation
+- local `run-cycle` and `etl/scripts/run-cycle.sh` validate after workers
+  finish; `--no-publish` skips only public publication, not validation
 
-- validate all expected forecast hours and artifact ids exist
-- validate marker schema, marker contents, payload checksums, grid consistency,
-  encoding metadata, config digest, and run id consistency
-- write a validation report under the run prefix
-- require a successful validation report before promotion
-- update local `run-cycle.sh` and the scheduled publisher in the same task so
-  local runs still publish after validation and production publishing does not
-  wait forever for a report nobody writes
+## Proposed Work
 
 ### 6. Publish by Pointer, Not by Overwrite
 
@@ -300,7 +302,30 @@ Provisional implementation:
 - link run state to CloudWatch logs and Batch job ids
 - expose a compact status command before adding dashboards
 
-### 14. Remove Transition Compatibility After Cutover
+### 14. Add Full Payload Byte and Checksum Validation
+
+The first validation pass is intentionally marker-metadata-only. After the
+marker validation and promotion flow has been deployed and observed, strengthen
+validation by reading payload objects.
+
+Provisional implementation:
+
+- read/decompress every expected payload object or a configurable bounded
+  sample if full validation proves too expensive
+- verify marker `byte_length` and `sha256` against actual decoded payload bytes
+- record payload validation mode, object read counts, and failures in
+  `validation.json`
+- keep marker-only validation available as an explicit emergency/degraded mode
+  if S3 object reads become the bottleneck
+- keep the initial publisher-owned validation path unless real Lambda runtime
+  or concurrency pressure appears; if it does, split validation into a separate
+  scheduled Lambda or Batch job that writes `validation.json` for the publisher
+  to consume
+- revisit whether `publish-cycle` still needs to re-read all success markers
+  once pointer promotion is in place and validation reports are trusted as the
+  publish gate
+
+### 15. Remove Transition Compatibility After Cutover
 
 This is intentionally a final cleanup task. Do not do it until all public
 manifests that infer legacy `fields/<model>/<cycle>/<fhour>/...` payload paths
@@ -331,21 +356,21 @@ stopped using it.
 
 Recommended implementation order:
 
-1. Commit Task 4 before continuing so the snapshot cutover is isolated.
-2. Implement Task 5: explicit validation, including marker/content checks and
-   a run-scoped `validation.json`.
-3. Implement Tasks 6 and 7 together: pointer promotion, stable latest pointer
+1. Commit completed Tasks 4 and 5 before continuing so the snapshot and
+   validation cutovers are isolated.
+2. Implement Tasks 6 and 7 together: pointer promotion, stable latest pointer
    schema, rollback, and required frontend/backend reader changes.
-4. Implement Task 10: backfill safety checks for manual and automated submits.
-5. Implement Task 8: record release identity more strictly, without requiring
+3. Implement Task 10: backfill safety checks for manual and automated submits.
+4. Implement Task 8: record release identity more strictly, without requiring
    strict digest-pinned execution yet.
-6. Deploy and run at least one real production cycle before adding more moving
+5. Deploy and run at least one real production cycle before adding more moving
    pieces.
-7. Implement Task 9: DynamoDB run state and promotion locks.
-8. Implement Task 11: operator CLI over the now-stable lower-level commands.
-9. Implement Task 12: cleanup/retention automation.
-10. Implement Task 13: broader observability.
-11. Implement Task 14 only after old public manifests have aged out.
+6. Implement Task 9: DynamoDB run state and promotion locks.
+7. Implement Task 11: operator CLI over the now-stable lower-level commands.
+8. Implement Task 12: cleanup/retention automation.
+9. Implement Task 13: broader observability.
+10. Implement Task 14 if marker-only validation is not enough operationally.
+11. Implement Task 15 only after old public manifests have aged out.
 
 ## De-Prioritized Work
 
@@ -359,6 +384,12 @@ Recommended implementation order:
   Record image digests first, then tighten execution controls later.
 - Do not remove `/fields/*` compatibility immediately. It is operational
   cleanup, not part of making current run-first publishing work.
+- Do not make validation read every payload object until marker-only validation
+  and pointer promotion have proven stable in production.
+- Do not optimize away the duplicate marker reads in `publish-cycle` until the
+  validate/promote/rollback path has been exercised in production.
+- Do not split validation into a separate Lambda or Batch job unless the
+  publisher Lambda starts running too long or competing with publication.
 - Do not add duplicate-skip logic to GFS ingest unless duplicate job submission
   becomes a real cost or operational issue. GFS ingest is event-driven and does
   not currently list marker state before submitting.
@@ -377,3 +408,8 @@ choosing and promoting those references can change behind that contract.
 The frontend should first support compact run-first payload references with a
 fallback to the old inferred `fields/<model>/<cycle>/<fhour>/...` layout. Once
 old manifests have aged out, the fallback can be removed.
+
+Local filtered runs are still full-workload validation runs. A fresh
+`--artifact` subset run is expected to fail validation unless the omitted
+artifacts already exist under the same run id; use this mode for iteration or
+resuming a known run, not as proof that the full cycle is publishable.

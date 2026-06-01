@@ -210,6 +210,23 @@ class ArtifactRepository:
 
         return self.store.exists(uri=self.paths.run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id))
 
+    def write_validation_report(self, *, model_id: str, cycle: str, run_id: str, report: Mapping[str, Any]) -> str:
+        """Write one run validation report and return its artifact URI."""
+
+        uri = self.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+        self._write_json(uri=uri, obj=dict(report), metadata=INTERNAL_JSON_METADATA)
+        return uri
+
+    def read_validation_report(self, *, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+        """Read one run validation report."""
+
+        return self._read_json(uri=self.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
+    def validation_report_exists(self, *, model_id: str, cycle: str, run_id: str) -> bool:
+        """Return whether one run validation report exists."""
+
+        return self.store.exists(uri=self.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+
     def write_cycle_manifest(self, *, model_id: str, cycle: str, manifest: Mapping[str, Any]) -> str:
         """Write one cycle manifest and return its artifact URI."""
 

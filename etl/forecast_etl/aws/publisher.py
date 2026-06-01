@@ -10,6 +10,7 @@ from ..artifacts.repository import ArtifactRepository
 from ..cycles import latest_synoptic_cycles, parse_cycle
 from ..manifest.publish import run_publish
 from ..run_snapshots import load_run_snapshot, select_run_id_for_cycle
+from ..run_validation import validate_run, validation_report_passed
 from ..runtime import execution_context_for_model
 from ..storage.routing import make_store
 from ..uris import default_artifact_root_uri
@@ -122,6 +123,33 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 cfg = snapshot.loaded_config.config
                 model = cfg.model(model_id)
                 ctx = execution_context_for_model(model, artifact_root_uri)
+                validation_passed, validation_errors = validation_report_passed(
+                    artifact_repo=artifact_repo,
+                    model_id=model_id,
+                    cycle=cycle,
+                    run_id=run_id,
+                )
+                if not validation_passed:
+                    print(
+                        f"Publisher validating model={model_id} cycle={cycle} run_id={run_id}: "
+                        + "; ".join(validation_errors[:3]),
+                        flush=True,
+                    )
+                    validation = validate_run(
+                        artifact_repo=artifact_repo,
+                        model=model,
+                        cycle=cycle,
+                        run_id=run_id,
+                        snapshot=snapshot,
+                    )
+                    if not validation.passed:
+                        not_ready += 1
+                        print(
+                            f"Publisher not ready model={model_id} cycle={cycle} "
+                            f"validation_errors={len(validation.errors)}",
+                            flush=True,
+                        )
+                        continue
                 result = run_publish(
                     ctx=ctx,
                     cycle=cycle,

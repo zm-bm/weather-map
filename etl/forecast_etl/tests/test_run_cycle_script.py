@@ -66,7 +66,7 @@ if [[ "${1:-}" == "run" ]]; then
 \t\t\t\tesac
 \t\t\t\tshift 2
 \t\t\t\t;;
-\t\t\tlist-forecast-hours|run-hour|publish-cycle|init-run)
+\t\t\tlist-forecast-hours|run-hour|publish-cycle|validate-cycle|init-run)
 \t\t\t\tmode="$1"
 \t\t\t\tshift
 \t\t\t\t;;
@@ -87,6 +87,11 @@ if [[ "${1:-}" == "run" ]]; then
 
 \tif [[ "$mode" == "publish-cycle" ]]; then
 \t\techo "Published: model=$model cycle=${CYCLE:-unknown}"
+\t\texit 0
+\tfi
+
+\tif [[ "$mode" == "validate-cycle" ]]; then
+\t\techo "Validation passed: model=$model cycle=${CYCLE:-unknown}"
 \t\texit 0
 \tfi
 
@@ -198,6 +203,7 @@ exit 1
         self.assertIn("--env FHOUR=024", result.stdout)
         self.assertNotIn("GRIB_SOURCE_URI", result.stdout)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local init-run"), 1)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local publish-cycle"), 1)
 
     def test_no_publish_skips_final_publish_container(self) -> None:
@@ -214,6 +220,7 @@ exit 1
 
         self.assertIn("forecast_hours: 24", result.stdout)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
         self.assertNotIn("weather-map-forecast-etl:local publish-cycle", result.stdout)
 
     def test_dry_run_reuses_current_worker_image_without_rebuilding(self) -> None:

@@ -34,7 +34,9 @@ Publication is scheduled separately:
 
 1. EventBridge invokes `weather-etl-publisher` every 10 minutes.
 2. The publisher checks recent synoptic cycles for configured models.
-3. Complete runs publish model manifest aliases, the run-scoped
+3. Complete runs are validated into run-scoped `validation.json` reports when
+   needed.
+4. Runs with passing validation publish model manifest aliases, the run-scoped
    `_PUBLISHED.json`, and the aggregate frontend forecast manifest.
 
 Both models use the same worker image. Each run uses pinned copies of the
@@ -49,6 +51,7 @@ runs/<model>/<cycle>/<run_id>/
   config/forecast_catalog.json
   fields/<fhour>/<artifact>.field.<dtype>.bin
   status/<artifact>/<fhour>._SUCCESS.json
+  validation.json
   manifest.json
   _PUBLISHED.json
 ```
@@ -150,8 +153,8 @@ run snapshot URIs to every Batch job. Use `--dry-run` to verify the same
 infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs --dry-run
 ```
 
-Publication is handled by the scheduled publisher. Manual submit does not
-submit a dependent publisher job.
+Publication is handled by the scheduled publisher. It validates complete runs
+before publishing. Manual submit does not submit a dependent publisher job.
 
 Enable or disable ICON polling:
 

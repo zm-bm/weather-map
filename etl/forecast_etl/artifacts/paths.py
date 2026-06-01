@@ -22,6 +22,7 @@ from ..uris import join_uri
 SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
 PUBLISHED_MARKER_FILENAME = "_PUBLISHED.json"
 FORECAST_MANIFEST_FILENAME = "forecast-manifest.json"
+VALIDATION_REPORT_FILENAME = "validation.json"
 
 
 def _safe_segment(value: str) -> str:
@@ -204,6 +205,12 @@ class ArtifactPaths:
         """Canonical internal manifest URI for one immutable run."""
 
         path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), "manifest.json"]
+        return join_uri(self.artifact_root_uri, path)
+
+    def validation_report_uri(self, *, model_id: str, cycle: str, run_id: str) -> str:
+        """Run validation report URI: {root}/runs/{model}/{cycle}/{run_id}/validation.json"""
+
+        path = [self.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id), VALIDATION_REPORT_FILENAME]
         return join_uri(self.artifact_root_uri, path)
 
     def manifest_cycle_uri(self, *, model_id: str, cycle: str) -> str:
