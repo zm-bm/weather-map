@@ -39,7 +39,7 @@ export type RasterRenderSettings = {
 
 export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
   colorSamplingMode: 'interpolated',
-  opacity: 0.9,
+  opacity: 1.0,
 }
 
 export type ParticleColor = readonly [number, number, number, number]
