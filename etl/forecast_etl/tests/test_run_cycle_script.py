@@ -48,6 +48,8 @@ fi
 if [[ "${1:-}" == "run" ]]; then
 \tmodel=""
 \tfhour=""
+\tcycle=""
+\trun_id=""
 \tmode=""
 \twhile [[ $# -gt 0 ]]; do
 \t\tcase "$1" in
@@ -59,10 +61,12 @@ if [[ "${1:-}" == "run" ]]; then
 \t\t\t\tcase "${2:-}" in
 \t\t\t\t\tMODEL=*) model="${2#MODEL=}" ;;
 \t\t\t\t\tFHOUR=*) fhour="${2#FHOUR=}" ;;
+\t\t\t\t\tCYCLE=*) cycle="${2#CYCLE=}" ;;
+\t\t\t\t\tRUN_ID=*) run_id="${2#RUN_ID=}" ;;
 \t\t\t\tesac
 \t\t\t\tshift 2
 \t\t\t\t;;
-\t\t\tlist-forecast-hours|run-hour|publish-cycle)
+\t\t\tlist-forecast-hours|run-hour|publish-cycle|init-run)
 \t\t\t\tmode="$1"
 \t\t\t\tshift
 \t\t\t\t;;
@@ -83,6 +87,14 @@ if [[ "${1:-}" == "run" ]]; then
 
 \tif [[ "$mode" == "publish-cycle" ]]; then
 \t\techo "Published: model=$model cycle=${CYCLE:-unknown}"
+\t\texit 0
+\tfi
+
+\tif [[ "$mode" == "init-run" ]]; then
+\t\techo "run_id=$run_id"
+\t\techo "config_digest=sha256:$(printf '%064d' 1)"
+\t\techo "pipeline_config_uri=file:///artifacts/runs/$model/$cycle/$run_id/config/pipeline_config.json"
+\t\techo "forecast_catalog_uri=file:///artifacts/runs/$model/$cycle/$run_id/config/forecast_catalog.json"
 \t\texit 0
 \tfi
 
@@ -171,13 +183,21 @@ exit 1
         self.assertIn("--volume " + (self.repo_root / "artifacts").as_posix() + ":/artifacts", result.stdout)
         self.assertIn("--volume " + (self.repo_root / "etl" / "cache").as_posix() + ":/app/etl/cache", result.stdout)
         self.assertIn("--env ARTIFACT_ROOT_URI=file:///artifacts", result.stdout)
-        self.assertNotIn("--env PIPELINE_CONFIG_URI", result.stdout)
-        self.assertIn("--env PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json", result.stdout)
+        self.assertIn(
+            f"--env PIPELINE_CONFIG_URI=file:///artifacts/runs/icon/2026021606/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+            result.stdout,
+        )
+        self.assertIn(
+            f"--env FORECAST_CATALOG_URI=file:///artifacts/runs/icon/2026021606/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+            result.stdout,
+        )
+        self.assertNotIn("--env PIPELINE_CONFIG_OVERLAY_URI", result.stdout)
         self.assertIn("--env MODEL=icon", result.stdout)
         self.assertIn(f"--env RUN_ID={DEFAULT_RUN_ID}", result.stdout)
         self.assertIn("--env FHOUR=001", result.stdout)
         self.assertIn("--env FHOUR=024", result.stdout)
         self.assertNotIn("GRIB_SOURCE_URI", result.stdout)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local init-run"), 1)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local publish-cycle"), 1)
 
     def test_no_publish_skips_final_publish_container(self) -> None:

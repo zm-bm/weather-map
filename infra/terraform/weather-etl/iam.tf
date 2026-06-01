@@ -190,6 +190,16 @@ resource "aws_iam_role_policy" "ingest_lambda" {
         Resource = [
           "arn:aws:s3:::${local.config_bucket_name}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = [
+          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/gfs/*"
+        ]
       }
     ]
   })

@@ -96,6 +96,7 @@ resource "aws_batch_job_definition" "worker" {
     environment = [
       { name = "ARTIFACT_ROOT_URI", value = "s3://${local.artifacts_bucket_name}" },
       { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
+      { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region }
     ]
     logConfiguration = {
@@ -120,7 +121,7 @@ resource "aws_batch_job_definition" "worker" {
     Name = "weather-etl-worker"
   })
 
-  depends_on = [aws_s3_object.forecast_config]
+  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_batch_job_definition" "worker_icon" {
@@ -143,6 +144,7 @@ resource "aws_batch_job_definition" "worker_icon" {
     environment = [
       { name = "ARTIFACT_ROOT_URI", value = "s3://${local.artifacts_bucket_name}" },
       { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
+      { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region },
       { name = "ICON_SOURCE_WAIT_SECONDS", value = "2700" },
       { name = "ICON_REGRID_DESCRIPTION_FILE", value = "/opt/dwd-regrid/descriptions/icon/icon_description.txt" },
@@ -170,5 +172,5 @@ resource "aws_batch_job_definition" "worker_icon" {
     Name = "weather-etl-worker-icon"
   })
 
-  depends_on = [aws_s3_object.forecast_config]
+  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }

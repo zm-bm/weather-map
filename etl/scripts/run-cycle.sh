@@ -183,6 +183,8 @@ CACHE_DIR="$ETL_DIR/cache"
 IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.forecast-etl.source-fingerprint"
 RUN_LOG_DIR=""
 FAILURE_DIR=""
+RUN_PIPELINE_CONFIG_URI=""
+RUN_FORECAST_CATALOG_URI=""
 
 if [[ -z "$ETL_CODE_REVISION" ]]; then
 	ETL_CODE_REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -216,10 +218,17 @@ list_model_ids_with_worker() {
 
 resolve_forecast_hours_with_worker() {
 	local model="$1"
+	local pipeline_config_uri="$2"
 
-	docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
-		--model "$model" \
-		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
+	if [[ "$DRY_RUN" == "true" ]]; then
+		docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
+			--model "$model" \
+			--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
+	else
+		docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
+			--model "$model" \
+			--pipeline-config-uri "$pipeline_config_uri"
+	fi
 }
 
 image_source_fingerprint() {
@@ -297,7 +306,8 @@ worker_cmd_for_hour() {
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--volume "$CACHE_DIR:/app/etl/cache"
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
-		--env "PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json"
+		--env "PIPELINE_CONFIG_URI=$RUN_PIPELINE_CONFIG_URI"
+		--env "FORECAST_CATALOG_URI=$RUN_FORECAST_CATALOG_URI"
 		--env "PYTHONDONTWRITEBYTECODE=1"
 		--env "MODEL=$model"
 		--env "CYCLE=$CYCLE"
@@ -325,6 +335,28 @@ worker_cmd_for_hour() {
 	printf '%s\0' "${cmd[@]}"
 }
 
+init_run_cmd_for_model() {
+	local model="$1"
+	local cmd=(
+		docker run --rm
+		--network host
+		--user "$(id -u):$(id -g)"
+		--volume "$ARTIFACTS_DIR:/artifacts"
+		--env "ARTIFACT_ROOT_URI=file:///artifacts"
+		--env "PYTHONDONTWRITEBYTECODE=1"
+		--env "MODEL=$model"
+		--env "CYCLE=$CYCLE"
+		--env "RUN_ID=$RUN_ID"
+		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
+		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
+		"$LOCAL_ETL_IMAGE" init-run
+		--cycle "$CYCLE"
+		--run-id "$RUN_ID"
+		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
+	)
+	printf '%s\0' "${cmd[@]}"
+}
+
 publish_cmd_for_model() {
 	local model="$1"
 	local cmd=(
@@ -333,7 +365,8 @@ publish_cmd_for_model() {
 		--user "$(id -u):$(id -g)"
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
-		--env "PIPELINE_CONFIG_OVERLAY_URI=file:///app/config/pipeline/local.json"
+		--env "PIPELINE_CONFIG_URI=$RUN_PIPELINE_CONFIG_URI"
+		--env "FORECAST_CATALOG_URI=$RUN_FORECAST_CATALOG_URI"
 		--env "PYTHONDONTWRITEBYTECODE=1"
 		--env "MODEL=$model"
 		--env "CYCLE=$CYCLE"
@@ -345,6 +378,45 @@ publish_cmd_for_model() {
 		--run-id "$RUN_ID"
 	)
 	printf '%s\0' "${cmd[@]}"
+}
+
+init_run_for_model() {
+	local model="$1"
+	local cmd=()
+	local output=""
+	local key
+	local value
+	RUN_PIPELINE_CONFIG_URI=""
+	RUN_FORECAST_CATALOG_URI=""
+
+	while IFS= read -r -d '' item; do
+		cmd+=("$item")
+	done < <(init_run_cmd_for_model "$model")
+
+	echo "Initializing local run snapshot: model=$model cycle=$CYCLE"
+	if [[ "$DRY_RUN" == "true" ]]; then
+		print_command "dry-run:" "${cmd[@]}"
+		RUN_PIPELINE_CONFIG_URI="file:///artifacts/runs/$model/$CYCLE/$RUN_ID/config/pipeline_config.json"
+		RUN_FORECAST_CATALOG_URI="file:///artifacts/runs/$model/$CYCLE/$RUN_ID/config/forecast_catalog.json"
+		echo "  pipeline_config_uri: $RUN_PIPELINE_CONFIG_URI"
+		echo "  forecast_catalog_uri: $RUN_FORECAST_CATALOG_URI"
+		return 0
+	fi
+	output="$("${cmd[@]}")"
+	while IFS='=' read -r key value; do
+		case "$key" in
+			pipeline_config_uri) RUN_PIPELINE_CONFIG_URI="$value" ;;
+			forecast_catalog_uri) RUN_FORECAST_CATALOG_URI="$value" ;;
+		esac
+	done <<< "$output"
+
+	if [[ -z "$RUN_PIPELINE_CONFIG_URI" || -z "$RUN_FORECAST_CATALOG_URI" ]]; then
+		echo "init-run did not return snapshot config/catalog URIs." >&2
+		echo "$output" >&2
+		exit 1
+	fi
+	echo "  pipeline_config_uri: $RUN_PIPELINE_CONFIG_URI"
+	echo "  forecast_catalog_uri: $RUN_FORECAST_CATALOG_URI"
 }
 
 run_worker_hour() {
@@ -500,7 +572,9 @@ run_model_cycle() {
 	RUN_LOG_DIR=""
 	FAILURE_DIR=""
 
-	mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker "$model")
+	init_run_for_model "$model"
+
+	mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker "$model" "$RUN_PIPELINE_CONFIG_URI")
 
 	if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
 		echo "No forecast hours resolved from config for model=$model." >&2
@@ -511,6 +585,8 @@ run_model_cycle() {
 	echo "  model:          $model"
 	echo "  cycle:          $CYCLE"
 	echo "  run_id:         $RUN_ID"
+	echo "  config:         $RUN_PIPELINE_CONFIG_URI"
+	echo "  catalog:        $RUN_FORECAST_CATALOG_URI"
 	echo "  image:          $LOCAL_ETL_IMAGE"
 	echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
 	if [[ "${#SELECTED_ARTIFACTS[@]}" -gt 0 ]]; then

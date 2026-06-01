@@ -11,48 +11,33 @@ from typing import Any
 
 import boto3  # type: ignore
 
-from ..config.load import load_pipeline_config
-from ..uris import default_pipeline_config_uri
+from ..artifacts.repository import ArtifactRepository
+from ..config.resolved import PipelineConfig
+from ..run_snapshots import ensure_or_load_run_snapshot
+from ..storage.base import UriStore
+from ..storage.routing import make_store
+from ..uris import default_artifact_root_uri, default_forecast_catalog_uri, default_pipeline_config_uri
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
 ALLOWED_CYCLES = {"00", "06", "12", "18"}
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
+DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
+DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
 MODEL_ID = "gfs"
-_FILTERS_CACHE_BY_URI: dict[str, dict[str, Any]] = {}
 
 
-def _filters(pipeline_config_uri: str) -> dict[str, Any]:
-    cached = _FILTERS_CACHE_BY_URI.get(pipeline_config_uri)
-    if cached is not None:
-        return cached
-
-    try:
-        cfg = load_pipeline_config(pipeline_config_uri)
-        print(f"Loaded pipeline config from: {pipeline_config_uri}")
-    except Exception as exc:
-        print(f"Failed to load pipeline config from {pipeline_config_uri}: {exc}")
-        resolved = {
-            "artifacts": (),
-            "allowed_fhours": set(),
-            "has_work_items": False,
-            "allowed_cycles": ALLOWED_CYCLES,
-        }
-        _FILTERS_CACHE_BY_URI[pipeline_config_uri] = resolved
-        return resolved
-
+def _filters_from_config(cfg: PipelineConfig) -> dict[str, Any]:
     model = cfg.model(MODEL_ID)
     artifacts = tuple(model.workload.artifacts)
     allowed_fhours = set(model.workload.forecast_hours)
 
-    resolved = {
+    return {
         "artifacts": artifacts,
         "allowed_fhours": allowed_fhours,
         "has_work_items": bool(artifacts),
         "allowed_cycles": ALLOWED_CYCLES,
     }
-    _FILTERS_CACHE_BY_URI[pipeline_config_uri] = resolved
-    return resolved
 
 
 def _parse_json(value: Any) -> Any:
@@ -112,10 +97,12 @@ def _submit_job(
     queue: str,
     job_definition: str,
     run_coordinator_table: str,
+    artifact_repo: ArtifactRepository,
+    store: UriStore,
     bucket: str,
     key: str,
-    filters: dict[str, Any],
     pipeline_config_uri: str,
+    forecast_catalog_uri: str,
 ) -> int:
     """Submit one Batch worker job when the S3 key matches workload filters."""
 
@@ -129,16 +116,8 @@ def _submit_job(
     cycle = f"{cycle_date}{cycle_hour}"
     fhour = matched.group(3)
 
-    if filters["allowed_cycles"] and cycle_hour not in filters["allowed_cycles"]:
+    if cycle_hour not in ALLOWED_CYCLES:
         print(f"skip key (cycle filter): cycle_hour={cycle_hour} key={key}")
-        return 0
-
-    if filters["allowed_fhours"] and fhour not in filters["allowed_fhours"]:
-        print(f"skip key (forecast hour filter): fhour={fhour} key={key}")
-        return 0
-
-    if not filters.get("has_work_items", False):
-        print(f"skip key (no workload.artifacts configured): key={key}")
         return 0
 
     grib_source_uri = f"s3://{bucket}/{key}"
@@ -150,6 +129,25 @@ def _submit_job(
         now=datetime.now(timezone.utc),
         ttl_seconds=run_coordinator_ttl_seconds(),
     )
+    snapshot = ensure_or_load_run_snapshot(
+        artifact_repo=artifact_repo,
+        store=store,
+        model_id=MODEL_ID,
+        cycle=cycle,
+        run_id=run_id,
+        pipeline_config_uri=pipeline_config_uri,
+        forecast_catalog_uri=forecast_catalog_uri,
+    )
+    filters = _filters_from_config(snapshot.loaded_config.config)
+
+    if filters["allowed_fhours"] and fhour not in filters["allowed_fhours"]:
+        print(f"skip key (forecast hour filter): fhour={fhour} key={key}")
+        return 0
+
+    if not filters.get("has_work_items", False):
+        print(f"skip key (no workload.artifacts configured): key={key}")
+        return 0
+
     suffix = hashlib.sha1(f"{cycle}:{run_id}:{fhour}:{key}".encode("utf-8")).hexdigest()[:8]
     job_name = f"gfs-{cycle}-{run_id}-{fhour}-{suffix}"[:128]
 
@@ -159,9 +157,9 @@ def _submit_job(
         {"name": "FHOUR", "value": fhour},
         {"name": "MODEL", "value": MODEL_ID},
         {"name": "GRIB_SOURCE_URI", "value": grib_source_uri},
+        {"name": "PIPELINE_CONFIG_URI", "value": snapshot.pipeline_config_uri},
+        {"name": "FORECAST_CATALOG_URI", "value": snapshot.forecast_catalog_uri},
     ]
-    if pipeline_config_uri.startswith("s3://"):
-        env_vars.append({"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri})
 
     batch.submit_job(
         jobName=job_name,
@@ -182,11 +180,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
     run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
+    artifact_root_uri = os.environ.get("ARTIFACT_ROOT_URI", DEFAULT_ARTIFACT_ROOT_URI).strip()
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
+    forecast_catalog_uri = os.environ.get("FORECAST_CATALOG_URI", DEFAULT_FORECAST_CATALOG_URI).strip()
 
     batch = boto3.client("batch")
     ddb = boto3.client("dynamodb")
-    filters = _filters(pipeline_config_uri)
+    store = make_store()
+    artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
 
     s3_objects = _extract_from_event(event)
     if not s3_objects:
@@ -201,10 +202,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             queue=queue,
             job_definition=job_definition,
             run_coordinator_table=run_coordinator_table,
+            artifact_repo=artifact_repo,
+            store=store,
             bucket=bucket,
             key=key,
-            filters=filters,
             pipeline_config_uri=pipeline_config_uri,
+            forecast_catalog_uri=forecast_catalog_uri,
         )
 
     return {"ok": True, "submitted": submitted, "seen": len(s3_objects)}

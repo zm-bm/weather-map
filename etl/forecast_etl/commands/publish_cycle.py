@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ModelConfig, PipelineConfig
 from ..manifest.publish import PublishResult, run_publish
@@ -17,6 +19,7 @@ def publish_cycle(
     cycle: str,
     run_id: str | None = None,
     pipeline_config: PipelineConfig | None = None,
+    forecast_catalog: Mapping[str, Any] | None = None,
     store: UriStore | None = None,
 ) -> PublishResult:
     """Publish the manifest for a processed model cycle."""
@@ -32,4 +35,5 @@ def publish_cycle(
         artifact_specs=model.artifacts,
         artifact_repo=artifact_repo,
         pipeline_config=pipeline_config,
+        forecast_catalog=forecast_catalog,
     )

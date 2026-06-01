@@ -15,6 +15,7 @@ from forecast_etl.config.resolved import (
     NomadsConfig,
 )
 from forecast_etl.manifest.publish import PublishResult
+from forecast_etl.run_snapshots import LoadedRunSnapshot
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
@@ -90,6 +91,17 @@ class _FakePool:
 
 def _loaded_cfg(cfg: _FakePipelineConfig) -> LoadedPipelineConfig:
     return LoadedPipelineConfig(raw=cfg.model_dump(mode="json"), config=cfg)
+
+
+def _loaded_run_snapshot(cfg: _FakePipelineConfig) -> LoadedRunSnapshot:
+    return LoadedRunSnapshot(
+        run_id=DEFAULT_RUN_ID,
+        config_digest="sha256:" + "1" * 64,
+        pipeline_config_uri=f"file:///artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        forecast_catalog_uri=f"file:///artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        loaded_config=_loaded_cfg(cfg),
+        forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
+    )
 
 
 class CliTest(unittest.TestCase):
@@ -265,7 +277,8 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
             patch(
                 "forecast_etl.commands.publish_cycle.run_publish",
                 return_value=PublishResult(ready=True, already_published=False),
@@ -278,12 +291,14 @@ class CliTest(unittest.TestCase):
         self.assertEqual(run_publish.call_args.kwargs["cycle"], "2026021300")
         self.assertEqual(run_publish.call_args.kwargs["run_id"], DEFAULT_RUN_ID)
         self.assertEqual(run_publish.call_args.kwargs["artifact_ids"], ("tmp_surface",))
+        self.assertEqual(run_publish.call_args.kwargs["forecast_catalog"]["catalogVersion"], "test")
 
     def test_publish_cycle_returns_not_ready_exit_code(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
             patch(
                 "forecast_etl.commands.publish_cycle.run_publish",
                 return_value=PublishResult(
@@ -296,6 +311,21 @@ class CliTest(unittest.TestCase):
             result = cli.main(["publish-cycle", "--model", "gfs", "--cycle", "2026021300"])
 
         self.assertEqual(result, 2)
+
+    def test_init_run_writes_snapshot_and_prints_snapshot_uris(self) -> None:
+        fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
+        out = io.StringIO()
+
+        with (
+            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)) as ensure,
+            redirect_stdout(out),
+        ):
+            result = cli.main(["init-run", "--model", "gfs", "--cycle", "2026021300", "--run-id", DEFAULT_RUN_ID])
+
+        self.assertEqual(result, 0)
+        ensure.assert_called_once()
+        self.assertIn(f"run_id={DEFAULT_RUN_ID}", out.getvalue())
+        self.assertIn("pipeline_config_uri=file:///artifacts/runs/gfs/2026021300/", out.getvalue())
 
     def test_run_cycle_processes_all_hours_and_publishes_once(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"), rate_limit_seconds=0.0)

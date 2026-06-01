@@ -110,25 +110,31 @@ checksums, source metadata, and marker provenance, belongs in internal run
 manifests and validation reports under the run prefix. The hot-path frontend
 manifest should continue to expose only compact payload references.
 
-## Proposed Work
-
 ### 4. Snapshot Config Per Run
 
-Workers now snapshot the effective pipeline config and forecast catalog into
-the run prefix. The remaining hardening step is to make workers read from an
-already-created run snapshot, so a mid-run config deployment cannot change what
-remaining workers produce.
+Implemented direction:
 
-Provisional implementation:
-
-- submit tooling or an orchestrator creates the run snapshot before hour
+- `forecast-etl init-run` creates or verifies a run snapshot before hour
   workers launch
-- workers read config from the run snapshot URI
-- run metadata continues to record config digests
+- local and manual submit tooling create the run snapshot first, then pass
+  run-scoped config/catalog URIs to workers and publishers
+- automatic GFS and ICON ingest coordinate the run id, ensure the run snapshot,
+  derive workload from that snapshot, and submit workers with pinned
+  config/catalog URIs
+- manual AWS submits use the Terraform-deployed config/catalog as the source
+  of truth for the run snapshot
+- `publish-cycle` and the scheduled publisher load expected workload and
+  aggregate forecast-manifest catalog data from the selected run snapshot
+- a mid-run config deployment no longer changes what remaining workers or the
+  publisher read for that run
+
+## Proposed Work
 
 ### 5. Make Validation Explicit
 
 Validation should be a separate step between production and promotion.
+This is the best next task because it gives every later publish, promote, and
+rollback task a clean gate: processed -> validated -> promoted.
 
 Provisional implementation:
 
@@ -137,6 +143,9 @@ Provisional implementation:
   encoding metadata, config digest, and run id consistency
 - write a validation report under the run prefix
 - require a successful validation report before promotion
+- update local `run-cycle.sh` and the scheduled publisher in the same task so
+  local runs still publish after validation and production publishing does not
+  wait forever for a report nobody writes
 
 ### 6. Publish by Pointer, Not by Overwrite
 
@@ -156,6 +165,10 @@ Rollback should be a pointer update to a previous validated run, not a rerun or
 manual object rewrite.
 
 ### 7. Keep Latest Pointer Schema Stable
+
+Implement this together with Task 6. Publishing by pointer and the stable latest
+pointer schema are one public-contract change, and the frontend/backend reader
+transition should be handled in the same implementation phase.
 
 Public latest aliases should have a small, stable schema that can survive cycle
 manifest format changes.
@@ -182,6 +195,9 @@ it.
 Each run should record the exact worker image and code/config identity used to
 produce it.
 
+Keep the first pass mostly observational: record identity accurately before
+requiring strict digest-pinned execution.
+
 Provisional implementation:
 
 - record ECR image digest in `run.json`
@@ -193,6 +209,10 @@ Provisional implementation:
 
 DynamoDB should track workflow state and locks, not replace S3 artifact
 markers.
+
+Defer this until validation and pointer promotion are in place and have had at
+least one real deploy/run. It is useful, but it adds another moving piece and
+should not be required for the next production cutover.
 
 Provisional implementation:
 
@@ -210,6 +230,9 @@ markers, manifests, and validation reports.
 Submitting an older cycle should be explicit. This protects against accidental
 wrong-year or wrong-cycle runs.
 
+This is small and high-value, and should be done before adding broader operator
+tooling.
+
 Provisional implementation:
 
 - compare requested cycle against current latest for the model
@@ -221,6 +244,9 @@ Provisional implementation:
 
 A small operator command can make recurring actions safer than shell scripts
 with growing flag sets.
+
+Do this after the underlying validate/promote/rollback commands stabilize.
+Existing shell scripts can keep wrapping the lower-level commands until then.
 
 Provisional commands:
 
@@ -249,6 +275,9 @@ Lower-priority additions:
 
 Run-scoped outputs make cleanup safer, but cleanup still needs explicit policy.
 
+Defer until the new run-first validation/promotion flow has been deployed and
+trusted.
+
 Provisional implementation:
 
 - keep promoted runs longer
@@ -260,6 +289,9 @@ Provisional implementation:
 ### 13. Improve Observability
 
 Operators need one run-level answer for current state.
+
+Add minimal status output as new workflow states are introduced, but defer
+larger dashboards or reporting until the orchestration shape settles.
 
 Provisional implementation:
 
@@ -297,19 +329,23 @@ stopped using it.
 
 ## Priority
 
-Remaining highest leverage first:
+Recommended implementation order:
 
-1. Add separate validate and promote steps.
-2. Snapshot config per run.
-3. Validate marker contents and require one consistent run.
-4. Add stable latest pointers and rollback.
-5. Add backfill safety checks.
-6. Add DynamoDB run state and promotion locks.
-7. Pin and record release identity more strictly.
-8. Add the operator CLI.
-9. Add cleanup/retention automation.
-10. Improve observability.
-11. Remove transition compatibility after old manifests age out.
+1. Commit Task 4 before continuing so the snapshot cutover is isolated.
+2. Implement Task 5: explicit validation, including marker/content checks and
+   a run-scoped `validation.json`.
+3. Implement Tasks 6 and 7 together: pointer promotion, stable latest pointer
+   schema, rollback, and required frontend/backend reader changes.
+4. Implement Task 10: backfill safety checks for manual and automated submits.
+5. Implement Task 8: record release identity more strictly, without requiring
+   strict digest-pinned execution yet.
+6. Deploy and run at least one real production cycle before adding more moving
+   pieces.
+7. Implement Task 9: DynamoDB run state and promotion locks.
+8. Implement Task 11: operator CLI over the now-stable lower-level commands.
+9. Implement Task 12: cleanup/retention automation.
+10. Implement Task 13: broader observability.
+11. Implement Task 14 only after old public manifests have aged out.
 
 ## De-Prioritized Work
 

@@ -34,6 +34,10 @@ locals {
   pipeline_config_path = abspath("${path.root}/../../../config/pipeline/base.json")
   pipeline_config_key  = "weather-etl/pipeline_config.json"
   pipeline_config_uri  = "s3://${local.config_bucket_name}/${local.pipeline_config_key}"
+
+  forecast_catalog_path = abspath("${path.root}/../../../config/forecast_catalog.json")
+  forecast_catalog_key  = "weather-etl/forecast_catalog.json"
+  forecast_catalog_uri  = "s3://${local.config_bucket_name}/${local.forecast_catalog_key}"
 }
 
 locals {

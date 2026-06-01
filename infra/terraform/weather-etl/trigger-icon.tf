@@ -129,6 +129,7 @@ resource "aws_lambda_function" "ingest_icon" {
       ICON_POLL_CYCLE_COUNT = "1"
       ICON_STATE_TABLE      = aws_dynamodb_table.icon_ingest_state.name
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
+      FORECAST_CATALOG_URI  = local.forecast_catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name
     }
   }
@@ -137,7 +138,7 @@ resource "aws_lambda_function" "ingest_icon" {
     Name = "weather-etl-ingest-icon"
   })
 
-  depends_on = [aws_s3_object.forecast_config]
+  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "ingest_icon_poll" {

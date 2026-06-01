@@ -7,12 +7,12 @@ Production forecast ETL infrastructure for GFS and ICON.
 GFS is event-driven:
 
 1. NOAA publishes a GFS object notification to SNS.
-2. `weather-etl-ingest-gfs` filters the object key against the shared ETL
-   config.
+2. `weather-etl-ingest-gfs` filters the object key shape and synoptic cycle.
 3. The Lambda gets or creates one run id for the accepted model cycle in the
    run coordinator table.
-4. The Lambda submits one Batch `run-hour` job for the accepted `(cycle, fhour)`
-   with that shared `RUN_ID`.
+4. The Lambda creates or reads that run's config/catalog snapshot, filters the
+   forecast hour against the snapshot workload, and submits one Batch
+   `run-hour` job with the shared `RUN_ID` and pinned snapshot URIs.
 5. The worker reads the NOAA S3 object and writes field artifacts plus success
    markers.
 
@@ -24,8 +24,9 @@ ICON is polled:
 3. It waits for sentinel `f000` files, verifies required files for each
    configured forecast hour, and uses DynamoDB leases to avoid duplicate
    submissions.
-4. The Lambda gets or creates one run id for the model cycle in the run
-   coordinator table before submitting hour jobs.
+4. The Lambda gets or creates one run id for the model cycle, creates or reads
+   that run's config/catalog snapshot, and uses that snapshot for readiness and
+   completion checks before submitting hour jobs.
 5. Batch workers download ICON files from DWD, decompress, regrid with direct
    CDO, and write field artifacts plus success markers.
 
@@ -36,7 +37,8 @@ Publication is scheduled separately:
 3. Complete runs publish model manifest aliases, the run-scoped
    `_PUBLISHED.json`, and the aggregate frontend forecast manifest.
 
-Both models use the same worker image and the same shared pipeline config.
+Both models use the same worker image. Each run uses pinned copies of the
+pipeline config and forecast catalog stored under its run prefix.
 
 New ETL output is grouped by run:
 
@@ -76,16 +78,19 @@ same cycle from fragmenting into separate run ids.
 
 ## Config
 
-Terraform uploads the production ETL config and passes the same URI to Lambda
-and Batch:
+Terraform uploads the production ETL config and forecast catalog. Ingest
+Lambdas and manual submit tooling use these deployed objects as the source of
+truth when creating a run snapshot:
 
 ```text
 PIPELINE_CONFIG_URI=s3://<config-bucket>/weather-etl/pipeline_config.json
+FORECAST_CATALOG_URI=s3://<config-bucket>/weather-etl/forecast_catalog.json
 ```
 
 Forecast hours and produced artifact ids come from `models.<model>.workload` in
-that config. Changes to `config/pipeline/base.json` are deployed through this
-stack so the S3 config object is updated.
+that config. Changes to `config/pipeline/base.json` or
+`config/forecast_catalog.json` are deployed through this stack so the S3 source
+objects are updated.
 
 ## Deploy
 
@@ -117,8 +122,8 @@ etl/dist/weather-etl-ingest-lambda.zip
 The worker image contains GDAL, CDO, eccodes tools, and ICON regrid assets.
 
 After building the Lambda zip and pushing the worker image, apply this stack so
-the ingest/publisher Lambdas, EventBridge rules, IAM, config object, Batch job
-definitions, and run coordinator table are all current:
+the ingest/publisher Lambdas, EventBridge rules, IAM, config/catalog objects,
+Batch job definitions, and run coordinator table are all current:
 
 ```bash
 cd infra/terraform/weather-etl
@@ -136,8 +141,10 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
 ```
 
 Manual submits generate one run id per submitted cycle unless `--run-id` or
-`RUN_ID` is supplied. Use `--dry-run` to verify the same `RUN_ID` and provenance
-environment are present on every submitted hour before touching Batch:
+`RUN_ID` is supplied. Before submitting workers, the script creates a run
+snapshot from the deployed Terraform-managed config/catalog and passes those
+run snapshot URIs to every Batch job. Use `--dry-run` to verify the same
+`RUN_ID` and snapshot URIs before touching Batch:
 
 ```bash
 infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs --dry-run

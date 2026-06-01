@@ -11,6 +11,7 @@ from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, PipelineConfig
 from ..run_ids import validate_run_id
+from ..run_snapshots import select_run_id_for_cycle
 from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_artifacts
 from .forecast_manifest import publish_forecast_manifest
@@ -39,6 +40,7 @@ def run_publish(
     artifact_specs: Mapping[str, ArtifactSpec],
     artifact_repo: ArtifactRepository,
     pipeline_config: PipelineConfig | None = None,
+    forecast_catalog: Mapping | None = None,
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
 
@@ -53,7 +55,7 @@ def run_publish(
         print("Publish not ready: workload.artifacts is empty")
         return PublishResult(ready=False, already_published=False)
 
-    resolved_run_id, run_errors = _select_publish_run_id(
+    resolved_run_id, run_errors = select_run_id_for_cycle(
         artifact_repo=artifact_repo,
         model_id=ctx.model_id,
         cycle=cycle,
@@ -81,6 +83,7 @@ def run_publish(
         cycle=cycle,
         run_id=resolved_run_id,
         pipeline_config=pipeline_config,
+        forecast_catalog=forecast_catalog,
         generated_at=_utc_now_iso(),
     )
     if fast_result is not None:
@@ -204,6 +207,7 @@ def run_publish(
         forecast_manifest_uri = publish_forecast_manifest(
             pipeline_config=pipeline_config,
             artifact_repo=artifact_repo,
+            catalog=forecast_catalog,
             generated_at=generated_at,
         )
         print(f"Published forecast manifest: {forecast_manifest_uri}")
@@ -238,6 +242,7 @@ def _try_publish_from_existing_run(
     cycle: str,
     run_id: str,
     pipeline_config: PipelineConfig | None,
+    forecast_catalog: Mapping | None,
     generated_at: str,
 ) -> PublishResult | None:
     """Fast path for a run that already has a matching manifest and published marker."""
@@ -292,6 +297,7 @@ def _try_publish_from_existing_run(
         forecast_manifest_uri = publish_forecast_manifest(
             pipeline_config=pipeline_config,
             artifact_repo=artifacts,
+            catalog=forecast_catalog,
             generated_at=generated_at,
         )
         print(f"Published forecast manifest: {forecast_manifest_uri}")
@@ -328,24 +334,6 @@ def _should_refresh_forecast_manifest(
         model_id=model_id,
         revision=revision,
     )
-
-
-def _select_publish_run_id(
-    *,
-    artifact_repo: ArtifactRepository,
-    model_id: str,
-    cycle: str,
-    required_run_id: str | None,
-) -> tuple[str | None, list[str]]:
-    if required_run_id is not None:
-        return validate_run_id(required_run_id), []
-
-    run_ids = artifact_repo.list_run_ids(model_id=model_id, cycle=cycle)
-    if not run_ids:
-        return None, [f"no runs found for model={model_id!r} cycle={cycle!r}"]
-    if len(run_ids) > 1:
-        return None, [f"multiple runs found for model={model_id!r} cycle={cycle!r}: {list(run_ids)!r}"]
-    return run_ids[0], []
 
 
 def _read_publish_markers(

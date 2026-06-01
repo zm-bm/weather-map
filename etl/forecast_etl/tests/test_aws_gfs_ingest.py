@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.aws import gfs_ingest
+from forecast_etl.config.load import LoadedPipelineConfig
+from forecast_etl.run_snapshots import LoadedRunSnapshot
 from forecast_etl.tests.fixtures.artifact_configs import wind_artifact_config
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
@@ -60,6 +62,17 @@ class _FakePipelineConfig:
         return self
 
 
+def _loaded_snapshot(cfg: _FakePipelineConfig) -> LoadedRunSnapshot:
+    return LoadedRunSnapshot(
+        run_id=DEFAULT_RUN_ID,
+        config_digest="sha256:" + "1" * 64,
+        pipeline_config_uri=f"s3://artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        forecast_catalog_uri=f"s3://artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        loaded_config=LoadedPipelineConfig(raw={"models": {"gfs": {}}}, config=cfg),
+        forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
+    )
+
+
 def _sns_event(key: str) -> dict:
     return {
         "Records": [
@@ -86,7 +99,6 @@ def _sns_event(key: str) -> dict:
 
 class AwsGfsIngestTest(unittest.TestCase):
     def setUp(self) -> None:
-        gfs_ingest._FILTERS_CACHE_BY_URI.clear()
         self.batch = _FakeBatchClient()
         self.ddb = _FakeDynamoClient()
         self.env_patch = patch.dict(
@@ -117,9 +129,20 @@ class AwsGfsIngestTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
             cfg_path = Path(td) / "pipeline_config.json"
+            catalog_path = Path(td) / "forecast_catalog.json"
+            artifact_root = Path(td) / "artifacts"
             cfg_path.write_text(json.dumps(payload), encoding="utf-8")
+            catalog_path.write_text('{"catalogVersion":"test","rasterLayers":[]}\n', encoding="utf-8")
             with (
-                patch.dict(os.environ, {"PIPELINE_CONFIG_URI": f"file://{cfg_path.as_posix()}"}, clear=False),
+                patch.dict(
+                    os.environ,
+                    {
+                        "ARTIFACT_ROOT_URI": f"file://{artifact_root.as_posix()}",
+                        "PIPELINE_CONFIG_URI": f"file://{cfg_path.as_posix()}",
+                        "FORECAST_CATALOG_URI": f"file://{catalog_path.as_posix()}",
+                    },
+                    clear=False,
+                ),
                 patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
             ):
                 result = gfs_ingest.handler(
@@ -141,7 +164,14 @@ class AwsGfsIngestTest(unittest.TestCase):
             env["GRIB_SOURCE_URI"],
             "s3://noaa-gfs-bdp-pds/gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003",
         )
-        self.assertNotIn("PIPELINE_CONFIG_URI", env)
+        self.assertEqual(
+            env["PIPELINE_CONFIG_URI"],
+            f"file://{artifact_root.as_posix()}/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        )
+        self.assertEqual(
+            env["FORECAST_CATALOG_URI"],
+            f"file://{artifact_root.as_posix()}/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        )
         self.assertEqual(self.ddb.items["gfs#2026021300"]["runId"], DEFAULT_RUN_ID)
 
     def test_handler_filters_by_forecast_hour(self) -> None:
@@ -150,7 +180,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface",),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -167,7 +197,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=(),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -184,7 +214,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -201,7 +231,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -219,7 +249,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface",),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(

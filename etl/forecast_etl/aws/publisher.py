@@ -7,20 +7,16 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.load import load_pipeline_config
-from ..config.resolved import PipelineConfig
 from ..cycles import latest_synoptic_cycles, parse_cycle
 from ..manifest.publish import run_publish
+from ..run_snapshots import load_run_snapshot, select_run_id_for_cycle
 from ..runtime import execution_context_for_model
 from ..storage.routing import make_store
-from ..uris import default_artifact_root_uri, default_pipeline_config_uri
+from ..uris import default_artifact_root_uri
 
-DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
 DEFAULT_PUBLISH_MODELS = ("gfs", "icon")
 DEFAULT_PUBLISH_CYCLE_COUNT = 8
-
-_CONFIG_CACHE_BY_URI: dict[str, PipelineConfig] = {}
 
 
 def _int_env(name: str, default: int) -> int:
@@ -32,17 +28,6 @@ def _int_env(name: str, default: int) -> int:
     except ValueError as exc:
         raise SystemExit(f"{name} must be an integer, got: {raw!r}") from exc
     return max(0, value)
-
-
-def _pipeline_config(pipeline_config_uri: str) -> PipelineConfig:
-    cached = _CONFIG_CACHE_BY_URI.get(pipeline_config_uri)
-    if cached is not None:
-        return cached
-
-    cfg = load_pipeline_config(pipeline_config_uri)
-    _CONFIG_CACHE_BY_URI[pipeline_config_uri] = cfg
-    print(f"Loaded publisher pipeline config from: {pipeline_config_uri}", flush=True)
-    return cfg
 
 
 def _event_now(event: dict[str, Any]) -> datetime:
@@ -93,10 +78,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     del context
     event = event if isinstance(event, dict) else {}
-    pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
     artifact_root_uri = os.environ.get("ARTIFACT_ROOT_URI", DEFAULT_ARTIFACT_ROOT_URI).strip()
 
-    cfg = _pipeline_config(pipeline_config_uri)
     store = make_store()
     artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
     cycles = _publish_cycles(event, now=_event_now(event))
@@ -112,27 +95,43 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     failures: list[dict[str, str]] = []
 
     for model_id in models:
-        try:
-            model = cfg.model(model_id)
-            ctx = execution_context_for_model(model, artifact_root_uri)
-        except (Exception, SystemExit) as exc:
-            failed += len(cycles)
-            for cycle in cycles:
-                failures.append({"model": model_id, "cycle": cycle, "error": str(exc)})
-            print(f"Publisher failed to load model={model_id}: {exc}", flush=True)
-            continue
-
         for cycle in cycles:
             attempted += 1
             try:
+                run_id, run_errors = select_run_id_for_cycle(
+                    artifact_repo=artifact_repo,
+                    model_id=model_id,
+                    cycle=cycle,
+                    required_run_id=None,
+                )
+                if run_errors or run_id is None:
+                    not_ready += 1
+                    print(
+                        f"Publisher not ready model={model_id} cycle={cycle}: "
+                        + "; ".join(run_errors or ["no run selected"]),
+                        flush=True,
+                    )
+                    continue
+                snapshot = load_run_snapshot(
+                    artifact_repo=artifact_repo,
+                    store=store,
+                    model_id=model_id,
+                    cycle=cycle,
+                    run_id=run_id,
+                )
+                cfg = snapshot.loaded_config.config
+                model = cfg.model(model_id)
+                ctx = execution_context_for_model(model, artifact_root_uri)
                 result = run_publish(
                     ctx=ctx,
                     cycle=cycle,
+                    run_id=run_id,
                     model_label=model.label,
                     artifact_ids=model.workload.artifacts,
                     artifact_specs=model.artifacts,
                     artifact_repo=artifact_repo,
                     pipeline_config=cfg,
+                    forecast_catalog=snapshot.forecast_catalog,
                 )
             except (Exception, SystemExit) as exc:
                 failed += 1

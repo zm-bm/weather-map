@@ -11,7 +11,9 @@ resource "aws_lambda_function" "ingest" {
     variables = {
       BATCH_JOB_QUEUE       = aws_batch_job_queue.etl.name
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker.arn
+      ARTIFACT_ROOT_URI     = "s3://${local.artifacts_bucket_name}"
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
+      FORECAST_CATALOG_URI  = local.forecast_catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name
     }
   }
@@ -20,7 +22,7 @@ resource "aws_lambda_function" "ingest" {
     Name = "weather-etl-ingest-gfs"
   })
 
-  depends_on = [aws_s3_object.forecast_config]
+  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_sns_topic_subscription" "ingest" {

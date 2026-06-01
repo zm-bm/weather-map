@@ -99,6 +99,7 @@ def publish_forecast_manifest(
     *,
     pipeline_config: PipelineConfig,
     artifact_repo: ArtifactRepository,
+    catalog: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
 ) -> str:
     """Generate and publish the current frontend forecast manifest."""
@@ -107,6 +108,7 @@ def publish_forecast_manifest(
         pipeline_config=pipeline_config,
         artifact_repo=artifact_repo,
         generated_at=generated_at,
+        catalog=catalog,
     )
     return artifact_repo.write_forecast_manifest(manifest=manifest)
 

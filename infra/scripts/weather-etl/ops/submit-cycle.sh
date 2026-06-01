@@ -31,7 +31,7 @@ Options:
   -h, --help                      Show this help and exit.
 
 Environment defaults:
-  CYCLE, RUN_ID, MODEL, FHOURS, CONFIG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
+  CYCLE, RUN_ID, MODEL, FHOURS, CONFIG_FILE, CATALOG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
   SUBMIT_DELAY_SECONDS, DRY_RUN, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE,
   ETL_CODE_REVISION, ETL_IMAGE_IDENTITY.
 EOF
@@ -60,6 +60,7 @@ RUN_ID="${RUN_ID:-}"
 MODEL="${MODEL:-gfs}"
 FHOURS_ARG="${FHOURS:-}"
 CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/config/pipeline/base.json}"
+CATALOG_FILE="${CATALOG_FILE:-$REPO_ROOT/config/forecast_catalog.json}"
 SOURCE_BUCKET="${SOURCE_BUCKET:-noaa-gfs-bdp-pds}"
 JOB_NAME_PREFIX="${JOB_NAME_PREFIX:-weather-etl-manual}"
 SUBMIT_DELAY_SECONDS="${SUBMIT_DELAY_SECONDS:-0}"
@@ -228,6 +229,10 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "Config file not found: $CONFIG_FILE" >&2
   exit 1
 fi
+if [[ ! -f "$CATALOG_FILE" ]]; then
+  echo "Forecast catalog file not found: $CATALOG_FILE" >&2
+  exit 1
+fi
 
 CYCLE_DATE="${CYCLE:0:8}"
 CYCLE_HOUR="${CYCLE:8:2}"
@@ -252,6 +257,8 @@ else
   JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
 fi
 PIPELINE_CONFIG_URI="$(terraform output -raw pipeline_config_uri)"
+FORECAST_CATALOG_URI="$(terraform output -raw forecast_catalog_uri)"
+ARTIFACT_ROOT_URI="s3://$(terraform output -raw artifacts_bucket_name)"
 if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
   ETL_IMAGE_IDENTITY="$JOB_DEFINITION"
 fi
@@ -266,6 +273,18 @@ uri = sys.argv[1]
 parsed = urlparse(uri)
 if parsed.scheme != "s3" or not parsed.netloc or not parsed.path.strip("/"):
     raise SystemExit(f"pipeline_config_uri must be s3://bucket/key, got: {uri!r}")
+print(parsed.netloc, parsed.path.lstrip("/"))
+PY
+  )
+  read -r CATALOG_BUCKET CATALOG_KEY < <(
+    python3 - "$FORECAST_CATALOG_URI" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+uri = sys.argv[1]
+parsed = urlparse(uri)
+if parsed.scheme != "s3" or not parsed.netloc or not parsed.path.strip("/"):
+    raise SystemExit(f"forecast_catalog_uri must be s3://bucket/key, got: {uri!r}")
 print(parsed.netloc, parsed.path.lstrip("/"))
 PY
   )
@@ -289,7 +308,31 @@ PY
     echo "Run terraform apply for this stack, or use --skip-config-check." >&2
     exit 1
   fi
+
+  LOCAL_CATALOG_MD5="$(md5sum "$CATALOG_FILE" | awk '{print $1}')"
+  REMOTE_CATALOG_ETAG="$(
+    aws s3api head-object \
+      --bucket "$CATALOG_BUCKET" \
+      --key "$CATALOG_KEY" \
+      --query ETag \
+      --output text \
+      | tr -d '"'
+  )"
+
+  if [[ "$REMOTE_CATALOG_ETAG" != "$LOCAL_CATALOG_MD5" ]]; then
+    echo "Remote forecast catalog does not match local catalog." >&2
+    echo "  local:       $CATALOG_FILE" >&2
+    echo "  s3:          $FORECAST_CATALOG_URI" >&2
+    echo "  local md5:   $LOCAL_CATALOG_MD5" >&2
+    echo "  remote etag: $REMOTE_CATALOG_ETAG" >&2
+    echo "Run terraform apply for this stack, or use --skip-config-check." >&2
+    exit 1
+  fi
 fi
+
+DEPLOYED_CONFIG_FILE="$(mktemp "${TMPDIR:-/tmp}/weather-map-pipeline-config.XXXXXX.json")"
+trap 'rm -f "$DEPLOYED_CONFIG_FILE"' EXIT
+aws s3 cp "$PIPELINE_CONFIG_URI" "$DEPLOYED_CONFIG_FILE" >/dev/null
 
 if [[ -n "$FHOURS_ARG" ]]; then
   mapfile -t FORECAST_HOURS < <(
@@ -313,7 +356,7 @@ PY
   )
 else
   mapfile -t FORECAST_HOURS < <(
-    python3 - "$CONFIG_FILE" "$MODEL" <<'PY'
+    python3 - "$DEPLOYED_CONFIG_FILE" "$MODEL" <<'PY'
 import json
 import sys
 
@@ -366,7 +409,9 @@ fi
 echo "Submitting prod ETL cycle"
 echo "  stack:               $STACK_DIR"
 echo "  config:              $CONFIG_FILE"
-echo "  pipeline_config_uri: $PIPELINE_CONFIG_URI"
+echo "  catalog:             $CATALOG_FILE"
+echo "  source_config_uri:   $PIPELINE_CONFIG_URI"
+echo "  source_catalog_uri:  $FORECAST_CATALOG_URI"
 echo "  queue:               $QUEUE"
 echo "  job_definition:      $JOB_DEFINITION"
 echo "  model:               $MODEL"
@@ -381,6 +426,45 @@ echo "  forecast_hours:      ${#FORECAST_HOURS[@]}"
 echo "  dry_run:             $DRY_RUN"
 echo
 
+RUN_PIPELINE_CONFIG_URI="${ARTIFACT_ROOT_URI%/}/runs/${MODEL}/${CYCLE}/${RUN_ID}/config/pipeline_config.json"
+RUN_FORECAST_CATALOG_URI="${ARTIFACT_ROOT_URI%/}/runs/${MODEL}/${CYCLE}/${RUN_ID}/config/forecast_catalog.json"
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "Run snapshot"
+  echo "  dry-run init-run"
+  echo "  pipeline_config_uri=$RUN_PIPELINE_CONFIG_URI"
+  echo "  forecast_catalog_uri=$RUN_FORECAST_CATALOG_URI"
+  echo
+else
+  PYTHON_BIN="${PYTHON_BIN:-$REPO_ROOT/.venv/bin/python}"
+  if [[ ! -x "$PYTHON_BIN" ]]; then
+    PYTHON_BIN="python3"
+  fi
+  INIT_OUTPUT="$(
+    PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \
+      "$PYTHON_BIN" -m forecast_etl.cli init-run \
+        --model "$MODEL" \
+        --cycle "$CYCLE" \
+        --run-id "$RUN_ID" \
+        --artifact-root-uri "$ARTIFACT_ROOT_URI" \
+        --pipeline-config-uri "$PIPELINE_CONFIG_URI" \
+        --forecast-catalog-uri "$FORECAST_CATALOG_URI"
+  )"
+  while IFS='=' read -r key value; do
+    case "$key" in
+      pipeline_config_uri) RUN_PIPELINE_CONFIG_URI="$value" ;;
+      forecast_catalog_uri) RUN_FORECAST_CATALOG_URI="$value" ;;
+    esac
+  done <<< "$INIT_OUTPUT"
+  if [[ -z "$RUN_PIPELINE_CONFIG_URI" || -z "$RUN_FORECAST_CATALOG_URI" ]]; then
+    echo "init-run did not return snapshot config/catalog URIs." >&2
+    echo "$INIT_OUTPUT" >&2
+    exit 1
+  fi
+  echo "Run snapshot"
+  echo "$INIT_OUTPUT" | sed 's/^/  /'
+  echo
+fi
+
 SUBMITTED=0
 for FHOUR in "${FORECAST_HOURS[@]}"; do
   if [[ "$MODEL" == "gfs" ]]; then
@@ -393,17 +477,18 @@ for FHOUR in "${FORECAST_HOURS[@]}"; do
   JOB_NAME="${JOB_NAME:0:128}"
 
   CONTAINER_OVERRIDES="$(
-    python3 - "$MODEL" "$CYCLE" "$RUN_ID" "$FHOUR" "$GRIB_SOURCE_URI" "$PIPELINE_CONFIG_URI" "$ETL_CODE_REVISION" "$ETL_IMAGE_IDENTITY" <<'PY'
+    python3 - "$MODEL" "$CYCLE" "$RUN_ID" "$FHOUR" "$GRIB_SOURCE_URI" "$RUN_PIPELINE_CONFIG_URI" "$RUN_FORECAST_CATALOG_URI" "$ETL_CODE_REVISION" "$ETL_IMAGE_IDENTITY" <<'PY'
 import json
 import sys
 
-model, cycle, run_id, fhour, source_uri, pipeline_config_uri, code_revision, image_identity = sys.argv[1:]
+model, cycle, run_id, fhour, source_uri, pipeline_config_uri, forecast_catalog_uri, code_revision, image_identity = sys.argv[1:]
 environment = [
         {"name": "MODEL", "value": model},
         {"name": "CYCLE", "value": cycle},
         {"name": "RUN_ID", "value": run_id},
         {"name": "FHOUR", "value": fhour},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
+        {"name": "FORECAST_CATALOG_URI", "value": forecast_catalog_uri},
         {"name": "ETL_CODE_REVISION", "value": code_revision},
         {"name": "ETL_IMAGE_IDENTITY", "value": image_identity},
 ]

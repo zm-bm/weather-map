@@ -13,9 +13,9 @@ import boto3  # type: ignore
 
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
-from ..config.load import load_pipeline_config
-from ..config.resolved import IconDwdSourceConfig, ModelConfig, PipelineConfig
+from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..cycles import latest_synoptic_cycles
+from ..run_snapshots import ensure_or_load_run_snapshot
 from ..source_adapters.icon_dwd import (
     icon_dwd_url,
     previous_icon_fhour,
@@ -24,10 +24,11 @@ from ..source_adapters.icon_dwd import (
 )
 from ..storage.base import UriStore
 from ..storage.routing import make_store
-from ..uris import default_pipeline_config_uri
+from ..uris import default_forecast_catalog_uri, default_pipeline_config_uri
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
+DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
 DEFAULT_POLL_CYCLE_COUNT = 1
 DEFAULT_LEASE_SECONDS = 14400
 DEFAULT_STATE_TTL_SECONDS = 14 * 24 * 60 * 60
@@ -35,8 +36,6 @@ DEFAULT_READY_MIN_BYTES = 1024
 MODEL_ID = "icon"
 DEFAULT_SENTINEL_PARAMS = ("t_2m", "u_10m", "v_10m", "pmsl", "clct")
 RETRYABLE_HTTP_CODES = {403, 404, 408, 409, 425, 429, 500, 502, 503, 504}
-
-_CONFIG_CACHE_BY_URI: dict[str, PipelineConfig] = {}
 
 
 def _int_env(name: str, default: int) -> int:
@@ -52,23 +51,6 @@ def _int_env(name: str, default: int) -> int:
 
 def _positive_int_env(name: str, default: int) -> int:
     return max(1, _int_env(name, default))
-
-
-def _pipeline_config(pipeline_config_uri: str) -> PipelineConfig:
-    cached = _CONFIG_CACHE_BY_URI.get(pipeline_config_uri)
-    if cached is not None:
-        return cached
-
-    cfg = load_pipeline_config(pipeline_config_uri)
-    _CONFIG_CACHE_BY_URI[pipeline_config_uri] = cfg
-    print(f"Loaded ICON pipeline config from: {pipeline_config_uri}", flush=True)
-    return cfg
-
-
-def _model(pipeline_config_uri: str) -> ModelConfig:
-    cfg = _pipeline_config(pipeline_config_uri)
-    model = cfg.model(MODEL_ID)
-    return model
 
 
 def _sentinel_params() -> tuple[str, ...]:
@@ -264,6 +246,7 @@ def _submit_job(
     queue: str,
     job_definition: str,
     pipeline_config_uri: str,
+    forecast_catalog_uri: str,
     cycle: str,
     run_id: str,
     fhour: str,
@@ -277,6 +260,7 @@ def _submit_job(
         {"name": "RUN_ID", "value": run_id},
         {"name": "FHOUR", "value": fhour},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
+        {"name": "FORECAST_CATALOG_URI", "value": forecast_catalog_uri},
     ]
     response = batch.submit_job(
         jobName=job_name,
@@ -302,11 +286,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
     artifact_root_uri = os.environ["ARTIFACT_ROOT_URI"]
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
-
-    model = _model(pipeline_config_uri)
-    if not model.workload.artifacts or not model.workload.forecast_hours:
-        print("ICON workload is empty; nothing to submit", flush=True)
-        return {"ok": True, "submitted": 0}
+    forecast_catalog_uri = os.environ.get("FORECAST_CATALOG_URI", DEFAULT_FORECAST_CATALOG_URI).strip()
 
     now = _event_now(event)
     now_epoch = int(now.timestamp())
@@ -314,8 +294,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         now=now,
         cycle_count=_positive_int_env("ICON_POLL_CYCLE_COUNT", DEFAULT_POLL_CYCLE_COUNT),
     )
-    required_params = required_icon_params(model)
-    previous_required_params = required_previous_icon_params(model)
     sentinel_params = _sentinel_params()
     min_bytes = _int_env("ICON_READY_MIN_BYTES", DEFAULT_READY_MIN_BYTES)
 
@@ -323,6 +301,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     ddb = boto3.client("dynamodb")
     store = make_store()
     paths = ArtifactPaths(artifact_root_uri)
+    artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
 
     submitted = 0
     completed = 0
@@ -331,10 +310,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     skipped_cycles = 0
 
     for cycle in cycles:
-        if not _params_ready(model=model, cycle=cycle, fhour="000", params=sentinel_params, min_bytes=min_bytes):
-            skipped_cycles += 1
-            continue
-
         cycle_run_id = coordinated_run_id(
             ddb=ddb,
             table_name=run_coordinator_table,
@@ -343,6 +318,27 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             now=now,
             ttl_seconds=run_coordinator_ttl_seconds(),
         )
+        snapshot = ensure_or_load_run_snapshot(
+            artifact_repo=artifact_repo,
+            store=store,
+            model_id=MODEL_ID,
+            cycle=cycle,
+            run_id=cycle_run_id,
+            pipeline_config_uri=pipeline_config_uri,
+            forecast_catalog_uri=forecast_catalog_uri,
+        )
+        model = snapshot.loaded_config.config.model(MODEL_ID)
+        if not model.workload.artifacts or not model.workload.forecast_hours:
+            print("ICON workload is empty; nothing to submit", flush=True)
+            skipped_cycles += 1
+            continue
+        required_params = required_icon_params(model)
+        previous_required_params = required_previous_icon_params(model)
+
+        if not _params_ready(model=model, cycle=cycle, fhour="000", params=sentinel_params, min_bytes=min_bytes):
+            skipped_cycles += 1
+            continue
+
         existing_markers = _existing_success_markers(
             store=store,
             paths=paths,
@@ -396,7 +392,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 batch=batch,
                 queue=queue,
                 job_definition=job_definition,
-                pipeline_config_uri=pipeline_config_uri,
+                pipeline_config_uri=snapshot.pipeline_config_uri,
+                forecast_catalog_uri=snapshot.forecast_catalog_uri,
                 cycle=cycle,
                 run_id=cycle_run_id,
                 fhour=fhour,

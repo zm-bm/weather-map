@@ -83,7 +83,15 @@ def run_cycle(
         raise SystemExit(str(exc)) from None
 
     if publish:
-        publish_cycle(ctx=ctx, model=model, cycle=cycle, run_id=run_id, pipeline_config=pipeline_config, store=store)
+        publish_cycle(
+            ctx=ctx,
+            model=model,
+            cycle=cycle,
+            run_id=run_id,
+            pipeline_config=pipeline_config,
+            forecast_catalog=snapshot.forecast_catalog,
+            store=store,
+        )
 
 
 def run_cycle_one(payload: HourTask, *, store: UriStore | None = None, run: RunFn | None = None) -> None:

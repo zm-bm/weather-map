@@ -43,5 +43,8 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
 infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
 ```
 
+Manual submits use the Terraform-deployed pipeline config and forecast catalog
+to create a run-scoped snapshot before Batch workers start.
+
 See [terraform/weather-etl/README.md](terraform/weather-etl/README.md) for the
 GFS/ICON production architecture and operational details.

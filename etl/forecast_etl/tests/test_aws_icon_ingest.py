@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 from forecast_etl.artifacts.paths import ArtifactPaths
 from forecast_etl.aws import icon_ingest
+from forecast_etl.config.load import LoadedPipelineConfig
 from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig
+from forecast_etl.run_snapshots import LoadedRunSnapshot
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
@@ -58,6 +60,27 @@ class _FakeModel:
                 "artifacts",
                 {"tmp_surface": _FakeArtifact(components=(_FakeComponent({"ICON_PARAM": "t_2m"}),))},
             )
+
+
+class _FakePipelineConfig:
+    def __init__(self, model: _FakeModel) -> None:
+        self._model = model
+
+    def model(self, model_id: str) -> _FakeModel:
+        if model_id != "icon":
+            raise SystemExit(f"Unknown model {model_id!r}")
+        return self._model
+
+
+def _loaded_snapshot(model: _FakeModel) -> LoadedRunSnapshot:
+    return LoadedRunSnapshot(
+        run_id=DEFAULT_RUN_ID,
+        config_digest="sha256:" + "1" * 64,
+        pipeline_config_uri=f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        forecast_catalog_uri=f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        loaded_config=LoadedPipelineConfig(raw={"models": {"icon": {}}}, config=_FakePipelineConfig(model)),
+        forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
+    )
 
 
 class _FakeBatchClient:
@@ -172,7 +195,6 @@ def _env() -> dict[str, str]:
 
 class IconIngestTest(unittest.TestCase):
     def setUp(self) -> None:
-        icon_ingest._CONFIG_CACHE_BY_URI.clear()
         self.batch = _FakeBatchClient()
         self.ddb = _FakeDynamoClient()
         self.store = _FakeStore()
@@ -188,7 +210,7 @@ class IconIngestTest(unittest.TestCase):
 
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.icon_ingest._model", return_value=self.model),
+            patch("forecast_etl.aws.icon_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(self.model)),
             patch("forecast_etl.aws.icon_ingest._url_ready", side_effect=ready),
             patch("forecast_etl.aws.icon_ingest.make_store", return_value=self.store),
             patch("forecast_etl.aws.icon_ingest.boto3.client", side_effect=fake_client),
@@ -253,7 +275,14 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(env["CYCLE"], "2026051112")
         self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
         self.assertEqual(env["FHOUR"], "001")
-        self.assertEqual(env["PIPELINE_CONFIG_URI"], "file:///tmp/config.json")
+        self.assertEqual(
+            env["PIPELINE_CONFIG_URI"],
+            f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        )
+        self.assertEqual(
+            env["FORECAST_CATALOG_URI"],
+            f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        )
         self.assertNotIn("GRIB_SOURCE_URI", env)
         lease_update = next(
             update for update in self.ddb.updates if "#state = :processing" in update["UpdateExpression"]

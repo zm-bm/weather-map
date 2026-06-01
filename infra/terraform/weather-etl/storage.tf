@@ -178,3 +178,11 @@ resource "aws_s3_object" "forecast_config" {
   etag         = filemd5(local.pipeline_config_path)
   content_type = "application/json"
 }
+
+resource "aws_s3_object" "forecast_catalog" {
+  bucket       = local.config_bucket_name
+  key          = local.forecast_catalog_key
+  source       = local.forecast_catalog_path
+  etag         = filemd5(local.forecast_catalog_path)
+  content_type = "application/json"
+}

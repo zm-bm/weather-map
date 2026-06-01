@@ -84,7 +84,6 @@ resource "aws_lambda_function" "publisher" {
   environment {
     variables = {
       ARTIFACT_ROOT_URI   = "s3://${local.artifacts_bucket_name}"
-      PIPELINE_CONFIG_URI = local.pipeline_config_uri
       PUBLISH_MODELS      = "gfs,icon"
       PUBLISH_CYCLE_COUNT = "8"
     }
@@ -94,7 +93,7 @@ resource "aws_lambda_function" "publisher" {
     Name = "weather-etl-publisher"
   })
 
-  depends_on = [aws_s3_object.forecast_config]
+  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "publisher_schedule" {

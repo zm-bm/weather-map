@@ -6,7 +6,10 @@ from dataclasses import dataclass, field
 from unittest.mock import patch
 
 from forecast_etl.aws import publisher
+from forecast_etl.config.load import LoadedPipelineConfig
 from forecast_etl.manifest.publish import PublishResult
+from forecast_etl.run_snapshots import LoadedRunSnapshot
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,17 @@ class _FakeStore:
     pass
 
 
+def _loaded_snapshot(cfg: _FakePipelineConfig) -> LoadedRunSnapshot:
+    return LoadedRunSnapshot(
+        run_id=DEFAULT_RUN_ID,
+        config_digest="sha256:" + "1" * 64,
+        pipeline_config_uri=f"s3://artifacts/runs/gfs/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
+        forecast_catalog_uri=f"s3://artifacts/runs/gfs/2026051112/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
+        loaded_config=LoadedPipelineConfig(raw={"models": {"gfs": {}, "icon": {}}}, config=cfg),
+        forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
+    )
+
+
 def _env() -> dict[str, str]:
     return {
         "ARTIFACT_ROOT_URI": "s3://artifacts",
@@ -54,13 +68,13 @@ def _env() -> dict[str, str]:
 
 class PublisherTest(unittest.TestCase):
     def setUp(self) -> None:
-        publisher._CONFIG_CACHE_BY_URI.clear()
         self.cfg = _FakePipelineConfig()
 
     def _run(self, event: dict, *, side_effect) -> tuple[dict, object]:
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.publisher._pipeline_config", return_value=self.cfg),
+            patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
             patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
             patch("forecast_etl.aws.publisher.run_publish", side_effect=side_effect) as run_publish,
         ):
@@ -99,7 +113,8 @@ class PublisherTest(unittest.TestCase):
             clear=False,
         ):
             with (
-                patch("forecast_etl.aws.publisher._pipeline_config", return_value=self.cfg),
+                patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+                patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
                 patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
                 patch(
                     "forecast_etl.aws.publisher.run_publish",

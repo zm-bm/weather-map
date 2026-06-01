@@ -10,6 +10,10 @@ output "pipeline_config_uri" {
   value = local.pipeline_config_uri
 }
 
+output "forecast_catalog_uri" {
+  value = local.forecast_catalog_uri
+}
+
 output "worker_ecr_repository_url" {
   value = aws_ecr_repository.worker.repository_url
 }

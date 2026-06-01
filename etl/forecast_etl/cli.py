@@ -1,6 +1,7 @@
 """forecast_etl CLI.
 
 Subcommands:
+- init-run: create or verify immutable run config/catalog snapshots
 - run-hour: run all configured artifacts for one (cycle, fhour)
 - run-cycle: process all forecast hours for one model, and publish once
 - publish-cycle: publish manifests for one processed model cycle
@@ -21,11 +22,13 @@ from .config.resolved import PipelineConfig
 from .cycles import parse_cycle
 from .run_ids import generate_run_id, parse_run_id
 from .run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
+from .run_snapshots import ensure_run_snapshot, load_run_snapshot, select_run_id_for_cycle
 from .runtime import execution_context_for_model
 from .storage.base import UriStore
 from .storage.routing import make_store
 from .uris import (
     default_artifact_root_uri,
+    default_forecast_catalog_uri,
     default_pipeline_config_uri,
 )
 
@@ -43,6 +46,12 @@ def _config_parser() -> argparse.ArgumentParser:
         dest="pipeline_config_overlay_uri",
         default=os.environ.get("PIPELINE_CONFIG_OVERLAY_URI") or None,
         help="Optional local/dev pipeline config overlay URI.",
+    )
+    p.add_argument(
+        "--forecast-catalog-uri",
+        dest="forecast_catalog_uri",
+        default=os.environ.get("FORECAST_CATALOG_URI") or default_forecast_catalog_uri(),
+        help="Forecast catalog URI (file://, s3://, http(s)://).",
     )
     return p
 
@@ -71,6 +80,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     sub = ap.add_subparsers(dest="cmd", required=True)
     runtime = _runtime_parser()
     config = _config_parser()
+
+    ap_init_run = sub.add_parser(
+        "init-run",
+        help="Create or verify immutable config/catalog snapshots for one run",
+        parents=[runtime],
+    )
+    ap_init_run.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_init_run.add_argument("--run-id", required=True, help="Run id")
+    ap_init_run.set_defaults(_handler=_cmd_init_run)
 
     ap_run_hour = sub.add_parser(
         "run-hour",
@@ -163,7 +181,7 @@ def _run_snapshot(args: argparse.Namespace, *, store: UriStore, loaded: LoadedPi
     return RunSnapshot(
         metadata=run_metadata_from_env(config_digest=json_document_digest(loaded.raw)),
         pipeline_config=loaded.raw,
-        forecast_catalog=load_forecast_catalog(store=store),
+        forecast_catalog=load_forecast_catalog(catalog_uri=args.forecast_catalog_uri, store=store),
     )
 
 
@@ -244,6 +262,31 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_init_run(args: argparse.Namespace) -> int:
+    """Create or verify immutable run config/catalog snapshots."""
+    store = make_store()
+    model_id = _require_model_id(args)
+    cycle = str(args.cycle)
+    parse_cycle(cycle)
+    run_id = parse_run_id(args.run_id)
+    artifact_repo = _artifact_repo(args, store=store)
+    loaded = ensure_run_snapshot(
+        artifact_repo=artifact_repo,
+        store=store,
+        model_id=model_id,
+        cycle=cycle,
+        run_id=run_id,
+        pipeline_config_uri=args.pipeline_config_uri,
+        pipeline_config_overlay_uri=args.pipeline_config_overlay_uri,
+        forecast_catalog_uri=args.forecast_catalog_uri,
+    )
+    print(f"run_id={loaded.run_id}")
+    print(f"config_digest={loaded.config_digest}")
+    print(f"pipeline_config_uri={loaded.pipeline_config_uri}")
+    print(f"forecast_catalog_uri={loaded.forecast_catalog_uri}")
+    return 0
+
+
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
     """Fan out model forecast-hour workers locally, and publish once by default."""
     store = make_store()
@@ -273,12 +316,37 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
 def _cmd_publish_cycle(args: argparse.Namespace) -> int:
     """Publish one processed model cycle."""
     store = make_store()
-    cfg = _load_cfg(args, store=store)
-    model = cfg.model(_require_model_id(args))
-    ctx = execution_context_for_model(model, args.artifact_root_uri)
+    model_id = _require_model_id(args)
     cycle = str(args.cycle)
     parse_cycle(cycle)
-    run_id = parse_run_id(args.run_id) if args.run_id else None
+    required_run_id = parse_run_id(args.run_id) if args.run_id else None
+    artifact_repo = _artifact_repo(args, store=store)
+    run_id, run_errors = select_run_id_for_cycle(
+        artifact_repo=artifact_repo,
+        model_id=model_id,
+        cycle=cycle,
+        required_run_id=required_run_id,
+    )
+    if run_errors or run_id is None:
+        print(f"Publish not ready: run selection failed for model={model_id} cycle={cycle}")
+        for error in run_errors:
+            print(f"run error: {error}")
+        return 2
+    try:
+        snapshot = load_run_snapshot(
+            artifact_repo=artifact_repo,
+            store=store,
+            model_id=model_id,
+            cycle=cycle,
+            run_id=run_id,
+        )
+    except FileNotFoundError as exc:
+        print(f"Publish not ready: {exc}")
+        return 2
+
+    cfg = snapshot.loaded_config.config
+    model = cfg.model(model_id)
+    ctx = execution_context_for_model(model, args.artifact_root_uri)
 
     result = publish_cycle(
         model=model,
@@ -286,6 +354,7 @@ def _cmd_publish_cycle(args: argparse.Namespace) -> int:
         cycle=cycle,
         run_id=run_id,
         pipeline_config=cfg,
+        forecast_catalog=snapshot.forecast_catalog,
         store=store,
     )
     return 0 if result.ready else 2
@@ -312,6 +381,12 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
     del args
     print("hello world")
     return 0
+
+
+def _artifact_repo(args: argparse.Namespace, *, store: UriStore):
+    from .artifacts.repository import ArtifactRepository
+
+    return ArtifactRepository.for_root(store=store, artifact_root_uri=args.artifact_root_uri)
 
 
 def main(argv: list[str] | None = None) -> int:

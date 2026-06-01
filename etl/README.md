@@ -25,13 +25,13 @@ etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH> --artifact tmp_surfac
 etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH> --artifact cloud_layers --artifact wind10m_uv
 ```
 
-The script prepares `weather-map-forecast-etl:local`, resolves configured
-forecast hours inside that image, then runs one `forecast-etl run-hour`
-container per forecast hour and one final `forecast-etl publish-cycle` per
-model unless `--no-publish` is set. Omitting `--model` refreshes every
-configured model sequentially. It automatically rebuilds the image when the ETL
-Dockerfile, package code, package metadata, or forecast config changes; use
-`--rebuild` to force a rebuild when needed.
+The script prepares `weather-map-forecast-etl:local`, creates one run-scoped
+config/catalog snapshot, resolves configured forecast hours from that snapshot,
+then runs one `forecast-etl run-hour` container per forecast hour and one final
+`forecast-etl publish-cycle` per model unless `--no-publish` is set. Omitting
+`--model` refreshes every configured model sequentially. It automatically
+rebuilds the image when the ETL Dockerfile, package code, package metadata, or
+forecast config changes; use `--rebuild` to force a rebuild when needed.
 
 Local outputs are written under the repo-level `artifacts/` directory.
 Downloads and prepared GRIB files are cached under `etl/cache/`.
@@ -53,9 +53,10 @@ etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
 ```
 
 The dry run should show the same `RUN_ID` on every `run-hour` command and one
-final `publish-cycle` command. A real local run exercises the worker image,
-success markers, publish readiness checks, and frontend manifest contract
-without requiring Lambda, Batch, or Terraform changes.
+`init-run` command before the workers, followed by one final `publish-cycle`
+command. A real local run exercises the worker image, run snapshot, success
+markers, publish readiness checks, and frontend manifest contract without
+requiring Lambda, Batch, or Terraform changes.
 
 ## Direct CLI
 
@@ -66,12 +67,18 @@ tests:
 etl/scripts/bootstrap.sh
 .venv/bin/forecast-etl list-models
 .venv/bin/forecast-etl list-forecast-hours --model <model>
+.venv/bin/forecast-etl init-run --model <model> --cycle <YYYYMMDDHH> --run-id <run_id>
 .venv/bin/forecast-etl run-hour --model <model> --cycle <YYYYMMDDHH> --run-id <run_id> --fhour <FFF>
 .venv/bin/forecast-etl publish-cycle --model <model> --cycle <YYYYMMDDHH>
 ```
 
 Normal local cycle execution should use `scripts/run-cycle.sh`, not the host
 CLI.
+
+`--pipeline-config-uri` and `--forecast-catalog-uri` can point at either source
+config/catalog files or the pinned copies under `runs/<model>/<cycle>/<run_id>/config/`.
+`run-hour` and `publish-cycle` should use the pinned run snapshot once it
+exists.
 
 ## Pipeline Shape
 
