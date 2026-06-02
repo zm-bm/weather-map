@@ -35,4 +35,4 @@ RUN pip install --no-cache-dir --upgrade pip "setuptools>=64" \
     && pip install --no-cache-dir --no-build-isolation ./etl
 
 ENTRYPOINT ["forecast-etl"]
-CMD ["run-hour"]
+CMD ["run-frame"]

@@ -330,9 +330,6 @@ exit 1
         )
 
         self.assertEqual(result.returncode, 1)
-        self.assertIn("worker_logs:", result.stdout)
-        self.assertIn("Failed local worker containers:", result.stderr)
-        self.assertIn("dataset_id=icon cycle=2026021606 frame_id=003 exit=42", result.stderr)
         self.assertIn("simulated worker failure for frame_id=003", result.stderr)
 
     def test_script_no_longer_checks_host_gdal_or_cdo(self) -> None:
@@ -345,11 +342,11 @@ exit 1
         self.assertNotIn("bootstrap_if_needed", script_text)
         self.assertNotIn("FORECAST_ETL_BIN", script_text)
 
-    def test_script_uses_cli_to_resolve_frames(self) -> None:
+    def test_script_delegates_cycle_execution_to_cli(self) -> None:
         script_text = self.script.read_text(encoding="utf-8")
 
-        self.assertIn("list-frames", script_text)
-        self.assertIn('--volume "$ARTIFACTS_DIR:/artifacts"', script_text)
+        self.assertIn("execute-local-cycle", script_text)
+        self.assertIn('--artifacts-dir "$ARTIFACTS_DIR"', script_text)
         self.assertNotIn("import json", script_text)
         self.assertNotIn("python3 -", script_text)
         self.assertNotIn("docker run -i --rm --entrypoint python", script_text)

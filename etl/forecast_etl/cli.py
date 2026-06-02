@@ -22,7 +22,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 
+import boto3  # type: ignore
+
+from .frame_claims import DynamoFrameClaimStore
 from .storage.base import UriStore
 from .storage.routing import make_store
 from .uris import (
@@ -33,6 +37,7 @@ from .uris import (
 from .workflows import cycle as cycle_workflow
 from .workflows import inspection as inspection_workflow
 from .workflows.context import ApplicationContext
+from .workflows.executors import execute_local_docker_cycle, parse_optional_frames, submit_aws_batch_cycle
 from .workflows.planning import parse_frame_selection, plan_cycle
 
 
@@ -167,6 +172,45 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_plan_cycle.add_argument("--json", action="store_true", help="Emit structured JSON")
     _add_artifact_filter_arg(ap_plan_cycle)
     ap_plan_cycle.set_defaults(_handler=_cmd_plan_cycle)
+
+    ap_execute_local = sub.add_parser(
+        "execute-local-cycle",
+        help="Execute a cycle plan with local Docker workers",
+        parents=[config],
+    )
+    ap_execute_local.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_execute_local.add_argument("--run-id", help="Run id for this cycle attempt (default: generated)")
+    ap_execute_local.add_argument("--dataset-id", help="Dataset id (default: all configured datasets)")
+    ap_execute_local.add_argument("--frames", help='Configured frame subset, e.g. "000 003" or "000,003"')
+    ap_execute_local.add_argument("--artifact-root-uri", required=True, help="Host artifact root URI")
+    ap_execute_local.add_argument("--artifacts-dir", required=True, help="Host artifacts directory mounted at /artifacts")
+    ap_execute_local.add_argument("--cache-dir", required=True, help="Host cache directory mounted in the worker")
+    ap_execute_local.add_argument("--local-image", required=True, help="Local worker image tag")
+    ap_execute_local.add_argument("--procs", type=int, default=1, help="Maximum concurrent local worker containers")
+    ap_execute_local.add_argument("--worker-stagger-seconds", type=float, default=0.0)
+    ap_execute_local.add_argument("--dry-run", action="store_true")
+    ap_execute_local.add_argument("--no-publish", action="store_true")
+    _add_artifact_filter_arg(ap_execute_local)
+    ap_execute_local.set_defaults(_handler=_cmd_execute_local_cycle)
+
+    ap_submit_aws = sub.add_parser(
+        "submit-aws-cycle",
+        help="Submit a cycle plan to AWS Batch",
+        parents=[runtime],
+    )
+    ap_submit_aws.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_submit_aws.add_argument("--run-id", help="Run id for this cycle attempt (default: generated)")
+    ap_submit_aws.add_argument("--frames", help='Configured frame subset, e.g. "000 003" or "000,003"')
+    ap_submit_aws.add_argument("--job-queue", required=True)
+    ap_submit_aws.add_argument("--job-definition", required=True)
+    ap_submit_aws.add_argument("--frame-claim-table", required=True)
+    ap_submit_aws.add_argument("--source-bucket", default="noaa-gfs-bdp-pds")
+    ap_submit_aws.add_argument("--job-name-prefix", default="weather-etl-manual")
+    ap_submit_aws.add_argument("--submit-delay-seconds", type=float, default=0.0)
+    ap_submit_aws.add_argument("--backfill", action="store_true")
+    ap_submit_aws.add_argument("--dry-run", action="store_true")
+    _add_artifact_filter_arg(ap_submit_aws)
+    ap_submit_aws.set_defaults(_handler=_cmd_submit_aws_cycle)
 
     ap_publish_cycle = sub.add_parser(
         "publish-cycle",
@@ -366,6 +410,54 @@ def _cmd_plan_cycle(args: argparse.Namespace) -> int:
     )
     _print_operator_report(result.plan, as_json=bool(args.json))
     return 0
+
+
+def _cmd_execute_local_cycle(args: argparse.Namespace) -> int:
+    """Execute a cycle plan with local Docker workers."""
+
+    if args.procs < 1:
+        raise SystemExit("--procs must be at least 1")
+    results = execute_local_docker_cycle(
+        app_context=_app_context(args),
+        dataset_id=str(args.dataset_id) if args.dataset_id else None,
+        cycle=str(args.cycle),
+        run_id=args.run_id,
+        selected_frames=parse_optional_frames(args.frames),
+        selected_artifacts=args.artifacts,
+        publish=not args.no_publish,
+        procs=int(args.procs),
+        dry_run=bool(args.dry_run),
+        local_image=str(args.local_image),
+        artifacts_dir=Path(args.artifacts_dir),
+        cache_dir=Path(args.cache_dir),
+        worker_stagger_seconds=float(args.worker_stagger_seconds),
+    )
+    return 0 if all(result.ok for result in results) else 1
+
+
+def _cmd_submit_aws_cycle(args: argparse.Namespace) -> int:
+    """Submit a cycle plan to AWS Batch."""
+
+    ddb = boto3.client("dynamodb")
+    claim_store = DynamoFrameClaimStore(ddb=ddb, table_name=str(args.frame_claim_table))
+    result = submit_aws_batch_cycle(
+        app_context=_app_context(args),
+        dataset_id=_require_dataset_id(args),
+        cycle=str(args.cycle),
+        run_id=args.run_id,
+        selected_frames=parse_optional_frames(args.frames),
+        selected_artifacts=args.artifacts,
+        allow_backfill=bool(args.backfill),
+        dry_run=bool(args.dry_run),
+        batch=boto3.client("batch"),
+        claim_store=claim_store,
+        queue=str(args.job_queue),
+        job_definition=str(args.job_definition),
+        source_bucket=str(args.source_bucket),
+        job_name_prefix=str(args.job_name_prefix),
+        submit_delay_seconds=float(args.submit_delay_seconds),
+    )
+    return 0 if result.ok else 1
 
 
 def _cmd_publish_cycle(args: argparse.Namespace) -> int:

@@ -12,6 +12,7 @@ resource "aws_lambda_function" "ingest" {
       BATCH_JOB_QUEUE       = aws_batch_job_queue.etl.name
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker.arn
       ARTIFACT_ROOT_URI     = local.artifact_root_uri
+      FRAME_CLAIM_TABLE     = aws_dynamodb_table.frame_claims.name
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
       FORECAST_CATALOG_URI  = local.forecast_catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name

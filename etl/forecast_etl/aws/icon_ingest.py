@@ -11,9 +11,9 @@ from typing import Any, Iterable
 
 import boto3  # type: ignore
 
-from ..artifacts.paths import ArtifactPaths
 from ..config.resolved import DatasetConfig, IconDwdSourceConfig
 from ..cycles import latest_synoptic_cycles
+from ..frame_claims import DynamoFrameClaimStore
 from ..source_adapters.icon_dwd import (
     icon_dwd_url,
     previous_icon_frame_id,
@@ -24,13 +24,12 @@ from ..storage.routing import make_store
 from ..uris import default_forecast_catalog_uri, default_pipeline_config_uri
 from ..workflows.context import ApplicationContext
 from ..workflows.cycle import check_backfill
+from ..workflows.planning import plan_cycle
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
 DEFAULT_POLL_CYCLE_COUNT = 1
-DEFAULT_LEASE_SECONDS = 14400
-DEFAULT_STATE_TTL_SECONDS = 14 * 24 * 60 * 60
 DEFAULT_READY_MIN_BYTES = 1024
 DATASET_ID = "icon"
 DEFAULT_SENTINEL_PARAMS = ("t_2m", "u_10m", "v_10m", "pmsl", "clct")
@@ -105,10 +104,10 @@ def _url_ready(url: str, *, min_bytes: int) -> bool:
             return True
 
 
-def _params_ready(*, model: DatasetConfig, cycle: str, frame_id: str, params: Iterable[str], min_bytes: int) -> bool:
-    source = model.source
+def _params_ready(*, dataset: DatasetConfig, cycle: str, frame_id: str, params: Iterable[str], min_bytes: int) -> bool:
+    source = dataset.source
     if not isinstance(source, IconDwdSourceConfig):
-        raise SystemExit(f"Dataset {model.id!r} is not configured for ICON DWD acquisition")
+        raise SystemExit(f"Dataset {dataset.id!r} is not configured for ICON DWD acquisition")
 
     for param in params:
         url = icon_dwd_url(
@@ -123,128 +122,12 @@ def _params_ready(*, model: DatasetConfig, cycle: str, frame_id: str, params: It
     return True
 
 
-def _existing_success_markers(
-    *,
-    app_context: ApplicationContext,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-) -> set[str]:
-    return app_context.artifact_repo.list_success_marker_uris(
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-    )
-
-
-def _hour_complete(
-    *,
-    paths: ArtifactPaths,
-    existing_markers: set[str],
-    model: DatasetConfig,
-    cycle: str,
-    run_id: str,
-    frame_id: str,
-) -> bool:
-    return all(
-        paths.success_marker_uri_parts(
-            dataset_id=model.id,
-            cycle=cycle,
-            run_id=run_id,
-            frame_id=frame_id,
-            artifact_id=artifact_id,
-        )
-        in existing_markers
-        for artifact_id in model.workload.artifacts
-    )
-
-
-def _lease_pk(*, cycle: str, frame_id: str) -> str:
-    return f"{DATASET_ID}#{cycle}#{frame_id}"
-
-
-def _dynamo_s(value: str) -> dict[str, str]:
-    return {"S": value}
-
-
-def _dynamo_n(value: int) -> dict[str, str]:
-    return {"N": str(value)}
-
-
-def _try_acquire_lease(*, ddb, table_name: str, cycle: str, frame_id: str, now_epoch: int) -> int | None:
-    lease_seconds = _int_env("ICON_LEASE_SECONDS", DEFAULT_LEASE_SECONDS)
-    ttl_seconds = _int_env("ICON_STATE_TTL_SECONDS", DEFAULT_STATE_TTL_SECONDS)
-    try:
-        response = ddb.update_item(
-            TableName=table_name,
-            Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
-            UpdateExpression=(
-                "SET #state = :processing, #cycle = :cycle, frame_id = :frame_id, "
-                "lastCheckedAt = :now, leaseUntil = :lease_until, #ttl = :ttl, "
-                "attempt = if_not_exists(attempt, :zero) + :one"
-            ),
-            ConditionExpression="attribute_not_exists(pk) OR leaseUntil < :now OR #state = :complete",
-            ExpressionAttributeNames={"#cycle": "cycle", "#state": "state", "#ttl": "ttl"},
-            ExpressionAttributeValues={
-                ":processing": _dynamo_s("processing"),
-                ":cycle": _dynamo_s(cycle),
-                ":frame_id": _dynamo_s(frame_id),
-                ":now": _dynamo_n(now_epoch),
-                ":lease_until": _dynamo_n(now_epoch + lease_seconds),
-                ":ttl": _dynamo_n(now_epoch + ttl_seconds),
-                ":zero": _dynamo_n(0),
-                ":one": _dynamo_n(1),
-                ":complete": _dynamo_s("complete"),
-            },
-            ReturnValues="ALL_NEW",
-        )
-    except ddb.exceptions.ConditionalCheckFailedException:
-        return None
-
-    attempt = response.get("Attributes", {}).get("attempt", {}).get("N", "1")
-    return int(attempt)
-
-
-def _record_submission(*, ddb, table_name: str, cycle: str, frame_id: str, job_id: str, now_epoch: int) -> None:
-    ddb.update_item(
-        TableName=table_name,
-        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
-        UpdateExpression="SET #state = :submitted, jobId = :job_id, submittedAt = :now",
-        ExpressionAttributeNames={"#state": "state"},
-        ExpressionAttributeValues={
-            ":submitted": _dynamo_s("submitted"),
-            ":job_id": _dynamo_s(job_id),
-            ":now": _dynamo_n(now_epoch),
-        },
-    )
-
-
-def _mark_complete(*, ddb, table_name: str, cycle: str, frame_id: str, now_epoch: int) -> None:
-    ttl_seconds = _int_env("ICON_STATE_TTL_SECONDS", DEFAULT_STATE_TTL_SECONDS)
-    ddb.update_item(
-        TableName=table_name,
-        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
-        UpdateExpression=(
-            "SET #state = :complete, #cycle = :cycle, frame_id = :frame_id, completedAt = :now, #ttl = :ttl"
-        ),
-        ExpressionAttributeNames={"#cycle": "cycle", "#state": "state", "#ttl": "ttl"},
-        ExpressionAttributeValues={
-            ":complete": _dynamo_s("complete"),
-            ":cycle": _dynamo_s(cycle),
-            ":frame_id": _dynamo_s(frame_id),
-            ":now": _dynamo_n(now_epoch),
-            ":ttl": _dynamo_n(now_epoch + ttl_seconds),
-        },
-    )
-
-
 def _submit_job(
     *,
     batch,
     queue: str,
     job_definition: str,
-    pipeline_config_uri: str,
-    forecast_catalog_uri: str,
+    worker_env: dict[str, str],
     cycle: str,
     run_id: str,
     frame_id: str,
@@ -252,20 +135,13 @@ def _submit_job(
 ) -> str:
     suffix = hashlib.sha1(f"{cycle}:{run_id}:{frame_id}:{attempt}".encode("utf-8")).hexdigest()[:8]
     job_name = f"icon-{cycle}-{run_id}-{frame_id}-{suffix}"[:128]
-    env_vars = [
-        {"name": "DATASET_ID", "value": DATASET_ID},
-        {"name": "CYCLE", "value": cycle},
-        {"name": "RUN_ID", "value": run_id},
-        {"name": "FRAME_ID", "value": frame_id},
-        {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
-        {"name": "FORECAST_CATALOG_URI", "value": forecast_catalog_uri},
-    ]
+    env_vars = [{"name": name, "value": value} for name, value in worker_env.items()]
     response = batch.submit_job(
         jobName=job_name,
         jobQueue=queue,
         jobDefinition=job_definition,
         containerOverrides={"environment": env_vars},
-    )
+    ) or {}
     job_id = str(response.get("jobId", ""))
     print(
         f"submitted ICON job: jobName={job_name} jobId={job_id} cycle={cycle} run_id={run_id} frame_id={frame_id}",
@@ -280,14 +156,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     del context
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
-    state_table = os.environ["ICON_STATE_TABLE"]
+    frame_claim_table = os.environ["FRAME_CLAIM_TABLE"]
     run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
     artifact_root_uri = os.environ["ARTIFACT_ROOT_URI"]
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
     forecast_catalog_uri = os.environ.get("FORECAST_CATALOG_URI", DEFAULT_FORECAST_CATALOG_URI).strip()
 
     now = _event_now(event)
-    now_epoch = int(now.timestamp())
     cycles = _candidate_cycles(
         now=now,
         cycle_count=_positive_int_env("ICON_POLL_CYCLE_COUNT", DEFAULT_POLL_CYCLE_COUNT),
@@ -304,12 +179,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         forecast_catalog_uri=forecast_catalog_uri,
         store=store,
     )
-    paths = app_context.artifact_repo.paths
+    claim_store = DynamoFrameClaimStore(ddb=ddb, table_name=frame_claim_table)
 
     submitted = 0
     completed = 0
     pending = 0
-    leased = 0
+    claimed = 0
     skipped_cycles = 0
 
     for cycle in cycles:
@@ -336,38 +211,53 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             cycle=cycle,
             run_id=cycle_run_id,
         )
-        model = snapshot.loaded_config.config.dataset(DATASET_ID)
-        if not model.workload.artifacts or not model.workload.frames:
+        dataset = snapshot.loaded_config.config.dataset(DATASET_ID)
+        if not dataset.workload.artifacts or not dataset.workload.frames:
             print("ICON workload is empty; nothing to submit", flush=True)
             skipped_cycles += 1
             continue
-        required_params = required_icon_params(model)
-        previous_required_params = required_previous_icon_params(model)
+        required_params = required_icon_params(dataset)
+        previous_required_params = required_previous_icon_params(dataset)
 
-        if not _params_ready(model=model, cycle=cycle, frame_id="000", params=sentinel_params, min_bytes=min_bytes):
+        if not _params_ready(dataset=dataset, cycle=cycle, frame_id="000", params=sentinel_params, min_bytes=min_bytes):
             skipped_cycles += 1
             continue
 
-        existing_markers = _existing_success_markers(
+        plan = plan_cycle(
             app_context=app_context,
-            dataset_id=model.id,
+            dataset_id=DATASET_ID,
             cycle=cycle,
             run_id=cycle_run_id,
-        )
-        for frame_id in model.workload.frames:
-            if _hour_complete(
-                paths=paths,
-                existing_markers=existing_markers,
-                model=model,
-                cycle=cycle,
-                run_id=cycle_run_id,
-                frame_id=frame_id,
-            ):
-                _mark_complete(ddb=ddb, table_name=state_table, cycle=cycle, frame_id=frame_id, now_epoch=now_epoch)
+            selected_frames=None,
+            selected_artifacts=None,
+            publish=True,
+            claim_store=claim_store,
+            now=now,
+            loaded_snapshot=snapshot,
+        ).plan
+        frame_states = {str(frame["frame_id"]): frame for frame in plan["frame_states"]}
+        workers_by_frame = {str(worker["frame_id"]): worker for worker in plan["workers"]}
+        for frame_id in dataset.workload.frames:
+            state = str(frame_states.get(frame_id, {}).get("state", "pending"))
+            if state == "complete":
+                claim_store.record_complete(
+                    dataset_id=DATASET_ID,
+                    cycle=cycle,
+                    run_id=cycle_run_id,
+                    frame_id=frame_id,
+                    now=now,
+                )
                 completed += 1
                 continue
+            if state == "claimed":
+                claimed += 1
+                continue
+            if state == "invalid":
+                print(f"ICON frame has invalid marker evidence: cycle={cycle} frame_id={frame_id}", flush=True)
+                pending += 1
+                continue
 
-            if not _params_ready(model=model, cycle=cycle, frame_id=frame_id, params=required_params, min_bytes=min_bytes):
+            if not _params_ready(dataset=dataset, cycle=cycle, frame_id=frame_id, params=required_params, min_bytes=min_bytes):
                 pending += 1
                 continue
             previous_frame_id = previous_icon_frame_id(frame_id)
@@ -375,7 +265,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 previous_frame_id is not None
                 and previous_required_params
                 and not _params_ready(
-                    model=model,
+                    dataset=dataset,
                     cycle=cycle,
                     frame_id=previous_frame_id,
                     params=previous_required_params,
@@ -385,35 +275,41 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 pending += 1
                 continue
 
-            attempt = _try_acquire_lease(
-                ddb=ddb,
-                table_name=state_table,
+            worker = workers_by_frame.get(frame_id)
+            if worker is None:
+                pending += 1
+                continue
+            claim = claim_store.acquire(
+                dataset_id=DATASET_ID,
                 cycle=cycle,
+                run_id=cycle_run_id,
                 frame_id=frame_id,
-                now_epoch=now_epoch,
+                artifact_ids=tuple(plan["artifact_ids"]),
+                worker_spec_hash=str(worker["worker_spec_hash"]),
+                source_uri=None,
+                now=now,
             )
-            if attempt is None:
-                leased += 1
+            if not claim.acquired:
+                claimed += 1
                 continue
 
             job_id = _submit_job(
                 batch=batch,
                 queue=queue,
                 job_definition=job_definition,
-                pipeline_config_uri=snapshot.pipeline_config_uri,
-                forecast_catalog_uri=snapshot.forecast_catalog_uri,
+                worker_env=dict(worker["env"]),
                 cycle=cycle,
                 run_id=cycle_run_id,
                 frame_id=frame_id,
-                attempt=attempt,
+                attempt=claim.attempt or 1,
             )
-            _record_submission(
-                ddb=ddb,
-                table_name=state_table,
+            claim_store.record_submission(
+                dataset_id=DATASET_ID,
                 cycle=cycle,
+                run_id=cycle_run_id,
                 frame_id=frame_id,
                 job_id=job_id,
-                now_epoch=now_epoch,
+                now=now,
             )
             submitted += 1
 
@@ -422,7 +318,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "submitted": submitted,
         "completed": completed,
         "pending": pending,
-        "leased": leased,
+        "claimed": claimed,
         "skipped_cycles": skipped_cycles,
         "cycles": len(cycles),
     }

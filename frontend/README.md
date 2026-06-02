@@ -1,7 +1,7 @@
 # Frontend
 
 React/Vite frontend for the weather map. The app boots forecast metadata from
-`/manifests/forecast-manifest.json`, renders run-scoped payloads from
+`/manifests/data-manifest.json`, renders run-scoped payloads from
 `/runs/*/fields/*` through compact manifest refs, loads optional PMTiles
 basemaps from `/pmtiles/*`, and serves frontend-owned static assets from
 `public/`.

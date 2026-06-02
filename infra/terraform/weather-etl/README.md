@@ -22,7 +22,7 @@ ICON is polled:
 2. The Lambda checks only the latest `00/06/12/18 UTC` DWD ICON cycle
    (`ICON_POLL_CYCLE_COUNT=1`).
 3. It waits for sentinel `f000` files, verifies required files for each
-   configured frame, and uses DynamoDB leases to avoid duplicate
+   configured frame, and uses the shared frame claim table to avoid duplicate
    submissions.
 4. The Lambda gets or creates one run id for the dataset cycle, creates or reads
    that run's config/catalog snapshot, and uses that snapshot for readiness and
@@ -86,6 +86,21 @@ The table is intentionally only a run-id coordinator, not full orchestration
 state. It prevents individual GFS SNS events or ICON poll submissions for the
 same cycle from fragmenting into separate run ids.
 
+Automatic GFS, automatic ICON, and manual AWS submits also share a small
+DynamoDB frame claim table:
+
+```text
+pk = <dataset_id>#<cycle>#<run_id>#<frame_id>
+state = claimed | complete
+ttl = 14 days by default
+```
+
+Frame claims throttle duplicate submissions only. Success markers and
+validation reports remain the source of truth for completeness and publication.
+Expired claims allow retries, and explicit `--run-id` manual submits can resume
+an existing run by submitting only frames that are not complete or actively
+claimed.
+
 ## Source Data
 
 - GFS: `s3://noaa-gfs-bdp-pds`
@@ -119,6 +134,7 @@ artifact_root_uri
 pipeline_config_uri
 forecast_catalog_uri
 run_coordinator_table
+frame_claim_table
 Batch queue and job definitions
 ingest and publisher Lambda names
 ingest and publisher schedules
@@ -141,9 +157,10 @@ this stack to protect old run artifacts during a clean redeploy.
 
 Production deploys should be coordinated across the worker image, Lambda zip,
 and Terraform. New workers require `RUN_ID`, and the ingest Lambdas/Terraform
-provide the run coordinator table and container overrides. Local ETL reruns are
-fine for validating intermediate task work; bundle related ETL hardening tasks
-into one production deploy when that is less operationally painful.
+provide the run coordinator table, frame claim table, and container overrides.
+Local ETL reruns are fine for validating intermediate task work; bundle related
+ETL hardening tasks into one production deploy when that is less operationally
+painful.
 
 From the repo root, build the shared Lambda artifact before deploying Lambda
 code changes:
@@ -168,7 +185,8 @@ The worker image contains GDAL, CDO, eccodes tools, and ICON regrid assets.
 
 After building the Lambda zip and pushing the worker image, apply this stack so
 the ingest/publisher Lambdas, EventBridge rules, IAM, config/catalog objects,
-Batch job definitions, and run coordinator table are all current:
+Batch job definitions, run coordinator table, and frame claim table are all
+current:
 
 ```bash
 cd infra/terraform/weather-etl
@@ -186,10 +204,12 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id ic
 ```
 
 Manual submits generate one run id per submitted cycle unless `--run-id` or
-`RUN_ID` is supplied. Before submitting workers, the script creates a run
-snapshot from the deployed Terraform-managed config/catalog and passes those
-run snapshot URIs to every Batch job. Use `--dry-run` to verify the same
-`RUN_ID` and snapshot URIs before touching Batch:
+`RUN_ID` is supplied. Supplying `--run-id` resumes that existing run and skips
+complete or actively claimed frames. Before submitting workers, the script
+creates a run snapshot from the deployed Terraform-managed config/catalog,
+plans frame state, acquires frame claims, and passes run snapshot URIs to every
+Batch job. Use `--dry-run` to verify the run id, snapshot URIs, and
+submit/skip decisions before touching Batch:
 
 ```bash
 infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run

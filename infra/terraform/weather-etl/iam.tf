@@ -149,9 +149,15 @@ data "aws_iam_policy_document" "gfs_ingest_lambda" {
   }
 
   statement {
-    effect    = "Allow"
-    actions   = ["dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.run_coordinator.arn]
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem"
+    ]
+    resources = [
+      aws_dynamodb_table.run_coordinator.arn,
+      aws_dynamodb_table.frame_claims.arn
+    ]
   }
 
   statement {

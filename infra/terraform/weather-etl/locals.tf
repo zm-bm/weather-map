@@ -52,11 +52,10 @@ locals {
     gfs_ingest_role   = "${local.name_prefix}-ingest-lambda-role"
     gfs_ingest_policy = "${local.name_prefix}-ingest-lambda-policy"
 
-    icon_ingest_lambda      = "${local.name_prefix}-ingest-icon"
-    icon_ingest_role        = "${local.name_prefix}-ingest-icon-lambda-role"
-    icon_ingest_policy      = "${local.name_prefix}-ingest-icon-lambda-policy"
-    icon_ingest_schedule    = "${local.name_prefix}-ingest-icon-poll"
-    icon_ingest_state_table = "${local.name_prefix}-icon-ingest-state"
+    icon_ingest_lambda   = "${local.name_prefix}-ingest-icon"
+    icon_ingest_role     = "${local.name_prefix}-ingest-icon-lambda-role"
+    icon_ingest_policy   = "${local.name_prefix}-ingest-icon-lambda-policy"
+    icon_ingest_schedule = "${local.name_prefix}-ingest-icon-poll"
 
     publisher_lambda   = "${local.name_prefix}-publisher"
     publisher_role     = "${local.name_prefix}-publisher-lambda-role"
@@ -64,6 +63,7 @@ locals {
     publisher_schedule = "${local.name_prefix}-publisher-schedule"
 
     run_coordinator_table = "${local.name_prefix}-run-coordinator"
+    frame_claim_table     = "${local.name_prefix}-frame-claims"
   }
 }
 

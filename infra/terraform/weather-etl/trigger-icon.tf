@@ -1,23 +1,3 @@
-resource "aws_dynamodb_table" "icon_ingest_state" {
-  name         = local.names.icon_ingest_state_table
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "pk"
-
-  attribute {
-    name = "pk"
-    type = "S"
-  }
-
-  ttl {
-    attribute_name = "ttl"
-    enabled        = true
-  }
-
-  tags = merge(local.tags, {
-    Name = local.names.icon_ingest_state_table
-  })
-}
-
 resource "aws_iam_role" "ingest_icon_lambda" {
   name               = local.names.icon_ingest_role
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
@@ -48,11 +28,14 @@ data "aws_iam_policy_document" "icon_ingest_lambda" {
   }
 
   statement {
-    effect  = "Allow"
-    actions = ["dynamodb:UpdateItem"]
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem"
+    ]
     resources = [
-      aws_dynamodb_table.icon_ingest_state.arn,
-      aws_dynamodb_table.run_coordinator.arn
+      aws_dynamodb_table.run_coordinator.arn,
+      aws_dynamodb_table.frame_claims.arn
     ]
   }
 
@@ -103,8 +86,8 @@ resource "aws_lambda_function" "ingest_icon" {
       ARTIFACT_ROOT_URI     = local.artifact_root_uri
       BATCH_JOB_QUEUE       = aws_batch_job_queue.etl.name
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker_icon.arn
+      FRAME_CLAIM_TABLE     = aws_dynamodb_table.frame_claims.name
       ICON_POLL_CYCLE_COUNT = tostring(var.icon_poll_cycle_count)
-      ICON_STATE_TABLE      = aws_dynamodb_table.icon_ingest_state.name
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
       FORECAST_CATALOG_URI  = local.forecast_catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name

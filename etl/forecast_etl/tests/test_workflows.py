@@ -18,7 +18,7 @@ class _FakeWorkload:
     artifacts = ("tmp_surface",)
 
 
-class _FakeModel:
+class _FakeDataset:
     id = "gfs"
     label = "GFS"
     workload = _FakeWorkload()
@@ -26,9 +26,9 @@ class _FakeModel:
 
 
 class _FakePipelineConfig:
-    datasets = {"gfs": _FakeModel()}
+    datasets = {"gfs": _FakeDataset()}
 
-    def dataset(self, dataset_id: str) -> _FakeModel:
+    def dataset(self, dataset_id: str) -> _FakeDataset:
         if dataset_id != "gfs":
             raise SystemExit(f"Unknown dataset {dataset_id!r}")
         return self.datasets[dataset_id]
@@ -64,14 +64,14 @@ def _app_context() -> ApplicationContext:
 
 
 class WorkflowTest(unittest.TestCase):
-    def test_application_context_builds_repository_and_resolves_model_runtime(self) -> None:
+    def test_application_context_builds_repository_and_resolves_dataset_runtime(self) -> None:
         app_context = _app_context()
 
         with patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg()) as load:
-            runtime = app_context.resolve_model_runtime("gfs")
+            runtime = app_context.resolve_dataset_runtime("gfs")
 
         self.assertEqual(app_context.artifact_repo.paths.artifact_root_uri, "s3://artifacts")
-        self.assertEqual(runtime.model.id, "gfs")
+        self.assertEqual(runtime.dataset.id, "gfs")
         self.assertEqual(runtime.execution_context.dataset_id, "gfs")
         self.assertEqual(runtime.execution_context.artifact_root_uri, "s3://artifacts")
         self.assertEqual(runtime.execution_context.frames, ("000", "003"))

@@ -38,6 +38,10 @@ output "icon_batch_job_definition_arn" {
   value = aws_batch_job_definition.worker_icon.arn
 }
 
+output "frame_claim_table_name" {
+  value = aws_dynamodb_table.frame_claims.name
+}
+
 output "ingest_lambda_name" {
   value = aws_lambda_function.ingest.function_name
 }
@@ -78,6 +82,11 @@ output "etl_runtime_contract" {
       table_arn  = aws_dynamodb_table.run_coordinator.arn
     }
 
+    frame_claims = {
+      table_name = aws_dynamodb_table.frame_claims.name
+      table_arn  = aws_dynamodb_table.frame_claims.arn
+    }
+
     batch = {
       queue_name                = aws_batch_job_queue.etl.name
       queue_arn                 = aws_batch_job_queue.etl.arn
@@ -99,7 +108,6 @@ output "etl_runtime_contract" {
       icon_schedule_name    = aws_cloudwatch_event_rule.ingest_icon_poll.name
       icon_schedule         = var.icon_ingest_schedule_expression
       icon_poll_cycle_count = var.icon_poll_cycle_count
-      icon_state_table_name = aws_dynamodb_table.icon_ingest_state.name
     }
 
     publisher = {

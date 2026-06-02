@@ -12,10 +12,12 @@ from typing import Any
 import boto3  # type: ignore
 
 from ..config.resolved import PipelineConfig
+from ..frame_claims import DynamoFrameClaimStore
 from ..storage.routing import make_store
 from ..uris import default_artifact_root_uri, default_forecast_catalog_uri, default_pipeline_config_uri
 from ..workflows.context import ApplicationContext
 from ..workflows.cycle import check_backfill
+from ..workflows.planning import plan_cycle
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
@@ -27,9 +29,9 @@ DATASET_ID = "gfs"
 
 
 def _filters_from_config(cfg: PipelineConfig) -> dict[str, Any]:
-    model = cfg.dataset(DATASET_ID)
-    artifacts = tuple(model.workload.artifacts)
-    allowed_frames = set(model.workload.frames)
+    dataset = cfg.dataset(DATASET_ID)
+    artifacts = tuple(dataset.workload.artifacts)
+    allowed_frames = set(dataset.workload.frames)
 
     return {
         "artifacts": artifacts,
@@ -96,6 +98,7 @@ def _submit_job(
     queue: str,
     job_definition: str,
     run_coordinator_table: str,
+    frame_claim_table: str,
     app_context: ApplicationContext,
     bucket: str,
     key: str,
@@ -149,24 +152,66 @@ def _submit_job(
         print(f"skip key (no workload.artifacts configured): key={key}")
         return 0
 
+    now = datetime.now(timezone.utc)
+    claim_store = DynamoFrameClaimStore(ddb=ddb, table_name=frame_claim_table)
+    plan = plan_cycle(
+        app_context=app_context,
+        dataset_id=DATASET_ID,
+        cycle=cycle,
+        run_id=run_id,
+        selected_frames=(frame_id,),
+        selected_artifacts=None,
+        publish=True,
+        claim_store=claim_store,
+        source_uris_by_frame={frame_id: grib_source_uri},
+        now=now,
+        loaded_snapshot=snapshot,
+    ).plan
+    if not plan["workers"]:
+        state = plan["frame_states"][0]["state"] if plan["frame_states"] else "unknown"
+        if state == "complete":
+            claim_store.record_complete(
+                dataset_id=DATASET_ID,
+                cycle=cycle,
+                run_id=run_id,
+                frame_id=frame_id,
+                now=now,
+            )
+        print(f"skip key (frame state): frame_id={frame_id} state={state} key={key}")
+        return 0
+
+    worker = plan["workers"][0]
+    claim = claim_store.acquire(
+        dataset_id=DATASET_ID,
+        cycle=cycle,
+        run_id=run_id,
+        frame_id=frame_id,
+        artifact_ids=tuple(plan["artifact_ids"]),
+        worker_spec_hash=str(worker["worker_spec_hash"]),
+        source_uri=grib_source_uri,
+        now=now,
+    )
+    if not claim.acquired:
+        print(f"skip key (active frame claim): frame_id={frame_id} key={key}")
+        return 0
+
     suffix = hashlib.sha1(f"{cycle}:{run_id}:{frame_id}:{key}".encode("utf-8")).hexdigest()[:8]
     job_name = f"gfs-{cycle}-{run_id}-{frame_id}-{suffix}"[:128]
+    env_vars = [{"name": name, "value": value} for name, value in worker["env"].items()]
 
-    env_vars = [
-        {"name": "CYCLE", "value": cycle},
-        {"name": "RUN_ID", "value": run_id},
-        {"name": "FRAME_ID", "value": frame_id},
-        {"name": "DATASET_ID", "value": DATASET_ID},
-        {"name": "GRIB_SOURCE_URI", "value": grib_source_uri},
-        {"name": "PIPELINE_CONFIG_URI", "value": snapshot.pipeline_config_uri},
-        {"name": "FORECAST_CATALOG_URI", "value": snapshot.forecast_catalog_uri},
-    ]
-
-    batch.submit_job(
+    response = batch.submit_job(
         jobName=job_name,
         jobQueue=queue,
         jobDefinition=job_definition,
         containerOverrides={"environment": env_vars},
+    ) or {}
+    claim_store.record_submission(
+        dataset_id=DATASET_ID,
+        cycle=cycle,
+        run_id=run_id,
+        frame_id=frame_id,
+        job_id=str(response.get("jobId", "")),
+        now=now,
     )
     print(
         f"submitted: {job_name} key={key} run_id={run_id} "
@@ -181,6 +226,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     queue = os.environ["BATCH_JOB_QUEUE"]
     job_definition = os.environ["BATCH_JOB_DEFINITION"]
     run_coordinator_table = os.environ["RUN_COORDINATOR_TABLE"]
+    frame_claim_table = os.environ["FRAME_CLAIM_TABLE"]
     artifact_root_uri = os.environ.get("ARTIFACT_ROOT_URI", DEFAULT_ARTIFACT_ROOT_URI).strip()
     pipeline_config_uri = os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip()
     forecast_catalog_uri = os.environ.get("FORECAST_CATALOG_URI", DEFAULT_FORECAST_CATALOG_URI).strip()
@@ -208,6 +254,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             queue=queue,
             job_definition=job_definition,
             run_coordinator_table=run_coordinator_table,
+            frame_claim_table=frame_claim_table,
             app_context=app_context,
             bucket=bucket,
             key=key,

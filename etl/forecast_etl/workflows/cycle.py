@@ -71,11 +71,11 @@ def process_frame(
 ) -> None:
     parse_cycle(cycle)
     parsed_run_id = parse_run_id(run_id)
-    runtime = app_context.resolve_model_runtime(dataset_id)
+    runtime = app_context.resolve_dataset_runtime(dataset_id)
     run_snapshot = app_context.source_run_snapshot(runtime.loaded_config)
-    resolved_artifact_ids = resolve_artifact_ids(runtime.model, artifact_ids)
+    resolved_artifact_ids = resolve_artifact_ids(runtime.dataset, artifact_ids)
     run_frame_command(
-        model=runtime.model,
+        model=runtime.dataset,
         ctx=runtime.execution_context,
         cycle=cycle,
         run_id=parsed_run_id,
@@ -99,19 +99,19 @@ def process_cycle(
 ) -> str:
     parse_cycle(cycle)
     parsed_run_id = parse_run_id(run_id) if run_id else generate_run_id()
-    runtime = app_context.resolve_model_runtime(dataset_id)
+    runtime = app_context.resolve_dataset_runtime(dataset_id)
     run_snapshot = app_context.source_run_snapshot(runtime.loaded_config)
     loaded_run_snapshot = app_context.ensure_run_snapshot(
-        dataset_id=runtime.model.id,
+        dataset_id=runtime.dataset.id,
         cycle=cycle,
         run_id=parsed_run_id,
     )
     run_cycle_command(
-        model=runtime.model,
+        model=runtime.dataset,
         ctx=runtime.execution_context,
         cycle=cycle,
         run_id=parsed_run_id,
-        artifact_ids=resolve_artifact_ids(runtime.model, artifact_ids),
+        artifact_ids=resolve_artifact_ids(runtime.dataset, artifact_ids),
         procs=procs,
         publish=publish,
         pipeline_config=runtime.pipeline_config,
@@ -173,10 +173,10 @@ def validate_cycle(
             message=str(exc),
         )
 
-    model = snapshot.loaded_config.config.dataset(dataset_id)
+    dataset = snapshot.loaded_config.config.dataset(dataset_id)
     result = validate_run(
         artifact_repo=app_context.artifact_repo,
-        model=model,
+        model=dataset,
         cycle=cycle,
         run_id=run_id,
         snapshot=snapshot,
@@ -217,10 +217,10 @@ def publish_cycle(
         return PublishWorkflowResult(ready=False, run_id=run_id, message=str(exc))
 
     cfg = snapshot.loaded_config.config
-    model = cfg.dataset(dataset_id)
+    dataset = cfg.dataset(dataset_id)
     result = publish_cycle_command(
-        model=model,
-        ctx=execution_context_for_dataset(model, app_context.artifact_root_uri),
+        model=dataset,
+        ctx=execution_context_for_dataset(dataset, app_context.artifact_root_uri),
         cycle=cycle,
         run_id=run_id,
         pipeline_config=cfg,

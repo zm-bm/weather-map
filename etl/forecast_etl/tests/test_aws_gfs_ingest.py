@@ -24,9 +24,16 @@ class _FakeBatchClient:
         self.submissions.append(kwargs)
 
 
+class _ConditionalCheckFailedException(Exception):
+    pass
+
+
 class _FakeDynamoClient:
+    class exceptions:
+        ConditionalCheckFailedException = _ConditionalCheckFailedException
+
     def __init__(self) -> None:
-        self.items: dict[str, dict[str, str]] = {}
+        self.items: dict[str, dict[str, str | int]] = {}
         self.updates: list[dict] = []
 
     def update_item(self, **kwargs) -> dict:
@@ -34,17 +41,68 @@ class _FakeDynamoClient:
         pk = kwargs["Key"]["pk"]["S"]
         item = dict(self.items.get(pk, {}))
         values = kwargs.get("ExpressionAttributeValues", {})
-        item.setdefault("dataset_id", values[":dataset_id"]["S"])
-        item.setdefault("cycle", values[":cycle"]["S"])
-        item.setdefault("run_id", DEFAULT_RUN_ID)
-        item.setdefault("created_at", values[":created_at"]["S"])
-        item.setdefault("ttl", values[":ttl"]["N"])
+        now = int(values.get(":now", {"N": "0"})["N"])
+        if kwargs.get("ConditionExpression") and item:
+            expires_at = int(item.get("expires_at_epoch", 0))
+            state = str(item.get("state", ""))
+            if expires_at >= now and state == "claimed":
+                raise _ConditionalCheckFailedException()
+        update_expression = kwargs.get("UpdateExpression", "")
+        if ":dataset_id" in values:
+            if "if_not_exists(dataset_id" in update_expression:
+                item.setdefault("dataset_id", values[":dataset_id"]["S"])
+            else:
+                item["dataset_id"] = values[":dataset_id"]["S"]
+        if ":cycle" in values:
+            if "if_not_exists(#cycle" in update_expression:
+                item.setdefault("cycle", values[":cycle"]["S"])
+            else:
+                item["cycle"] = values[":cycle"]["S"]
+        if ":run_id" in values:
+            if "if_not_exists(run_id" in update_expression:
+                item.setdefault("run_id", DEFAULT_RUN_ID)
+            else:
+                item["run_id"] = values[":run_id"]["S"]
+        if ":frame_id" in values:
+            item["frame_id"] = values[":frame_id"]["S"]
+        if ":created_at" in values:
+            item.setdefault("created_at", values[":created_at"]["S"])
+        if ":ttl" in values:
+            item["ttl"] = int(values[":ttl"]["N"])
+        if ":expires_at_epoch" in values:
+            item["expires_at_epoch"] = int(values[":expires_at_epoch"]["N"])
+        if ":artifact_ids" in values:
+            item["artifact_ids"] = values[":artifact_ids"]["S"]
+        if ":worker_spec_hash" in values:
+            item["worker_spec_hash"] = values[":worker_spec_hash"]["S"]
+        if ":claimed" in values and ":claimed" in update_expression:
+            item["state"] = values[":claimed"]["S"]
+            item["attempt"] = int(item.get("attempt", 0)) + 1
+        if ":submitted" in values and ":submitted" in update_expression:
+            item["state"] = values[":submitted"]["S"]
+        if ":complete" in values and ":complete" in update_expression:
+            item["state"] = values[":complete"]["S"]
+        if ":job_id" in values:
+            item["job_id"] = values[":job_id"]["S"]
         self.items[pk] = item
         return {
             "Attributes": {
-                "run_id": {"S": item["run_id"]},
+                "run_id": {"S": str(item.get("run_id", DEFAULT_RUN_ID))},
+                "attempt": {"N": str(item.get("attempt", 1))},
             }
         }
+
+    def get_item(self, **kwargs) -> dict:
+        item = self.items.get(kwargs["Key"]["pk"]["S"])
+        if item is None:
+            return {}
+        return {"Item": self._dynamo_item(item)}
+
+    def _dynamo_item(self, item: dict[str, str | int]) -> dict:
+        result = {}
+        for key, value in item.items():
+            result[key] = {"N": str(value)} if isinstance(value, int) else {"S": str(value)}
+        return result
 
 
 class _FakeWorkload:
@@ -55,7 +113,9 @@ class _FakeWorkload:
 
 class _FakePipelineConfig:
     def __init__(self, *, frames: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
+        self.id = "gfs"
         self.workload = _FakeWorkload(frames=frames, artifacts=artifacts)
+        self.artifacts = {}
 
     def dataset(self, dataset_id: str) -> "_FakePipelineConfig":
         if dataset_id != "gfs":
@@ -110,6 +170,7 @@ class AwsGfsIngestTest(unittest.TestCase):
                 "ARTIFACT_ROOT_URI": f"file://{Path(self.artifact_root.name).as_posix()}",
                 "BATCH_JOB_QUEUE": "weather-etl",
                 "BATCH_JOB_DEFINITION": "weather-etl-worker:1",
+                "FRAME_CLAIM_TABLE": "frame-claims",
                 "RUN_COORDINATOR_TABLE": "run-coordinator",
             },
             clear=False,
@@ -267,6 +328,25 @@ class AwsGfsIngestTest(unittest.TestCase):
             for item in self.batch.submissions[0]["containerOverrides"]["environment"]
         }
         self.assertEqual(env["RUN_ID"], "20260213T010203Z-abcdef12")
+
+    def test_duplicate_sns_event_skips_actively_claimed_frame(self) -> None:
+        fake_cfg = _FakePipelineConfig(
+            frames=("000", "003"),
+            artifacts=("tmp_surface",),
+        )
+        event = _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003")
+        with (
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
+        ):
+            first = gfs_ingest.handler(event, None)
+            second = gfs_ingest.handler(event, None)
+
+        self.assertEqual(first["submitted"], 1)
+        self.assertEqual(second["submitted"], 0)
+        self.assertEqual(len(self.batch.submissions), 1)
+        claim = self.ddb.items[f"gfs#2026021300#{DEFAULT_RUN_ID}#003"]
+        self.assertEqual(claim["state"], "claimed")
 
     def test_handler_skips_older_than_latest_cycle(self) -> None:
         with temp_artifact_fixture() as artifacts:

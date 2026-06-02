@@ -41,7 +41,8 @@ case "${3:-}" in
   icon_batch_job_definition_arn) echo "arn:aws:batch:us-east-1:123:job-definition/weather-etl-worker-icon:1" ;;
   pipeline_config_uri) echo "s3://config-bucket/pipeline.json" ;;
   forecast_catalog_uri) echo "s3://config-bucket/forecast_catalog.json" ;;
-  artifacts_bucket_name) echo "artifacts-bucket" ;;
+  artifact_root_uri) echo "s3://artifacts-bucket" ;;
+  frame_claim_table_name) echo "frame-claims" ;;
   *)
     echo "unexpected terraform output: ${3:-}" >&2
     exit 1
@@ -134,36 +135,20 @@ set -euo pipefail
 
 printf "%s\\n" "$*" >> "{self.fake_check_log.as_posix()}"
 
-if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "forecast_etl.cli" && "${{3:-}}" == "check-backfill" ]]; then
-  echo "model=gfs"
-  echo "cycle=2026051100"
-  echo "latest_status=valid"
-  echo "latest_cycle=2026051106"
-  echo "backfill_required=true"
-  if [[ "$*" == *"--backfill"* ]]; then
-    echo "backfill_allowed=true"
-  else
-    echo "backfill_allowed=false"
-  fi
-  if [[ "${{FAKE_BACKFILL_STATUS:-0}}" == "0" ]]; then
-    echo "ok=true"
-    echo "message=allowed"
-    exit 0
-  fi
-  echo "ok=false"
-  echo "message=blocked"
-  exit "$FAKE_BACKFILL_STATUS"
-fi
-
-if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "forecast_etl.cli" && "${{3:-}}" == "init-run" ]]; then
-  model=""
+if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "forecast_etl.cli" && "${{3:-}}" == "submit-aws-cycle" ]]; then
+  dataset_id="gfs"
   cycle=""
   run_id=""
   artifact_root_uri=""
+  job_queue=""
+  job_definition=""
+  source_bucket="noaa-gfs-bdp-pds"
+  dry_run="false"
+  backfill="false"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dataset-id)
-        model="${{2:-}}"
+        dataset_id="${{2:-}}"
         shift 2
         ;;
       --cycle)
@@ -178,15 +163,88 @@ if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "forecast_etl.cli" && "${{3:-}}" == "i
         artifact_root_uri="${{2:-}}"
         shift 2
         ;;
+      --job-queue)
+        job_queue="${{2:-}}"
+        shift 2
+        ;;
+      --job-definition)
+        job_definition="${{2:-}}"
+        shift 2
+        ;;
+      --source-bucket)
+        source_bucket="${{2:-}}"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run="true"
+        shift
+        ;;
+      --backfill)
+        backfill="true"
+        shift
+        ;;
       *)
         shift
         ;;
     esac
   done
-  echo "run_id=$run_id"
-  echo "config_digest=sha256:$(printf '%064d' 1)"
-  echo "pipeline_config_uri=${{artifact_root_uri%/}}/runs/$model/$cycle/$run_id/config/pipeline_config.json"
-  echo "forecast_catalog_uri=${{artifact_root_uri%/}}/runs/$model/$cycle/$run_id/config/forecast_catalog.json"
+  if [[ "${{FAKE_BACKFILL_STATUS:-0}}" != "0" ]]; then
+    echo "Backfill safety check failed." >&2
+    echo "ok=false" >&2
+    exit "$FAKE_BACKFILL_STATUS"
+  fi
+  echo "Backfill safety"
+  echo "  backfill_allowed=$backfill"
+  echo "Run snapshot"
+  echo "  run_id=$run_id"
+  echo "  config_digest=sha256:$(printf '%064d' 1)"
+  echo "  pipeline_config_uri=${{artifact_root_uri%/}}/runs/$dataset_id/$cycle/$run_id/config/pipeline_config.json"
+  echo "  forecast_catalog_uri=${{artifact_root_uri%/}}/runs/$dataset_id/$cycle/$run_id/config/forecast_catalog.json"
+  echo "Cycle plan"
+  if [[ "$dataset_id" == "icon" ]]; then
+    frames=(001)
+  else
+    frames=(000 003)
+  fi
+  for frame_id in "${{frames[@]}}"; do
+    echo "frame_id=$frame_id state=pending missing=0 errors=0"
+    job_name="weather-etl-manual-$dataset_id-$cycle-$run_id-$frame_id-abcdef12"
+    env_json="$(python3 - "$dataset_id" "$cycle" "$run_id" "$frame_id" "$artifact_root_uri" "$source_bucket" <<'PY'
+import json
+import sys
+dataset_id, cycle, run_id, frame_id, artifact_root_uri, source_bucket = sys.argv[1:]
+env = [
+    {{"name": "ARTIFACT_ROOT_URI", "value": artifact_root_uri}},
+    {{"name": "PIPELINE_CONFIG_URI", "value": f"{{artifact_root_uri}}/runs/{{dataset_id}}/{{cycle}}/{{run_id}}/config/pipeline_config.json"}},
+    {{"name": "FORECAST_CATALOG_URI", "value": f"{{artifact_root_uri}}/runs/{{dataset_id}}/{{cycle}}/{{run_id}}/config/forecast_catalog.json"}},
+    {{"name": "DATASET_ID", "value": dataset_id}},
+    {{"name": "CYCLE", "value": cycle}},
+    {{"name": "RUN_ID", "value": run_id}},
+    {{"name": "FRAME_ID", "value": frame_id}},
+]
+if dataset_id == "gfs":
+    env.append({{"name": "GRIB_SOURCE_URI", "value": f"s3://{{source_bucket}}/gfs.{{cycle[:8]}}/{{cycle[8:10]}}/atmos/gfs.t{{cycle[8:10]}}z.pgrb2.0p25.f{{frame_id}}"}})
+print(json.dumps({{"environment": env}}, separators=(",", ":")))
+PY
+)"
+    if [[ "$dry_run" == "true" ]]; then
+      echo "  dry-run job_name=$job_name"
+    else
+      {{
+        printf 'job_name=%s\\n' "$job_name"
+        printf 'job_queue=%s\\n' "$job_queue"
+        printf 'job_definition=%s\\n' "$job_definition"
+        printf 'container_overrides=%s\\n' "$env_json"
+      }} >> "{self.fake_batch_log.as_posix()}"
+      echo "  job_id=job-$job_name frame_id=$frame_id"
+    fi
+  done
+  if [[ "$dry_run" == "true" ]]; then
+    echo "Dry run complete."
+  else
+    echo "Submitted ${{#frames[@]}} Batch jobs."
+    echo "The scheduled weather-etl-publisher Lambda will validate the run and publish manifests after all expected success markers exist."
+  fi
   exit 0
 fi
 
@@ -226,7 +284,7 @@ exit 1
         self.assertIn("ok=false", result.stderr)
         self.assertNotIn("Run snapshot", result.stdout)
         self.assertNotIn("dry-run job_name", result.stdout)
-        self.assertIn("check-backfill", self.fake_check_log.read_text(encoding="utf-8"))
+        self.assertIn("submit-aws-cycle", self.fake_check_log.read_text(encoding="utf-8"))
 
     def test_backfill_flag_allows_dry_run(self) -> None:
         result = self.run_script(
@@ -269,7 +327,7 @@ exit 1
             result.stdout,
         )
         self.assertEqual(result.stdout.count("dry-run job_name"), 2)
-        self.assertIn("check-backfill", self.fake_check_log.read_text(encoding="utf-8"))
+        self.assertIn("submit-aws-cycle", self.fake_check_log.read_text(encoding="utf-8"))
 
     def test_submit_uses_one_snapshot_and_run_scoped_batch_env(self) -> None:
         result = self.run_script(
@@ -287,8 +345,9 @@ exit 1
             result.stdout,
         )
         cli_log = self.fake_check_log.read_text(encoding="utf-8")
-        self.assertLess(cli_log.index("check-backfill"), cli_log.index("init-run"))
-        self.assertEqual(cli_log.count(" init-run "), 1)
+        self.assertIn("submit-aws-cycle", cli_log)
+        self.assertNotIn(" check-backfill ", cli_log)
+        self.assertNotIn(" init-run ", cli_log)
 
         jobs = self._read_batch_jobs()
         self.assertEqual(len(jobs), 2)

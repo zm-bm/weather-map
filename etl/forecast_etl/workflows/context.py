@@ -22,12 +22,12 @@ from ..storage.routing import make_store
 
 
 @dataclass(frozen=True)
-class ModelRuntime:
-    """Resolved config and runtime identity for one model."""
+class DatasetRuntime:
+    """Resolved config and runtime identity for one dataset."""
 
     loaded_config: LoadedPipelineConfig
     pipeline_config: PipelineConfig
-    model: DatasetConfig
+    dataset: DatasetConfig
     execution_context: ExecutionContext
 
 
@@ -62,15 +62,15 @@ class ApplicationContext:
     def load_forecast_catalog(self) -> dict:
         return load_forecast_catalog(catalog_uri=self.forecast_catalog_uri, store=self.store)
 
-    def resolve_model_runtime(self, dataset_id: str) -> ModelRuntime:
+    def resolve_dataset_runtime(self, dataset_id: str) -> DatasetRuntime:
         loaded = self.load_pipeline_config_document()
         pipeline_config = loaded.config
-        model = pipeline_config.dataset(dataset_id)
-        return ModelRuntime(
+        dataset = pipeline_config.dataset(dataset_id)
+        return DatasetRuntime(
             loaded_config=loaded,
             pipeline_config=pipeline_config,
-            model=model,
-            execution_context=execution_context_for_dataset(model, self.artifact_root_uri),
+            dataset=dataset,
+            execution_context=execution_context_for_dataset(dataset, self.artifact_root_uri),
         )
 
     def source_run_snapshot(self, loaded_config: LoadedPipelineConfig) -> RunSnapshot:

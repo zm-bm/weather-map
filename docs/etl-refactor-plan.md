@@ -73,13 +73,13 @@ Current readers and publishers do not depend on old top-level `fields/`,
 
 ### Validation And Publication
 
-- Hour workers only write payloads and success markers.
+- Frame workers only write payloads and success markers.
 - `validate-cycle` writes run-scoped `validation.json`.
 - Publication requires a passing validation report.
 - The scheduled publisher validates complete candidate runs when needed, then
   publishes.
 - Local `run-cycle` keeps ergonomic behavior by validating and optionally
-  publishing once after all local hour work finishes.
+  publishing once after all local frame work finishes.
 
 ### Public Manifest Contract
 
@@ -146,7 +146,7 @@ forecast_etl/
   storage/            local, S3, HTTP, and routing stores
   artifacts/          run paths, repositories, markers, snapshots, published state
   sources/            GFS, ICON, NOMADS, DWD source acquisition
-  processing/         one-hour extraction, transformations, encoding
+  processing/         frame extraction, transformations, encoding
   workflows/          init-run, run-frame, validate, publish, submit-cycle planning
   execution/          in-process, local-container, and AWS Batch execution adapters
   read_model/         pointer/status/cleanup/health readers for backend and CLI
@@ -214,29 +214,30 @@ Boundary map:
   publisher EventBridge scheduling
 - adapters: GFS ingest Lambda, ICON ingest Lambda, scheduled publisher Lambda,
   local Docker runner, and manual AWS submit script
-- shared services: DynamoDB run coordinator, ICON state/lease table, artifact
+- shared services: DynamoDB run coordinator, frame claim table, artifact
   repository/store, Batch executor, and run snapshots
 - portable workflow logic: config loading, run snapshot creation/loading,
   backfill checks, marker validation, manifest publication, pointer promotion,
   operator status, and cleanup candidate classification
 
-Current intentional asymmetries:
+Asymmetries identified during the audit:
 
 - GFS is source-event driven. It coordinates one run id per dataset/cycle and
-  snapshots config before submitting workers, but duplicate SNS events can
-  still duplicate-submit the same frame for the same run.
+  snapshots config before submitting workers. At audit time, duplicate SNS
+  events could still duplicate-submit the same frame for the same run; Phase 3
+  addressed this with shared frame claims.
 - ICON is poll driven. It coordinates one run id per dataset/cycle, snapshots
-  config before marker checks and submission, and already uses per-frame
-  DynamoDB leases to suppress duplicate submissions.
+  config before marker checks and submission, and originally used source-
+  specific per-frame DynamoDB leases; Phase 3 replaced those leases with the
+  shared frame claim table.
 - The publisher is artifact-state driven. It scans recent cycles, selects a
   run, validates when needed, promotes pointer-era manifests, and catches
   failures per dataset/cycle so one bad candidate does not block the rest.
 
 Follow-ups classified by phase:
 
-- Submission idempotency/resume phase: unify GFS and ICON duplicate-submission
-  behavior with shared in-flight frame claims or an equivalent executor-neutral
-  mechanism.
+- Submission idempotency/resume phase: completed in Phase 3 with shared
+  in-flight frame claims.
 - Planner/executor phase: keep AWS SNS, EventBridge, Lambda, Batch, and
   DynamoDB details behind adapters while local and AWS paths converge on the
   same cycle plan contract.
@@ -261,7 +262,8 @@ What was clarified:
 - component IAM is expressed through readable policy documents
 - GFS ingest, ICON ingest, and publisher all use the same Lambda zip/hash
 - script-facing raw outputs remain stable, and a grouped
-  `etl_runtime_contract` output is available for future planner/executor work
+  `etl_runtime_contract` output is available for backend, observability, and
+  future executor work
 - `artifact_root_uri`, deployed config/catalog URIs, run coordinator, Batch
   executor, ingest triggers, and publisher schedule are explicit Terraform
   contract values
@@ -302,10 +304,10 @@ What changed:
 
 Deferred on purpose:
 
-- `run-cycle.sh` and `submit-cycle.sh` still keep their current interfaces and
-  orchestration until the provider-neutral plan/executor phases.
-- GFS duplicate SNS submission suppression remains deferred to the idempotency
-  phase.
+- At Phase 1 completion, `run-cycle.sh` and `submit-cycle.sh` still owned
+  orchestration; Phase 3 later made them thin wrappers around shared executors.
+- At Phase 1 completion, GFS duplicate SNS submission suppression remained
+  deferred; Phase 3 later added shared frame claims for GFS and ICON.
 - The workflow package is not a cloud abstraction framework; AWS clients remain
   in AWS adapters.
 
@@ -350,48 +352,108 @@ run snapshot URIs, per-frame worker specs, validation, and optional
 publication. It is read-only and does not create snapshots, submit jobs,
 validate, publish, or write state.
 
-### 3. Add Submission Idempotency And Resume Semantics
+### Completed: 3. Submission Idempotency, Resume, And Executors
 
-Goal: make duplicate events and reruns cheaper and less surprising by making
-the cycle plan authoritative about what still needs to be submitted.
+This phase is complete. It intentionally absorbed the previous separate
+"Unify Local And AWS Submit Paths Through Plans And Executors" phase, because
+resume decisions, frame claims, and executor behavior need to come from the
+same plan.
 
-Provisional implementation:
+What changed:
 
-- extend `CycleSubmissionPlan` with resume-aware frame state. Each selected
-  frame should be classified before submission as `pending`, `complete`,
-  `claimed`, `missing`, or `invalid`.
-- treat omitted `--run-id` as a new attempt. Resuming an interrupted run should
-  require an explicit `--run-id` so the operator knows which immutable run is
-  being continued.
-- define a complete frame from marker evidence, not marker existence alone. A
-  complete frame has all selected artifact markers and those markers parse and
-  match `dataset_id`, `cycle`, `run_id`, `frame_id`, config digest, artifact
-  metadata, and expected run-first payload paths.
-- add a shared `FrameClaimStore` adapter with conditional claim acquisition
-  keyed by `dataset_id`, `cycle`, `run_id`, and `frame_id`.
-- record useful claim diagnostics such as artifact ids, worker spec hash,
-  source URI, Batch job id, `created_at`, and `expires_at`, without making the
-  claim key more complex unless partial-artifact production becomes necessary.
-- use DynamoDB as the current production claim implementation, but keep
-  workflow logic written against the `FrameClaimStore` interface.
-- migrate ICON's existing per-frame lease behavior toward the shared claim
-  abstraction, and use the same abstraction to suppress duplicate GFS SNS
-  submissions.
-- keep job claims as submission throttles only. Validation reports and success
-  markers remain the publication evidence and final completeness gate.
-- do not rely on AWS Batch job names for idempotency. They are useful
-  diagnostics, not the duplicate-submission guard.
+- `CycleSubmissionPlan` is now resume-aware. It includes ordered `frame_ids`,
+  per-frame state, and workers only for frames eligible to submit.
+- Frame states are `pending`, `complete`, `claimed`, `missing`, or `invalid`.
+- Complete frames are defined from marker evidence, not marker existence alone:
+  expected success markers must exist, parse, match dataset/cycle/run/frame and
+  snapshot config metadata, and point at expected run-first payload paths.
+- Omitted `--run-id` means "new attempt". Explicit `--run-id` resumes an
+  existing attempt and lets the plan skip complete or actively claimed frames.
+- `FrameClaimStore` is the shared claim boundary. Production uses a new
+  DynamoDB table keyed by `dataset_id#cycle#run_id#frame_id`; local runs use
+  marker evidence and do not need persistent claims.
+- Claim records include artifact ids, worker spec hash, optional source URI,
+  Batch job id, attempt, created/updated/expires timestamps, and TTL.
+- Claims throttle submissions only. Success markers and validation reports
+  remain the source of truth for publication.
+- GFS ingest uses the shared plan and frame claims, so duplicate SNS events now
+  skip complete or actively claimed frames.
+- ICON ingest no longer uses source-specific lease helpers; it uses the same
+  shared claim store and logs `claimed` terminology.
+- `etl/scripts/run-cycle.sh` and `infra/scripts/weather-etl/ops/submit-cycle.sh`
+  keep their existing interfaces but now delegate to shared executor commands.
+- The local Docker executor runs init-run, plan, pending `run-frame` containers,
+  validation, and optional publish.
+- The AWS Batch executor runs backfill safety, init-run, plan, claim
+  acquisition, Batch submit, and submission recording.
+- Terraform now creates `weather-etl-frame-claims`, passes
+  `FRAME_CLAIM_TABLE` to GFS/ICON ingest, and removes the old ICON-specific
+  lease table.
+- The worker image default command is `run-frame`, matching the Batch job
+  definitions and container env contract.
 
-Expected result:
+Implemented interfaces:
 
-- duplicate SNS/events or repeated manual submits do not create unnecessary
-  duplicate frame jobs once a frame is complete or actively claimed
-- interrupted runs can be resumed without changing run ids or manually
-  filtering every completed frame
-- GFS and ICON converge on the same duplicate-submission semantics even though
-  their source triggers remain different
-- Phase 5 can focus on local/AWS executor unification instead of rediscovering
-  skip and claim policy in each executor
+- `forecast-etl plan-cycle` remains read-only and reports frame state plus
+  worker specs.
+- `forecast-etl execute-local-cycle` is the internal local Docker executor
+  command used by `etl/scripts/run-cycle.sh`.
+- `forecast-etl submit-aws-cycle` is the internal AWS Batch executor command
+  used by `infra/scripts/weather-etl/ops/submit-cycle.sh`.
+- `etl/scripts/run-cycle.sh` remains the human local entrypoint.
+- `infra/scripts/weather-etl/ops/submit-cycle.sh` remains the human manual AWS
+  submit entrypoint.
+
+Frame claim table:
+
+```text
+table = weather-etl-frame-claims
+pk = <dataset_id>#<cycle>#<run_id>#<frame_id>
+state = claimed | complete
+```
+
+Claim records include:
+
+```text
+dataset_id
+cycle
+run_id
+frame_id
+artifact_ids
+worker_spec_hash
+source_uri
+job_id
+attempt
+created_at
+updated_at
+expires_at_epoch
+ttl
+```
+
+Claims are submission throttles only. They do not prove completion; marker
+evidence and validation remain the publication gate.
+
+Operational behavior:
+
+- Re-running a manual submit without `--run-id` creates a new attempt.
+- Re-running with `--run-id <existing>` resumes that immutable run and submits
+  only frames that are not complete or actively claimed.
+- Expired claims allow retry/resume.
+- Local execution uses marker evidence to skip complete frames on explicit-run
+  resumes, but does not persist active claims.
+- Validation remains the final completeness gate before the scheduled publisher
+  can promote a run.
+
+Verification at completion:
+
+```bash
+cd etl && ../.venv/bin/python -m unittest discover forecast_etl/tests
+cd etl && ../.venv/bin/ruff check forecast_etl
+bash -n etl/scripts/run-cycle.sh
+bash -n infra/scripts/weather-etl/ops/submit-cycle.sh
+cd infra/terraform/weather-etl && terraform fmt -check && terraform validate
+git diff --check
+```
 
 ### 4. Slim The CLI Around The Workflow Layer
 
@@ -399,94 +461,73 @@ Goal: make `forecast-etl` a thin command surface, not the application layer.
 
 Provisional implementation:
 
-- move command handlers out of `cli.py` into command modules
-- keep `cli.py` responsible for parser construction, dispatch, and common
-  output formatting only
+- dataset/frame vocabulary cleanup in the workflow context is already done:
+  `ApplicationContext` now exposes `resolve_dataset_runtime` and
+  `DatasetRuntime`
+- keep `cli.py` as the public parser/dispatch entrypoint, but move substantial
+  command behavior and report formatting out of it
+- split command handling by intent, not by historical module names:
+  - run lifecycle commands: `init-run`, `run-frame`, `run-cycle`,
+    `validate-cycle`, `publish-cycle`, `check-backfill`
+  - submission/executor commands: `plan-cycle`, `execute-local-cycle`,
+    `submit-aws-cycle`
+  - read-only operator commands: `runs`, `status`, `pointers`, `cleanup-runs`
+  - small discovery/smoke commands: `list-frames`, `list-datasets`, `smoke`
+- move human/JSON operator output formatting into a small CLI formatting module
+  so command modules can return structured dictionaries or workflow results
 - keep exit codes and stdout/stderr behavior stable
 - route command implementations through workflow functions and application
   context helpers
+- do not move behavior back out of workflows while slimming the CLI; the CLI
+  should translate argparse input into workflow calls and render the result
 
 Expected result:
 
 - adding a new command should not make `cli.py` materially harder to read
 - command modules can be tested without constructing full argparse inputs
+- `cli.py` is mostly parser declarations plus dispatch, while workflows remain
+  the application layer
 
-### 5. Unify Local And AWS Submit Paths Through Plans And Executors
+### 5. Finish Splitting Manifest Publication
 
-Goal: make local and AWS submission execute the same plan with different
-executor adapters. The two current main entrypoints should become thin
-operator wrappers around the shared planner and executor layer.
+Status: partially complete.
 
-Provisional implementation:
+Already done:
 
-- add executor adapters for:
-  - local Docker
-  - AWS Batch
-  - in-process test execution where useful
-- make `etl/scripts/run-cycle.sh` execute the plan with the local Docker
-  executor
-- make `infra/scripts/weather-etl/ops/submit-cycle.sh` execute the plan with
-  the AWS Batch executor
-- keep these existing paths working as compatibility entrypoints during the
-  refactor because they are the current local/prod operator commands
-- consider adding clearer top-level wrappers after the shared planner exists,
-  for example:
-
-```text
-scripts/weather-etl/run-local-cycle.sh
-scripts/weather-etl/submit-aws-cycle.sh
-```
-
-- if clearer wrappers are added, have the old paths delegate to them instead of
-  breaking operator muscle memory immediately
-- keep common cycle inputs aligned across local and prod wrappers:
-  - `--dataset-id`
-  - `--cycle`
-  - `--run-id`
-  - `--frames`
-  - `--artifact`
-  - `--dry-run`
-- allow environment-specific flags where they describe real executor
-  differences:
-  - local-only examples: `--procs`, `--rebuild`, `--no-publish`
-  - prod-only examples: `--backfill`, `--skip-config-check`,
-    `--source-bucket`, `--job-name-prefix`, `--submit-delay-seconds`
-- make GFS and ICON ingest Lambdas use the same planner after event parsing and
-  run-id coordination
-- keep local ergonomics: local cycle runs still validate and optionally publish
-  after worker completion
-
-Expected result:
-
-- local and production disagree only in executor-specific details
-- scripts no longer duplicate run id, snapshot URI, workload, and worker env
-  policy
-- the operator-facing script names and locations become deliberate rather than
-  accidental
-
-### 6. Split Manifest Publication
+- manifest document construction lives in `manifest/build.py`
+- pointer schemas and pointer dereference helpers live in `manifest/pointers.py`
+  and `manifest/inspect.py`
+- aggregate `manifests/data-manifest.json` generation lives in
+  `manifest/data_manifest.py`
+- scheduled publisher candidate orchestration lives in `workflows/publisher.py`
+- public output is pointer-backed and legacy manifest compatibility has been
+  removed
 
 Goal: make publication easier to reason about and safer to change.
 
 Provisional implementation:
 
-- split `manifest/publish.py` into smaller modules or functions around:
-  - run readiness and validation checks
-  - marker collection and marker-to-frame conversion
-  - internal run manifest construction
-  - public run manifest writing
-  - current/latest pointer promotion
-  - aggregate data-manifest rebuild
+- keep `run_publish` as a thin orchestration function
+- extract the remaining responsibilities from `manifest/publish.py` into
+  smaller modules or named stages:
+  - publish readiness and selected-run checks
+  - success-marker collection and publication-specific marker validation
+  - promotion writes for the internal run manifest, immutable public run
+    manifest, cycle current pointer, model latest pointer, and published marker
+  - aggregate data-manifest refresh decision rules
 - keep pointer schemas and public output unchanged
 - make each stage return a structured result that can be logged or surfaced in
-  operator commands
+  operator commands without parsing stdout
 
 Expected result:
 
 - same-cycle rollback and monotonic latest protection are obvious in code
+- pointer promotion and aggregate refresh rules are independently testable
 - aggregate manifest rebuild rules are isolated and easier to test
+- `run_publish` reads as a sequence of named stages, not the implementation of
+  every stage
 
-### 7. Create A Backend-Friendly Read Model
+### 6. Create A Backend-Friendly Read Model
 
 Goal: prepare for a full backend server without coupling it to worker code.
 
@@ -510,7 +551,7 @@ Likely backend-facing queries:
 - cleanup candidates
 - public data-manifest summary
 
-### 8. Add Minimal Production Observability
+### 7. Add Minimal Production Observability
 
 Goal: add low-noise production signals without turning operations into a
 separate incident-management project.
@@ -530,7 +571,7 @@ Expected result:
   visible without manually polling every service
 - routine successful cycles remain quiet
 
-### 9. Clean Up Tests By Layer
+### 8. Clean Up Tests By Layer
 
 Goal: keep coverage while making tests easier to read and cheaper to modify.
 
@@ -553,7 +594,7 @@ Expected result:
 - adding a new workflow or backend reader does not require copying large fake
   objects from unrelated tests
 
-### 10. Clean Domain Modules Last
+### 9. Clean Domain Modules Last
 
 Goal: improve source/extract/encoding readability after orchestration is stable.
 
@@ -656,24 +697,28 @@ Potential R2 migration path:
 
 ## Success Criteria
 
-The refactor is working when:
+Already achieved:
 
 - `run-cycle.sh`, `submit-cycle.sh`, GFS ingest, and ICON ingest all derive
-  worker jobs from one shared planner or workflow path
+  worker jobs from one shared planner/workflow path.
 - Terraform exposes the ETL runtime contract clearly enough that scripts and
-  Lambda configuration do not depend on incidental resource details
-- a cycle plan can represent local and AWS worker submissions, frame state,
-  resume decisions, and optional publish/validate steps without writing state
-- duplicate complete or actively claimed frame jobs are suppressed, while
-  expired claims allow retry/resume and validation remains the publication gate
-- `cli.py` is small enough to scan quickly
-- publish, validate, status, cleanup, and backfill each have clear module
-  boundaries
-- backend-readable state can be inspected without importing worker-heavy code
-- production failures and stale public data produce low-noise alerts, while
-  successful cycles remain quiet by default
-- artifact storage can be swapped by URI/store adapter without changing worker,
-  validator, publisher, or frontend manifest semantics
-- tests are organized by behavior and remain green through file moves
-- no public S3 layout, manifest schema, frontend payload resolution, or
-  operator command contract changes accidentally
+  Lambda configuration do not depend on incidental resource details.
+- A cycle plan can represent local and AWS worker submissions, frame state,
+  resume decisions, and optional publish/validate steps.
+- Duplicate complete or actively claimed frame jobs are suppressed, while
+  expired claims allow retry/resume and validation remains the publication gate.
+- No public S3 layout, manifest schema, frontend payload resolution, or
+  operator command contract changes should happen accidentally during the
+  remaining behavior-preserving phases.
+
+Still open:
+
+- `cli.py` is small enough to scan quickly.
+- Publish, validate, status, cleanup, and backfill each have clear module
+  boundaries.
+- Backend-readable state can be inspected without importing worker-heavy code.
+- Production failures and stale public data produce low-noise alerts, while
+  successful cycles remain quiet by default.
+- Artifact storage can be swapped by URI/store adapter without changing worker,
+  validator, publisher, or frontend manifest semantics.
+- Tests are organized by behavior and remain green through file moves.
