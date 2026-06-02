@@ -218,7 +218,7 @@ class IconIngestTest(unittest.TestCase):
 
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.icon_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(self.model)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(self.model)),
             patch("forecast_etl.aws.icon_ingest._url_ready", side_effect=ready),
             patch("forecast_etl.aws.icon_ingest.make_store", return_value=self.store),
             patch("forecast_etl.aws.icon_ingest.boto3.client", side_effect=fake_client),

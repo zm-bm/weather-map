@@ -11,13 +11,11 @@ from typing import Any
 
 import boto3  # type: ignore
 
-from ..artifacts.repository import ArtifactRepository
-from ..backfill import check_backfill_safety
 from ..config.resolved import PipelineConfig
-from ..run_snapshots import ensure_or_load_run_snapshot
-from ..storage.base import UriStore
 from ..storage.routing import make_store
 from ..uris import default_artifact_root_uri, default_forecast_catalog_uri, default_pipeline_config_uri
+from ..workflows.context import ApplicationContext
+from ..workflows.cycle import check_backfill
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
@@ -98,12 +96,9 @@ def _submit_job(
     queue: str,
     job_definition: str,
     run_coordinator_table: str,
-    artifact_repo: ArtifactRepository,
-    store: UriStore,
+    app_context: ApplicationContext,
     bucket: str,
     key: str,
-    pipeline_config_uri: str,
-    forecast_catalog_uri: str,
 ) -> int:
     """Submit one Batch worker job when the S3 key matches workload filters."""
 
@@ -121,8 +116,8 @@ def _submit_job(
         print(f"skip key (cycle filter): cycle_hour={cycle_hour} key={key}")
         return 0
 
-    backfill = check_backfill_safety(
-        artifact_repo=artifact_repo,
+    backfill = check_backfill(
+        app_context=app_context,
         model_id=MODEL_ID,
         cycle=cycle,
     )
@@ -139,14 +134,10 @@ def _submit_job(
         now=datetime.now(timezone.utc),
         ttl_seconds=run_coordinator_ttl_seconds(),
     )
-    snapshot = ensure_or_load_run_snapshot(
-        artifact_repo=artifact_repo,
-        store=store,
+    snapshot = app_context.ensure_or_load_run_snapshot(
         model_id=MODEL_ID,
         cycle=cycle,
         run_id=run_id,
-        pipeline_config_uri=pipeline_config_uri,
-        forecast_catalog_uri=forecast_catalog_uri,
     )
     filters = _filters_from_config(snapshot.loaded_config.config)
 
@@ -197,7 +188,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     batch = boto3.client("batch")
     ddb = boto3.client("dynamodb")
     store = make_store()
-    artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
+    app_context = ApplicationContext(
+        artifact_root_uri=artifact_root_uri,
+        pipeline_config_uri=pipeline_config_uri,
+        forecast_catalog_uri=forecast_catalog_uri,
+        store=store,
+    )
 
     s3_objects = _extract_from_event(event)
     if not s3_objects:
@@ -212,12 +208,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             queue=queue,
             job_definition=job_definition,
             run_coordinator_table=run_coordinator_table,
-            artifact_repo=artifact_repo,
-            store=store,
+            app_context=app_context,
             bucket=bucket,
             key=key,
-            pipeline_config_uri=pipeline_config_uri,
-            forecast_catalog_uri=forecast_catalog_uri,
         )
 
     return {"ok": True, "submitted": submitted, "seen": len(s3_objects)}

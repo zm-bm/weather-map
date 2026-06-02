@@ -116,7 +116,7 @@ class CliTest(unittest.TestCase):
 
         with (
             patch.dict(os.environ, {}, clear=True),
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
         ):
             with self.assertRaises(SystemExit):
                 cli.main(
@@ -137,7 +137,7 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("003",))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
             patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
         ):
@@ -177,7 +177,7 @@ class CliTest(unittest.TestCase):
 
         with (
             patch.dict(os.environ, {}, clear=True),
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
             patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
         ):
             with self.assertRaises(SystemExit) as raised:
@@ -200,7 +200,7 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(artifacts=("tmp_surface", "rh_surface"))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
             patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.publish_cycle.run_publish"),
         ):
@@ -262,7 +262,7 @@ class CliTest(unittest.TestCase):
                 },
                 clear=False,
             ),
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
             patch("forecast_etl.commands.run_hour.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
         ):
@@ -283,8 +283,8 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
             patch(
                 "forecast_etl.commands.publish_cycle.run_publish",
                 return_value=PublishResult(ready=True, already_published=False),
@@ -303,8 +303,8 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
             patch(
                 "forecast_etl.commands.publish_cycle.run_publish",
                 return_value=PublishResult(
@@ -324,9 +324,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.validate_run", return_value=_passed_validation()) as validate_run,
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.validate_run", return_value=_passed_validation()) as validate_run,
         ):
             result = cli.main(["validate-cycle", "--model", "gfs", "--cycle", "2026021300", "--run-id", DEFAULT_RUN_ID])
 
@@ -339,9 +339,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"))
 
         with (
-            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.cli.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.validate_run", return_value=SimpleNamespace(passed=False, errors=("missing",))),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.validate_run", return_value=SimpleNamespace(passed=False, errors=("missing",))),
         ):
             result = cli.main(["validate-cycle", "--model", "gfs", "--cycle", "2026021300"])
 
@@ -349,9 +349,9 @@ class CliTest(unittest.TestCase):
 
     def test_validate_cycle_returns_not_ready_for_missing_snapshot(self) -> None:
         with (
-            patch("forecast_etl.cli.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.cli.load_run_snapshot", side_effect=FileNotFoundError("missing run.json")),
-            patch("forecast_etl.cli.validate_run") as validate_run,
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", side_effect=FileNotFoundError("missing run.json")),
+            patch("forecast_etl.workflows.cycle.validate_run") as validate_run,
         ):
             result = cli.main(["validate-cycle", "--model", "gfs", "--cycle", "2026021300"])
 
@@ -363,7 +363,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
 
         with (
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)) as ensure,
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)) as ensure,
             redirect_stdout(out),
         ):
             result = cli.main(["init-run", "--model", "gfs", "--cycle", "2026021300", "--run-id", DEFAULT_RUN_ID])
@@ -377,9 +377,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000", "003"), rate_limit_seconds=0.0)
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.run_cycle.validate_run", return_value=_passed_validation()) as validate_run,
             patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
@@ -406,9 +406,9 @@ class CliTest(unittest.TestCase):
         )
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.run_cycle.validate_run", return_value=_passed_validation()),
             patch("forecast_etl.commands.publish_cycle.run_publish"),
@@ -438,9 +438,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(artifacts=("tmp_surface",))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
         ):
             with self.assertRaises(SystemExit) as raised:
@@ -463,9 +463,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour"),
             patch("forecast_etl.commands.run_cycle.validate_run", return_value=_passed_validation()) as validate_run,
             patch("forecast_etl.commands.publish_cycle.run_publish") as run_publish,
@@ -481,9 +481,9 @@ class CliTest(unittest.TestCase):
         fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour", side_effect=ValueError("boom")),
             patch("forecast_etl.commands.publish_cycle.run_publish"),
             patch("forecast_etl.commands.run_cycle.Pool", _FakePool),
@@ -506,9 +506,9 @@ class CliTest(unittest.TestCase):
         )
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
-            patch("forecast_etl.cli.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
-            patch("forecast_etl.cli.generate_run_id", return_value=DEFAULT_RUN_ID),
+            patch("forecast_etl.workflows.context.load_pipeline_config_document", return_value=_loaded_cfg(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_run_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.cycle.generate_run_id", return_value=DEFAULT_RUN_ID),
             patch("forecast_etl.commands.run_cycle.run_process_hour") as run_process_hour,
             patch("forecast_etl.commands.run_cycle.validate_run", return_value=_passed_validation()),
             patch("forecast_etl.commands.run_cycle.Pool") as pool,
@@ -530,7 +530,7 @@ class CliTest(unittest.TestCase):
             "runs": [],
         }
 
-        with patch("forecast_etl.cli.runs_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.runs_report", return_value=report), redirect_stdout(out):
             result = cli.main(["runs", "--model", "gfs", "--cycle", "2026021300", "--json"])
 
         self.assertEqual(result, 0)
@@ -556,7 +556,7 @@ class CliTest(unittest.TestCase):
             },
         }
 
-        with patch("forecast_etl.cli.status_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.status_report", return_value=report), redirect_stdout(out):
             result = cli.main(["status", "--model", "gfs", "--cycle", "2026021300"])
 
         text = out.getvalue()
@@ -583,7 +583,7 @@ class CliTest(unittest.TestCase):
             "run": None,
         }
 
-        with patch("forecast_etl.cli.status_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.status_report", return_value=report), redirect_stdout(out):
             result = cli.main(["status", "--model", "gfs", "--cycle", "2026021300"])
 
         self.assertEqual(result, 0)
@@ -601,7 +601,7 @@ class CliTest(unittest.TestCase):
             "current": {"status": "valid"},
         }
 
-        with patch("forecast_etl.cli.pointers_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.pointers_report", return_value=report), redirect_stdout(out):
             result = cli.main(["pointers", "--model", "gfs", "--cycle", "2026021300", "--json"])
 
         self.assertEqual(result, 0)
@@ -635,7 +635,7 @@ class CliTest(unittest.TestCase):
             ],
         }
 
-        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.cleanup_runs_report", return_value=report), redirect_stdout(out):
             result = cli.main(["cleanup-runs", "--model", "gfs", "--json"])
 
         self.assertEqual(result, 0)
@@ -655,7 +655,7 @@ class CliTest(unittest.TestCase):
             "runs": [],
         }
 
-        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
             result = cli.main(["cleanup-runs", "--model", "gfs", "--cycle", "2026021300", "--json"])
 
         self.assertEqual(result, 0)
@@ -687,7 +687,7 @@ class CliTest(unittest.TestCase):
             ],
         }
 
-        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report), redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.cleanup_runs_report", return_value=report), redirect_stdout(out):
             result = cli.main(["cleanup-runs", "--model", "gfs", "--cycle", "2026021300"])
 
         text = out.getvalue()
@@ -718,7 +718,7 @@ class CliTest(unittest.TestCase):
             "runs": [],
         }
 
-        with patch("forecast_etl.cli.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
+        with patch("forecast_etl.workflows.inspection.cleanup_runs_report", return_value=report) as cleanup_runs_report, redirect_stdout(out):
             result = cli.main(["cleanup-runs", "--model", "gfs", "--delete", "--yes", "--json"])
 
         self.assertEqual(result, 0)
@@ -730,7 +730,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg),
             redirect_stdout(out),
         ):
             result = cli.main(["list-forecast-hours", "--model", "gfs"])
@@ -743,7 +743,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
+            patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
             redirect_stdout(out),
         ):
             result = cli.main([
@@ -766,7 +766,7 @@ class CliTest(unittest.TestCase):
 
         with (
             patch.dict(os.environ, {"MODEL": "gfs"}, clear=False),
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg),
             redirect_stdout(out),
         ):
             result = cli.main(["list-forecast-hours"])
@@ -777,7 +777,7 @@ class CliTest(unittest.TestCase):
     def test_list_forecast_hours_rejects_unknown_model(self) -> None:
         fake_cfg = _FakePipelineConfig(forecast_hours=("000",))
 
-        with patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg):
+        with patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg):
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["list-forecast-hours", "--model", "icon"])
 
@@ -788,7 +788,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg),
+            patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg),
             redirect_stdout(out),
         ):
             result = cli.main(["list-models"])
@@ -801,7 +801,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
 
         with (
-            patch("forecast_etl.cli.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
+            patch("forecast_etl.workflows.context.load_pipeline_config", return_value=fake_cfg) as load_pipeline_config,
             redirect_stdout(out),
         ):
             result = cli.main(

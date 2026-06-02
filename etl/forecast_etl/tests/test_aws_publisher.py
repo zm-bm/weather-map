@@ -74,11 +74,11 @@ class PublisherTest(unittest.TestCase):
     def _run(self, event: dict, *, side_effect) -> tuple[dict, object]:
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
-            patch("forecast_etl.aws.publisher.validation_report_passed", return_value=(True, [])),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
+            patch("forecast_etl.workflows.publisher.validation_report_passed", return_value=(True, [])),
             patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
-            patch("forecast_etl.aws.publisher.run_publish", side_effect=side_effect) as run_publish,
+            patch("forecast_etl.workflows.publisher.run_publish", side_effect=side_effect) as run_publish,
         ):
             result = publisher.handler(event, None)
         return result, run_publish
@@ -117,12 +117,12 @@ class PublisherTest(unittest.TestCase):
             clear=False,
         ):
             with (
-                patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-                patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
-                patch("forecast_etl.aws.publisher.validation_report_passed", return_value=(True, [])),
+                patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+                patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
+                patch("forecast_etl.workflows.publisher.validation_report_passed", return_value=(True, [])),
                 patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
                 patch(
-                    "forecast_etl.aws.publisher.run_publish",
+                    "forecast_etl.workflows.publisher.run_publish",
                     return_value=PublishResult(ready=True, already_published=True),
                 ) as run_publish,
             ):
@@ -161,16 +161,16 @@ class PublisherTest(unittest.TestCase):
     def test_validates_missing_report_before_publish(self) -> None:
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
-            patch("forecast_etl.aws.publisher.validation_report_passed", return_value=(False, ["missing validation report"])),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
+            patch("forecast_etl.workflows.publisher.validation_report_passed", return_value=(False, ["missing validation report"])),
             patch(
-                "forecast_etl.aws.publisher.validate_run",
+                "forecast_etl.workflows.publisher.validate_run",
                 return_value=SimpleNamespace(passed=True, errors=(), warnings=()),
             ) as validate_run,
             patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
             patch(
-                "forecast_etl.aws.publisher.run_publish",
+                "forecast_etl.workflows.publisher.run_publish",
                 return_value=PublishResult(ready=True, already_published=False),
             ) as run_publish,
         ):
@@ -183,11 +183,11 @@ class PublisherTest(unittest.TestCase):
     def test_validation_failure_is_not_ready_and_does_not_block_next_cycle(self) -> None:
         with (
             patch.dict(os.environ, _env(), clear=False),
-            patch("forecast_etl.aws.publisher.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
-            patch("forecast_etl.aws.publisher.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
-            patch("forecast_etl.aws.publisher.validation_report_passed", return_value=(False, ["missing validation report"])),
+            patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(DEFAULT_RUN_ID, [])),
+            patch("forecast_etl.workflows.context.load_run_snapshot", return_value=_loaded_snapshot(self.cfg)),
+            patch("forecast_etl.workflows.publisher.validation_report_passed", return_value=(False, ["missing validation report"])),
             patch(
-                "forecast_etl.aws.publisher.validate_run",
+                "forecast_etl.workflows.publisher.validate_run",
                 side_effect=[
                     SimpleNamespace(passed=False, errors=("missing marker",), warnings=()),
                     SimpleNamespace(passed=True, errors=(), warnings=()),
@@ -195,7 +195,7 @@ class PublisherTest(unittest.TestCase):
             ) as validate_run,
             patch("forecast_etl.aws.publisher.make_store", return_value=_FakeStore()),
             patch(
-                "forecast_etl.aws.publisher.run_publish",
+                "forecast_etl.workflows.publisher.run_publish",
                 return_value=PublishResult(ready=True, already_published=True),
             ) as run_publish,
         ):

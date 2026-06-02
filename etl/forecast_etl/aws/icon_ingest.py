@@ -12,20 +12,18 @@ from typing import Any, Iterable
 import boto3  # type: ignore
 
 from ..artifacts.paths import ArtifactPaths
-from ..artifacts.repository import ArtifactRepository
-from ..backfill import check_backfill_safety
 from ..config.resolved import IconDwdSourceConfig, ModelConfig
 from ..cycles import latest_synoptic_cycles
-from ..run_snapshots import ensure_or_load_run_snapshot
 from ..source_adapters.icon_dwd import (
     icon_dwd_url,
     previous_icon_fhour,
     required_icon_params,
     required_previous_icon_params,
 )
-from ..storage.base import UriStore
 from ..storage.routing import make_store
 from ..uris import default_forecast_catalog_uri, default_pipeline_config_uri
+from ..workflows.context import ApplicationContext
+from ..workflows.cycle import check_backfill
 from .run_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
@@ -127,13 +125,12 @@ def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterabl
 
 def _existing_success_markers(
     *,
-    store: UriStore,
-    paths: ArtifactPaths,
+    app_context: ApplicationContext,
     model_id: str,
     cycle: str,
     run_id: str,
 ) -> set[str]:
-    return ArtifactRepository(store=store, paths=paths).list_success_marker_uris(
+    return app_context.artifact_repo.list_success_marker_uris(
         model_id=model_id,
         cycle=cycle,
         run_id=run_id,
@@ -301,8 +298,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     batch = boto3.client("batch")
     ddb = boto3.client("dynamodb")
     store = make_store()
-    paths = ArtifactPaths(artifact_root_uri)
-    artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
+    app_context = ApplicationContext(
+        artifact_root_uri=artifact_root_uri,
+        pipeline_config_uri=pipeline_config_uri,
+        forecast_catalog_uri=forecast_catalog_uri,
+        store=store,
+    )
+    paths = app_context.artifact_repo.paths
 
     submitted = 0
     completed = 0
@@ -311,8 +313,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     skipped_cycles = 0
 
     for cycle in cycles:
-        backfill = check_backfill_safety(
-            artifact_repo=artifact_repo,
+        backfill = check_backfill(
+            app_context=app_context,
             model_id=MODEL_ID,
             cycle=cycle,
         )
@@ -329,14 +331,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             now=now,
             ttl_seconds=run_coordinator_ttl_seconds(),
         )
-        snapshot = ensure_or_load_run_snapshot(
-            artifact_repo=artifact_repo,
-            store=store,
+        snapshot = app_context.ensure_or_load_run_snapshot(
             model_id=MODEL_ID,
             cycle=cycle,
             run_id=cycle_run_id,
-            pipeline_config_uri=pipeline_config_uri,
-            forecast_catalog_uri=forecast_catalog_uri,
         )
         model = snapshot.loaded_config.config.model(MODEL_ID)
         if not model.workload.artifacts or not model.workload.forecast_hours:
@@ -351,8 +349,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             continue
 
         existing_markers = _existing_success_markers(
-            store=store,
-            paths=paths,
+            app_context=app_context,
             model_id=model.id,
             cycle=cycle,
             run_id=cycle_run_id,

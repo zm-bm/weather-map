@@ -184,7 +184,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface",),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -201,7 +201,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=(),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -218,7 +218,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -235,7 +235,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -253,7 +253,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             artifacts=("tmp_surface",),
         )
         with (
-            patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
+            patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot", return_value=_loaded_snapshot(fake_cfg)),
             patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
         ):
             result = gfs_ingest.handler(
@@ -277,7 +277,7 @@ class AwsGfsIngestTest(unittest.TestCase):
             )
             with (
                 patch.dict(os.environ, {"ARTIFACT_ROOT_URI": artifacts.paths.artifact_root_uri}, clear=False),
-                patch("forecast_etl.aws.gfs_ingest.ensure_or_load_run_snapshot") as ensure_snapshot,
+                patch("forecast_etl.workflows.context.ensure_or_load_run_snapshot") as ensure_snapshot,
                 patch("forecast_etl.aws.gfs_ingest.boto3.client", side_effect=self._client),
             ):
                 result = gfs_ingest.handler(

@@ -274,44 +274,65 @@ Expected result:
 - Future R2 artifact storage or alternate executors can be added without
   untangling unrelated config, state, and IAM resources first.
 
-### 1. Add Workflow/Application Context Scaffolding
+### Completed: 1. Add Workflow/Application Context Scaffolding
 
-Goal: centralize shared application setup and the business sequence for common
-operations before changing entrypoints.
+The first Python boundary cleanup is complete. A small `forecast_etl.workflows`
+package now centralizes shared setup and common workflow sequencing without
+changing public commands, artifact paths, manifest schemas, shell script
+interfaces, or Lambda behavior.
 
-Provisional implementation:
+What changed:
 
-- add `forecast_etl/workflows/`
-- add a small application context module for resolving store, artifact root,
-  config/catalog inputs, run snapshots, and model/runtime context
-- define explicit functions or small service objects for:
-  - initialize run snapshot
-  - process one hour
-  - validate one run
-  - publish one run
-  - check backfill safety
-  - inspect run status
-  - cleanup run candidates
-- keep workflow functions dependency-injected by store/repository/config where
-  useful, but avoid abstracting every value behind interfaces
+- `ApplicationContext` resolves the URI store, artifact repository, artifact
+  root, config/catalog inputs, model runtime, run snapshots, and run-id
+  selection.
+- `workflows.cycle` wraps init-run, run-hour, run-cycle, validate-cycle,
+  publish-cycle, and backfill checks while leaving heavy processing and manifest
+  publication in the existing implementation modules.
+- `workflows.inspection` wraps operator read-side commands for runs, status,
+  pointers, and cleanup.
+- `workflows.publisher` owns the scheduled publisher's per model-cycle
+  validate/promote candidate flow.
+- CLI handlers and GFS/ICON/publisher Lambda adapters now route through the
+  workflow layer, while keeping adapter-owned event parsing, env parsing, output
+  formatting, exit-code mapping, and Batch submission shape.
 
-Expected result:
+Deferred on purpose:
 
-- CLI, Lambda handlers, scripts, and tests call the same workflow functions
-- `SystemExit` becomes mostly an adapter concern; workflow code can return
-  structured results or raise domain-specific errors where helpful
+- `run-cycle.sh` and `submit-cycle.sh` still keep their current interfaces and
+  orchestration until the provider-neutral plan/executor phases.
+- GFS duplicate SNS submission suppression remains deferred to the idempotency
+  phase.
+- The workflow package is not a cloud abstraction framework; AWS clients remain
+  in AWS adapters.
 
 ### 2. Add A Provider-Neutral Cycle Submission Plan
 
-Goal: represent one model/cycle run as a provider-neutral plan before deciding
-whether the executor is local Docker, AWS Batch, or a future provider. This is
-the main mechanism for converging local and production behavior without making
-the shell scripts own ETL policy.
+Goal: represent one dataset/cycle run as a provider-neutral plan before
+deciding whether the executor is local Docker, AWS Batch, or a future provider.
+This is the main mechanism for converging local and production forecast behavior
+without making the shell scripts own ETL policy, while leaving room for later
+non-forecast ETL such as radar or satellite ingest.
+
+Use these reusable planner primitives:
+
+- `dataset_id`: general source/product identifier such as `gfs`, `icon`,
+  `radar`, or `goes-east-ir`
+- `cycle`: UTC batch, window, or source issue id in `YYYYMMDDHH`
+- `run_id`: attempt identity for one dataset/cycle
+- `artifact_id`: produced layer or product within that run
+- `frame_id`: within-cycle time/index dimension
+
+For the current forecast ETL, `dataset_id` maps to the existing `model` value
+and `frame_id` maps to the existing forecast hour / `fhour` value. Do not rename
+run-first S3 paths, public manifest fields, CLI flags, or worker env vars in this
+phase; preserve forecast vocabulary at public adapter boundaries and use the
+generalized names inside the planner.
 
 Provisional implementation:
 
-- introduce internal `CycleSubmissionRequest` and `CycleSubmissionPlan`
-  structures
+- introduce internal `DatasetCycleSubmissionRequest` and
+  `DatasetCycleSubmissionPlan` structures
 - add a read-only CLI command:
 
 ```bash
@@ -320,6 +341,9 @@ forecast-etl plan-cycle --model gfs --cycle 2026060112 [--run-id <run_id>] [--js
 
 - make JSON output the stable machine-readable contract for script and executor
   integration
+- emit both the generalized identity fields and forecast aliases where useful:
+  `datasetId`, `cycle`, `runId`, `frames[].frameId`, `artifacts[].artifactId`,
+  plus `model`/`fhour` aliases for forecast workers
 - support the same common operator inputs as the local/prod scripts where they
   affect the plan:
   - `--model`
@@ -335,24 +359,26 @@ forecast-etl plan-cycle --model gfs --cycle 2026060112 [--run-id <run_id>] [--js
 - have the planner accept a request such as:
 
 ```python
-CycleSubmissionRequest(
-    model="gfs",
+DatasetCycleSubmissionRequest(
+    dataset_id="gfs",
     cycle="2026060112",
     run_id="20260601T120000Z-a1b2c3d4",
     artifact_root_uri="...",
     source_config_uri="...",
     source_catalog_uri="...",
-    selected_fhours=None,
-    selected_artifacts=None,
+    selected_frame_ids=None,
+    selected_artifact_ids=None,
 )
 ```
 
-- have the planner return a `CycleSubmissionPlan` containing:
-  - model, cycle, run id, and artifact root
+- have the planner return a `DatasetCycleSubmissionPlan` containing:
+  - dataset id, cycle, run id, and artifact root
+  - forecast alias fields for current GFS/ICON callers
   - run snapshot intent
   - snapshot config/catalog URIs
-  - selected forecast hours
-  - per-hour worker job specs
+  - selected frame ids
+  - selected artifact ids
+  - per-frame worker job specs
   - validation step
   - optional publish step
   - operator messages or structured summary fields
@@ -360,8 +386,8 @@ CycleSubmissionRequest(
   validate, publish, or write state
 - generate or accept a run id according to the same rules as current local and
   manual submit paths
-- compute run snapshot URIs, selected forecast hours, selected artifact ids,
-  per-hour worker environments, validation step, and optional publish step in
+- compute run snapshot URIs, selected frame ids, selected artifact ids,
+  per-frame worker environments, validation step, and optional publish step in
   one place
 - make the plan explicit about whether an executor should include a GFS
   `GRIB_SOURCE_URI` or leave source acquisition to the worker/model source
@@ -375,6 +401,8 @@ Expected result:
   than shell output
 - later executor tests can assert plan input/output contracts instead of broad
   shell internals
+- later radar/satellite ingest can reuse the planner shape without forcing those
+  datasets into forecast-hour terminology
 
 ### 3. Add Submission Idempotency And Resume Semantics
 

@@ -6,16 +6,15 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from ..artifacts.repository import ArtifactRepository
 from ..cycles import latest_synoptic_cycles, parse_cycle
-from ..manifest.publish import run_publish
-from ..run_snapshots import load_run_snapshot, select_run_id_for_cycle
-from ..run_validation import validate_run, validation_report_passed
-from ..runtime import execution_context_for_model
 from ..storage.routing import make_store
-from ..uris import default_artifact_root_uri
+from ..uris import default_artifact_root_uri, default_forecast_catalog_uri, default_pipeline_config_uri
+from ..workflows.context import ApplicationContext
+from ..workflows.publisher import publish_candidate
 
 DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
+DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
+DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
 DEFAULT_PUBLISH_MODELS = ("gfs", "icon")
 DEFAULT_PUBLISH_CYCLE_COUNT = 8
 
@@ -82,7 +81,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     artifact_root_uri = os.environ.get("ARTIFACT_ROOT_URI", DEFAULT_ARTIFACT_ROOT_URI).strip()
 
     store = make_store()
-    artifact_repo = ArtifactRepository.for_root(store=store, artifact_root_uri=artifact_root_uri)
+    app_context = ApplicationContext(
+        artifact_root_uri=artifact_root_uri,
+        pipeline_config_uri=os.environ.get("PIPELINE_CONFIG_URI", DEFAULT_PIPELINE_CONFIG_URI).strip(),
+        forecast_catalog_uri=os.environ.get("FORECAST_CATALOG_URI", DEFAULT_FORECAST_CATALOG_URI).strip(),
+        store=store,
+    )
     cycles = _publish_cycles(event, now=_event_now(event))
     models = _publish_models(event)
 
@@ -99,67 +103,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         for cycle in cycles:
             attempted += 1
             try:
-                run_id, run_errors = select_run_id_for_cycle(
-                    artifact_repo=artifact_repo,
+                result = publish_candidate(
+                    app_context=app_context,
                     model_id=model_id,
                     cycle=cycle,
-                    required_run_id=None,
-                )
-                if run_errors or run_id is None:
-                    not_ready += 1
-                    print(
-                        f"Publisher not ready model={model_id} cycle={cycle}: "
-                        + "; ".join(run_errors or ["no run selected"]),
-                        flush=True,
-                    )
-                    continue
-                snapshot = load_run_snapshot(
-                    artifact_repo=artifact_repo,
-                    store=store,
-                    model_id=model_id,
-                    cycle=cycle,
-                    run_id=run_id,
-                )
-                cfg = snapshot.loaded_config.config
-                model = cfg.model(model_id)
-                ctx = execution_context_for_model(model, artifact_root_uri)
-                validation_passed, validation_errors = validation_report_passed(
-                    artifact_repo=artifact_repo,
-                    model_id=model_id,
-                    cycle=cycle,
-                    run_id=run_id,
-                )
-                if not validation_passed:
-                    print(
-                        f"Publisher validating model={model_id} cycle={cycle} run_id={run_id}: "
-                        + "; ".join(validation_errors[:3]),
-                        flush=True,
-                    )
-                    validation = validate_run(
-                        artifact_repo=artifact_repo,
-                        model=model,
-                        cycle=cycle,
-                        run_id=run_id,
-                        snapshot=snapshot,
-                    )
-                    if not validation.passed:
-                        not_ready += 1
-                        print(
-                            f"Publisher not ready model={model_id} cycle={cycle} "
-                            f"validation_errors={len(validation.errors)}",
-                            flush=True,
-                        )
-                        continue
-                result = run_publish(
-                    ctx=ctx,
-                    cycle=cycle,
-                    run_id=run_id,
-                    model_label=model.label,
-                    artifact_ids=model.workload.artifacts,
-                    artifact_specs=model.artifacts,
-                    artifact_repo=artifact_repo,
-                    pipeline_config=cfg,
-                    forecast_catalog=snapshot.forecast_catalog,
                 )
             except (Exception, SystemExit) as exc:
                 failed += 1
@@ -169,6 +116,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
             if not result.ready:
                 not_ready += 1
+                if result.not_ready_message:
+                    if not result.validation_errors:
+                        print(
+                            f"Publisher not ready model={model_id} cycle={cycle}: {result.not_ready_message}",
+                            flush=True,
+                        )
+                    continue
                 print(
                     f"Publisher not ready model={model_id} cycle={cycle} "
                     f"missing={len(result.missing_markers)}",

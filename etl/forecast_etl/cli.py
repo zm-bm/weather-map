@@ -22,19 +22,6 @@ import argparse
 import json
 import os
 
-from .backfill import check_backfill_safety
-from .catalog import load_forecast_catalog
-from .cleanup_candidates import cleanup_runs_report
-from .commands import publish_cycle, run_cycle, run_hour
-from .config.load import LoadedPipelineConfig, load_pipeline_config, load_pipeline_config_document
-from .config.resolved import PipelineConfig
-from .cycles import parse_cycle
-from .operator_status import pointers_report, runs_report, status_report
-from .run_ids import generate_run_id, parse_run_id
-from .run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
-from .run_snapshots import ensure_run_snapshot, load_run_snapshot, select_run_id_for_cycle
-from .run_validation import validate_run
-from .runtime import execution_context_for_model
 from .storage.base import UriStore
 from .storage.routing import make_store
 from .uris import (
@@ -42,6 +29,9 @@ from .uris import (
     default_forecast_catalog_uri,
     default_pipeline_config_uri,
 )
+from .workflows import cycle as cycle_workflow
+from .workflows import inspection as inspection_workflow
+from .workflows.context import ApplicationContext
 
 
 def _config_parser() -> argparse.ArgumentParser:
@@ -233,7 +223,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_list_models = sub.add_parser(
         "list-models",
-        help="Print configured forecast model ids",
+        help="Print one configured forecast model id per line",
         parents=[config],
     )
     ap_list_models.set_defaults(_handler=_cmd_list_models)
@@ -242,30 +232,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_smoke.set_defaults(_handler=_cmd_smoke)
 
     return ap
-
-
-def _load_cfg(args: argparse.Namespace, *, store: UriStore | None = None) -> PipelineConfig:
-    return load_pipeline_config(
-        args.pipeline_config_uri,
-        overlay_uri=args.pipeline_config_overlay_uri,
-        store=store,
-    )
-
-
-def _load_cfg_document(args: argparse.Namespace, *, store: UriStore | None = None) -> LoadedPipelineConfig:
-    return load_pipeline_config_document(
-        args.pipeline_config_uri,
-        overlay_uri=args.pipeline_config_overlay_uri,
-        store=store,
-    )
-
-
-def _run_snapshot(args: argparse.Namespace, *, store: UriStore, loaded: LoadedPipelineConfig) -> RunSnapshot:
-    return RunSnapshot(
-        metadata=run_metadata_from_env(config_digest=json_document_digest(loaded.raw)),
-        pipeline_config=loaded.raw,
-        forecast_catalog=load_forecast_catalog(catalog_uri=args.forecast_catalog_uri, store=store),
-    )
 
 
 def _require_str(
@@ -294,36 +260,9 @@ def _add_artifact_filter_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _resolve_artifact_ids(model, selected: list[str] | None) -> tuple[str, ...]:
-    workload_artifacts = tuple(model.workload.artifacts or ())
-    if not selected:
-        return workload_artifacts
-
-    requested = {artifact_id.strip() for artifact_id in selected if artifact_id.strip()}
-    if not requested:
-        raise SystemExit("--artifact requires at least one non-empty artifact id")
-
-    unknown = sorted(requested - set(workload_artifacts))
-    if unknown:
-        raise SystemExit(
-            f"Unknown artifact id(s) for model {model.id!r}: {unknown!r}; "
-            f"configured artifacts: {list(workload_artifacts)!r}"
-        )
-
-    return tuple(artifact_id for artifact_id in workload_artifacts if artifact_id in requested)
-
-
 def _cmd_run_hour(args: argparse.Namespace) -> int:
     """Run one hour without publishing."""
-    store = make_store()
-    loaded = _load_cfg_document(args, store=store)
-    cfg = loaded.config
-    model = cfg.model(_require_model_id(args))
-    ctx = execution_context_for_model(model, args.artifact_root_uri)
-    cycle = _require_str(args.cycle, env_name="CYCLE", cli_flag="--cycle")
-    parse_cycle(cycle)
-    run_id = parse_run_id(_require_str(getattr(args, "run_id", None), env_name="RUN_ID", cli_flag="--run-id"))
-    fhour = _require_str(args.fhour, env_name="FHOUR", cli_flag="--fhour")
+
     source_uri = (
         args.source_uri
         if isinstance(args.source_uri, str) and args.source_uri.strip()
@@ -331,30 +270,25 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
     )
     source_uri = source_uri.strip() if isinstance(source_uri, str) and source_uri.strip() else None
 
-    run_hour(
-        model=model,
-        ctx=ctx,
-        cycle=cycle,
-        run_id=run_id,
-        fhour=fhour,
+    cycle_workflow.process_hour(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=_require_str(args.cycle, env_name="CYCLE", cli_flag="--cycle"),
+        run_id=_require_str(getattr(args, "run_id", None), env_name="RUN_ID", cli_flag="--run-id"),
+        fhour=_require_str(args.fhour, env_name="FHOUR", cli_flag="--fhour"),
         source_uri=source_uri,
-        artifact_ids=_resolve_artifact_ids(model, args.artifacts),
-        store=store,
-        run_snapshot=_run_snapshot(args, store=store, loaded=loaded),
+        artifact_ids=args.artifacts,
     )
     return 0
 
 
 def _cmd_check_backfill(args: argparse.Namespace) -> int:
     """Guard against accidental older-than-latest submits."""
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle)
-    parse_cycle(cycle)
-    result = check_backfill_safety(
-        artifact_repo=_artifact_repo(args, store=store),
-        model_id=model_id,
-        cycle=cycle,
+
+    result = cycle_workflow.check_backfill(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle),
         allow_backfill=bool(args.backfill),
     )
     for key, value in result.key_values():
@@ -364,167 +298,76 @@ def _cmd_check_backfill(args: argparse.Namespace) -> int:
 
 def _cmd_init_run(args: argparse.Namespace) -> int:
     """Create or verify immutable run config/catalog snapshots."""
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle)
-    parse_cycle(cycle)
-    run_id = parse_run_id(args.run_id)
-    artifact_repo = _artifact_repo(args, store=store)
-    loaded = ensure_run_snapshot(
-        artifact_repo=artifact_repo,
-        store=store,
-        model_id=model_id,
-        cycle=cycle,
-        run_id=run_id,
-        pipeline_config_uri=args.pipeline_config_uri,
-        pipeline_config_overlay_uri=args.pipeline_config_overlay_uri,
-        forecast_catalog_uri=args.forecast_catalog_uri,
+
+    result = cycle_workflow.init_run(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle),
+        run_id=args.run_id,
     )
-    print(f"run_id={loaded.run_id}")
-    print(f"config_digest={loaded.config_digest}")
-    print(f"pipeline_config_uri={loaded.pipeline_config_uri}")
-    print(f"forecast_catalog_uri={loaded.forecast_catalog_uri}")
+    print(f"run_id={result.run_id}")
+    print(f"config_digest={result.config_digest}")
+    print(f"pipeline_config_uri={result.pipeline_config_uri}")
+    print(f"forecast_catalog_uri={result.forecast_catalog_uri}")
     return 0
 
 
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
     """Fan out model forecast-hour workers locally, and publish once by default."""
-    store = make_store()
-    loaded = _load_cfg_document(args, store=store)
-    cfg = loaded.config
-    model = cfg.model(_require_model_id(args))
-    ctx = execution_context_for_model(model, args.artifact_root_uri)
-    cycle = str(args.cycle)
-    parse_cycle(cycle)
-    run_id = parse_run_id(args.run_id) if args.run_id else generate_run_id()
-    run_snapshot = _run_snapshot(args, store=store, loaded=loaded)
-    loaded_run_snapshot = ensure_run_snapshot(
-        artifact_repo=_artifact_repo(args, store=store),
-        store=store,
-        model_id=model.id,
-        cycle=cycle,
-        run_id=run_id,
-        pipeline_config_uri=args.pipeline_config_uri,
-        pipeline_config_overlay_uri=args.pipeline_config_overlay_uri,
-        forecast_catalog_uri=args.forecast_catalog_uri,
-    )
 
-    run_cycle(
-        model=model,
-        ctx=ctx,
-        cycle=cycle,
-        run_id=run_id,
-        artifact_ids=_resolve_artifact_ids(model, args.artifacts),
+    cycle_workflow.process_cycle(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle),
+        run_id=args.run_id,
+        artifact_ids=args.artifacts,
         procs=args.procs,
         publish=not args.no_publish,
-        pipeline_config=cfg,
-        store=store,
-        run_snapshot=run_snapshot,
-        loaded_run_snapshot=loaded_run_snapshot,
     )
     return 0
 
 
 def _cmd_publish_cycle(args: argparse.Namespace) -> int:
     """Publish one processed model cycle."""
-    store = make_store()
+
     model_id = _require_model_id(args)
     cycle = str(args.cycle)
-    parse_cycle(cycle)
-    required_run_id = parse_run_id(args.run_id) if args.run_id else None
-    artifact_repo = _artifact_repo(args, store=store)
-    run_id, run_errors = select_run_id_for_cycle(
-        artifact_repo=artifact_repo,
+    result = cycle_workflow.publish_cycle(
+        app_context=_app_context(args),
         model_id=model_id,
         cycle=cycle,
-        required_run_id=required_run_id,
+        required_run_id=args.run_id,
     )
-    if run_errors or run_id is None:
-        print(f"Publish not ready: run selection failed for model={model_id} cycle={cycle}")
-        for error in run_errors:
-            print(f"run error: {error}")
+    if not result.ready and result.publish_result is None:
+        _print_not_ready(label="Publish", model_id=model_id, cycle=cycle, result=result)
         return 2
-    try:
-        snapshot = load_run_snapshot(
-            artifact_repo=artifact_repo,
-            store=store,
-            model_id=model_id,
-            cycle=cycle,
-            run_id=run_id,
-        )
-    except FileNotFoundError as exc:
-        print(f"Publish not ready: {exc}")
-        return 2
-
-    cfg = snapshot.loaded_config.config
-    model = cfg.model(model_id)
-    ctx = execution_context_for_model(model, args.artifact_root_uri)
-
-    result = publish_cycle(
-        model=model,
-        ctx=ctx,
-        cycle=cycle,
-        run_id=run_id,
-        pipeline_config=cfg,
-        forecast_catalog=snapshot.forecast_catalog,
-        store=store,
-    )
     return 0 if result.ready else 2
 
 
 def _cmd_validate_cycle(args: argparse.Namespace) -> int:
     """Validate one processed model cycle."""
-    store = make_store()
+
     model_id = _require_model_id(args)
     cycle = str(args.cycle)
-    parse_cycle(cycle)
-    required_run_id = parse_run_id(args.run_id) if args.run_id else None
-    artifact_repo = _artifact_repo(args, store=store)
-    run_id, run_errors = select_run_id_for_cycle(
-        artifact_repo=artifact_repo,
+    result = cycle_workflow.validate_cycle(
+        app_context=_app_context(args),
         model_id=model_id,
         cycle=cycle,
-        required_run_id=required_run_id,
+        required_run_id=args.run_id,
     )
-    if run_errors or run_id is None:
-        print(f"Validation not ready: run selection failed for model={model_id} cycle={cycle}")
-        for error in run_errors:
-            print(f"run error: {error}")
+    if not result.ready:
+        _print_not_ready(label="Validation", model_id=model_id, cycle=cycle, result=result)
         return 2
-    try:
-        snapshot = load_run_snapshot(
-            artifact_repo=artifact_repo,
-            store=store,
-            model_id=model_id,
-            cycle=cycle,
-            run_id=run_id,
-        )
-    except FileNotFoundError as exc:
-        print(f"Validation not ready: {exc}")
-        return 2
-
-    model = snapshot.loaded_config.config.model(model_id)
-    result = validate_run(
-        artifact_repo=artifact_repo,
-        model=model,
-        cycle=cycle,
-        run_id=run_id,
-        snapshot=snapshot,
-    )
     return 0 if result.passed else 2
 
 
 def _cmd_runs(args: argparse.Namespace) -> int:
     """Inspect known runs for one model cycle."""
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle)
-    parse_cycle(cycle)
-    report = runs_report(
-        artifact_repo=_artifact_repo(args, store=store),
-        store=store,
-        model_id=model_id,
-        cycle=cycle,
+
+    report = inspection_workflow.runs(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle),
     )
     _print_operator_report(report, as_json=bool(args.json))
     return 0
@@ -532,17 +375,12 @@ def _cmd_runs(args: argparse.Namespace) -> int:
 
 def _cmd_status(args: argparse.Namespace) -> int:
     """Inspect one run for one model cycle."""
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle)
-    parse_cycle(cycle)
-    run_id = parse_run_id(args.run_id) if args.run_id else None
-    report = status_report(
-        artifact_repo=_artifact_repo(args, store=store),
-        store=store,
-        model_id=model_id,
-        cycle=cycle,
-        run_id=run_id,
+
+    report = inspection_workflow.status(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle),
+        run_id=args.run_id,
     )
     _print_operator_report(report, as_json=bool(args.json))
     return 0
@@ -550,15 +388,11 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 def _cmd_pointers(args: argparse.Namespace) -> int:
     """Inspect public manifest pointers for one model."""
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle) if args.cycle else None
-    if cycle is not None:
-        parse_cycle(cycle)
-    report = pointers_report(
-        artifact_repo=_artifact_repo(args, store=store),
-        model_id=model_id,
-        cycle=cycle,
+
+    report = inspection_workflow.pointers(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle) if args.cycle else None,
     )
     _print_operator_report(report, as_json=bool(args.json))
     return 0
@@ -566,18 +400,13 @@ def _cmd_pointers(args: argparse.Namespace) -> int:
 
 def _cmd_cleanup_runs(args: argparse.Namespace) -> int:
     """Report or delete run cleanup candidates."""
+
     if args.delete and not args.yes:
         raise SystemExit("cleanup-runs --delete requires --yes")
-    store = make_store()
-    model_id = _require_model_id(args)
-    cycle = str(args.cycle) if args.cycle else None
-    if cycle is not None:
-        parse_cycle(cycle)
-    report = cleanup_runs_report(
-        artifact_repo=_artifact_repo(args, store=store),
-        store=store,
-        model_id=model_id,
-        cycle=cycle,
+    report = inspection_workflow.cleanup_runs(
+        app_context=_app_context(args),
+        model_id=_require_model_id(args),
+        cycle=str(args.cycle) if args.cycle else None,
         delete_candidates=bool(args.delete),
     )
     _print_operator_report(report, as_json=bool(args.json))
@@ -586,7 +415,8 @@ def _cmd_cleanup_runs(args: argparse.Namespace) -> int:
 
 def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
     """Print one configured forecast-hour id per line."""
-    cfg = _load_cfg(args, store=make_store())
+
+    cfg = _app_context(args).load_pipeline_config()
     model = cfg.model(_require_model_id(args))
     for fhour in model.workload.forecast_hours:
         print(fhour)
@@ -595,7 +425,8 @@ def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
 
 def _cmd_list_models(args: argparse.Namespace) -> int:
     """Print one configured forecast model id per line."""
-    cfg = _load_cfg(args, store=make_store())
+
+    cfg = _app_context(args).load_pipeline_config()
     for model_id in cfg.models:
         print(model_id)
     return 0
@@ -607,10 +438,27 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
-def _artifact_repo(args: argparse.Namespace, *, store: UriStore):
-    from .artifacts.repository import ArtifactRepository
+def _app_context(args: argparse.Namespace, *, store: UriStore | None = None) -> ApplicationContext:
+    return ApplicationContext(
+        artifact_root_uri=getattr(args, "artifact_root_uri", None) or default_artifact_root_uri(),
+        pipeline_config_uri=getattr(args, "pipeline_config_uri", None) or default_pipeline_config_uri(),
+        pipeline_config_overlay_uri=getattr(args, "pipeline_config_overlay_uri", None),
+        forecast_catalog_uri=getattr(args, "forecast_catalog_uri", None) or default_forecast_catalog_uri(),
+        store=store if store is not None else make_store(),
+    )
 
-    return ArtifactRepository.for_root(store=store, artifact_root_uri=args.artifact_root_uri)
+
+def _print_not_ready(*, label: str, model_id: str, cycle: str, result: object) -> None:
+    message = getattr(result, "message", None)
+    errors = tuple(getattr(result, "errors", ()) or ())
+    if message and not message.startswith("run selection failed"):
+        print(f"{label} not ready: {message}")
+        return
+    print(f"{label} not ready: run selection failed for model={model_id} cycle={cycle}")
+    if message and not errors:
+        print(f"run error: {message}")
+    for error in errors:
+        print(f"run error: {error}")
 
 
 def _print_operator_report(report: dict, *, as_json: bool) -> None:
