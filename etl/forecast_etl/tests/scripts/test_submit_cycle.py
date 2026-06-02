@@ -9,11 +9,12 @@ import unittest
 from pathlib import Path
 
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
+from forecast_etl.tests.fixtures.paths import repo_root_from
 
 
 class SubmitCycleScriptTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.repo_root = Path(__file__).resolve().parents[3]
+        self.repo_root = repo_root_from(__file__)
         self.script = self.repo_root / "infra" / "scripts" / "weather-etl" / "ops" / "submit-cycle.sh"
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)

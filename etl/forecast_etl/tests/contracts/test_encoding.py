@@ -5,7 +5,6 @@ import math
 import struct
 import unittest
 from dataclasses import dataclass
-from pathlib import Path
 
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.config.resolved import ArtifactCatalogSpec
@@ -17,6 +16,7 @@ from forecast_etl.encoding.codecs import (
     encoding_storage_bounds,
 )
 from forecast_etl.tests.fixtures.grids import pack_f32
+from forecast_etl.tests.fixtures.paths import repo_root_from
 
 
 @dataclass(frozen=True)
@@ -435,7 +435,7 @@ CONTRACTS: dict[str, EncodingContract] = {
 class ForecastArtifactEncodingContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.repo_root = Path(__file__).resolve().parents[3]
+        cls.repo_root = repo_root_from(__file__)
         cls.pipeline_config = parse_pipeline_config(
             json.loads((cls.repo_root / "config" / "pipeline" / "base.json").read_text(encoding="utf-8"))
         )

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import unittest
-from pathlib import Path
 
 from forecast_etl.config.load import load_pipeline_config, merge_pipeline_config_overlay, parse_pipeline_config
 from forecast_etl.config.resolved import IconDwdSourceConfig
@@ -17,11 +16,12 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     thunderstorm_mask_config,
     wind_artifact_config,
 )
+from forecast_etl.tests.fixtures.paths import repo_root_from
 from forecast_etl.tests.fixtures.pipeline import (
-    add_model_artifact,
+    add_dataset_artifact,
     catalog_artifact,
+    dataset_artifact,
     minimal_pipeline_config,
-    model_artifact,
 )
 
 
@@ -30,8 +30,8 @@ def _gfs(cfg: dict) -> dict:
 
 
 class ConfigValidationTest(unittest.TestCase):
-    def test_local_pipeline_config_loads_current_models(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
+    def test_local_pipeline_config_loads_current_datasets(self) -> None:
+        repo_root = repo_root_from(__file__)
         parsed = load_pipeline_config(
             (repo_root / "config" / "pipeline" / "base.json").as_uri(),
             overlay_uri=(repo_root / "config" / "pipeline" / "local.json").as_uri(),
@@ -49,18 +49,18 @@ class ConfigValidationTest(unittest.TestCase):
         self.assertIn("precip_total_surface", icon.workload.artifacts)
         self.assertEqual(icon.artifacts["precip_total_surface"].temporal.kind, "accumulation")
 
-        for model in (gfs, icon):
-            with self.subTest(model=model.id):
-                self.assertGreater(len(model.workload.artifacts), 0)
-                self.assertLessEqual(set(model.workload.artifacts), set(model.artifacts))
-                self.assertIn("cloud_layers", model.workload.artifacts)
-                self.assertEqual(model.artifacts["cloud_layers"].kind, "vector")
-                self.assertEqual(model.artifacts["cloud_layers"].component_ids, ("low", "middle", "high"))
-                for artifact_id in model.workload.artifacts:
-                    self.assertEqual(model.artifacts[artifact_id].id, artifact_id)
+        for dataset in (gfs, icon):
+            with self.subTest(dataset=dataset.id):
+                self.assertGreater(len(dataset.workload.artifacts), 0)
+                self.assertLessEqual(set(dataset.workload.artifacts), set(dataset.artifacts))
+                self.assertIn("cloud_layers", dataset.workload.artifacts)
+                self.assertEqual(dataset.artifacts["cloud_layers"].kind, "vector")
+                self.assertEqual(dataset.artifacts["cloud_layers"].component_ids, ("low", "middle", "high"))
+                for artifact_id in dataset.workload.artifacts:
+                    self.assertEqual(dataset.artifacts[artifact_id].id, artifact_id)
 
-    def test_local_config_overlay_only_changes_forecast_horizon(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
+    def test_local_config_overlay_only_changes_configured_frames(self) -> None:
+        repo_root = repo_root_from(__file__)
         prod_path = repo_root / "config" / "pipeline" / "base.json"
         local_override_path = repo_root / "config" / "pipeline" / "local.json"
         prod_config = json.loads(prod_path.read_text(encoding="utf-8"))
@@ -70,27 +70,27 @@ class ConfigValidationTest(unittest.TestCase):
         local = parse_pipeline_config(local_config)
 
         for dataset_id in ("gfs", "icon"):
-            with self.subTest(model=dataset_id):
-                prod_model = prod.dataset(dataset_id)
-                local_model = local.dataset(dataset_id)
-                self.assertEqual(prod_model.workload.frames[-1], "072")
-                self.assertEqual(local_model.workload.frames[-1], "024")
+            with self.subTest(dataset=dataset_id):
+                prod_dataset = prod.dataset(dataset_id)
+                local_dataset = local.dataset(dataset_id)
+                self.assertEqual(prod_dataset.workload.frames[-1], "072")
+                self.assertEqual(local_dataset.workload.frames[-1], "024")
 
-                prod_model_data = prod_model.model_dump()
-                local_model_data = local_model.model_dump()
-                prod_model_data["workload"]["frames"] = local_model_data["workload"]["frames"]
-                self.assertEqual(prod_model_data, local_model_data)
+                prod_dataset_data = prod_dataset.model_dump()
+                local_dataset_data = local_dataset.model_dump()
+                prod_dataset_data["workload"]["frames"] = local_dataset_data["workload"]["frames"]
+                self.assertEqual(prod_dataset_data, local_dataset_data)
 
     def test_pipeline_config_parses_frame_range(self) -> None:
         parsed = parse_pipeline_config(minimal_pipeline_config())
-        model = parsed.dataset("gfs")
-        self.assertEqual(model.workload.frames, ("000",))
-        self.assertEqual(model.workload.artifacts, ("tmp_surface",))
-        self.assertIn("tmp_surface", model.artifacts)
-        self.assertEqual(model.artifacts["tmp_surface"].component_ids, ("value",))
-        self.assertEqual(model.artifacts["tmp_surface"].kind, "scalar")
+        dataset = parsed.dataset("gfs")
+        self.assertEqual(dataset.workload.frames, ("000",))
+        self.assertEqual(dataset.workload.artifacts, ("tmp_surface",))
+        self.assertIn("tmp_surface", dataset.artifacts)
+        self.assertEqual(dataset.artifacts["tmp_surface"].component_ids, ("value",))
+        self.assertEqual(dataset.artifacts["tmp_surface"].kind, "scalar")
 
-    def test_pipeline_config_parses_icon_dwd_icosahedral_model(self) -> None:
+    def test_pipeline_config_parses_icon_dwd_icosahedral_dataset(self) -> None:
         cfg = minimal_pipeline_config()
         precip_config = precip_total_config()
         prate_config = precip_rate_config()
@@ -112,8 +112,8 @@ class ConfigValidationTest(unittest.TestCase):
                 "artifacts": ["prate_surface", "precip_total_surface", "wind10m_uv"],
             },
             "artifacts": {
-                "prate_surface": model_artifact(prate_config),
-                "precip_total_surface": model_artifact(precip_config),
+                "prate_surface": dataset_artifact(prate_config),
+                "precip_total_surface": dataset_artifact(precip_config),
                 "wind10m_uv": {
                     "components": [
                         {"id": "u", "grib_match": {"ICON_PARAM": "u_10m"}},
@@ -134,7 +134,7 @@ class ConfigValidationTest(unittest.TestCase):
         assert icon_prate_temporal is not None
         self.assertEqual(icon_prate_temporal.kind, "average_rate")
 
-    def test_pipeline_config_parses_model_artifact_grid_transform(self) -> None:
+    def test_pipeline_config_parses_dataset_artifact_grid_transform(self) -> None:
         cfg = minimal_pipeline_config()
         pressure = pressure_msl_config(grib_match={"GRIB_ELEMENT": "PRMSL"}, grid_transform={
             "type": "regular_grid_downsample_2x",
@@ -143,7 +143,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg["artifact_catalog"]["prmsl_msl"] = catalog_artifact(pressure)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["prmsl_msl"]
         cfg["datasets"]["gfs"]["artifacts"] = {
-            "prmsl_msl": model_artifact(pressure),
+            "prmsl_msl": dataset_artifact(pressure),
         }
 
         parsed = parse_pipeline_config(cfg)
@@ -171,7 +171,7 @@ class ConfigValidationTest(unittest.TestCase):
                 "artifacts": ["prate_surface"],
             },
             "artifacts": {
-                "prate_surface": model_artifact(prate_config),
+                "prate_surface": dataset_artifact(prate_config),
             },
         }
         cfg["datasets"]["icon"]["artifacts"]["prate_surface"]["temporal"]["source_interval_hours"] = 3
@@ -187,7 +187,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
         cfg["datasets"]["gfs"]["artifacts"] = {
-            "precip_type_surface": model_artifact(artifact_config),
+            "precip_type_surface": dataset_artifact(artifact_config),
         }
 
         parsed = parse_pipeline_config(cfg)
@@ -207,7 +207,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg["artifact_catalog"]["precip_total_surface"] = catalog_artifact(artifact_config)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["precip_total_surface"]
         cfg["datasets"]["gfs"]["artifacts"] = {
-            "precip_total_surface": model_artifact(artifact_config),
+            "precip_total_surface": dataset_artifact(artifact_config),
         }
 
         parsed = parse_pipeline_config(cfg)
@@ -228,7 +228,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
         cfg["datasets"]["gfs"]["artifacts"] = {
-            "precip_type_surface": model_artifact(artifact_config),
+            "precip_type_surface": dataset_artifact(artifact_config),
         }
 
         with self.assertRaises(SystemExit) as raised:
@@ -243,7 +243,7 @@ class ConfigValidationTest(unittest.TestCase):
         cfg["artifact_catalog"]["precip_type_surface"] = catalog_artifact(artifact_config)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["precip_type_surface"]
         cfg["datasets"]["gfs"]["artifacts"] = {
-            "precip_type_surface": model_artifact(artifact_config),
+            "precip_type_surface": dataset_artifact(artifact_config),
         }
 
         with self.assertRaises(SystemExit) as raised:
@@ -269,7 +269,7 @@ class ConfigValidationTest(unittest.TestCase):
                 "artifacts": ["thunderstorm_mask"],
             },
             "artifacts": {
-                "thunderstorm_mask": model_artifact(thunderstorm),
+                "thunderstorm_mask": dataset_artifact(thunderstorm),
             },
         }
 
@@ -296,7 +296,7 @@ class ConfigValidationTest(unittest.TestCase):
                 "artifacts": ["precip_type_surface"],
             },
             "artifacts": {
-                "precip_type_surface": model_artifact(precip_type),
+                "precip_type_surface": dataset_artifact(precip_type),
             },
         }
 
@@ -492,9 +492,9 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(bad_cfg)
 
-    def test_pipeline_config_rejects_model_artifact_missing_component_match(self) -> None:
+    def test_pipeline_config_rejects_dataset_artifact_missing_component_match(self) -> None:
         cfg = minimal_pipeline_config()
-        add_model_artifact(
+        add_dataset_artifact(
             cfg,
             dataset_id="gfs",
             artifact_id="cloud_layers",
@@ -506,9 +506,9 @@ class ConfigValidationTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_pipeline_config(cfg)
 
-    def test_pipeline_config_rejects_model_artifact_with_unknown_component(self) -> None:
+    def test_pipeline_config_rejects_dataset_artifact_with_unknown_component(self) -> None:
         cfg = minimal_pipeline_config()
-        add_model_artifact(
+        add_dataset_artifact(
             cfg,
             dataset_id="gfs",
             artifact_id="cloud_layers",

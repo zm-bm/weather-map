@@ -595,48 +595,98 @@ Expected result:
   visible without manually polling every service
 - routine successful cycles remain quiet
 
-### 8. Clean Up Tests By Layer
+### Completed: 8. Clean Up Tests By Layer
 
-Goal: keep coverage while making tests easier to read and cheaper to modify.
+This phase is complete. The ETL test suite now mirrors the refactored runtime
+boundaries while preserving behavior and keeping `unittest` discovery as the
+test runner.
 
-Provisional implementation:
+What changed:
 
-- split broad files by behavior:
-  - `test_cli.py` into command-specific tests
-  - `test_manifest_publish.py` into readiness, manifest build, pointer
-    promotion, idempotency, and rollback tests
-  - `test_artifact_payload_flow.py` into scalar, vector, GFS derivation, ICON
-    derivation, and precipitation overlay contract tests
-- move reusable fake config/run/repository setup into focused fixture builders
-- reduce mocks that assert internal call chains; prefer asserting output
-  objects, stored artifacts, exit codes, and emitted plan specs
-- keep heavy extraction/encoding tests where they prove binary contracts
+- tests are organized into boundary packages: `cli`, `workflows`, `manifest`,
+  `inspection`, `aws`, `commands`, `artifacts`, `config`, `storage`, `domain`,
+  `scripts`, and `contracts`
+- CLI tests are split by command group around the `forecast_etl.cli` package:
+  lifecycle, inspection, and discovery
+- manifest publication tests are split by stage: manifest build, readiness,
+  marker evidence, promotion, and aggregate refresh
+- artifact payload-flow tests are split into scalar, vector, GFS derivation,
+  ICON derivation, and precipitation overlay contract tests
+- existing focused tests moved into package locations that match the runtime
+  layer they protect
+- shared CLI fake config/pool helpers now live in a small test-local helper
+  module instead of one broad CLI test file
+- tests that need repository files now use a fixture helper that discovers the
+  repo root instead of relying on fragile parent-depth assumptions
+- public test file and method names were tightened where practical to match
+  the current dataset/frame/run-first vocabulary
 
 Expected result:
 
-- refactors fail tests only when behavior changes
-- adding a new workflow or backend reader does not require copying large fake
-  objects from unrelated tests
+- refactors fail tests because behavior changed, not because a broad mocked file
+  encoded a private call chain
+- adding a new workflow, backend endpoint, dataset adapter, or operator command
+  does not require copying large fake objects from unrelated tests
+- test package names now describe the current runtime boundaries and contract
+  vocabulary
+- the full ETL suite still runs with:
 
-### 9. Clean Domain Modules Last
+```bash
+cd etl && ../.venv/bin/python -m unittest discover forecast_etl/tests
+cd etl && ../.venv/bin/ruff check forecast_etl
+git diff --check
+```
 
-Goal: improve source/extract/encoding readability after orchestration is stable.
+### 9. Clean Domain Modules And Final Runtime Layout
+
+Goal: clean the source/extract/encoding/data-processing code after
+orchestration, publication, inspection, and tests are stable. This phase should
+also do a final organization pass over the messy top-level
+`forecast_etl/` directory, but only where module ownership is now clear.
+
+This is the right phase to organize runtime modules such as source adapters,
+artifact extraction, derivations, encoding, frame processing, and remaining
+loose top-level helpers. It is not a broad rewrite of every package. The CLI,
+workflows, manifest, inspection, AWS, storage, config, and artifact repository
+packages already have deliberate boundaries and should only change if a domain
+cleanup exposes a concrete ownership problem.
 
 Provisional implementation:
 
 - keep extraction and binary encoding behavior unchanged unless tests prove a
   bug
-- separate source acquisition from artifact band extraction where currently
-  tangled
+- inventory remaining top-level modules and either:
+  - keep tiny cross-layer primitives at the package root when that is clearest
+  - move processing/domain modules into the package that owns the behavior
+  - delete only truly dead compatibility shims or duplicated helpers
+- make the frame processing path easier to read by separating:
+  - source preparation/acquisition
+  - artifact source-band selection
+  - derivation logic
+  - grid transforms
+  - binary payload encoding
+  - success-marker assembly
 - keep GFS and ICON source-specific behavior behind source adapters
+- keep `extract/` focused on converting prepared source inputs into artifact
+  component arrays/bytes, not cloud orchestration or manifest publication
+- keep `encoding/` focused on binary encoding contracts and numeric transforms
+- keep domain code cloud-neutral and storage-light; object-store writes should
+  stay at repository/command boundaries
 - only introduce abstractions that remove real duplication or make artifact
   contracts clearer
+- update the layered tests to follow any module moves, preserving current
+  extraction, derivation, grid, encoding, run-frame, and payload contract
+  coverage
 
 Expected result:
 
+- the top level of `forecast_etl/` contains mostly stable layer packages and
+  small cross-cutting primitives, not large processing implementation modules
 - domain modules remain boring and testable
-- future dataset additions such as HRRR or ECMWF can reuse source/processing
-  contracts instead of copying GFS/ICON special cases
+- the run-frame processing path is readable without tracing through unrelated
+  orchestration code
+- future dataset additions such as radar, satellite, HRRR, or ECMWF can reuse
+  source/processing contracts instead of copying GFS/ICON special cases
 
 ## Backend Server Considerations
 

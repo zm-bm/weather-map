@@ -108,7 +108,7 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual([call.kwargs["cycle"] for call in run_publish.call_args_list], ["2026051112", "2026051106"])
         emit_metrics.assert_not_called()
 
-    def test_default_scan_uses_recent_cycles_for_configured_models(self) -> None:
+    def test_default_scan_uses_recent_cycles_for_configured_datasets(self) -> None:
         with patch.dict(
             os.environ,
             {

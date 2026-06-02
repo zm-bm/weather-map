@@ -13,7 +13,7 @@ from forecast_etl.config.load import LoadedPipelineConfig
 from forecast_etl.run_snapshots import LoadedRunSnapshot
 from forecast_etl.tests.fixtures.artifact_configs import wind_artifact_config
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID, temp_artifact_fixture
-from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
+from forecast_etl.tests.fixtures.pipeline import add_dataset_artifact, minimal_pipeline_config
 
 
 class _FakeBatchClient:
@@ -183,7 +183,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_submits_job_for_current_pipeline_config_schema(self) -> None:
         payload = minimal_pipeline_config()
         wind_config = wind_artifact_config()
-        add_model_artifact(
+        add_dataset_artifact(
             payload,
             dataset_id="gfs",
             artifact_id="wind10m_uv",

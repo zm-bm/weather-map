@@ -12,9 +12,7 @@ from forecast_etl.manifest.constants import (
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
-from forecast_etl.manifest.data_manifest_refresh import should_refresh_data_manifest
-from forecast_etl.manifest.marker_evidence import collect_publish_marker_evidence
-from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
+from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.artifact_configs import (
     cloud_layers_config,
@@ -23,7 +21,6 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     wind_artifact_config,
 )
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
-from forecast_etl.tests.fixtures.markers import write_json
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.publish import publish_fixture
 
@@ -70,7 +67,7 @@ def _manifest_artifact(artifact_id: str, *, parameter: str = "tmp") -> dict:
     }
 
 
-class PublishManifestTest(unittest.TestCase):
+class ManifestBuildTest(unittest.TestCase):
     def test_manifest_revision_is_computed_from_manifest_object(self) -> None:
         manifest = build_cycle_manifest(
             dataset_id="gfs",
@@ -306,148 +303,6 @@ class PublishManifestTest(unittest.TestCase):
             self.assertEqual(artifact["temporal_kind"], "average_rate")
             self.assertEqual(artifact["source_interval_hours"], 1.0)
 
-    def test_publish_rejects_marker_identity_mismatch(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-marker-identity-") as fx:
-            artifact_id = "tmp_surface"
-            artifacts_cfg = {
-                artifact_id: minimal_artifact_config(),
-            }
-
-            fx.write_scalar_marker(
-                artifact_id=artifact_id,
-                artifact_config=artifacts_cfg[artifact_id],
-            )
-
-            marker_uri = fx.marker_uri(artifact_id)
-            valid_marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
-
-            for field, invalid_value in (
-                ("cycle", "2026041200"),
-                ("frame_id", "003"),
-                ("artifact_id", "other_artifact"),
-            ):
-                invalid_marker = json.loads(json.dumps(valid_marker))
-                invalid_marker[field] = invalid_value
-                write_json(marker_uri, invalid_marker)
-
-                with self.subTest(field=field), self.assertRaisesRegex(
-                    SystemExit,
-                    rf"Success marker {field} mismatch",
-                ):
-                    fx.publish(
-                        artifact_ids=(artifact_id,),
-                        artifacts_cfg=artifacts_cfg,
-                    )
-
-            write_json(marker_uri, valid_marker)
-
-    def test_publish_rejects_marker_presentation_fields(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-presentation-marker-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(
-                artifact_id=artifact_id,
-                artifact_config=artifact_cfg,
-            )
-            marker_uri = fx.marker_uri(artifact_id)
-            marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
-            marker["artifact"]["unexpected_presentation_field"] = "legacy"
-            write_json(marker_uri, marker)
-
-            with self.assertRaisesRegex(SystemExit, "unexpected_presentation_field"):
-                fx.publish(
-                    artifact_ids=(artifact_id,),
-                    artifacts_cfg={artifact_id: artifact_cfg},
-                )
-
-    def test_publish_returns_not_ready_without_validation_report(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-missing-validation-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
-
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                auto_validate=False,
-            )
-
-            self.assertFalse(result.ready)
-            self.assertIn("missing validation report", result.validation_errors[0])
-
-    def test_publish_returns_not_ready_for_failed_validation_report(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-failed-validation-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
-            fx.write_failed_validation(artifact_ids=(artifact_id,), error="marker mismatch")
-
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                auto_validate=False,
-            )
-
-            self.assertFalse(result.ready)
-            self.assertIn("validation report status is not passed", result.validation_errors[0])
-
-    def test_publish_returns_not_ready_for_missing_run_id_marker(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-missing-run-id-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
-            marker_uri = fx.marker_uri(artifact_id)
-            marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
-            del marker["run_id"]
-            write_json(marker_uri, marker)
-
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-            )
-
-            self.assertFalse(result.ready)
-            self.assertIn("missing run_id", result.marker_errors[0])
-
-    def test_publish_returns_not_ready_for_mixed_run_ids(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-mixed-run-id-", frames=("000", "003")) as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg, frame_id="000")
-            fx.write_scalar_marker(
-                artifact_id=artifact_id,
-                artifact_config=artifact_cfg,
-                frame_id="003",
-                run_id="20260411T010203Z-abcdef12",
-            )
-
-            result = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-            )
-
-            self.assertFalse(result.ready)
-            self.assertIn("multiple runs found", result.marker_errors[0])
-
-    def test_marker_evidence_reports_missing_markers(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-marker-evidence-", frames=("000", "003")) as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg, frame_id="000")
-
-            evidence = collect_publish_marker_evidence(
-                artifact_repo=fx.artifacts,
-                dataset_id=fx.dataset_id,
-                cycle=fx.cycle,
-                run_id=fx.run_id,
-                frames=fx.frames,
-                artifact_ids=(artifact_id,),
-            )
-
-            self.assertFalse(evidence.ready)
-            self.assertEqual(len(evidence.missing_markers), 1)
-            self.assertIn("/status/tmp_surface/003._SUCCESS.json", evidence.missing_markers[0])
-
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
             artifact_ids = ("tmp_surface",)
@@ -551,243 +406,6 @@ class PublishManifestTest(unittest.TestCase):
                 fx.cell_count * 3,
             )
 
-    def test_publish_does_not_promote_older_cycle_over_newer_latest(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-monotonic-") as fx:
-            cycle_old = "2026041100"
-            cycle_new = "2026041200"
-            scalar_artifacts = ("tmp_surface",)
-            artifacts_cfg = {
-                "tmp_surface": minimal_artifact_config(),
-            }
-
-            for cycle_value, base in ((cycle_new, 10.0), (cycle_old, -10.0)):
-                fx.write_scalar_marker(
-                    cycle=cycle_value,
-                    artifact_id="tmp_surface",
-                    base=base,
-                    artifact_config=artifacts_cfg["tmp_surface"],
-                )
-
-            result_new = fx.publish(
-                cycle=cycle_new,
-                artifact_ids=scalar_artifacts,
-                artifacts_cfg=artifacts_cfg,
-            )
-            self.assertTrue(result_new.ready)
-            self.assertTrue(result_new.latest_promoted)
-
-            result_old = fx.publish(
-                cycle=cycle_old,
-                artifact_ids=scalar_artifacts,
-                artifacts_cfg=artifacts_cfg,
-            )
-            self.assertTrue(result_old.ready)
-            self.assertFalse(result_old.latest_promoted)
-
-            latest_manifest = fx.latest_manifest()
-            latest_pointer = fx.latest_pointer()
-            old_cycle_manifest = fx.cycle_manifest(cycle=cycle_old)
-            new_cycle_manifest = fx.cycle_manifest(cycle=cycle_new)
-            self.assertEqual(latest_manifest, new_cycle_manifest)
-            self.assertEqual(latest_pointer["schema"], LATEST_POINTER_SCHEMA)
-            self.assertEqual(latest_pointer["cycle"], cycle_new)
-            self.assertEqual(latest_pointer["run_id"], fx.run_id)
-            self.assertEqual(fx.current_pointer(cycle=cycle_old)["cycle"], cycle_old)
-            self.assertEqual(fx.current_pointer(cycle=cycle_new)["cycle"], cycle_new)
-            self.assertNotEqual(latest_manifest["run"]["cycle"], old_cycle_manifest["run"]["cycle"])
-
-    def test_publish_can_repromote_previous_run_for_same_cycle(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-same-cycle-rollback-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            later_run_id = "20260411T010203Z-abcdef12"
-
-            fx.write_scalar_marker(
-                artifact_id=artifact_id,
-                base=-10.0,
-                artifact_config=artifact_cfg,
-                run_id=fx.run_id,
-            )
-            result_first = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                run_id=fx.run_id,
-            )
-            self.assertTrue(result_first.ready)
-            first_revision = fx.latest_pointer()["revision"]
-
-            fx.write_scalar_marker(
-                artifact_id=artifact_id,
-                base=10.0,
-                artifact_config=artifact_cfg,
-                run_id=later_run_id,
-            )
-            result_second = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                run_id=later_run_id,
-            )
-            self.assertTrue(result_second.ready)
-            self.assertEqual(fx.latest_pointer()["run_id"], later_run_id)
-            self.assertNotEqual(fx.latest_pointer()["revision"], first_revision)
-
-            result_rollback = fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                run_id=fx.run_id,
-            )
-
-            self.assertTrue(result_rollback.ready)
-            self.assertTrue(result_rollback.already_published)
-            self.assertEqual(fx.latest_pointer()["run_id"], fx.run_id)
-            self.assertEqual(fx.latest_pointer()["revision"], first_revision)
-            self.assertEqual(fx.current_pointer()["run_id"], fx.run_id)
-
-    def test_older_cycle_publish_does_not_rebuild_data_manifest(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-older-no-data-manifest-") as fx:
-            cycle_old = "2026041100"
-            cycle_new = "2026041200"
-            scalar_artifacts = ("tmp_surface",)
-            artifacts_cfg = {
-                "tmp_surface": minimal_artifact_config(),
-            }
-            pipeline_config = parse_pipeline_config(minimal_pipeline_config())
-
-            for cycle_value, base in ((cycle_new, 10.0), (cycle_old, -10.0)):
-                fx.write_scalar_marker(
-                    cycle=cycle_value,
-                    artifact_id="tmp_surface",
-                    base=base,
-                    artifact_config=artifacts_cfg["tmp_surface"],
-                )
-
-            with patch(
-                "forecast_etl.manifest.data_manifest_refresh.publish_data_manifest",
-                return_value="file:///manifest.json",
-            ) as publish_data_manifest:
-                result_new = fx.publish(
-                    cycle=cycle_new,
-                    artifact_ids=scalar_artifacts,
-                    artifacts_cfg=artifacts_cfg,
-                    pipeline_config=pipeline_config,
-                )
-                result_old = fx.publish(
-                    cycle=cycle_old,
-                    artifact_ids=scalar_artifacts,
-                    artifacts_cfg=artifacts_cfg,
-                    pipeline_config=pipeline_config,
-                )
-
-            self.assertTrue(result_new.latest_promoted)
-            self.assertFalse(result_old.latest_promoted)
-            self.assertEqual(publish_data_manifest.call_count, 1)
-
-    def test_data_manifest_refresh_decision_is_independent(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-refresh-decision-") as fx:
-            artifact_id = "tmp_surface"
-            artifact_cfg = minimal_artifact_config()
-            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
-
-            result = fx.publish(artifact_ids=(artifact_id,), artifacts_cfg={artifact_id: artifact_cfg})
-            self.assertTrue(result.ready)
-            revision = fx.latest_pointer()["revision"]
-
-            self.assertTrue(
-                should_refresh_data_manifest(
-                    artifacts=fx.artifacts,
-                    dataset_id=fx.dataset_id,
-                    cycle=fx.cycle,
-                    run_id=fx.run_id,
-                    revision=revision,
-                    latest_promoted=True,
-                )
-            )
-            self.assertTrue(
-                should_refresh_data_manifest(
-                    artifacts=fx.artifacts,
-                    dataset_id=fx.dataset_id,
-                    cycle=fx.cycle,
-                    run_id=fx.run_id,
-                    revision=revision,
-                    latest_promoted=False,
-                )
-            )
-
-            pipeline_config = parse_pipeline_config(minimal_pipeline_config())
-            fx.publish(
-                artifact_ids=(artifact_id,),
-                artifacts_cfg={artifact_id: artifact_cfg},
-                pipeline_config=pipeline_config,
-            )
-            self.assertFalse(
-                should_refresh_data_manifest(
-                    artifacts=fx.artifacts,
-                    dataset_id=fx.dataset_id,
-                    cycle=fx.cycle,
-                    run_id=fx.run_id,
-                    revision=revision,
-                    latest_promoted=False,
-                )
-            )
-
-    def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
-        with publish_fixture(prefix="weather-map-publish-refresh-") as fx:
-            scalar_artifacts = ("tmp_surface",)
-            artifacts_cfg = {
-                "tmp_surface": minimal_artifact_config(),
-            }
-
-            fx.write_scalar_marker(
-                artifact_id="tmp_surface",
-                artifact_config=artifacts_cfg["tmp_surface"],
-            )
-
-            result_first = fx.publish(
-                artifact_ids=scalar_artifacts,
-                artifacts_cfg=artifacts_cfg,
-            )
-            self.assertTrue(result_first.ready)
-            initial_latest = fx.latest_manifest()
-
-            stale_manifest = {
-                "run": {
-                    "cycle": "2026041000",
-                    "run_id": fx.run_id,
-                    "payload_root": f"runs/gfs/2026041000/{fx.run_id}/fields",
-                    "generated_at": "2026-04-10T00:00:00+00:00",
-                    "revision": "stale",
-                }
-            }
-            stale_uri = fx.artifacts.write_public_run_manifest(
-                dataset_id="gfs",
-                cycle="2026041000",
-                run_id=fx.run_id,
-                manifest=stale_manifest,
-            )
-            fx.artifacts.write_latest_pointer(
-                dataset_id="gfs",
-                pointer=manifest_pointer_dict(
-                    schema_name=LATEST_POINTER_SCHEMA,
-                    dataset_id="gfs",
-                    cycle="2026041000",
-                    run_id=fx.run_id,
-                    revision="stale",
-                    generated_at="2026-04-10T00:00:00+00:00",
-                    manifest_path=fx.ap.relative_key(stale_uri),
-                ),
-            )
-
-            result_second = fx.publish(
-                artifact_ids=scalar_artifacts,
-                artifacts_cfg=artifacts_cfg,
-            )
-            self.assertTrue(result_second.ready)
-            self.assertTrue(result_second.already_published)
-
-            refreshed_latest = fx.latest_manifest()
-            self.assertEqual(refreshed_latest, initial_latest)
-            self.assertEqual(fx.latest_pointer()["schema"], LATEST_POINTER_SCHEMA)
-
     def test_publish_writes_vector_only_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-vector-only-", cycle="2026041200", frames=("000", "003")) as fx:
             vector_artifacts = ("wind10m_uv",)
@@ -853,3 +471,8 @@ class PublishManifestTest(unittest.TestCase):
                 ["u", "v"],
             )
             self.assertEqual(latest_manifest, cycle_manifest)
+
+
+
+if __name__ == "__main__":
+    unittest.main()

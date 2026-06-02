@@ -26,14 +26,14 @@ def minimal_pipeline_config() -> dict:
                     "artifacts": ["tmp_surface"],
                 },
                 "artifacts": {
-                    "tmp_surface": model_artifact(artifact),
+                    "tmp_surface": dataset_artifact(artifact),
                 },
             },
         },
     }
 
 
-def add_model_artifact(
+def add_dataset_artifact(
     cfg: dict,
     *,
     dataset_id: str,
@@ -41,7 +41,7 @@ def add_model_artifact(
     artifact_config: dict,
 ) -> None:
     cfg["artifact_catalog"][artifact_id] = catalog_artifact(artifact_config)
-    cfg["datasets"][dataset_id]["artifacts"][artifact_id] = model_artifact(artifact_config)
+    cfg["datasets"][dataset_id]["artifacts"][artifact_id] = dataset_artifact(artifact_config)
 
 
 def catalog_artifact(artifact_config: dict) -> dict:
@@ -55,24 +55,24 @@ def catalog_artifact(artifact_config: dict) -> dict:
     }
 
 
-def model_artifact(artifact_config: dict) -> dict:
-    model_cfg = {
+def dataset_artifact(artifact_config: dict) -> dict:
+    dataset_cfg = {
         "components": [
-            _model_artifact_component(component)
+            _dataset_artifact_component(component)
             for component in artifact_config["components"]
         ],
     }
     if "temporal" in artifact_config:
-        model_cfg["temporal"] = artifact_config["temporal"]
+        dataset_cfg["temporal"] = artifact_config["temporal"]
     if "derivation" in artifact_config:
-        model_cfg["derivation"] = artifact_config["derivation"]
+        dataset_cfg["derivation"] = artifact_config["derivation"]
     if "grid_transform" in artifact_config:
-        model_cfg["grid_transform"] = artifact_config["grid_transform"]
-    return model_cfg
+        dataset_cfg["grid_transform"] = artifact_config["grid_transform"]
+    return dataset_cfg
 
 
-def _model_artifact_component(component: dict) -> dict:
-    model_component = {"id": component["id"]}
+def _dataset_artifact_component(component: dict) -> dict:
+    dataset_component = {"id": component["id"]}
     if "grib_match" in component:
-        model_component["grib_match"] = component["grib_match"]
-    return model_component
+        dataset_component["grib_match"] = component["grib_match"]
+    return dataset_component

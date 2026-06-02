@@ -10,11 +10,12 @@ import unittest
 from pathlib import Path
 
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
+from forecast_etl.tests.fixtures.paths import repo_root_from
 
 
 class RunCycleScriptTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.repo_root = Path(__file__).resolve().parents[3]
+        self.repo_root = repo_root_from(__file__)
         self.script = self.repo_root / "etl" / "scripts" / "run-cycle.sh"
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
@@ -297,7 +298,7 @@ exit 1
             docker_log.read_text(encoding="utf-8"),
         )
 
-    def test_gfs_dry_run_resolves_configured_hours(self) -> None:
+    def test_gfs_dry_run_resolves_configured_frames(self) -> None:
         result = self.run_script(
             "--dataset-id",
             "gfs",

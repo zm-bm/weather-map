@@ -29,7 +29,7 @@ from forecast_etl.tests.fixtures.artifact_configs import (
     wind_artifact_config,
 )
 from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
-from forecast_etl.tests.fixtures.pipeline import catalog_artifact, minimal_pipeline_config, model_artifact
+from forecast_etl.tests.fixtures.pipeline import catalog_artifact, dataset_artifact, minimal_pipeline_config
 
 
 def _pipeline_config() -> PipelineConfig:
@@ -54,10 +54,10 @@ def _pipeline_config() -> PipelineConfig:
         "wind10m_uv",
     ]
     cfg["datasets"]["gfs"]["artifacts"] = {
-        "tmp_surface": model_artifact(tmp),
-        "cloud_layers": model_artifact(cloud_layers),
-        "precip_type_surface": model_artifact(precip_type),
-        "wind10m_uv": model_artifact(wind),
+        "tmp_surface": dataset_artifact(tmp),
+        "cloud_layers": dataset_artifact(cloud_layers),
+        "precip_type_surface": dataset_artifact(precip_type),
+        "wind10m_uv": dataset_artifact(wind),
     }
     cfg["datasets"]["icon"] = {
         "label": "ICON",
@@ -76,7 +76,7 @@ def _pipeline_config() -> PipelineConfig:
             "tmp_surface": {
                 "components": [{"id": "value", "grib_match": {"ICON_PARAM": "t_2m"}}],
             },
-            "prate_surface": model_artifact(precip_rate),
+            "prate_surface": dataset_artifact(precip_rate),
         },
     }
     return parse_pipeline_config(cfg)
@@ -123,11 +123,11 @@ def _forecast_catalog() -> dict:
     }
 
 
-def _latest_manifest(model: DatasetConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
+def _latest_manifest(dataset: DatasetConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
     frames = ("000", "003")
     artifacts = {}
     for artifact_id in artifact_ids:
-        artifact = model.artifacts[artifact_id]
+        artifact = dataset.artifacts[artifact_id]
         dtype_suffix = "i16" if artifact.encoding.dtype == "int16" else "i8"
         artifacts[artifact_id] = {
             "id": artifact_id,
@@ -137,7 +137,7 @@ def _latest_manifest(model: DatasetConfig, *, cycle: str, artifact_ids: Iterable
             "level": artifact.level,
             "components": list(artifact.component_ids),
             "grid": {
-                "id": model.source.grid_id,
+                "id": dataset.source.grid_id,
                 "crs": "EPSG:4326",
                 "nx": 2,
                 "ny": 2,
@@ -162,7 +162,7 @@ def _latest_manifest(model: DatasetConfig, *, cycle: str, artifact_ids: Iterable
             "frames": {
                 frame_id: {
                     "path": (
-                        f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields/"
+                        f"runs/{dataset.id}/{cycle}/{DEFAULT_RUN_ID}/fields/"
                         f"{frame_id}/{artifact_id}.field.{dtype_suffix}.bin"
                     ),
                     "byte_length": len(artifact.component_ids) * 4,
@@ -177,15 +177,15 @@ def _latest_manifest(model: DatasetConfig, *, cycle: str, artifact_ids: Iterable
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "payload_contract": DATA_BINARY_CONTRACT,
         "dataset": {
-            "id": model.id,
-            "label": model.label,
+            "id": dataset.id,
+            "label": dataset.label,
         },
         "run": {
             "cycle": cycle,
             "run_id": DEFAULT_RUN_ID,
-            "payload_root": f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields",
+            "payload_root": f"runs/{dataset.id}/{cycle}/{DEFAULT_RUN_ID}/fields",
             "generated_at": "2026-05-16T00:00:00Z",
-            "revision": f"{model.id}-{cycle}-revision",
+            "revision": f"{dataset.id}-{cycle}-revision",
         },
         "frames": [
             {"id": frame_id, "lead_hours": int(frame_id), "valid_at": f"2026-05-16T{int(frame_id):02d}:00:00Z"}
@@ -223,7 +223,7 @@ def _write_latest_pointer_manifest(repo: ArtifactRepository, *, dataset_id: str,
 
 
 class DataManifestTest(unittest.TestCase):
-    def test_builds_layer_model_availability_from_config_and_latest_manifests(self) -> None:
+    def test_builds_layer_dataset_availability_from_config_and_latest_manifests(self) -> None:
         cfg = _pipeline_config()
 
         with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-") as td:

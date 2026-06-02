@@ -22,7 +22,7 @@ from forecast_etl.tests.fixtures.artifacts import (
     DEFAULT_RUN_ID,
 )
 from forecast_etl.tests.fixtures.grids import pack_f32, small_grid_meta_fixture
-from forecast_etl.tests.fixtures.pipeline import add_model_artifact, minimal_pipeline_config
+from forecast_etl.tests.fixtures.pipeline import add_dataset_artifact, minimal_pipeline_config
 
 
 def _unused_run(*_args: object, **_kwargs: object) -> RunResult:
@@ -54,7 +54,7 @@ class RunHourCommandTest(unittest.TestCase):
                 }
             ],
         }
-        add_model_artifact(cfg, dataset_id="gfs", artifact_id="rh_surface", artifact_config=rh_config)
+        add_dataset_artifact(cfg, dataset_id="gfs", artifact_id="rh_surface", artifact_config=rh_config)
         cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "rh_surface"]
         model = parse_pipeline_config(cfg).dataset("gfs")
 
