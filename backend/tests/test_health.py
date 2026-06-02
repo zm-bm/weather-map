@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from forecast_etl.artifacts.health import ArtifactHealthStatus, DatasetArtifactHealth
-from forecast_etl.artifacts.snapshot import PublishLagEstimate
 from forecast_etl.artifacts.status import CycleProgress
+from forecast_etl.inspection.health import ArtifactHealthStatus, DatasetArtifactHealth
+from forecast_etl.inspection.snapshot import PublishLagEstimate
 from weather_map_backend import health as health_module
 from weather_map_backend.health import build_health
 from weather_map_backend.settings import Settings

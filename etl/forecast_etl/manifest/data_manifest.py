@@ -10,10 +10,11 @@ from ..artifacts.repository import ArtifactRepository
 from ..catalog import load_forecast_catalog
 from ..config.resolved import DatasetConfig, PipelineConfig
 from .constants import DATA_BINARY_CONTRACT
+from .data_manifest_contract import DATA_MANIFEST_SCHEMA, DATA_MANIFEST_SCHEMA_VERSION
 from .inspect import read_latest_manifest_object
 
-FORECAST_MANIFEST_SCHEMA = "weather-map.data-manifest"
-FORECAST_MANIFEST_SCHEMA_VERSION = 1
+FORECAST_MANIFEST_SCHEMA = DATA_MANIFEST_SCHEMA
+FORECAST_MANIFEST_SCHEMA_VERSION = DATA_MANIFEST_SCHEMA_VERSION
 
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
 LayerSupport = Literal["native", "frontend-derived", "etl-derived", "unavailable"]

@@ -155,7 +155,7 @@ class ArtifactRepository:
     def list_run_cycles(self, *, dataset_id: str) -> tuple[str, ...]:
         """List known cycles with run-scoped objects for one dataset."""
 
-        prefix = self.paths.model_runs_prefix_uri(dataset_id=dataset_id)
+        prefix = self.paths.dataset_runs_prefix_uri(dataset_id=dataset_id)
         cycles: set[str] = set()
         for uri in self.store.list_prefix(prefix_uri=prefix):
             try:

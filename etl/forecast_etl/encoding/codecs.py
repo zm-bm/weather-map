@@ -6,6 +6,8 @@ import math
 import struct
 from typing import Callable
 
+from ..artifacts.names import PAYLOAD_SUFFIX_BY_DTYPE as PAYLOAD_SUFFIX_BY_DTYPE
+from ..artifacts.names import payload_suffix_for_dtype as payload_suffix_for_dtype
 from .numeric import (
     clamp_int,
     int_item_bytes,
@@ -38,12 +40,6 @@ BYTE_ORDERS_BY_DTYPE = {
 REQUIRED_NODATA_BY_FORMAT = {
     FORMAT_TEMP_C_PIECEWISE_I8: -128,
 }
-PAYLOAD_SUFFIX_BY_DTYPE = {
-    "int16": "i16",
-    "int8": "i8",
-}
-
-
 def encoding_format_for_spec(*, dtype: str, explicit_format: str | None = None) -> str:
     """Resolve and validate the concrete encoding format for a dtype."""
 
@@ -80,15 +76,6 @@ def encoding_storage_bounds(dtype: str) -> tuple[int, int]:
     try:
         return int_storage_bounds(dtype)
     except ValueError as exc:
-        raise ValueError(f"Unsupported encoding dtype: {dtype!r}") from exc
-
-
-def payload_suffix_for_dtype(dtype: str) -> str:
-    """Return the artifact filename dtype suffix for a payload dtype."""
-
-    try:
-        return PAYLOAD_SUFFIX_BY_DTYPE[dtype]
-    except KeyError as exc:
         raise ValueError(f"Unsupported encoding dtype: {dtype!r}") from exc
 
 

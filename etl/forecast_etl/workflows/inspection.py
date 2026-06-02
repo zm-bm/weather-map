@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from ..cleanup_candidates import cleanup_runs_report
 from ..cycles import parse_cycle
-from ..operator_status import pointers_report, runs_report, status_report
+from ..inspection.pointers import pointers_report
+from ..inspection.runs import runs_report, status_report
 from ..run_ids import parse_run_id
 from .context import ApplicationContext
 

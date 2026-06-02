@@ -14,10 +14,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from ..encoding.codecs import payload_suffix_for_dtype
 from ..run_ids import validate_run_id
 from ..run_metadata import metadata_value
 from ..uris import join_uri
+from .names import payload_suffix_for_dtype
 
 SUCCESS_MARKER_SUFFIX = "._SUCCESS.json"
 PUBLISHED_MARKER_FILENAME = "_PUBLISHED.json"
@@ -104,7 +104,7 @@ class ArtifactPaths:
 
         return join_uri(self.artifact_root_uri, ["runs", _safe_segment(dataset_id), _safe_segment(cycle)])
 
-    def model_runs_prefix_uri(self, *, dataset_id: str) -> str:
+    def dataset_runs_prefix_uri(self, *, dataset_id: str) -> str:
         """URI prefix under which all cycles for one dataset live."""
 
         return join_uri(self.artifact_root_uri, ["runs", _safe_segment(dataset_id)])

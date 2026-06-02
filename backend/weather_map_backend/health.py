@@ -4,10 +4,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
-from forecast_etl.artifacts.health import read_dataset_artifact_health
 from forecast_etl.artifacts.paths import ArtifactPaths
-from forecast_etl.artifacts.snapshot import PublishLagPolicy
 from forecast_etl.config.load import load_pipeline_config
+from forecast_etl.inspection.health import read_dataset_artifact_health
+from forecast_etl.inspection.snapshot import PublishLagPolicy
 from forecast_etl.storage.routing import make_store
 
 from .settings import Settings

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from pydantic import field_validator
 
-from ..config.resolved import ArtifactSpec
 from ..run_ids import validate_run_id
 from ..run_metadata import metadata_value
 from ..validation import (
@@ -21,6 +20,9 @@ from ..validation import (
     validated_dict,
     validator_dict,
 )
+
+if TYPE_CHECKING:
+    from ..config.resolved import ArtifactSpec
 
 
 class _MarkerGrid(FrozenModel):

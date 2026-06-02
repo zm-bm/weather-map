@@ -5,14 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ..config.resolved import DatasetConfig
 from ..run_ids import validate_run_id
 from ..storage.base import UriObject, UriStore
 from .markers_schema import parse_artifact_success_marker
 from .paths import PUBLISHED_MARKER_FILENAME, SUCCESS_MARKER_SUFFIX, ArtifactPaths
 from .repository import ArtifactRepository
+
+if TYPE_CHECKING:
+    from ..config.resolved import DatasetConfig
 
 DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT = 5
 DEFAULT_MISSING_SAMPLE_LIMIT = 12

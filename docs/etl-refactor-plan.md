@@ -149,7 +149,7 @@ forecast_etl/
   processing/         frame extraction, transformations, encoding
   workflows/          init-run, run-frame, validate, publish, submit-cycle planning
   execution/          in-process, local-container, and AWS Batch execution adapters
-  read_model/         pointer/status/cleanup/health readers for backend and CLI
+  inspection/         pointer/status/cleanup/health readers for backend and CLI
   aws/                Lambda event parsing and AWS-specific adapters
   cli/                argparse, command dispatch, and output formatting
 ```
@@ -525,22 +525,30 @@ Expected result:
 - publication-stage results can be reused by operator/status work without
   parsing publish stdout
 
-### 6. Create A Backend-Friendly Read Model
+### Completed: 6. Create A Backend-Friendly Inspection Layer
 
-Goal: prepare for a full backend server without coupling it to worker code.
+The backend-friendly inspection boundary is complete. It prepares for a full
+backend server without coupling backend reads to worker, source, AWS adapter,
+or binary extraction code.
 
-Provisional implementation:
+What changed:
 
-- move pointer inspection, run status, cleanup classification, and health-style
-  reads into a lightweight read-side package
-- ensure this package depends only on storage, artifact paths, pointer schemas,
-  and manifest schemas
-- keep GDAL, source acquisition, binary encoding, Batch, and Lambda code out of
-  backend read paths
-- design backend endpoints around this read model later, after the Python
-  boundary is clean
+- `forecast_etl.inspection` now owns read-only artifact inspection for run
+  status, pointer diagnostics, health/snapshot reads, cleanup candidate
+  classification, and public data-manifest summaries
+- old compatibility shim modules for `operator_status`, `artifacts.health`,
+  and `artifacts.snapshot` were removed after internal call sites moved to
+  `forecast_etl.inspection`
+- `cleanup-runs --delete --yes` remains outside inspection as an operator
+  action that wraps read-only cleanup candidates
+- CLI inspection workflows and backend health now import through the
+  inspection boundary
+- inspection tests guard against accidental dependencies on AWS adapters,
+  source adapters, worker commands, and extraction modules
+- public CLI output, backend health JSON, manifest schemas, artifact paths,
+  shell-wrapper behavior, and Terraform behavior did not change
 
-Likely backend-facing queries:
+Backend-facing queries now have a clean Python home:
 
 - current dataset/latest pointer status
 - cycle current run
@@ -614,7 +622,7 @@ Expected result:
 
 ## Backend Server Considerations
 
-The backend should be designed after the read model is separated. The server
+The backend should be designed on top of the inspection layer. The server
 should initially be a thin HTTP layer over stable read functions, not a second
 source of ETL truth.
 
@@ -686,7 +694,7 @@ Potential R2 migration path:
 - no new orchestration framework
 - no immediate pytest migration unless it falls out naturally
 - no new `etlctl` binary until the existing CLI proves awkward
-- no backend server before the read model boundary is clear
+- no backend server before the inspection boundary is clear
 - no deep rewrite of encoding/extraction math as part of workflow cleanup
 - no further manifest schema churn after the Phase 2 dataset/frame cutover
 - no cloud migration as part of the first refactor pass

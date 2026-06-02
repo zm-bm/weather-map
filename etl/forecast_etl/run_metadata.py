@@ -6,9 +6,10 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from .config.resolved import PipelineConfig
+if TYPE_CHECKING:
+    from .config.resolved import PipelineConfig
 
 UNKNOWN_RUN_METADATA_VALUE = "unknown"
 

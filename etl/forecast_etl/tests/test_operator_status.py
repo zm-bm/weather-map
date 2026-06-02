@@ -5,8 +5,9 @@ import unittest
 from datetime import datetime, timezone
 from typing import Any
 
+from forecast_etl.inspection.pointers import pointers_report
+from forecast_etl.inspection.runs import runs_report, status_report
 from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
-from forecast_etl.operator_status import pointers_report, runs_report, status_report
 from forecast_etl.run_metadata import RunMetadata, RunSnapshot, json_document_digest
 from forecast_etl.run_validation import PAYLOAD_CHECK_MODE, VALIDATION_SCHEMA, VALIDATION_SCHEMA_VERSION
 from forecast_etl.tests.fixtures.artifacts import (

@@ -1,26 +1,20 @@
-"""Read-only operator status reports for ETL runs and manifest pointers."""
+"""Read-only run status reports for ETL artifacts."""
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from .artifacts.repository import ArtifactRepository
-from .artifacts.status import summarize_cycle_progress
-from .manifest.inspect import manifest_info_from_obj
-from .manifest.pointers import (
-    CURRENT_POINTER_SCHEMA,
-    LATEST_POINTER_SCHEMA,
-    is_manifest_pointer,
-    parse_manifest_pointer,
-)
-from .run_ids import validate_run_id
-from .run_snapshots import LoadedRunSnapshot, load_run_snapshot
-from .storage.base import UriStore
-from .uris import join_uri
+from ..artifacts.repository import ArtifactRepository
+from ..artifacts.status import summarize_cycle_progress
+from ..run_ids import validate_run_id
+from ..storage.base import UriStore
+from .pointers import cycle_pointer_state, pointer_match_status, pointer_matches
+
+if TYPE_CHECKING:
+    from ..run_snapshots import LoadedRunSnapshot
 
 RUNS_SCHEMA = "weather-map.etl-operator-runs"
 STATUS_SCHEMA = "weather-map.etl-operator-status"
-POINTERS_SCHEMA = "weather-map.etl-operator-pointers"
 SCHEMA_VERSION = 1
 
 
@@ -33,7 +27,7 @@ def runs_report(
 ) -> dict[str, Any]:
     """Return read-only status for all known runs of one dataset cycle."""
 
-    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
+    pointer_state = cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
     run_ids = sorted(artifact_repo.list_run_ids(dataset_id=dataset_id, cycle=cycle), reverse=True)
     runs = [
         _run_summary(
@@ -105,7 +99,7 @@ def status_report(
             "run": None,
         }
 
-    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
+    pointer_state = cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
     run = _run_summary(
         artifact_repo=artifact_repo,
         store=store,
@@ -126,69 +120,6 @@ def status_report(
         "warnings": warnings,
         "run": run,
     }
-
-
-def pointers_report(
-    *,
-    artifact_repo: ArtifactRepository,
-    dataset_id: str,
-    cycle: str | None = None,
-) -> dict[str, Any]:
-    """Return read-only diagnostics for public manifest pointers."""
-
-    latest = _inspect_pointer_alias(
-        artifact_repo=artifact_repo,
-        dataset_id=dataset_id,
-        alias="latest",
-        uri=artifact_repo.paths.manifest_latest_uri(dataset_id=dataset_id),
-        expected_schema=LATEST_POINTER_SCHEMA,
-        expected_cycle=None,
-    )
-    current_cycle = cycle
-    if current_cycle is None and latest.get("status") == "valid":
-        latest_cycle = latest.get("cycle")
-        if isinstance(latest_cycle, str):
-            current_cycle = latest_cycle
-
-    current = None
-    if current_cycle is not None:
-        current = _inspect_pointer_alias(
-            artifact_repo=artifact_repo,
-            dataset_id=dataset_id,
-            alias="current",
-            uri=artifact_repo.paths.cycle_current_pointer_uri(dataset_id=dataset_id, cycle=current_cycle),
-            expected_schema=CURRENT_POINTER_SCHEMA,
-            expected_cycle=current_cycle,
-        )
-
-    return {
-        "schema": POINTERS_SCHEMA,
-        "schema_version": SCHEMA_VERSION,
-        "dataset_id": dataset_id,
-        "cycle": current_cycle,
-        "latest": latest,
-        "current": current,
-    }
-
-
-def _cycle_pointer_state(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str) -> dict[str, Any]:
-    latest = _inspect_pointer_alias(
-        artifact_repo=artifact_repo,
-        dataset_id=dataset_id,
-        alias="latest",
-        uri=artifact_repo.paths.manifest_latest_uri(dataset_id=dataset_id),
-        expected_schema=LATEST_POINTER_SCHEMA,
-        expected_cycle=None,
-    )
-    current = _inspect_pointer_alias(
-        artifact_repo=artifact_repo,
-        dataset_id=dataset_id,
-        alias="current",
-        uri=artifact_repo.paths.cycle_current_pointer_uri(dataset_id=dataset_id, cycle=cycle),
-        expected_schema=CURRENT_POINTER_SCHEMA,
-        expected_cycle=cycle,
-    )
-    return {"latest": latest, "current": current}
 
 
 def _run_summary(
@@ -243,11 +174,11 @@ def _run_summary(
         "published": published,
         "manifests": manifests,
         "pointers": {
-            "cycle_current": _pointer_match_status(pointer_state.get("current"), run_id=run_id),
-            "dataset_latest": _pointer_match_status(pointer_state.get("latest"), run_id=run_id),
+            "cycle_current": pointer_match_status(pointer_state.get("current"), run_id=run_id),
+            "dataset_latest": pointer_match_status(pointer_state.get("latest"), run_id=run_id),
         },
-        "current": _pointer_matches(pointer_state.get("current"), run_id=run_id),
-        "latest": _pointer_matches(pointer_state.get("latest"), run_id=run_id),
+        "current": pointer_matches(pointer_state.get("current"), run_id=run_id),
+        "latest": pointer_matches(pointer_state.get("latest"), run_id=run_id),
         "publication_ready": _publication_ready(markers=markers, validation=validation),
         "diagnostics": _run_diagnostics(
             snapshot=snapshot,
@@ -278,6 +209,8 @@ def _snapshot_summary(
             "_snapshot": None,
         }
     try:
+        from ..run_snapshots import load_run_snapshot
+
         snapshot = load_run_snapshot(
             artifact_repo=artifact_repo,
             store=store,
@@ -452,179 +385,10 @@ def _run_diagnostics(
     if published.get("status") != "present":
         diagnostics.append(f"published marker status is {published.get('status')}")
     for label, pointer in (("cycle current", pointer_state.get("current")), ("dataset latest", pointer_state.get("latest"))):
-        match_status = _pointer_match_status(pointer, run_id=run_id)
+        match_status = pointer_match_status(pointer, run_id=run_id)
         if match_status not in {"matches", "missing"}:
             diagnostics.append(f"{label} pointer status for this run is {match_status}")
     return diagnostics
-
-
-def _inspect_pointer_alias(
-    *,
-    artifact_repo: ArtifactRepository,
-    dataset_id: str,
-    alias: str,
-    uri: str,
-    expected_schema: str,
-    expected_cycle: str | None,
-) -> dict[str, Any]:
-    path = artifact_repo.paths.relative_key(uri)
-    if not artifact_repo.store.exists(uri=uri):
-        return _pointer_base(alias=alias, uri=uri, path=path, status="missing", kind="missing")
-    try:
-        raw = artifact_repo.read_json_uri(uri)
-    except (Exception, SystemExit) as exc:
-        return _pointer_base(
-            alias=alias,
-            uri=uri,
-            path=path,
-            status="malformed",
-            kind="invalid",
-            diagnostics=[f"unable to read JSON: {exc}"],
-        )
-
-    if is_manifest_pointer(raw):
-        return _inspect_pointer_object(
-            artifact_repo=artifact_repo,
-            dataset_id=dataset_id,
-            alias=alias,
-            uri=uri,
-            path=path,
-            raw=raw,
-            expected_schema=expected_schema,
-            expected_cycle=expected_cycle,
-        )
-
-    return _pointer_base(
-        alias=alias,
-        uri=uri,
-        path=path,
-        status="malformed",
-        kind="unknown",
-        diagnostics=["alias is not a valid manifest pointer"],
-    )
-
-
-def _inspect_pointer_object(
-    *,
-    artifact_repo: ArtifactRepository,
-    dataset_id: str,
-    alias: str,
-    uri: str,
-    path: str,
-    raw: Mapping[str, Any],
-    expected_schema: str,
-    expected_cycle: str | None,
-) -> dict[str, Any]:
-    try:
-        pointer = parse_manifest_pointer(raw, expected_schema=expected_schema, uri=uri)
-    except (Exception, SystemExit) as exc:
-        return _pointer_base(
-            alias=alias,
-            uri=uri,
-            path=path,
-            status="malformed",
-            kind="pointer",
-            diagnostics=[str(exc)],
-        )
-
-    diagnostics: list[str] = []
-    status = "valid"
-    if pointer.dataset_id != dataset_id:
-        status = "malformed"
-        diagnostics.append(f"pointer dataset_id mismatch: expected={dataset_id!r} found={pointer.dataset_id!r}")
-    if expected_cycle is not None and pointer.cycle != expected_cycle:
-        status = "stale"
-        diagnostics.append(f"pointer cycle mismatch: expected={expected_cycle!r} found={pointer.cycle!r}")
-
-    target_uri = join_uri(artifact_repo.paths.artifact_root_uri, [pointer.manifest_path])
-    target_status, target_diagnostics = _pointer_target_status(
-        artifact_repo=artifact_repo,
-        target_uri=target_uri,
-        pointer_cycle=pointer.cycle,
-        pointer_run_id=pointer.run_id,
-        pointer_revision=pointer.revision,
-    )
-    diagnostics.extend(target_diagnostics)
-    if status == "valid" and target_status != "valid":
-        status = target_status
-
-    return {
-        **_pointer_base(alias=alias, uri=uri, path=path, status=status, kind="pointer", diagnostics=diagnostics),
-        "schema": pointer.schema_name,
-        "cycle": pointer.cycle,
-        "run_id": pointer.run_id,
-        "revision": pointer.revision,
-        "generated_at": pointer.generated_at,
-        "manifest_path": pointer.manifest_path,
-        "target_exists": target_status != "target_missing",
-        "target_valid": target_status == "valid",
-    }
-
-
-def _pointer_target_status(
-    *,
-    artifact_repo: ArtifactRepository,
-    target_uri: str,
-    pointer_cycle: str,
-    pointer_run_id: str,
-    pointer_revision: str,
-) -> tuple[str, list[str]]:
-    try:
-        target = artifact_repo.read_json_uri(target_uri)
-    except FileNotFoundError:
-        return "target_missing", [f"pointer target is missing: {target_uri}"]
-    except (Exception, SystemExit) as exc:
-        return "target_invalid", [f"unable to read pointer target: {target_uri}: {exc}"]
-
-    info = manifest_info_from_obj(target)
-    if info is None:
-        return "target_invalid", [f"pointer target has no valid run metadata: {target_uri}"]
-    if info.cycle != pointer_cycle or info.run_id != pointer_run_id or info.revision != pointer_revision:
-        return (
-            "target_mismatch",
-            [
-                "pointer target mismatch: "
-                f"pointer=({pointer_cycle}, {pointer_run_id}, {pointer_revision}) "
-                f"target=({info.cycle}, {info.run_id}, {info.revision}) uri={target_uri}"
-            ],
-        )
-    return "valid", []
-
-
-def _pointer_base(
-    *,
-    alias: str,
-    uri: str,
-    path: str,
-    status: str,
-    kind: str,
-    diagnostics: list[str] | None = None,
-) -> dict[str, Any]:
-    return {
-        "alias": alias,
-        "uri": uri,
-        "path": path,
-        "status": status,
-        "kind": kind,
-        "diagnostics": list(diagnostics or []),
-    }
-
-
-def _pointer_matches(pointer: object, *, run_id: str) -> bool:
-    return isinstance(pointer, Mapping) and pointer.get("run_id") == run_id and pointer.get("status") == "valid"
-
-
-def _pointer_match_status(pointer: object, *, run_id: str) -> str:
-    if not isinstance(pointer, Mapping):
-        return "unknown"
-    status = pointer.get("status")
-    if status == "missing":
-        return "missing"
-    if status != "valid":
-        return str(status or "unknown")
-    if pointer.get("run_id") == run_id:
-        return "matches"
-    return "different"
 
 
 def _iso_or_none(value: object) -> str | None:

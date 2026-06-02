@@ -3,14 +3,14 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from forecast_etl.artifacts.snapshot import (
+from forecast_etl.config.load import parse_pipeline_config
+from forecast_etl.cycles import cycle_datetime
+from forecast_etl.inspection.snapshot import (
     PublishLagPolicy,
     estimate_publish_lag,
     read_dataset_artifact_snapshot,
     select_target_cycle,
 )
-from forecast_etl.config.load import parse_pipeline_config
-from forecast_etl.cycles import cycle_datetime
 from forecast_etl.manifest.inspect import ManifestInfo
 from forecast_etl.tests.fixtures.artifacts import temp_artifact_fixture
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
@@ -19,7 +19,7 @@ from forecast_etl.tests.fixtures.stores import CountingStore
 NOW = datetime(2026, 5, 11, 18, 30, tzinfo=timezone.utc)
 
 
-class ArtifactSnapshotTest(unittest.TestCase):
+class InspectionSnapshotTest(unittest.TestCase):
     def test_estimate_publish_lag_uses_recent_manifest_history(self) -> None:
         estimate = estimate_publish_lag(
             manifest_infos=(

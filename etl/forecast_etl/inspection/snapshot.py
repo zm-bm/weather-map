@@ -6,18 +6,21 @@ import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
-from ..config.resolved import DatasetConfig
-from ..cycles import cycle_datetime, expected_synoptic_cycle, latest_synoptic_cycles
-from ..manifest.inspect import ManifestInfo, list_manifest_infos, read_latest_manifest_info
-from ..storage.base import UriStore
-from .paths import ArtifactPaths
-from .status import (
+from ..artifacts.paths import ArtifactPaths
+from ..artifacts.status import (
     DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
     DEFAULT_MISSING_SAMPLE_LIMIT,
     CycleProgress,
     read_cycle_progress,
 )
+from ..cycles import cycle_datetime, expected_synoptic_cycle, latest_synoptic_cycles
+from ..manifest.inspect import ManifestInfo, list_manifest_infos, read_latest_manifest_info
+from ..storage.base import UriStore
+
+if TYPE_CHECKING:
+    from ..config.resolved import DatasetConfig
 
 MAX_REASONABLE_PUBLISH_LAG_HOURS = 72
 

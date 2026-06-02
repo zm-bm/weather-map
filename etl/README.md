@@ -73,6 +73,10 @@ The operator inspection commands are read-only except
 `cleanup-runs --delete --yes`, which deletes only cleanup-candidate
 `runs/<dataset_id>/<cycle>/<run_id>/` prefixes.
 
+Inspection logic lives under `forecast_etl.inspection`. Backend/API code should
+read ETL state through that package instead of importing worker, source,
+extraction, or publishing internals.
+
 ## Pipeline Shape
 
 The config is dataset-aware:

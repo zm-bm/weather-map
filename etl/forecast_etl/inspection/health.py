@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
-from ..config.resolved import DatasetConfig
+from ..artifacts.paths import ArtifactPaths
+from ..artifacts.status import (
+    DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
+    DEFAULT_MISSING_SAMPLE_LIMIT,
+    CycleProgress,
+)
 from ..cycles import cycle_datetime, expected_synoptic_cycle
 from ..manifest.inspect import ManifestInfo, read_latest_manifest_info
 from ..storage.base import UriStore
-from .paths import ArtifactPaths
 from .snapshot import (
     DatasetArtifactSnapshot,
     PublishLagEstimate,
@@ -18,11 +22,9 @@ from .snapshot import (
     estimate_publish_lag,
     read_dataset_artifact_snapshot,
 )
-from .status import (
-    DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
-    DEFAULT_MISSING_SAMPLE_LIMIT,
-    CycleProgress,
-)
+
+if TYPE_CHECKING:
+    from ..config.resolved import DatasetConfig
 
 ArtifactHealthStatus: TypeAlias = Literal["fresh", "building", "stalled", "incomplete", "unavailable", "stale"]
 

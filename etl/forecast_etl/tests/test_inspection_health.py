@@ -3,10 +3,10 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from forecast_etl.artifacts.health import read_dataset_artifact_health
-from forecast_etl.artifacts.snapshot import PublishLagPolicy
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.cycles import cycle_datetime
+from forecast_etl.inspection.health import read_dataset_artifact_health
+from forecast_etl.inspection.snapshot import PublishLagPolicy
 from forecast_etl.tests.fixtures.artifacts import temp_artifact_fixture
 from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.stores import CountingStore
@@ -16,7 +16,7 @@ CURRENT_CYCLE = "2026051112"
 STALE_CYCLE = "2026051106"
 
 
-class ArtifactHealthTest(unittest.TestCase):
+class InspectionHealthTest(unittest.TestCase):
     def test_current_latest_manifest_returns_fresh_without_reading_status_markers(self) -> None:
         with temp_artifact_fixture() as artifacts:
             model = _model()
