@@ -560,16 +560,39 @@ Backend-facing queries now have a clean Python home:
 ### 7. Add Minimal Production Observability
 
 Goal: add low-noise production signals without turning operations into a
-separate incident-management project.
+separate incident-management project. Observability should be a thin read-only
+adapter over the current AWS runtime and the `forecast_etl.inspection` layer,
+not a second ETL state machine.
 
 Provisional implementation:
 
-- add alerts for Lambda errors, Batch job failures, publisher failures, and
-  stale latest/public manifest state
+- add infrastructure failure alerts for the GFS ingest Lambda, ICON ingest
+  Lambda, scheduled publisher Lambda, and Batch worker failures
+- add a small read-only ETL state/staleness check using
+  `forecast_etl.inspection.health` and related inspection readers
+- emit a small set of CloudWatch metrics or structured log metrics for dataset
+  freshness, stale/unavailable state, latest cycle lag, and possibly complete
+  unpublished runs
+- alarm only on stable bad states; incomplete/building cycles and ordinary
+  publisher "not ready" results should not page by default
+- keep markers, validation reports, pointers, and public manifests as the
+  source of truth for ETL state; frame claims are submission throttles, not the
+  primary health signal
+- keep the backend optional for alerts. Backend endpoints can expose status,
+  but production alerts should work from AWS plus artifact inspection alone
 - do not send success notifications by default
-- keep notification routing simple and explicit
+- keep notification routing simple and explicit, likely through one optional
+  notification topic/subscription
 - treat DLQs, richer incident workflows, and success summaries as optional
   follow-ups unless real failures show they are needed
+
+Details intentionally left for the implementation task:
+
+- exact metric names and dimensions
+- stale/latest-lag thresholds per dataset
+- whether the state check is a dedicated Lambda, an existing Lambda mode, or a
+  scheduled backend/ops job
+- notification destination variables and defaults
 
 Expected result:
 
