@@ -352,27 +352,46 @@ validate, publish, or write state.
 
 ### 3. Add Submission Idempotency And Resume Semantics
 
-Goal: make duplicate events and reruns cheaper and less surprising before the
-submit paths are unified.
+Goal: make duplicate events and reruns cheaper and less surprising by making
+the cycle plan authoritative about what still needs to be submitted.
 
 Provisional implementation:
 
-- automatic ingest and manual submit skip already-complete frames for
-  the selected run
-- add short-lived in-flight job claims keyed by dataset id, cycle, run id, and
-  frame id to suppress duplicate automatic submissions
-- expired claims allow retry/resume
-- keep the final completeness decision in validation; job claims are submit
-  safety, not publication evidence
-- keep the claim store behind the run-coordination adapter so DynamoDB is the
-  current implementation but not hardcoded into workflow logic
+- extend `CycleSubmissionPlan` with resume-aware frame state. Each selected
+  frame should be classified before submission as `pending`, `complete`,
+  `claimed`, `missing`, or `invalid`.
+- treat omitted `--run-id` as a new attempt. Resuming an interrupted run should
+  require an explicit `--run-id` so the operator knows which immutable run is
+  being continued.
+- define a complete frame from marker evidence, not marker existence alone. A
+  complete frame has all selected artifact markers and those markers parse and
+  match `dataset_id`, `cycle`, `run_id`, `frame_id`, config digest, artifact
+  metadata, and expected run-first payload paths.
+- add a shared `FrameClaimStore` adapter with conditional claim acquisition
+  keyed by `dataset_id`, `cycle`, `run_id`, and `frame_id`.
+- record useful claim diagnostics such as artifact ids, worker spec hash,
+  source URI, Batch job id, `created_at`, and `expires_at`, without making the
+  claim key more complex unless partial-artifact production becomes necessary.
+- use DynamoDB as the current production claim implementation, but keep
+  workflow logic written against the `FrameClaimStore` interface.
+- migrate ICON's existing per-frame lease behavior toward the shared claim
+  abstraction, and use the same abstraction to suppress duplicate GFS SNS
+  submissions.
+- keep job claims as submission throttles only. Validation reports and success
+  markers remain the publication evidence and final completeness gate.
+- do not rely on AWS Batch job names for idempotency. They are useful
+  diagnostics, not the duplicate-submission guard.
 
 Expected result:
 
 - duplicate SNS/events or repeated manual submits do not create unnecessary
   duplicate frame jobs once a frame is complete or actively claimed
 - interrupted runs can be resumed without changing run ids or manually
-  filtering every completed hour
+  filtering every completed frame
+- GFS and ICON converge on the same duplicate-submission semantics even though
+  their source triggers remain different
+- Phase 5 can focus on local/AWS executor unification instead of rediscovering
+  skip and claim policy in each executor
 
 ### 4. Slim The CLI Around The Workflow Layer
 
@@ -643,8 +662,8 @@ The refactor is working when:
   worker jobs from one shared planner or workflow path
 - Terraform exposes the ETL runtime contract clearly enough that scripts and
   Lambda configuration do not depend on incidental resource details
-- a read-only cycle plan can represent local and AWS worker submissions without
-  writing state
+- a cycle plan can represent local and AWS worker submissions, frame state,
+  resume decisions, and optional publish/validate steps without writing state
 - duplicate complete or actively claimed frame jobs are suppressed, while
   expired claims allow retry/resume and validation remains the publication gate
 - `cli.py` is small enough to scan quickly
