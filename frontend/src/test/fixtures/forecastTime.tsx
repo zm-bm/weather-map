@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 import {
-  activeForecastRunForModel,
+  activeForecastRunForDataset,
   type Manifest,
 } from '@/forecast/manifest'
 import {
@@ -21,8 +21,8 @@ export function createForecastTimeContextValue(
   manifest: Manifest | null,
   options: ForecastTimeContextOptions = {}
 ): ForecastTimeContextValue {
-  const times = options.times ?? activeForecastRunForModel(manifest, 'gfs')?.latest.times ?? createForecastTimesFixture()
-  const defaultValidTimeMs = Date.parse(times[0]?.validAt ?? '2026-04-13T12:00:00Z')
+  const times = options.times ?? activeForecastRunForDataset(manifest, 'gfs')?.latest.frames ?? createForecastTimesFixture()
+  const defaultValidTimeMs = Date.parse(times[0]?.valid_at ?? '2026-04-13T12:00:00Z')
 
   return {
     times,

@@ -3,22 +3,22 @@
 from __future__ import annotations
 
 from .config._types import ConfigModel, NonEmptyStr, UniqueNonEmptyStringTuple
-from .config.resolved import ModelConfig
+from .config.resolved import DatasetConfig
 
 
 class ExecutionContext(ConfigModel):
     """Runtime identity passed from resolved config into ETL execution."""
 
-    model_id: NonEmptyStr
+    dataset_id: NonEmptyStr
     artifact_root_uri: NonEmptyStr
-    forecast_hours: UniqueNonEmptyStringTuple
+    frames: UniqueNonEmptyStringTuple
 
 
-def execution_context_for_model(model: ModelConfig, artifact_root_uri: str) -> ExecutionContext:
+def execution_context_for_dataset(model: DatasetConfig, artifact_root_uri: str) -> ExecutionContext:
     """Create the runtime context used by workers and publishers."""
 
     return ExecutionContext(
-        model_id=model.id,
+        dataset_id=model.id,
         artifact_root_uri=artifact_root_uri,
-        forecast_hours=model.workload.forecast_hours,
+        frames=model.workload.frames,
     )

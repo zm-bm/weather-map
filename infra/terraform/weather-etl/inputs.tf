@@ -122,10 +122,10 @@ variable "icon_poll_cycle_count" {
   description = "Recent ICON cycle count scanned by the poller."
 }
 
-variable "publisher_models" {
+variable "publisher_datasets" {
   type        = list(string)
   default     = ["gfs", "icon"]
-  description = "Models scanned by the scheduled publisher."
+  description = "Datasets scanned by the scheduled publisher."
 }
 
 variable "publisher_cycle_count" {

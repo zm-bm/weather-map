@@ -2,29 +2,29 @@ import { createContext, useContext } from 'react'
 
 import type {
   ActiveForecastRun,
-  ForecastModelId,
-  ForecastModelOption,
+  ForecastDatasetId,
+  ForecastDatasetOption,
 } from '@/forecast/manifest'
 
 type ForecastSelectionBaseValue = {
   activeRun: ActiveForecastRun | null
-  activeModelId: ForecastModelId | null
-  modelOptions: readonly ForecastModelOption[]
-  setActiveModel: (value: ForecastModelId) => void
+  activeDatasetId: ForecastDatasetId | null
+  datasetOptions: readonly ForecastDatasetOption[]
+  setActiveDataset: (value: ForecastDatasetId) => void
   setSelectedLayer: (value: string) => void
   setSelectedParticleLayer: (value: string) => void
 }
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
   activeRun: ActiveForecastRun
-  activeModelId: ForecastModelId
+  activeDatasetId: ForecastDatasetId
   selectedLayerId: string | null
   selectedParticleLayerId: string | null
 }
 
 type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
   activeRun: null
-  activeModelId: null
+  activeDatasetId: null
   selectedLayerId: null
   selectedParticleLayerId: null
 }

@@ -20,7 +20,7 @@ type PayloadRef = {
 type ReadArtifactPayloadArgs = {
   config: WeatherMapConfig
   activeRun: ActiveForecastRun
-  hourToken: string
+  frameId: string
   artifact: ManifestArtifactSpec
   signal: AbortSignal
 }
@@ -32,12 +32,12 @@ export async function readArtifactPayload(
 ): Promise<ArrayBuffer> {
   const {
     artifact,
-    hourToken,
+    frameId,
   } = args
   const artifactKind = artifact.kind
   const frameRef = resolvePayloadRef({
     activeRun: args.activeRun,
-    hourToken,
+    frameId,
     artifact,
   })
 
@@ -66,7 +66,7 @@ export async function readArtifactPayload(
 
   assertPayloadSize({
     artifact,
-    hourToken,
+    frameId,
     actualByteLength: payload.byteLength,
     expectedFrameByteLength: frameRef.byteLength,
   })
@@ -141,55 +141,55 @@ async function fetchFramePayloadBuffer(args: {
 
 function resolvePayloadRef(args: {
   activeRun: ActiveForecastRun
-  hourToken: string
+  frameId: string
   artifact: ManifestArtifactSpec
 }): PayloadRef {
   const artifactId = String(args.artifact.id)
-  const time = args.activeRun.latest.times.find((entry) => entry.id === args.hourToken)
-  if (!time) {
-    throw new Error(`No ${args.artifact.kind} frame ref for model=${args.activeRun.modelId} artifact=${artifactId} hour=${args.hourToken}`)
+  const frame = args.activeRun.latest.frames.find((entry) => entry.id === args.frameId)
+  if (!frame) {
+    throw new Error(`No ${args.artifact.kind} frame ref for dataset_id=${args.activeRun.datasetId} artifact=${artifactId} frame=${args.frameId}`)
   }
 
   return {
     path: resolveFramePayloadPath({
       activeRun: args.activeRun,
       artifact: args.artifact,
-      timeId: time.id,
+      frameId: frame.id,
     }),
-    byteLength: args.artifact.byteLength,
+    byteLength: args.artifact.byte_length,
   }
 }
 
 function resolveFramePayloadPath(args: {
   activeRun: ActiveForecastRun
-  artifact: Pick<ManifestArtifactSpec, 'payloadFile'>
-  timeId: string
+  artifact: Pick<ManifestArtifactSpec, 'payload_file'>
+  frameId: string
 }): string {
-  const { payloadRoot } = args.activeRun.latest.run
-  const { payloadFile } = args.artifact
+  const { payload_root } = args.activeRun.latest.run
+  const { payload_file } = args.artifact
   return [
-    payloadRoot,
-    args.timeId,
-    payloadFile,
+    payload_root,
+    args.frameId,
+    payload_file,
   ].join('/')
 }
 
 function assertPayloadSize(args: {
   artifact: ManifestArtifactSpec
-  hourToken: string
+  frameId: string
   actualByteLength: number
   expectedFrameByteLength: number
 }) {
   const {
     artifact,
-    hourToken,
+    frameId,
     actualByteLength,
     expectedFrameByteLength,
   } = args
   const artifactId = String(artifact.id)
   if (actualByteLength !== expectedFrameByteLength) {
     throw new Error(
-      `Unexpected ${artifact.kind} payload size for artifact=${artifactId} hour=${hourToken}: got=${actualByteLength} expected=${expectedFrameByteLength}`
+      `Unexpected ${artifact.kind} payload size for artifact=${artifactId} frame=${frameId}: got=${actualByteLength} expected=${expectedFrameByteLength}`
     )
   }
 }

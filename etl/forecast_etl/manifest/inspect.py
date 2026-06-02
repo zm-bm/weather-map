@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..artifacts.paths import ArtifactPaths
 from ..artifacts.repository import ArtifactRepository
@@ -26,8 +26,8 @@ class _ManifestRunProjection(BaseModel):
     )
 
     cycle: str | None = None
-    run_id: str | None = Field(default=None, alias="runId")
-    generated_at: datetime | None = Field(default=None, alias="generatedAt")
+    run_id: str | None = None
+    generated_at: datetime | None = None
     revision: str | None = None
 
     @field_validator("cycle", "run_id", "revision", mode="before")
@@ -80,10 +80,10 @@ class ManifestInfo(BaseModel):
         return value
 
 
-def manifest_cycle_from_key(*, model_id: str, key: str) -> str | None:
+def manifest_cycle_from_key(*, dataset_id: str, key: str) -> str | None:
     """Return the cycle from pointer-era current aliases."""
 
-    prefix = f"manifests/{model_id}/"
+    prefix = f"manifests/{dataset_id}/"
     if not key.startswith(prefix) or not key.endswith(".json"):
         return None
     relative = key[len(prefix) :]
@@ -135,13 +135,13 @@ def manifest_info_from_obj(raw: Mapping[str, Any]) -> ManifestInfo | None:
         return None
 
 
-def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id: str) -> ManifestInfo | None:
-    """Read the model's latest alias projection, if present and valid."""
+def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, dataset_id: str) -> ManifestInfo | None:
+    """Read the dataset's latest alias projection, if present and valid."""
 
     artifacts = ArtifactRepository(store=store, paths=paths)
     try:
         pointer = parse_manifest_pointer(
-            artifacts.read_latest_pointer(model_id=model_id),
+            artifacts.read_latest_pointer(dataset_id=dataset_id),
             expected_schema=LATEST_POINTER_SCHEMA,
         )
         return _manifest_info_from_pointer(pointer)
@@ -149,15 +149,15 @@ def read_latest_manifest_info(*, store: UriStore, paths: ArtifactPaths, model_id
         return None
 
 
-def read_latest_manifest_object(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
-    """Read and dereference a model's latest alias into a full manifest object."""
+def read_latest_manifest_object(*, artifact_repo: ArtifactRepository, dataset_id: str) -> dict[str, Any] | None:
+    """Read and dereference a dataset's latest alias into a full manifest object."""
 
-    if not artifact_repo.latest_manifest_exists(model_id=model_id):
+    if not artifact_repo.latest_manifest_exists(dataset_id=dataset_id):
         return None
     return read_manifest_object_from_pointer(
         artifact_repo=artifact_repo,
-        pointer_obj=artifact_repo.read_latest_pointer(model_id=model_id),
-        expected_model_id=model_id,
+        pointer_obj=artifact_repo.read_latest_pointer(dataset_id=dataset_id),
+        expected_dataset_id=dataset_id,
         expected_schema=LATEST_POINTER_SCHEMA,
     )
 
@@ -166,16 +166,16 @@ def read_manifest_object_from_pointer(
     *,
     artifact_repo: ArtifactRepository,
     pointer_obj: Mapping[str, Any],
-    expected_model_id: str | None = None,
+    expected_dataset_id: str | None = None,
     expected_schema: str | None = None,
 ) -> dict[str, Any]:
     """Dereference one manifest pointer and require it to match the target run."""
 
     pointer = parse_manifest_pointer(pointer_obj, expected_schema=expected_schema)
-    if expected_model_id is not None and pointer.model != expected_model_id:
+    if expected_dataset_id is not None and pointer.dataset_id != expected_dataset_id:
         raise SystemExit(
-            "manifest pointer model mismatch: "
-            f"expected={expected_model_id!r} found={pointer.model!r} manifestPath={pointer.manifest_path}"
+            "manifest pointer dataset_id mismatch: "
+            f"expected={expected_dataset_id!r} found={pointer.dataset_id!r} manifest_path={pointer.manifest_path}"
         )
 
     manifest_uri = join_uri(artifact_repo.paths.artifact_root_uri, [pointer.manifest_path])
@@ -193,15 +193,15 @@ def read_manifest_object_from_pointer(
     return manifest
 
 
-def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, model_id: str, limit: int) -> list[ManifestInfo]:
+def list_manifest_infos(*, store: UriStore, paths: ArtifactPaths, dataset_id: str, limit: int) -> list[ManifestInfo]:
     """Read recent cycle manifest projections newest first."""
 
     artifacts = ArtifactRepository(store=store, paths=paths)
-    objects = artifacts.list_manifest_objects(model_id=model_id)
+    objects = artifacts.list_manifest_objects(dataset_id=dataset_id)
     cycle_objects = [
         (cycle, obj)
         for obj in objects
-        for cycle in [manifest_cycle_from_key(model_id=model_id, key=paths.relative_key(obj.uri))]
+        for cycle in [manifest_cycle_from_key(dataset_id=dataset_id, key=paths.relative_key(obj.uri))]
         if cycle is not None
     ]
     cycle_objects.sort(key=lambda item: item[0], reverse=True)

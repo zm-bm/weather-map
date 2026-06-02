@@ -90,7 +90,7 @@ function getRasterFrameGridKey(frame: ProbeWindow['lower']): string {
     grid.lat0,
     grid.dx,
     grid.dy,
-    grid.xWrap,
-    grid.yMode,
+    grid.x_wrap,
+    grid.y_mode,
   ].join(':')
 }

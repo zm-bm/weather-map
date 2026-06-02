@@ -10,10 +10,10 @@ class ArtifactPathContractTest(unittest.TestCase):
     def test_field_payload_uri_uses_shared_weather_payload_layout(self) -> None:
         paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
         item = WorkItem(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026041200",
             run_id=DEFAULT_RUN_ID,
-            fhour="003",
+            frame_id="003",
             artifact_id="wind10m_uv",
             source_uri="file:///dev/null",
         )
@@ -29,7 +29,7 @@ class ArtifactPathContractTest(unittest.TestCase):
     def test_validation_report_uri_is_run_scoped(self) -> None:
         paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
 
-        uri = paths.validation_report_uri(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID)
+        uri = paths.validation_report_uri(dataset_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID)
 
         self.assertEqual(
             uri,
@@ -41,16 +41,16 @@ class ArtifactPathContractTest(unittest.TestCase):
         paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
 
         self.assertEqual(
-            paths.public_run_manifest_key(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
+            paths.public_run_manifest_key(dataset_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
             f"manifests/gfs/cycles/2026041200/runs/{DEFAULT_RUN_ID}.json",
         )
         self.assertEqual(
-            paths.public_run_manifest_uri(model_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
+            paths.public_run_manifest_uri(dataset_id="gfs", cycle="2026041200", run_id=DEFAULT_RUN_ID),
             "file:///tmp/weather-map-artifacts/"
             f"manifests/gfs/cycles/2026041200/runs/{DEFAULT_RUN_ID}.json",
         )
         self.assertEqual(
-            paths.cycle_current_pointer_uri(model_id="gfs", cycle="2026041200"),
+            paths.cycle_current_pointer_uri(dataset_id="gfs", cycle="2026041200"),
             "file:///tmp/weather-map-artifacts/manifests/gfs/cycles/2026041200/current.json",
         )
 

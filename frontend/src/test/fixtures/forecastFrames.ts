@@ -37,19 +37,19 @@ function createRasterLayerFrameFixture<TSource>(args: {
   artifactId: string
   bandIds: readonly string[]
   bands: readonly Int8Array[]
-  hourToken?: string
+  frameId?: string
   cacheKey?: string
   grid?: GridSpec
   encoding?: ManifestEncodingSpec
   frame?: number
 }): RasterLayerFrame<TSource> {
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const frame = {
     source: args.source,
     raster: {
-      hourToken,
+      frameId,
       artifactId: args.artifactId,
-      cacheKey: args.cacheKey ?? `fixture:raster:${args.artifactId}:${hourToken}`,
+      cacheKey: args.cacheKey ?? `fixture:raster:${args.artifactId}:${frameId}`,
       grid: args.grid ?? createGridFixture({ nx: 2, ny: 2 }),
       encoding: args.encoding ?? createScalarEncodingFixture({ scale: 1 }),
       bandIds: args.bandIds,
@@ -62,7 +62,7 @@ function createRasterLayerFrameFixture<TSource>(args: {
 }
 
 export function createRasterFrameFixture(args: {
-  hourToken?: string
+  frameId?: string
   layerId?: string
   values?: number[] | Int8Array
   display?: ForecastDisplayProfile
@@ -72,7 +72,7 @@ export function createRasterFrameFixture(args: {
   const values = args.values instanceof Int8Array
     ? args.values
     : new Int8Array(args.values ?? [1, 2, 3, 4])
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const layerId = args.layerId ?? 'temperature'
   const source = createRasterLayerSourceFixture({
     layerId,
@@ -84,8 +84,8 @@ export function createRasterFrameFixture(args: {
   return createRasterLayerFrameFixture({
     source,
     artifactId: layerId,
-    hourToken,
-    cacheKey: `fixture:raster:${layerId}:${hourToken}`,
+    frameId,
+    cacheKey: `fixture:raster:${layerId}:${frameId}`,
     encoding: createScalarEncodingFixture({ scale: 1 }),
     bandIds: ['value'],
     bands: [values],
@@ -94,14 +94,14 @@ export function createRasterFrameFixture(args: {
 }
 
 export function createUvRasterFrameFixture(args: {
-  hourToken?: string
+  frameId?: string
   layerId?: string
   artifactId?: string
   u?: readonly number[] | Int8Array
   v?: readonly number[] | Int8Array
   encoding?: ManifestEncodingSpec
 } = {}): RasterFixtureFrame {
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const layerId = args.layerId ?? 'wind_speed'
   const artifactId = args.artifactId ?? 'wind10m_uv'
   const source = createRasterLayerSourceFixture({
@@ -117,8 +117,8 @@ export function createUvRasterFrameFixture(args: {
   return createRasterLayerFrameFixture({
     source,
     artifactId,
-    hourToken,
-    cacheKey: `fixture:uv:${artifactId}:${hourToken}`,
+    frameId,
+    cacheKey: `fixture:uv:${artifactId}:${frameId}`,
     encoding: args.encoding ?? createVectorEncodingFixture({ scale: 1, offset: 0, nodata: -128 }),
     bandIds: ['u', 'v'],
     bands: [
@@ -134,17 +134,17 @@ export function createRasterWindowFixture(args: {
   layerId?: string
   mix?: number
   selectedValidTimeMs?: number
-  lowerHourToken?: string
-  upperHourToken?: string
+  lowerFrameId?: string
+  upperFrameId?: string
   frame?: number
 } = {}): RasterWindow {
   const lower = args.lower ?? createRasterFrameFixture({
-    hourToken: args.lowerHourToken,
+    frameId: args.lowerFrameId,
     layerId: args.layerId,
     frame: args.frame,
   })
   const upper = args.upper ?? createRasterFrameFixture({
-    hourToken: args.upperHourToken,
+    frameId: args.upperFrameId,
     layerId: args.layerId,
     frame: args.frame,
   })
@@ -153,8 +153,8 @@ export function createRasterWindowFixture(args: {
     lower,
     upper,
     selectedValidTimeMs: args.selectedValidTimeMs ?? Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: lower.raster.hourToken,
-    upperHourToken: upper.raster.hourToken,
+    lowerFrameId: lower.raster.frameId,
+    upperFrameId: upper.raster.frameId,
     mix: args.mix ?? 0,
   }
 }
@@ -180,26 +180,26 @@ export function createParticlesWindowFixture(args: {
     lower: slice,
     upper: slice,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: '000',
-    upperHourToken: '000',
+    lowerFrameId: '000',
+    upperFrameId: '000',
     mix: args.mix ?? 0,
   }
 }
 
 export function createCloudLayersRasterFrameFixture(args: {
-  hourToken?: string
+  frameId?: string
   layerId?: string
   artifactId?: string
 } = {}): RasterFixtureFrame {
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const layerId = args.layerId ?? 'cloud_layers'
   const artifactId = args.artifactId ?? 'cloud_layers'
 
   return createRasterLayerFrameFixture({
     source: createCloudLayersRasterSourceFixture({ layerId, artifactId }),
     artifactId,
-    hourToken,
-    cacheKey: `fixture:cloud:${artifactId}:${hourToken}`,
+    frameId,
+    cacheKey: `fixture:cloud:${artifactId}:${frameId}`,
     grid: createGridFixture({ nx: 2, ny: 2 }),
     encoding: createVectorEncodingFixture({
       id: 'cloud_layers_vector_i8_4pct_v1',
@@ -217,16 +217,16 @@ export function createCloudLayersRasterFrameFixture(args: {
 }
 
 function createPrecipitationTypeOverlayFixture(args: {
-  hourToken?: string
+  frameId?: string
   artifactId?: string
 } = {}): OverlayFixtureFrame {
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const artifactId = args.artifactId ?? 'precip_type_surface'
   return createRasterLayerFrameFixture({
     source: createOverlaySourceFixture({ artifactId }),
     artifactId,
-    hourToken,
-    cacheKey: `fixture:precip:${artifactId}:${hourToken}`,
+    frameId,
+    cacheKey: `fixture:precip:${artifactId}:${frameId}`,
     grid: createGridFixture({ nx: 2, ny: 2 }),
     encoding: createVectorEncodingFixture({
       id: 'precip_type_surface_vector_i8_fraction_v1',
@@ -243,48 +243,48 @@ function createPrecipitationTypeOverlayFixture(args: {
 }
 
 export function createOverlayFrameFixture(args: {
-  hourToken?: string
+  frameId?: string
   overlays?: readonly OverlayFixtureFrame[]
 } = {}): ForecastFrameMap['overlay'] {
-  const hourToken = args.hourToken ?? '000'
-  return args.overlays ?? [createPrecipitationTypeOverlayFixture({ hourToken })]
+  const frameId = args.frameId ?? '000'
+  return args.overlays ?? [createPrecipitationTypeOverlayFixture({ frameId })]
 }
 
 export function createOverlayWindowFixture(args: {
   lower?: ForecastFrameMap['overlay']
   upper?: ForecastFrameMap['overlay']
   mix?: number
-  lowerHourToken?: string
-  upperHourToken?: string
+  lowerFrameId?: string
+  upperFrameId?: string
 } = {}): OverlayWindow {
-  const lower = args.lower ?? createOverlayFrameFixture({ hourToken: args.lowerHourToken })
-  const upper = args.upper ?? createOverlayFrameFixture({ hourToken: args.upperHourToken })
+  const lower = args.lower ?? createOverlayFrameFixture({ frameId: args.lowerFrameId })
+  const upper = args.upper ?? createOverlayFrameFixture({ frameId: args.upperFrameId })
 
   return {
     lower,
     upper,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: args.lowerHourToken ?? overlayFrameFixtureHourToken(lower),
-    upperHourToken: args.upperHourToken ?? overlayFrameFixtureHourToken(upper),
+    lowerFrameId: args.lowerFrameId ?? overlayFrameFixtureFrameId(lower),
+    upperFrameId: args.upperFrameId ?? overlayFrameFixtureFrameId(upper),
     mix: args.mix ?? 0,
   }
 }
 
-function overlayFrameFixtureHourToken(frame: ForecastFrameMap['overlay']): string {
-  return frame[0]?.raster.hourToken ?? '000'
+function overlayFrameFixtureFrameId(frame: ForecastFrameMap['overlay']): string {
+  return frame[0]?.raster.frameId ?? '000'
 }
 
 export function createPressureFrameFixture(args: {
-  hourToken?: string
+  frameId?: string
   artifactId?: string
 } = {}): ContourFixtureFrame {
-  const hourToken = args.hourToken ?? '000'
+  const frameId = args.frameId ?? '000'
   const artifactId = args.artifactId ?? 'prmsl_msl'
   const encoding = createScalarEncodingFixture({
     id: 'prmsl_msl_i8_50pa_v1',
     format: 'linear-i8-v1',
     dtype: 'int8',
-    byteOrder: 'none',
+    byte_order: 'none',
     scale: 50,
     offset: 100500,
     nodata: -128,
@@ -292,8 +292,8 @@ export function createPressureFrameFixture(args: {
   return createRasterLayerFrameFixture({
     source: createContourSourceFixture({ artifactId }),
     artifactId,
-    hourToken,
-    cacheKey: `fixture:contour:${artifactId}:${hourToken}`,
+    frameId,
+    cacheKey: `fixture:contour:${artifactId}:${frameId}`,
     grid: createGridFixture({ nx: 2, ny: 2 }),
     encoding,
     bandIds: ['value'],
@@ -313,8 +313,8 @@ export function createContourWindowFixture(args: {
     lower,
     upper,
     selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-    lowerHourToken: lower.raster.hourToken,
-    upperHourToken: upper.raster.hourToken,
+    lowerFrameId: lower.raster.frameId,
+    upperFrameId: upper.raster.frameId,
     mix: args.mix ?? 0,
   }
 }

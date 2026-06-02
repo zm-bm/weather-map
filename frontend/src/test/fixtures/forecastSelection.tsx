@@ -4,10 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 
 import {
-  activeForecastRunForModel,
-  type ForecastModelOption,
-  modelOptionsFromManifest,
-  type ForecastModelId,
+  activeForecastRunForDataset,
+  type ForecastDatasetOption,
+  datasetOptionsFromManifest,
+  type ForecastDatasetId,
   type Manifest,
 } from '@/forecast/manifest'
 import {
@@ -18,7 +18,7 @@ import {
   ForecastSelectionProvider,
   type ForecastSelectionContextValue,
 } from '@/forecast/selection'
-import { ACTIVE_MODEL_STORAGE_KEY } from '@/forecast/selection/activeModelPersistence'
+import { ACTIVE_DATASET_STORAGE_KEY } from '@/forecast/selection/activeDatasetPersistence'
 import { ForecastSettingsProvider } from '@/forecast/settings'
 import ForecastSelectionFixtureTimeProvider from './ForecastSelectionFixtureTimeProvider'
 import { createActiveRunFixture } from './manifest'
@@ -31,12 +31,12 @@ type ForecastSelectionContextOptions = Partial<{
 export function createForecastSelectionContextValue(
   manifest: Manifest | null,
   options: ForecastSelectionContextOptions = {},
-  activeModelId: ForecastModelId | null = 'gfs',
+  activeDatasetId: ForecastDatasetId | null = 'gfs',
 ): ForecastSelectionContextValue {
-  const activeRun = activeForecastRunForModel(manifest, activeModelId)
+  const activeRun = activeForecastRunForDataset(manifest, activeDatasetId)
   const shared = {
-    modelOptions: modelOptionsFromManifest(manifest),
-    setActiveModel: vi.fn(),
+    datasetOptions: datasetOptionsFromManifest(manifest),
+    setActiveDataset: vi.fn(),
     setSelectedLayer: vi.fn(),
     setSelectedParticleLayer: vi.fn(),
   }
@@ -48,14 +48,14 @@ export function createForecastSelectionContextValue(
     activeRun == null
       ? {
           activeRun: null,
-          activeModelId: null,
+          activeDatasetId: null,
           selectedLayerId: null,
           selectedParticleLayerId: null,
           ...shared,
         }
       : {
           activeRun,
-          activeModelId: activeRun.modelId,
+          activeDatasetId: activeRun.datasetId,
           selectedLayerId,
           selectedParticleLayerId: options.selectedParticleLayerId ?? getDefaultAvailableParticleLayerId(activeRun),
           ...shared,
@@ -66,26 +66,26 @@ export function createForecastSelectionContextValue(
 export function renderWithForecastSelection(
   ui: ReactNode,
   manifest: Manifest,
-  options: ForecastModelId | {
-    activeModelId?: ForecastModelId
-    modelOptions?: readonly ForecastModelOption[]
+  options: ForecastDatasetId | {
+    activeDatasetId?: ForecastDatasetId
+    datasetOptions?: readonly ForecastDatasetOption[]
   } = 'gfs'
 ) {
-  const activeModelId = typeof options === 'string'
+  const activeDatasetId = typeof options === 'string'
     ? options
-    : options.activeModelId ?? 'gfs'
-  const activeRun = createActiveRunFixture(manifest, activeModelId)
-  localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, activeModelId)
+    : options.activeDatasetId ?? 'gfs'
+  const activeRun = createActiveRunFixture(manifest, activeDatasetId)
+  localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, activeDatasetId)
   return render(
     <MemoryRouter initialEntries={['/?layer=temperature']}>
       <ForecastSettingsProvider>
         <ForecastSelectionProvider
           manifest={manifest}
-          modelOptions={typeof options === 'string' ? [{
-            id: activeModelId,
+          datasetOptions={typeof options === 'string' ? [{
+            id: activeDatasetId,
             label: activeRun.label,
-          }] : options.modelOptions ?? [{
-            id: activeModelId,
+          }] : options.datasetOptions ?? [{
+            id: activeDatasetId,
             label: activeRun.label,
           }]}
         >

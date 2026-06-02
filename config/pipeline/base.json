@@ -497,7 +497,7 @@
       ]
     }
   },
-  "models": {
+  "datasets": {
     "gfs": {
       "label": "GFS",
       "source": {
@@ -521,8 +521,8 @@
         "rate_limit_seconds": 2
       },
       "workload": {
-        "forecast_hour_start": 0,
-        "forecast_hour_end": 72,
+        "frame_start": 0,
+        "frame_end": 72,
         "artifacts": [
           "tmp_surface",
           "aptmp_surface",
@@ -848,8 +848,8 @@
         "rate_limit_seconds": 1
       },
       "workload": {
-        "forecast_hour_start": 1,
-        "forecast_hour_end": 72,
+        "frame_start": 1,
+        "frame_end": 72,
         "artifacts": [
           "tmp_surface",
           "gust_surface",

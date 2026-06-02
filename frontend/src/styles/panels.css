@@ -220,7 +220,7 @@
   min-width: 0;
 }
 
-.forecast-controls__source-field--model {
+.forecast-controls__source-field--dataset {
   flex: 1 1 auto;
 }
 

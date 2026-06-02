@@ -9,8 +9,8 @@ import {
 import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import {
   getActiveRunLayerAvailability,
-  isLayerAvailableForModel,
-  hasAnyAvailableModelForLayer,
+  isLayerAvailableForDataset,
+  hasAnyAvailableDatasetForLayer,
 } from '@/forecast/manifest'
 import {
   FORECAST_RASTER_LAYER_GROUPS,
@@ -21,17 +21,17 @@ import {
   markPointerShortcut,
 } from '@/core/keyboard'
 
-function formatModelRunLabel(runTime: string): string {
+function formatDatasetRunLabel(runTime: string): string {
   return runTime === '--' ? '--' : runTime
 }
 
 const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref) {
   const {
     activeRun,
-    activeModelId,
-    modelOptions,
+    activeDatasetId,
+    datasetOptions,
     selectedLayerId,
-    setActiveModel,
+    setActiveDataset,
     setSelectedLayer,
   } = useLoadedForecastSelectionContext()
   const {
@@ -42,11 +42,11 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   } = useForecastTimeContext()
   const manifest = activeRun.manifest
   const runTime = formatCycleRunTimeLabel(activeRun.latest.run.cycle) ?? '--'
-  const runLabel = formatModelRunLabel(runTime)
+  const runLabel = formatDatasetRunLabel(runTime)
   const selectedValidTimeMs = pendingTimeMs ?? targetTimeMs
   const validTimeLabel = formatValidTimeTickLabel(selectedValidTimeMs) ?? '--'
   const validTimeTitle = formatValidTimeLabel(selectedValidTimeMs) ?? validTimeLabel
-  const activeModelLabel = activeRun.label
+  const activeDatasetLabel = activeRun.label
   const groups = FORECAST_RASTER_LAYER_GROUPS
   const layers = FORECAST_RASTER_LAYERS_BY_ID
   const selectedLayer = selectedLayerId == null ? null : layers[selectedLayerId]
@@ -60,8 +60,8 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const unavailableMessage = selectedLayer == null
     ? null
     : selectedLayerAvailability?.state === 'unsupported'
-      ? `${selectedLayer.display.label} is not available from ${activeModelLabel}.`
-      : `${selectedLayer.display.label} is temporarily unavailable for this ${activeModelLabel} cycle.`
+      ? `${selectedLayer.display.label} is not available from ${activeDatasetLabel}.`
+      : `${selectedLayer.display.label} is temporarily unavailable for this ${activeDatasetLabel} cycle.`
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -84,7 +84,7 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                   <optgroup key={group.id} label={group.label}>
                     {group.rasterLayerIds.map((layerId) => {
                       const layer = layers[layerId]
-                      const hasSource = hasAnyAvailableModelForLayer(manifest, layerId)
+                      const hasSource = hasAnyAvailableDatasetForLayer(manifest, layerId)
                       const label = layer?.display.label ?? String(layerId)
 
                       return (
@@ -109,32 +109,32 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
 
             <div
               className="forecast-controls__source-row"
-              aria-label={`Forecast source ${activeModelLabel}, forecast cycle ${runTime}`}
+              aria-label={`Forecast source ${activeDatasetLabel}, forecast cycle ${runTime}`}
             >
-              <label className="forecast-controls__source-field forecast-controls__source-field--model">
+              <label className="forecast-controls__source-field forecast-controls__source-field--dataset">
                 <span className="forecast-controls__source-label">Source</span>
                 <select
-                  className="forecast-controls__quiet-select forecast-controls__model-select"
+                  className="forecast-controls__quiet-select forecast-controls__dataset-select"
                   aria-label="Forecast source"
-                  value={activeModelId}
+                  value={activeDatasetId}
                   onPointerDown={(event) => markPointerShortcut(event.currentTarget)}
                   onBlur={(event) => clearPointerShortcut(event.currentTarget)}
                   onChange={(event) => {
-                    setActiveModel(event.currentTarget.value)
+                    setActiveDataset(event.currentTarget.value)
                     event.currentTarget.blur()
                   }}
                 >
-                  {modelOptions.map((model) => {
+                  {datasetOptions.map((dataset) => {
                     const isUnavailableForSelectedLayer = selectedLayerId != null &&
-                      !isLayerAvailableForModel(manifest, selectedLayerId, model.id)
+                      !isLayerAvailableForDataset(manifest, selectedLayerId, dataset.id)
 
                     return (
                       <option
-                        key={model.id}
-                        value={model.id}
+                        key={dataset.id}
+                        value={dataset.id}
                         disabled={isUnavailableForSelectedLayer}
                       >
-                        {isUnavailableForSelectedLayer ? `${model.label} (unavailable)` : model.label}
+                        {isUnavailableForSelectedLayer ? `${dataset.label} (unavailable)` : dataset.label}
                       </option>
                     )
                   })}

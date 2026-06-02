@@ -24,13 +24,13 @@ class ArtifactManifestInputs:
 def artifact_manifest_inputs_from_markers(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhours: tuple[str, ...],
+    frames: tuple[str, ...],
     artifact_id: str,
     artifact: ArtifactSpec,
-    markers_by_fhour: Mapping[str, ArtifactSuccessMarker] | None = None,
+    markers_by_frame: Mapping[str, ArtifactSuccessMarker] | None = None,
 ) -> ArtifactManifestInputs:
     """Read artifact markers and validate them against publish context/config."""
 
@@ -39,19 +39,19 @@ def artifact_manifest_inputs_from_markers(
 
     first_grid_id: str | None = None
     first_grid: dict[str, Any] | None = None
-    frames: dict[str, dict[str, Any]] = {}
+    frame_entries: dict[str, dict[str, Any]] = {}
 
-    for fhour in fhours:
+    for frame_id in frames:
         marker_uri = artifact_repo.paths.success_marker_uri_parts(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
-            fhour=fhour,
+            frame_id=frame_id,
             artifact_id=artifact_id,
         )
         marker = (
-            markers_by_fhour[fhour]
-            if markers_by_fhour is not None
+            markers_by_frame[frame_id]
+            if markers_by_frame is not None
             else artifact_repo.read_artifact_success_marker_uri(marker_uri)
         )
         artifact_marker = marker.artifact
@@ -61,12 +61,12 @@ def artifact_manifest_inputs_from_markers(
             marker_uri=marker_uri,
             actual={
                 "cycle": marker.cycle,
-                "fhour": marker.fhour,
+                "frame_id": marker.frame_id,
                 "artifact_id": marker.artifact_id,
             },
             expected={
                 "cycle": cycle,
-                "fhour": fhour,
+                "frame_id": frame_id,
                 "artifact_id": artifact_id,
             },
         )
@@ -83,16 +83,16 @@ def artifact_manifest_inputs_from_markers(
             first_grid = artifact_marker.grid
         elif first_grid_id != artifact_marker.grid_id:
             raise SystemExit(
-                f"Grid id mismatch across forecast hours for artifact={artifact_id!r}: "
+                f"Grid id mismatch across frames for artifact={artifact_id!r}: "
                 f"first={first_grid_id!r} current={artifact_marker.grid_id!r} marker={marker_uri}"
             )
         elif first_grid != artifact_marker.grid:
             raise SystemExit(
-                f"Grid metadata mismatch across forecast hours for artifact={artifact_id!r}: "
+                f"Grid metadata mismatch across frames for artifact={artifact_id!r}: "
                 f"grid_id={artifact_marker.grid_id!r} marker={marker_uri}"
             )
 
-        frames[fhour] = manifest_frame(
+        frame_entries[frame_id] = manifest_frame(
             path=_relative_artifact_path(artifact_repo=artifact_repo, uri=artifact_marker.payload_uri),
             byte_length=artifact_marker.byte_length,
             sha256=artifact_marker.sha256,
@@ -104,7 +104,7 @@ def artifact_manifest_inputs_from_markers(
     return ArtifactManifestInputs(
         encoding=manifest_encoding(encoding_id=encoding_id, encoding=raw_encoding_entry),
         grid=manifest_grid(grid_id=first_grid_id, grid=first_grid),
-        frames=frames,
+        frames=frame_entries,
     )
 
 

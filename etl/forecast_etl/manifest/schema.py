@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ..validation import (
     FiniteNumber,
     FrozenAliasModel,
+    FrozenModel,
     HexSha256,
     NonEmptyStr,
     NonNegativeInt,
@@ -18,15 +19,15 @@ from ..validation import (
 )
 
 
-class ManifestFrame(FrozenAliasModel):
-    """One forecast-hour frame pointing at a field payload."""
+class ManifestFrame(FrozenModel):
+    """One frame pointing at a field payload."""
 
     path: NonEmptyStr
-    byte_length: PositiveInt = Field(alias="byteLength")
+    byte_length: PositiveInt
     sha256: HexSha256
 
 
-class ManifestGrid(FrozenAliasModel):
+class ManifestGrid(FrozenModel):
     """Grid metadata exposed to frontend field decoders."""
 
     id: NonEmptyStr
@@ -39,8 +40,8 @@ class ManifestGrid(FrozenAliasModel):
     dy: FiniteNumber
     origin: NonEmptyStr
     layout: NonEmptyStr
-    x_wrap: NonEmptyStr = Field(alias="xWrap")
-    y_mode: NonEmptyStr = Field(alias="yMode")
+    x_wrap: NonEmptyStr
+    y_mode: NonEmptyStr
 
 
 class ManifestEncoding(BaseModel):
@@ -58,8 +59,8 @@ class ManifestEncoding(BaseModel):
     dtype: NonEmptyStr
 
 
-class ManifestArtifact(FrozenAliasModel):
-    """Frontend artifact entry with frames keyed by forecast hour."""
+class ManifestArtifact(FrozenModel):
+    """Frontend artifact entry with frames keyed by frame id."""
 
     id: NonEmptyStr
     kind: Literal["scalar", "vector"]
@@ -70,32 +71,32 @@ class ManifestArtifact(FrozenAliasModel):
     grid: ManifestGrid
     encoding: ManifestEncoding
     frames: dict[NonEmptyStr, ManifestFrame] = Field(min_length=1)
-    payload_file: NonEmptyStr | None = Field(default=None, alias="payloadFile")
-    temporal_kind: NonEmptyStr | None = Field(default=None, alias="temporalKind")
-    source_interval_hours: FiniteNumber | None = Field(default=None, alias="sourceIntervalHours")
+    payload_file: NonEmptyStr | None = None
+    temporal_kind: NonEmptyStr | None = None
+    source_interval_hours: FiniteNumber | None = None
 
     @model_validator(mode="after")
     def _valid_temporal_interval(self) -> "ManifestArtifact":
         if self.source_interval_hours is not None and self.source_interval_hours <= 0:
-            raise ValueError("sourceIntervalHours must be positive when provided")
+            raise ValueError("source_interval_hours must be positive when provided")
         return self
 
 
-class ManifestTime(FrozenAliasModel):
+class ManifestFrameEntry(FrozenModel):
     id: NonEmptyStr
-    lead_hours: NonNegativeInt = Field(alias="leadHours")
-    valid_at: NonEmptyStr = Field(alias="validAt")
+    lead_hours: NonNegativeInt
+    valid_at: NonEmptyStr
 
 
-class ManifestRun(FrozenAliasModel):
+class ManifestRun(FrozenModel):
     cycle: NonEmptyStr
-    run_id: NonEmptyStr = Field(alias="runId")
-    payload_root: NonEmptyStr = Field(alias="payloadRoot")
-    generated_at: NonEmptyStr = Field(alias="generatedAt")
+    run_id: NonEmptyStr
+    payload_root: NonEmptyStr
+    generated_at: NonEmptyStr
     revision: NonEmptyStr
 
 
-class ManifestModelIdentity(FrozenAliasModel):
+class ManifestDatasetIdentity(FrozenModel):
     id: NonEmptyStr
     label: NonEmptyStr
 
@@ -103,12 +104,12 @@ class ManifestModelIdentity(FrozenAliasModel):
 class CycleManifest(FrozenAliasModel):
     """Top-level internal cycle manifest."""
 
-    schema_name: Literal["weather-map.cycle-manifest"] = Field(alias="schema")
-    schema_version: Literal[6] = Field(alias="schemaVersion")
-    payload_contract: Literal["forecast-binary-v2"] = Field(alias="payloadContract")
-    model: ManifestModelIdentity
+    schema_name: Literal["weather-map.dataset-cycle-manifest"] = Field(alias="schema")
+    schema_version: Literal[6]
+    payload_contract: Literal["field-binary-v2"]
+    dataset: ManifestDatasetIdentity
     run: ManifestRun
-    times: tuple[ManifestTime, ...] = Field(min_length=1)
+    frames: tuple[ManifestFrameEntry, ...] = Field(min_length=1)
     artifacts: dict[NonEmptyStr, dict[str, Any]] = Field(min_length=1)
 
 
@@ -122,7 +123,6 @@ def manifest_frame(*, path: str, byte_length: int, sha256: str) -> dict[str, Any
             "byte_length": byte_length,
             "sha256": sha256,
         },
-        by_alias=True,
     )
 
 
@@ -145,7 +145,6 @@ def manifest_grid(*, grid_id: str, grid: Mapping[str, Any]) -> dict[str, Any]:
             "x_wrap": grid["x_wrap"],
             "y_mode": grid["y_mode"],
         },
-        by_alias=True,
     )
 
 
@@ -154,28 +153,20 @@ def manifest_encoding(*, encoding_id: str, encoding: Mapping[str, Any]) -> dict[
 
     raw: dict[str, Any] = {"id": encoding_id}
     for key, value in encoding.items():
-        if key == "byte_order":
-            raw["byteOrder"] = value
-        elif key == "decode_formula":
-            raw["decodeFormula"] = value
-        elif key == "finite_value_range":
-            raw["finiteValueRange"] = value
-        else:
-            raw[key] = value
-    return validated_dict(ManifestEncoding, raw, by_alias=True)
+        raw[key] = value
+    return validated_dict(ManifestEncoding, raw)
 
 
-def manifest_time(*, fhour: str, lead_hours: int, valid_at: str) -> dict[str, Any]:
-    """Build a validated forecast-time manifest entry."""
+def manifest_time(*, frame_id: str, lead_hours: int, valid_at: str) -> dict[str, Any]:
+    """Build a validated frame manifest entry."""
 
     return validated_dict(
-        ManifestTime,
+        ManifestFrameEntry,
         {
-            "id": fhour,
+            "id": frame_id,
             "lead_hours": lead_hours,
             "valid_at": valid_at,
         },
-        by_alias=True,
     )
 
 

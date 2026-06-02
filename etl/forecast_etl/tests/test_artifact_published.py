@@ -10,7 +10,7 @@ class PublishedMarkerTest(unittest.TestCase):
     def test_published_marker_dict_preserves_wire_shape(self) -> None:
         marker = published_marker_dict(
             cycle="2026051106",
-            model="icon",
+            dataset_id="icon",
             generated_at="2026-05-11T14:05:00+00:00",
             revision="abc123",
             manifest_uri=f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
@@ -20,9 +20,9 @@ class PublishedMarkerTest(unittest.TestCase):
             marker,
             {
                 "cycle": "2026051106",
+                "dataset_id": "icon",
                 "generated_at": "2026-05-11T14:05:00+00:00",
                 "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
-                "model": "icon",
                 "revision": "abc123",
             },
         )
@@ -31,7 +31,7 @@ class PublishedMarkerTest(unittest.TestCase):
         marker = parse_published_marker(
             {
                 "cycle": "2026051106",
-                "model": "icon",
+                "dataset_id": "icon",
                 "generated_at": "2026-05-11T14:05:00+00:00",
                 "revision": "abc123",
                 "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
@@ -40,7 +40,7 @@ class PublishedMarkerTest(unittest.TestCase):
         )
 
         self.assertEqual(marker.cycle, "2026051106")
-        self.assertEqual(marker.model, "icon")
+        self.assertEqual(marker.dataset_id, "icon")
         self.assertEqual(marker.revision, "abc123")
 
     def test_parse_published_marker_rejects_missing_revision(self) -> None:
@@ -48,7 +48,7 @@ class PublishedMarkerTest(unittest.TestCase):
             parse_published_marker(
                 {
                     "cycle": "2026051106",
-                    "model": "icon",
+                    "dataset_id": "icon",
                     "generated_at": "2026-05-11T14:05:00+00:00",
                     "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
                 },
@@ -60,7 +60,7 @@ class PublishedMarkerTest(unittest.TestCase):
             parse_published_marker(
                 {
                     "cycle": "20260511",
-                    "model": "icon",
+                    "dataset_id": "icon",
                     "generated_at": "2026-05-11T14:05:00+00:00",
                     "revision": "abc123",
                     "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",

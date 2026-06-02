@@ -20,7 +20,7 @@ def extract_artifact_bands(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None = None,
+    frame_id: str | None = None,
 ) -> list[ExtractedBand]:
     """Extract all output bands for one artifact."""
 
@@ -31,7 +31,7 @@ def extract_artifact_bands(
             source=source,
             workdir=workdir,
             run=run,
-            fhour=fhour,
+            frame_id=frame_id,
         )
 
     return [

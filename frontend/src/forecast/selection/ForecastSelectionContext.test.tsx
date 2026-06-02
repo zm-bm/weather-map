@@ -3,15 +3,15 @@ import type { ComponentProps } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { ForecastModelId, Manifest } from '@/forecast/manifest'
-import { modelOptionsFromManifest } from '@/forecast/manifest'
+import type { ForecastDatasetId, Manifest } from '@/forecast/manifest'
+import { datasetOptionsFromManifest } from '@/forecast/manifest'
 import {
   createCatalogManifestFixture,
   createManifestFixture,
 } from '@/test/fixtures'
 import { useForecastSelectionContext } from './ForecastSelectionContext'
 import ForecastSelectionProvider from './ForecastSelectionProvider'
-import { ACTIVE_MODEL_STORAGE_KEY } from './activeModelPersistence'
+import { ACTIVE_DATASET_STORAGE_KEY } from './activeDatasetPersistence'
 import { SELECTED_LAYER_STORAGE_KEY } from './selectedLayerPersistence'
 
 function ForecastSelectionProbe() {
@@ -22,7 +22,7 @@ function ForecastSelectionProbe() {
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
       <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
-      <div data-testid="active-model">{context.activeModelId}</div>
+      <div data-testid="active-dataset">{context.activeDatasetId}</div>
       <div data-testid="location-search">{location.search}</div>
       <button type="button" onClick={() => context.setSelectedLayer('relative_humidity')}>
         set-layer-rh
@@ -36,11 +36,11 @@ function ForecastSelectionProbe() {
       <button type="button" onClick={() => context.setSelectedLayer('visibility')}>
         set-layer-visibility
       </button>
-      <button type="button" onClick={() => context.setActiveModel('gfs')}>
-        set-model-gfs
+      <button type="button" onClick={() => context.setActiveDataset('gfs')}>
+        set-dataset-gfs
       </button>
-      <button type="button" onClick={() => context.setActiveModel('icon')}>
-        set-model-icon
+      <button type="button" onClick={() => context.setActiveDataset('icon')}>
+        set-dataset-icon
       </button>
       <button type="button" onClick={() => context.setSelectedParticleLayer('wind')}>
         set-particle-wind
@@ -52,20 +52,20 @@ function ForecastSelectionProbe() {
 type SelectionProviderProps =
   Omit<ComponentProps<typeof ForecastSelectionProvider>, 'children' | 'manifest'> & {
     manifest: Manifest | null
-    activeModelId?: ForecastModelId | null
+    activeDatasetId?: ForecastDatasetId | null
     route?: string
   }
 
 function selectionProvider(props: SelectionProviderProps) {
   const {
     manifest,
-    activeModelId,
-    modelOptions,
+    activeDatasetId,
+    datasetOptions,
     route = '/',
     ...providerProps
   } = props
-  if (activeModelId != null) {
-    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, activeModelId)
+  if (activeDatasetId != null) {
+    localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, activeDatasetId)
   }
 
   return (
@@ -73,7 +73,7 @@ function selectionProvider(props: SelectionProviderProps) {
       <ForecastSelectionProvider
         {...providerProps}
         manifest={manifest}
-        modelOptions={modelOptions ?? modelOptionsFromManifest(manifest)}
+        datasetOptions={datasetOptions ?? datasetOptionsFromManifest(manifest)}
       >
         <ForecastSelectionProbe />
       </ForecastSelectionProvider>
@@ -145,9 +145,9 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
-  it('preserves the selected layer when switching models without the same layer in the manifest', () => {
+  it('preserves the selected layer when switching datasets without the same layer in the manifest', () => {
     const gfsManifest = createManifestFixture({
-      model: { id: 'gfs', label: 'GFS' },
+      dataset: { id: 'gfs', label: 'GFS' },
       cycle: '2026040900',
       scalarArtifactIds: ['tmp_surface', 'prate_surface'],
     })
@@ -158,7 +158,7 @@ describe('ForecastSelectionContext', () => {
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('precipitation_rate')
 
     const iconManifest = createManifestFixture({
-      model: { id: 'icon', label: 'ICON' },
+      dataset: { id: 'icon', label: 'ICON' },
       cycle: '2026040900',
       scalarArtifactIds: ['tmp_surface', 'precip_total_surface'],
     })
@@ -170,34 +170,34 @@ describe('ForecastSelectionContext', () => {
 
   it.each([
     {
-      activeModelId: 'icon',
-      activeModelLabel: 'ICON',
+      activeDatasetId: 'icon',
+      activeDatasetLabel: 'ICON',
       buttonName: 'set-layer-visibility',
       expectedLayerId: 'visibility',
-      expectedModelId: 'gfs',
+      expectedDatasetId: 'gfs',
     },
   ] as const)('auto-switches to a compatible model for unavailable selected layers', async ({
-    activeModelId,
-    activeModelLabel,
+    activeDatasetId,
+    activeDatasetLabel,
     buttonName,
     expectedLayerId,
-    expectedModelId,
+    expectedDatasetId,
   }) => {
-    void activeModelLabel
+    void activeDatasetLabel
     const manifest = createCatalogManifestFixture()
 
     renderSelection({
       manifest,
-      activeModelId,
+      activeDatasetId,
     })
 
     fireEvent.click(screen.getByRole('button', { name: buttonName }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent(expectedLayerId)
     await waitFor(() => {
-      expect(screen.getByTestId('active-model')).toHaveTextContent(expectedModelId)
+      expect(screen.getByTestId('active-dataset')).toHaveTextContent(expectedDatasetId)
     })
-    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe(expectedModelId)
+    expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe(expectedDatasetId)
   })
 
   it('does not let an incompatible model choice replace the selected layer', () => {
@@ -205,22 +205,22 @@ describe('ForecastSelectionContext', () => {
 
     renderSelection({
       manifest,
-      activeModelId: 'gfs',
+      activeDatasetId: 'gfs',
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-model-icon' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-dataset-icon' }))
 
-    expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
-    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
+    expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
+    expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('gfs')
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
   })
 
-  it('preserves selected layer intent while repairing an incompatible stored active model', async () => {
+  it('preserves selected layer intent while repairing an incompatible stored active dataset', async () => {
     const manifest = createCatalogManifestFixture()
-    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'icon')
+    localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, 'icon')
 
     renderSelection({
       manifest,
@@ -229,9 +229,9 @@ describe('ForecastSelectionContext', () => {
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
     await waitFor(() => {
-      expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
+      expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
     })
-    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
+    expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('gfs')
   })
 
   it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
@@ -322,39 +322,39 @@ describe('ForecastSelectionContext', () => {
     expect(searchParam('mode')).toBe('debug')
   })
 
-  it('uses a valid stored active model when the manifest supports it', async () => {
+  it('uses a valid stored active dataset when the manifest supports it', async () => {
     const manifest = createCatalogManifestFixture()
-    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'icon')
+    localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, 'icon')
 
     renderSelection({ manifest })
 
-    expect(screen.getByTestId('active-model')).toHaveTextContent('icon')
+    expect(screen.getByTestId('active-dataset')).toHaveTextContent('icon')
     await waitFor(() => {
-      expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('icon')
+      expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('icon')
     })
   })
 
-  it('falls back to the first latest model when stored active model is invalid', async () => {
+  it('falls back to the first latest dataset when stored active dataset is invalid', async () => {
     const manifest = createCatalogManifestFixture()
-    localStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, 'missing')
+    localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, 'missing')
 
     renderSelection({ manifest })
 
-    expect(screen.getByTestId('active-model')).toHaveTextContent('gfs')
+    expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
     await waitFor(() => {
-      expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('gfs')
+      expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('gfs')
     })
   })
 
-  it('saves active model changes to localStorage', () => {
+  it('saves active dataset changes to localStorage', () => {
     const manifest = createCatalogManifestFixture()
 
     renderSelection({ manifest })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-model-icon' }))
+    fireEvent.click(screen.getByRole('button', { name: 'set-dataset-icon' }))
 
-    expect(screen.getByTestId('active-model')).toHaveTextContent('icon')
-    expect(localStorage.getItem(ACTIVE_MODEL_STORAGE_KEY)).toBe('icon')
+    expect(screen.getByTestId('active-dataset')).toHaveTextContent('icon')
+    expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('icon')
   })
 })
 

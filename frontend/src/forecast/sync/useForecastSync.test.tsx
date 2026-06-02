@@ -94,13 +94,13 @@ type ForecastSyncHarnessOptions = Partial<ForecastSyncArgs> & {
 function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): ForecastSyncPlan {
   const activeRun = createActiveRunFixture(createManifestFixture({
     cycle: '2026040900',
-    forecastHours: ['000', '003', '006'],
+    frameIds: ['000', '003', '006'],
   }))
   const rasterWindowKey = 'test:raster:temperature'
 
   return {
     activeRun,
-    forecastHourTokens: ['000', '003', '006'],
+    frameIds: ['000', '003', '006'],
     windowPlans: [{
       id: 'raster',
       key: rasterWindowKey,
@@ -124,8 +124,8 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
     },
     windowPlanSetKey: rasterWindowKey,
     selectedValidTimeMs: Date.UTC(2026, 3, 9, 3),
-    lowerHourToken: '003',
-    upperHourToken: '006',
+    lowerFrameId: '003',
+    upperFrameId: '006',
     mix: 0,
     minuteOffset: 0,
     ...overrides,
@@ -136,7 +136,7 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
   const defaultRenderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
   const manifest = createManifestFixture({
     cycle: '2026040900',
-    forecastHours: ['000', '003', '006'],
+    frameIds: ['000', '003', '006'],
   })
   const renderHost = options.renderHost === undefined ? defaultRenderHost : options.renderHost
   const config = options.config ?? createConfigFixture()
@@ -312,8 +312,8 @@ describe('useForecastSync', () => {
     const firstTarget = createHookPlanFixture()
     const secondTarget = createHookPlanFixture({
       selectedValidTimeMs: Date.UTC(2026, 3, 9, 6),
-      lowerHourToken: '006',
-      upperHourToken: '006',
+      lowerFrameId: '006',
+      upperFrameId: '006',
     })
     const firstTargetTimeMs = Date.UTC(2026, 3, 9, 3, 30)
     const secondTargetTimeMs = Date.UTC(2026, 3, 9, 6)

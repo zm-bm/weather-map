@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from forecast_etl.artifacts.health import read_model_artifact_health
+from forecast_etl.artifacts.health import read_dataset_artifact_health
 from forecast_etl.artifacts.snapshot import PublishLagPolicy
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.cycles import cycle_datetime
@@ -21,16 +21,16 @@ class ArtifactHealthTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             model = _model()
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=CURRENT_CYCLE,
                 generated_at=cycle_datetime(CURRENT_CYCLE) + timedelta(hours=1),
             )
             store = CountingStore(artifacts.store)
 
-            health = read_model_artifact_health(
+            health = read_dataset_artifact_health(
                 store=store,
                 paths=artifacts.paths,
-                model=model,
+                dataset=model,
                 now=NOW,
                 history_cycle_count=4,
                 status_cycle_count=4,
@@ -49,7 +49,7 @@ class ArtifactHealthTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             model = _model()
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=STALE_CYCLE,
                 generated_at=cycle_datetime(STALE_CYCLE) + timedelta(hours=1),
             )
@@ -65,7 +65,7 @@ class ArtifactHealthTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             model = _model()
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=STALE_CYCLE,
                 generated_at=cycle_datetime(STALE_CYCLE) + timedelta(hours=1),
             )
@@ -79,15 +79,15 @@ class ArtifactHealthTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             model = _model()
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=STALE_CYCLE,
                 generated_at=cycle_datetime(STALE_CYCLE) + timedelta(hours=1),
             )
             artifacts.write_invalid_success_marker(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=CURRENT_CYCLE,
                 artifact_id="tmp_surface",
-                fhour="000",
+                frame_id="000",
                 modified=NOW,
             )
 
@@ -101,7 +101,7 @@ class ArtifactHealthTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             model = _model()
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=STALE_CYCLE,
                 generated_at=cycle_datetime(STALE_CYCLE) + timedelta(hours=1),
             )
@@ -123,15 +123,15 @@ class ArtifactHealthTest(unittest.TestCase):
 
 def _model():
     cfg = minimal_pipeline_config()
-    cfg["models"]["gfs"]["workload"]["forecast_hour_end"] = 3
-    return parse_pipeline_config(cfg).model("gfs")
+    cfg["datasets"]["gfs"]["workload"]["frame_end"] = 3
+    return parse_pipeline_config(cfg).dataset("gfs")
 
 
 def _read_health(artifacts, *, model):
-    return read_model_artifact_health(
+    return read_dataset_artifact_health(
         store=artifacts.store,
         paths=artifacts.paths,
-        model=model,
+        dataset=model,
         now=NOW,
         history_cycle_count=4,
         status_cycle_count=4,
@@ -142,16 +142,16 @@ def _read_health(artifacts, *, model):
 
 def _write_success_markers(artifacts, *, model, cycle: str, count: int, modified: datetime) -> None:
     marker_ids = [
-        (artifact_id, fhour)
+        (artifact_id, frame_id)
         for artifact_id in model.workload.artifacts
-        for fhour in model.workload.forecast_hours
+        for frame_id in model.workload.frames
     ]
-    for artifact_id, fhour in marker_ids[:count]:
+    for artifact_id, frame_id in marker_ids[:count]:
         artifacts.write_success_marker(
-            model_id=model.id,
+            dataset_id=model.id,
             cycle=cycle,
             artifact_id=artifact_id,
-            fhour=fhour,
+            frame_id=frame_id,
             modified=modified,
         )
 

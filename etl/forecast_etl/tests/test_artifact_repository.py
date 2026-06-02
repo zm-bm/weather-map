@@ -67,10 +67,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            fhour="003",
+            frame_id="003",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
@@ -86,14 +86,14 @@ class ArtifactRepositoryTests(unittest.TestCase):
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
 
         public_manifest_uri = repo.write_public_run_manifest(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+            manifest={"run": {"cycle": "2026042700", "run_id": DEFAULT_RUN_ID}},
         )
         pointer = manifest_pointer_dict(
             schema_name=LATEST_POINTER_SCHEMA,
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             revision="abc123",
@@ -101,24 +101,24 @@ class ArtifactRepositoryTests(unittest.TestCase):
             manifest_path=repo.paths.relative_key(public_manifest_uri),
         )
         current_pointer_uri = repo.write_cycle_current_pointer(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             pointer={**pointer, "schema": CURRENT_POINTER_SCHEMA},
         )
-        latest_pointer_uri = repo.write_latest_pointer(model_id="gfs", pointer=pointer)
+        latest_pointer_uri = repo.write_latest_pointer(dataset_id="gfs", pointer=pointer)
         validation_uri = repo.write_validation_report(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             report={"status": "passed"},
         )
         published_uri = repo.write_published_marker(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             marker={
                 "cycle": "2026042700",
-                "model": "gfs",
+                "dataset_id": "gfs",
                 "generated_at": "2026-04-27T01:00:00+00:00",
                 "revision": "abc123",
                 "manifest_uri": public_manifest_uri,
@@ -136,34 +136,34 @@ class ArtifactRepositoryTests(unittest.TestCase):
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
 
         repo.write_public_run_manifest(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+            manifest={"run": {"cycle": "2026042700", "run_id": DEFAULT_RUN_ID}},
         )
         repo.write_public_run_manifest(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID}},
+            manifest={"run": {"cycle": "2026042700", "run_id": DEFAULT_RUN_ID}},
         )
 
         with self.assertRaisesRegex(SystemExit, "Existing immutable run object conflicts"):
             repo.write_public_run_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026042700",
                 run_id=DEFAULT_RUN_ID,
-                manifest={"run": {"cycle": "2026042700", "runId": DEFAULT_RUN_ID, "revision": "other"}},
+                manifest={"run": {"cycle": "2026042700", "run_id": DEFAULT_RUN_ID, "revision": "other"}},
             )
 
     def test_write_success_marker_builds_and_validates_marker_envelope(self) -> None:
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            fhour="000",
+            frame_id="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
             code_revision=DEFAULT_CODE_REVISION,
@@ -183,9 +183,9 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         stored = json.loads(store.objects[uri].decode("utf-8"))
         self.assertEqual(stored["cycle"], "2026042700")
-        self.assertEqual(stored["model_id"], "gfs")
+        self.assertEqual(stored["dataset_id"], "gfs")
         self.assertEqual(stored["run_id"], DEFAULT_RUN_ID)
-        self.assertEqual(stored["fhour"], "000")
+        self.assertEqual(stored["frame_id"], "000")
         self.assertEqual(stored["artifact_id"], "tmp_surface")
         self.assertEqual(stored["code_revision"], DEFAULT_CODE_REVISION)
         self.assertEqual(stored["image_identity"], DEFAULT_IMAGE_IDENTITY)
@@ -200,10 +200,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            fhour="000",
+            frame_id="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
@@ -222,18 +222,18 @@ class ArtifactRepositoryTests(unittest.TestCase):
                 image_identity=DEFAULT_IMAGE_IDENTITY,
                 config_digest=DEFAULT_CONFIG_DIGEST,
             ),
-            pipeline_config={"models": {"gfs": {}}},
+            pipeline_config={"datasets": {"gfs": {}}},
             forecast_catalog={"catalogVersion": "test"},
         )
 
         run_uri = repo.ensure_run_snapshot(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             snapshot=snapshot,
         )
         repo.ensure_run_snapshot(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             snapshot=snapshot,
@@ -241,10 +241,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         self.assertEqual(run_uri, f"s3://bucket/artifacts/runs/gfs/2026042700/{DEFAULT_RUN_ID}/run.json")
         run_doc = json.loads(store.objects[run_uri].decode("utf-8"))
-        self.assertEqual(run_doc["runId"], DEFAULT_RUN_ID)
-        self.assertEqual(run_doc["configDigest"], DEFAULT_CONFIG_DIGEST)
+        self.assertEqual(run_doc["run_id"], DEFAULT_RUN_ID)
+        self.assertEqual(run_doc["config_digest"], DEFAULT_CONFIG_DIGEST)
         self.assertEqual(
-            run_doc["pipelineConfigPath"],
+            run_doc["pipeline_config_path"],
             f"runs/gfs/2026042700/{DEFAULT_RUN_ID}/config/pipeline_config.json",
         )
         self.assertIn(
@@ -261,11 +261,11 @@ class ArtifactRepositoryTests(unittest.TestCase):
                 image_identity=DEFAULT_IMAGE_IDENTITY,
                 config_digest=DEFAULT_CONFIG_DIGEST,
             ),
-            pipeline_config={"models": {"gfs": {}}},
+            pipeline_config={"datasets": {"gfs": {}}},
             forecast_catalog={"catalogVersion": "test"},
         )
         repo.ensure_run_snapshot(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
             snapshot=snapshot,
@@ -282,7 +282,7 @@ class ArtifactRepositoryTests(unittest.TestCase):
 
         with self.assertRaises(SystemExit):
             repo.ensure_run_snapshot(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026042700",
                 run_id=DEFAULT_RUN_ID,
                 snapshot=conflicting,
@@ -292,10 +292,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
         store = RecordingStore()
         repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
         item = WorkItem(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            fhour="000",
+            frame_id="000",
             artifact_id="tmp_surface",
             source_uri="file:///dev/null",
         )
@@ -310,10 +310,10 @@ class ArtifactRepositoryTests(unittest.TestCase):
         )
 
         missing = repo.missing_success_markers(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026042700",
             run_id=DEFAULT_RUN_ID,
-            fhours=("000", "003"),
+            frames=("000", "003"),
             artifact_ids=("tmp_surface",),
         )
 

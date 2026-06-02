@@ -1,4 +1,4 @@
-"""Scheduled publisher for completed forecast ETL cycles."""
+"""Scheduled publisher for completed dataset ETL cycles."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from ..workflows.publisher import publish_candidate
 DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
-DEFAULT_PUBLISH_MODELS = ("gfs", "icon")
+DEFAULT_PUBLISH_DATASETS = ("gfs", "icon")
 DEFAULT_PUBLISH_CYCLE_COUNT = 8
 
 
@@ -57,10 +57,10 @@ def _string_tuple(value: Any, *, field_name: str) -> tuple[str, ...]:
     return resolved
 
 
-def _publish_models(event: dict[str, Any]) -> tuple[str, ...]:
-    if "models" in event:
-        return _string_tuple(event.get("models"), field_name="models")
-    return _string_tuple(os.environ.get("PUBLISH_MODELS", ",".join(DEFAULT_PUBLISH_MODELS)), field_name="PUBLISH_MODELS")
+def _publish_datasets(event: dict[str, Any]) -> tuple[str, ...]:
+    if "datasets" in event:
+        return _string_tuple(event.get("datasets"), field_name="datasets")
+    return _string_tuple(os.environ.get("PUBLISH_DATASETS", ",".join(DEFAULT_PUBLISH_DATASETS)), field_name="PUBLISH_DATASETS")
 
 
 def _publish_cycles(event: dict[str, Any], *, now: datetime) -> tuple[str, ...]:
@@ -74,7 +74,7 @@ def _publish_cycles(event: dict[str, Any], *, now: datetime) -> tuple[str, ...]:
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Publish ready cycle manifests for recent or explicitly supplied cycles."""
+    """Publish ready dataset cycle manifests for recent or explicitly supplied cycles."""
 
     del context
     event = event if isinstance(event, dict) else {}
@@ -88,7 +88,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         store=store,
     )
     cycles = _publish_cycles(event, now=_event_now(event))
-    models = _publish_models(event)
+    datasets = _publish_datasets(event)
 
     attempted = 0
     ready = 0
@@ -99,19 +99,19 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     failed = 0
     failures: list[dict[str, str]] = []
 
-    for model_id in models:
+    for dataset_id in datasets:
         for cycle in cycles:
             attempted += 1
             try:
                 result = publish_candidate(
                     app_context=app_context,
-                    model_id=model_id,
+                    dataset_id=dataset_id,
                     cycle=cycle,
                 )
             except (Exception, SystemExit) as exc:
                 failed += 1
-                failures.append({"model": model_id, "cycle": cycle, "error": str(exc)})
-                print(f"Publisher failed model={model_id} cycle={cycle}: {exc}", flush=True)
+                failures.append({"dataset_id": dataset_id, "cycle": cycle, "error": str(exc)})
+                print(f"Publisher failed dataset_id={dataset_id} cycle={cycle}: {exc}", flush=True)
                 continue
 
             if not result.ready:
@@ -119,12 +119,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 if result.not_ready_message:
                     if not result.validation_errors:
                         print(
-                            f"Publisher not ready model={model_id} cycle={cycle}: {result.not_ready_message}",
+                            f"Publisher not ready dataset_id={dataset_id} cycle={cycle}: {result.not_ready_message}",
                             flush=True,
                         )
                     continue
                 print(
-                    f"Publisher not ready model={model_id} cycle={cycle} "
+                    f"Publisher not ready dataset_id={dataset_id} cycle={cycle} "
                     f"missing={len(result.missing_markers)}",
                     flush=True,
                 )
@@ -140,14 +140,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     return {
         "ok": failed == 0,
-        "models": len(models),
+        "datasets": len(datasets),
         "cycles": len(cycles),
         "attempted": attempted,
         "ready": ready,
         "published": published,
-        "alreadyPublished": already_published,
-        "latestPromoted": latest_promoted,
-        "notReady": not_ready,
+        "already_published": already_published,
+        "latest_promoted": latest_promoted,
+        "not_ready": not_ready,
         "failed": failed,
         "failures": failures[:10],
     }

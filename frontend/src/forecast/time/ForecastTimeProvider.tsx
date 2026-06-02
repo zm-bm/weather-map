@@ -42,8 +42,8 @@ export default function ForecastTimeProvider({
 
 function forecastTimeProviderKey(activeRun: ActiveForecastRun | null): string {
   if (activeRun == null) return 'forecast-time:none'
-  const timelineKey = activeRun.latest.times.map((time) => `${time.id}:${time.validAt}`).join(',')
-  return `forecast-time:${activeRun.modelId}:${activeRun.latest.run.cycle}:${timelineKey}`
+  const timelineKey = activeRun.latest.frames.map((time) => `${time.id}:${time.valid_at}`).join(',')
+  return `forecast-time:${activeRun.datasetId}:${activeRun.latest.run.cycle}:${timelineKey}`
 }
 
 function ForecastTimeProviderInner({
@@ -53,8 +53,8 @@ function ForecastTimeProviderInner({
   activeRun: ActiveForecastRun | null
   children: ReactNode
 }) {
-  const times = activeRun?.latest.times ?? EMPTY_TIMES
-  const forecastHourCount = times.length
+  const times = activeRun?.latest.frames ?? EMPTY_TIMES
+  const frameCount = times.length
   const initialTimeMs = initialForecastValidTimeMs(times)
 
   const [state, dispatch] = useReducer(
@@ -100,9 +100,9 @@ function ForecastTimeProviderInner({
   }, [times, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const togglePlay = useCallback(() => {
-    if (forecastHourCount <= 1) return
+    if (frameCount <= 1) return
     dispatch({ type: 'togglePlay' })
-  }, [forecastHourCount])
+  }, [frameCount])
 
   const onRequestStart = useCallback((timeMs: number) => {
     dispatch({
@@ -130,7 +130,7 @@ function ForecastTimeProviderInner({
   }), [onRequestApplied, onRequestError, onRequestStart])
 
   useEffect(() => {
-    if (!state.isPlaying || state.isInFlight || forecastHourCount <= 1) return
+    if (!state.isPlaying || state.isInFlight || frameCount <= 1) return
     const elapsedMs = Date.now() - state.lastAppliedAtMs
     const delayMs = Math.max(0, DEFAULT_PLAY_MIN_INTERVAL_MS - elapsedMs)
     const fromVersion = state.version
@@ -153,7 +153,7 @@ function ForecastTimeProviderInner({
     return () => window.clearTimeout(timerId)
   }, [
     times,
-    forecastHourCount,
+    frameCount,
     state.appliedTimeMs,
     state.isInFlight,
     state.isPlaying,

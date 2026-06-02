@@ -28,7 +28,7 @@ class LoadedRunSnapshot:
 def select_run_id_for_cycle(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     required_run_id: str | None,
 ) -> tuple[str | None, list[str]]:
@@ -37,11 +37,11 @@ def select_run_id_for_cycle(
     if required_run_id is not None:
         return validate_run_id(required_run_id), []
 
-    run_ids = artifact_repo.list_run_ids(model_id=model_id, cycle=cycle)
+    run_ids = artifact_repo.list_run_ids(dataset_id=dataset_id, cycle=cycle)
     if not run_ids:
-        return None, [f"no runs found for model={model_id!r} cycle={cycle!r}"]
+        return None, [f"no runs found for dataset_id={dataset_id!r} cycle={cycle!r}"]
     if len(run_ids) > 1:
-        return None, [f"multiple runs found for model={model_id!r} cycle={cycle!r}: {list(run_ids)!r}"]
+        return None, [f"multiple runs found for dataset_id={dataset_id!r} cycle={cycle!r}: {list(run_ids)!r}"]
     return run_ids[0], []
 
 
@@ -49,7 +49,7 @@ def ensure_run_snapshot(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     pipeline_config_uri: str,
@@ -63,7 +63,7 @@ def ensure_run_snapshot(
         overlay_uri=pipeline_config_overlay_uri,
         store=store,
     )
-    loaded.config.model(model_id)
+    loaded.config.dataset(dataset_id)
     catalog = load_forecast_catalog(catalog_uri=forecast_catalog_uri, store=store)
     config_digest = json_document_digest(loaded.raw)
     snapshot = RunSnapshot(
@@ -72,7 +72,7 @@ def ensure_run_snapshot(
         forecast_catalog=catalog,
     )
     artifact_repo.ensure_run_snapshot(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
         snapshot=snapshot,
@@ -80,7 +80,7 @@ def ensure_run_snapshot(
     return load_run_snapshot(
         artifact_repo=artifact_repo,
         store=store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
@@ -90,7 +90,7 @@ def ensure_or_load_run_snapshot(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     pipeline_config_uri: str,
@@ -99,11 +99,11 @@ def ensure_or_load_run_snapshot(
 ) -> LoadedRunSnapshot:
     """Load an existing run snapshot, or create it from source config/catalog."""
 
-    if _run_metadata_exists(artifact_repo=artifact_repo, model_id=model_id, cycle=cycle, run_id=run_id):
+    if _run_metadata_exists(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle, run_id=run_id):
         return load_run_snapshot(
             artifact_repo=artifact_repo,
             store=store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
         )
@@ -112,7 +112,7 @@ def ensure_or_load_run_snapshot(
         return ensure_run_snapshot(
             artifact_repo=artifact_repo,
             store=store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
             pipeline_config_uri=pipeline_config_uri,
@@ -120,11 +120,11 @@ def ensure_or_load_run_snapshot(
             forecast_catalog_uri=forecast_catalog_uri,
         )
     except SystemExit:
-        if _run_metadata_exists(artifact_repo=artifact_repo, model_id=model_id, cycle=cycle, run_id=run_id):
+        if _run_metadata_exists(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle, run_id=run_id):
             return load_run_snapshot(
                 artifact_repo=artifact_repo,
                 store=store,
-                model_id=model_id,
+                dataset_id=dataset_id,
                 cycle=cycle,
                 run_id=run_id,
             )
@@ -135,26 +135,26 @@ def load_run_snapshot(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
 ) -> LoadedRunSnapshot:
     """Load and validate the pinned config/catalog for one existing run."""
 
     run_id = validate_run_id(run_id)
-    run_uri = artifact_repo.paths.run_metadata_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+    run_uri = artifact_repo.paths.run_metadata_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     try:
         run_doc = artifact_repo.read_json_uri(run_uri)
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"Missing run metadata snapshot: {run_uri}") from exc
 
-    _validate_run_doc(run_doc=run_doc, model_id=model_id, cycle=cycle, run_id=run_id, uri=run_uri)
-    pipeline_config_uri = artifact_repo.paths.run_pipeline_config_uri(model_id=model_id, cycle=cycle, run_id=run_id)
-    forecast_catalog_uri = artifact_repo.paths.run_forecast_catalog_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+    _validate_run_doc(run_doc=run_doc, dataset_id=dataset_id, cycle=cycle, run_id=run_id, uri=run_uri)
+    pipeline_config_uri = artifact_repo.paths.run_pipeline_config_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
+    forecast_catalog_uri = artifact_repo.paths.run_forecast_catalog_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     loaded = load_pipeline_config_document(pipeline_config_uri, store=store)
     catalog = load_forecast_catalog(catalog_uri=forecast_catalog_uri, store=store)
     config_digest = json_document_digest(loaded.raw)
-    expected_digest = run_doc.get("configDigest")
+    expected_digest = run_doc.get("config_digest")
     if expected_digest != config_digest:
         raise SystemExit(
             "Run snapshot config digest mismatch:\n"
@@ -172,22 +172,22 @@ def load_run_snapshot(
     )
 
 
-def _run_metadata_exists(*, artifact_repo: ArtifactRepository, model_id: str, cycle: str, run_id: str) -> bool:
-    return artifact_repo.store.exists(uri=artifact_repo.paths.run_metadata_uri(model_id=model_id, cycle=cycle, run_id=run_id))
+def _run_metadata_exists(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str, run_id: str) -> bool:
+    return artifact_repo.store.exists(uri=artifact_repo.paths.run_metadata_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id))
 
 
 def _validate_run_doc(
     *,
     run_doc: dict[str, Any],
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     uri: str,
 ) -> None:
     expected = {
-        "model": model_id,
+        "dataset_id": dataset_id,
         "cycle": cycle,
-        "runId": run_id,
+        "run_id": run_id,
     }
     for key, expected_value in expected.items():
         if run_doc.get(key) != expected_value:

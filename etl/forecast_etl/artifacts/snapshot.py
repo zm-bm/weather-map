@@ -1,4 +1,4 @@
-"""Read-only artifact snapshots for one configured forecast model."""
+"""Read-only artifact snapshots for one configured dataset."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from ..config.resolved import ModelConfig
+from ..config.resolved import DatasetConfig
 from ..cycles import cycle_datetime, expected_synoptic_cycle, latest_synoptic_cycles
 from ..manifest.inspect import ManifestInfo, list_manifest_infos, read_latest_manifest_info
 from ..storage.base import UriStore
@@ -37,7 +37,7 @@ class PublishLagEstimate:
 
 
 @dataclass(frozen=True)
-class ModelArtifactSnapshot:
+class DatasetArtifactSnapshot:
     expected_cycle: str
     expected_cycle_deadline: datetime
     latest_observed_cycle: str | None
@@ -48,22 +48,22 @@ class ModelArtifactSnapshot:
     publish_lag: PublishLagEstimate
 
 
-def read_model_artifact_snapshot(
+def read_dataset_artifact_snapshot(
     *,
     store: UriStore,
     paths: ArtifactPaths,
-    model: ModelConfig,
+    dataset: DatasetConfig,
     now: datetime,
     history_cycle_count: int,
     status_cycle_count: int,
     publish_lag_policy: PublishLagPolicy,
     missing_sample_limit: int = DEFAULT_MISSING_SAMPLE_LIMIT,
     marker_validation_sample_limit: int = DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
-) -> ModelArtifactSnapshot:
-    """Read manifests and status markers into a model-level artifact snapshot."""
+) -> DatasetArtifactSnapshot:
+    """Read manifests and status markers into a dataset-level artifact snapshot."""
 
-    manifest_infos = list_manifest_infos(store=store, paths=paths, model_id=model.id, limit=history_cycle_count)
-    latest_manifest = read_latest_manifest_info(store=store, paths=paths, model_id=model.id)
+    manifest_infos = list_manifest_infos(store=store, paths=paths, dataset_id=dataset.id, limit=history_cycle_count)
+    latest_manifest = read_latest_manifest_info(store=store, paths=paths, dataset_id=dataset.id)
     latest_published_cycle = latest_manifest.cycle if latest_manifest is not None else None
 
     publish_lag = estimate_publish_lag(manifest_infos=manifest_infos, policy=publish_lag_policy)
@@ -89,7 +89,7 @@ def read_model_artifact_snapshot(
         cycle: read_cycle_progress(
             store=store,
             paths=paths,
-            model=model,
+            model=dataset,
             cycle=cycle,
             manifest_present=cycle in manifest_cycles,
             missing_sample_limit=missing_sample_limit,
@@ -107,7 +107,7 @@ def read_model_artifact_snapshot(
         latest_published_cycle=latest_published_cycle,
     )
 
-    return ModelArtifactSnapshot(
+    return DatasetArtifactSnapshot(
         expected_cycle=expected_cycle,
         expected_cycle_deadline=expected_deadline,
         latest_observed_cycle=latest_observed_cycle,

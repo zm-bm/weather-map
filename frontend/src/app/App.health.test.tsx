@@ -67,9 +67,9 @@ function jsonResponse(payload: unknown): Response {
 function createHealthPayload() {
   return {
     schema: 'weather-map.health',
-    schemaVersion: 1,
-    generatedAt: '2026-05-11T18:00:00Z',
+    schema_version: 1,
+    generated_at: '2026-05-11T18:00:00Z',
     status: 'healthy',
-    models: [],
+    datasets: [],
   }
 }

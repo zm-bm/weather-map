@@ -4,23 +4,23 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle.sh --cycle <cycle> [--run-id <run_id>] [--model <model>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
+	etl/scripts/run-cycle.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
 
 Description:
 	Refreshes local forecast artifacts by running the same ETL worker container
 	used by production Batch. The script runs one local container per configured
-	forecast hour, then publishes manifests once into artifacts/. When --model
-	is omitted, every configured model is refreshed sequentially.
+	frame, then publishes manifests once into artifacts/. When --dataset-id
+	is omitted, every configured dataset is refreshed sequentially.
 
 Options:
 	--cycle <cycle>  Forecast cycle string (example: 2026021600)
 	--run-id <run_id>  Run id for this cycle attempt (default: generated)
-	--model <model>  Forecast model id (default: all configured models)
+	--dataset-id <dataset_id>  Dataset id (default: all configured datasets)
 	--artifact <id>  Artifact id to process; repeat to process multiple artifacts
 	--procs <n>  Maximum concurrent local worker containers (default: 1)
 	--no-publish  Skip the final manifest publish step
-	--rebuild  Force a local worker image rebuild before resolving forecast hours
-	--dry-run  Prepare the worker image, resolve hours inside it, and print run-hour commands
+	--rebuild  Force a local worker image rebuild before resolving frames
+	--dry-run  Prepare the worker image, resolve frames inside it, and print run-frame commands
 	-h, --help  Show this help and exit
 
 Environment:
@@ -52,7 +52,7 @@ print_command() {
 
 CYCLE=""
 RUN_ID="${RUN_ID:-}"
-SELECTED_MODEL=""
+SELECTED_DATASET=""
 SELECTED_ARTIFACTS=()
 PROCS="1"
 DRY_RUN="${DRY_RUN:-false}"
@@ -90,14 +90,14 @@ while [[ $# -gt 0 ]]; do
 			require_value "--run-id" "$RUN_ID"
 			shift
 			;;
-		--model)
+		--dataset-id)
 			require_value "$1" "${2:-}"
-			SELECTED_MODEL="$2"
+			SELECTED_DATASET="$2"
 			shift 2
 			;;
-		--model=*)
-			SELECTED_MODEL="${1#*=}"
-			require_value "--model" "$SELECTED_MODEL"
+		--dataset-id=*)
+			SELECTED_DATASET="${1#*=}"
+			require_value "--dataset-id" "$SELECTED_DATASET"
 			shift
 			;;
 		--artifact)
@@ -211,24 +211,24 @@ require_docker() {
 	fi
 }
 
-list_model_ids_with_worker() {
-	docker run --rm "$LOCAL_ETL_IMAGE" list-models \
+list_dataset_ids_with_worker() {
+	docker run --rm "$LOCAL_ETL_IMAGE" list-datasets \
 		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
 }
 
-resolve_forecast_hours_with_worker() {
-	local model="$1"
+resolve_frames_with_worker() {
+	local dataset_id="$1"
 	local pipeline_config_uri="$2"
 
 	if [[ "$DRY_RUN" == "true" ]]; then
-		docker run --rm "$LOCAL_ETL_IMAGE" list-forecast-hours \
-			--model "$model" \
+		docker run --rm "$LOCAL_ETL_IMAGE" list-frames \
+			--dataset-id "$dataset_id" \
 			--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
 	else
 		docker run --rm \
 			--volume "$ARTIFACTS_DIR:/artifacts" \
-			"$LOCAL_ETL_IMAGE" list-forecast-hours \
-			--model "$model" \
+			"$LOCAL_ETL_IMAGE" list-frames \
+			--dataset-id "$dataset_id" \
 			--pipeline-config-uri "$pipeline_config_uri"
 	fi
 }
@@ -297,9 +297,9 @@ prepare_worker_image() {
 	build_worker_image "$expected_fingerprint"
 }
 
-worker_cmd_for_hour() {
-	local model="$1"
-	local fhour="$2"
+worker_cmd_for_frame() {
+	local dataset_id="$1"
+	local frame_id="$2"
 	local artifact
 	local cmd=(
 		docker run --rm
@@ -311,10 +311,10 @@ worker_cmd_for_hour() {
 		--env "PIPELINE_CONFIG_URI=$RUN_PIPELINE_CONFIG_URI"
 		--env "FORECAST_CATALOG_URI=$RUN_FORECAST_CATALOG_URI"
 		--env "PYTHONDONTWRITEBYTECODE=1"
-		--env "MODEL=$model"
+		--env "DATASET_ID=$dataset_id"
 		--env "CYCLE=$CYCLE"
 		--env "RUN_ID=$RUN_ID"
-		--env "FHOUR=$fhour"
+		--env "FRAME_ID=$frame_id"
 		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
 		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
 	)
@@ -330,15 +330,15 @@ worker_cmd_for_hour() {
 		fi
 	done
 
-	cmd+=("$LOCAL_ETL_IMAGE" run-hour)
+	cmd+=("$LOCAL_ETL_IMAGE" run-frame)
 	for artifact in "${SELECTED_ARTIFACTS[@]}"; do
 		cmd+=(--artifact "$artifact")
 	done
 	printf '%s\0' "${cmd[@]}"
 }
 
-init_run_cmd_for_model() {
-	local model="$1"
+init_run_cmd_for_dataset() {
+	local dataset_id="$1"
 	local cmd=(
 		docker run --rm
 		--network host
@@ -346,12 +346,13 @@ init_run_cmd_for_model() {
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
 		--env "PYTHONDONTWRITEBYTECODE=1"
-		--env "MODEL=$model"
+		--env "DATASET_ID=$dataset_id"
 		--env "CYCLE=$CYCLE"
 		--env "RUN_ID=$RUN_ID"
 		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
 		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
 		"$LOCAL_ETL_IMAGE" init-run
+		--dataset-id "$dataset_id"
 		--cycle "$CYCLE"
 		--run-id "$RUN_ID"
 		--pipeline-config-overlay-uri file:///app/config/pipeline/local.json
@@ -359,8 +360,8 @@ init_run_cmd_for_model() {
 	printf '%s\0' "${cmd[@]}"
 }
 
-publish_cmd_for_model() {
-	local model="$1"
+publish_cmd_for_dataset() {
+	local dataset_id="$1"
 	local cmd=(
 		docker run --rm
 		--network host
@@ -370,20 +371,21 @@ publish_cmd_for_model() {
 		--env "PIPELINE_CONFIG_URI=$RUN_PIPELINE_CONFIG_URI"
 		--env "FORECAST_CATALOG_URI=$RUN_FORECAST_CATALOG_URI"
 		--env "PYTHONDONTWRITEBYTECODE=1"
-		--env "MODEL=$model"
+		--env "DATASET_ID=$dataset_id"
 		--env "CYCLE=$CYCLE"
 		--env "RUN_ID=$RUN_ID"
 		--env "ETL_CODE_REVISION=$ETL_CODE_REVISION"
 		--env "ETL_IMAGE_IDENTITY=$ETL_IMAGE_IDENTITY"
 		"$LOCAL_ETL_IMAGE" publish-cycle
+		--dataset-id "$dataset_id"
 		--cycle "$CYCLE"
 		--run-id "$RUN_ID"
 	)
 	printf '%s\0' "${cmd[@]}"
 }
 
-validate_cmd_for_model() {
-	local model="$1"
+validate_cmd_for_dataset() {
+	local dataset_id="$1"
 	local cmd=(
 		docker run --rm
 		--network host
@@ -391,18 +393,19 @@ validate_cmd_for_model() {
 		--volume "$ARTIFACTS_DIR:/artifacts"
 		--env "ARTIFACT_ROOT_URI=file:///artifacts"
 		--env "PYTHONDONTWRITEBYTECODE=1"
-		--env "MODEL=$model"
+		--env "DATASET_ID=$dataset_id"
 		--env "CYCLE=$CYCLE"
 		--env "RUN_ID=$RUN_ID"
 		"$LOCAL_ETL_IMAGE" validate-cycle
+		--dataset-id "$dataset_id"
 		--cycle "$CYCLE"
 		--run-id "$RUN_ID"
 	)
 	printf '%s\0' "${cmd[@]}"
 }
 
-init_run_for_model() {
-	local model="$1"
+init_run_for_dataset() {
+	local dataset_id="$1"
 	local cmd=()
 	local output=""
 	local key
@@ -412,13 +415,13 @@ init_run_for_model() {
 
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
-	done < <(init_run_cmd_for_model "$model")
+	done < <(init_run_cmd_for_dataset "$dataset_id")
 
-	echo "Initializing local run snapshot: model=$model cycle=$CYCLE"
+	echo "Initializing local run snapshot: dataset_id=$dataset_id cycle=$CYCLE"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
-		RUN_PIPELINE_CONFIG_URI="file:///artifacts/runs/$model/$CYCLE/$RUN_ID/config/pipeline_config.json"
-		RUN_FORECAST_CATALOG_URI="file:///artifacts/runs/$model/$CYCLE/$RUN_ID/config/forecast_catalog.json"
+		RUN_PIPELINE_CONFIG_URI="file:///artifacts/runs/$dataset_id/$CYCLE/$RUN_ID/config/pipeline_config.json"
+		RUN_FORECAST_CATALOG_URI="file:///artifacts/runs/$dataset_id/$CYCLE/$RUN_ID/config/forecast_catalog.json"
 		echo "  pipeline_config_uri: $RUN_PIPELINE_CONFIG_URI"
 		echo "  forecast_catalog_uri: $RUN_FORECAST_CATALOG_URI"
 		return 0
@@ -440,21 +443,21 @@ init_run_for_model() {
 	echo "  forecast_catalog_uri: $RUN_FORECAST_CATALOG_URI"
 }
 
-run_worker_hour() {
-	local model="$1"
-	local fhour="$2"
+run_worker_frame() {
+	local dataset_id="$1"
+	local frame_id="$2"
 	local cmd=()
 	local log_path=""
 	local status
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
-	done < <(worker_cmd_for_hour "$model" "$fhour")
+	done < <(worker_cmd_for_frame "$dataset_id" "$frame_id")
 
-	echo "Running local worker container: model=$model cycle=$CYCLE fhour=$fhour"
+	echo "Running local worker container: dataset_id=$dataset_id cycle=$CYCLE frame_id=$frame_id"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
-		log_path="$RUN_LOG_DIR/worker-${model}-${CYCLE}-${fhour}.log"
+		log_path="$RUN_LOG_DIR/worker-${dataset_id}-${CYCLE}-${frame_id}.log"
 		: > "$log_path"
 		if "${cmd[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2); then
 			return 0
@@ -462,22 +465,22 @@ run_worker_hour() {
 			status=$?
 		fi
 		{
-			printf 'fhour=%s\n' "$fhour"
+			printf 'frame_id=%s\n' "$frame_id"
 			printf 'exit_status=%s\n' "$status"
 			printf 'log_path=%s\n' "$log_path"
-		} > "$FAILURE_DIR/$fhour.status"
+		} > "$FAILURE_DIR/$frame_id.status"
 		return "$status"
 	fi
 }
 
 run_publish_cycle() {
-	local model="$1"
+	local dataset_id="$1"
 	local cmd=()
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
-	done < <(publish_cmd_for_model "$model")
+	done < <(publish_cmd_for_dataset "$dataset_id")
 
-	echo "Publishing local cycle manifest: model=$model cycle=$CYCLE"
+	echo "Publishing local cycle manifest: dataset_id=$dataset_id cycle=$CYCLE"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
@@ -486,13 +489,13 @@ run_publish_cycle() {
 }
 
 run_validate_cycle() {
-	local model="$1"
+	local dataset_id="$1"
 	local cmd=()
 	while IFS= read -r -d '' item; do
 		cmd+=("$item")
-	done < <(validate_cmd_for_model "$model")
+	done < <(validate_cmd_for_dataset "$dataset_id")
 
-	echo "Validating local cycle: model=$model cycle=$CYCLE"
+	echo "Validating local cycle: dataset_id=$dataset_id cycle=$CYCLE"
 	if [[ "$DRY_RUN" == "true" ]]; then
 		print_command "dry-run:" "${cmd[@]}"
 	else
@@ -501,10 +504,10 @@ run_validate_cycle() {
 }
 
 print_worker_failure_summary() {
-	local model="$1"
+	local dataset_id="$1"
 	local failure_file
 	local failure_files=()
-	local fhour=""
+	local frame_id=""
 	local exit_status=""
 	local log_path=""
 	local key
@@ -522,18 +525,18 @@ print_worker_failure_summary() {
 
 	echo "Failed local worker containers:" >&2
 	for failure_file in "${failure_files[@]}"; do
-		fhour=""
+		frame_id=""
 		exit_status=""
 		log_path=""
 		while IFS='=' read -r key value; do
 			case "$key" in
-				fhour) fhour="$value" ;;
+				frame_id) frame_id="$value" ;;
 				exit_status) exit_status="$value" ;;
 				log_path) log_path="$value" ;;
 			esac
 		done < "$failure_file"
 
-		echo "- model=$model cycle=$CYCLE fhour=$fhour exit=$exit_status" >&2
+		echo "- dataset_id=$dataset_id cycle=$CYCLE frame_id=$frame_id exit=$exit_status" >&2
 		echo "  log: $log_path" >&2
 		if [[ -f "$log_path" ]]; then
 			echo "  tail:" >&2
@@ -542,41 +545,41 @@ print_worker_failure_summary() {
 	done
 }
 
-run_forecast_hours() {
-	local model="$1"
+run_frames() {
+	local dataset_id="$1"
 	shift
-	local FORECAST_HOURS=("$@")
-	local FHOUR
+	local FRAMES=("$@")
+	local FRAME_ID
 	local FAILURES
 	local ACTIVE_JOBS
 	local STARTED_JOBS
 
 	if [[ "$DRY_RUN" == "true" ]]; then
-		for FHOUR in "${FORECAST_HOURS[@]}"; do
-			run_worker_hour "$model" "$FHOUR"
+		for FRAME_ID in "${FRAMES[@]}"; do
+			run_worker_frame "$dataset_id" "$FRAME_ID"
 		done
 	elif [[ "$PROCS" -eq 1 ]]; then
 		FAILURES=0
-		for FHOUR in "${FORECAST_HOURS[@]}"; do
-			if ! run_worker_hour "$model" "$FHOUR"; then
+		for FRAME_ID in "${FRAMES[@]}"; do
+			if ! run_worker_frame "$dataset_id" "$FRAME_ID"; then
 				FAILURES=1
 				break
 			fi
 		done
 
 		if [[ "$FAILURES" -ne 0 ]]; then
-			print_worker_failure_summary "$model"
+			print_worker_failure_summary "$dataset_id"
 			return 1
 		fi
 	else
 		ACTIVE_JOBS=0
 		FAILURES=0
 		STARTED_JOBS=0
-		for FHOUR in "${FORECAST_HOURS[@]}"; do
+		for FRAME_ID in "${FRAMES[@]}"; do
 			if [[ "$STARTED_JOBS" -gt 0 && "$ETL_WORKER_STAGGER_SECONDS" != "0" ]]; then
 				sleep "$ETL_WORKER_STAGGER_SECONDS"
 			fi
-			run_worker_hour "$model" "$FHOUR" &
+			run_worker_frame "$dataset_id" "$FRAME_ID" &
 			STARTED_JOBS=$((STARTED_JOBS + 1))
 			ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
 			if [[ "$ACTIVE_JOBS" -ge "$PROCS" ]]; then
@@ -595,36 +598,36 @@ run_forecast_hours() {
 		done
 
 		if [[ "$FAILURES" -ne 0 ]]; then
-			print_worker_failure_summary "$model"
+			print_worker_failure_summary "$dataset_id"
 			return 1
 		fi
 	fi
 }
 
-run_model_cycle() {
-	local model="$1"
-	local FORECAST_HOURS=()
+run_dataset_cycle() {
+	local dataset_id="$1"
+	local FRAMES=()
 
 	RUN_LOG_DIR=""
 	FAILURE_DIR=""
 
-	init_run_for_model "$model"
+	init_run_for_dataset "$dataset_id"
 
-	mapfile -t FORECAST_HOURS < <(resolve_forecast_hours_with_worker "$model" "$RUN_PIPELINE_CONFIG_URI")
+	mapfile -t FRAMES < <(resolve_frames_with_worker "$dataset_id" "$RUN_PIPELINE_CONFIG_URI")
 
-	if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
-		echo "No forecast hours resolved from config for model=$model." >&2
+	if [[ "${#FRAMES[@]}" -eq 0 ]]; then
+		echo "No frames resolved from config for dataset_id=$dataset_id." >&2
 		exit 1
 	fi
 
 	echo "Running local containerized pipeline"
-	echo "  model:          $model"
+	echo "  dataset_id:     $dataset_id"
 	echo "  cycle:          $CYCLE"
 	echo "  run_id:         $RUN_ID"
 	echo "  config:         $RUN_PIPELINE_CONFIG_URI"
 	echo "  catalog:        $RUN_FORECAST_CATALOG_URI"
 	echo "  image:          $LOCAL_ETL_IMAGE"
-	echo "  forecast_hours: ${#FORECAST_HOURS[@]}"
+	echo "  frames: ${#FRAMES[@]}"
 	if [[ "${#SELECTED_ARTIFACTS[@]}" -gt 0 ]]; then
 		echo "  selected_artifacts: ${SELECTED_ARTIFACTS[*]}"
 	fi
@@ -636,16 +639,16 @@ run_model_cycle() {
 	echo "  no_publish:     $NO_PUBLISH"
 
 	if [[ "$DRY_RUN" != "true" ]]; then
-		RUN_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weather-map-run-cycle-${model}-${CYCLE}.XXXXXX")"
+		RUN_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weather-map-run-cycle-${dataset_id}-${CYCLE}.XXXXXX")"
 		FAILURE_DIR="$RUN_LOG_DIR/failures"
 		mkdir -p "$FAILURE_DIR"
 		echo "  worker_logs:    $RUN_LOG_DIR"
 	fi
 
-	run_forecast_hours "$model" "${FORECAST_HOURS[@]}" || exit 1
-	run_validate_cycle "$model"
+	run_frames "$dataset_id" "${FRAMES[@]}" || exit 1
+	run_validate_cycle "$dataset_id"
 	if [[ "$NO_PUBLISH" != "true" ]]; then
-		run_publish_cycle "$model"
+		run_publish_cycle "$dataset_id"
 	fi
 }
 
@@ -654,24 +657,24 @@ require_docker
 echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
 prepare_worker_image
 
-MODEL_IDS=()
-if [[ -n "$SELECTED_MODEL" ]]; then
-	MODEL_IDS=("$SELECTED_MODEL")
+DATASET_IDS=()
+if [[ -n "$SELECTED_DATASET" ]]; then
+	DATASET_IDS=("$SELECTED_DATASET")
 else
-	mapfile -t MODEL_IDS < <(list_model_ids_with_worker)
+	mapfile -t DATASET_IDS < <(list_dataset_ids_with_worker)
 fi
 
-if [[ "${#MODEL_IDS[@]}" -eq 0 ]]; then
-	echo "No models resolved from config." >&2
+if [[ "${#DATASET_IDS[@]}" -eq 0 ]]; then
+	echo "No datasets resolved from config." >&2
 	exit 1
 fi
 
-if [[ -z "$SELECTED_MODEL" ]]; then
-	echo "models: ${MODEL_IDS[*]}"
+if [[ -z "$SELECTED_DATASET" ]]; then
+	echo "datasets: ${DATASET_IDS[*]}"
 fi
 
-for MODEL_ID in "${MODEL_IDS[@]}"; do
-	run_model_cycle "$MODEL_ID"
+for DATASET_ID in "${DATASET_IDS[@]}"; do
+	run_dataset_cycle "$DATASET_ID"
 done
 
 if [[ "$DRY_RUN" == "true" ]]; then

@@ -11,22 +11,22 @@ import { useForecastTimeContext, type ForecastTimeContextValue } from './Forecas
 import ForecastTimeProvider from './ForecastTimeProvider'
 import { DEFAULT_PLAY_MIN_INTERVAL_MS } from './state'
 
-const DEFAULT_FORECAST_HOURS = ['000', '003', '006']
+const DEFAULT_FRAME_IDS = ['000', '003', '006']
 
 function createTimelineManifest(
   overrides: ManifestFixtureOverrides = {}
 ) {
   return createManifestFixture({
     cycle: '2026040900',
-    forecastHours: DEFAULT_FORECAST_HOURS,
+    frameIds: DEFAULT_FRAME_IDS,
     ...overrides,
   })
 }
 
 function validTimeFor(manifest: ReturnType<typeof createManifestFixture>, hourId: string): number {
-  const time = createActiveRunFixture(manifest).latest.times.find((entry) => entry.id === hourId)
+  const time = createActiveRunFixture(manifest).latest.frames.find((entry) => entry.id === hourId)
   if (!time) throw new Error(`Missing fixture time ${hourId}`)
-  return Date.parse(time.validAt)
+  return Date.parse(time.valid_at)
 }
 
 function renderForecastTimeProvider(initialManifest: ReturnType<typeof createManifestFixture> | null) {
@@ -134,7 +134,7 @@ describe('ForecastTimeProvider', () => {
     vi.setSystemTime(new Date('2026-04-09T04:14:00Z'))
 
     const manifest = createTimelineManifest({
-      generatedAt: '2026-04-09T00:00:00Z',
+      generated_at: '2026-04-09T00:00:00Z',
     })
     const validAt0600 = validTimeFor(manifest, '006')
     const { getContext, rerenderManifest } = renderForecastTimeProvider(manifest)
@@ -148,7 +148,7 @@ describe('ForecastTimeProvider', () => {
 
     const nextManifest = createTimelineManifest({
       cycle: '2026040912',
-      generatedAt: '2026-04-09T12:00:00Z',
+      generated_at: '2026-04-09T12:00:00Z',
     })
 
     rerenderManifest(nextManifest)

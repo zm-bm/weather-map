@@ -1,4 +1,4 @@
-"""Shared Pydantic types for ETL config models."""
+"""Shared Pydantic types for ETL config schemas."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class ConfigModel(BaseModel):
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 OptionalNonEmptyStr = NonEmptyStr | None
 FiniteNumber = Annotated[float, Field(allow_inf_nan=False)]
-ForecastHourInt = Annotated[int, Field(strict=True, ge=0, le=999)]
+FrameInt = Annotated[int, Field(strict=True, ge=0, le=999)]
 NonEmptyStringMap = Annotated[dict[NonEmptyStr, NonEmptyStr], Field(min_length=1)]
 
 

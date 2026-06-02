@@ -39,7 +39,7 @@ class _FakeDerivation:
 
 @dataclass(frozen=True)
 class _FakeWorkload:
-    forecast_hours: tuple[str, ...]
+    frames: tuple[str, ...]
     artifacts: tuple[str, ...]
 
 
@@ -51,7 +51,7 @@ class _FakeModel:
         grid_id="icon_global_regridded_0p125",
         icon_dwd=IconDwdConfig(base_url="https://example.test/icon", rate_limit_seconds=0.0),
     )
-    workload: _FakeWorkload = _FakeWorkload(forecast_hours=("001",), artifacts=("tmp_surface",))
+    workload: _FakeWorkload = _FakeWorkload(frames=("001",), artifacts=("tmp_surface",))
     artifacts: dict[str, _FakeArtifact] | None = None
 
     def __post_init__(self) -> None:
@@ -67,9 +67,9 @@ class _FakePipelineConfig:
     def __init__(self, model: _FakeModel) -> None:
         self._model = model
 
-    def model(self, model_id: str) -> _FakeModel:
-        if model_id != "icon":
-            raise SystemExit(f"Unknown model {model_id!r}")
+    def dataset(self, dataset_id: str) -> _FakeModel:
+        if dataset_id != "icon":
+            raise SystemExit(f"Unknown dataset {dataset_id!r}")
         return self._model
 
 
@@ -79,7 +79,7 @@ def _loaded_snapshot(model: _FakeModel) -> LoadedRunSnapshot:
         config_digest="sha256:" + "1" * 64,
         pipeline_config_uri=f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
         forecast_catalog_uri=f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
-        loaded_config=LoadedPipelineConfig(raw={"models": {"icon": {}}}, config=_FakePipelineConfig(model)),
+        loaded_config=LoadedPipelineConfig(raw={"datasets": {"icon": {}}}, config=_FakePipelineConfig(model)),
         forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
     )
 
@@ -118,19 +118,19 @@ class _FakeDynamoClient:
         values = kwargs.get("ExpressionAttributeValues", {})
         update_expression = kwargs.get("UpdateExpression", "")
         item = dict(existing or {})
-        if ":model" in values:
-            item.setdefault("model", values[":model"]["S"])
+        if ":dataset_id" in values:
+            item.setdefault("dataset_id", values[":dataset_id"]["S"])
         if ":cycle" in values:
             if "if_not_exists(#cycle" in update_expression:
                 item.setdefault("cycle", values[":cycle"]["S"])
             else:
                 item["cycle"] = values[":cycle"]["S"]
-        if ":fhour" in values:
-            item["fhour"] = values[":fhour"]["S"]
+        if ":frame_id" in values:
+            item["frame_id"] = values[":frame_id"]["S"]
         if ":run_id" in values:
-            item.setdefault("runId", DEFAULT_RUN_ID)
+            item.setdefault("run_id", DEFAULT_RUN_ID)
         if ":created_at" in values:
-            item.setdefault("createdAt", values[":created_at"]["S"])
+            item.setdefault("created_at", values[":created_at"]["S"])
         if ":ttl" in values and "#ttl = if_not_exists" in update_expression:
             item.setdefault("ttl", int(values[":ttl"]["N"]))
         if ":lease_until" in values:
@@ -148,7 +148,7 @@ class _FakeDynamoClient:
         return {
             "Attributes": {
                 "attempt": {"N": str(item.get("attempt", 1))},
-                "runId": {"S": str(item.get("runId", DEFAULT_RUN_ID))},
+                "run_id": {"S": str(item.get("run_id", DEFAULT_RUN_ID))},
             }
         }
 
@@ -229,7 +229,7 @@ class IconIngestTest(unittest.TestCase):
         result = self._run(ready=lambda url, min_bytes: False)
 
         self.assertEqual(result["submitted"], 0)
-        self.assertEqual(result["skippedCycles"], 1)
+        self.assertEqual(result["skipped_cycles"], 1)
         self.assertEqual(self.batch.submissions, [])
 
     def test_partial_target_hour_does_not_submit(self) -> None:
@@ -244,7 +244,7 @@ class IconIngestTest(unittest.TestCase):
 
     def test_derived_rate_waits_for_previous_hour_source(self) -> None:
         self.model = _FakeModel(
-            workload=_FakeWorkload(forecast_hours=("003",), artifacts=("prate_surface",)),
+            workload=_FakeWorkload(frames=("003",), artifacts=("prate_surface",)),
             artifacts={
                 "prate_surface": _FakeArtifact(
                     components=(_FakeComponent(None),),
@@ -279,10 +279,10 @@ class IconIngestTest(unittest.TestCase):
         self.assertEqual(submission["jobQueue"], "weather-etl")
         self.assertEqual(submission["jobDefinition"], "weather-etl-worker-icon:1")
         env = {item["name"]: item["value"] for item in submission["containerOverrides"]["environment"]}
-        self.assertEqual(env["MODEL"], "icon")
+        self.assertEqual(env["DATASET_ID"], "icon")
         self.assertEqual(env["CYCLE"], "2026051112")
         self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
-        self.assertEqual(env["FHOUR"], "001")
+        self.assertEqual(env["FRAME_ID"], "001")
         self.assertEqual(
             env["PIPELINE_CONFIG_URI"],
             f"s3://artifacts/runs/icon/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
@@ -297,7 +297,7 @@ class IconIngestTest(unittest.TestCase):
         )
         self.assertIn("#cycle = :cycle", lease_update["UpdateExpression"])
         self.assertEqual(lease_update["ExpressionAttributeNames"]["#cycle"], "cycle")
-        self.assertEqual(self.ddb.items["icon#2026051112"]["runId"], DEFAULT_RUN_ID)
+        self.assertEqual(self.ddb.items["icon#2026051112"]["run_id"], DEFAULT_RUN_ID)
 
     def test_active_lease_blocks_duplicate_submit(self) -> None:
         self.ddb.items["icon#2026051112#001"] = {"leaseUntil": 2000000000, "attempt": 1}
@@ -321,10 +321,10 @@ class IconIngestTest(unittest.TestCase):
         self.store = _FakeStore(
             {
                 paths.success_marker_uri_parts(
-                    model_id="icon",
+                    dataset_id="icon",
                     cycle="2026051112",
                     run_id=DEFAULT_RUN_ID,
-                    fhour="001",
+                    frame_id="001",
                     artifact_id="tmp_surface",
                 )
             }
@@ -353,7 +353,7 @@ class IconIngestTest(unittest.TestCase):
         result = self._run(ready=lambda url, min_bytes: True)
 
         self.assertEqual(result["submitted"], 0)
-        self.assertEqual(result["skippedCycles"], 1)
+        self.assertEqual(result["skipped_cycles"], 1)
         self.assertEqual(self.batch.submissions, [])
         self.assertEqual(self.ddb.updates, [])
 
@@ -362,10 +362,10 @@ class IconIngestTest(unittest.TestCase):
         self.store = _FakeStore(
             {
                 paths.success_marker_uri_parts(
-                    model_id="icon",
+                    dataset_id="icon",
                     cycle="2026051112",
                     run_id=DEFAULT_RUN_ID,
-                    fhour="001",
+                    frame_id="001",
                     artifact_id="tmp_surface",
                 )
             }

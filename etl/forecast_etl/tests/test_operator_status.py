@@ -29,18 +29,18 @@ class OperatorStatusTest(unittest.TestCase):
             runs = runs_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
             status = status_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
         self.assertEqual(runs["schema"], "weather-map.etl-operator-runs")
-        self.assertEqual(runs["runCount"], 0)
+        self.assertEqual(runs["run_count"], 0)
         self.assertEqual(runs["runs"], [])
         self.assertEqual(status["state"], "not_found")
         self.assertIsNone(status["run"])
@@ -53,20 +53,20 @@ class OperatorStatusTest(unittest.TestCase):
             report = runs_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
-        self.assertEqual([run["runId"] for run in report["runs"]], [NEWER_RUN_ID, DEFAULT_RUN_ID])
+        self.assertEqual([run["run_id"] for run in report["runs"]], [NEWER_RUN_ID, DEFAULT_RUN_ID])
 
     def test_complete_run_reports_validation_published_and_pointer_state(self) -> None:
         with temp_artifact_fixture() as artifacts:
             _write_snapshot(artifacts)
-            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", fhour="000")
+            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
             _write_validation(artifacts)
             public_uri = _write_public_manifest_and_pointers(artifacts)
             artifacts.repository.write_run_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
                 run_id=DEFAULT_RUN_ID,
                 manifest=_run_manifest(DEFAULT_RUN_ID),
@@ -81,7 +81,7 @@ class OperatorStatusTest(unittest.TestCase):
             report = status_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
@@ -92,23 +92,23 @@ class OperatorStatusTest(unittest.TestCase):
         self.assertTrue(run["complete"])
         self.assertEqual(run["validation"]["status"], "passed")
         self.assertEqual(run["published"]["status"], "present")
-        self.assertTrue(run["manifests"]["internalRunManifestExists"])
-        self.assertTrue(run["manifests"]["publicRunManifestExists"])
-        self.assertEqual(run["pointers"]["cycleCurrent"], "matches")
-        self.assertEqual(run["pointers"]["modelLatest"], "matches")
-        self.assertTrue(run["publicationReady"])
+        self.assertTrue(run["manifests"]["internal_run_manifest_exists"])
+        self.assertTrue(run["manifests"]["public_run_manifest_exists"])
+        self.assertEqual(run["pointers"]["cycle_current"], "matches")
+        self.assertEqual(run["pointers"]["dataset_latest"], "matches")
+        self.assertTrue(run["publication_ready"])
 
     def test_incomplete_run_reports_missing_marker_sample(self) -> None:
         with temp_artifact_fixture() as artifacts:
             cfg = minimal_pipeline_config()
-            cfg["models"]["gfs"]["workload"]["forecast_hour_end"] = 1
+            cfg["datasets"]["gfs"]["workload"]["frame_end"] = 1
             _write_snapshot(artifacts, pipeline_config=cfg)
-            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", fhour="000")
+            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
 
             report = status_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
@@ -117,26 +117,26 @@ class OperatorStatusTest(unittest.TestCase):
         self.assertEqual(run["markers"]["expected"], 2)
         self.assertEqual(run["markers"]["completed"], 1)
         self.assertEqual(run["markers"]["missing"], 1)
-        self.assertEqual(run["markers"]["missingSample"], ["tmp_surface/001"])
-        self.assertFalse(run["publicationReady"])
+        self.assertEqual(run["markers"]["missing_sample"], ["tmp_surface/001"])
+        self.assertFalse(run["publication_ready"])
 
     def test_missing_and_invalid_snapshots_are_reported_without_crashing(self) -> None:
         with temp_artifact_fixture() as artifacts:
-            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", fhour="000", run_id=DEFAULT_RUN_ID)
+            artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000", run_id=DEFAULT_RUN_ID)
             invalid_run_id = NEWER_RUN_ID
             artifacts.store.write_bytes(
-                uri=artifacts.paths.run_metadata_uri(model_id="gfs", cycle=CYCLE, run_id=invalid_run_id),
+                uri=artifacts.paths.run_metadata_uri(dataset_id="gfs", cycle=CYCLE, run_id=invalid_run_id),
                 data=b"{not-json",
             )
 
             report = runs_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
-        by_run = {run["runId"]: run for run in report["runs"]}
+        by_run = {run["run_id"]: run for run in report["runs"]}
         self.assertEqual(by_run[DEFAULT_RUN_ID]["state"], "missing_snapshot")
         self.assertEqual(by_run[DEFAULT_RUN_ID]["markers"]["completed"], 1)
         self.assertEqual(by_run[invalid_run_id]["state"], "invalid_snapshot")
@@ -150,11 +150,11 @@ class OperatorStatusTest(unittest.TestCase):
             report = status_report(
                 artifact_repo=artifacts.repository,
                 store=artifacts.store,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
             )
 
-        self.assertEqual(report["runId"], NEWER_RUN_ID)
+        self.assertEqual(report["run_id"], NEWER_RUN_ID)
         self.assertTrue(report["ambiguous"])
         self.assertIn("publishing requires an explicit run id", report["warnings"][0])
 
@@ -162,53 +162,53 @@ class OperatorStatusTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             _write_public_manifest_and_pointers(artifacts)
 
-            report = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            report = pointers_report(artifact_repo=artifacts.repository, dataset_id="gfs")
 
         self.assertEqual(report["latest"]["status"], "valid")
         self.assertEqual(report["current"]["status"], "valid")
         self.assertEqual(report["cycle"], CYCLE)
-        self.assertEqual(report["latest"]["runId"], DEFAULT_RUN_ID)
+        self.assertEqual(report["latest"]["run_id"], DEFAULT_RUN_ID)
 
     def test_pointer_report_handles_missing_target_mismatch_and_malformed_aliases(self) -> None:
         with temp_artifact_fixture() as artifacts:
             missing_pointer = manifest_pointer_dict(
                 schema_name=LATEST_POINTER_SCHEMA,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
                 run_id=DEFAULT_RUN_ID,
                 revision="missing",
                 generated_at=GENERATED_AT,
                 manifest_path=f"manifests/gfs/cycles/{CYCLE}/runs/{DEFAULT_RUN_ID}.json",
             )
-            artifacts.repository.write_latest_pointer(model_id="gfs", pointer=missing_pointer)
-            missing = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            artifacts.repository.write_latest_pointer(dataset_id="gfs", pointer=missing_pointer)
+            missing = pointers_report(artifact_repo=artifacts.repository, dataset_id="gfs")
 
             public_uri = artifacts.repository.write_public_run_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
                 run_id=DEFAULT_RUN_ID,
                 manifest=_run_manifest(DEFAULT_RUN_ID, revision="target"),
             )
             stale_pointer = manifest_pointer_dict(
                 schema_name=LATEST_POINTER_SCHEMA,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
                 run_id=DEFAULT_RUN_ID,
                 revision="pointer",
                 generated_at=GENERATED_AT,
                 manifest_path=artifacts.paths.relative_key(public_uri),
             )
-            artifacts.repository.write_latest_pointer(model_id="gfs", pointer=stale_pointer)
-            mismatch = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            artifacts.repository.write_latest_pointer(dataset_id="gfs", pointer=stale_pointer)
+            mismatch = pointers_report(artifact_repo=artifacts.repository, dataset_id="gfs")
 
             artifacts.store.write_bytes(
-                uri=artifacts.paths.manifest_latest_uri(model_id="gfs"),
+                uri=artifacts.paths.manifest_latest_uri(dataset_id="gfs"),
                 data=json.dumps({"schema": LATEST_POINTER_SCHEMA}).encode("utf-8"),
             )
-            malformed = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            malformed = pointers_report(artifact_repo=artifacts.repository, dataset_id="gfs")
 
             artifacts.store.write_bytes(
-                uri=artifacts.paths.manifest_latest_uri(model_id="gfs"),
+                uri=artifacts.paths.manifest_latest_uri(dataset_id="gfs"),
                 data=json.dumps(
                     manifest_payload(
                         cycle=CYCLE,
@@ -218,7 +218,7 @@ class OperatorStatusTest(unittest.TestCase):
                     sort_keys=True,
                 ).encode("utf-8"),
             )
-            full_manifest_alias = pointers_report(artifact_repo=artifacts.repository, model_id="gfs")
+            full_manifest_alias = pointers_report(artifact_repo=artifacts.repository, dataset_id="gfs")
 
         self.assertEqual(missing["latest"]["status"], "target_missing")
         self.assertEqual(mismatch["latest"]["status"], "target_mismatch")
@@ -235,7 +235,7 @@ def _write_snapshot(
 ) -> None:
     cfg = pipeline_config or minimal_pipeline_config()
     artifacts.repository.ensure_run_snapshot(
-        model_id="gfs",
+        dataset_id="gfs",
         cycle=CYCLE,
         run_id=run_id,
         snapshot=RunSnapshot(
@@ -252,21 +252,21 @@ def _write_snapshot(
 
 def _write_validation(artifacts, *, run_id: str = DEFAULT_RUN_ID, status: str = "passed") -> None:
     artifacts.repository.write_validation_report(
-        model_id="gfs",
+        dataset_id="gfs",
         cycle=CYCLE,
         run_id=run_id,
         report={
             "schema": VALIDATION_SCHEMA,
-            "schemaVersion": VALIDATION_SCHEMA_VERSION,
-            "model": "gfs",
+            "schema_version": VALIDATION_SCHEMA_VERSION,
+            "dataset": "gfs",
             "cycle": CYCLE,
-            "runId": run_id,
-            "generatedAt": GENERATED_AT,
+            "run_id": run_id,
+            "generated_at": GENERATED_AT,
             "status": status,
-            "payloadCheckMode": PAYLOAD_CHECK_MODE,
-            "configDigest": "sha256:" + "0" * 64,
-            "expected": {"forecastHours": ["000"], "artifacts": ["tmp_surface"], "markerCount": 1},
-            "observed": {"expectedMarkers": 1, "unexpectedMarkers": 0, "totalMarkers": 1},
+            "payload_check_mode": PAYLOAD_CHECK_MODE,
+            "config_digest": "sha256:" + "0" * 64,
+            "expected": {"frames": ["000"], "artifacts": ["tmp_surface"], "marker_count": 1},
+            "observed": {"expected_markers": 1, "unexpected_markers": 0, "total_markers": 1},
             "errors": [] if status == "passed" else ["failed"],
             "warnings": [],
         },
@@ -275,7 +275,7 @@ def _write_validation(artifacts, *, run_id: str = DEFAULT_RUN_ID, status: str = 
 
 def _write_public_manifest_and_pointers(artifacts, *, run_id: str = DEFAULT_RUN_ID) -> str:
     public_uri = artifacts.repository.write_public_run_manifest(
-        model_id="gfs",
+        dataset_id="gfs",
         cycle=CYCLE,
         run_id=run_id,
         manifest=_run_manifest(run_id),
@@ -284,14 +284,14 @@ def _write_public_manifest_and_pointers(artifacts, *, run_id: str = DEFAULT_RUN_
         (LATEST_POINTER_SCHEMA, artifacts.repository.write_latest_pointer),
         (CURRENT_POINTER_SCHEMA, artifacts.repository.write_cycle_current_pointer),
     ):
-        kwargs = {"model_id": "gfs"}
+        kwargs = {"dataset_id": "gfs"}
         if schema_name == CURRENT_POINTER_SCHEMA:
             kwargs["cycle"] = CYCLE
         writer(
             **kwargs,
             pointer=manifest_pointer_dict(
                 schema_name=schema_name,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle=CYCLE,
                 run_id=run_id,
                 revision="abc123",
@@ -306,12 +306,12 @@ def _run_manifest(run_id: str, *, revision: str = "abc123") -> dict[str, Any]:
     return {
         "run": {
             "cycle": CYCLE,
-            "runId": run_id,
-            "payloadRoot": f"runs/gfs/{CYCLE}/{run_id}/fields",
-            "generatedAt": GENERATED_AT,
+            "run_id": run_id,
+            "payload_root": f"runs/gfs/{CYCLE}/{run_id}/fields",
+            "generated_at": GENERATED_AT,
             "revision": revision,
         },
-        "times": [],
+        "frames": [],
         "artifacts": {},
     }
 

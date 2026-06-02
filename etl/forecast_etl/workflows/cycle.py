@@ -8,13 +8,13 @@ from typing import Iterable
 from ..backfill import BackfillCheckResult, check_backfill_safety
 from ..commands.publish_cycle import publish_cycle as publish_cycle_command
 from ..commands.run_cycle import run_cycle as run_cycle_command
-from ..commands.run_hour import run_hour as run_hour_command
+from ..commands.run_frame import run_frame as run_frame_command
 from ..cycles import parse_cycle
 from ..manifest.publish import PublishResult
 from ..run_ids import generate_run_id, parse_run_id
 from ..run_snapshots import LoadedRunSnapshot
 from ..run_validation import RunValidationResult, validate_run
-from ..runtime import execution_context_for_model
+from ..runtime import execution_context_for_dataset
 from .context import ApplicationContext
 
 
@@ -46,10 +46,10 @@ class ValidateWorkflowResult:
     validation_result: RunValidationResult | None = None
 
 
-def init_run(*, app_context: ApplicationContext, model_id: str, cycle: str, run_id: str) -> InitRunResult:
+def init_run(*, app_context: ApplicationContext, dataset_id: str, cycle: str, run_id: str) -> InitRunResult:
     parse_cycle(cycle)
     parsed_run_id = parse_run_id(run_id)
-    snapshot = app_context.ensure_run_snapshot(model_id=model_id, cycle=cycle, run_id=parsed_run_id)
+    snapshot = app_context.ensure_run_snapshot(dataset_id=dataset_id, cycle=cycle, run_id=parsed_run_id)
     return InitRunResult(
         run_id=snapshot.run_id,
         config_digest=snapshot.config_digest,
@@ -59,27 +59,27 @@ def init_run(*, app_context: ApplicationContext, model_id: str, cycle: str, run_
     )
 
 
-def process_hour(
+def process_frame(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     source_uri: str | None,
     artifact_ids: Iterable[str] | None,
 ) -> None:
     parse_cycle(cycle)
     parsed_run_id = parse_run_id(run_id)
-    runtime = app_context.resolve_model_runtime(model_id)
+    runtime = app_context.resolve_model_runtime(dataset_id)
     run_snapshot = app_context.source_run_snapshot(runtime.loaded_config)
     resolved_artifact_ids = resolve_artifact_ids(runtime.model, artifact_ids)
-    run_hour_command(
+    run_frame_command(
         model=runtime.model,
         ctx=runtime.execution_context,
         cycle=cycle,
         run_id=parsed_run_id,
-        fhour=fhour,
+        frame_id=frame_id,
         source_uri=source_uri,
         artifact_ids=resolved_artifact_ids,
         store=app_context.store,
@@ -90,7 +90,7 @@ def process_hour(
 def process_cycle(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str | None,
     artifact_ids: Iterable[str] | None,
@@ -99,10 +99,10 @@ def process_cycle(
 ) -> str:
     parse_cycle(cycle)
     parsed_run_id = parse_run_id(run_id) if run_id else generate_run_id()
-    runtime = app_context.resolve_model_runtime(model_id)
+    runtime = app_context.resolve_model_runtime(dataset_id)
     run_snapshot = app_context.source_run_snapshot(runtime.loaded_config)
     loaded_run_snapshot = app_context.ensure_run_snapshot(
-        model_id=runtime.model.id,
+        dataset_id=runtime.model.id,
         cycle=cycle,
         run_id=parsed_run_id,
     )
@@ -122,8 +122,8 @@ def process_cycle(
     return parsed_run_id
 
 
-def resolve_artifact_ids(model, selected: Iterable[str] | None) -> tuple[str, ...]:
-    workload_artifacts = tuple(model.workload.artifacts or ())
+def resolve_artifact_ids(dataset, selected: Iterable[str] | None) -> tuple[str, ...]:
+    workload_artifacts = tuple(dataset.workload.artifacts or ())
     if selected is None:
         return workload_artifacts
 
@@ -134,7 +134,7 @@ def resolve_artifact_ids(model, selected: Iterable[str] | None) -> tuple[str, ..
     unknown = sorted(requested - set(workload_artifacts))
     if unknown:
         raise SystemExit(
-            f"Unknown artifact id(s) for model {model.id!r}: {unknown!r}; "
+            f"Unknown artifact id(s) for dataset {dataset.id!r}: {unknown!r}; "
             f"configured artifacts: {list(workload_artifacts)!r}"
         )
 
@@ -144,14 +144,14 @@ def resolve_artifact_ids(model, selected: Iterable[str] | None) -> tuple[str, ..
 def validate_cycle(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     required_run_id: str | None = None,
 ) -> ValidateWorkflowResult:
     parse_cycle(cycle)
     parsed_required_run_id = parse_run_id(required_run_id) if required_run_id else None
     run_id, run_errors = app_context.select_run_id_for_cycle(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=parsed_required_run_id,
     )
@@ -160,11 +160,11 @@ def validate_cycle(
             ready=False,
             passed=False,
             run_id=run_id,
-            message=f"run selection failed for model={model_id} cycle={cycle}",
+            message=f"run selection failed for dataset_id={dataset_id} cycle={cycle}",
             errors=tuple(run_errors),
         )
     try:
-        snapshot = app_context.load_run_snapshot(model_id=model_id, cycle=cycle, run_id=run_id)
+        snapshot = app_context.load_run_snapshot(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     except FileNotFoundError as exc:
         return ValidateWorkflowResult(
             ready=False,
@@ -173,7 +173,7 @@ def validate_cycle(
             message=str(exc),
         )
 
-    model = snapshot.loaded_config.config.model(model_id)
+    model = snapshot.loaded_config.config.dataset(dataset_id)
     result = validate_run(
         artifact_repo=app_context.artifact_repo,
         model=model,
@@ -193,14 +193,14 @@ def validate_cycle(
 def publish_cycle(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     required_run_id: str | None = None,
 ) -> PublishWorkflowResult:
     parse_cycle(cycle)
     parsed_required_run_id = parse_run_id(required_run_id) if required_run_id else None
     run_id, run_errors = app_context.select_run_id_for_cycle(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=parsed_required_run_id,
     )
@@ -208,19 +208,19 @@ def publish_cycle(
         return PublishWorkflowResult(
             ready=False,
             run_id=run_id,
-            message=f"run selection failed for model={model_id} cycle={cycle}",
+            message=f"run selection failed for dataset_id={dataset_id} cycle={cycle}",
             errors=tuple(run_errors),
         )
     try:
-        snapshot = app_context.load_run_snapshot(model_id=model_id, cycle=cycle, run_id=run_id)
+        snapshot = app_context.load_run_snapshot(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     except FileNotFoundError as exc:
         return PublishWorkflowResult(ready=False, run_id=run_id, message=str(exc))
 
     cfg = snapshot.loaded_config.config
-    model = cfg.model(model_id)
+    model = cfg.dataset(dataset_id)
     result = publish_cycle_command(
         model=model,
-        ctx=execution_context_for_model(model, app_context.artifact_root_uri),
+        ctx=execution_context_for_dataset(model, app_context.artifact_root_uri),
         cycle=cycle,
         run_id=run_id,
         pipeline_config=cfg,
@@ -238,13 +238,13 @@ def publish_cycle(
 def check_backfill(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     allow_backfill: bool = False,
 ) -> BackfillCheckResult:
     return check_backfill_safety(
         artifact_repo=app_context.artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         allow_backfill=allow_backfill,
     )

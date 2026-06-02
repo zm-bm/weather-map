@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from forecast_etl.artifacts.snapshot import (
     PublishLagPolicy,
     estimate_publish_lag,
-    read_model_artifact_snapshot,
+    read_dataset_artifact_snapshot,
     select_target_cycle,
 )
 from forecast_etl.config.load import parse_pipeline_config
@@ -48,33 +48,33 @@ class ArtifactSnapshotTest(unittest.TestCase):
             "2026051118",
         )
 
-    def test_read_model_artifact_snapshot_reads_complete_cycle(self) -> None:
+    def test_read_dataset_artifact_snapshot_reads_complete_cycle(self) -> None:
         with temp_artifact_fixture() as artifacts:
-            model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
+            model = parse_pipeline_config(minimal_pipeline_config()).dataset("gfs")
             cycle = "2026051112"
             generated_at = datetime(2026, 5, 11, 13, tzinfo=timezone.utc)
             manifest_uri = artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 generated_at=generated_at,
             )
             artifacts.write_success_marker(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 artifact_id="tmp_surface",
-                fhour="000",
+                frame_id="000",
             )
             artifacts.write_published_marker(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 generated_at=generated_at,
                 manifest_uri=manifest_uri,
             )
 
-            snapshot = read_model_artifact_snapshot(
+            snapshot = read_dataset_artifact_snapshot(
                 store=artifacts.store,
                 paths=artifacts.paths,
-                model=model,
+                dataset=model,
                 now=NOW,
                 history_cycle_count=4,
                 status_cycle_count=4,
@@ -90,27 +90,27 @@ class ArtifactSnapshotTest(unittest.TestCase):
         self.assertTrue(snapshot.progress.manifest_present)
         self.assertEqual(snapshot.publish_lag.source, "recent-history")
 
-    def test_read_model_artifact_snapshot_does_not_scan_old_manifest_status_cycles(self) -> None:
+    def test_read_dataset_artifact_snapshot_does_not_scan_old_manifest_status_cycles(self) -> None:
         with temp_artifact_fixture() as artifacts:
-            model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
+            model = parse_pipeline_config(minimal_pipeline_config()).dataset("gfs")
             for cycle in ("2026051100", "2026051106"):
                 artifacts.write_manifest(
-                    model_id=model.id,
+                    dataset_id=model.id,
                     cycle=cycle,
                     generated_at=cycle_datetime(cycle) + timedelta(hours=1),
                     latest=False,
                 )
             artifacts.write_manifest(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle="2026051112",
                 generated_at=datetime(2026, 5, 11, 13, tzinfo=timezone.utc),
             )
             store = CountingStore(artifacts.store)
 
-            read_model_artifact_snapshot(
+            read_dataset_artifact_snapshot(
                 store=store,
                 paths=artifacts.paths,
-                model=model,
+                dataset=model,
                 now=NOW,
                 history_cycle_count=4,
                 status_cycle_count=4,
@@ -119,15 +119,15 @@ class ArtifactSnapshotTest(unittest.TestCase):
 
         run_prefixes = [prefix for prefix in store.list_object_prefixes if "/runs/" in prefix]
         self.assertIn(
-            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051112"),
+            artifacts.paths.cycle_runs_prefix_uri(dataset_id=model.id, cycle="2026051112"),
             run_prefixes,
         )
         self.assertNotIn(
-            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051100"),
+            artifacts.paths.cycle_runs_prefix_uri(dataset_id=model.id, cycle="2026051100"),
             run_prefixes,
         )
         self.assertNotIn(
-            artifacts.paths.cycle_runs_prefix_uri(model_id=model.id, cycle="2026051106"),
+            artifacts.paths.cycle_runs_prefix_uri(dataset_id=model.id, cycle="2026051106"),
             run_prefixes,
         )
 

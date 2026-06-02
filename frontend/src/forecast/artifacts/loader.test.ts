@@ -96,7 +96,7 @@ describe('scalar payload', () => {
 
     const manifest = createSingleTimeManifestFixture({
       cycle: '2026041100',
-      generatedAt: '2026-04-11T00:00:00Z',
+      generated_at: '2026-04-11T00:00:00Z',
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           grid: createGridFixture({
@@ -109,10 +109,10 @@ describe('scalar payload', () => {
             dy: -1,
             origin: 'cell_center',
             layout: 'row_major',
-            xWrap: 'repeat',
-            yMode: 'clamp',
+            x_wrap: 'repeat',
+            y_mode: 'clamp',
           }),
-          byteLength: 4,
+          byte_length: 4,
         }),
       },
     })
@@ -137,13 +137,13 @@ describe('scalar payload', () => {
         id: 'e0',
         format: 'linear-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
         scale: 0.5,
         offset: 50,
-        decodeFormula: 'value = stored * scale + offset',
+        decode_formula: 'value = stored * scale + offset',
       },
-      byteLength: 4,
+      byte_length: 4,
     }))
     const frame = await loadRasterBands(manifest, 'tmp_surface', ['value'])
 
@@ -161,10 +161,10 @@ describe('scalar payload', () => {
         id: 'e0',
         format: 'temp-c-piecewise-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
       },
-      byteLength: 4,
+      byte_length: 4,
     }))
     const frame = await loadRasterBands(manifest, 'tmp_surface', ['value'])
 
@@ -181,13 +181,13 @@ describe('scalar payload', () => {
         id: 'e0',
         format: 'linear-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
         scale: 5,
         offset: 0,
-        decodeFormula: 'value = stored * scale + offset',
+        decode_formula: 'value = stored * scale + offset',
       },
-      byteLength: 12,
+      byte_length: 12,
     }))
 
     await expect(
@@ -203,13 +203,13 @@ describe('scalar payload', () => {
         id: 'e0',
         format: 'linear-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
         scale: 0.5,
         offset: 50,
-        decodeFormula: 'value = stored * scale + offset',
+        decode_formula: 'value = stored * scale + offset',
       },
-      byteLength: 3,
+      byte_length: 3,
     }))
 
     await expect(
@@ -224,10 +224,10 @@ describe('scalar payload', () => {
         id: 'e0',
         format: 'bad-format',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
       } as unknown as ScalarEncodingSpec,
-      byteLength: 4,
+      byte_length: 4,
     }))
 
     await expect(
@@ -248,11 +248,11 @@ describe('vector payload', () => {
         id: 'precip_type_surface_i8_frac_v1',
         format: 'linear-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
         scale: 1 / 254,
         offset: 0.5,
-        decodeFormula: 'value = stored * scale + offset',
+        decode_formula: 'value = stored * scale + offset',
       },
     }))
 
@@ -286,11 +286,11 @@ describe('vector payload', () => {
         id: 'cloud_layers_vector_i8_4pct_v1',
         format: 'linear-i8-v1',
         dtype: 'int8',
-        byteOrder: 'none',
+        byte_order: 'none',
         nodata: -128,
         scale: 4,
         offset: 0,
-        decodeFormula: 'value = stored * scale + offset',
+        decode_formula: 'value = stored * scale + offset',
       },
     }))
 
@@ -377,7 +377,7 @@ describe('vector payload', () => {
     const manifest = vectorManifest(createVectorArtifactFixture({
       id: 'triple_vector',
       components: ['a', 'b', 'c'],
-      byteLength: 8,
+      byte_length: 8,
     }))
 
     await expect(
@@ -392,7 +392,7 @@ describe('vector payload', () => {
     const manifest = vectorManifest(createVectorArtifactFixture({
       encoding: {
         ...baseEncoding,
-        byteOrder: 'big',
+        byte_order: 'big',
       } as unknown as VectorEncodingSpec,
     }))
 
@@ -412,14 +412,14 @@ describe('vector payload', () => {
     ).rejects.toThrow('Missing artifact missing_wind')
 
     const missingTimeManifest = createSingleTimeManifestFixture({
-      forecastHours: ['003'],
+      frameIds: ['003'],
       artifacts: {
         wind10m_uv: createVectorArtifactFixture(),
       },
     })
     await expect(
       loadRasterBands(missingTimeManifest, 'wind10m_uv', ['u', 'v'])
-    ).rejects.toThrow('No vector frame ref for model=gfs artifact=wind10m_uv hour=000')
+    ).rejects.toThrow('No vector frame ref for dataset_id=gfs artifact=wind10m_uv frame=000')
 
     await expect(
       loadRasterBands(createSingleTimeManifestFixture({

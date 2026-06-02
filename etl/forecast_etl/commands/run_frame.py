@@ -1,4 +1,4 @@
-"""Run one forecast hour through source acquisition and artifact generation."""
+"""Run one frame through source acquisition and artifact generation."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Iterable, Mapping
 from ..artifacts.markers_schema import build_artifact_marker_payload
 from ..artifacts.paths import WorkItem
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ArtifactSpec, ModelConfig
+from ..config.resolved import ArtifactSpec, DatasetConfig
 from ..encoding.artifact_payload import encode_artifact_payload
 from ..extract.artifact_bands import extract_artifact_bands
 from ..extract.grib import grid_meta_from_grib
@@ -22,13 +22,13 @@ from ..storage.base import UriStore
 from ..storage.routing import make_store
 
 
-def run_process_hour(
+def run_process_frame(
     *,
     ctx: ExecutionContext,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     source_uri: str | None,
     artifact_ids: Iterable[str],
     artifact_specs: Mapping[str, ArtifactSpec],
@@ -38,7 +38,7 @@ def run_process_hour(
     run_metadata: RunMetadata | None = None,
     run_snapshot: RunSnapshot | None = None,
 ) -> None:
-    """Run all configured artifacts for one (cycle, fhour)."""
+    """Run all configured artifacts for one (cycle, frame_id)."""
 
     artifact_ids = tuple(artifact_ids or ())
     snapshot = run_snapshot or RunSnapshot(
@@ -52,7 +52,7 @@ def run_process_hour(
         raise SystemExit("No workload.artifacts configured for process-hour")
 
     artifact_repo.ensure_run_snapshot(
-        model_id=ctx.model_id,
+        dataset_id=ctx.dataset_id,
         cycle=cycle,
         run_id=run_id,
         snapshot=snapshot,
@@ -63,7 +63,7 @@ def run_process_hour(
         source = acquire_prepared_source(
             model=model,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             source_uri_override=source_uri,
             artifact_ids=artifact_ids,
             workdir=workdir,
@@ -79,10 +79,10 @@ def run_process_hour(
                 raise SystemExit(f"Unknown artifact in workload.artifacts: {artifact_id}")
 
             item = WorkItem(
-                model_id=ctx.model_id,
+                dataset_id=ctx.dataset_id,
                 cycle=cycle,
                 run_id=run_id,
-                fhour=fhour,
+                frame_id=frame_id,
                 source_uri=source.uri,
                 artifact_id=str(artifact_id),
                 code_revision=metadata.code_revision,
@@ -95,7 +95,7 @@ def run_process_hour(
                 source=source,
                 workdir=workdir,
                 run=run,
-                fhour=fhour,
+                frame_id=frame_id,
             )
             transformed = apply_artifact_grid_transform(
                 artifact=artifact,
@@ -116,19 +116,19 @@ def run_process_hour(
             artifact_done += 1
 
     print(
-        f"Done. Processed fhour bundle cycle={cycle} run_id={run_id} fhour={fhour}: "
-        f"model={ctx.model_id} artifacts={artifact_done}",
+        f"Done. Processed frame bundle cycle={cycle} run_id={run_id} frame_id={frame_id}: "
+        f"dataset_id={ctx.dataset_id} artifacts={artifact_done}",
         flush=True,
     )
 
 
-def run_hour(
+def run_frame(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     ctx: ExecutionContext,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     source_uri: str | None,
     artifact_ids: Iterable[str] | None = None,
     store: UriStore | None = None,
@@ -136,17 +136,17 @@ def run_hour(
     run_metadata: RunMetadata | None = None,
     run_snapshot: RunSnapshot | None = None,
 ) -> None:
-    """Process one forecast hour."""
+    """Process one frame."""
 
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
     resolved_run = run if run is not None else make_runner()
-    run_process_hour(
+    run_process_frame(
         ctx=ctx,
         model=model,
         cycle=cycle,
         run_id=run_id,
-        fhour=fhour,
+        frame_id=frame_id,
         source_uri=source_uri,
         artifact_ids=tuple(artifact_ids or model.workload.artifacts),
         artifact_specs=model.artifacts,

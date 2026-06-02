@@ -62,10 +62,10 @@ class StoredArtifactSuccessMarker(FrozenModel):
     """Success marker JSON persisted for one artifact, cycle, and forecast hour."""
 
     artifact: ArtifactMarkerPayload
-    model_id: NonEmptyStr = "unknown"
+    dataset_id: NonEmptyStr = "unknown"
     cycle: NonEmptyStr
     run_id: NonEmptyStr
-    fhour: NonEmptyStr
+    frame_id: NonEmptyStr
     artifact_id: NonEmptyStr
     code_revision: NonEmptyStr = "unknown"
     image_identity: NonEmptyStr = "unknown"

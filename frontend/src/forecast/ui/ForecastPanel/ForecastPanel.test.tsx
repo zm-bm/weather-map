@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import type { ForecastModelId, ForecastModelOption, Manifest } from '@/forecast/manifest'
+import type { ForecastDatasetId, ForecastDatasetOption, Manifest } from '@/forecast/manifest'
 import {
   formatCycleRunTimeLabel,
   formatValidTimeTickLabel,
@@ -9,7 +9,7 @@ import {
 } from '@/forecast/time'
 import {
   createCatalogManifestFixture,
-  createMultiModelManifestFixture,
+  createMultiDatasetManifestFixture,
   createManifestFixture,
   createScalarArtifactFixture,
   createActiveRunFixture,
@@ -20,36 +20,36 @@ import { FORECAST_RASTER_LAYER_GROUPS } from '@/forecast/catalog'
 import { shouldIgnoreSpaceShortcut } from '@/core/keyboard'
 import ForecastPanel from './ForecastPanel'
 
-const MODEL_OPTIONS: readonly ForecastModelOption[] = [
+const MODEL_OPTIONS: readonly ForecastDatasetOption[] = [
   { id: 'gfs', label: 'GFS' },
   { id: 'icon', label: 'ICON' },
 ]
 
-function expectedValidTimeLabel(manifest: Manifest, modelId: ForecastModelId = 'gfs'): string {
-  const activeRun = createActiveRunFixture(manifest, modelId)
-  return formatValidTimeTickLabel(initialForecastValidTimeMs(activeRun.latest.times)) ?? '--'
+function expectedValidTimeLabel(manifest: Manifest, datasetId: ForecastDatasetId = 'gfs'): string {
+  const activeRun = createActiveRunFixture(manifest, datasetId)
+  return formatValidTimeTickLabel(initialForecastValidTimeMs(activeRun.latest.frames)) ?? '--'
 }
 
 function renderPanelWithManifest(
   manifest: Manifest,
   options: {
-    activeModelId?: ForecastModelId
-    modelOptions?: readonly ForecastModelOption[]
+    activeDatasetId?: ForecastDatasetId
+    datasetOptions?: readonly ForecastDatasetOption[]
   } = {}
 ) {
   return renderWithForecastSelection(<ForecastPanel />, manifest, {
-    activeModelId: options.activeModelId ?? 'gfs',
-    modelOptions: options.modelOptions ?? MODEL_OPTIONS,
+    activeDatasetId: options.activeDatasetId ?? 'gfs',
+    datasetOptions: options.datasetOptions ?? MODEL_OPTIONS,
   })
 }
 
 function createPanelManifest(
   scalarArtifactIds: ['tmp_surface', 'rh_surface'] | ['rh_surface', 'tmp_surface'],
-  options: { model?: { id: string, label: string } } = {}
+  options: { dataset?: { id: string, label: string } } = {}
 ) {
   return createManifestFixture({
     cycle: '2026041100',
-    model: options.model,
+    dataset: options.dataset,
     scalarArtifactIds,
     vectorArtifactIds: ['wind10m_uv'],
     artifacts: {
@@ -146,20 +146,20 @@ describe('ForecastPanel', () => {
     expectNoProbeReadout()
   })
 
-  it('updates the active forecast model from the model selector', () => {
+  it('updates the active forecast dataset from the dataset selector', () => {
     const catalogManifest = createCatalogManifestFixture()
-    const manifest = createMultiModelManifestFixture({
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createPanelManifest(['tmp_surface', 'rh_surface'], {
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
       }),
       iconManifest: createPanelManifest(['tmp_surface', 'rh_surface'], {
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
       }),
       layers: catalogManifest.layers,
     })
 
     renderPanelWithManifest(manifest, {
-      activeModelId: 'icon',
+      activeDatasetId: 'icon',
     })
 
     expect(screen.getByLabelText('Forecast source ICON, forecast cycle Apr 11, 00Z')).toBeInTheDocument()
@@ -195,16 +195,16 @@ describe('ForecastPanel', () => {
 
   it('keeps model selection secondary to the selected measurement', () => {
     const catalogManifest = createCatalogManifestFixture()
-    const manifest = createMultiModelManifestFixture({
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createManifestFixture({
         cycle: '2026041118',
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
         scalarArtifactIds: ['tmp_surface', 'visibility_surface'],
         vectorArtifactIds: [],
       }),
       iconManifest: createManifestFixture({
         cycle: '2026041118',
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
         scalarArtifactIds: ['tmp_surface'],
         vectorArtifactIds: [],
       }),
@@ -212,7 +212,7 @@ describe('ForecastPanel', () => {
     })
 
     renderPanelWithManifest(manifest, {
-      activeModelId: 'gfs',
+      activeDatasetId: 'gfs',
     })
 
     selectMeasurement('visibility')

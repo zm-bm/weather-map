@@ -14,7 +14,7 @@ class PublishedMarker(FrozenModel):
     """Marker written after a cycle manifest has been published."""
 
     cycle: NonEmptyStr
-    model: NonEmptyStr
+    dataset_id: NonEmptyStr
     generated_at: NonEmptyStr
     revision: NonEmptyStr
     manifest_uri: NonEmptyStr
@@ -41,7 +41,7 @@ def parse_published_marker(raw: Mapping[str, Any], *, uri: str | None = None) ->
 def published_marker_dict(
     *,
     cycle: str,
-    model: str,
+    dataset_id: str,
     generated_at: str,
     revision: str,
     manifest_uri: str,
@@ -52,7 +52,7 @@ def published_marker_dict(
         PublishedMarker,
         {
             "cycle": cycle,
-            "model": model,
+            "dataset_id": dataset_id,
             "generated_at": generated_at,
             "revision": revision,
             "manifest_uri": manifest_uri,

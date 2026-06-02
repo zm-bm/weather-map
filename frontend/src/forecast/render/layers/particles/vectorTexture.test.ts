@@ -35,16 +35,16 @@ describe('particle vector texture helpers', () => {
     let textureId = 0
     gl.createTexture.mockImplementation(() => ({ id: textureId += 1 }))
     const lower = createParticlesWindowFixture().lower
-    const middle = { ...lower, raster: { ...lower.raster, hourToken: '001', cacheKey: 'fixture:wind:001' } }
-    const upper = { ...lower, raster: { ...lower.raster, hourToken: '002', cacheKey: 'fixture:wind:002' } }
+    const middle = { ...lower, raster: { ...lower.raster, frameId: '001', cacheKey: 'fixture:wind:001' } }
+    const upper = { ...lower, raster: { ...lower.raster, frameId: '002', cacheKey: 'fixture:wind:002' } }
     const first = createPackedVectorFramePair(
       gl as never,
       {
         lower,
         upper: middle,
         selectedValidTimeMs: 0,
-        lowerHourToken: lower.raster.hourToken,
-        upperHourToken: middle.raster.hourToken,
+        lowerFrameId: lower.raster.frameId,
+        upperFrameId: middle.raster.frameId,
         mix: 0.5,
       },
       null,
@@ -57,8 +57,8 @@ describe('particle vector texture helpers', () => {
         lower: middle,
         upper,
         selectedValidTimeMs: 0,
-        lowerHourToken: middle.raster.hourToken,
-        upperHourToken: upper.raster.hourToken,
+        lowerFrameId: middle.raster.frameId,
+        upperFrameId: upper.raster.frameId,
         mix: 0.5,
       },
       first,

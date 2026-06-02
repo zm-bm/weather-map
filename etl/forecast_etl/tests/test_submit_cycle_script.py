@@ -62,16 +62,16 @@ if [[ "${1:-}" == "s3" && "${2:-}" == "cp" ]]; then
   dst="${4:-}"
   cat > "$dst" <<'JSON'
 {
-  "models": {
+  "datasets": {
     "gfs": {
       "workload": {
-        "forecast_hours": [0, 3],
+        "frames": [0, 3],
         "artifacts": ["tmp_surface"]
       }
     },
     "icon": {
       "workload": {
-        "forecast_hours": [1],
+        "frames": [1],
         "artifacts": ["tmp_surface"]
       }
     }
@@ -162,7 +162,7 @@ if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "forecast_etl.cli" && "${{3:-}}" == "i
   artifact_root_uri=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --model)
+      --dataset-id)
         model="${{2:-}}"
         shift 2
         ;;
@@ -292,15 +292,15 @@ exit 1
 
         jobs = self._read_batch_jobs()
         self.assertEqual(len(jobs), 2)
-        for expected_fhour, job in zip(("000", "003"), jobs, strict=True):
-            self.assertIn(f"weather-etl-manual-gfs-2026051100-{DEFAULT_RUN_ID}-{expected_fhour}", job["job_name"])
+        for expected_frame_id, job in zip(("000", "003"), jobs, strict=True):
+            self.assertIn(f"weather-etl-manual-gfs-2026051100-{DEFAULT_RUN_ID}-{expected_frame_id}", job["job_name"])
             self.assertEqual(job["job_queue"], "weather-etl")
             self.assertEqual(job["job_definition"], "arn:aws:batch:us-east-1:123:job-definition/weather-etl-worker:1")
             env = {item["name"]: item["value"] for item in job["container_overrides"]["environment"]}
-            self.assertEqual(env["MODEL"], "gfs")
+            self.assertEqual(env["DATASET_ID"], "gfs")
             self.assertEqual(env["CYCLE"], "2026051100")
             self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
-            self.assertEqual(env["FHOUR"], expected_fhour)
+            self.assertEqual(env["FRAME_ID"], expected_frame_id)
             self.assertEqual(
                 env["PIPELINE_CONFIG_URI"],
                 f"s3://artifacts-bucket/runs/gfs/2026051100/{DEFAULT_RUN_ID}/config/pipeline_config.json",
@@ -311,12 +311,12 @@ exit 1
             )
             self.assertEqual(
                 env["GRIB_SOURCE_URI"],
-                f"s3://noaa-gfs-bdp-pds/gfs.20260511/00/atmos/gfs.t00z.pgrb2.0p25.f{expected_fhour}",
+                f"s3://noaa-gfs-bdp-pds/gfs.20260511/00/atmos/gfs.t00z.pgrb2.0p25.f{expected_frame_id}",
             )
 
     def test_icon_submit_uses_icon_job_definition_and_no_grib_source_env(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026051100",
@@ -335,8 +335,8 @@ exit 1
             "arn:aws:batch:us-east-1:123:job-definition/weather-etl-worker-icon:1",
         )
         env = {item["name"]: item["value"] for item in job["container_overrides"]["environment"]}
-        self.assertEqual(env["MODEL"], "icon")
-        self.assertEqual(env["FHOUR"], "001")
+        self.assertEqual(env["DATASET_ID"], "icon")
+        self.assertEqual(env["FRAME_ID"], "001")
         self.assertNotIn("GRIB_SOURCE_URI", env)
         self.assertEqual(
             env["PIPELINE_CONFIG_URI"],

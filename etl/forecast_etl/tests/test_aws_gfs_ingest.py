@@ -34,32 +34,32 @@ class _FakeDynamoClient:
         pk = kwargs["Key"]["pk"]["S"]
         item = dict(self.items.get(pk, {}))
         values = kwargs.get("ExpressionAttributeValues", {})
-        item.setdefault("model", values[":model"]["S"])
+        item.setdefault("dataset_id", values[":dataset_id"]["S"])
         item.setdefault("cycle", values[":cycle"]["S"])
-        item.setdefault("runId", DEFAULT_RUN_ID)
-        item.setdefault("createdAt", values[":created_at"]["S"])
+        item.setdefault("run_id", DEFAULT_RUN_ID)
+        item.setdefault("created_at", values[":created_at"]["S"])
         item.setdefault("ttl", values[":ttl"]["N"])
         self.items[pk] = item
         return {
             "Attributes": {
-                "runId": {"S": item["runId"]},
+                "run_id": {"S": item["run_id"]},
             }
         }
 
 
 class _FakeWorkload:
-    def __init__(self, *, forecast_hours: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
-        self.forecast_hours = forecast_hours
+    def __init__(self, *, frames: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
+        self.frames = frames
         self.artifacts = artifacts
 
 
 class _FakePipelineConfig:
-    def __init__(self, *, forecast_hours: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
-        self.workload = _FakeWorkload(forecast_hours=forecast_hours, artifacts=artifacts)
+    def __init__(self, *, frames: tuple[str, ...], artifacts: tuple[str, ...]) -> None:
+        self.workload = _FakeWorkload(frames=frames, artifacts=artifacts)
 
-    def model(self, model_id: str) -> "_FakePipelineConfig":
-        if model_id != "gfs":
-            raise SystemExit(f"Unknown model {model_id!r}")
+    def dataset(self, dataset_id: str) -> "_FakePipelineConfig":
+        if dataset_id != "gfs":
+            raise SystemExit(f"Unknown dataset {dataset_id!r}")
         return self
 
 
@@ -69,7 +69,7 @@ def _loaded_snapshot(cfg: _FakePipelineConfig) -> LoadedRunSnapshot:
         config_digest="sha256:" + "1" * 64,
         pipeline_config_uri=f"s3://artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/pipeline_config.json",
         forecast_catalog_uri=f"s3://artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
-        loaded_config=LoadedPipelineConfig(raw={"models": {"gfs": {}}}, config=cfg),
+        loaded_config=LoadedPipelineConfig(raw={"datasets": {"gfs": {}}}, config=cfg),
         forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
     )
 
@@ -124,12 +124,12 @@ class AwsGfsIngestTest(unittest.TestCase):
         wind_config = wind_artifact_config()
         add_model_artifact(
             payload,
-            model_id="gfs",
+            dataset_id="gfs",
             artifact_id="wind10m_uv",
             artifact_config=wind_config,
         )
-        payload["models"]["gfs"]["workload"]["forecast_hour_end"] = 6
-        payload["models"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "wind10m_uv"]
+        payload["datasets"]["gfs"]["workload"]["frame_end"] = 6
+        payload["datasets"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "wind10m_uv"]
 
         with tempfile.TemporaryDirectory(prefix="weather-map-aws-ingest-") as td:
             cfg_path = Path(td) / "pipeline_config.json"
@@ -162,8 +162,8 @@ class AwsGfsIngestTest(unittest.TestCase):
         env = {item["name"]: item["value"] for item in submission["containerOverrides"]["environment"]}
         self.assertEqual(env["CYCLE"], "2026021300")
         self.assertEqual(env["RUN_ID"], DEFAULT_RUN_ID)
-        self.assertEqual(env["FHOUR"], "003")
-        self.assertEqual(env["MODEL"], "gfs")
+        self.assertEqual(env["FRAME_ID"], "003")
+        self.assertEqual(env["DATASET_ID"], "gfs")
         self.assertEqual(
             env["GRIB_SOURCE_URI"],
             "s3://noaa-gfs-bdp-pds/gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003",
@@ -176,11 +176,11 @@ class AwsGfsIngestTest(unittest.TestCase):
             env["FORECAST_CATALOG_URI"],
             f"file://{artifact_root.as_posix()}/runs/gfs/2026021300/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
         )
-        self.assertEqual(self.ddb.items["gfs#2026021300"]["runId"], DEFAULT_RUN_ID)
+        self.assertEqual(self.ddb.items["gfs#2026021300"]["run_id"], DEFAULT_RUN_ID)
 
-    def test_handler_filters_by_forecast_hour(self) -> None:
+    def test_handler_filters_by_frame(self) -> None:
         fake_cfg = _FakePipelineConfig(
-            forecast_hours=("000", "003"),
+            frames=("000", "003"),
             artifacts=("tmp_surface",),
         )
         with (
@@ -197,7 +197,7 @@ class AwsGfsIngestTest(unittest.TestCase):
 
     def test_handler_skips_when_no_work_items_are_configured(self) -> None:
         fake_cfg = _FakePipelineConfig(
-            forecast_hours=("000",),
+            frames=("000",),
             artifacts=(),
         )
         with (
@@ -214,7 +214,7 @@ class AwsGfsIngestTest(unittest.TestCase):
 
     def test_handler_preserves_cycle_cadence_filter(self) -> None:
         fake_cfg = _FakePipelineConfig(
-            forecast_hours=("000",),
+            frames=("000",),
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
@@ -231,7 +231,7 @@ class AwsGfsIngestTest(unittest.TestCase):
 
     def test_handler_skips_unknown_key_formats(self) -> None:
         fake_cfg = _FakePipelineConfig(
-            forecast_hours=("000",),
+            frames=("000",),
             artifacts=("tmp_surface", "wind10m_uv"),
         )
         with (
@@ -247,9 +247,9 @@ class AwsGfsIngestTest(unittest.TestCase):
         self.assertEqual(self.batch.submissions, [])
 
     def test_handler_reuses_existing_run_id_for_same_cycle(self) -> None:
-        self.ddb.items["gfs#2026021300"] = {"runId": "20260213T010203Z-abcdef12"}
+        self.ddb.items["gfs#2026021300"] = {"run_id": "20260213T010203Z-abcdef12"}
         fake_cfg = _FakePipelineConfig(
-            forecast_hours=("000", "003"),
+            frames=("000", "003"),
             artifacts=("tmp_surface",),
         )
         with (
@@ -271,7 +271,7 @@ class AwsGfsIngestTest(unittest.TestCase):
     def test_handler_skips_older_than_latest_cycle(self) -> None:
         with temp_artifact_fixture() as artifacts:
             artifacts.write_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026021306",
                 generated_at=datetime(2026, 2, 13, 6, tzinfo=timezone.utc),
             )

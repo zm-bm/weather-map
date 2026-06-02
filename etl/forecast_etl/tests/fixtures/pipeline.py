@@ -10,7 +10,7 @@ def minimal_pipeline_config() -> dict:
         "artifact_catalog": {
             "tmp_surface": catalog_artifact(artifact),
         },
-        "models": {
+        "datasets": {
             "gfs": {
                 "label": "GFS",
                 "source": {
@@ -21,8 +21,8 @@ def minimal_pipeline_config() -> dict:
                     "rate_limit_seconds": 0.0,
                 },
                 "workload": {
-                    "forecast_hour_start": 0,
-                    "forecast_hour_end": 0,
+                    "frame_start": 0,
+                    "frame_end": 0,
                     "artifacts": ["tmp_surface"],
                 },
                 "artifacts": {
@@ -36,12 +36,12 @@ def minimal_pipeline_config() -> dict:
 def add_model_artifact(
     cfg: dict,
     *,
-    model_id: str,
+    dataset_id: str,
     artifact_id: str,
     artifact_config: dict,
 ) -> None:
     cfg["artifact_catalog"][artifact_id] = catalog_artifact(artifact_config)
-    cfg["models"][model_id]["artifacts"][artifact_id] = model_artifact(artifact_config)
+    cfg["datasets"][dataset_id]["artifacts"][artifact_id] = model_artifact(artifact_config)
 
 
 def catalog_artifact(artifact_config: dict) -> dict:

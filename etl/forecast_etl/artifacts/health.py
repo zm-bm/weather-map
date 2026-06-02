@@ -1,4 +1,4 @@
-"""Artifact health decisions for configured forecast models."""
+"""Artifact health decisions for configured datasets."""
 
 from __future__ import annotations
 
@@ -6,17 +6,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal, TypeAlias
 
-from ..config.resolved import ModelConfig
+from ..config.resolved import DatasetConfig
 from ..cycles import cycle_datetime, expected_synoptic_cycle
 from ..manifest.inspect import ManifestInfo, read_latest_manifest_info
 from ..storage.base import UriStore
 from .paths import ArtifactPaths
 from .snapshot import (
-    ModelArtifactSnapshot,
+    DatasetArtifactSnapshot,
     PublishLagEstimate,
     PublishLagPolicy,
     estimate_publish_lag,
-    read_model_artifact_snapshot,
+    read_dataset_artifact_snapshot,
 )
 from .status import (
     DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
@@ -40,7 +40,7 @@ class LatestManifestFreshness:
 
 
 @dataclass(frozen=True)
-class ModelArtifactHealth:
+class DatasetArtifactHealth:
     status: ArtifactHealthStatus
     reason: str
     expected_cycle: str | None
@@ -52,11 +52,11 @@ class ModelArtifactHealth:
     publish_lag: PublishLagEstimate
 
 
-def read_model_artifact_health(
+def read_dataset_artifact_health(
     *,
     store: UriStore,
     paths: ArtifactPaths,
-    model: ModelConfig,
+    dataset: DatasetConfig,
     now: datetime,
     history_cycle_count: int,
     status_cycle_count: int,
@@ -64,19 +64,19 @@ def read_model_artifact_health(
     recent_progress_hours: float,
     missing_sample_limit: int = DEFAULT_MISSING_SAMPLE_LIMIT,
     marker_validation_sample_limit: int = DEFAULT_MARKER_VALIDATION_SAMPLE_LIMIT,
-) -> ModelArtifactHealth:
-    """Read artifact health for one model, using latest manifest as a fast path."""
+) -> DatasetArtifactHealth:
+    """Read artifact health for one dataset, using latest manifest as a fast path."""
 
     latest = _read_latest_manifest_freshness(
         store=store,
         paths=paths,
-        model_id=model.id,
+        dataset_id=dataset.id,
         now=now,
         status_cycle_count=status_cycle_count,
         publish_lag_policy=publish_lag_policy,
     )
     if latest is not None and latest.fresh:
-        return ModelArtifactHealth(
+        return DatasetArtifactHealth(
             status="fresh",
             reason="Latest expected cycle is published.",
             expected_cycle=latest.expected_cycle,
@@ -88,10 +88,10 @@ def read_model_artifact_health(
             publish_lag=latest.publish_lag,
         )
 
-    snapshot = read_model_artifact_snapshot(
+    snapshot = read_dataset_artifact_snapshot(
         store=store,
         paths=paths,
-        model=model,
+        dataset=dataset,
         now=now,
         history_cycle_count=history_cycle_count,
         status_cycle_count=status_cycle_count,
@@ -111,12 +111,12 @@ def _read_latest_manifest_freshness(
     *,
     store: UriStore,
     paths: ArtifactPaths,
-    model_id: str,
+    dataset_id: str,
     now: datetime,
     status_cycle_count: int,
     publish_lag_policy: PublishLagPolicy,
 ) -> LatestManifestFreshness | None:
-    latest_manifest = read_latest_manifest_info(store=store, paths=paths, model_id=model_id)
+    latest_manifest = read_latest_manifest_info(store=store, paths=paths, dataset_id=dataset_id)
     if latest_manifest is None:
         return None
 
@@ -147,11 +147,11 @@ def _latest_manifest_publish_lag(
 
 def _health_from_snapshot(
     *,
-    snapshot: ModelArtifactSnapshot,
+    snapshot: DatasetArtifactSnapshot,
     status: ArtifactHealthStatus,
     reason: str,
-) -> ModelArtifactHealth:
-    return ModelArtifactHealth(
+) -> DatasetArtifactHealth:
+    return DatasetArtifactHealth(
         status=status,
         reason=reason,
         expected_cycle=snapshot.expected_cycle,
@@ -166,7 +166,7 @@ def _health_from_snapshot(
 
 def _classify_snapshot(
     *,
-    snapshot: ModelArtifactSnapshot,
+    snapshot: DatasetArtifactSnapshot,
     now: datetime,
     recent_progress_hours: float,
 ) -> tuple[ArtifactHealthStatus, str]:

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.artifacts.repository import ArtifactRepository
-from forecast_etl.commands.run_hour import run_process_hour
+from forecast_etl.commands.run_frame import run_process_frame
 from forecast_etl.config.load import parse_pipeline_config
 from forecast_etl.extract.types import ExtractedBand
 from forecast_etl.proc import RunResult
@@ -30,7 +30,7 @@ def _unused_run(*_args: object, **_kwargs: object) -> RunResult:
 
 
 class RunHourCommandTest(unittest.TestCase):
-    def test_run_process_hour_reads_grid_once_for_all_artifacts(self) -> None:
+    def test_run_process_frame_reads_grid_once_for_all_artifacts(self) -> None:
         cfg = minimal_pipeline_config()
         rh_config = {
             **minimal_artifact_config(),
@@ -54,11 +54,11 @@ class RunHourCommandTest(unittest.TestCase):
                 }
             ],
         }
-        add_model_artifact(cfg, model_id="gfs", artifact_id="rh_surface", artifact_config=rh_config)
-        cfg["models"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "rh_surface"]
-        model = parse_pipeline_config(cfg).model("gfs")
+        add_model_artifact(cfg, dataset_id="gfs", artifact_id="rh_surface", artifact_config=rh_config)
+        cfg["datasets"]["gfs"]["workload"]["artifacts"] = ["tmp_surface", "rh_surface"]
+        model = parse_pipeline_config(cfg).dataset("gfs")
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-run-hour-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-run-frame-") as td:
             root = Path(td)
             grib_path = root / "input.grib2"
             grib_path.write_bytes(b"grib")
@@ -79,20 +79,20 @@ class RunHourCommandTest(unittest.TestCase):
             )
 
             with (
-                patch("forecast_etl.commands.run_hour.acquire_prepared_source", return_value=source),
-                patch("forecast_etl.commands.run_hour.grid_meta_from_grib", return_value=grid) as grid_meta,
-                patch("forecast_etl.commands.run_hour.extract_artifact_bands", return_value=[band]) as extract_bands,
+                patch("forecast_etl.commands.run_frame.acquire_prepared_source", return_value=source),
+                patch("forecast_etl.commands.run_frame.grid_meta_from_grib", return_value=grid) as grid_meta,
+                patch("forecast_etl.commands.run_frame.extract_artifact_bands", return_value=[band]) as extract_bands,
             ):
-                run_process_hour(
+                run_process_frame(
                     ctx=ExecutionContext(
-                        model_id="gfs",
+                        dataset_id="gfs",
                         artifact_root_uri=artifacts.paths.artifact_root_uri,
-                        forecast_hours=("000",),
+                        frames=("000",),
                     ),
                     model=model,
                     cycle="2026041200",
                     run_id=DEFAULT_RUN_ID,
-                    fhour="000",
+                    frame_id="000",
                     source_uri=None,
                     artifact_ids=model.workload.artifacts,
                     artifact_specs=model.artifacts,
@@ -108,10 +108,10 @@ class RunHourCommandTest(unittest.TestCase):
 
             for artifact_id in ("tmp_surface", "rh_surface"):
                 marker = artifacts.read_artifact_success_marker(
-                    model_id="gfs",
+                    dataset_id="gfs",
                     cycle="2026041200",
                     run_id=DEFAULT_RUN_ID,
-                    fhour="000",
+                    frame_id="000",
                     artifact_id=artifact_id,
                 )
                 self.assertEqual(marker.artifact.byte_length, 8)
@@ -122,11 +122,11 @@ class RunHourCommandTest(unittest.TestCase):
                 self.assertTrue(
                     artifacts.store.exists(
                         uri=artifacts.paths.success_marker_uri_parts(
-                            model_id="gfs",
+                            dataset_id="gfs",
                             cycle="2026041200",
                             run_id=DEFAULT_RUN_ID,
                             artifact_id=artifact_id,
-                            fhour="000",
+                            frame_id="000",
                         )
                     )
                 )
@@ -134,7 +134,7 @@ class RunHourCommandTest(unittest.TestCase):
             self.assertTrue(
                 artifacts.store.exists(
                     uri=artifacts.paths.run_metadata_uri(
-                        model_id="gfs",
+                        dataset_id="gfs",
                         cycle="2026041200",
                         run_id=DEFAULT_RUN_ID,
                     )
@@ -143,7 +143,7 @@ class RunHourCommandTest(unittest.TestCase):
             self.assertTrue(
                 artifacts.store.exists(
                     uri=artifacts.paths.run_pipeline_config_uri(
-                        model_id="gfs",
+                        dataset_id="gfs",
                         cycle="2026041200",
                         run_id=DEFAULT_RUN_ID,
                     )

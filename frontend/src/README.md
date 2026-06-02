@@ -13,7 +13,7 @@ when naming new modules, docs, types, and UI/domain concepts.
 
 `app/App.tsx` owns routing. The forecast route calls
 `forecast/manifest/useForecastManifest`, which fetches
-`manifests/forecast-manifest.json`, selects the active model, composes app
+`manifests/data-manifest.json`, selects the active dataset, composes app
 startup status, then renders `forecast/ui/ForecastShell` and
 `app/AppStatusHost`.
 
@@ -40,7 +40,7 @@ initial sync, request building, payload loading, and layer application.
 
 - `forecast/time/*`: valid-time selection, playback state, manifest time bounds, and formatting helpers. This layer should not know about artifact payload decoding or MapLibre runtime details.
 
-- `forecast/manifest/*`: fetch, parse, validate, and expose the public forecast manifest. This owns startup request state, active model state, and model/layer availability helpers. It is the only startup network request for forecast metadata.
+- `forecast/manifest/*`: fetch, parse, validate, and expose the public data manifest. This owns startup request state, active dataset state, and dataset/layer availability helpers. It is the only startup network request for forecast metadata.
 
 - `forecast/artifacts/*`: manifest artifact I/O and raster-band loading. This module resolves artifact payload paths/refs, fetches and caches frame payload bytes, validates payload size, and returns ordered encoded raster bands from scalar or vector artifacts. Band lists stay generic through sync; render and probe consumers interpret source-band shapes such as `value`, `u/v`, and `low/middle/high`.
 
@@ -74,7 +74,7 @@ initial sync, request building, payload loading, and layer application.
 
 Preferred orchestration shape:
 
-1. `ForecastApp` loads the forecast manifest through `useForecastManifest` and owns top-level app status projection.
+1. `ForecastApp` loads the data manifest through `useForecastManifest` and owns top-level app status projection.
 2. `ForecastShell` installs selection, time, and settings providers around map and panel UI.
 3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
    `forecast/settings` to `forecast/render` and `forecast/sync`.

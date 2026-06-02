@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Iterable
 
 from ..config.resolved import (
+    DatasetConfig,
     GfsNomadsSourceConfig,
     IconDwdSourceConfig,
-    ModelConfig,
 )
 from ..proc import RunFn
 from ..storage.base import UriStore
@@ -18,9 +18,9 @@ from .base import PreparedSource
 
 def acquire_prepared_source(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
-    fhour: str,
+    frame_id: str,
     source_uri_override: str | None,
     artifact_ids: Iterable[str],
     workdir: Path,
@@ -33,7 +33,7 @@ def acquire_prepared_source(
         return gfs_nomads.acquire_prepared_source(
             model=model,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             source_uri_override=source_uri_override,
             artifact_ids=artifact_ids,
             workdir=workdir,
@@ -44,11 +44,11 @@ def acquire_prepared_source(
         return icon_dwd.acquire_prepared_source(
             model=model,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             source_uri_override=source_uri_override,
             artifact_ids=artifact_ids,
             workdir=workdir,
             store=store,
             run=run,
         )
-    raise SystemExit(f"Unsupported model source type for {model.id!r}: {model.source.type!r}")
+    raise SystemExit(f"Unsupported dataset source type for {model.id!r}: {model.source.type!r}")

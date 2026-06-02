@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from ..manifest.publish import PublishResult, run_publish
 from ..run_validation import validate_run, validation_report_passed
-from ..runtime import execution_context_for_model
+from ..runtime import execution_context_for_dataset
 from .context import ApplicationContext
 
 
@@ -25,11 +25,11 @@ class ScheduledPublishResult:
 def publish_candidate(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
 ) -> ScheduledPublishResult:
     run_id, run_errors = app_context.select_run_id_for_cycle(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=None,
     )
@@ -40,19 +40,19 @@ def publish_candidate(
             not_ready_message="; ".join(run_errors or ["no run selected"]),
         )
 
-    snapshot = app_context.load_run_snapshot(model_id=model_id, cycle=cycle, run_id=run_id)
+    snapshot = app_context.load_run_snapshot(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     cfg = snapshot.loaded_config.config
-    model = cfg.model(model_id)
+    model = cfg.dataset(dataset_id)
 
     validation_passed, validation_errors = validation_report_passed(
         artifact_repo=app_context.artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
     if not validation_passed:
         print(
-            f"Publisher validating model={model_id} cycle={cycle} run_id={run_id}: "
+            f"Publisher validating dataset_id={dataset_id} cycle={cycle} run_id={run_id}: "
             + "; ".join(validation_errors[:3]),
             flush=True,
         )
@@ -65,7 +65,7 @@ def publish_candidate(
         )
         if not validation.passed:
             print(
-                f"Publisher not ready model={model_id} cycle={cycle} validation_errors={len(validation.errors)}",
+                f"Publisher not ready dataset_id={dataset_id} cycle={cycle} validation_errors={len(validation.errors)}",
                 flush=True,
             )
             return ScheduledPublishResult(
@@ -76,10 +76,10 @@ def publish_candidate(
             )
 
     result = run_publish(
-        ctx=execution_context_for_model(model, app_context.artifact_root_uri),
+        ctx=execution_context_for_dataset(model, app_context.artifact_root_uri),
         cycle=cycle,
         run_id=run_id,
-        model_label=model.label,
+        dataset_label=model.label,
         artifact_ids=model.workload.artifacts,
         artifact_specs=model.artifacts,
         artifact_repo=app_context.artifact_repo,

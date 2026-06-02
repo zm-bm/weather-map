@@ -106,12 +106,12 @@ describe('probeRasterFrame', () => {
         ...createFrame([20, 30, 40, 50]),
         raster: {
           ...createFrame([20, 30, 40, 50]).raster,
-          hourToken: '001',
+          frameId: '001',
         },
       },
       selectedValidTimeMs: 1,
-      lowerHourToken: '000',
-      upperHourToken: '001',
+      lowerFrameId: '000',
+      upperFrameId: '001',
       mix: 0.5,
     }
     const coords = {

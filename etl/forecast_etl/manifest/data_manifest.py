@@ -1,4 +1,4 @@
-"""Forecast manifest generation."""
+"""Frontend data manifest generation."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from typing import Any, Iterable, Literal, Mapping
 
 from ..artifacts.repository import ArtifactRepository
 from ..catalog import load_forecast_catalog
-from ..config.resolved import ModelConfig, PipelineConfig
-from .constants import FORECAST_BINARY_CONTRACT
+from ..config.resolved import DatasetConfig, PipelineConfig
+from .constants import DATA_BINARY_CONTRACT
 from .inspect import read_latest_manifest_object
 
-FORECAST_MANIFEST_SCHEMA = "weather-map.forecast-manifest"
+FORECAST_MANIFEST_SCHEMA = "weather-map.data-manifest"
 FORECAST_MANIFEST_SCHEMA_VERSION = 1
 
 AvailabilityState = Literal["available", "unsupported", "temporarily_unavailable"]
@@ -37,58 +37,58 @@ class LayerRequirements:
     support_hint: LayerSupport
 
 
-def build_forecast_manifest(
+def build_data_manifest(
     *,
     pipeline_config: PipelineConfig,
     artifact_repo: ArtifactRepository,
     generated_at: str | None = None,
     catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the frontend forecast manifest from config and latest manifests."""
+    """Build the frontend data manifest from config and latest manifests."""
 
     forecast_catalog = dict(catalog) if catalog is not None else load_forecast_catalog()
     generated_at = generated_at or _utc_now_iso()
     latest_manifests = {
-        model_id: _read_latest_public_run_manifest(artifact_repo=artifact_repo, model_id=model_id)
-        for model_id in pipeline_config.models
+        dataset_id: _read_latest_public_run_manifest(artifact_repo=artifact_repo, dataset_id=dataset_id)
+        for dataset_id in pipeline_config.datasets
     }
     embedded_latest_manifests: dict[str, dict[str, Any] | None] = {}
     compatible_latest_manifests: dict[str, Mapping[str, Any] | None] = {}
-    for model_id, latest_manifest in latest_manifests.items():
+    for dataset_id, latest_manifest in latest_manifests.items():
         embedded_latest = _safe_embedded_latest_manifest(
-            model_id=model_id,
+            dataset_id=dataset_id,
             manifest=latest_manifest,
         )
-        embedded_latest_manifests[model_id] = embedded_latest
-        compatible_latest_manifests[model_id] = latest_manifest if embedded_latest is not None else None
+        embedded_latest_manifests[dataset_id] = embedded_latest
+        compatible_latest_manifests[dataset_id] = latest_manifest if embedded_latest is not None else None
 
     overlay_layers_by_id = _catalog_overlay_layers_by_id(forecast_catalog)
 
     return {
         "schema": FORECAST_MANIFEST_SCHEMA,
-        "schemaVersion": FORECAST_MANIFEST_SCHEMA_VERSION,
-        "generatedAt": generated_at,
-        "catalogVersion": str(forecast_catalog["catalogVersion"]),
-        "payloadContract": FORECAST_BINARY_CONTRACT,
-        "models": {
-            model_id: {
+        "schema_version": FORECAST_MANIFEST_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "catalog_version": str(forecast_catalog["catalogVersion"]),
+        "payload_contract": DATA_BINARY_CONTRACT,
+        "datasets": {
+            dataset_id: {
                 "label": model.label,
-                "latest": embedded_latest_manifests[model_id],
+                "latest": embedded_latest_manifests[dataset_id],
             }
-            for model_id, model in pipeline_config.models.items()
+            for dataset_id, model in pipeline_config.datasets.items()
         },
         "layers": {
             str(layer["id"]): {
-                "models": {
-                    model_id: _layer_model_entry(
+                "datasets": {
+                    dataset_id: _layer_model_entry(
                         model=model,
                         layer_requirements=_layer_requirements(
                             layer,
                             overlay_layers_by_id=overlay_layers_by_id,
                         ),
-                        latest_manifest=compatible_latest_manifests[model_id],
+                        latest_manifest=compatible_latest_manifests[dataset_id],
                     )
-                    for model_id, model in pipeline_config.models.items()
+                    for dataset_id, model in pipeline_config.datasets.items()
                 }
             }
             for layer in _catalog_layers(forecast_catalog)
@@ -96,22 +96,22 @@ def build_forecast_manifest(
     }
 
 
-def publish_forecast_manifest(
+def publish_data_manifest(
     *,
     pipeline_config: PipelineConfig,
     artifact_repo: ArtifactRepository,
     catalog: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
 ) -> str:
-    """Generate and publish the current frontend forecast manifest."""
+    """Generate and publish the current frontend data manifest."""
 
-    manifest = build_forecast_manifest(
+    manifest = build_data_manifest(
         pipeline_config=pipeline_config,
         artifact_repo=artifact_repo,
         generated_at=generated_at,
         catalog=catalog,
     )
-    return artifact_repo.write_forecast_manifest(manifest=manifest)
+    return artifact_repo.write_data_manifest(manifest=manifest)
 
 
 def _catalog_layers(catalog: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
@@ -145,38 +145,38 @@ def _embedded_latest_manifest(manifest: Mapping[str, Any] | None) -> dict[str, A
         return None
 
     run = _required_mapping(manifest, "run", owner="latest manifest")
-    times = _required_list(manifest, "times", owner="latest manifest")
+    frames = _required_list(manifest, "frames", owner="latest manifest")
     artifacts = _required_mapping(manifest, "artifacts", owner="latest manifest")
-    time_ids = tuple(_time_id(time, index=index) for index, time in enumerate(times))
-    if not time_ids:
-        raise SystemExit("Latest manifest must contain at least one time")
+    frame_ids = tuple(_time_id(frame, index=index) for index, frame in enumerate(frames))
+    if not frame_ids:
+        raise SystemExit("Latest manifest must contain at least one frame")
 
     return {
         "run": dict(run),
-        "times": [
-            dict(_as_mapping(time, owner=f"latest manifest time {index}"))
-            for index, time in enumerate(times)
+        "frames": [
+            dict(_as_mapping(frame, owner=f"latest manifest frame {index}"))
+            for index, frame in enumerate(frames)
         ],
         "artifacts": {
             str(artifact_id): _embedded_artifact(
                 artifact_id=str(artifact_id),
                 artifact=artifact,
-                time_ids=time_ids,
+                frame_ids=frame_ids,
             )
             for artifact_id, artifact in artifacts.items()
         },
     }
 
 
-def _safe_embedded_latest_manifest(*, model_id: str, manifest: Any) -> dict[str, Any] | None:
+def _safe_embedded_latest_manifest(*, dataset_id: str, manifest: Any) -> dict[str, Any] | None:
     try:
         return _embedded_latest_manifest(manifest)
     except (Exception, SystemExit) as exc:
-        print(f"Ignoring incompatible latest manifest for forecast manifest model={model_id}: {exc}")
+        print(f"Ignoring incompatible latest manifest for data manifest dataset_id={dataset_id}: {exc}")
         return None
 
 
-def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, ...]) -> dict[str, Any]:
+def _embedded_artifact(*, artifact_id: str, artifact: Any, frame_ids: tuple[str, ...]) -> dict[str, Any]:
     artifact_mapping = _as_mapping(artifact, owner=f"latest manifest artifact {artifact_id!r}")
     artifact_entry = dict(artifact_mapping)
     frames = _as_mapping(
@@ -185,11 +185,11 @@ def _embedded_artifact(*, artifact_id: str, artifact: Any, time_ids: tuple[str, 
     )
     artifact_entry.pop("path", None)
     artifact_entry.pop("sha256", None)
-    _required_value(artifact_entry, "payloadFile", owner=f"latest manifest artifact {artifact_id!r}")
-    artifact_entry["byteLength"] = _artifact_byte_length(
+    _required_value(artifact_entry, "payload_file", owner=f"latest manifest artifact {artifact_id!r}")
+    artifact_entry["byte_length"] = _artifact_byte_length(
         artifact_id=artifact_id,
         frames=frames,
-        time_ids=time_ids,
+        frame_ids=frame_ids,
     )
     return artifact_entry
 
@@ -198,25 +198,25 @@ def _artifact_byte_length(
     *,
     artifact_id: str,
     frames: Mapping[str, Any],
-    time_ids: tuple[str, ...],
+    frame_ids: tuple[str, ...],
 ) -> int:
     byte_length: int | None = None
-    for time_id in time_ids:
+    for frame_id in frame_ids:
         frame = _as_mapping(
-            frames.get(time_id),
-            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r}",
+            frames.get(frame_id),
+            owner=f"latest manifest artifact {artifact_id!r} frame {frame_id!r}",
         )
         frame_byte_length = _positive_int(
-            frame.get("byteLength"),
-            owner=f"latest manifest artifact {artifact_id!r} frame {time_id!r} byteLength",
+            frame.get("byte_length"),
+            owner=f"latest manifest artifact {artifact_id!r} frame {frame_id!r} byte_length",
         )
         if byte_length is None:
             byte_length = frame_byte_length
             continue
         if frame_byte_length != byte_length:
             raise SystemExit(
-                "Latest manifest artifact frame byteLength mismatch: "
-                f"artifact={artifact_id!r} first={byte_length} {time_id}={frame_byte_length}"
+                "Latest manifest artifact frame byte_length mismatch: "
+                f"artifact={artifact_id!r} first={byte_length} {frame_id}={frame_byte_length}"
             )
 
     if byte_length is None:
@@ -226,7 +226,7 @@ def _artifact_byte_length(
 
 def _layer_model_entry(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     layer_requirements: LayerRequirements,
     latest_manifest: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -237,8 +237,8 @@ def _layer_model_entry(
         return {
             "state": "unsupported",
             "support": "unavailable",
-            "requiredArtifacts": list(required_artifact_ids),
-            "optionalArtifacts": list(optional_artifact_ids),
+            "required_artifacts": list(required_artifact_ids),
+            "optional_artifacts": list(optional_artifact_ids),
         }
 
     state: AvailabilityState = (
@@ -250,12 +250,12 @@ def _layer_model_entry(
     return {
         "state": state,
         "support": _support_for_model(model=model, layer_requirements=layer_requirements),
-        "requiredArtifacts": list(required_artifact_ids),
-        "optionalArtifacts": list(optional_artifact_ids),
+        "required_artifacts": list(required_artifact_ids),
+        "optional_artifacts": list(optional_artifact_ids),
     }
 
 
-def _support_for_model(*, model: ModelConfig, layer_requirements: LayerRequirements) -> LayerSupport:
+def _support_for_model(*, model: DatasetConfig, layer_requirements: LayerRequirements) -> LayerSupport:
     if layer_requirements.support_hint == "frontend-derived":
         return layer_requirements.support_hint
 
@@ -395,11 +395,11 @@ def _raster_band_id(band: Mapping[str, Any]) -> str:
     return str(_required_value(band, "id", owner="raster source band"))
 
 
-def _read_latest_public_run_manifest(*, artifact_repo: ArtifactRepository, model_id: str) -> dict[str, Any] | None:
+def _read_latest_public_run_manifest(*, artifact_repo: ArtifactRepository, dataset_id: str) -> dict[str, Any] | None:
     try:
-        return read_latest_manifest_object(artifact_repo=artifact_repo, model_id=model_id)
+        return read_latest_manifest_object(artifact_repo=artifact_repo, dataset_id=dataset_id)
     except (Exception, SystemExit) as exc:
-        print(f"Unable to read latest manifest for forecast manifest model={model_id}: {exc}")
+        print(f"Unable to read latest manifest for data manifest dataset_id={dataset_id}: {exc}")
         return None
 
 
@@ -430,10 +430,10 @@ def _as_mapping(value: Any, *, owner: str) -> Mapping[str, Any]:
     return value
 
 
-def _time_id(time: Any, *, index: int) -> str:
-    time_mapping = _as_mapping(time, owner=f"latest manifest time {index}")
-    time_id = _required_value(time_mapping, "id", owner=f"latest manifest time {index}")
-    return str(time_id)
+def _time_id(frame: Any, *, index: int) -> str:
+    frame_mapping = _as_mapping(frame, owner=f"latest manifest frame {index}")
+    frame_id = _required_value(frame_mapping, "id", owner=f"latest manifest frame {index}")
+    return str(frame_id)
 
 
 def _positive_int(value: Any, *, owner: str) -> int:

@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  createMultiModelManifestFixture,
+  createMultiDatasetManifestFixture,
   createSingleTimeManifestFixture,
 } from '@/test/fixtures'
 import { useForecastManifest } from './useForecastManifest'
@@ -20,7 +20,7 @@ describe('useForecastManifest', () => {
     vi.clearAllMocks()
   })
 
-  it('reports loading while the forecast manifest is loading', () => {
+  it('reports loading while the data manifest is loading', () => {
     mocks.fetchManifest.mockReturnValue(new Promise(() => {}))
 
     const { result } = renderHook(() => useForecastManifest())
@@ -54,17 +54,17 @@ describe('useForecastManifest', () => {
 
   it('reports empty and latest-less manifests as startup errors', async () => {
     mocks.fetchManifest.mockResolvedValueOnce({
-      ...createMultiModelManifestFixture(),
-      models: {},
+      ...createMultiDatasetManifestFixture(),
+      datasets: {},
     })
     const empty = renderHook(() => useForecastManifest())
     await waitFor(() => {
       expect(empty.result.current.phase).toBe('error')
     })
-    expect(empty.result.current.error?.message).toBe('Forecast manifest did not list any models.')
+    expect(empty.result.current.error?.message).toBe('Data manifest did not list any datasets.')
     empty.unmount()
 
-    mocks.fetchManifest.mockResolvedValueOnce(createMultiModelManifestFixture({
+    mocks.fetchManifest.mockResolvedValueOnce(createMultiDatasetManifestFixture({
       gfsManifest: null,
       iconManifest: null,
     }))
@@ -73,14 +73,14 @@ describe('useForecastManifest', () => {
       expect(noLatest.result.current.phase).toBe('error')
     })
     expect(noLatest.result.current.error?.message).toBe(
-      'Forecast manifest did not include latest render data for any model.'
+      'Data manifest did not include latest render data for any dataset.'
     )
   })
 
-  it('returns ready forecast data from the forecast manifest', async () => {
-    const manifest = createMultiModelManifestFixture({
+  it('returns ready forecast data from the data manifest', async () => {
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
         cycle: '2026040900',
       }),
     })
@@ -92,17 +92,17 @@ describe('useForecastManifest', () => {
       expect(result.current.phase).toBe('ready')
     })
     expect(result.current.data?.manifest).toBe(manifest)
-    expect(result.current.data?.modelOptions).toContainEqual({ id: 'gfs', label: 'GFS' })
+    expect(result.current.data?.datasetOptions).toContainEqual({ id: 'gfs', label: 'GFS' })
   })
 
   it('keeps model selection outside of manifest loading', async () => {
-    const manifest = createMultiModelManifestFixture({
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
         cycle: '2026040900',
       }),
       iconManifest: createSingleTimeManifestFixture({
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
         cycle: '2026040912',
       }),
     })
@@ -114,7 +114,7 @@ describe('useForecastManifest', () => {
     })
 
     expect(result.current.data?.manifest).toBe(manifest)
-    expect(result.current.data?.modelOptions).toEqual([
+    expect(result.current.data?.datasetOptions).toEqual([
       { id: 'gfs', label: 'GFS' },
       { id: 'icon', label: 'ICON' },
     ])

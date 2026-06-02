@@ -16,7 +16,7 @@ class BackfillSafetyTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             result = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
             )
 
@@ -27,19 +27,19 @@ class BackfillSafetyTest(unittest.TestCase):
     def test_equal_or_newer_cycle_allows_submit(self) -> None:
         with temp_artifact_fixture() as artifacts:
             artifacts.write_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
                 generated_at=datetime(2026, 5, 11, tzinfo=timezone.utc),
             )
 
             equal = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
             )
             newer = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
             )
 
@@ -51,19 +51,19 @@ class BackfillSafetyTest(unittest.TestCase):
     def test_older_cycle_requires_backfill_flag(self) -> None:
         with temp_artifact_fixture() as artifacts:
             artifacts.write_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 generated_at=datetime(2026, 5, 11, tzinfo=timezone.utc),
             )
 
             blocked = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
             )
             allowed = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
                 allow_backfill=True,
             )
@@ -80,16 +80,16 @@ class BackfillSafetyTest(unittest.TestCase):
         with temp_artifact_fixture() as artifacts:
             manifest = manifest_payload(cycle="2026051106", generated_at=generated_at, revision="abc123")
             public_uri = artifacts.repository.write_public_run_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 run_id=DEFAULT_RUN_ID,
                 manifest=manifest,
             )
             artifacts.repository.write_latest_pointer(
-                model_id="gfs",
+                dataset_id="gfs",
                 pointer=manifest_pointer_dict(
                     schema_name=LATEST_POINTER_SCHEMA,
-                    model_id="gfs",
+                    dataset_id="gfs",
                     cycle="2026051106",
                     run_id=DEFAULT_RUN_ID,
                     revision="abc123",
@@ -100,7 +100,7 @@ class BackfillSafetyTest(unittest.TestCase):
 
             result = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
             )
 
@@ -111,13 +111,13 @@ class BackfillSafetyTest(unittest.TestCase):
     def test_malformed_latest_blocks_submit(self) -> None:
         with temp_artifact_fixture() as artifacts:
             artifacts.store.write_bytes(
-                uri=artifacts.paths.manifest_latest_uri(model_id="gfs"),
+                uri=artifacts.paths.manifest_latest_uri(dataset_id="gfs"),
                 data=b'{"run": {"cycle": "not-a-cycle"}}\n',
             )
 
             result = check_backfill_safety(
                 artifact_repo=artifacts.repository,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051100",
             )
 
@@ -128,7 +128,7 @@ class BackfillSafetyTest(unittest.TestCase):
         out = io.StringIO()
         with temp_artifact_fixture() as artifacts:
             artifacts.write_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 generated_at=datetime(2026, 5, 11, tzinfo=timezone.utc),
             )
@@ -137,7 +137,7 @@ class BackfillSafetyTest(unittest.TestCase):
                 result = cli.main(
                     [
                         "check-backfill",
-                        "--model",
+                        "--dataset-id",
                         "gfs",
                         "--cycle",
                         "2026051100",
@@ -155,7 +155,7 @@ class BackfillSafetyTest(unittest.TestCase):
         out = io.StringIO()
         with temp_artifact_fixture() as artifacts:
             artifacts.write_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 generated_at=datetime(2026, 5, 11, tzinfo=timezone.utc),
             )
@@ -164,7 +164,7 @@ class BackfillSafetyTest(unittest.TestCase):
                 result = cli.main(
                     [
                         "check-backfill",
-                        "--model",
+                        "--dataset-id",
                         "gfs",
                         "--cycle",
                         "2026051100",

@@ -15,33 +15,32 @@ def coordinated_run_id(
     *,
     ddb: Any,
     table_name: str,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     now: datetime,
     ttl_seconds: int = DEFAULT_RUN_COORDINATOR_TTL_SECONDS,
 ) -> str:
-    """Create or reuse one run id for an automatic model cycle."""
+    """Create or reuse one run id for an automatic dataset cycle."""
 
     run_id = generate_run_id(now=now)
     created_at = _utc(now).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     ttl = int(_utc(now).timestamp()) + max(1, ttl_seconds)
     response = ddb.update_item(
         TableName=table_name,
-        Key={"pk": _dynamo_s(run_pk(model_id=model_id, cycle=cycle))},
+        Key={"pk": _dynamo_s(run_pk(dataset_id=dataset_id, cycle=cycle))},
         UpdateExpression=(
-            "SET #model = if_not_exists(#model, :model), "
+            "SET dataset_id = if_not_exists(dataset_id, :dataset_id), "
             "#cycle = if_not_exists(#cycle, :cycle), "
-            "runId = if_not_exists(runId, :run_id), "
-            "createdAt = if_not_exists(createdAt, :created_at), "
+            "run_id = if_not_exists(run_id, :run_id), "
+            "created_at = if_not_exists(created_at, :created_at), "
             "#ttl = if_not_exists(#ttl, :ttl)"
         ),
         ExpressionAttributeNames={
-            "#model": "model",
             "#cycle": "cycle",
             "#ttl": "ttl",
         },
         ExpressionAttributeValues={
-            ":model": _dynamo_s(model_id),
+            ":dataset_id": _dynamo_s(dataset_id),
             ":cycle": _dynamo_s(cycle),
             ":run_id": _dynamo_s(run_id),
             ":created_at": _dynamo_s(created_at),
@@ -49,7 +48,7 @@ def coordinated_run_id(
         },
         ReturnValues="ALL_NEW",
     )
-    stored = str(response.get("Attributes", {}).get("runId", {}).get("S", ""))
+    stored = str(response.get("Attributes", {}).get("run_id", {}).get("S", ""))
     return validate_run_id(stored)
 
 
@@ -63,8 +62,8 @@ def run_coordinator_ttl_seconds() -> int:
         raise SystemExit(f"RUN_COORDINATOR_TTL_SECONDS must be an integer, got: {raw!r}") from exc
 
 
-def run_pk(*, model_id: str, cycle: str) -> str:
-    return f"{model_id}#{cycle}"
+def run_pk(*, dataset_id: str, cycle: str) -> str:
+    return f"{dataset_id}#{cycle}"
 
 
 def _dynamo_s(value: str) -> dict[str, str]:

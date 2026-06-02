@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from forecast_etl.config.load import parse_pipeline_config
-from forecast_etl.config.resolved import IconDwdConfig, IconDwdSourceConfig, ModelConfig, WorkloadConfig
+from forecast_etl.config.resolved import DatasetConfig, IconDwdConfig, IconDwdSourceConfig, WorkloadConfig
 from forecast_etl.derivations import previous_icon_param_key
 from forecast_etl.source_adapters import acquire_prepared_source, icon_dwd
 from forecast_etl.source_adapters.icon_dwd import icon_dwd_filename, icon_dwd_url
@@ -40,10 +40,10 @@ class _FakeHttpResponse(io.BytesIO):
         self.close()
 
 
-def _write_cached_icon_param(root: Path, *, cycle: str, fhour: str, icon_param: str) -> Path:
-    cache_dir = root / "cache" / "grib" / "icon" / cycle / fhour
+def _write_cached_icon_param(root: Path, *, cycle: str, frame_id: str, icon_param: str) -> Path:
+    cache_dir = root / "cache" / "grib" / "icon" / cycle / frame_id
     cache_dir.mkdir(parents=True, exist_ok=True)
-    filename = icon_dwd_filename(cycle=cycle, fhour=fhour, icon_param=icon_param)
+    filename = icon_dwd_filename(cycle=cycle, frame_id=frame_id, icon_param=icon_param)
     (cache_dir / filename).write_bytes(bz2.compress(b"grib"))
     (cache_dir / filename.removesuffix(".bz2")).write_bytes(b"grib")
     regridded_path = cache_dir / f"{icon_param}.regridded.grib2"
@@ -53,7 +53,7 @@ def _write_cached_icon_param(root: Path, *, cycle: str, fhour: str, icon_param: 
 
 class SourceAdapterTest(unittest.TestCase):
     def test_gfs_adapter_uses_source_uri_override(self) -> None:
-        model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
+        model = parse_pipeline_config(minimal_pipeline_config()).dataset("gfs")
         with tempfile.TemporaryDirectory(prefix="weather-map-gfs-source-") as td:
             tmp = Path(td)
             source_path = tmp / "source.grib2"
@@ -64,7 +64,7 @@ class SourceAdapterTest(unittest.TestCase):
             source = acquire_prepared_source(
                 model=model,
                 cycle="2026041200",
-                fhour="000",
+                frame_id="000",
                 source_uri_override=f"file://{source_path.as_posix()}",
                 artifact_ids=model.workload.artifacts,
                 workdir=workdir,
@@ -88,7 +88,7 @@ class SourceAdapterTest(unittest.TestCase):
             icon_dwd_url(
                 base_url="https://opendata.dwd.de/weather/nwp/icon/grib",
                 cycle="2026042800",
-                fhour="003",
+                frame_id="003",
                 icon_param="t_2m",
             ),
             "https://opendata.dwd.de/weather/nwp/icon/grib/00/t_2m/"
@@ -140,7 +140,7 @@ class SourceAdapterTest(unittest.TestCase):
         artifact_config = minimal_artifact_config()
         artifact_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
         artifact = artifact_spec("tmp_surface", artifact_config)
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -150,8 +150,8 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("000",), artifacts=("tmp_surface",)),
-            model_artifacts={},
+            workload=WorkloadConfig(frames=("000",), artifacts=("tmp_surface",)),
+            dataset_artifacts={},
             artifacts={"tmp_surface": artifact},
         )
 
@@ -159,7 +159,7 @@ class SourceAdapterTest(unittest.TestCase):
             tmp = Path(td)
             cache_dir = tmp / "cache" / "grib" / "icon" / "2026042800" / "000"
             cache_dir.mkdir(parents=True)
-            filename = icon_dwd_filename(cycle="2026042800", fhour="000", icon_param="t_2m")
+            filename = icon_dwd_filename(cycle="2026042800", frame_id="000", icon_param="t_2m")
             (cache_dir / filename).write_bytes(bz2.compress(b"grib"))
             (cache_dir / filename.removesuffix(".bz2")).write_bytes(b"grib")
             regridded_path = cache_dir / "t_2m.regridded.grib2"
@@ -176,7 +176,7 @@ class SourceAdapterTest(unittest.TestCase):
                 source = acquire_prepared_source(
                     model=model,
                     cycle="2026042800",
-                    fhour="000",
+                    frame_id="000",
                     source_uri_override=None,
                     artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
@@ -196,7 +196,7 @@ class SourceAdapterTest(unittest.TestCase):
 
     def test_icon_adapter_prepares_previous_tot_prec_for_derived_rate_after_first_hour(self) -> None:
         artifact = artifact_spec("prate_surface", precip_rate_config())
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -206,15 +206,15 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("003",), artifacts=("prate_surface",)),
-            model_artifacts={},
+            workload=WorkloadConfig(frames=("003",), artifacts=("prate_surface",)),
+            dataset_artifacts={},
             artifacts={"prate_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-source-") as td:
             tmp = Path(td)
-            current_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="tot_prec")
-            previous_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param="tot_prec")
+            current_path = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="003", icon_param="tot_prec")
+            previous_path = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="002", icon_param="tot_prec")
 
             with (
                 patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
@@ -227,7 +227,7 @@ class SourceAdapterTest(unittest.TestCase):
                 source = acquire_prepared_source(
                     model=model,
                     cycle="2026042800",
-                    fhour="003",
+                    frame_id="003",
                     source_uri_override=None,
                     artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
@@ -253,7 +253,7 @@ class SourceAdapterTest(unittest.TestCase):
 
     def test_icon_adapter_uses_zero_baseline_for_first_derived_rate_hour(self) -> None:
         artifact = artifact_spec("prate_surface", precip_rate_config())
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -263,14 +263,14 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("001",), artifacts=("prate_surface",)),
-            model_artifacts={},
+            workload=WorkloadConfig(frames=("001",), artifacts=("prate_surface",)),
+            dataset_artifacts={},
             artifacts={"prate_surface": artifact},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-rate-first-source-") as td:
             tmp = Path(td)
-            current_path = _write_cached_icon_param(tmp, cycle="2026042800", fhour="001", icon_param="tot_prec")
+            current_path = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="001", icon_param="tot_prec")
 
             with (
                 patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
@@ -283,7 +283,7 @@ class SourceAdapterTest(unittest.TestCase):
                 source = acquire_prepared_source(
                     model=model,
                     cycle="2026042800",
-                    fhour="001",
+                    frame_id="001",
                     source_uri_override=None,
                     artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
@@ -308,7 +308,7 @@ class SourceAdapterTest(unittest.TestCase):
     def test_icon_adapter_prepares_weather_code_for_thunderstorm_derivation(self) -> None:
         thunderstorm = artifact_spec("thunderstorm_mask", thunderstorm_mask_config())
         prate = artifact_spec("prate_surface", precip_rate_config())
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -319,10 +319,10 @@ class SourceAdapterTest(unittest.TestCase):
                 ),
             ),
             workload=WorkloadConfig(
-                forecast_hours=("003",),
+                frames=("003",),
                 artifacts=("prate_surface", "thunderstorm_mask"),
             ),
-            model_artifacts={},
+            dataset_artifacts={},
             artifacts={
                 "prate_surface": prate,
                 "thunderstorm_mask": thunderstorm,
@@ -331,9 +331,9 @@ class SourceAdapterTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-overlay-source-") as td:
             tmp = Path(td)
-            current_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="tot_prec")
-            previous_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param="tot_prec")
-            weather_code = _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param="ww")
+            current_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="003", icon_param="tot_prec")
+            previous_tot_prec = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="002", icon_param="tot_prec")
+            weather_code = _write_cached_icon_param(tmp, cycle="2026042800", frame_id="003", icon_param="ww")
 
             with (
                 patch.dict(os.environ, {"ICON_SOURCE_MIN_BYTES": "1"}, clear=False),
@@ -346,7 +346,7 @@ class SourceAdapterTest(unittest.TestCase):
                 source = acquire_prepared_source(
                     model=model,
                     cycle="2026042800",
-                    fhour="003",
+                    frame_id="003",
                     source_uri_override=None,
                     artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
@@ -381,7 +381,7 @@ class SourceAdapterTest(unittest.TestCase):
     def test_icon_required_params_respect_selected_artifacts(self) -> None:
         thunderstorm = artifact_spec("thunderstorm_mask", thunderstorm_mask_config())
         prate = artifact_spec("prate_surface", precip_rate_config())
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -392,10 +392,10 @@ class SourceAdapterTest(unittest.TestCase):
                 ),
             ),
             workload=WorkloadConfig(
-                forecast_hours=("003",),
+                frames=("003",),
                 artifacts=("prate_surface", "thunderstorm_mask"),
             ),
-            model_artifacts={},
+            dataset_artifacts={},
             artifacts={
                 "prate_surface": prate,
                 "thunderstorm_mask": thunderstorm,
@@ -409,7 +409,7 @@ class SourceAdapterTest(unittest.TestCase):
 
     def test_icon_adapter_prepares_precip_type_component_current_and_previous_inputs(self) -> None:
         precip_type = artifact_spec("precip_type_surface", icon_precip_type_config())
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -419,19 +419,19 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("003",), artifacts=("precip_type_surface",)),
-            model_artifacts={},
+            workload=WorkloadConfig(frames=("003",), artifacts=("precip_type_surface",)),
+            dataset_artifacts={},
             artifacts={"precip_type_surface": precip_type},
         )
 
         with tempfile.TemporaryDirectory(prefix="weather-map-icon-precip-type-source-") as td:
             tmp = Path(td)
             current_paths = {
-                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", fhour="003", icon_param=icon_param)
+                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", frame_id="003", icon_param=icon_param)
                 for icon_param in ("rain_gsp", "rain_con", "snow_gsp", "snow_con")
             }
             previous_paths = {
-                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", fhour="002", icon_param=icon_param)
+                icon_param: _write_cached_icon_param(tmp, cycle="2026042800", frame_id="002", icon_param=icon_param)
                 for icon_param in ("rain_gsp", "rain_con", "snow_gsp", "snow_con")
             }
 
@@ -446,7 +446,7 @@ class SourceAdapterTest(unittest.TestCase):
                 source = acquire_prepared_source(
                     model=model,
                     cycle="2026042800",
-                    fhour="003",
+                    frame_id="003",
                     source_uri_override=None,
                     artifact_ids=model.workload.artifacts,
                     workdir=tmp / "work",
@@ -567,7 +567,7 @@ class SourceAdapterTest(unittest.TestCase):
         artifact_config = minimal_artifact_config()
         artifact_config["components"][0]["grib_match"] = {"ICON_PARAM": "t_2m"}
         artifact = artifact_spec("tmp_surface", artifact_config)
-        model = ModelConfig(
+        model = DatasetConfig(
             id="icon",
             label="ICON",
             source=IconDwdSourceConfig(
@@ -577,8 +577,8 @@ class SourceAdapterTest(unittest.TestCase):
                     rate_limit_seconds=0.0,
                 ),
             ),
-            workload=WorkloadConfig(forecast_hours=("000",), artifacts=("tmp_surface",)),
-            model_artifacts={},
+            workload=WorkloadConfig(frames=("000",), artifacts=("tmp_surface",)),
+            dataset_artifacts={},
             artifacts={"tmp_surface": artifact},
         )
 
@@ -613,7 +613,7 @@ class SourceAdapterTest(unittest.TestCase):
                 regridded_path, downloaded = icon._prepare_icon_param(
                     model=model,
                     cycle="2026042800",
-                    fhour="000",
+                    frame_id="000",
                     icon_param="t_2m",
                 )
                 output_bytes = regridded_path.read_bytes()

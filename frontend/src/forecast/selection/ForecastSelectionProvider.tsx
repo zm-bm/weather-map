@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useSearchParams } from 'react-router-dom'
 
 import {
-  type ForecastModelId,
-  type ForecastModelOption,
+  type ForecastDatasetId,
+  type ForecastDatasetOption,
   type Manifest,
-  isLayerAvailableForModel,
+  isLayerAvailableForDataset,
   resolveActiveForecastRun,
   resolveCompatibleActiveForecastRun,
 } from '@/forecast/manifest'
@@ -26,36 +26,36 @@ import {
   selectedLayerIdFromSearchParams,
 } from './selectedLayerPersistence'
 import {
-  loadStoredActiveModelId,
-  normalizeActiveModelId,
-  saveStoredActiveModelId,
-} from './activeModelPersistence'
+  loadStoredActiveDatasetId,
+  normalizeActiveDatasetId,
+  saveStoredActiveDatasetId,
+} from './activeDatasetPersistence'
 
 const DEFAULT_LAYER_ID = DEFAULT_SELECTED_LAYER_ID
 
 export default function ForecastSelectionProvider({
   manifest,
-  modelOptions = [],
+  datasetOptions = [],
   children,
 }: {
   manifest: Manifest | null
-  modelOptions?: readonly ForecastModelOption[]
+  datasetOptions?: readonly ForecastDatasetOption[]
   children: ReactNode
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [fallbackLayerId, setFallbackLayerId] = useState<string>(
     () => resolvePersistedSelectedLayerId(searchParams)
   )
-  const [preferredModelId, setPreferredModelId] = useState<ForecastModelId | null>(
-    () => resolveInitialActiveModelId(
+  const [preferredDatasetId, setPreferredDatasetId] = useState<ForecastDatasetId | null>(
+    () => resolveInitialActiveDatasetId(
       manifest,
       resolvePersistedSelectedLayerId(searchParams)
     )
   )
   const selectedLayerId = selectedLayerIdFromSearchParams(searchParams) ?? fallbackLayerId
   const activeRun = useMemo(
-    () => resolveSelectedActiveRun(manifest, preferredModelId, selectedLayerId),
-    [manifest, preferredModelId, selectedLayerId]
+    () => resolveSelectedActiveRun(manifest, preferredDatasetId, selectedLayerId),
+    [manifest, preferredDatasetId, selectedLayerId]
   )
   const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<string | null>(
     () => getDefaultAvailableParticleLayerId(activeRun)
@@ -71,19 +71,19 @@ export default function ForecastSelectionProvider({
     const nextLayerId = normalizeSelectedLayerId(value) ?? DEFAULT_LAYER_ID
     setFallbackLayerId(nextLayerId)
     saveStoredSelectedLayerId(nextLayerId)
-    const nextModelId = resolveSelectedActiveRun(
+    const nextDatasetId = resolveSelectedActiveRun(
       manifest,
-      preferredModelId,
+      preferredDatasetId,
       nextLayerId
-    )?.modelId
-    if (nextModelId != null && nextModelId !== preferredModelId) {
-      setPreferredModelId(nextModelId)
-      saveStoredActiveModelId(nextModelId)
+    )?.datasetId
+    if (nextDatasetId != null && nextDatasetId !== preferredDatasetId) {
+      setPreferredDatasetId(nextDatasetId)
+      saveStoredActiveDatasetId(nextDatasetId)
     }
     updateSelectedLayerParam(nextLayerId)
   }, [
     manifest,
-    preferredModelId,
+    preferredDatasetId,
     updateSelectedLayerParam,
   ])
 
@@ -98,17 +98,17 @@ export default function ForecastSelectionProvider({
     updateSelectedLayerParam,
   ])
 
-  const setActiveModel = useCallback((value: ForecastModelId) => {
-    if (normalizeActiveModelId(manifest, value) == null) return
+  const setActiveDataset = useCallback((value: ForecastDatasetId) => {
+    if (normalizeActiveDatasetId(manifest, value) == null) return
     if (
       selectedLayerId != null &&
-      !isLayerAvailableForModel(manifest, selectedLayerId, value)
+      !isLayerAvailableForDataset(manifest, selectedLayerId, value)
     ) {
       return
     }
 
-    setPreferredModelId(value)
-    saveStoredActiveModelId(value)
+    setPreferredDatasetId(value)
+    saveStoredActiveDatasetId(value)
   }, [
     manifest,
     selectedLayerId,
@@ -116,15 +116,15 @@ export default function ForecastSelectionProvider({
 
   useEffect(() => {
     if (activeRun == null) return
-    saveStoredActiveModelId(activeRun.modelId)
+    saveStoredActiveDatasetId(activeRun.datasetId)
   }, [
     activeRun,
   ])
 
   const value = useMemo<ForecastSelectionContextValue>(() => {
     const baseValue = {
-      modelOptions,
-      setActiveModel,
+      datasetOptions,
+      setActiveDataset,
       setSelectedLayer,
       setSelectedParticleLayer: setSelectedParticleLayerId,
     }
@@ -133,7 +133,7 @@ export default function ForecastSelectionProvider({
       return {
         ...baseValue,
         activeRun: null,
-        activeModelId: null,
+        activeDatasetId: null,
         selectedLayerId: null,
         selectedParticleLayerId: null,
       }
@@ -148,16 +148,16 @@ export default function ForecastSelectionProvider({
     return {
       ...baseValue,
       activeRun,
-      activeModelId: activeRun.modelId,
+      activeDatasetId: activeRun.datasetId,
       selectedLayerId,
       selectedParticleLayerId: resolvedSelectedParticleLayerId,
     }
   }, [
     activeRun,
-    modelOptions,
+    datasetOptions,
     selectedLayerId,
     selectedParticleLayerId,
-    setActiveModel,
+    setActiveDataset,
     setSelectedLayer,
   ])
 
@@ -168,24 +168,24 @@ export default function ForecastSelectionProvider({
   )
 }
 
-function resolveInitialActiveModelId(
+function resolveInitialActiveDatasetId(
   manifest: Manifest | null,
   selectedLayerId: string | null
-): ForecastModelId | null {
-  if (manifest == null) return loadStoredActiveModelId()
+): ForecastDatasetId | null {
+  if (manifest == null) return loadStoredActiveDatasetId()
   return resolveSelectedActiveRun(
     manifest,
-    normalizeActiveModelId(manifest, loadStoredActiveModelId()),
+    normalizeActiveDatasetId(manifest, loadStoredActiveDatasetId()),
     selectedLayerId
-  )?.modelId ?? null
+  )?.datasetId ?? null
 }
 
 function resolveSelectedActiveRun(
   manifest: Manifest | null,
-  preferredModelId: ForecastModelId | null,
+  preferredDatasetId: ForecastDatasetId | null,
   selectedLayerId: string | null
 ) {
-  const preferredActiveRun = resolveActiveForecastRun(manifest, preferredModelId)
+  const preferredActiveRun = resolveActiveForecastRun(manifest, preferredDatasetId)
   return resolveCompatibleActiveForecastRun(preferredActiveRun, selectedLayerId)
     ?? preferredActiveRun
 }

@@ -72,8 +72,8 @@ export type RasterProbeSampler = {
   lat0: number
   dx: number
   dy: number
-  xWrap: ProbeFrame['raster']['grid']['xWrap']
-  yMode: ProbeFrame['raster']['grid']['yMode']
+  x_wrap: ProbeFrame['raster']['grid']['x_wrap']
+  y_mode: ProbeFrame['raster']['grid']['y_mode']
   cells: [
     RasterProbeSampleCell,
     RasterProbeSampleCell,
@@ -146,8 +146,8 @@ export function createRasterProbeSampler(
     lat0: geometry.lat0,
     dx: geometry.dx,
     dy: geometry.dy,
-    xWrap: geometry.xWrap,
-    yMode: geometry.yMode,
+    x_wrap: geometry.x_wrap,
+    y_mode: geometry.y_mode,
     cells: [
       toProbeSampleCell(geometry.cells[0]),
       toProbeSampleCell(geometry.cells[1]),
@@ -168,8 +168,8 @@ export function isRasterProbeSamplerCompatible(
     grid.lat0 === sampler.lat0 &&
     grid.dx === sampler.dx &&
     grid.dy === sampler.dy &&
-    grid.xWrap === sampler.xWrap &&
-    grid.yMode === sampler.yMode &&
+    grid.x_wrap === sampler.x_wrap &&
+    grid.y_mode === sampler.y_mode &&
     hasExpectedRasterCellCount(frame, sampler.nx * sampler.ny)
 }
 
@@ -248,12 +248,12 @@ function createRasterSampleGeometry(
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
   if (!hasExpectedRasterCellCount(frame, nx * ny)) return null
 
-  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.xWrap === 'repeat')
+  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.x_wrap === 'repeat')
   const gridY = clamp((coords.lat - lat0) / dy, 0, ny - 1)
 
   const x0 = Math.floor(gridX)
   const y0 = Math.floor(gridY)
-  const x1 = grid.xWrap === 'repeat'
+  const x1 = grid.x_wrap === 'repeat'
     ? wrapIndex(x0 + 1, nx)
     : Math.min(x0 + 1, nx - 1)
   const y1 = Math.min(y0 + 1, ny - 1)
@@ -272,8 +272,8 @@ function createRasterSampleGeometry(
     lat0,
     dx,
     dy,
-    xWrap: grid.xWrap,
-    yMode: grid.yMode,
+    x_wrap: grid.x_wrap,
+    y_mode: grid.y_mode,
     cells: [
       createSampleGeometryCell(x0, y0, nx, (1 - tx) * (1 - ty)),
       createSampleGeometryCell(x1, y0, nx, tx * (1 - ty)),

@@ -18,7 +18,7 @@ import type { ForecastWindowId } from '@/forecast/frames'
 import type { ActiveForecastRun } from '@/forecast/manifest'
 import {
   forecastRunScopeKey,
-  normalizeForecastHourToken,
+  normalizeFrameId,
 } from '@/forecast/manifest'
 import {
   interpolationWindowMinuteOffset,
@@ -71,7 +71,7 @@ export const DEFAULT_FORECAST_SYNC_OPTIONS: ForecastSyncOptions = {
 
 export type ForecastSyncPlan = ForecastTimeSliceSelection & {
   activeRun: ActiveForecastRun
-  forecastHourTokens: readonly string[]
+  frameIds: readonly string[]
   windowPlans: readonly ForecastWindowPlan[]
   windowPlanKeys: WindowPlanKeyMap
   windowPlanSetKey: string
@@ -97,7 +97,7 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
     ? getAvailableParticleLayer(args.activeRun, args.selectedParticleLayerId)
     : null
   const interpolationWindow = resolveForecastInterpolationWindow(
-    args.activeRun.latest.times,
+    args.activeRun.latest.frames,
     args.targetTimeMs
   )
   const runScope = forecastRunScopeKey(args.activeRun)
@@ -112,15 +112,15 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
 
   return {
     activeRun: args.activeRun,
-    forecastHourTokens: args.activeRun.latest.times.map((time) => (
-      normalizeForecastHourToken(time.id)
+    frameIds: args.activeRun.latest.frames.map((time) => (
+      normalizeFrameId(time.id)
     )),
     windowPlans,
     windowPlanKeys: windowPlanKeysById(windowPlans),
     windowPlanSetKey: windowPlanSetKeyString(runScope, windowPlans),
     selectedValidTimeMs: interpolationWindow.selectedValidTimeMs,
-    lowerHourToken: normalizeForecastHourToken(interpolationWindow.lowerHourToken),
-    upperHourToken: normalizeForecastHourToken(interpolationWindow.upperHourToken),
+    lowerFrameId: normalizeFrameId(interpolationWindow.lowerFrameId),
+    upperFrameId: normalizeFrameId(interpolationWindow.upperFrameId),
     mix: interpolationWindow.mix,
     minuteOffset: interpolationWindowMinuteOffset(interpolationWindow),
   }

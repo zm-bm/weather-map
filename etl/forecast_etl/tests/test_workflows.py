@@ -14,7 +14,7 @@ from forecast_etl.workflows.publisher import publish_candidate
 
 
 class _FakeWorkload:
-    forecast_hours = ("000", "003")
+    frames = ("000", "003")
     artifacts = ("tmp_surface",)
 
 
@@ -26,12 +26,12 @@ class _FakeModel:
 
 
 class _FakePipelineConfig:
-    models = {"gfs": _FakeModel()}
+    datasets = {"gfs": _FakeModel()}
 
-    def model(self, model_id: str) -> _FakeModel:
-        if model_id != "gfs":
-            raise SystemExit(f"Unknown model {model_id!r}")
-        return self.models[model_id]
+    def dataset(self, dataset_id: str) -> _FakeModel:
+        if dataset_id != "gfs":
+            raise SystemExit(f"Unknown dataset {dataset_id!r}")
+        return self.datasets[dataset_id]
 
 
 class _FakeStore:
@@ -39,7 +39,7 @@ class _FakeStore:
 
 
 def _loaded_cfg() -> LoadedPipelineConfig:
-    return LoadedPipelineConfig(raw={"models": {"gfs": {}}}, config=_FakePipelineConfig())
+    return LoadedPipelineConfig(raw={"datasets": {"gfs": {}}}, config=_FakePipelineConfig())
 
 
 def _loaded_snapshot() -> LoadedRunSnapshot:
@@ -72,9 +72,9 @@ class WorkflowTest(unittest.TestCase):
 
         self.assertEqual(app_context.artifact_repo.paths.artifact_root_uri, "s3://artifacts")
         self.assertEqual(runtime.model.id, "gfs")
-        self.assertEqual(runtime.execution_context.model_id, "gfs")
+        self.assertEqual(runtime.execution_context.dataset_id, "gfs")
         self.assertEqual(runtime.execution_context.artifact_root_uri, "s3://artifacts")
-        self.assertEqual(runtime.execution_context.forecast_hours, ("000", "003"))
+        self.assertEqual(runtime.execution_context.frames, ("000", "003"))
         self.assertEqual(load.call_args.args, ("s3://config/pipeline_config.json",))
         self.assertEqual(load.call_args.kwargs["overlay_uri"], "s3://config/local_overlay.json")
 
@@ -84,7 +84,7 @@ class WorkflowTest(unittest.TestCase):
         with patch("forecast_etl.workflows.context.ensure_run_snapshot", return_value=_loaded_snapshot()) as ensure:
             result = init_run(
                 app_context=app_context,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026021300",
                 run_id=DEFAULT_RUN_ID,
             )
@@ -93,7 +93,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(result.config_digest, "sha256:" + "1" * 64)
         self.assertIn("/config/pipeline_config.json", result.pipeline_config_uri)
         self.assertIn("/config/forecast_catalog.json", result.forecast_catalog_uri)
-        self.assertEqual(ensure.call_args.kwargs["model_id"], "gfs")
+        self.assertEqual(ensure.call_args.kwargs["dataset_id"], "gfs")
         self.assertEqual(ensure.call_args.kwargs["pipeline_config_uri"], "s3://config/pipeline_config.json")
 
     def test_validate_cycle_returns_not_ready_for_missing_run_selection(self) -> None:
@@ -103,7 +103,7 @@ class WorkflowTest(unittest.TestCase):
             patch("forecast_etl.workflows.context.select_run_id_for_cycle", return_value=(None, ["multiple runs"])),
             patch("forecast_etl.workflows.cycle.validate_run") as validate_run,
         ):
-            result = validate_cycle(app_context=app_context, model_id="gfs", cycle="2026021300")
+            result = validate_cycle(app_context=app_context, dataset_id="gfs", cycle="2026021300")
 
         self.assertFalse(result.ready)
         self.assertFalse(result.passed)
@@ -121,7 +121,7 @@ class WorkflowTest(unittest.TestCase):
         ):
             result = validate_cycle(
                 app_context=app_context,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026021300",
                 required_run_id=DEFAULT_RUN_ID,
             )
@@ -145,14 +145,14 @@ class WorkflowTest(unittest.TestCase):
         ):
             result = publish_cycle(
                 app_context=app_context,
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026021300",
                 required_run_id=DEFAULT_RUN_ID,
             )
 
         self.assertTrue(result.ready)
         self.assertEqual(result.run_id, DEFAULT_RUN_ID)
-        self.assertEqual(publish_cycle_command.call_args.kwargs["pipeline_config"].model("gfs").id, "gfs")
+        self.assertEqual(publish_cycle_command.call_args.kwargs["pipeline_config"].dataset("gfs").id, "gfs")
         self.assertEqual(publish_cycle_command.call_args.kwargs["forecast_catalog"]["catalogVersion"], "test")
 
     def test_scheduled_publisher_validates_missing_report_before_publishing(self) -> None:
@@ -174,7 +174,7 @@ class WorkflowTest(unittest.TestCase):
                 return_value=PublishResult(ready=True, already_published=False),
             ) as run_publish,
         ):
-            result = publish_candidate(app_context=app_context, model_id="gfs", cycle="2026021300")
+            result = publish_candidate(app_context=app_context, dataset_id="gfs", cycle="2026021300")
 
         self.assertTrue(result.ready)
         validate_run.assert_called_once()

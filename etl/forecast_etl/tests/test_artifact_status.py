@@ -22,7 +22,7 @@ from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 class CycleStatusTest(unittest.TestCase):
     def test_success_marker_id_from_key_accepts_valid_marker(self) -> None:
         marker_id = success_marker_id_from_key(
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026051106",
             key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
         )
@@ -32,21 +32,21 @@ class CycleStatusTest(unittest.TestCase):
     def test_success_marker_id_from_key_rejects_non_matching_keys(self) -> None:
         self.assertIsNone(
             success_marker_id_from_key(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 key=f"runs/icon/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
             )
         )
         self.assertIsNone(
             success_marker_id_from_key(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003.json",
             )
         )
         self.assertIsNone(
             success_marker_id_from_key(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051106",
                 key=f"runs/gfs/2026051106/{DEFAULT_RUN_ID}/_PUBLISHED.json",
             )
@@ -62,10 +62,10 @@ class CycleStatusTest(unittest.TestCase):
 
         progress = summarize_cycle_progress(
             artifact_root_uri="file:///artifacts",
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026051106",
             artifact_ids=("tmp",),
-            fhours=("000", "003"),
+            frames=("000", "003"),
             objects=objects,
             read_json=success_marker_payload_from_uri,
             manifest_present=True,
@@ -85,10 +85,10 @@ class CycleStatusTest(unittest.TestCase):
 
         progress = summarize_cycle_progress(
             artifact_root_uri="file:///artifacts",
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026051106",
             artifact_ids=("tmp", "rh"),
-            fhours=("000", "003"),
+            frames=("000", "003"),
             objects=objects,
             read_json=success_marker_payload_from_uri,
             missing_sample_limit=2,
@@ -106,12 +106,12 @@ class CycleStatusTest(unittest.TestCase):
 
         progress = summarize_cycle_progress(
             artifact_root_uri="file:///artifacts",
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026051106",
             artifact_ids=("tmp",),
-            fhours=("000",),
+            frames=("000",),
             objects=objects,
-            read_json=lambda uri: invalid_success_marker_payload(cycle="2026051106", fhour="000"),
+            read_json=lambda uri: invalid_success_marker_payload(cycle="2026051106", frame_id="000"),
         )
 
         self.assertFalse(progress.complete)
@@ -119,16 +119,16 @@ class CycleStatusTest(unittest.TestCase):
 
     def test_read_cycle_progress_uses_store_and_artifact_paths(self) -> None:
         with temp_artifact_fixture() as artifacts:
-            model = parse_pipeline_config(minimal_pipeline_config()).model("gfs")
+            model = parse_pipeline_config(minimal_pipeline_config()).dataset("gfs")
             cycle = "2026051106"
             artifacts.write_success_marker(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 artifact_id="tmp_surface",
-                fhour="000",
+                frame_id="000",
             )
             artifacts.write_published_marker(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 generated_at=datetime(2026, 5, 11, 7, tzinfo=timezone.utc),
             )

@@ -2,57 +2,57 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createCatalogManifestFixture,
-  createMultiModelManifestFixture,
+  createMultiDatasetManifestFixture,
   createSingleTimeManifestFixture,
 } from '@/test/fixtures'
 import {
   getActiveRunLayerAvailability,
-  getLayerModelAvailability,
-  hasAnyAvailableModelForLayer,
+  getLayerDatasetAvailability,
+  hasAnyAvailableDatasetForLayer,
   isLayerAvailableForActiveRun,
-  isLayerAvailableForModel,
+  isLayerAvailableForDataset,
   forecastRunScopeKey,
   resolveActiveForecastRun,
   resolveCompatibleActiveForecastRun,
 } from './resolution'
 
-describe('forecast manifest active run resolution', () => {
-  it('uses the preferred model when it has a latest run', () => {
-    const manifest = createMultiModelManifestFixture({
+describe('data manifest active run resolution', () => {
+  it('uses the preferred dataset when it has a latest run', () => {
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
         cycle: '2026040900',
       }),
       iconManifest: createSingleTimeManifestFixture({
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
         cycle: '2026040912',
       }),
     })
 
     const activeRun = resolveActiveForecastRun(manifest, 'icon')
 
-    expect(activeRun?.modelId).toBe('icon')
+    expect(activeRun?.datasetId).toBe('icon')
     expect(activeRun?.label).toBe('ICON')
     expect(activeRun?.latest.run.cycle).toBe('2026040912')
   })
 
-  it('falls back to the first model with latest data when the preferred model is empty', () => {
-    const manifest = createMultiModelManifestFixture({
+  it('falls back to the first dataset with latest data when the preferred dataset is empty', () => {
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: null,
       iconManifest: createSingleTimeManifestFixture({
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
         cycle: '2026040912',
       }),
     })
 
     const activeRun = resolveActiveForecastRun(manifest, 'gfs')
 
-    expect(activeRun?.modelId).toBe('icon')
+    expect(activeRun?.datasetId).toBe('icon')
     expect(activeRun?.latest.run.cycle).toBe('2026040912')
   })
 
-  it('returns null when no model has latest data', () => {
-    const manifest = createMultiModelManifestFixture({
+  it('returns null when no dataset has latest data', () => {
+    const manifest = createMultiDatasetManifestFixture({
       gfsManifest: null,
       iconManifest: null,
     })
@@ -64,9 +64,9 @@ describe('forecast manifest active run resolution', () => {
     const activeRun = resolveActiveForecastRun(createSingleTimeManifestFixture({
       run: {
         cycle: '2026040912',
-        runId: '20260409T130000Z-abcdef12',
-        payloadRoot: 'runs/gfs/2026040912/20260409T130000Z-abcdef12/fields',
-        generatedAt: '2026-04-09T13:00:00Z',
+        run_id: '20260409T130000Z-abcdef12',
+        payload_root: 'runs/gfs/2026040912/20260409T130000Z-abcdef12/fields',
+        generated_at: '2026-04-09T13:00:00Z',
         revision: 'rev-1',
       },
     }), 'gfs')
@@ -80,12 +80,12 @@ describe('forecast manifest active run resolution', () => {
     const activeRun = resolveActiveForecastRun(manifest, 'gfs')
     if (!activeRun) throw new Error('Expected active run fixture')
 
-    expect(getLayerModelAvailability(manifest, 'temperature', 'gfs')?.state).toBe('available')
+    expect(getLayerDatasetAvailability(manifest, 'temperature', 'gfs')?.state).toBe('available')
     expect(getActiveRunLayerAvailability(activeRun, 'temperature')?.state).toBe('available')
-    expect(isLayerAvailableForModel(manifest, 'visibility', 'icon')).toBe(false)
+    expect(isLayerAvailableForDataset(manifest, 'visibility', 'icon')).toBe(false)
     expect(isLayerAvailableForActiveRun(activeRun, 'visibility')).toBe(true)
-    expect(hasAnyAvailableModelForLayer(manifest, 'visibility')).toBe(true)
-    expect(hasAnyAvailableModelForLayer(manifest, 'missing_layer')).toBe(false)
+    expect(hasAnyAvailableDatasetForLayer(manifest, 'visibility')).toBe(true)
+    expect(hasAnyAvailableDatasetForLayer(manifest, 'missing_layer')).toBe(false)
   })
 
   it('resolves a compatible active run for a plain layer id', () => {
@@ -95,7 +95,7 @@ describe('forecast manifest active run resolution', () => {
 
     const compatibleRun = resolveCompatibleActiveForecastRun(iconRun, 'visibility')
 
-    expect(compatibleRun?.modelId).toBe('gfs')
+    expect(compatibleRun?.datasetId).toBe('gfs')
   })
 
 })

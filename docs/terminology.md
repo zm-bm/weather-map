@@ -9,8 +9,8 @@ forecast time concepts, render layers, and MapLibre implementation details.
 
 - `forecast`: the app domain for manifests, time selection, layer selection,
   artifact loading, rendering, and probe display.
-- `model`: a configured forecast source such as GFS or ICON. A model can have
-  many cycles.
+- `dataset` / `dataset_id`: a configured data product such as GFS, ICON,
+  radar, or satellite imagery. A dataset can have many cycles.
 - `layer`: a user-facing forecast choice from the frontend catalog, such as
   Temperature, Wind Speed, or Precipitation Rate. Selectable filled layers are
   cataloged as `rasterLayers`.
@@ -39,9 +39,9 @@ forecast time concepts, render layers, and MapLibre implementation details.
 
 ## Time Terms
 
-- `cycle`: model run initialization timestamp, formatted as `YYYYMMDDHH`.
-- `lead hour` / `hour token`: forecast offset from the cycle, formatted as
-  `000`, `001`, `003`, etc.
+- `cycle`: UTC batch/window/source issue timestamp, formatted as `YYYYMMDDHH`.
+- `frame_id`: the within-cycle time/index dimension, formatted as `000`,
+  `001`, `003`, etc. for forecast datasets.
 - `valid time`: the actual UTC forecast time represented in the UI.
 - `frame`: one discrete forecast data time in the frontend: one active run plus
   one lead-hour token. This is the preferred data/render term.
@@ -63,11 +63,11 @@ forecast time concepts, render layers, and MapLibre implementation details.
 - `vector artifact`: an artifact containing multiple ordered component grids.
   Some vectors are physical `u/v` vectors, while others are component bundles
   such as `snow_frac` / `mix_frac`.
-- `manifest`: the artifact availability and decode contract for a model run. It
-  describes artifacts, grids, encodings, available forecast times, and run
+- `manifest`: the artifact availability and decode contract for a dataset run. It
+  describes artifacts, grids, encodings, available frames, and run
   identity; it does not define the user-facing layer taxonomy.
 - `frame ref`: the frontend artifact module's resolved reference to an artifact
-  payload for one forecast hour, including the inferred payload path and byte
+  payload for one frame, including the manifest-provided payload path and byte
   length.
 
 ## Data Terms

@@ -12,10 +12,10 @@ from forecast_etl.tests.fixtures.pipeline import minimal_pipeline_config
 from forecast_etl.tests.fixtures.publish import publish_fixture
 
 
-def _model(*, fhour_end: int = 0):
+def _model(*, frame_end: int = 0):
     cfg = minimal_pipeline_config()
-    cfg["models"]["gfs"]["workload"]["forecast_hour_end"] = fhour_end
-    return parse_pipeline_config(cfg).model("gfs")
+    cfg["datasets"]["gfs"]["workload"]["frame_end"] = frame_end
+    return parse_pipeline_config(cfg).dataset("gfs")
 
 
 def _snapshot() -> LoadedRunSnapshot:
@@ -31,7 +31,7 @@ def _snapshot() -> LoadedRunSnapshot:
 
 class RunValidationTest(unittest.TestCase):
     def test_validate_run_passes_complete_marker_set_and_writes_report(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-pass-", fhours=("000",)) as fx:
+        with publish_fixture(prefix="weather-map-validate-pass-", frames=("000",)) as fx:
             model = _model()
             fx.write_scalar_marker()
 
@@ -45,15 +45,15 @@ class RunValidationTest(unittest.TestCase):
 
             self.assertTrue(result.passed)
             self.assertEqual(result.report["status"], "passed")
-            self.assertEqual(result.report["payloadCheckMode"], PAYLOAD_CHECK_MODE)
-            self.assertEqual(result.report["expected"]["markerCount"], 1)
-            self.assertEqual(result.report["observed"]["expectedMarkers"], 1)
+            self.assertEqual(result.report["payload_check_mode"], PAYLOAD_CHECK_MODE)
+            self.assertEqual(result.report["expected"]["marker_count"], 1)
+            self.assertEqual(result.report["observed"]["expected_markers"], 1)
             self.assertTrue(
-                fx.artifacts.validation_report_exists(model_id=fx.model_id, cycle=fx.cycle, run_id=fx.run_id)
+                fx.artifacts.validation_report_exists(dataset_id=fx.dataset_id, cycle=fx.cycle, run_id=fx.run_id)
             )
             passed, errors = validation_report_passed(
                 artifact_repo=fx.artifacts,
-                model_id=fx.model_id,
+                dataset_id=fx.dataset_id,
                 cycle=fx.cycle,
                 run_id=fx.run_id,
             )
@@ -61,7 +61,7 @@ class RunValidationTest(unittest.TestCase):
             self.assertEqual(errors, [])
 
     def test_validate_run_fails_for_missing_and_unexpected_markers(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-missing-", fhours=("000",)) as fx:
+        with publish_fixture(prefix="weather-map-validate-missing-", frames=("000",)) as fx:
             model = _model()
             fx.write_scalar_marker(artifact_id="extra_surface")
 
@@ -79,7 +79,7 @@ class RunValidationTest(unittest.TestCase):
             self.assertEqual(result.report["status"], "failed")
 
     def test_validate_run_fails_for_bad_marker_schema(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-bad-schema-", fhours=("000",)) as fx:
+        with publish_fixture(prefix="weather-map-validate-bad-schema-", frames=("000",)) as fx:
             model = _model()
             fx.write_scalar_marker()
             marker_uri = fx.marker_uri("tmp_surface")
@@ -99,12 +99,12 @@ class RunValidationTest(unittest.TestCase):
             self.assertTrue(any("invalid success marker" in error for error in result.errors))
 
     def test_validate_run_fails_for_identity_config_and_payload_mismatch(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-identity-", fhours=("000",)) as fx:
+        with publish_fixture(prefix="weather-map-validate-identity-", frames=("000",)) as fx:
             model = _model()
             fx.write_scalar_marker()
             marker_uri = fx.marker_uri("tmp_surface")
             marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
-            marker["fhour"] = "003"
+            marker["frame_id"] = "003"
             marker["config_digest"] = "sha256:" + "1" * 64
             marker["artifact"]["payload_uri"] = "file:///wrong/path.bin"
             write_json(marker_uri, marker)
@@ -118,12 +118,12 @@ class RunValidationTest(unittest.TestCase):
             )
 
             self.assertFalse(result.passed)
-            self.assertTrue(any("success marker fhour mismatch" in error for error in result.errors))
+            self.assertTrue(any("success marker frame_id mismatch" in error for error in result.errors))
             self.assertTrue(any("success marker config_digest mismatch" in error for error in result.errors))
             self.assertTrue(any("artifact metadata payload_uri mismatch" in error for error in result.errors))
 
     def test_validate_run_fails_for_artifact_metadata_mismatch(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-artifact-meta-", fhours=("000",)) as fx:
+        with publish_fixture(prefix="weather-map-validate-artifact-meta-", frames=("000",)) as fx:
             model = _model()
             fx.write_scalar_marker()
             marker_uri = fx.marker_uri("tmp_surface")
@@ -145,10 +145,10 @@ class RunValidationTest(unittest.TestCase):
             self.assertTrue(any("artifact metadata components mismatch" in error for error in result.errors))
 
     def test_validate_run_fails_for_grid_mismatch_across_hours(self) -> None:
-        with publish_fixture(prefix="weather-map-validate-grid-", fhours=("000", "001")) as fx:
-            model = _model(fhour_end=1)
+        with publish_fixture(prefix="weather-map-validate-grid-", frames=("000", "001")) as fx:
+            model = _model(frame_end=1)
             fx.write_scalar_markers()
-            marker_uri = fx.marker_uri("tmp_surface", fhour="001")
+            marker_uri = fx.marker_uri("tmp_surface", frame_id="001")
             marker = json.loads(fx.store.read_bytes(uri=marker_uri).decode("utf-8"))
             marker["artifact"]["grid"]["dx"] = 2
             write_json(marker_uri, marker)

@@ -9,12 +9,12 @@ from ..run_ids import parse_run_id
 from .context import ApplicationContext
 
 
-def runs(*, app_context: ApplicationContext, model_id: str, cycle: str) -> dict:
+def runs(*, app_context: ApplicationContext, dataset_id: str, cycle: str) -> dict:
     parse_cycle(cycle)
     return runs_report(
         artifact_repo=app_context.artifact_repo,
         store=app_context.store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
     )
 
@@ -22,7 +22,7 @@ def runs(*, app_context: ApplicationContext, model_id: str, cycle: str) -> dict:
 def status(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str | None = None,
 ) -> dict:
@@ -30,18 +30,18 @@ def status(
     return status_report(
         artifact_repo=app_context.artifact_repo,
         store=app_context.store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=parse_run_id(run_id) if run_id else None,
     )
 
 
-def pointers(*, app_context: ApplicationContext, model_id: str, cycle: str | None = None) -> dict:
+def pointers(*, app_context: ApplicationContext, dataset_id: str, cycle: str | None = None) -> dict:
     if cycle is not None:
         parse_cycle(cycle)
     return pointers_report(
         artifact_repo=app_context.artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
     )
 
@@ -49,7 +49,7 @@ def pointers(*, app_context: ApplicationContext, model_id: str, cycle: str | Non
 def cleanup_runs(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str | None = None,
     delete_candidates: bool = False,
 ) -> dict:
@@ -58,7 +58,7 @@ def cleanup_runs(
     return cleanup_runs_report(
         artifact_repo=app_context.artifact_repo,
         store=app_context.store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         delete_candidates=delete_candidates,
     )

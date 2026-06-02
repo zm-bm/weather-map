@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from ..artifacts.repository import ArtifactRepository
 from ..catalog import load_forecast_catalog
 from ..config.load import LoadedPipelineConfig, load_pipeline_config, load_pipeline_config_document
-from ..config.resolved import ModelConfig, PipelineConfig
+from ..config.resolved import DatasetConfig, PipelineConfig
 from ..run_metadata import RunSnapshot, json_document_digest, run_metadata_from_env
 from ..run_snapshots import (
     LoadedRunSnapshot,
@@ -16,7 +16,7 @@ from ..run_snapshots import (
     load_run_snapshot,
     select_run_id_for_cycle,
 )
-from ..runtime import ExecutionContext, execution_context_for_model
+from ..runtime import ExecutionContext, execution_context_for_dataset
 from ..storage.base import UriStore
 from ..storage.routing import make_store
 
@@ -27,7 +27,7 @@ class ModelRuntime:
 
     loaded_config: LoadedPipelineConfig
     pipeline_config: PipelineConfig
-    model: ModelConfig
+    model: DatasetConfig
     execution_context: ExecutionContext
 
 
@@ -62,15 +62,15 @@ class ApplicationContext:
     def load_forecast_catalog(self) -> dict:
         return load_forecast_catalog(catalog_uri=self.forecast_catalog_uri, store=self.store)
 
-    def resolve_model_runtime(self, model_id: str) -> ModelRuntime:
+    def resolve_model_runtime(self, dataset_id: str) -> ModelRuntime:
         loaded = self.load_pipeline_config_document()
         pipeline_config = loaded.config
-        model = pipeline_config.model(model_id)
+        model = pipeline_config.dataset(dataset_id)
         return ModelRuntime(
             loaded_config=loaded,
             pipeline_config=pipeline_config,
             model=model,
-            execution_context=execution_context_for_model(model, self.artifact_root_uri),
+            execution_context=execution_context_for_dataset(model, self.artifact_root_uri),
         )
 
     def source_run_snapshot(self, loaded_config: LoadedPipelineConfig) -> RunSnapshot:
@@ -80,11 +80,11 @@ class ApplicationContext:
             forecast_catalog=self.load_forecast_catalog(),
         )
 
-    def ensure_run_snapshot(self, *, model_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
+    def ensure_run_snapshot(self, *, dataset_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
         return ensure_run_snapshot(
             artifact_repo=self.artifact_repo,
             store=self.store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
             pipeline_config_uri=self.pipeline_config_uri,
@@ -92,11 +92,11 @@ class ApplicationContext:
             forecast_catalog_uri=self.forecast_catalog_uri,
         )
 
-    def ensure_or_load_run_snapshot(self, *, model_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
+    def ensure_or_load_run_snapshot(self, *, dataset_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
         return ensure_or_load_run_snapshot(
             artifact_repo=self.artifact_repo,
             store=self.store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
             pipeline_config_uri=self.pipeline_config_uri,
@@ -104,11 +104,11 @@ class ApplicationContext:
             forecast_catalog_uri=self.forecast_catalog_uri,
         )
 
-    def load_run_snapshot(self, *, model_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
+    def load_run_snapshot(self, *, dataset_id: str, cycle: str, run_id: str) -> LoadedRunSnapshot:
         return load_run_snapshot(
             artifact_repo=self.artifact_repo,
             store=self.store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
         )
@@ -116,13 +116,13 @@ class ApplicationContext:
     def select_run_id_for_cycle(
         self,
         *,
-        model_id: str,
+        dataset_id: str,
         cycle: str,
         required_run_id: str | None,
     ) -> tuple[str | None, list[str]]:
         return select_run_id_for_cycle(
             artifact_repo=self.artifact_repo,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             required_run_id=required_run_id,
         )

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from ..config.resolved import IconDwdSourceConfig, ModelConfig
+from ..config.resolved import DatasetConfig, IconDwdSourceConfig
 from ..derivations import ICON_PARAM_MATCH_KEY, previous_icon_param_key
 from ..proc import RunFn, make_runner
 from ..storage.base import UriStore
@@ -22,7 +22,7 @@ from .icon_dwd_source import (
     _retry_sleep_seconds,
     icon_dwd_filename,
     icon_dwd_url,
-    previous_icon_fhour,
+    previous_icon_frame_id,
     required_icon_params,
     required_previous_icon_params,
 )
@@ -86,20 +86,20 @@ def _regrid_if_needed(
 
 def _prepare_icon_param(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
-    fhour: str,
+    frame_id: str,
     icon_param: str,
     run: RunFn | None = None,
 ) -> tuple[Path, bool]:
     """Download, decompress, and regrid one ICON parameter if needed."""
 
     if not isinstance(model.source, IconDwdSourceConfig):
-        raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
+        raise SystemExit(f"Dataset {model.id!r} is not configured for ICON DWD acquisition")
 
     source = model.source.icon_dwd
-    cache_dir = default_etl_dir() / "cache" / "grib" / model.id / cycle / fhour
-    filename = icon_dwd_filename(cycle=cycle, fhour=fhour, icon_param=icon_param)
+    cache_dir = default_etl_dir() / "cache" / "grib" / model.id / cycle / frame_id
+    filename = icon_dwd_filename(cycle=cycle, frame_id=frame_id, icon_param=icon_param)
     compressed_path = cache_dir / filename
     decompressed_path = cache_dir / filename.removesuffix(".bz2")
     regridded_path = cache_dir / f"{icon_param.lower()}.regridded.grib2"
@@ -107,7 +107,7 @@ def _prepare_icon_param(
     url = icon_dwd_url(
         base_url=source.base_url,
         cycle=cycle,
-        fhour=fhour,
+        frame_id=frame_id,
         icon_param=icon_param,
     )
     deadline = time.monotonic() + _icon_source_wait_seconds()
@@ -140,9 +140,9 @@ def _prepare_icon_param(
 
 def _acquire_icon_dwd_source(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
-    fhour: str,
+    frame_id: str,
     source_uri_override: str | None,
     artifact_ids: Iterable[str],
     run: RunFn | None = None,
@@ -150,9 +150,9 @@ def _acquire_icon_dwd_source(
     """Acquire the prepared GRIB collection for one ICON cycle/hour."""
 
     if not isinstance(model.source, IconDwdSourceConfig):
-        raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
+        raise SystemExit(f"Dataset {model.id!r} is not configured for ICON DWD acquisition")
     if source_uri_override is not None and source_uri_override.strip():
-        raise SystemExit(f"Model {model.id!r} uses ICON DWD acquisition and does not accept --source-uri")
+        raise SystemExit(f"Dataset {model.id!r} uses ICON DWD acquisition and does not accept --source-uri")
 
     grib_paths: dict[str, Path] = {}
     rate_limit_seconds = model.source.icon_dwd.rate_limit_seconds
@@ -161,7 +161,7 @@ def _acquire_icon_dwd_source(
         grib_path, downloaded = _prepare_icon_param(
             model=model,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             icon_param=icon_param,
             run=run,
         )
@@ -169,13 +169,13 @@ def _acquire_icon_dwd_source(
         if downloaded and rate_limit_seconds > 0:
             time.sleep(rate_limit_seconds)
 
-    previous_fhour = previous_icon_fhour(fhour)
-    if previous_fhour is not None:
+    previous_frame_id = previous_icon_frame_id(frame_id)
+    if previous_frame_id is not None:
         for icon_param in required_previous_icon_params(model, resolved_artifact_ids):
             grib_path, downloaded = _prepare_icon_param(
                 model=model,
                 cycle=cycle,
-                fhour=previous_fhour,
+                frame_id=previous_frame_id,
                 icon_param=icon_param,
                 run=run,
             )
@@ -184,7 +184,7 @@ def _acquire_icon_dwd_source(
                 time.sleep(rate_limit_seconds)
 
     return PreparedSource.grib_collection(
-        uri=f"icon-dwd://{model.id}/{cycle}/{fhour}",
+        uri=f"icon-dwd://{model.id}/{cycle}/{frame_id}",
         grib_paths=grib_paths,
         grid_id=model.source.grid_id,
         selector_key=ICON_PARAM_MATCH_KEY,
@@ -193,9 +193,9 @@ def _acquire_icon_dwd_source(
 
 def acquire_prepared_source(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
-    fhour: str,
+    frame_id: str,
     source_uri_override: str | None,
     artifact_ids: Iterable[str],
     workdir: Path,
@@ -209,10 +209,10 @@ def acquire_prepared_source(
         return _acquire_icon_dwd_source(
             model=model,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             source_uri_override=source_uri_override,
             artifact_ids=artifact_ids,
             run=run,
         )
 
-    raise SystemExit(f"Unsupported ICON model source type for {model.id!r}: {model.source.type!r}")
+    raise SystemExit(f"Unsupported ICON dataset source type for {model.id!r}: {model.source.type!r}")

@@ -11,9 +11,9 @@ import {
 } from './time'
 
 const TIMES = [
-  { id: '000', validAt: '2026-04-09T00:00:00.000Z' },
-  { id: '003', validAt: '2026-04-09T03:00:00.000Z' },
-  { id: '006', validAt: '2026-04-09T06:00:00.000Z' },
+  { id: '000', valid_at: '2026-04-09T00:00:00.000Z' },
+  { id: '003', valid_at: '2026-04-09T03:00:00.000Z' },
+  { id: '006', valid_at: '2026-04-09T06:00:00.000Z' },
 ]
 
 describe('forecastTime helpers', () => {
@@ -61,8 +61,8 @@ describe('forecastTime helpers', () => {
   it('resolves exact and interpolated valid times into interpolation windows', () => {
     expect(resolveForecastInterpolationWindow(TIMES, Date.UTC(2026, 3, 9, 3, 0))).toEqual({
       selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 0),
-      lowerHourToken: '003',
-      upperHourToken: '003',
+      lowerFrameId: '003',
+      upperFrameId: '003',
       lowerValidTimeMs: Date.UTC(2026, 3, 9, 3, 0),
       upperValidTimeMs: Date.UTC(2026, 3, 9, 3, 0),
       mix: 0,
@@ -72,8 +72,8 @@ describe('forecastTime helpers', () => {
       TIMES,
       Date.UTC(2026, 3, 9, 4, 30)
     )
-    expect(interpolated.lowerHourToken).toBe('003')
-    expect(interpolated.upperHourToken).toBe('006')
+    expect(interpolated.lowerFrameId).toBe('003')
+    expect(interpolated.upperFrameId).toBe('006')
     expect(interpolated.mix).toBeCloseTo(0.5)
   })
 
@@ -85,8 +85,8 @@ describe('forecastTime helpers', () => {
     expect(resolveForecastInterpolationWindow(TIMES, Date.UTC(2026, 3, 9, 8, 0)))
       .toEqual({
         selectedValidTimeMs: Date.UTC(2026, 3, 9, 6, 0),
-        lowerHourToken: '006',
-        upperHourToken: '006',
+        lowerFrameId: '006',
+        upperFrameId: '006',
         lowerValidTimeMs: Date.UTC(2026, 3, 9, 6, 0),
         upperValidTimeMs: Date.UTC(2026, 3, 9, 6, 0),
         mix: 0,

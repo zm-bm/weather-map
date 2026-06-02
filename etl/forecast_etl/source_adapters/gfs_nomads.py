@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from ..config.resolved import GfsNomadsSourceConfig, ModelConfig
+from ..config.resolved import DatasetConfig, GfsNomadsSourceConfig
 from ..cycles import parse_cycle
 from ..proc import RunFn
 from ..storage.base import UriStore
@@ -18,9 +18,9 @@ from .gfs_layout import grib_cache_path
 
 def acquire_prepared_source(
     *,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
-    fhour: str,
+    frame_id: str,
     source_uri_override: str | None,
     artifact_ids: Iterable[str],
     workdir: Path,
@@ -31,7 +31,7 @@ def acquire_prepared_source(
 
     del artifact_ids, run
     if not isinstance(model.source, GfsNomadsSourceConfig):
-        raise SystemExit(f"Model {model.id!r} is not configured for GFS NOMADS acquisition")
+        raise SystemExit(f"Dataset {model.id!r} is not configured for GFS NOMADS acquisition")
     source = model.source
 
     if source_uri_override is not None and source_uri_override.strip():
@@ -42,17 +42,17 @@ def acquire_prepared_source(
     _, cycle_hour = parse_cycle(cycle)
     grib_path = grib_cache_path(
         etl_dir=default_etl_dir(),
-        model_id=model.id,
+        dataset_id=model.id,
         cycle=cycle,
         cycle_hour=cycle_hour,
-        fhour=fhour,
+        frame_id=frame_id,
     )
     if not grib_path.exists():
         url = nomads.nomads_url(
             base_url=source.nomads.base_url,
             vars_levels=source.nomads.vars_levels,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
         )
         downloaded = nomads.download_if_needed(url, grib_path)
         if downloaded and source.nomads.rate_limit_seconds > 0:

@@ -4,13 +4,13 @@ export const FORECAST_TIME_STEP_MS = FORECAST_TIME_STEP_MINUTES * MINUTE_MS
 
 export type ForecastTimelineTime = {
   id: string
-  validAt: string
+  valid_at: string
 }
 
 export type ForecastTimeSliceSelection = {
   selectedValidTimeMs: number
-  lowerHourToken: string
-  upperHourToken: string
+  lowerFrameId: string
+  upperFrameId: string
   mix: number
 }
 
@@ -20,7 +20,7 @@ export type ForecastInterpolationWindow = ForecastTimeSliceSelection & {
 }
 
 function forecastTimeMs(time: ForecastTimelineTime): number | null {
-  const epochMs = Date.parse(time.validAt)
+  const epochMs = Date.parse(time.valid_at)
   return Number.isFinite(epochMs) ? epochMs : null
 }
 
@@ -143,8 +143,8 @@ export function resolveForecastInterpolationWindow(
   if (times.length === 0) {
     return {
       selectedValidTimeMs: clampedValidTimeMs,
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      lowerFrameId: '000',
+      upperFrameId: '000',
       lowerValidTimeMs: clampedValidTimeMs,
       upperValidTimeMs: clampedValidTimeMs,
       mix: 0,
@@ -156,11 +156,11 @@ export function resolveForecastInterpolationWindow(
   const lastValidTimeMs = validTimes[validTimes.length - 1] ?? clampedValidTimeMs
 
   if (clampedValidTimeMs <= firstValidTimeMs) {
-    const hourToken = times[0]?.id ?? '000'
+    const frameId = times[0]?.id ?? '000'
     return {
       selectedValidTimeMs: firstValidTimeMs,
-      lowerHourToken: hourToken,
-      upperHourToken: hourToken,
+      lowerFrameId: frameId,
+      upperFrameId: frameId,
       lowerValidTimeMs: firstValidTimeMs,
       upperValidTimeMs: firstValidTimeMs,
       mix: 0,
@@ -170,14 +170,14 @@ export function resolveForecastInterpolationWindow(
   for (let idx = 0; idx < times.length - 1; idx += 1) {
     const lowerValidTimeMs = validTimes[idx] ?? clampedValidTimeMs
     const upperValidTimeMs = validTimes[idx + 1] ?? lowerValidTimeMs
-    const lowerHourToken = times[idx]?.id ?? '000'
-    const upperHourToken = times[idx + 1]?.id ?? lowerHourToken
+    const lowerFrameId = times[idx]?.id ?? '000'
+    const upperFrameId = times[idx + 1]?.id ?? lowerFrameId
 
     if (clampedValidTimeMs === lowerValidTimeMs) {
       return {
         selectedValidTimeMs: clampedValidTimeMs,
-        lowerHourToken,
-        upperHourToken: lowerHourToken,
+        lowerFrameId,
+        upperFrameId: lowerFrameId,
         lowerValidTimeMs,
         upperValidTimeMs: lowerValidTimeMs,
         mix: 0,
@@ -188,8 +188,8 @@ export function resolveForecastInterpolationWindow(
       const spanMs = Math.max(MINUTE_MS, upperValidTimeMs - lowerValidTimeMs)
       return {
         selectedValidTimeMs: clampedValidTimeMs,
-        lowerHourToken,
-        upperHourToken,
+        lowerFrameId,
+        upperFrameId,
         lowerValidTimeMs,
         upperValidTimeMs,
         mix: Math.min(1, Math.max(0, (clampedValidTimeMs - lowerValidTimeMs) / spanMs)),
@@ -199,8 +199,8 @@ export function resolveForecastInterpolationWindow(
     if (clampedValidTimeMs === upperValidTimeMs) {
       return {
         selectedValidTimeMs: clampedValidTimeMs,
-        lowerHourToken: upperHourToken,
-        upperHourToken,
+        lowerFrameId: upperFrameId,
+        upperFrameId,
         lowerValidTimeMs: upperValidTimeMs,
         upperValidTimeMs,
         mix: 0,
@@ -208,11 +208,11 @@ export function resolveForecastInterpolationWindow(
     }
   }
 
-  const lastHourToken = times[times.length - 1]?.id ?? '000'
+  const lastFrameId = times[times.length - 1]?.id ?? '000'
   return {
     selectedValidTimeMs: lastValidTimeMs,
-    lowerHourToken: lastHourToken,
-    upperHourToken: lastHourToken,
+    lowerFrameId: lastFrameId,
+    upperFrameId: lastFrameId,
     lowerValidTimeMs: lastValidTimeMs,
     upperValidTimeMs: lastValidTimeMs,
     mix: 0,

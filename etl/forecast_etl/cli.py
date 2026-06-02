@@ -3,16 +3,17 @@
 Subcommands:
 - check-backfill: guard against accidental older-than-latest submits
 - init-run: create or verify immutable run config/catalog snapshots
-- run-hour: run all configured artifacts for one (cycle, fhour)
-- run-cycle: process all forecast hours for one model, and publish once
-- publish-cycle: publish manifests for one processed model cycle
-- validate-cycle: validate one processed model cycle before publication
-- runs: inspect known run attempts for one model cycle
-- status: inspect one run attempt for one model cycle
-- pointers: inspect public manifest pointers for one model
+- run-frame: run all configured artifacts for one (cycle, frame_id)
+- run-cycle: process all configured frames for one dataset, and publish once
+- plan-cycle: print a read-only cycle submission plan
+- publish-cycle: publish manifests for one processed dataset cycle
+- validate-cycle: validate one processed dataset cycle before publication
+- runs: inspect known run attempts for one dataset cycle
+- status: inspect one run attempt for one dataset cycle
+- pointers: inspect public manifest pointers for one dataset
 - cleanup-runs: report run cleanup candidates without deleting objects
-- list-models: print configured forecast model ids
-- list-forecast-hours: print configured forecast hours for one model
+- list-datasets: print configured dataset ids
+- list-frames: print configured frame ids for one dataset
 - smoke: trivial health/debug command for Batch smoke tests
 """
 
@@ -32,6 +33,7 @@ from .uris import (
 from .workflows import cycle as cycle_workflow
 from .workflows import inspection as inspection_workflow
 from .workflows.context import ApplicationContext
+from .workflows.planning import parse_frame_selection, plan_cycle
 
 
 def _config_parser() -> argparse.ArgumentParser:
@@ -66,10 +68,10 @@ def _runtime_parser() -> argparse.ArgumentParser:
         default=os.environ.get("ARTIFACT_ROOT_URI") or default_artifact_root_uri(),
     )
     p.add_argument(
-        "--model",
-        dest="model",
-        default=os.environ.get("MODEL"),
-        help="Forecast model id (required; also accepts $MODEL).",
+        "--dataset-id",
+        dest="dataset_id",
+        default=os.environ.get("DATASET_ID"),
+        help="Dataset id (required; also accepts $DATASET_ID).",
     )
     return p
 
@@ -104,24 +106,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     ap_check_backfill.set_defaults(_handler=_cmd_check_backfill)
 
-    ap_run_hour = sub.add_parser(
-        "run-hour",
-        help="Run one (cycle, fhour) across all configured artifacts",
+    ap_run_frame = sub.add_parser(
+        "run-frame",
+        help="Run one (cycle, frame_id) across all configured artifacts",
         parents=[runtime],
     )
-    ap_run_hour.add_argument("--cycle", help="Cycle YYYYMMDDHH (falls back to $CYCLE)")
-    ap_run_hour.add_argument("--run-id", help="Run id (falls back to $RUN_ID)")
-    ap_run_hour.add_argument("--fhour", help="Forecast hour FFF (falls back to $FHOUR)")
-    ap_run_hour.add_argument(
+    ap_run_frame.add_argument("--cycle", help="Cycle YYYYMMDDHH (falls back to $CYCLE)")
+    ap_run_frame.add_argument("--run-id", help="Run id (falls back to $RUN_ID)")
+    ap_run_frame.add_argument("--frame-id", dest="frame_id", help="Frame id (falls back to $FRAME_ID)")
+    ap_run_frame.add_argument(
         "--source-uri",
-        help="Input model source URI (file://..., s3://..., http(s)://); falls back to $GRIB_SOURCE_URI",
+        help="Input source URI (file://..., s3://..., http(s)://); falls back to $GRIB_SOURCE_URI",
     )
-    _add_artifact_filter_arg(ap_run_hour)
-    ap_run_hour.set_defaults(_handler=_cmd_run_hour)
+    _add_artifact_filter_arg(ap_run_frame)
+    ap_run_frame.set_defaults(_handler=_cmd_run_frame)
 
     ap_run_cycle = sub.add_parser(
         "run-cycle",
-        help="Process all configured forecast hours for one model, and publish once",
+        help="Process all configured frames for one dataset, and publish once",
         parents=[runtime],
     )
     ap_run_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
@@ -138,14 +140,37 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_run_cycle.add_argument(
         "--no-publish",
         action="store_true",
-        help="Skip publish after processing all configured forecast hours",
+        help="Skip publish after processing all configured frames",
     )
     _add_artifact_filter_arg(ap_run_cycle)
     ap_run_cycle.set_defaults(_handler=_cmd_run_cycle)
 
+    ap_plan_cycle = sub.add_parser(
+        "plan-cycle",
+        help="Print a read-only cycle submission plan",
+        parents=[runtime],
+    )
+    ap_plan_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
+    ap_plan_cycle.add_argument(
+        "--run-id",
+        help="Run id for this cycle attempt (default: generated for this plan)",
+    )
+    ap_plan_cycle.add_argument(
+        "--frames",
+        help='Configured frame subset, e.g. "000 003" or "000,003"',
+    )
+    ap_plan_cycle.add_argument(
+        "--no-publish",
+        action="store_true",
+        help="Omit the publish step from the plan",
+    )
+    ap_plan_cycle.add_argument("--json", action="store_true", help="Emit structured JSON")
+    _add_artifact_filter_arg(ap_plan_cycle)
+    ap_plan_cycle.set_defaults(_handler=_cmd_plan_cycle)
+
     ap_publish_cycle = sub.add_parser(
         "publish-cycle",
-        help="Publish manifests for one processed forecast cycle",
+        help="Publish manifests for one processed dataset cycle",
         parents=[runtime],
     )
     ap_publish_cycle.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
@@ -169,7 +194,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_runs = sub.add_parser(
         "runs",
-        help="Inspect known run attempts for one model cycle",
+        help="Inspect known run attempts for one dataset cycle",
         parents=[runtime],
     )
     ap_runs.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
@@ -178,7 +203,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_status = sub.add_parser(
         "status",
-        help="Inspect one run attempt for one model cycle",
+        help="Inspect one run attempt for one dataset cycle",
         parents=[runtime],
     )
     ap_status.add_argument("--cycle", required=True, help="Cycle YYYYMMDDHH")
@@ -188,7 +213,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap_pointers = sub.add_parser(
         "pointers",
-        help="Inspect public manifest pointers for one model",
+        help="Inspect public manifest pointers for one dataset",
         parents=[runtime],
     )
     ap_pointers.add_argument("--cycle", help="Optional cycle YYYYMMDDHH for current pointer inspection")
@@ -214,19 +239,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap_cleanup_runs.add_argument("--json", action="store_true", help="Emit structured JSON")
     ap_cleanup_runs.set_defaults(_handler=_cmd_cleanup_runs)
 
-    ap_list_fhours = sub.add_parser(
-        "list-forecast-hours",
-        help="Print configured forecast hours for one model",
+    ap_list_frames = sub.add_parser(
+        "list-frames",
+        help="Print configured frame ids for one dataset",
         parents=[runtime],
     )
-    ap_list_fhours.set_defaults(_handler=_cmd_list_forecast_hours)
+    ap_list_frames.set_defaults(_handler=_cmd_list_frames)
 
-    ap_list_models = sub.add_parser(
-        "list-models",
-        help="Print one configured forecast model id per line",
+    ap_list_datasets = sub.add_parser(
+        "list-datasets",
+        help="Print one configured dataset id per line",
         parents=[config],
     )
-    ap_list_models.set_defaults(_handler=_cmd_list_models)
+    ap_list_datasets.set_defaults(_handler=_cmd_list_datasets)
 
     ap_smoke = sub.add_parser("smoke", help="Print a trivial health-check message and exit")
     ap_smoke.set_defaults(_handler=_cmd_smoke)
@@ -246,8 +271,8 @@ def _require_str(
     return resolved.strip()
 
 
-def _require_model_id(args: argparse.Namespace) -> str:
-    return _require_str(args.model, env_name="MODEL", cli_flag="--model")
+def _require_dataset_id(args: argparse.Namespace) -> str:
+    return _require_str(args.dataset_id, env_name="DATASET_ID", cli_flag="--dataset-id")
 
 
 def _add_artifact_filter_arg(parser: argparse.ArgumentParser) -> None:
@@ -260,8 +285,8 @@ def _add_artifact_filter_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _cmd_run_hour(args: argparse.Namespace) -> int:
-    """Run one hour without publishing."""
+def _cmd_run_frame(args: argparse.Namespace) -> int:
+    """Run one frame without publishing."""
 
     source_uri = (
         args.source_uri
@@ -270,12 +295,12 @@ def _cmd_run_hour(args: argparse.Namespace) -> int:
     )
     source_uri = source_uri.strip() if isinstance(source_uri, str) and source_uri.strip() else None
 
-    cycle_workflow.process_hour(
+    cycle_workflow.process_frame(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=_require_str(args.cycle, env_name="CYCLE", cli_flag="--cycle"),
         run_id=_require_str(getattr(args, "run_id", None), env_name="RUN_ID", cli_flag="--run-id"),
-        fhour=_require_str(args.fhour, env_name="FHOUR", cli_flag="--fhour"),
+        frame_id=_require_str(args.frame_id, env_name="FRAME_ID", cli_flag="--frame-id"),
         source_uri=source_uri,
         artifact_ids=args.artifacts,
     )
@@ -287,7 +312,7 @@ def _cmd_check_backfill(args: argparse.Namespace) -> int:
 
     result = cycle_workflow.check_backfill(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle),
         allow_backfill=bool(args.backfill),
     )
@@ -301,7 +326,7 @@ def _cmd_init_run(args: argparse.Namespace) -> int:
 
     result = cycle_workflow.init_run(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle),
         run_id=args.run_id,
     )
@@ -313,11 +338,11 @@ def _cmd_init_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_run_cycle(args: argparse.Namespace) -> int:
-    """Fan out model forecast-hour workers locally, and publish once by default."""
+    """Fan out dataset frame workers locally, and publish once by default."""
 
     cycle_workflow.process_cycle(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle),
         run_id=args.run_id,
         artifact_ids=args.artifacts,
@@ -327,46 +352,62 @@ def _cmd_run_cycle(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_publish_cycle(args: argparse.Namespace) -> int:
-    """Publish one processed model cycle."""
+def _cmd_plan_cycle(args: argparse.Namespace) -> int:
+    """Print a read-only provider-neutral cycle plan."""
 
-    model_id = _require_model_id(args)
+    result = plan_cycle(
+        app_context=_app_context(args),
+        dataset_id=_require_dataset_id(args),
+        cycle=str(args.cycle),
+        run_id=args.run_id,
+        selected_frames=parse_frame_selection(args.frames),
+        selected_artifacts=args.artifacts,
+        publish=not args.no_publish,
+    )
+    _print_operator_report(result.plan, as_json=bool(args.json))
+    return 0
+
+
+def _cmd_publish_cycle(args: argparse.Namespace) -> int:
+    """Publish one processed dataset cycle."""
+
+    dataset_id = _require_dataset_id(args)
     cycle = str(args.cycle)
     result = cycle_workflow.publish_cycle(
         app_context=_app_context(args),
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=args.run_id,
     )
     if not result.ready and result.publish_result is None:
-        _print_not_ready(label="Publish", model_id=model_id, cycle=cycle, result=result)
+        _print_not_ready(label="Publish", dataset_id=dataset_id, cycle=cycle, result=result)
         return 2
     return 0 if result.ready else 2
 
 
 def _cmd_validate_cycle(args: argparse.Namespace) -> int:
-    """Validate one processed model cycle."""
+    """Validate one processed dataset cycle."""
 
-    model_id = _require_model_id(args)
+    dataset_id = _require_dataset_id(args)
     cycle = str(args.cycle)
     result = cycle_workflow.validate_cycle(
         app_context=_app_context(args),
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=args.run_id,
     )
     if not result.ready:
-        _print_not_ready(label="Validation", model_id=model_id, cycle=cycle, result=result)
+        _print_not_ready(label="Validation", dataset_id=dataset_id, cycle=cycle, result=result)
         return 2
     return 0 if result.passed else 2
 
 
 def _cmd_runs(args: argparse.Namespace) -> int:
-    """Inspect known runs for one model cycle."""
+    """Inspect known runs for one dataset cycle."""
 
     report = inspection_workflow.runs(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle),
     )
     _print_operator_report(report, as_json=bool(args.json))
@@ -374,11 +415,11 @@ def _cmd_runs(args: argparse.Namespace) -> int:
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
-    """Inspect one run for one model cycle."""
+    """Inspect one run for one dataset cycle."""
 
     report = inspection_workflow.status(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle),
         run_id=args.run_id,
     )
@@ -387,11 +428,11 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_pointers(args: argparse.Namespace) -> int:
-    """Inspect public manifest pointers for one model."""
+    """Inspect public manifest pointers for one dataset."""
 
     report = inspection_workflow.pointers(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle) if args.cycle else None,
     )
     _print_operator_report(report, as_json=bool(args.json))
@@ -405,30 +446,30 @@ def _cmd_cleanup_runs(args: argparse.Namespace) -> int:
         raise SystemExit("cleanup-runs --delete requires --yes")
     report = inspection_workflow.cleanup_runs(
         app_context=_app_context(args),
-        model_id=_require_model_id(args),
+        dataset_id=_require_dataset_id(args),
         cycle=str(args.cycle) if args.cycle else None,
         delete_candidates=bool(args.delete),
     )
     _print_operator_report(report, as_json=bool(args.json))
-    return 2 if int(report.get("deleteErrorCount") or 0) else 0
+    return 2 if int(report.get("delete_error_count") or 0) else 0
 
 
-def _cmd_list_forecast_hours(args: argparse.Namespace) -> int:
+def _cmd_list_frames(args: argparse.Namespace) -> int:
     """Print one configured forecast-hour id per line."""
 
     cfg = _app_context(args).load_pipeline_config()
-    model = cfg.model(_require_model_id(args))
-    for fhour in model.workload.forecast_hours:
-        print(fhour)
+    dataset = cfg.dataset(_require_dataset_id(args))
+    for frame_id in dataset.workload.frames:
+        print(frame_id)
     return 0
 
 
-def _cmd_list_models(args: argparse.Namespace) -> int:
-    """Print one configured forecast model id per line."""
+def _cmd_list_datasets(args: argparse.Namespace) -> int:
+    """Print one configured dataset id per line."""
 
     cfg = _app_context(args).load_pipeline_config()
-    for model_id in cfg.models:
-        print(model_id)
+    for dataset_id in cfg.datasets:
+        print(dataset_id)
     return 0
 
 
@@ -448,13 +489,13 @@ def _app_context(args: argparse.Namespace, *, store: UriStore | None = None) -> 
     )
 
 
-def _print_not_ready(*, label: str, model_id: str, cycle: str, result: object) -> None:
+def _print_not_ready(*, label: str, dataset_id: str, cycle: str, result: object) -> None:
     message = getattr(result, "message", None)
     errors = tuple(getattr(result, "errors", ()) or ())
     if message and not message.startswith("run selection failed"):
         print(f"{label} not ready: {message}")
         return
-    print(f"{label} not ready: run selection failed for model={model_id} cycle={cycle}")
+    print(f"{label} not ready: run selection failed for dataset_id={dataset_id} cycle={cycle}")
     if message and not errors:
         print(f"run error: {message}")
     for error in errors:

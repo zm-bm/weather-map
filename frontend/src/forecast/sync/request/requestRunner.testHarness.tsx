@@ -144,11 +144,11 @@ export function planAt(
   index: number,
   overrides: Partial<ForecastSyncPlan> = {},
 ): ForecastSyncPlan {
-  const validTime = plan.activeRun.latest.times[index]
+  const validTime = plan.activeRun.latest.frames[index]
   if (!validTime) throw new Error(`Missing fixture time at index ${index}`)
   return createForecastSyncPlanFixture({
     activeRun: plan.activeRun,
-    targetTimeMs: Date.parse(validTime.validAt),
+    targetTimeMs: Date.parse(validTime.valid_at),
     overrides: {
       windowPlans: plan.windowPlans,
       ...overrides,

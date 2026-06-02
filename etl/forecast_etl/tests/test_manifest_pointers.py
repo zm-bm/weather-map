@@ -15,7 +15,7 @@ class ManifestPointerTest(unittest.TestCase):
     def test_manifest_pointer_dict_preserves_stable_wire_shape(self) -> None:
         pointer = manifest_pointer_dict(
             schema_name=LATEST_POINTER_SCHEMA,
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026053018",
             run_id=DEFAULT_RUN_ID,
             revision="abc123",
@@ -26,14 +26,14 @@ class ManifestPointerTest(unittest.TestCase):
         self.assertEqual(
             pointer,
             {
-                "schema": "weather-map.model-latest-pointer",
-                "schemaVersion": 1,
-                "model": "gfs",
+                "schema": "weather-map.dataset-latest-pointer",
+                "schema_version": 1,
+                "dataset_id": "gfs",
                 "cycle": "2026053018",
-                "runId": DEFAULT_RUN_ID,
+                "run_id": DEFAULT_RUN_ID,
                 "revision": "abc123",
-                "generatedAt": "2026-05-31T01:22:33Z",
-                "manifestPath": f"manifests/gfs/cycles/2026053018/runs/{DEFAULT_RUN_ID}.json",
+                "generated_at": "2026-05-31T01:22:33Z",
+                "manifest_path": f"manifests/gfs/cycles/2026053018/runs/{DEFAULT_RUN_ID}.json",
             },
         )
         parsed = parse_manifest_pointer(pointer, expected_schema=LATEST_POINTER_SCHEMA)
@@ -43,7 +43,7 @@ class ManifestPointerTest(unittest.TestCase):
     def test_current_pointer_schema_is_accepted(self) -> None:
         pointer = manifest_pointer_dict(
             schema_name=CURRENT_POINTER_SCHEMA,
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026053018",
             run_id=DEFAULT_RUN_ID,
             revision="abc123",
@@ -58,7 +58,7 @@ class ManifestPointerTest(unittest.TestCase):
     def test_parse_manifest_pointer_rejects_unsafe_paths_and_schema_mismatch(self) -> None:
         pointer = manifest_pointer_dict(
             schema_name=LATEST_POINTER_SCHEMA,
-            model_id="gfs",
+            dataset_id="gfs",
             cycle="2026053018",
             run_id=DEFAULT_RUN_ID,
             revision="abc123",
@@ -67,7 +67,7 @@ class ManifestPointerTest(unittest.TestCase):
         )
 
         bad_path = dict(pointer)
-        bad_path["manifestPath"] = "/manifests/gfs/latest.json"
+        bad_path["manifest_path"] = "/manifests/gfs/latest.json"
         with self.assertRaises(SystemExit):
             parse_manifest_pointer(bad_path)
 

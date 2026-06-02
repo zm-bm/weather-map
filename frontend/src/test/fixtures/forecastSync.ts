@@ -8,7 +8,7 @@ import { resolveForecastSyncPlan } from '@/forecast/sync/plan'
 import type { ForecastSyncSession } from '@/forecast/sync/load/session'
 import type { ActiveForecastRun } from '@/forecast/manifest'
 import {
-  normalizeForecastHourToken,
+  normalizeFrameId,
 } from '@/forecast/manifest'
 import {
   interpolationWindowMinuteOffset,
@@ -45,12 +45,12 @@ export function createForecastSyncPlanFixture(args: {
   overrides?: Partial<ForecastSyncPlan>
 } = {}): ForecastSyncPlan {
   const activeRun = args.activeRun ?? createDefaultForecastSyncPlanActiveRun(args)
-  const firstTime = activeRun.latest.times[0]
+  const firstTime = activeRun.latest.frames[0]
   if (firstTime == null) throw new Error('Forecast sync plan fixture requires at least one time')
 
   const targetTimeMs = args.targetTimeMs ??
     args.interpolationWindow?.selectedValidTimeMs ??
-    Date.parse(firstTime.validAt)
+    Date.parse(firstTime.valid_at)
   const syncOptions: ForecastSyncOptions = {
     contour: true,
     particles: true,
@@ -82,8 +82,8 @@ export function createForecastSyncPlanFixture(args: {
   return {
     ...plan,
     selectedValidTimeMs: args.interpolationWindow.selectedValidTimeMs,
-    lowerHourToken: normalizeForecastHourToken(args.interpolationWindow.lowerHourToken),
-    upperHourToken: normalizeForecastHourToken(args.interpolationWindow.upperHourToken),
+    lowerFrameId: normalizeFrameId(args.interpolationWindow.lowerFrameId),
+    upperFrameId: normalizeFrameId(args.interpolationWindow.upperFrameId),
     mix: args.interpolationWindow.mix,
     minuteOffset: interpolationWindowMinuteOffset(args.interpolationWindow),
     ...args.overrides,

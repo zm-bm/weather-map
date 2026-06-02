@@ -9,25 +9,27 @@ afterEach(() => {
 
 function createForecastManifestPayload() {
   return {
-    schema: 'weather-map.forecast-manifest',
-    schemaVersion: 1,
-    generatedAt: '2026-05-16T00:00:00Z',
-    catalogVersion: 'forecast-catalog-v1',
-    payloadContract: 'forecast-binary-v2',
-    models: {
+    schema: 'weather-map.data-manifest',
+    schema_version: 1,
+    generated_at: '2026-05-16T00:00:00Z',
+    catalog_version: 'forecast-catalog-v1',
+    payload_contract: 'field-binary-v2',
+    datasets: {
       gfs: {
         label: 'GFS',
         latest: {
           run: {
             cycle: '2026040900',
-            generatedAt: '2026-04-09T00:00:00Z',
+            run_id: '20260409T000000Z-abcdef12',
+            payload_root: 'runs/gfs/2026040900/20260409T000000Z-abcdef12/fields',
+            generated_at: '2026-04-09T00:00:00Z',
             revision: 'test-revision',
           },
-          times: [
+          frames: [
             {
               id: '000',
-              leadHours: 0,
-              validAt: '2026-04-09T00:00:00Z',
+              lead_hours: 0,
+              valid_at: '2026-04-09T00:00:00Z',
             },
           ],
           artifacts: {
@@ -49,21 +51,22 @@ function createForecastManifestPayload() {
                 dy: 1,
                 origin: 'cell_center',
                 layout: 'row_major',
-                xWrap: 'repeat',
-                yMode: 'clamp',
+                x_wrap: 'repeat',
+                y_mode: 'clamp',
               },
               encoding: {
                 id: 'tmp_surface_i8_v1',
                 format: 'linear-i8-v1',
                 dtype: 'int8',
-                byteOrder: 'none',
+                byte_order: 'none',
                 nodata: -128,
                 scale: 1,
                 offset: 0,
-                decodeFormula: 'value = stored * scale + offset',
-                finiteValueRange: { min: -50, max: 50 },
+                decode_formula: 'value = stored * scale + offset',
+                finite_value_range: { min: -50, max: 50 },
               },
-              byteLength: 4,
+              byte_length: 4,
+              payload_file: 'tmp_surface.field.i8.bin',
             },
           },
         },
@@ -71,12 +74,12 @@ function createForecastManifestPayload() {
     },
     layers: {
       temperature: {
-        models: {
+        datasets: {
           gfs: {
             state: 'available',
             support: 'native',
-            requiredArtifacts: ['tmp_surface'],
-            optionalArtifacts: [],
+            required_artifacts: ['tmp_surface'],
+            optional_artifacts: [],
           },
         },
       },
@@ -85,20 +88,20 @@ function createForecastManifestPayload() {
 }
 
 describe('fetchManifest', () => {
-  it('fetches the forecast manifest', async () => {
+  it('fetches the data manifest', async () => {
     const fetchMock = stubFetchJsonOnce(createForecastManifestPayload())
 
     const manifest = await fetchManifest()
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/manifests/forecast-manifest.json',
+      'http://localhost:3000/manifests/data-manifest.json',
       expect.any(Object)
     )
-    const artifact = manifest.models.gfs?.latest?.artifacts.tmp_surface
-    expect(artifact?.byteLength).toBe(4)
+    const artifact = manifest.datasets.gfs?.latest?.artifacts.tmp_surface
+    expect(artifact?.byte_length).toBe(4)
     expect(artifact?.encoding.format).toBe('linear-i8-v1')
     if (artifact?.encoding.format !== 'linear-i8-v1') throw new Error('Expected linear int8 encoding')
-    expect(artifact.encoding.finiteValueRange).toEqual({ min: -50, max: 50 })
+    expect(artifact.encoding.finite_value_range).toEqual({ min: -50, max: 50 })
   })
 
   it('fails on non-ok responses', async () => {
@@ -106,7 +109,7 @@ describe('fetchManifest', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(fetchManifest()).rejects.toThrow(
-      'Failed to fetch forecast manifest: 404 Not Found'
+      'Failed to fetch data manifest: 404 Not Found'
     )
   })
 

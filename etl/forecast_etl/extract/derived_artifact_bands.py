@@ -38,7 +38,7 @@ def extract_derived_artifact_bands(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None,
+    frame_id: str | None,
 ) -> list[ExtractedBand]:
     """Extract supported derived artifact components as Float32 bytes."""
 
@@ -53,7 +53,7 @@ def extract_derived_artifact_bands(
                 source=source,
                 workdir=workdir,
                 run=run,
-                fhour=fhour,
+                frame_id=frame_id,
             )
         ]
     if derivation.type == DERIVATION_ICON_TOT_PREC_DELTA_RATE:
@@ -64,7 +64,7 @@ def extract_derived_artifact_bands(
                 source=source,
                 workdir=workdir,
                 run=run,
-                fhour=fhour,
+                frame_id=frame_id,
             )
         ]
     if derivation.type == DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS:
@@ -82,7 +82,7 @@ def extract_derived_artifact_bands(
             source=source,
             workdir=workdir,
             run=run,
-            fhour=fhour,
+            frame_id=frame_id,
         )
     if derivation.type in ICON_WEATHER_CODE_DERIVATION_TYPES:
         return [
@@ -105,7 +105,7 @@ def _extract_gfs_run_total_precip(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None,
+    frame_id: str | None,
 ) -> ExtractedBand:
     output_component_id = _single_output_component_id(
         artifact=artifact,
@@ -115,13 +115,13 @@ def _extract_gfs_run_total_precip(
         artifact=artifact,
         derivation_type=DERIVATION_GFS_RUN_TOTAL_PRECIP,
     )
-    if fhour is None:
+    if frame_id is None:
         raise SystemExit(
             f"Artifact derivation {DERIVATION_GFS_RUN_TOTAL_PRECIP!r} requires forecast hour context for {artifact.id}"
         )
-    if len(fhour) != 3 or not fhour.isdigit():
-        raise SystemExit(f"Forecast hour must be a 3-digit string for {artifact.id}: {fhour!r}")
-    if int(fhour) == 0:
+    if len(frame_id) != 3 or not frame_id.isdigit():
+        raise SystemExit(f"Forecast hour must be a 3-digit string for {artifact.id}: {frame_id!r}")
+    if int(frame_id) == 0:
         byte_length = int(grid["nx"]) * int(grid["ny"]) * 4
         return ExtractedBand(
             component_id=output_component_id,
@@ -151,7 +151,7 @@ def _extract_icon_tot_prec_delta_rate(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None,
+    frame_id: str | None,
 ) -> ExtractedBand:
     output_component_id = _single_output_component_id(
         artifact=artifact,
@@ -170,7 +170,7 @@ def _extract_icon_tot_prec_delta_rate(
         source=source,
         workdir=workdir,
         run=run,
-        fhour=fhour,
+        frame_id=frame_id,
     )
 
 
@@ -222,7 +222,7 @@ def _extract_icon_precip_type_overlay(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None,
+    frame_id: str | None,
 ) -> list[ExtractedBand]:
     _validate_output_component_ids(
         artifact=artifact,
@@ -234,7 +234,7 @@ def _extract_icon_precip_type_overlay(
             f"Artifact derivation {DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS!r} "
             f"requires source_interval_hours for {artifact.id}"
         )
-    if fhour is None:
+    if frame_id is None:
         raise SystemExit(
             f"Artifact derivation {DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS!r} "
             f"requires forecast hour context for {artifact.id}"
@@ -260,7 +260,7 @@ def _extract_icon_precip_type_overlay(
             source=source,
             workdir=workdir,
             run=run,
-            fhour=fhour,
+            frame_id=frame_id,
         )
         for input_item in input_items
     }
@@ -343,13 +343,13 @@ def _extract_icon_accumulation_rate_band(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str | None,
+    frame_id: str | None,
 ) -> ExtractedBand:
     if artifact.temporal is None or artifact.temporal.source_interval_hours is None:
         raise SystemExit(
             f"Artifact derivation {derivation_type!r} requires source_interval_hours for {artifact.id}"
         )
-    if fhour is None:
+    if frame_id is None:
         raise SystemExit(f"Artifact derivation {derivation_type!r} requires forecast hour context for {artifact.id}")
 
     current_band = _extract_derivation_input_band(
@@ -369,7 +369,7 @@ def _extract_icon_accumulation_rate_band(
         source=source,
         workdir=workdir,
         run=run,
-        fhour=fhour,
+        frame_id=frame_id,
     )
     return ExtractedBand(
         component_id=component_id,
@@ -395,11 +395,11 @@ def _previous_accumulation_band(
     source: PreparedSource,
     workdir: Path,
     run: RunFn,
-    fhour: str,
+    frame_id: str,
 ) -> ExtractedBand:
-    if len(fhour) != 3 or not fhour.isdigit():
-        raise SystemExit(f"Forecast hour must be a 3-digit string for {artifact.id}: {fhour!r}")
-    if int(fhour) <= 1:
+    if len(frame_id) != 3 or not frame_id.isdigit():
+        raise SystemExit(f"Forecast hour must be a 3-digit string for {artifact.id}: {frame_id!r}")
+    if int(frame_id) <= 1:
         return ExtractedBand(
             component_id=input_item.id,
             source_f32_bytes=b"\x00" * len(current_band.source_f32_bytes),

@@ -72,7 +72,7 @@
 }
 
 .health-page__meta,
-.health-page__models {
+.health-page__datasets {
   max-width: 1120px;
   margin-right: auto;
   margin-left: auto;
@@ -88,7 +88,7 @@
   text-transform: uppercase;
 }
 
-.health-page__models {
+.health-page__datasets {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
@@ -225,7 +225,7 @@
     flex-direction: column;
   }
 
-  .health-page__models,
+  .health-page__datasets,
   .health-card__facts {
     grid-template-columns: 1fr;
   }

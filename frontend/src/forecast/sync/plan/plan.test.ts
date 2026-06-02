@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createActiveRunFixture,
-  createLayerModelAvailabilityFixture,
+  createLayerDatasetAvailabilityFixture,
   createManifestFixture,
   createScalarArtifactFixture,
   createVectorArtifactFixture,
@@ -26,10 +26,10 @@ describe('resolveForecastSyncPlan', () => {
 
     const unavailableActiveRun = createActiveRunFixture(createManifestFixture({
       layers: {
-        temperature: { models: {
-          gfs: createLayerModelAvailabilityFixture({
+        temperature: { datasets: {
+          gfs: createLayerDatasetAvailabilityFixture({
             state: 'temporarily_unavailable',
-            requiredArtifacts: ['tmp_surface'],
+            required_artifacts: ['tmp_surface'],
           }),
         } },
       },
@@ -47,7 +47,7 @@ describe('resolveForecastSyncPlan', () => {
   it('resolves raster and particle window plans', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000', '003', '006'],
+      frameIds: ['000', '003', '006'],
     })
     const activeRun = createActiveRunFixture(manifest)
 
@@ -60,16 +60,16 @@ describe('resolveForecastSyncPlan', () => {
     })
 
     expect(plan).toEqual(expect.objectContaining({
-      forecastHourTokens: ['000', '003', '006'],
-      lowerHourToken: '003',
-      upperHourToken: '006',
+      frameIds: ['000', '003', '006'],
+      lowerFrameId: '003',
+      upperFrameId: '006',
       mix: 1 / 6,
       minuteOffset: 30,
     }))
     expect(plan?.windowPlans).toEqual([
       expect.objectContaining({
         id: 'raster',
-        key: 'gfs:2026040900:rev:raster:wind_speed:wind10m_uv:u+v',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v',
         failurePolicy: 'required',
         output: 'single',
         frames: [expect.objectContaining({
@@ -88,7 +88,7 @@ describe('resolveForecastSyncPlan', () => {
       }),
       expect.objectContaining({
         id: 'particles',
-        key: 'gfs:2026040900:rev:particles:wind:wind10m_uv:u+v',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
         failurePolicy: 'required',
         output: 'single',
         frames: [expect.objectContaining({
@@ -105,19 +105,19 @@ describe('resolveForecastSyncPlan', () => {
       }),
     ])
     expect(plan?.windowPlanKeys).toEqual({
-      raster: 'gfs:2026040900:rev:raster:wind_speed:wind10m_uv:u+v',
-      particles: 'gfs:2026040900:rev:particles:wind:wind10m_uv:u+v',
+      raster: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v',
+      particles: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
     })
     expect(plan?.windowPlanSetKey).toBe(
-      'gfs:2026040900:rev:raster:wind_speed:wind10m_uv:u+v|' +
-      'gfs:2026040900:rev:particles:wind:wind10m_uv:u+v'
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v|' +
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v'
     )
   })
 
   it('resolves cloud raster and precipitation overlay window plans', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000'],
+      frameIds: ['000'],
       artifacts: {
         tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
         prate_surface: createScalarArtifactFixture({ id: 'prate_surface' }),
@@ -152,7 +152,7 @@ describe('resolveForecastSyncPlan', () => {
     expect(cloudPlan?.windowPlans).toEqual([
       expect.objectContaining({
         id: 'raster',
-        key: 'gfs:2026040900:rev:raster:cloud_layers:cloud_layers:low+middle+high',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:cloud_layers:cloud_layers:low+middle+high',
         output: 'single',
         frames: [expect.objectContaining({
           artifactId: 'cloud_layers',
@@ -173,7 +173,7 @@ describe('resolveForecastSyncPlan', () => {
     expect(precipPlan?.windowPlans.find((spec) => spec.id === 'overlay')).toEqual(
       expect.objectContaining({
         id: 'overlay',
-        key: 'gfs:2026040900:rev:overlay:gfs:2026040900:rev:overlay:precipitation_type:precip_type_surface:snow_frac+mix_frac',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:overlay:gfs:2026040900:20260413T120000Z-abcdef12:rev:overlay:precipitation_type:precip_type_surface:snow_frac+mix_frac',
         output: 'array',
         frames: [
           expect.objectContaining({
@@ -198,7 +198,7 @@ describe('resolveForecastSyncPlan', () => {
   it('resolves pressure contour window plans from the catalog when the artifact is available', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000'],
+      frameIds: ['000'],
       scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
       vectorArtifactIds: [],
     })
@@ -214,7 +214,7 @@ describe('resolveForecastSyncPlan', () => {
 
     expect(plan?.windowPlans.find((spec) => spec.id === 'contour')).toEqual(
       expect.objectContaining({
-        key: 'gfs:2026040900:rev:contour:pressure_contours:prmsl_msl:value',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:contour:pressure_contours:prmsl_msl:value',
         failurePolicy: 'optional',
         output: 'single',
         frames: [expect.objectContaining({
@@ -235,7 +235,7 @@ describe('resolveForecastSyncPlan', () => {
   it('omits contour and particles when sync options disable them', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000'],
+      frameIds: ['000'],
       scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
       vectorArtifactIds: ['wind10m_uv'],
     })
@@ -255,7 +255,7 @@ describe('resolveForecastSyncPlan', () => {
   it('does not resolve optional contour or particle catalog entries when they are disabled', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000'],
+      frameIds: ['000'],
       artifacts: {
         tmp_surface: createScalarArtifactFixture({ id: 'tmp_surface' }),
         prmsl_msl: createVectorArtifactFixture({ id: 'prmsl_msl' }),

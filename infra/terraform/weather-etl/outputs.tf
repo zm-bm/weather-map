@@ -107,7 +107,7 @@ output "etl_runtime_contract" {
       lambda_arn    = aws_lambda_function.publisher.arn
       schedule_name = aws_cloudwatch_event_rule.publisher_schedule.name
       schedule      = var.publisher_schedule_expression
-      models        = var.publisher_models
+      datasets      = var.publisher_datasets
       cycle_count   = var.publisher_cycle_count
     }
 

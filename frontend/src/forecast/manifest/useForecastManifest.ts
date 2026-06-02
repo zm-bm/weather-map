@@ -3,17 +3,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isAbortError, normalizeError } from '@/core/abort'
 import { fetchManifest } from './fetch'
 import {
-  modelOptionsFromManifest,
+  datasetOptionsFromManifest,
   resolveActiveForecastRun,
 } from './resolution'
 import type {
-  ForecastModelOption,
+  ForecastDatasetOption,
   Manifest,
 } from './schema'
 
 export type ForecastManifestData = {
   manifest: Manifest
-  modelOptions: readonly ForecastModelOption[]
+  datasetOptions: readonly ForecastDatasetOption[]
 }
 
 export type ForecastManifestState = {
@@ -40,21 +40,21 @@ export function useForecastManifest(): ForecastManifestState {
     }
 
     const { manifest } = request
-    const modelOptions = modelOptionsFromManifest(manifest)
-    if (modelOptions.length === 0) {
-      return startupError('Forecast manifest did not list any models.', retry)
+    const datasetOptions = datasetOptionsFromManifest(manifest)
+    if (datasetOptions.length === 0) {
+      return startupError('Data manifest did not list any datasets.', retry)
     }
 
     const activeRun = resolveActiveForecastRun(manifest)
     if (activeRun == null) {
-      return startupError('Forecast manifest did not include latest render data for any model.', retry)
+      return startupError('Data manifest did not include latest render data for any dataset.', retry)
     }
 
     return {
       phase: 'ready',
       data: {
         manifest,
-        modelOptions,
+        datasetOptions,
       },
       error: null,
       retry,

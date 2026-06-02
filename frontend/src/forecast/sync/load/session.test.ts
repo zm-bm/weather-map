@@ -24,12 +24,12 @@ afterEach(() => {
 
 function createTarget(args: {
   layerSource?: ForecastLayerSource
-  forecastHours?: string[]
+  frameIds?: string[]
   scalarArtifactIds?: string[]
   vectorArtifactIds?: string[]
 } = {}) {
   const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
-    forecastHours: args.forecastHours ?? ['000', '003'],
+    frameIds: args.frameIds ?? ['000', '003'],
     scalarArtifactIds: args.scalarArtifactIds,
     vectorArtifactIds: args.vectorArtifactIds,
   }))
@@ -39,8 +39,8 @@ function createTarget(args: {
     layerSource: args.layerSource,
     interpolationWindow: {
       selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      lowerFrameId: '000',
+      upperFrameId: '000',
       lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
       upperValidTimeMs: Date.UTC(2026, 3, 13, 12),
       mix: 0,
@@ -138,7 +138,7 @@ describe('createForecastSyncSession', () => {
 
     await session.prefetch({
       plan: createTarget({
-        forecastHours: ['000'],
+        frameIds: ['000'],
         scalarArtifactIds: ['tmp_surface'],
         vectorArtifactIds: [],
       }),
@@ -151,7 +151,7 @@ describe('createForecastSyncSession', () => {
     const nextJob = createLoadJob({
       session,
       plan: createTarget({
-        forecastHours: ['000'],
+        frameIds: ['000'],
         scalarArtifactIds: ['tmp_surface'],
         vectorArtifactIds: [],
       }),
@@ -168,7 +168,7 @@ describe('createForecastSyncSession', () => {
 
     await expect(session.prefetch({
       plan: createTarget({
-        forecastHours: ['000'],
+        frameIds: ['000'],
         scalarArtifactIds: ['tmp_surface'],
         vectorArtifactIds: [],
       }),

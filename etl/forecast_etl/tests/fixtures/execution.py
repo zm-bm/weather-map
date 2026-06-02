@@ -30,10 +30,10 @@ class ArtifactRunFixture:
     out_dir: Path
     workdir: Path
     artifact_root_uri: str
-    model_id: str
+    dataset_id: str
     cycle: str
     run_id: str
-    fhour: str
+    frame_id: str
     source_uri: str
     store: UriStore
 
@@ -44,10 +44,10 @@ class ArtifactRunFixture:
 
     def item(self, artifact_id: str, *, source_uri: str | None = None) -> WorkItem:
         return WorkItem(
-            model_id=self.model_id,
+            dataset_id=self.dataset_id,
             cycle=self.cycle,
             run_id=self.run_id,
-            fhour=self.fhour,
+            frame_id=self.frame_id,
             artifact_id=artifact_id,
             source_uri=source_uri or self.source_uri,
             code_revision=DEFAULT_CODE_REVISION,
@@ -87,7 +87,7 @@ class ArtifactRunFixture:
             source=source,
             workdir=self.workdir,
             run=run,
-            fhour=self.fhour,
+            frame_id=self.frame_id,
         )
         transformed = apply_artifact_grid_transform(
             artifact=artifact,
@@ -110,11 +110,11 @@ class ArtifactRunFixture:
         return (
             self.out_dir
             / "runs"
-            / self.model_id
+            / self.dataset_id
             / self.cycle
             / self.run_id
             / "fields"
-            / self.fhour
+            / self.frame_id
             / f"{artifact_id}.field.{suffix}.bin"
         )
 
@@ -132,10 +132,10 @@ class ArtifactRunFixture:
 def artifact_run_fixture(
     *,
     prefix: str = "weather-map-artifact-",
-    model_id: str = "gfs",
+    dataset_id: str = "gfs",
     cycle: str = "2026041200",
     run_id: str = DEFAULT_RUN_ID,
-    fhour: str = "003",
+    frame_id: str = "003",
     source_uri: str = "file:///dev/null",
 ) -> Iterator[ArtifactRunFixture]:
     with tempfile.TemporaryDirectory(prefix=prefix) as td:
@@ -149,10 +149,10 @@ def artifact_run_fixture(
             out_dir=out_dir,
             workdir=workdir,
             artifact_root_uri=artifact_root_uri,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
-            fhour=fhour,
+            frame_id=frame_id,
             source_uri=source_uri,
             store=make_store(),
         )

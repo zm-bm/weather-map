@@ -10,24 +10,24 @@ from pydantic import Field, field_validator
 from ..run_ids import validate_run_id
 from ..validation import FrozenAliasModel, NonEmptyStr, parse_model, validated_dict
 
-LATEST_POINTER_SCHEMA = "weather-map.model-latest-pointer"
-CURRENT_POINTER_SCHEMA = "weather-map.model-cycle-current-pointer"
+LATEST_POINTER_SCHEMA = "weather-map.dataset-latest-pointer"
+CURRENT_POINTER_SCHEMA = "weather-map.dataset-cycle-current-pointer"
 POINTER_SCHEMA_VERSION = 1
 
-PointerSchema = Literal["weather-map.model-latest-pointer", "weather-map.model-cycle-current-pointer"]
+PointerSchema = Literal["weather-map.dataset-latest-pointer", "weather-map.dataset-cycle-current-pointer"]
 
 
-class ModelManifestPointer(FrozenAliasModel):
+class DatasetManifestPointer(FrozenAliasModel):
     """Small public alias pointing at an immutable public run manifest."""
 
     schema_name: PointerSchema = Field(alias="schema")
-    schema_version: Literal[1] = Field(alias="schemaVersion")
-    model: NonEmptyStr
+    schema_version: Literal[1]
+    dataset_id: NonEmptyStr
     cycle: NonEmptyStr
-    run_id: NonEmptyStr = Field(alias="runId")
+    run_id: NonEmptyStr
     revision: NonEmptyStr
-    generated_at: NonEmptyStr = Field(alias="generatedAt")
-    manifest_path: NonEmptyStr = Field(alias="manifestPath")
+    generated_at: NonEmptyStr
+    manifest_path: NonEmptyStr
 
     @field_validator("cycle")
     @classmethod
@@ -45,16 +45,16 @@ class ModelManifestPointer(FrozenAliasModel):
     @classmethod
     def _validate_manifest_path(cls, value: str) -> str:
         if value.startswith("/") or "://" in value:
-            raise ValueError("manifestPath must be a relative artifact key")
+            raise ValueError("manifest_path must be a relative artifact key")
         if any(part in {"", ".", ".."} for part in value.split("/")):
-            raise ValueError("manifestPath must not contain empty, '.', or '..' segments")
+            raise ValueError("manifest_path must not contain empty, '.', or '..' segments")
         return value
 
 
 def manifest_pointer_dict(
     *,
     schema_name: PointerSchema,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     revision: str,
@@ -64,16 +64,16 @@ def manifest_pointer_dict(
     """Build a validated public manifest pointer dictionary."""
 
     return validated_dict(
-        ModelManifestPointer,
+        DatasetManifestPointer,
         {
             "schema": schema_name,
-            "schemaVersion": POINTER_SCHEMA_VERSION,
-            "model": model_id,
+            "schema_version": POINTER_SCHEMA_VERSION,
+            "dataset_id": dataset_id,
             "cycle": cycle,
-            "runId": run_id,
+            "run_id": run_id,
             "revision": revision,
-            "generatedAt": generated_at,
-            "manifestPath": manifest_path,
+            "generated_at": generated_at,
+            "manifest_path": manifest_path,
         },
         by_alias=True,
     )
@@ -84,11 +84,11 @@ def parse_manifest_pointer(
     *,
     expected_schema: str | None = None,
     uri: str | None = None,
-) -> ModelManifestPointer:
+) -> DatasetManifestPointer:
     """Validate one public manifest pointer."""
 
     try:
-        pointer = parse_model(ModelManifestPointer, raw)
+        pointer = parse_model(DatasetManifestPointer, raw)
     except SystemExit as exc:
         if uri is None:
             raise

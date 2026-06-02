@@ -1,4 +1,4 @@
-"""Pydantic models for raw pipeline config JSON objects."""
+"""Pydantic schemas for raw pipeline config JSON objects."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from ..encoding.transforms import SOURCE_TRANSFORM_IDENTITY, SOURCE_TRANSFORMS
 from ._types import (
     ConfigModel,
     FiniteNumber,
-    ForecastHourInt,
+    FrameInt,
     NonEmptyStr,
     NonEmptyStringMap,
     UniqueNonEmptyStringTuple,
@@ -24,11 +24,11 @@ class PipelineConfigInput(ConfigModel):
 
     version: Literal[3]
     artifact_catalog: dict[NonEmptyStr, Any] = Field(min_length=1)
-    models: dict[NonEmptyStr, "ModelConfigInput"] = Field(min_length=1)
+    datasets: dict[NonEmptyStr, "DatasetConfigInput"] = Field(min_length=1)
 
 
-class ModelConfigInput(ConfigModel):
-    """Raw model config before catalog artifacts are resolved."""
+class DatasetConfigInput(ConfigModel):
+    """Raw dataset config before catalog artifacts are resolved."""
 
     label: NonEmptyStr
     source: dict[str, Any]
@@ -39,22 +39,22 @@ class ModelConfigInput(ConfigModel):
 class WorkloadInput(ConfigModel):
     """Raw workload range, normalized to concrete forecast-hour ids."""
 
-    forecast_hour_start: ForecastHourInt
-    forecast_hour_end: ForecastHourInt
+    frame_start: FrameInt
+    frame_end: FrameInt
     artifacts: UniqueNonEmptyStringTuple
 
     @model_validator(mode="after")
     def _validate_range(self) -> "WorkloadInput":
-        if self.forecast_hour_end < self.forecast_hour_start:
-            raise ValueError("forecast_hour_end must be greater than or equal to forecast_hour_start")
+        if self.frame_end < self.frame_start:
+            raise ValueError("frame_end must be greater than or equal to frame_start")
         return self
 
     @property
-    def forecast_hours(self) -> tuple[str, ...]:
-        return tuple(f"{hour:03d}" for hour in range(self.forecast_hour_start, self.forecast_hour_end + 1))
+    def frames(self) -> tuple[str, ...]:
+        return tuple(f"{hour:03d}" for hour in range(self.frame_start, self.frame_end + 1))
 
 
-class BaseModelSourceInput(ConfigModel):
+class BaseDatasetSourceInput(ConfigModel):
     """Raw source config fields shared by supported acquisition adapters."""
 
     type: str
@@ -63,29 +63,29 @@ class BaseModelSourceInput(ConfigModel):
     rate_limit_seconds: FiniteNumber
 
 
-class GfsNomadsSourceInput(BaseModelSourceInput):
+class GfsNomadsSourceInput(BaseDatasetSourceInput):
     """Raw GFS NOMADS source config."""
 
     type: Literal["gfs_nomads"] = SOURCE_TYPE_GFS_NOMADS
     vars_levels: dict[NonEmptyStr, NonEmptyStr]
 
 
-class IconDwdSourceInput(BaseModelSourceInput):
+class IconDwdSourceInput(BaseDatasetSourceInput):
     """Raw ICON DWD source config."""
 
     type: Literal["icon_dwd_icosahedral"] = SOURCE_TYPE_ICON_DWD_ICOSAHEDRAL
 
 
-ModelSourceInput: TypeAlias = Annotated[
+DatasetSourceInput: TypeAlias = Annotated[
     GfsNomadsSourceInput | IconDwdSourceInput,
     Field(discriminator="type"),
 ]
 
 
-class ModelSourceInputEnvelope(ConfigModel):
+class DatasetSourceInputEnvelope(ConfigModel):
     """Wrapper for validating the discriminated source input union."""
 
-    source: ModelSourceInput
+    source: DatasetSourceInput
 
 
 class ArtifactBaseInput(ConfigModel):
@@ -176,8 +176,8 @@ class ArtifactInput(ArtifactBaseInput):
         return self
 
 
-class ModelArtifactInput(ConfigModel):
-    """Raw model artifact component-to-GRIB selector mapping."""
+class DatasetArtifactInput(ConfigModel):
+    """Raw dataset artifact component-to-GRIB selector mapping."""
 
     components: tuple[ArtifactComponentInput, ...] = Field(min_length=1)
     temporal: ArtifactTemporalInput | None = None
@@ -185,7 +185,7 @@ class ModelArtifactInput(ConfigModel):
     grid_transform: ArtifactGridTransformInput | None = None
 
     @model_validator(mode="after")
-    def _validate_components(self) -> "ModelArtifactInput":
+    def _validate_components(self) -> "DatasetArtifactInput":
         _validate_unique_component_ids(tuple(component.id for component in self.components))
         return self
 

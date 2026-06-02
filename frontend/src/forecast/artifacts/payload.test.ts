@@ -21,7 +21,7 @@ import {
 } from './payloadCache'
 import { readArtifactPayload } from './payload'
 
-const BASE_MANIFEST = createSingleTimeManifestFixture({ forecastHours: ['000'] })
+const BASE_MANIFEST = createSingleTimeManifestFixture({ frameIds: ['000'] })
 const BASE_ACTIVE_RUN = createActiveRunFixture(BASE_MANIFEST)
 const BASE_LATEST_RUN = BASE_ACTIVE_RUN.latest
 const SCALAR_ARTIFACT = BASE_LATEST_RUN.artifacts.tmp_surface
@@ -30,14 +30,14 @@ const VECTOR_ARTIFACT = BASE_LATEST_RUN.artifacts.wind10m_uv
 function payloadArgs(args: {
   activeRun?: typeof BASE_ACTIVE_RUN
   artifact?: typeof SCALAR_ARTIFACT | typeof VECTOR_ARTIFACT
-  hourToken?: string
+  frameId?: string
   signal?: AbortSignal
 } = {}) {
   const artifact = args.artifact ?? SCALAR_ARTIFACT
   return {
     config: createConfigFixture(),
     activeRun: args.activeRun ?? BASE_ACTIVE_RUN,
-    hourToken: args.hourToken ?? '000',
+    frameId: args.frameId ?? '000',
     artifact,
     signal: args.signal ?? createSignalFixture(),
   }
@@ -76,13 +76,13 @@ describe('readArtifactPayload', () => {
     const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
       run: {
         ...BASE_LATEST_RUN.run,
-        runId: '20260413T120000Z-abcdef12',
-        payloadRoot: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+        run_id: '20260413T120000Z-abcdef12',
+        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
       },
       artifacts: {
         tmp_surface: {
           ...SCALAR_ARTIFACT,
-          payloadFile: 'tmp_surface.field.i8.bin',
+          payload_file: 'tmp_surface.field.i8.bin',
         },
       },
       scalarArtifactIds: ['tmp_surface'],
@@ -125,14 +125,14 @@ describe('readArtifactPayload', () => {
       persistedBytes: 0,
     })
     const activeRun = createActiveRunFixture(createSingleTimeManifestFixture({
-      forecastHours: ['000', '003'],
+      frameIds: ['000', '003'],
     }))
 
-    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '000' }))
+    await readArtifactPayload(payloadArgs({ activeRun, frameId: '000' }))
     vi.advanceTimersByTime(1)
-    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '003' }))
+    await readArtifactPayload(payloadArgs({ activeRun, frameId: '003' }))
     vi.advanceTimersByTime(1)
-    await readArtifactPayload(payloadArgs({ activeRun, hourToken: '000' }))
+    await readArtifactPayload(payloadArgs({ activeRun, frameId: '000' }))
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
@@ -223,14 +223,14 @@ describe('readArtifactPayload', () => {
     ).rejects.toThrow('Failed to fetch scalar payload: 404 Not Found')
   })
 
-  it('fails when payload byte length does not match the forecast manifest', async () => {
+  it('fails when payload byte length does not match the data manifest', async () => {
     stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
 
     await expect(
       readArtifactPayload(payloadArgs({
         artifact: {
           ...SCALAR_ARTIFACT,
-          byteLength: 6,
+          byte_length: 6,
         },
       }))
     ).rejects.toThrow('Unexpected scalar payload size')
@@ -238,8 +238,8 @@ describe('readArtifactPayload', () => {
 
   it('fails when a frame ref is missing for the requested hour', async () => {
     await expect(
-      readArtifactPayload(payloadArgs({ hourToken: '999' }))
-    ).rejects.toThrow('No scalar frame ref for model=gfs artifact=tmp_surface hour=999')
+      readArtifactPayload(payloadArgs({ frameId: '999' }))
+    ).rejects.toThrow('No scalar frame ref for dataset_id=gfs artifact=tmp_surface frame=999')
   })
 
   it('uses vector artifact kind in fetch errors', async () => {

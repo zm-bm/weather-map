@@ -13,7 +13,7 @@ from .manifest.pointers import LATEST_POINTER_SCHEMA, parse_manifest_pointer
 class BackfillCheckResult:
     """Result of comparing a requested cycle with the current latest alias."""
 
-    model_id: str
+    dataset_id: str
     cycle: str
     latest_status: str
     latest_cycle: str | None
@@ -24,7 +24,7 @@ class BackfillCheckResult:
 
     def key_values(self) -> tuple[tuple[str, str], ...]:
         return (
-            ("model", self.model_id),
+            ("dataset_id", self.dataset_id),
             ("cycle", self.cycle),
             ("latest_status", self.latest_status),
             ("latest_cycle", self.latest_cycle or ""),
@@ -38,23 +38,23 @@ class BackfillCheckResult:
 def check_backfill_safety(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     allow_backfill: bool = False,
 ) -> BackfillCheckResult:
     """Return whether a requested cycle may be submitted."""
 
     parse_cycle(cycle)
-    latest_uri = artifact_repo.paths.manifest_latest_uri(model_id=model_id)
+    latest_uri = artifact_repo.paths.manifest_latest_uri(dataset_id=dataset_id)
 
     try:
-        latest_exists = artifact_repo.latest_manifest_exists(model_id=model_id)
+        latest_exists = artifact_repo.latest_manifest_exists(dataset_id=dataset_id)
     except Exception as exc:
-        return _invalid_latest(model_id=model_id, cycle=cycle, latest_uri=latest_uri, error=exc)
+        return _invalid_latest(dataset_id=dataset_id, cycle=cycle, latest_uri=latest_uri, error=exc)
 
     if not latest_exists:
         return BackfillCheckResult(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             latest_status="missing",
             latest_cycle=None,
@@ -65,10 +65,10 @@ def check_backfill_safety(
         )
 
     try:
-        latest = artifact_repo.read_latest_pointer(model_id=model_id)
+        latest = artifact_repo.read_latest_pointer(dataset_id=dataset_id)
     except FileNotFoundError:
         return BackfillCheckResult(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             latest_status="missing",
             latest_cycle=None,
@@ -78,13 +78,13 @@ def check_backfill_safety(
             message="Latest manifest disappeared during check; allowing bootstrap submit.",
         )
     except Exception as exc:
-        return _invalid_latest(model_id=model_id, cycle=cycle, latest_uri=latest_uri, error=exc)
+        return _invalid_latest(dataset_id=dataset_id, cycle=cycle, latest_uri=latest_uri, error=exc)
 
     try:
         pointer = parse_manifest_pointer(latest, expected_schema=LATEST_POINTER_SCHEMA, uri=latest_uri)
     except (Exception, SystemExit) as exc:
         return BackfillCheckResult(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             latest_status="invalid",
             latest_cycle=None,
@@ -97,7 +97,7 @@ def check_backfill_safety(
     if cycle < pointer.cycle:
         message = f"Requested cycle {cycle} is older than latest {pointer.cycle}."
         return BackfillCheckResult(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             latest_status="valid",
             latest_cycle=pointer.cycle,
@@ -108,7 +108,7 @@ def check_backfill_safety(
         )
 
     return BackfillCheckResult(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         latest_status="valid",
         latest_cycle=pointer.cycle,
@@ -119,9 +119,9 @@ def check_backfill_safety(
     )
 
 
-def _invalid_latest(*, model_id: str, cycle: str, latest_uri: str, error: Exception) -> BackfillCheckResult:
+def _invalid_latest(*, dataset_id: str, cycle: str, latest_uri: str, error: Exception) -> BackfillCheckResult:
     return BackfillCheckResult(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         latest_status="invalid",
         latest_cycle=None,

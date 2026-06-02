@@ -1,8 +1,8 @@
 import type {
   ActiveForecastRun,
-  ForecastModelId,
-  ForecastModelOption,
-  ForecastTimeSpec,
+  ForecastDatasetId,
+  ForecastDatasetOption,
+  ForecastFrameSpec,
   ForecastManifestData,
   ForecastManifestState,
   LatestForecastRun,
@@ -15,55 +15,55 @@ import type {
   VectorEncodingSpec,
 } from '@/forecast/manifest'
 import {
-  FORECAST_MANIFEST_SCHEMA,
-  FORECAST_MANIFEST_SCHEMA_VERSION,
-  FORECAST_PAYLOAD_CONTRACT,
-  activeForecastRunForModel,
-  modelOptionsFromManifest,
+  DATA_MANIFEST_SCHEMA,
+  DATA_MANIFEST_SCHEMA_VERSION,
+  DATA_PAYLOAD_CONTRACT,
+  activeForecastRunForDataset,
+  datasetOptionsFromManifest,
 } from '@/forecast/manifest'
 
-const FIXTURE_MODEL_ID = 'gfs'
-const FIXTURE_MODEL_LABEL = 'GFS'
+const FIXTURE_DATASET_ID = 'gfs'
+const FIXTURE_DATASET_LABEL = 'GFS'
 const FIXTURE_CYCLE = '2026041312'
 const FIXTURE_RUN_ID = '20260413T120000Z-abcdef12'
 const FIXTURE_GENERATED_AT = '2026-04-13T12:00:00Z'
 const FIXTURE_REVISION = 'rev'
-const FIXTURE_HOUR_TOKEN = '000'
+const FIXTURE_FRAME_ID = '000'
 const FIXTURE_GRID_ID = 'g0'
 const FIXTURE_SCALAR_ENCODING_ID = 'e0'
 const FIXTURE_VECTOR_ENCODING_ID = 'wind10m_uv_vector_i8_1ms_v1'
 const FIXTURE_SCALAR_ID = 'tmp_surface'
 const FIXTURE_VECTOR_ID = 'wind10m_uv'
-const DEFAULT_FORECAST_HOURS = [FIXTURE_HOUR_TOKEN, '003']
+const DEFAULT_FRAME_IDS = [FIXTURE_FRAME_ID, '003']
 
 const FIELD_DTYPE_SUFFIX = {
   int8: 'i8',
 } satisfies Record<ManifestArtifactSpec['encoding']['dtype'], string>
 
 export type ManifestFixtureOverrides = {
-  model?: { id: ForecastModelId; label: string }
+  dataset?: { id: ForecastDatasetId; label: string }
   run?: LatestForecastRun['run']
-  times?: ForecastTimeSpec[]
+  frames?: ForecastFrameSpec[]
   artifacts?: Record<string, ManifestArtifactSpec>
   layers?: Manifest['layers']
   cycle?: string
-  generatedAt?: string
+  generated_at?: string
   revision?: string
-  forecastHours?: string[]
+  frameIds?: string[]
   scalarArtifactIds?: string[]
   vectorArtifactIds?: string[]
 }
 
 type ScalarArtifactFixtureOverrides = Partial<ScalarArtifactSpec> & {
   cycle?: string
-  forecastHours?: string[]
-  times?: ForecastTimeSpec[]
+  frameIds?: string[]
+  frames?: ForecastFrameSpec[]
 }
 
 type VectorArtifactFixtureOverrides = Partial<VectorArtifactSpec> & {
   cycle?: string
-  forecastHours?: string[]
-  times?: ForecastTimeSpec[]
+  frameIds?: string[]
+  frames?: ForecastFrameSpec[]
 }
 
 function toForecastValidAt(cycle: string, hourId: string): string {
@@ -78,13 +78,13 @@ function toForecastValidAt(cycle: string, hourId: string): string {
 }
 
 export function createForecastTimesFixture(
-  forecastHours: string[] = DEFAULT_FORECAST_HOURS,
+  frameIds: string[] = DEFAULT_FRAME_IDS,
   cycle = FIXTURE_CYCLE
-): ForecastTimeSpec[] {
-  return forecastHours.map((hourId) => ({
+): ForecastFrameSpec[] {
+  return frameIds.map((hourId) => ({
     id: hourId,
-    leadHours: Number.parseInt(hourId, 10),
-    validAt: toForecastValidAt(cycle, hourId),
+    lead_hours: Number.parseInt(hourId, 10),
+    valid_at: toForecastValidAt(cycle, hourId),
   }))
 }
 
@@ -100,8 +100,8 @@ export function createGridFixture(overrides: Partial<GridSpec> = {}): GridSpec {
     dy: -0.25,
     origin: 'cell_center',
     layout: 'row_major',
-    xWrap: 'repeat',
-    yMode: 'clamp',
+    x_wrap: 'repeat',
+    y_mode: 'clamp',
     ...overrides,
   }
 }
@@ -111,11 +111,11 @@ export function createScalarEncodingFixture(overrides: Partial<ScalarEncodingSpe
     id: FIXTURE_SCALAR_ENCODING_ID,
     format: 'linear-i8-v1',
     dtype: 'int8',
-    byteOrder: 'none',
+    byte_order: 'none',
     nodata: -128,
     scale: 1,
     offset: 0,
-    decodeFormula: 'value = stored * scale + offset',
+    decode_formula: 'value = stored * scale + offset',
     ...overrides,
   } as ScalarEncodingSpec
 }
@@ -125,10 +125,10 @@ export function createVectorEncodingFixture(overrides: Partial<VectorEncodingSpe
     id: FIXTURE_VECTOR_ENCODING_ID,
     format: 'linear-i8-v1',
     dtype: 'int8',
-    byteOrder: 'none',
+    byte_order: 'none',
     scale: 1,
     offset: 0,
-    decodeFormula: 'value = stored * scale + offset',
+    decode_formula: 'value = stored * scale + offset',
     ...overrides,
   }
 }
@@ -159,14 +159,14 @@ export function createScalarArtifactFixture(
     components,
     grid,
     encoding,
-    byteLength: overrides.byteLength ?? payloadByteLength({
+    byte_length: overrides.byte_length ?? payloadByteLength({
       grid,
       components,
       dtype: encoding.dtype,
     }),
-    payloadFile: overrides.payloadFile ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
-    temporalKind: overrides.temporalKind,
-    sourceIntervalHours: overrides.sourceIntervalHours,
+    payload_file: overrides.payload_file ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
+    temporal_kind: overrides.temporal_kind,
+    source_interval_hours: overrides.source_interval_hours,
   }
 }
 
@@ -187,14 +187,14 @@ export function createVectorArtifactFixture(
     components,
     grid,
     encoding,
-    byteLength: overrides.byteLength ?? payloadByteLength({
+    byte_length: overrides.byte_length ?? payloadByteLength({
       grid,
       components,
       dtype: encoding.dtype,
     }),
-    payloadFile: overrides.payloadFile ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
-    temporalKind: overrides.temporalKind,
-    sourceIntervalHours: overrides.sourceIntervalHours,
+    payload_file: overrides.payload_file ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
+    temporal_kind: overrides.temporal_kind,
+    source_interval_hours: overrides.source_interval_hours,
   }
 }
 
@@ -245,11 +245,11 @@ export function createLatestRunFixture(
   overrides: ManifestFixtureOverrides = {}
 ): LatestForecastRun {
   const cycle = overrides.cycle ?? overrides.run?.cycle ?? FIXTURE_CYCLE
-  const runId = overrides.run?.runId ?? FIXTURE_RUN_ID
-  const generatedAt = overrides.generatedAt ?? overrides.run?.generatedAt ?? FIXTURE_GENERATED_AT
+  const run_id = overrides.run?.run_id ?? FIXTURE_RUN_ID
+  const generated_at = overrides.generated_at ?? overrides.run?.generated_at ?? FIXTURE_GENERATED_AT
   const revision = overrides.revision ?? overrides.run?.revision ?? FIXTURE_REVISION
-  const times = overrides.times ?? createForecastTimesFixture(
-    overrides.forecastHours ?? DEFAULT_FORECAST_HOURS,
+  const frames = overrides.frames ?? createForecastTimesFixture(
+    overrides.frameIds ?? DEFAULT_FRAME_IDS,
     cycle
   )
   const scalarArtifactIdValues = overrides.scalarArtifactIds ?? artifactIdsByKind(overrides.artifacts, 'scalar')
@@ -276,12 +276,12 @@ export function createLatestRunFixture(
     run: {
       ...overrides.run,
       cycle,
-      runId,
-      payloadRoot: overrides.run?.payloadRoot ?? `runs/${overrides.model?.id ?? FIXTURE_MODEL_ID}/${cycle}/${runId}/fields`,
-      generatedAt,
+      run_id,
+      payload_root: overrides.run?.payload_root ?? `runs/${overrides.dataset?.id ?? FIXTURE_DATASET_ID}/${cycle}/${run_id}/fields`,
+      generated_at,
       revision,
     },
-    times,
+    frames,
     artifacts: createManifestArtifacts({
       scalarArtifactIds: defaultScalarArtifactIdValues,
       vectorArtifactIds: defaultVectorArtifactIdValues,
@@ -292,115 +292,115 @@ export function createLatestRunFixture(
 
 function createManifestLayersFixture(
   artifacts: Record<string, ManifestArtifactSpec> = {},
-  modelId: ForecastModelId = FIXTURE_MODEL_ID
+  datasetId: ForecastDatasetId = FIXTURE_DATASET_ID
 ): Manifest['layers'] {
   const has = (artifactId: string) => artifactId in artifacts
-  const available = (requiredArtifacts: string[], optionalArtifacts: string[] = []) => createLayerModelAvailabilityFixture({
-    requiredArtifacts,
-    optionalArtifacts,
+  const available = (required_artifacts: string[], optional_artifacts: string[] = []) => createLayerDatasetAvailabilityFixture({
+    required_artifacts,
+    optional_artifacts,
   })
-  const unavailable = (requiredArtifacts: string[], optionalArtifacts: string[] = []) => createLayerModelAvailabilityFixture({
+  const unavailable = (required_artifacts: string[], optional_artifacts: string[] = []) => createLayerDatasetAvailabilityFixture({
     state: 'temporarily_unavailable',
-    requiredArtifacts,
-    optionalArtifacts,
+    required_artifacts,
+    optional_artifacts,
   })
 
   return {
     temperature: createManifestLayerFixture({
-      [modelId]: has('tmp_surface') ? available(['tmp_surface']) : unavailable(['tmp_surface']),
+      [datasetId]: has('tmp_surface') ? available(['tmp_surface']) : unavailable(['tmp_surface']),
     }),
     apparent_temperature: createManifestLayerFixture({
-      [modelId]: has('aptmp_surface') ? available(['aptmp_surface']) : unavailable(['aptmp_surface']),
+      [datasetId]: has('aptmp_surface') ? available(['aptmp_surface']) : unavailable(['aptmp_surface']),
     }),
     dew_point: createManifestLayerFixture({
-      [modelId]: has('dewpoint_surface') ? available(['dewpoint_surface']) : unavailable(['dewpoint_surface']),
+      [datasetId]: has('dewpoint_surface') ? available(['dewpoint_surface']) : unavailable(['dewpoint_surface']),
     }),
     wind_gust: createManifestLayerFixture({
-      [modelId]: has('gust_surface') ? available(['gust_surface']) : unavailable(['gust_surface']),
+      [datasetId]: has('gust_surface') ? available(['gust_surface']) : unavailable(['gust_surface']),
     }),
     air_pressure: createManifestLayerFixture({
-      [modelId]: has('prmsl_msl') ? available(['prmsl_msl']) : unavailable(['prmsl_msl']),
+      [datasetId]: has('prmsl_msl') ? available(['prmsl_msl']) : unavailable(['prmsl_msl']),
     }),
     wind_speed: createManifestLayerFixture({
-      [modelId]: has('wind10m_uv') ? available(['wind10m_uv']) : unavailable(['wind10m_uv']),
+      [datasetId]: has('wind10m_uv') ? available(['wind10m_uv']) : unavailable(['wind10m_uv']),
     }),
     precipitation_rate: createManifestLayerFixture({
-      [modelId]: has('prate_surface')
+      [datasetId]: has('prate_surface')
         ? available(['prate_surface'], ['precip_type_surface'])
         : unavailable(['prate_surface'], ['precip_type_surface']),
     }),
     snow_depth: createManifestLayerFixture({
-      [modelId]: has('snow_depth_surface') ? available(['snow_depth_surface']) : unavailable(['snow_depth_surface']),
+      [datasetId]: has('snow_depth_surface') ? available(['snow_depth_surface']) : unavailable(['snow_depth_surface']),
     }),
     relative_humidity: createManifestLayerFixture({
-      [modelId]: has('rh_surface') ? available(['rh_surface']) : unavailable(['rh_surface']),
+      [datasetId]: has('rh_surface') ? available(['rh_surface']) : unavailable(['rh_surface']),
     }),
     cloud_cover: createManifestLayerFixture({
-      [modelId]: has('tcdc') ? available(['tcdc']) : unavailable(['tcdc']),
+      [datasetId]: has('tcdc') ? available(['tcdc']) : unavailable(['tcdc']),
     }),
     cloud_layers: createManifestLayerFixture({
-      [modelId]: has('cloud_layers') ? available(['cloud_layers']) : unavailable(['cloud_layers']),
+      [datasetId]: has('cloud_layers') ? available(['cloud_layers']) : unavailable(['cloud_layers']),
     }),
     visibility: createManifestLayerFixture({
-      [modelId]: has('visibility_surface') ? available(['visibility_surface']) : unavailable(['visibility_surface']),
+      [datasetId]: has('visibility_surface') ? available(['visibility_surface']) : unavailable(['visibility_surface']),
     }),
     freezing_level: createManifestLayerFixture({
-      [modelId]: has('freezing_level') ? available(['freezing_level']) : unavailable(['freezing_level']),
+      [datasetId]: has('freezing_level') ? available(['freezing_level']) : unavailable(['freezing_level']),
     }),
     precipitable_water: createManifestLayerFixture({
-      [modelId]: has('precipitable_water') ? available(['precipitable_water']) : unavailable(['precipitable_water']),
+      [datasetId]: has('precipitable_water') ? available(['precipitable_water']) : unavailable(['precipitable_water']),
     }),
     accumulated_precipitation: createManifestLayerFixture({
-      [modelId]: has('precip_total_surface') ? available(['precip_total_surface']) : unavailable(['precip_total_surface']),
+      [datasetId]: has('precip_total_surface') ? available(['precip_total_surface']) : unavailable(['precip_total_surface']),
     }),
     composite_reflectivity: createManifestLayerFixture({
-      [modelId]: has('refc_entire_atmosphere') ? available(['refc_entire_atmosphere']) : unavailable(['refc_entire_atmosphere']),
+      [datasetId]: has('refc_entire_atmosphere') ? available(['refc_entire_atmosphere']) : unavailable(['refc_entire_atmosphere']),
     }),
     cape: createManifestLayerFixture({
-      [modelId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
+      [datasetId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
     }),
     cin: createManifestLayerFixture({
-      [modelId]: has('cin_index') ? available(['cin_index']) : unavailable(['cin_index']),
+      [datasetId]: has('cin_index') ? available(['cin_index']) : unavailable(['cin_index']),
     }),
   }
 }
 
-export function createLayerModelAvailabilityFixture(
-  overrides: Partial<Manifest['layers'][string]['models'][string]> = {}
-): Manifest['layers'][string]['models'][string] {
+export function createLayerDatasetAvailabilityFixture(
+  overrides: Partial<Manifest['layers'][string]['datasets'][string]> = {}
+): Manifest['layers'][string]['datasets'][string] {
   return {
     state: 'available',
     support: 'native',
-    requiredArtifacts: [],
-    optionalArtifacts: [],
+    required_artifacts: [],
+    optional_artifacts: [],
     ...overrides,
   }
 }
 
 export function createManifestLayerFixture(
-  models: Record<string, Manifest['layers'][string]['models'][string]>
+  datasets: Record<string, Manifest['layers'][string]['datasets'][string]>
 ): Manifest['layers'][string] {
-  return { models }
+  return { datasets }
 }
 
 export function createManifestFixture(
   overrides: ManifestFixtureOverrides = {}
 ): Manifest {
-  const model = overrides.model ?? { id: FIXTURE_MODEL_ID, label: FIXTURE_MODEL_LABEL }
+  const dataset = overrides.dataset ?? { id: FIXTURE_DATASET_ID, label: FIXTURE_DATASET_LABEL }
   const latest = createLatestRunFixture(overrides)
   return {
-    schema: FORECAST_MANIFEST_SCHEMA,
-    schemaVersion: FORECAST_MANIFEST_SCHEMA_VERSION,
-    generatedAt: overrides.generatedAt ?? FIXTURE_GENERATED_AT,
-    catalogVersion: 'forecast-catalog-v1',
-    payloadContract: FORECAST_PAYLOAD_CONTRACT,
-    models: {
-      [model.id]: {
-        label: model.label,
+    schema: DATA_MANIFEST_SCHEMA,
+    schema_version: DATA_MANIFEST_SCHEMA_VERSION,
+    generated_at: overrides.generated_at ?? FIXTURE_GENERATED_AT,
+    catalog_version: 'forecast-catalog-v1',
+    payload_contract: DATA_PAYLOAD_CONTRACT,
+    datasets: {
+      [dataset.id]: {
+        label: dataset.label,
         latest,
       },
     },
-    layers: overrides.layers ?? createManifestLayersFixture(latest.artifacts, model.id),
+    layers: overrides.layers ?? createManifestLayersFixture(latest.artifacts, dataset.id),
   }
 }
 
@@ -408,18 +408,18 @@ export function createSingleTimeManifestFixture(
   overrides: ManifestFixtureOverrides = {}
 ): Manifest {
   return createManifestFixture({
-    forecastHours: [FIXTURE_HOUR_TOKEN],
+    frameIds: [FIXTURE_FRAME_ID],
     ...overrides,
   })
 }
 
 export function createActiveRunFixture(
   manifest: Manifest,
-  modelId: ForecastModelId = FIXTURE_MODEL_ID
+  datasetId: ForecastDatasetId = FIXTURE_DATASET_ID
 ): ActiveForecastRun {
-  const activeRun = activeForecastRunForModel(manifest, modelId)
+  const activeRun = activeForecastRunForDataset(manifest, datasetId)
   if (!activeRun) {
-    throw new Error(`Missing active run fixture for model ${modelId}`)
+    throw new Error(`Missing active run fixture for dataset ${datasetId}`)
   }
   return activeRun
 }
@@ -432,13 +432,13 @@ export function createManifestPayloadFixture(
 
 export function createForecastManifestDataFixture(args: {
   manifest?: Manifest
-  modelOptions?: readonly ForecastModelOption[]
+  datasetOptions?: readonly ForecastDatasetOption[]
 } = {}): ForecastManifestData {
   const manifest = args.manifest ?? createManifestFixture()
 
   return {
     manifest,
-    modelOptions: args.modelOptions ?? modelOptionsFromManifest(manifest),
+    datasetOptions: args.datasetOptions ?? datasetOptionsFromManifest(manifest),
   }
 }
 

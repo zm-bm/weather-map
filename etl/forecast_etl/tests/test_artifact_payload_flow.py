@@ -514,7 +514,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_gfs_precip_total_uses_zero_run_total_for_analysis_hour(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-gfs-precip-total-zero-",
-            fhour="000",
+            frame_id="000",
         ) as fx:
             with (
                 patch(
@@ -545,7 +545,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_gfs_precip_total_selects_run_total_apcp_band(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-gfs-precip-total-run-",
-            fhour="009",
+            frame_id="009",
         ) as fx:
             source_grib = fx.single_grib_source()
             source = pack_f32([0.0, 9.0, 254.0, float("nan")], byte_order="little")
@@ -589,7 +589,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_precip_total_scalar_uses_icon_param_grib_path_and_encoding(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-precip-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             grib_path = fx.grib_path("tot_prec.regridded.grib2")
@@ -636,7 +636,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_icon_pressure_can_publish_downsampled_grid(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-pressure-downsample-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             grib_path = fx.grib_path("pmsl.regridded.grib2")
@@ -689,7 +689,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_precip_rate_derives_icon_rate_from_adjacent_tot_prec_accumulations(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-prate-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             current_path = fx.grib_path("tot_prec.current.regridded.grib2")
@@ -740,8 +740,8 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_precip_rate_uses_zero_previous_for_first_icon_hour(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-prate-first-artifact-",
-            model_id="icon",
-            fhour="001",
+            dataset_id="icon",
+            frame_id="001",
             source_uri="icon-dwd://icon/2026041200/001",
         ) as fx:
             current_path = fx.grib_path("tot_prec.current.regridded.grib2")
@@ -778,7 +778,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_precip_rate_clamps_small_negative_icon_accumulation_delta(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-prate-clamp-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             current_path = fx.grib_path("tot_prec.current.regridded.grib2")
@@ -825,7 +825,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_precip_rate_rejects_meaningful_negative_icon_accumulation_delta(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-prate-negative-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             current_path = fx.grib_path("tot_prec.current.regridded.grib2")
@@ -872,7 +872,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_icon_cloud_layers_use_configured_component_grib_paths(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-cloud-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             paths = {
@@ -927,7 +927,7 @@ class GribCollectionArtifactTest(unittest.TestCase):
     def test_icon_wind_uses_u_and_v_grib_paths(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-wind-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             paths = {
@@ -1059,7 +1059,7 @@ class PrecipitationOverlayArtifactTest(unittest.TestCase):
     def test_icon_precip_type_derives_soft_overlay_components_from_accumulations(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-precip-type-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             source_paths = {
@@ -1159,7 +1159,7 @@ class PrecipitationOverlayArtifactTest(unittest.TestCase):
     def test_icon_weather_code_derives_thunderstorm_mask(self) -> None:
         with artifact_run_fixture(
             prefix="weather-map-icon-thunderstorm-artifact-",
-            model_id="icon",
+            dataset_id="icon",
             source_uri="icon-dwd://icon/2026041200/003",
         ) as fx:
             weather_code_path = fx.grib_path("ww.regridded.grib2")

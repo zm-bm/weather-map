@@ -15,7 +15,7 @@ from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 @dataclass(frozen=True)
 class _FakeWorkload:
-    forecast_hours: tuple[str, ...] = ("000", "003")
+    frames: tuple[str, ...] = ("000", "003")
     artifacts: tuple[str, ...] = ("tmp_surface",)
 
 
@@ -33,16 +33,16 @@ class _FakeModel:
 
 class _FakePipelineConfig:
     def __init__(self) -> None:
-        self.models = {
+        self.datasets = {
             "gfs": _FakeModel(id="gfs", label="GFS"),
             "icon": _FakeModel(id="icon", label="ICON"),
         }
 
-    def model(self, model_id: str) -> _FakeModel:
-        model = self.models.get(model_id)
-        if model is None:
-            raise SystemExit(f"Unknown model {model_id!r}")
-        return model
+    def dataset(self, dataset_id: str) -> _FakeModel:
+        dataset = self.datasets.get(dataset_id)
+        if dataset is None:
+            raise SystemExit(f"Unknown dataset {dataset_id!r}")
+        return dataset
 
 
 class _FakeStore:
@@ -55,7 +55,7 @@ def _loaded_snapshot(cfg: _FakePipelineConfig) -> LoadedRunSnapshot:
         config_digest="sha256:" + "1" * 64,
         pipeline_config_uri=f"s3://artifacts/runs/gfs/2026051112/{DEFAULT_RUN_ID}/config/pipeline_config.json",
         forecast_catalog_uri=f"s3://artifacts/runs/gfs/2026051112/{DEFAULT_RUN_ID}/config/forecast_catalog.json",
-        loaded_config=LoadedPipelineConfig(raw={"models": {"gfs": {}, "icon": {}}}, config=cfg),
+        loaded_config=LoadedPipelineConfig(raw={"datasets": {"gfs": {}, "icon": {}}}, config=cfg),
         forecast_catalog={"catalogVersion": "test", "rasterLayers": []},
     )
 
@@ -85,7 +85,7 @@ class PublisherTest(unittest.TestCase):
 
     def test_publishes_explicit_cycles_and_reports_not_ready(self) -> None:
         result, run_publish = self._run(
-            {"models": ["gfs"], "cycles": ["2026051112", "2026051106"]},
+            {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
             side_effect=[
                 PublishResult(ready=True, already_published=False, latest_promoted=True),
                 PublishResult(
@@ -102,8 +102,8 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(result["attempted"], 2)
         self.assertEqual(result["ready"], 1)
         self.assertEqual(result["published"], 1)
-        self.assertEqual(result["latestPromoted"], 1)
-        self.assertEqual(result["notReady"], 1)
+        self.assertEqual(result["latest_promoted"], 1)
+        self.assertEqual(result["not_ready"], 1)
         self.assertEqual([call.kwargs["cycle"] for call in run_publish.call_args_list], ["2026051112", "2026051106"])
 
     def test_default_scan_uses_recent_cycles_for_configured_models(self) -> None:
@@ -111,7 +111,7 @@ class PublisherTest(unittest.TestCase):
             os.environ,
             {
                 **_env(),
-                "PUBLISH_MODELS": "gfs,icon",
+                "PUBLISH_DATASETS": "gfs,icon",
                 "PUBLISH_CYCLE_COUNT": "2",
             },
             clear=False,
@@ -130,9 +130,9 @@ class PublisherTest(unittest.TestCase):
 
         self.assertEqual(result["attempted"], 4)
         self.assertEqual(result["ready"], 4)
-        self.assertEqual(result["alreadyPublished"], 4)
+        self.assertEqual(result["already_published"], 4)
         self.assertEqual(
-            [(call.kwargs["ctx"].model_id, call.kwargs["cycle"]) for call in run_publish.call_args_list],
+            [(call.kwargs["ctx"].dataset_id, call.kwargs["cycle"]) for call in run_publish.call_args_list],
             [
                 ("gfs", "2026051112"),
                 ("gfs", "2026051106"),
@@ -143,7 +143,7 @@ class PublisherTest(unittest.TestCase):
 
     def test_continues_after_one_cycle_fails(self) -> None:
         result, run_publish = self._run(
-            {"models": ["gfs"], "cycles": ["2026051112", "2026051106"]},
+            {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
             side_effect=[
                 RuntimeError("boom"),
                 PublishResult(ready=True, already_published=True),
@@ -154,8 +154,8 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(result["attempted"], 2)
         self.assertEqual(result["failed"], 1)
         self.assertEqual(result["ready"], 1)
-        self.assertEqual(result["alreadyPublished"], 1)
-        self.assertEqual(result["failures"][0]["model"], "gfs")
+        self.assertEqual(result["already_published"], 1)
+        self.assertEqual(result["failures"][0]["dataset_id"], "gfs")
         self.assertEqual(run_publish.call_count, 2)
 
     def test_validates_missing_report_before_publish(self) -> None:
@@ -174,7 +174,7 @@ class PublisherTest(unittest.TestCase):
                 return_value=PublishResult(ready=True, already_published=False),
             ) as run_publish,
         ):
-            result = publisher.handler({"models": ["gfs"], "cycles": ["2026051112"]}, None)
+            result = publisher.handler({"datasets": ["gfs"], "cycles": ["2026051112"]}, None)
 
         self.assertEqual(result["ready"], 1)
         validate_run.assert_called_once()
@@ -199,11 +199,11 @@ class PublisherTest(unittest.TestCase):
                 return_value=PublishResult(ready=True, already_published=True),
             ) as run_publish,
         ):
-            result = publisher.handler({"models": ["gfs"], "cycles": ["2026051112", "2026051106"]}, None)
+            result = publisher.handler({"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]}, None)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["attempted"], 2)
-        self.assertEqual(result["notReady"], 1)
+        self.assertEqual(result["not_ready"], 1)
         self.assertEqual(result["ready"], 1)
         self.assertEqual(validate_run.call_count, 2)
         run_publish.assert_called_once()

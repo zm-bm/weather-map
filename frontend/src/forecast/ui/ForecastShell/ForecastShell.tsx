@@ -31,7 +31,7 @@ export default function ForecastShell({
         <ForecastSelectionProvider
           key={forecast?.manifest == null ? 'loading' : 'ready'}
           manifest={forecast?.manifest ?? null}
-          modelOptions={forecast?.modelOptions ?? []}
+          datasetOptions={forecast?.datasetOptions ?? []}
         >
           <ForecastShellStage onInitialSyncStatusChange={onInitialSyncStatusChange} />
         </ForecastSelectionProvider>

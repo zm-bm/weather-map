@@ -79,8 +79,8 @@ export function packedVectorFramePairSignature(framePair: PackedVectorFramePair 
   if (!framePair) return null
   return [
     framePair.lowerFrame.raster.artifactId,
-    framePair.lowerFrame.raster.hourToken,
-    framePair.upperFrame.raster.hourToken,
+    framePair.lowerFrame.raster.frameId,
+    framePair.upperFrame.raster.frameId,
   ].join(':')
 }
 

@@ -52,7 +52,7 @@ describe('raster runtime encoded sources', () => {
     const slice: ForecastFrameMap['raster'] = {
       source: createRasterLayerSourceFixture({ layerId: 'temperature' }),
       raster: {
-        hourToken: '000',
+        frameId: '000',
         artifactId: 'tmp_surface',
         cacheKey: 'fixture:scalar:000',
         grid,
@@ -67,8 +67,8 @@ describe('raster runtime encoded sources', () => {
       lower: slice,
       upper: slice,
       selectedValidTimeMs: 0,
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      lowerFrameId: '000',
+      upperFrameId: '000',
       mix: 0,
     })
     runtime.render(gl as never, {
@@ -123,7 +123,7 @@ describe('raster runtime encoded sources', () => {
         ],
       }),
       raster: {
-        hourToken: '000',
+        frameId: '000',
         artifactId: 'wind10m_uv',
         cacheKey: 'fixture:wind:000',
         grid,
@@ -141,8 +141,8 @@ describe('raster runtime encoded sources', () => {
       lower: slice,
       upper: slice,
       selectedValidTimeMs: 0,
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      lowerFrameId: '000',
+      upperFrameId: '000',
       mix: 0,
     })
 
@@ -169,12 +169,12 @@ describe('raster runtime encoded sources', () => {
     const map = createMapFixture()
     const grid = createGridFixture({ nx: 1, ny: 1 })
     const encoding = createScalarEncodingFixture()
-    const createSlice = (hourToken: string, value: number): ForecastFrameMap['raster'] => ({
-      ...createRasterFrameFixture({ hourToken, values: [value] }),
+    const createSlice = (frameId: string, value: number): ForecastFrameMap['raster'] => ({
+      ...createRasterFrameFixture({ frameId, values: [value] }),
       raster: {
-        hourToken,
+        frameId,
         artifactId: 'tmp_surface',
-        cacheKey: `fixture:scalar:${hourToken}`,
+        cacheKey: `fixture:scalar:${frameId}`,
         grid,
         encoding,
         bandIds: ['value'],
@@ -191,8 +191,8 @@ describe('raster runtime encoded sources', () => {
       lower: first,
       upper: second,
       selectedValidTimeMs: 0,
-      lowerHourToken: first.raster.hourToken,
-      upperHourToken: second.raster.hourToken,
+      lowerFrameId: first.raster.frameId,
+      upperFrameId: second.raster.frameId,
       mix: 0.5,
     })
     expect(gl.texImage3D).toHaveBeenCalledTimes(2)
@@ -201,8 +201,8 @@ describe('raster runtime encoded sources', () => {
       lower: second,
       upper: third,
       selectedValidTimeMs: 0,
-      lowerHourToken: second.raster.hourToken,
-      upperHourToken: third.raster.hourToken,
+      lowerFrameId: second.raster.frameId,
+      upperFrameId: third.raster.frameId,
       mix: 0.5,
     })
 
@@ -222,8 +222,8 @@ describe('raster runtime encoded sources', () => {
       lower: slice,
       upper: slice,
       selectedValidTimeMs: 0,
-      lowerHourToken: '000',
-      upperHourToken: '000',
+      lowerFrameId: '000',
+      upperFrameId: '000',
       mix: 0,
     })
     runtime.render(gl as never, {
@@ -266,8 +266,8 @@ describe('raster runtime encoded sources', () => {
       lower: scalarFrame,
       upper: cloudFrame,
       selectedValidTimeMs: 0,
-      lowerHourToken: scalarFrame.raster.hourToken,
-      upperHourToken: cloudFrame.raster.hourToken,
+      lowerFrameId: scalarFrame.raster.frameId,
+      upperFrameId: cloudFrame.raster.frameId,
       mix: 0.5,
     })).toThrow('Raster frame render style mismatch: lower=colormap upper=cloud-layers')
 
@@ -288,8 +288,8 @@ describe('raster runtime encoded sources', () => {
       lower: scalarFrame,
       upper: scalarFrame,
       selectedValidTimeMs: 0,
-      lowerHourToken: scalarFrame.raster.hourToken,
-      upperHourToken: scalarFrame.raster.hourToken,
+      lowerFrameId: scalarFrame.raster.frameId,
+      upperFrameId: scalarFrame.raster.frameId,
       mix: 0,
     })
     const colormapTextureInterpolated = gl.createTexture.mock.results[1]?.value
@@ -299,8 +299,8 @@ describe('raster runtime encoded sources', () => {
       lower: cloudFrame,
       upper: cloudFrame,
       selectedValidTimeMs: 0,
-      lowerHourToken: cloudFrame.raster.hourToken,
-      upperHourToken: cloudFrame.raster.hourToken,
+      lowerFrameId: cloudFrame.raster.frameId,
+      upperFrameId: cloudFrame.raster.frameId,
       mix: 0,
     })
 

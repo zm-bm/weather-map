@@ -72,7 +72,7 @@ describe('pressure contour encoded runtime', () => {
           id: 'pressure-other',
           format: 'linear-i8-v1',
           dtype: 'int8',
-          byteOrder: 'none',
+          byte_order: 'none',
           scale: 100,
           offset: 100500,
           nodata: -128,
@@ -99,8 +99,8 @@ describe('pressure contour encoded runtime', () => {
       lower: slice,
       upper: slice,
       selectedValidTimeMs: 0,
-      lowerHourToken: slice.raster.hourToken,
-      upperHourToken: slice.raster.hourToken,
+      lowerFrameId: slice.raster.frameId,
+      upperFrameId: slice.raster.frameId,
       mix: 0,
     })
 
@@ -144,9 +144,9 @@ describe('pressure contour encoded runtime', () => {
     const gl = createMockWebGl2()
     gl.getExtension.mockReturnValue({})
     const map = createMapFixture()
-    const first = createPressureFrameFixture({ hourToken: '000' })
-    const second = createPressureFrameFixture({ hourToken: '001' })
-    const third = createPressureFrameFixture({ hourToken: '002' })
+    const first = createPressureFrameFixture({ frameId: '000' })
+    const second = createPressureFrameFixture({ frameId: '001' })
+    const third = createPressureFrameFixture({ frameId: '002' })
 
     runtime.onAdd(map as never, gl as never)
     const controller = controllers.get(map as never)
@@ -154,8 +154,8 @@ describe('pressure contour encoded runtime', () => {
       lower: first,
       upper: second,
       selectedValidTimeMs: 0,
-      lowerHourToken: '000',
-      upperHourToken: '001',
+      lowerFrameId: '000',
+      upperFrameId: '001',
       mix: 0.5,
     })
     const rawTextureUploads = () => gl.texImage3D.mock.calls.length
@@ -167,8 +167,8 @@ describe('pressure contour encoded runtime', () => {
       lower: second,
       upper: third,
       selectedValidTimeMs: 0,
-      lowerHourToken: '001',
-      upperHourToken: '002',
+      lowerFrameId: '001',
+      upperFrameId: '002',
       mix: 0.5,
     })
 
@@ -190,8 +190,8 @@ describe('pressure contour encoded runtime', () => {
       lower: slice,
       upper: slice,
       selectedValidTimeMs: 0,
-      lowerHourToken: slice.raster.hourToken,
-      upperHourToken: slice.raster.hourToken,
+      lowerFrameId: slice.raster.frameId,
+      upperFrameId: slice.raster.frameId,
       mix: 0,
     })
     runtime.render(gl as never, {
@@ -229,8 +229,8 @@ describe('pressure contour encoded runtime', () => {
         lower: slice,
         upper: slice,
         selectedValidTimeMs: 0,
-        lowerHourToken: slice.raster.hourToken,
-        upperHourToken: slice.raster.hourToken,
+        lowerFrameId: slice.raster.frameId,
+        upperFrameId: slice.raster.frameId,
         mix: 0,
       })
       runtime.render(gl as never, {

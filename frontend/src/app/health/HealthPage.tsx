@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { fetchHealth } from './fetchHealth'
-import type { HealthModel, HealthPayload } from './types'
+import type { HealthDataset, HealthPayload } from './types'
 
 type HealthState = {
   loading: boolean
@@ -83,7 +83,7 @@ function HealthPage() {
             {state.error
               ? state.error.message
               : state.payload
-                ? `Health snapshot generated ${formatDateTime(state.payload.generatedAt)}.`
+                ? `Health snapshot generated ${formatDateTime(state.payload.generated_at)}.`
                 : 'Checking forecast artifact health.'}
           </p>
           <p className="health-page__status-line">{statusLine}</p>
@@ -99,13 +99,13 @@ function HealthPage() {
         <span>Overall {STATUS_LABELS[overallStatus]}</span>
       </section>
 
-      <section className="health-page__models" aria-label="Forecast model health">
-        {state.payload?.models.map((model) => (
-          <ModelHealthCard key={model.id} model={model} />
+      <section className="health-page__datasets" aria-label="Forecast dataset health">
+        {state.payload?.datasets.map((dataset) => (
+          <DatasetHealthCard key={dataset.dataset_id} dataset={dataset} />
         ))}
         {!state.payload && (
           <div className="health-card health-card--empty">
-            <h2>{state.loading ? 'Checking models' : 'Health unavailable'}</h2>
+            <h2>{state.loading ? 'Checking datasets' : 'Health unavailable'}</h2>
             <p>{state.loading ? 'Waiting for the health API response.' : state.error?.message ?? 'No health payload was returned.'}</p>
           </div>
         )}
@@ -114,33 +114,33 @@ function HealthPage() {
   )
 }
 
-function ModelHealthCard({ model }: { model: HealthModel }) {
-  const progress = model.progress
-  const markerPercent = progress && progress.expectedMarkers > 0
-    ? Math.round((progress.foundMarkers / progress.expectedMarkers) * 100)
+function DatasetHealthCard({ dataset }: { dataset: HealthDataset }) {
+  const progress = dataset.progress
+  const markerPercent = progress && progress.expected_markers > 0
+    ? Math.round((progress.found_markers / progress.expected_markers) * 100)
     : null
 
   return (
-    <article className={`health-card health-card--${model.status}`}>
+    <article className={`health-card health-card--${dataset.status}`}>
       <div className="health-card__header">
         <div>
-          <h2>{model.label}</h2>
-          <p>{model.reason}</p>
+          <h2>{dataset.label}</h2>
+          <p>{dataset.reason}</p>
         </div>
-        <span className="health-card__status wm-display-caps">{STATUS_LABELS[model.status]}</span>
+        <span className="health-card__status wm-display-caps">{STATUS_LABELS[dataset.status]}</span>
       </div>
 
       <dl className="health-card__facts">
-        <Fact label="Expected" value={formatCycle(model.expectedCycle)} />
-        <Fact label="Expected By" value={formatDateTime(model.expectedCycleDeadline)} />
-        <Fact label="Published Cycle" value={formatCycle(model.latestPublishedCycle)} />
-        <Fact label="Latest Seen" value={formatCycle(model.latestObservedCycle)} />
-        <Fact label="Published At" value={formatDateTime(model.latestPublishedGeneratedAt)} />
-        <Fact label="Grace Window" value={model.publishLag.graceHours == null ? '--' : `${model.publishLag.graceHours}h`} />
+        <Fact label="Expected" value={formatCycle(dataset.expected_cycle)} />
+        <Fact label="Expected By" value={formatDateTime(dataset.expected_cycle_deadline)} />
+        <Fact label="Published Cycle" value={formatCycle(dataset.latest_published_cycle)} />
+        <Fact label="Latest Seen" value={formatCycle(dataset.latest_observed_cycle)} />
+        <Fact label="Published At" value={formatDateTime(dataset.latest_published_generated_at)} />
+        <Fact label="Grace Window" value={dataset.publish_lag.grace_hours == null ? '--' : `${dataset.publish_lag.grace_hours}h`} />
       </dl>
 
       {progress && (
-        <div className="health-card__progress" aria-label={`${model.label} marker progress`}>
+        <div className="health-card__progress" aria-label={`${dataset.label} marker progress`}>
           <div className="health-card__progress-label">
             <span>Cycle {formatCycle(progress.cycle)}</span>
             <span>{markerPercent == null ? '--' : `${markerPercent}%`}</span>
@@ -149,18 +149,18 @@ function ModelHealthCard({ model }: { model: HealthModel }) {
             <span style={{ width: `${markerPercent ?? 0}%` }} />
           </div>
           <p>
-            {progress.foundMarkers}/{progress.expectedMarkers} markers
-            {progress.missingMarkers > 0 ? `, ${progress.missingMarkers} missing` : ', complete'}
-            {progress.lastProgressAt ? `, last progress ${formatDateTime(progress.lastProgressAt)}` : ''}
+            {progress.found_markers}/{progress.expected_markers} markers
+            {progress.missing_markers > 0 ? `, ${progress.missing_markers} missing` : ', complete'}
+            {progress.last_progress_at ? `, last progress ${formatDateTime(progress.last_progress_at)}` : ''}
           </p>
-          {(progress.missingSample.length > 0 || progress.invalidMarkerSample.length > 0) && (
+          {(progress.missing_sample.length > 0 || progress.invalid_marker_sample.length > 0) && (
             <details className="health-card__details">
               <summary>Marker details</summary>
-              {progress.missingSample.length > 0 && (
-                <p>Missing sample: {progress.missingSample.slice(0, 4).join(', ')}</p>
+              {progress.missing_sample.length > 0 && (
+                <p>Missing sample: {progress.missing_sample.slice(0, 4).join(', ')}</p>
               )}
-              {progress.invalidMarkerSample.length > 0 && (
-                <p>Invalid markers: {progress.invalidMarkerSample.slice(0, 4).join(', ')}</p>
+              {progress.invalid_marker_sample.length > 0 && (
+                <p>Invalid markers: {progress.invalid_marker_sample.slice(0, 4).join(', ')}</p>
               )}
             </details>
           )}
@@ -183,10 +183,10 @@ function getHeadline(payload: HealthPayload | null, error: Error | null): { labe
   if (error) return { label: 'API Offline', tone: 'unavailable' }
   if (!payload) return { label: 'Checking', tone: 'checking' }
   if (payload.status === 'healthy') return { label: 'Healthy', tone: 'healthy' }
-  if (payload.models.length > 0 && payload.models.every((model) => model.status === 'stale')) {
+  if (payload.datasets.length > 0 && payload.datasets.every((dataset) => dataset.status === 'stale')) {
     return { label: 'Data Stale', tone: 'stale' }
   }
-  if (payload.models.some((model) => model.status === 'building')) {
+  if (payload.datasets.some((dataset) => dataset.status === 'building')) {
     return { label: 'Building', tone: 'building' }
   }
   if (payload.status === 'unavailable') return { label: 'Unavailable', tone: 'unavailable' }
@@ -196,10 +196,10 @@ function getHeadline(payload: HealthPayload | null, error: Error | null): { labe
 function getStatusLine(payload: HealthPayload | null, error: Error | null, loading: boolean): string {
   if (error) return 'API unavailable'
   if (!payload) return loading ? 'Checking API and artifact status' : 'No health payload returned'
-  const modelSummary = payload.models
-    .map((model) => `${model.label} ${STATUS_LABELS[model.status].toLowerCase()}`)
+  const datasetSummary = payload.datasets
+    .map((dataset) => `${dataset.label} ${STATUS_LABELS[dataset.status].toLowerCase()}`)
     .join(' · ')
-  return modelSummary ? `${modelSummary} · API online` : 'API online'
+  return datasetSummary ? `${datasetSummary} · API online` : 'API online'
 }
 
 function formatCycle(cycle: string | null | undefined): string {

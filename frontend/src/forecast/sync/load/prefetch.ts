@@ -4,15 +4,15 @@ import { loadWindowFrame } from './windowLoader'
 
 type ForecastPrefetchTask = {
   windowPlan: ForecastWindowPlan
-  hourToken: string
+  frameId: string
 }
 
 type PrefetchForecastFramesArgs = {
   windowPlans: readonly ForecastWindowPlan[]
   artifacts: ArtifactLoader
-  lowerHourToken: string
-  upperHourToken: string
-  forecastHourTokens: readonly string[]
+  lowerFrameId: string
+  upperFrameId: string
+  frameIds: readonly string[]
   aheadHourCount: number
   concurrency: number
   signal: AbortSignal
@@ -31,43 +31,43 @@ export async function prefetchForecastFrames(args: PrefetchForecastFramesArgs): 
 }
 
 function createForecastPrefetchTasks(args: PrefetchForecastFramesArgs): ForecastPrefetchTask[] {
-  const hourTokens = uniqueHourTokens([
-    args.lowerHourToken,
-    args.upperHourToken,
-    ...nextHourTokensAfterUpper(args, args.aheadHourCount),
+  const frameIds = uniqueFrameIds([
+    args.lowerFrameId,
+    args.upperFrameId,
+    ...nextFrameIdsAfterUpper(args, args.aheadHourCount),
   ])
 
-  return hourTokens.flatMap((hourToken) => {
-    return args.windowPlans.map((windowPlan) => ({ windowPlan, hourToken }))
+  return frameIds.flatMap((frameId) => {
+    return args.windowPlans.map((windowPlan) => ({ windowPlan, frameId }))
   })
 }
 
-function uniqueHourTokens(hourTokens: readonly string[]): string[] {
+function uniqueFrameIds(frameIds: readonly string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
 
-  for (const hourToken of hourTokens) {
-    if (seen.has(hourToken)) continue
-    seen.add(hourToken)
-    unique.push(hourToken)
+  for (const frameId of frameIds) {
+    if (seen.has(frameId)) continue
+    seen.add(frameId)
+    unique.push(frameId)
   }
 
   return unique
 }
 
-function nextHourTokensAfterUpper(
-  args: Pick<PrefetchForecastFramesArgs, 'forecastHourTokens' | 'upperHourToken'>,
+function nextFrameIdsAfterUpper(
+  args: Pick<PrefetchForecastFramesArgs, 'frameIds' | 'upperFrameId'>,
   count: number
 ): string[] {
-  if (args.forecastHourTokens.length === 0 || count <= 0) return []
+  if (args.frameIds.length === 0 || count <= 0) return []
 
-  const normalizedHours = args.forecastHourTokens
-  const upperIndex = normalizedHours.indexOf(args.upperHourToken)
+  const normalizedFrameIds = args.frameIds
+  const upperIndex = normalizedFrameIds.indexOf(args.upperFrameId)
   const startIndex = upperIndex < 0 ? -1 : upperIndex
 
   return Array.from({ length: count }, (_unused, idx) => (
-    normalizedHours[(startIndex + idx + 1) % normalizedHours.length]
-  )).filter((hourToken): hourToken is string => hourToken != null)
+    normalizedFrameIds[(startIndex + idx + 1) % normalizedFrameIds.length]
+  )).filter((frameId): frameId is string => frameId != null)
 }
 
 async function runPrefetchQueue(args: {
@@ -89,7 +89,7 @@ async function runPrefetchQueue(args: {
       if (!task) return
 
       try {
-        await loadWindowFrame(args.artifacts, task.windowPlan, task.hourToken)
+        await loadWindowFrame(args.artifacts, task.windowPlan, task.frameId)
       } catch {
         // Prefetch is opportunistic; rendering sync owns user-visible errors.
       }

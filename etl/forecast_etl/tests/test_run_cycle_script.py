@@ -47,27 +47,27 @@ if [[ "${1:-}" == "build" ]]; then
 fi
 
 if [[ "${1:-}" == "run" ]]; then
-\tmodel=""
-\tfhour=""
+\tdataset_id=""
+\tframe_id=""
 \tcycle=""
 \trun_id=""
 \tmode=""
 \twhile [[ $# -gt 0 ]]; do
 \t\tcase "$1" in
-\t\t\t--model)
-\t\t\t\tmodel="${2:-}"
+\t\t\t--dataset-id)
+\t\t\t\tdataset_id="${2:-}"
 \t\t\t\tshift 2
 \t\t\t\t;;
 \t\t\t--env)
 \t\t\t\tcase "${2:-}" in
-\t\t\t\t\tMODEL=*) model="${2#MODEL=}" ;;
-\t\t\t\t\tFHOUR=*) fhour="${2#FHOUR=}" ;;
+\t\t\t\t\tDATASET_ID=*) dataset_id="${2#DATASET_ID=}" ;;
+\t\t\t\t\tFRAME_ID=*) frame_id="${2#FRAME_ID=}" ;;
 \t\t\t\t\tCYCLE=*) cycle="${2#CYCLE=}" ;;
 \t\t\t\t\tRUN_ID=*) run_id="${2#RUN_ID=}" ;;
 \t\t\t\tesac
 \t\t\t\tshift 2
 \t\t\t\t;;
-\t\t\tlist-forecast-hours|run-hour|publish-cycle|validate-cycle|init-run)
+\t\t\tlist-frames|run-frame|publish-cycle|validate-cycle|init-run)
 \t\t\t\tmode="$1"
 \t\t\t\tshift
 \t\t\t\t;;
@@ -77,34 +77,34 @@ if [[ "${1:-}" == "run" ]]; then
 \t\tesac
 \tdone
 
-\tif [[ "$mode" == "run-hour" ]]; then
-\t\tif [[ -n "${FAKE_DOCKER_FAIL_FHOUR:-}" && "$fhour" == "$FAKE_DOCKER_FAIL_FHOUR" ]]; then
-\t\t\techo "simulated worker failure for fhour=$fhour" >&2
+\tif [[ "$mode" == "run-frame" ]]; then
+\t\tif [[ -n "${FAKE_DOCKER_FAIL_FRAME:-}" && "$frame_id" == "$FAKE_DOCKER_FAIL_FRAME" ]]; then
+\t\t\techo "simulated worker failure for frame_id=$frame_id" >&2
 \t\t\texit 42
 \t\tfi
-\t\techo "Done. Processed fhour bundle cycle=${CYCLE:-unknown} fhour=$fhour: model=$model artifacts=18"
+\t\techo "Done. Processed frame bundle cycle=${CYCLE:-unknown} frame_id=$frame_id: dataset_id=$dataset_id artifacts=18"
 \t\texit 0
 \tfi
 
 \tif [[ "$mode" == "publish-cycle" ]]; then
-\t\techo "Published: model=$model cycle=${CYCLE:-unknown}"
+\t\techo "Published: dataset_id=$dataset_id cycle=${CYCLE:-unknown}"
 \t\texit 0
 \tfi
 
 \tif [[ "$mode" == "validate-cycle" ]]; then
-\t\techo "Validation passed: model=$model cycle=${CYCLE:-unknown}"
+\t\techo "Validation passed: dataset_id=$dataset_id cycle=$cycle"
 \t\texit 0
 \tfi
 
 \tif [[ "$mode" == "init-run" ]]; then
 \t\techo "run_id=$run_id"
 \t\techo "config_digest=sha256:$(printf '%064d' 1)"
-\t\techo "pipeline_config_uri=file:///artifacts/runs/$model/$cycle/$run_id/config/pipeline_config.json"
-\t\techo "forecast_catalog_uri=file:///artifacts/runs/$model/$cycle/$run_id/config/forecast_catalog.json"
+\t\techo "pipeline_config_uri=file:///artifacts/runs/$dataset_id/$cycle/$run_id/config/pipeline_config.json"
+\t\techo "forecast_catalog_uri=file:///artifacts/runs/$dataset_id/$cycle/$run_id/config/forecast_catalog.json"
 \t\texit 0
 \tfi
 
-\tcase "$model" in
+\tcase "$dataset_id" in
 \t\tgfs)
 \t\t\tstart=0
 \t\t\tend=24
@@ -114,13 +114,13 @@ if [[ "${1:-}" == "run" ]]; then
 \t\t\tend=24
 \t\t\t;;
 \t\t*)
-\t\t\techo "unexpected model: $model" >&2
+\t\t\techo "unexpected dataset_id: $dataset_id" >&2
 \t\t\texit 2
 \t\t\t;;
 \tesac
 
-\tfor ((fhour=start; fhour<=end; fhour++)); do
-\t\tprintf "%03d\\n" "$fhour"
+\tfor ((frame_id=start; frame_id<=end; frame_id++)); do
+\t\tprintf "%03d\\n" "$frame_id"
 \tdone
 \texit 0
 fi
@@ -175,7 +175,7 @@ exit 1
 
     def test_icon_dry_run_uses_one_worker_container_per_configured_hour(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -184,8 +184,8 @@ exit 1
             "--dry-run",
         )
 
-        self.assertIn("forecast_hours: 24", result.stdout)
-        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertIn("frames: 24", result.stdout)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-frame"), 24)
         self.assertIn("--volume " + (self.repo_root / "artifacts").as_posix() + ":/artifacts", result.stdout)
         self.assertIn("--volume " + (self.repo_root / "etl" / "cache").as_posix() + ":/app/etl/cache", result.stdout)
         self.assertIn("--env ARTIFACT_ROOT_URI=file:///artifacts", result.stdout)
@@ -198,10 +198,10 @@ exit 1
             result.stdout,
         )
         self.assertNotIn("--env PIPELINE_CONFIG_OVERLAY_URI", result.stdout)
-        self.assertIn("--env MODEL=icon", result.stdout)
+        self.assertIn("--env DATASET_ID=icon", result.stdout)
         self.assertIn(f"--env RUN_ID={DEFAULT_RUN_ID}", result.stdout)
-        self.assertIn("--env FHOUR=001", result.stdout)
-        self.assertIn("--env FHOUR=024", result.stdout)
+        self.assertIn("--env FRAME_ID=001", result.stdout)
+        self.assertIn("--env FRAME_ID=024", result.stdout)
         self.assertNotIn("GRIB_SOURCE_URI", result.stdout)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local init-run"), 1)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
@@ -209,7 +209,7 @@ exit 1
 
     def test_no_publish_skips_final_publish_container(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -219,14 +219,14 @@ exit 1
             "--dry-run",
         )
 
-        self.assertIn("forecast_hours: 24", result.stdout)
-        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertIn("frames: 24", result.stdout)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-frame"), 24)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
         self.assertNotIn("weather-map-forecast-etl:local publish-cycle", result.stdout)
 
     def test_dry_run_without_run_id_generates_one_shared_run_id(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -248,7 +248,7 @@ exit 1
             result.stdout,
         )
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local init-run"), 1)
-        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-frame"), 24)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local publish-cycle"), 1)
 
@@ -256,7 +256,7 @@ exit 1
         docker_log = self.fake_bin_dir / "docker.log"
 
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -276,7 +276,7 @@ exit 1
         docker_log = self.fake_bin_dir / "docker.log"
 
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -299,7 +299,7 @@ exit 1
 
     def test_gfs_dry_run_resolves_configured_hours(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "gfs",
             "--cycle",
             "2026051100",
@@ -308,15 +308,15 @@ exit 1
             "--dry-run",
         )
 
-        self.assertIn("forecast_hours: 25", result.stdout)
-        self.assertIn("--env MODEL=gfs", result.stdout)
+        self.assertIn("frames: 25", result.stdout)
+        self.assertIn("--env DATASET_ID=gfs", result.stdout)
         self.assertIn(f"--env RUN_ID={DEFAULT_RUN_ID}", result.stdout)
-        self.assertIn("--env FHOUR=000", result.stdout)
-        self.assertIn("--env FHOUR=024", result.stdout)
+        self.assertIn("--env FRAME_ID=000", result.stdout)
+        self.assertIn("--env FRAME_ID=024", result.stdout)
 
     def test_parallel_run_prints_failed_worker_log_tail(self) -> None:
         result = self.run_script(
-            "--model",
+            "--dataset-id",
             "icon",
             "--cycle",
             "2026021606",
@@ -324,7 +324,7 @@ exit 1
             "4",
             env_overrides={
                 "ETL_WORKER_STAGGER_SECONDS": "0",
-                "FAKE_DOCKER_FAIL_FHOUR": "003",
+                "FAKE_DOCKER_FAIL_FRAME": "003",
             },
             check=False,
         )
@@ -332,8 +332,8 @@ exit 1
         self.assertEqual(result.returncode, 1)
         self.assertIn("worker_logs:", result.stdout)
         self.assertIn("Failed local worker containers:", result.stderr)
-        self.assertIn("model=icon cycle=2026021606 fhour=003 exit=42", result.stderr)
-        self.assertIn("simulated worker failure for fhour=003", result.stderr)
+        self.assertIn("dataset_id=icon cycle=2026021606 frame_id=003 exit=42", result.stderr)
+        self.assertIn("simulated worker failure for frame_id=003", result.stderr)
 
     def test_script_no_longer_checks_host_gdal_or_cdo(self) -> None:
         script_text = self.script.read_text(encoding="utf-8")
@@ -345,10 +345,10 @@ exit 1
         self.assertNotIn("bootstrap_if_needed", script_text)
         self.assertNotIn("FORECAST_ETL_BIN", script_text)
 
-    def test_script_uses_cli_to_resolve_forecast_hours(self) -> None:
+    def test_script_uses_cli_to_resolve_frames(self) -> None:
         script_text = self.script.read_text(encoding="utf-8")
 
-        self.assertIn("list-forecast-hours", script_text)
+        self.assertIn("list-frames", script_text)
         self.assertIn('--volume "$ARTIFACTS_DIR:/artifacts"', script_text)
         self.assertNotIn("import json", script_text)
         self.assertNotIn("python3 -", script_text)

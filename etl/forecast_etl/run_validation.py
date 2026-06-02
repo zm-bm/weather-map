@@ -9,7 +9,7 @@ from typing import Any, Mapping
 from .artifacts.markers_schema import ArtifactSuccessMarker
 from .artifacts.paths import WorkItem
 from .artifacts.repository import ArtifactRepository
-from .config.resolved import ArtifactSpec, ModelConfig
+from .config.resolved import ArtifactSpec, DatasetConfig
 from .run_snapshots import LoadedRunSnapshot
 
 VALIDATION_SCHEMA = "weather-map.etl-run-validation"
@@ -32,24 +32,24 @@ class RunValidationResult:
 def validate_run(
     *,
     artifact_repo: ArtifactRepository,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
     run_id: str,
     snapshot: LoadedRunSnapshot,
 ) -> RunValidationResult:
     """Validate one run from its snapshot and success markers, then write a report."""
 
-    fhours = tuple(model.workload.forecast_hours)
+    frames = tuple(model.workload.frames)
     artifact_ids = tuple(model.workload.artifacts)
     expected_markers = _expected_marker_uris(
         artifact_repo=artifact_repo,
-        model_id=model.id,
+        dataset_id=model.id,
         cycle=cycle,
         run_id=run_id,
-        fhours=fhours,
+        frames=frames,
         artifact_ids=artifact_ids,
     )
-    existing_markers = artifact_repo.list_success_marker_uris(model_id=model.id, cycle=cycle, run_id=run_id)
+    existing_markers = artifact_repo.list_success_marker_uris(dataset_id=model.id, cycle=cycle, run_id=run_id)
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -67,12 +67,12 @@ def validate_run(
         if artifact is None:
             errors.append(f"missing artifact config for workload artifact: {artifact_id!r}")
             continue
-        for fhour in fhours:
+        for frame_id in frames:
             uri = artifact_repo.paths.success_marker_uri_parts(
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 run_id=run_id,
-                fhour=fhour,
+                frame_id=frame_id,
                 artifact_id=artifact_id,
             )
             if uri in missing:
@@ -83,10 +83,10 @@ def validate_run(
             _validate_marker_identity(
                 marker=marker,
                 uri=uri,
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 run_id=run_id,
-                fhour=fhour,
+                frame_id=frame_id,
                 artifact_id=artifact_id,
                 config_digest=snapshot.config_digest,
                 errors=errors,
@@ -95,10 +95,10 @@ def validate_run(
                 artifact_repo=artifact_repo,
                 marker=marker,
                 uri=uri,
-                model_id=model.id,
+                dataset_id=model.id,
                 cycle=cycle,
                 run_id=run_id,
-                fhour=fhour,
+                frame_id=frame_id,
                 artifact_id=artifact_id,
                 artifact=artifact,
                 errors=errors,
@@ -114,29 +114,29 @@ def validate_run(
     status = "failed" if errors else "passed"
     report = {
         "schema": VALIDATION_SCHEMA,
-        "schemaVersion": VALIDATION_SCHEMA_VERSION,
-        "model": model.id,
+        "schema_version": VALIDATION_SCHEMA_VERSION,
+        "dataset_id": model.id,
         "cycle": cycle,
-        "runId": run_id,
-        "generatedAt": _utc_now_iso(),
+        "run_id": run_id,
+        "generated_at": _utc_now_iso(),
         "status": status,
-        "payloadCheckMode": PAYLOAD_CHECK_MODE,
-        "configDigest": snapshot.config_digest,
+        "payload_check_mode": PAYLOAD_CHECK_MODE,
+        "config_digest": snapshot.config_digest,
         "expected": {
-            "forecastHours": list(fhours),
+            "frames": list(frames),
             "artifacts": list(artifact_ids),
-            "markerCount": len(expected_markers),
+            "marker_count": len(expected_markers),
         },
         "observed": {
-            "expectedMarkers": len(expected_markers & existing_markers),
-            "unexpectedMarkers": len(unexpected),
-            "totalMarkers": len(existing_markers),
+            "expected_markers": len(expected_markers & existing_markers),
+            "unexpected_markers": len(unexpected),
+            "total_markers": len(existing_markers),
         },
         "errors": errors,
         "warnings": warnings,
     }
     report_uri = artifact_repo.write_validation_report(
-        model_id=model.id,
+        dataset_id=model.id,
         cycle=cycle,
         run_id=run_id,
         report=report,
@@ -158,15 +158,15 @@ def validate_run(
 def validation_report_passed(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
 ) -> tuple[bool, list[str]]:
     """Return whether an existing run validation report is present and passed."""
 
-    uri = artifact_repo.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+    uri = artifact_repo.paths.validation_report_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     try:
-        report = artifact_repo.read_validation_report(model_id=model_id, cycle=cycle, run_id=run_id)
+        report = artifact_repo.read_validation_report(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     except FileNotFoundError:
         return False, [f"missing validation report: {uri}"]
     except (Exception, SystemExit) as exc:
@@ -175,11 +175,11 @@ def validation_report_passed(
     errors: list[str] = []
     expected = {
         "schema": VALIDATION_SCHEMA,
-        "schemaVersion": VALIDATION_SCHEMA_VERSION,
-        "model": model_id,
+        "schema_version": VALIDATION_SCHEMA_VERSION,
+        "dataset_id": dataset_id,
         "cycle": cycle,
-        "runId": run_id,
-        "payloadCheckMode": PAYLOAD_CHECK_MODE,
+        "run_id": run_id,
+        "payload_check_mode": PAYLOAD_CHECK_MODE,
     }
     for field, expected_value in expected.items():
         found = report.get(field)
@@ -200,22 +200,22 @@ def validation_report_passed(
 def _expected_marker_uris(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhours: tuple[str, ...],
+    frames: tuple[str, ...],
     artifact_ids: tuple[str, ...],
 ) -> set[str]:
     return {
         artifact_repo.paths.success_marker_uri_parts(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
-            fhour=fhour,
+            frame_id=frame_id,
             artifact_id=artifact_id,
         )
         for artifact_id in artifact_ids
-        for fhour in fhours
+        for frame_id in frames
     }
 
 
@@ -236,10 +236,10 @@ def _validate_marker_identity(
     *,
     marker: ArtifactSuccessMarker,
     uri: str,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     artifact_id: str,
     config_digest: str,
     errors: list[str],
@@ -249,18 +249,18 @@ def _validate_marker_identity(
         uri=uri,
         label="success marker",
         actual={
-            "model_id": marker.model_id,
+            "dataset_id": marker.dataset_id,
             "cycle": marker.cycle,
             "run_id": marker.run_id,
-            "fhour": marker.fhour,
+            "frame_id": marker.frame_id,
             "artifact_id": marker.artifact_id,
             "config_digest": marker.config_digest,
         },
         expected={
-            "model_id": model_id,
+            "dataset_id": dataset_id,
             "cycle": cycle,
             "run_id": run_id,
-            "fhour": fhour,
+            "frame_id": frame_id,
             "artifact_id": artifact_id,
             "config_digest": config_digest,
         },
@@ -272,10 +272,10 @@ def _validate_marker_artifact(
     artifact_repo: ArtifactRepository,
     marker: ArtifactSuccessMarker,
     uri: str,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     artifact_id: str,
     artifact: ArtifactSpec,
     errors: list[str],
@@ -283,10 +283,10 @@ def _validate_marker_artifact(
     artifact_marker = marker.artifact
     expected_payload_uri = artifact_repo.paths.output_field_payload_uri(
         item=WorkItem(
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
-            fhour=fhour,
+            frame_id=frame_id,
             artifact_id=artifact_id,
             source_uri="validation://expected",
         ),

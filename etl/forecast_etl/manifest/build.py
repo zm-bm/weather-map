@@ -11,7 +11,7 @@ from ..config.resolved import ArtifactSpec
 from ..cycles import cycle_datetime
 from ..validation import validated_dict
 from .constants import (
-    FORECAST_BINARY_CONTRACT,
+    DATA_BINARY_CONTRACT,
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
@@ -27,10 +27,10 @@ from .schema import (
 def build_manifest_artifacts(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
-    fhours: Iterable[str],
+    frames: Iterable[str],
     artifact_ids: Iterable[str],
     artifact_specs: Mapping[str, ArtifactSpec],
     marker_cache: Mapping[tuple[str, str], ArtifactSuccessMarker] | None = None,
@@ -38,7 +38,7 @@ def build_manifest_artifacts(
     """Build manifest artifact entries from success markers and artifact config."""
 
     manifest_artifacts: dict[str, dict[str, Any]] = {}
-    fhours = tuple(str(fhour) for fhour in fhours)
+    frames = tuple(str(frame_id) for frame_id in frames)
 
     for artifact_id in artifact_ids:
         artifact = artifact_specs.get(artifact_id)
@@ -47,14 +47,14 @@ def build_manifest_artifacts(
 
         marker_inputs = artifact_manifest_inputs_from_markers(
             artifact_repo=artifact_repo,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
-            fhours=fhours,
+            frames=frames,
             artifact_id=artifact_id,
             artifact=artifact,
-            markers_by_fhour=(
-                {fhour: marker_cache[(artifact_id, fhour)] for fhour in fhours}
+            markers_by_frame=(
+                {frame_id: marker_cache[(artifact_id, frame_id)] for frame_id in frames}
                 if marker_cache is not None
                 else None
             ),
@@ -69,19 +69,18 @@ def build_manifest_artifacts(
             "grid": marker_inputs.grid,
             "encoding": marker_inputs.encoding,
             "frames": marker_inputs.frames,
-            "payloadFile": artifact_repo.paths.field_payload_filename(
+            "payload_file": artifact_repo.paths.field_payload_filename(
                 artifact_id=artifact_id,
                 dtype=artifact.encoding.dtype,
             ),
         }
         if artifact.temporal is not None:
-            artifact_entry["temporalKind"] = artifact.temporal.kind
+            artifact_entry["temporal_kind"] = artifact.temporal.kind
             if artifact.temporal.source_interval_hours is not None:
-                artifact_entry["sourceIntervalHours"] = artifact.temporal.source_interval_hours
+                artifact_entry["source_interval_hours"] = artifact.temporal.source_interval_hours
         manifest_artifacts[artifact_id] = validated_dict(
             ManifestArtifact,
             artifact_entry,
-            by_alias=True,
             exclude_none=True,
         )
 
@@ -90,51 +89,51 @@ def build_manifest_artifacts(
 
 def build_cycle_manifest(
     *,
-    model_id: str,
-    model_label: str,
+    dataset_id: str,
+    dataset_label: str,
     cycle: str,
     run_id: str,
     payload_root: str,
     generated_at: str,
-    fhours: Iterable[str],
+    frames: Iterable[str],
     artifacts: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
     """Build a complete cycle manifest and compute its stable revision."""
 
     run = {
         "cycle": cycle,
-        "runId": run_id,
-        "payloadRoot": payload_root,
-        "generatedAt": generated_at,
+        "run_id": run_id,
+        "payload_root": payload_root,
+        "generated_at": generated_at,
     }
     manifest_obj = {
         "schema": MANIFEST_SCHEMA,
-        "schemaVersion": MANIFEST_SCHEMA_VERSION,
-        "payloadContract": FORECAST_BINARY_CONTRACT,
-        "model": {
-            "id": model_id,
-            "label": model_label,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "payload_contract": DATA_BINARY_CONTRACT,
+        "dataset": {
+            "id": dataset_id,
+            "label": dataset_label,
         },
         "run": run,
-        "times": _manifest_times(cycle=cycle, fhours=fhours),
+        "frames": _manifest_frames(cycle=cycle, frames=frames),
         "artifacts": artifacts,
     }
     run["revision"] = compute_manifest_revision(manifest_obj)
     return cycle_manifest(manifest_obj)
 
 
-def _manifest_times(*, cycle: str, fhours: Iterable[str]) -> list[dict[str, object]]:
-    """Build manifest time entries from a cycle and forecast-hour ids."""
+def _manifest_frames(*, cycle: str, frames: Iterable[str]) -> list[dict[str, object]]:
+    """Build manifest frame entries from a cycle and frame ids."""
 
     cycle_dt = cycle_datetime(cycle)
-    times: list[dict[str, object]] = []
-    for fhour in fhours:
-        lead_hours = int(fhour)
-        times.append(
+    frame_entries: list[dict[str, object]] = []
+    for frame_id in frames:
+        lead_hours = int(frame_id)
+        frame_entries.append(
             manifest_time(
-                fhour=fhour,
+                frame_id=frame_id,
                 lead_hours=lead_hours,
                 valid_at=(cycle_dt + timedelta(hours=lead_hours)).isoformat().replace("+00:00", "Z"),
             )
         )
-    return times
+    return frame_entries

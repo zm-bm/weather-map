@@ -3,42 +3,42 @@ import type {
   Manifest,
 } from '@/forecast/manifest'
 import {
-  FORECAST_MANIFEST_SCHEMA,
-  FORECAST_MANIFEST_SCHEMA_VERSION,
-  FORECAST_PAYLOAD_CONTRACT,
-  activeForecastRunForModel,
+  DATA_MANIFEST_SCHEMA,
+  DATA_MANIFEST_SCHEMA_VERSION,
+  DATA_PAYLOAD_CONTRACT,
+  activeForecastRunForDataset,
 } from '@/forecast/manifest'
 import {
-  createLayerModelAvailabilityFixture,
+  createLayerDatasetAvailabilityFixture,
   createLatestRunFixture,
   createManifestLayerFixture,
 } from './manifest'
 
-export function createMultiModelManifestFixture(options: {
+export function createMultiDatasetManifestFixture(options: {
   gfsManifest?: Manifest | LatestForecastRun | null
   iconManifest?: Manifest | LatestForecastRun | null
   layers?: Manifest['layers']
 } = {}): Manifest {
   const gfsLatest = options.gfsManifest === undefined
     ? createLatestRunFixture({
-        model: { id: 'gfs', label: 'GFS' },
+        dataset: { id: 'gfs', label: 'GFS' },
         cycle: '2026040900',
       })
     : latestFromFixture(options.gfsManifest, 'gfs')
   const iconLatest = options.iconManifest === undefined
     ? createLatestRunFixture({
-        model: { id: 'icon', label: 'ICON' },
+        dataset: { id: 'icon', label: 'ICON' },
         cycle: '2026040912',
       })
     : latestFromFixture(options.iconManifest, 'icon')
 
   return {
-    schema: FORECAST_MANIFEST_SCHEMA,
-    schemaVersion: FORECAST_MANIFEST_SCHEMA_VERSION,
-    generatedAt: '2026-05-16T00:00:00Z',
-    catalogVersion: 'forecast-catalog-v1',
-    payloadContract: FORECAST_PAYLOAD_CONTRACT,
-    models: {
+    schema: DATA_MANIFEST_SCHEMA,
+    schema_version: DATA_MANIFEST_SCHEMA_VERSION,
+    generated_at: '2026-05-16T00:00:00Z',
+    catalog_version: 'forecast-catalog-v1',
+    payload_contract: DATA_PAYLOAD_CONTRACT,
+    datasets: {
       gfs: {
         label: 'GFS',
         latest: gfsLatest,
@@ -55,14 +55,14 @@ export function createMultiModelManifestFixture(options: {
 export function createCatalogManifestFixture(
   layers: Manifest['layers'] = {}
 ): Manifest {
-  const available = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({ requiredArtifacts })
-  const unsupported = (requiredArtifacts: string[]) => createLayerModelAvailabilityFixture({
+  const available = (required_artifacts: string[]) => createLayerDatasetAvailabilityFixture({ required_artifacts })
+  const unsupported = (required_artifacts: string[]) => createLayerDatasetAvailabilityFixture({
     state: 'unsupported',
     support: 'unavailable',
-    requiredArtifacts,
+    required_artifacts,
   })
 
-  return createMultiModelManifestFixture({
+  return createMultiDatasetManifestFixture({
     layers: {
       temperature: createManifestLayerFixture({
         gfs: available(['tmp_surface']),
@@ -99,9 +99,9 @@ export function createCatalogManifestFixture(
 
 function latestFromFixture(
   fixture: Manifest | LatestForecastRun | null,
-  modelId: string
+  datasetId: string
 ): LatestForecastRun | null {
   if (fixture == null) return null
   if ('run' in fixture) return fixture
-  return activeForecastRunForModel(fixture, modelId)?.latest ?? null
+  return activeForecastRunForDataset(fixture, datasetId)?.latest ?? null
 }

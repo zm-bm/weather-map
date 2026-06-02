@@ -8,16 +8,16 @@ from typing import Iterable
 
 from forecast_etl.artifacts.repository import ArtifactRepository
 from forecast_etl.config.load import parse_pipeline_config
-from forecast_etl.config.resolved import ModelConfig, PipelineConfig
+from forecast_etl.config.resolved import DatasetConfig, PipelineConfig
 from forecast_etl.manifest.constants import (
-    FORECAST_BINARY_CONTRACT,
+    DATA_BINARY_CONTRACT,
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
-from forecast_etl.manifest.forecast_manifest import (
+from forecast_etl.manifest.data_manifest import (
     FORECAST_MANIFEST_SCHEMA,
     FORECAST_MANIFEST_SCHEMA_VERSION,
-    build_forecast_manifest,
+    build_data_manifest,
 )
 from forecast_etl.manifest.pointers import LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.storage.routing import make_store
@@ -47,19 +47,19 @@ def _pipeline_config() -> PipelineConfig:
             "wind10m_uv": catalog_artifact(wind),
         }
     )
-    cfg["models"]["gfs"]["workload"]["artifacts"] = [
+    cfg["datasets"]["gfs"]["workload"]["artifacts"] = [
         "tmp_surface",
         "cloud_layers",
         "precip_type_surface",
         "wind10m_uv",
     ]
-    cfg["models"]["gfs"]["artifacts"] = {
+    cfg["datasets"]["gfs"]["artifacts"] = {
         "tmp_surface": model_artifact(tmp),
         "cloud_layers": model_artifact(cloud_layers),
         "precip_type_surface": model_artifact(precip_type),
         "wind10m_uv": model_artifact(wind),
     }
-    cfg["models"]["icon"] = {
+    cfg["datasets"]["icon"] = {
         "label": "ICON",
         "source": {
             "type": "icon_dwd_icosahedral",
@@ -68,8 +68,8 @@ def _pipeline_config() -> PipelineConfig:
             "rate_limit_seconds": 0.0,
         },
         "workload": {
-            "forecast_hour_start": 0,
-            "forecast_hour_end": 0,
+            "frame_start": 0,
+            "frame_end": 0,
             "artifacts": ["tmp_surface", "prate_surface"],
         },
         "artifacts": {
@@ -123,8 +123,8 @@ def _forecast_catalog() -> dict:
     }
 
 
-def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
-    fhours = ("000", "003")
+def _latest_manifest(model: DatasetConfig, *, cycle: str, artifact_ids: Iterable[str]) -> dict:
+    frames = ("000", "003")
     artifacts = {}
     for artifact_id in artifact_ids:
         artifact = model.artifacts[artifact_id]
@@ -147,71 +147,71 @@ def _latest_manifest(model: ModelConfig, *, cycle: str, artifact_ids: Iterable[s
                 "dy": 1,
                 "origin": "cell_center",
                 "layout": "row_major",
-                "xWrap": "repeat",
-                "yMode": "clamp",
+                "x_wrap": "repeat",
+                "y_mode": "clamp",
             },
             "encoding": {
                 "id": artifact.encoding.id,
                 "format": artifact.encoding.format,
                 "dtype": artifact.encoding.dtype,
-                "byteOrder": artifact.encoding.byte_order,
+                "byte_order": artifact.encoding.byte_order,
             },
             "path": "legacy-artifact-path",
             "sha256": "b" * 64,
-            "payloadFile": f"{artifact_id}.field.{dtype_suffix}.bin",
+            "payload_file": f"{artifact_id}.field.{dtype_suffix}.bin",
             "frames": {
-                fhour: {
+                frame_id: {
                     "path": (
                         f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields/"
-                        f"{fhour}/{artifact_id}.field.{dtype_suffix}.bin"
+                        f"{frame_id}/{artifact_id}.field.{dtype_suffix}.bin"
                     ),
-                    "byteLength": len(artifact.component_ids) * 4,
+                    "byte_length": len(artifact.component_ids) * 4,
                     "sha256": "a" * 64,
                 }
-                for fhour in fhours
+                for frame_id in frames
             },
         }
 
     return {
         "schema": MANIFEST_SCHEMA,
-        "schemaVersion": MANIFEST_SCHEMA_VERSION,
-        "payloadContract": FORECAST_BINARY_CONTRACT,
-        "model": {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "payload_contract": DATA_BINARY_CONTRACT,
+        "dataset": {
             "id": model.id,
             "label": model.label,
         },
         "run": {
             "cycle": cycle,
-            "runId": DEFAULT_RUN_ID,
-            "payloadRoot": f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields",
-            "generatedAt": "2026-05-16T00:00:00Z",
+            "run_id": DEFAULT_RUN_ID,
+            "payload_root": f"runs/{model.id}/{cycle}/{DEFAULT_RUN_ID}/fields",
+            "generated_at": "2026-05-16T00:00:00Z",
             "revision": f"{model.id}-{cycle}-revision",
         },
-        "times": [
-            {"id": fhour, "leadHours": int(fhour), "validAt": f"2026-05-16T{int(fhour):02d}:00:00Z"}
-            for fhour in fhours
+        "frames": [
+            {"id": frame_id, "lead_hours": int(frame_id), "valid_at": f"2026-05-16T{int(frame_id):02d}:00:00Z"}
+            for frame_id in frames
         ],
         "artifacts": artifacts,
     }
 
 
-def _write_latest_pointer_manifest(repo: ArtifactRepository, *, model_id: str, manifest: dict) -> str:
+def _write_latest_pointer_manifest(repo: ArtifactRepository, *, dataset_id: str, manifest: dict) -> str:
     run = manifest["run"]
     cycle = str(run["cycle"])
-    run_id = str(run["runId"])
+    run_id = str(run["run_id"])
     revision = str(run["revision"])
-    generated_at = str(run["generatedAt"])
+    generated_at = str(run["generated_at"])
     public_uri = repo.write_public_run_manifest(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
         manifest=manifest,
     )
     repo.write_latest_pointer(
-        model_id=model_id,
+        dataset_id=dataset_id,
         pointer=manifest_pointer_dict(
             schema_name=LATEST_POINTER_SCHEMA,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
             revision=revision,
@@ -222,20 +222,20 @@ def _write_latest_pointer_manifest(repo: ArtifactRepository, *, model_id: str, m
     return public_uri
 
 
-class ForecastManifestTest(unittest.TestCase):
+class DataManifestTest(unittest.TestCase):
     def test_builds_layer_model_availability_from_config_and_latest_manifests(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
-            gfs = cfg.model("gfs")
-            icon = cfg.model("icon")
+            gfs = cfg.dataset("gfs")
+            icon = cfg.dataset("icon")
             _write_latest_pointer_manifest(
                 repo,
-                model_id="gfs",
+                dataset_id="gfs",
                 manifest=_latest_manifest(
                     gfs,
                     cycle="2026051606",
@@ -244,7 +244,7 @@ class ForecastManifestTest(unittest.TestCase):
             )
             _write_latest_pointer_manifest(
                 repo,
-                model_id="icon",
+                dataset_id="icon",
                 manifest=_latest_manifest(
                     icon,
                     cycle="2026051606",
@@ -252,7 +252,7 @@ class ForecastManifestTest(unittest.TestCase):
                 ),
             )
 
-            manifest = build_forecast_manifest(
+            manifest = build_data_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
@@ -260,111 +260,111 @@ class ForecastManifestTest(unittest.TestCase):
             )
 
         self.assertEqual(manifest["schema"], FORECAST_MANIFEST_SCHEMA)
-        self.assertEqual(manifest["schemaVersion"], FORECAST_MANIFEST_SCHEMA_VERSION)
-        self.assertEqual(manifest["payloadContract"], FORECAST_BINARY_CONTRACT)
-        self.assertEqual(manifest["catalogVersion"], "test-forecast-catalog")
-        self.assertNotIn("latestCycle", manifest["models"]["gfs"])
-        self.assertNotIn("latestManifestPath", manifest["models"]["gfs"])
-        latest = manifest["models"]["gfs"]["latest"]
+        self.assertEqual(manifest["schema_version"], FORECAST_MANIFEST_SCHEMA_VERSION)
+        self.assertEqual(manifest["payload_contract"], DATA_BINARY_CONTRACT)
+        self.assertEqual(manifest["catalog_version"], "test-forecast-catalog")
+        self.assertNotIn("latest_cycle", manifest["datasets"]["gfs"])
+        self.assertNotIn("latest_manifest_path", manifest["datasets"]["gfs"])
+        latest = manifest["datasets"]["gfs"]["latest"]
         self.assertIsNotNone(latest)
         self.assertNotIn("schema", latest)
-        self.assertNotIn("schemaVersion", latest)
-        self.assertNotIn("payloadContract", latest)
+        self.assertNotIn("schema_version", latest)
+        self.assertNotIn("payload_contract", latest)
         self.assertEqual(latest["run"]["cycle"], "2026051606")
-        self.assertEqual(latest["times"][0]["id"], "000")
+        self.assertEqual(latest["frames"][0]["id"], "000")
         latest_artifact = latest["artifacts"]["tmp_surface"]
-        self.assertEqual(latest_artifact["byteLength"], 4)
-        self.assertEqual(latest_artifact["payloadFile"], "tmp_surface.field.i16.bin")
+        self.assertEqual(latest_artifact["byte_length"], 4)
+        self.assertEqual(latest_artifact["payload_file"], "tmp_surface.field.i16.bin")
         self.assertNotIn("frames", latest_artifact)
         self.assertNotIn("path", latest_artifact)
         self.assertNotIn("sha256", latest_artifact)
 
-        native_scalar = manifest["layers"]["native_scalar"]["models"]
+        native_scalar = manifest["layers"]["native_scalar"]["datasets"]
         self.assertEqual(native_scalar["gfs"]["state"], "available")
         self.assertEqual(native_scalar["gfs"]["support"], "native")
 
-        unsupported_scalar = manifest["layers"]["unsupported_scalar"]["models"]
+        unsupported_scalar = manifest["layers"]["unsupported_scalar"]["datasets"]
         self.assertEqual(unsupported_scalar["gfs"]["state"], "unsupported")
         self.assertEqual(unsupported_scalar["gfs"]["support"], "unavailable")
         self.assertEqual(unsupported_scalar["icon"]["state"], "temporarily_unavailable")
 
-        etl_derived = manifest["layers"]["etl_derived"]["models"]
+        etl_derived = manifest["layers"]["etl_derived"]["datasets"]
         self.assertEqual(etl_derived["gfs"]["state"], "temporarily_unavailable")
         self.assertEqual(etl_derived["gfs"]["support"], "etl-derived")
 
-        frontend_derived = manifest["layers"]["frontend_derived"]["models"]
+        frontend_derived = manifest["layers"]["frontend_derived"]["datasets"]
         self.assertEqual(frontend_derived["gfs"]["state"], "available")
         self.assertEqual(frontend_derived["gfs"]["support"], "frontend-derived")
-        self.assertEqual(frontend_derived["gfs"]["requiredArtifacts"], ["wind10m_uv"])
+        self.assertEqual(frontend_derived["gfs"]["required_artifacts"], ["wind10m_uv"])
 
-        cloud_layers = manifest["layers"]["cloud_layers"]["models"]
+        cloud_layers = manifest["layers"]["cloud_layers"]["datasets"]
         self.assertEqual(cloud_layers["gfs"]["state"], "temporarily_unavailable")
         self.assertEqual(cloud_layers["gfs"]["support"], "frontend-derived")
-        self.assertEqual(cloud_layers["gfs"]["requiredArtifacts"], ["cloud_layers"])
+        self.assertEqual(cloud_layers["gfs"]["required_artifacts"], ["cloud_layers"])
         self.assertEqual(cloud_layers["icon"]["state"], "unsupported")
 
-        top_level = manifest["layers"]["top_level_optional_overlay"]["models"]["gfs"]
+        top_level = manifest["layers"]["top_level_optional_overlay"]["datasets"]["gfs"]
         self.assertEqual(top_level["state"], "available")
         self.assertEqual(top_level["support"], "native")
-        self.assertEqual(top_level["requiredArtifacts"], ["tmp_surface"])
-        self.assertEqual(top_level["optionalArtifacts"], ["precip_type_surface"])
+        self.assertEqual(top_level["required_artifacts"], ["tmp_surface"])
+        self.assertEqual(top_level["optional_artifacts"], ["precip_type_surface"])
 
     def test_builds_from_pointer_backed_latest_manifest(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-pointer-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-pointer-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
-            gfs = cfg.model("gfs")
+            gfs = cfg.dataset("gfs")
             latest_manifest = _latest_manifest(gfs, cycle="2026051606", artifact_ids=("tmp_surface",))
             public_uri = repo.write_public_run_manifest(
-                model_id="gfs",
+                dataset_id="gfs",
                 cycle="2026051606",
                 run_id=DEFAULT_RUN_ID,
                 manifest=latest_manifest,
             )
             repo.write_latest_pointer(
-                model_id="gfs",
+                dataset_id="gfs",
                 pointer=manifest_pointer_dict(
                     schema_name=LATEST_POINTER_SCHEMA,
-                    model_id="gfs",
+                    dataset_id="gfs",
                     cycle="2026051606",
                     run_id=DEFAULT_RUN_ID,
                     revision=latest_manifest["run"]["revision"],
-                    generated_at=latest_manifest["run"]["generatedAt"],
+                    generated_at=latest_manifest["run"]["generated_at"],
                     manifest_path=repo.paths.relative_key(public_uri),
                 ),
             )
 
-            manifest = build_forecast_manifest(
+            manifest = build_data_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
                 catalog=_forecast_catalog(),
             )
 
-        latest = manifest["models"]["gfs"]["latest"]
+        latest = manifest["datasets"]["gfs"]["latest"]
         self.assertIsNotNone(latest)
         self.assertEqual(latest["run"]["cycle"], "2026051606")
-        self.assertEqual(latest["run"]["runId"], DEFAULT_RUN_ID)
-        self.assertEqual(latest["artifacts"]["tmp_surface"]["payloadFile"], "tmp_surface.field.i16.bin")
-        self.assertEqual(manifest["layers"]["native_scalar"]["models"]["gfs"]["state"], "available")
+        self.assertEqual(latest["run"]["run_id"], DEFAULT_RUN_ID)
+        self.assertEqual(latest["artifacts"]["tmp_surface"]["payload_file"], "tmp_surface.field.i16.bin")
+        self.assertEqual(manifest["layers"]["native_scalar"]["datasets"]["gfs"]["state"], "available")
 
     def test_sets_latest_to_null_when_latest_pointer_target_is_missing(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-missing-pointer-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-missing-pointer-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
             repo.write_latest_pointer(
-                model_id="gfs",
+                dataset_id="gfs",
                 pointer=manifest_pointer_dict(
                     schema_name=LATEST_POINTER_SCHEMA,
-                    model_id="gfs",
+                    dataset_id="gfs",
                     cycle="2026051606",
                     run_id=DEFAULT_RUN_ID,
                     revision="missing",
@@ -373,16 +373,16 @@ class ForecastManifestTest(unittest.TestCase):
                 ),
             )
 
-            manifest = build_forecast_manifest(
+            manifest = build_data_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
                 catalog=_forecast_catalog(),
             )
 
-        self.assertIsNone(manifest["models"]["gfs"]["latest"])
+        self.assertIsNone(manifest["datasets"]["gfs"]["latest"])
         self.assertEqual(
-            manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+            manifest["layers"]["native_scalar"]["datasets"]["gfs"]["state"],
             "temporarily_unavailable",
         )
 
@@ -396,13 +396,13 @@ class ForecastManifestTest(unittest.TestCase):
         )
         for case, mutation, expected_state in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
-                prefix="weather-map-forecast-manifest-cloud-layers-"
+                prefix="weather-map-data-manifest-cloud-layers-"
             ) as td:
                 repo = ArtifactRepository.for_root(
                     store=make_store(),
                     artifact_root_uri=f"file://{Path(td).as_posix()}",
                 )
-                gfs = cfg.model("gfs")
+                gfs = cfg.dataset("gfs")
                 latest_manifest = _latest_manifest(
                     gfs,
                     cycle="2026051606",
@@ -410,9 +410,9 @@ class ForecastManifestTest(unittest.TestCase):
                 )
                 if mutation is not None:
                     latest_manifest["artifacts"]["cloud_layers"].update(mutation)
-                _write_latest_pointer_manifest(repo, model_id="gfs", manifest=latest_manifest)
+                _write_latest_pointer_manifest(repo, dataset_id="gfs", manifest=latest_manifest)
 
-                manifest = build_forecast_manifest(
+                manifest = build_data_manifest(
                     pipeline_config=cfg,
                     artifact_repo=repo,
                     generated_at="2026-05-16T00:00:00Z",
@@ -430,22 +430,22 @@ class ForecastManifestTest(unittest.TestCase):
                     },
                 )
 
-            entry = manifest["layers"]["cloud_layers"]["models"]["gfs"]
+            entry = manifest["layers"]["cloud_layers"]["datasets"]["gfs"]
             self.assertEqual(entry["state"], expected_state)
             self.assertEqual(entry["support"], "frontend-derived")
-            self.assertEqual(entry["requiredArtifacts"], ["cloud_layers"])
+            self.assertEqual(entry["required_artifacts"], ["cloud_layers"])
 
     def test_rejects_stale_raster_band_input(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-unsupported-raster-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-unsupported-raster-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
 
             with self.assertRaisesRegex(SystemExit, "Raster source bands must not define 'input'"):
-                build_forecast_manifest(
+                build_data_manifest(
                     pipeline_config=cfg,
                     artifact_repo=repo,
                     generated_at="2026-05-16T00:00:00Z",
@@ -499,7 +499,7 @@ class ForecastManifestTest(unittest.TestCase):
         )
         for case, overlay, expected_error in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
-                prefix="weather-map-forecast-manifest-invalid-overlay-"
+                prefix="weather-map-data-manifest-invalid-overlay-"
             ) as td:
                 repo = ArtifactRepository.for_root(
                     store=make_store(),
@@ -507,7 +507,7 @@ class ForecastManifestTest(unittest.TestCase):
                 )
 
                 with self.assertRaisesRegex(SystemExit, expected_error):
-                    build_forecast_manifest(
+                    build_data_manifest(
                         pipeline_config=cfg,
                         artifact_repo=repo,
                         generated_at="2026-05-16T00:00:00Z",
@@ -533,7 +533,7 @@ class ForecastManifestTest(unittest.TestCase):
         )
         for case, source in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
-                prefix="weather-map-forecast-manifest-invalid-raster-"
+                prefix="weather-map-data-manifest-invalid-raster-"
             ) as td:
                 repo = ArtifactRepository.for_root(
                     store=make_store(),
@@ -541,7 +541,7 @@ class ForecastManifestTest(unittest.TestCase):
                 )
 
                 with self.assertRaisesRegex(SystemExit, "Raster source must define non-empty bands"):
-                    build_forecast_manifest(
+                    build_data_manifest(
                         pipeline_config=cfg,
                         artifact_repo=repo,
                         generated_at="2026-05-16T00:00:00Z",
@@ -559,44 +559,44 @@ class ForecastManifestTest(unittest.TestCase):
     def test_sets_latest_to_null_when_no_latest_manifest_exists(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-no-latest-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-no-latest-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
 
-            manifest = build_forecast_manifest(
+            manifest = build_data_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
                 catalog=_forecast_catalog(),
             )
 
-        self.assertIsNone(manifest["models"]["gfs"]["latest"])
-        self.assertIsNone(manifest["models"]["icon"]["latest"])
+        self.assertIsNone(manifest["datasets"]["gfs"]["latest"])
+        self.assertIsNone(manifest["datasets"]["icon"]["latest"])
 
-    def test_ignores_incompatible_latest_manifest_when_building_forecast_manifest(self) -> None:
+    def test_ignores_incompatible_latest_manifest_when_building_data_manifest(self) -> None:
         cfg = _pipeline_config()
 
-        with tempfile.TemporaryDirectory(prefix="weather-map-forecast-manifest-stale-latest-") as td:
+        with tempfile.TemporaryDirectory(prefix="weather-map-data-manifest-stale-latest-") as td:
             repo = ArtifactRepository.for_root(
                 store=make_store(),
                 artifact_root_uri=f"file://{Path(td).as_posix()}",
             )
             repo.store.write_bytes(
-                uri=repo.paths.manifest_latest_uri(model_id="gfs"),
+                uri=repo.paths.manifest_latest_uri(dataset_id="gfs"),
                 data=(
                     json.dumps({
                     "schema": MANIFEST_SCHEMA,
-                    "schemaVersion": MANIFEST_SCHEMA_VERSION,
-                    "payloadContract": FORECAST_BINARY_CONTRACT,
-                    "model": {"id": "gfs", "label": "GFS"},
+                    "schema_version": MANIFEST_SCHEMA_VERSION,
+                    "payload_contract": DATA_BINARY_CONTRACT,
+                    "dataset": {"id": "gfs", "label": "GFS"},
                     "run": {
                         "cycle": "2026051606",
-                        "generatedAt": "2026-05-16T00:00:00Z",
+                        "generated_at": "2026-05-16T00:00:00Z",
                         "revision": "legacy-products-manifest",
                     },
-                    "times": [{"id": "000", "leadHours": 0, "validAt": "2026-05-16T00:00:00Z"}],
+                    "frames": [{"id": "000", "lead_hours": 0, "valid_at": "2026-05-16T00:00:00Z"}],
                     "products": {},
                     "groups": [],
                     }, sort_keys=True)
@@ -604,16 +604,16 @@ class ForecastManifestTest(unittest.TestCase):
                 ).encode("utf-8"),
             )
 
-            manifest = build_forecast_manifest(
+            manifest = build_data_manifest(
                 pipeline_config=cfg,
                 artifact_repo=repo,
                 generated_at="2026-05-16T00:00:00Z",
                 catalog=_forecast_catalog(),
             )
 
-        self.assertIsNone(manifest["models"]["gfs"]["latest"])
+        self.assertIsNone(manifest["datasets"]["gfs"]["latest"])
         self.assertEqual(
-            manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+            manifest["layers"]["native_scalar"]["datasets"]["gfs"]["state"],
             "temporarily_unavailable",
         )
 
@@ -626,30 +626,30 @@ class ForecastManifestTest(unittest.TestCase):
         )
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory(
-                prefix="weather-map-forecast-manifest-invalid-latest-"
+                prefix="weather-map-data-manifest-invalid-latest-"
             ) as td:
                 repo = ArtifactRepository.for_root(
                     store=make_store(),
                     artifact_root_uri=f"file://{Path(td).as_posix()}",
                 )
-                gfs = cfg.model("gfs")
+                gfs = cfg.dataset("gfs")
                 manifest = _latest_manifest(gfs, cycle="2026051606", artifact_ids=("tmp_surface",))
                 if case == "missing":
                     del manifest["artifacts"]["tmp_surface"]["frames"]["003"]
                 else:
-                    manifest["artifacts"]["tmp_surface"]["frames"]["003"]["byteLength"] = 8
-                _write_latest_pointer_manifest(repo, model_id="gfs", manifest=manifest)
+                    manifest["artifacts"]["tmp_surface"]["frames"]["003"]["byte_length"] = 8
+                _write_latest_pointer_manifest(repo, dataset_id="gfs", manifest=manifest)
 
-                forecast_manifest = build_forecast_manifest(
+                data_manifest = build_data_manifest(
                     pipeline_config=cfg,
                     artifact_repo=repo,
                     generated_at="2026-05-16T00:00:00Z",
                     catalog=_forecast_catalog(),
                 )
 
-            self.assertIsNone(forecast_manifest["models"]["gfs"]["latest"])
+            self.assertIsNone(data_manifest["datasets"]["gfs"]["latest"])
             self.assertEqual(
-                forecast_manifest["layers"]["native_scalar"]["models"]["gfs"]["state"],
+                data_manifest["layers"]["native_scalar"]["datasets"]["gfs"]["state"],
                 "temporarily_unavailable",
             )
 

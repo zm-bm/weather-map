@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-export const FORECAST_MANIFEST_SCHEMA = 'weather-map.forecast-manifest'
-export const FORECAST_MANIFEST_SCHEMA_VERSION = 1
-export const FORECAST_PAYLOAD_CONTRACT = 'forecast-binary-v2'
+export const DATA_MANIFEST_SCHEMA = 'weather-map.data-manifest'
+export const DATA_MANIFEST_SCHEMA_VERSION = 1
+export const DATA_PAYLOAD_CONTRACT = 'field-binary-v2'
 
 const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
 
@@ -13,16 +13,16 @@ const optionalSourceIntervalHoursSchema = finiteNumberSchema.positive().optional
 
 const runSchema = z.object({
   cycle: z.string(),
-  runId: z.string().min(1),
-  payloadRoot: z.string().min(1),
-  generatedAt: z.string(),
+  run_id: z.string().min(1),
+  payload_root: z.string().min(1),
+  generated_at: z.string(),
   revision: z.string(),
 })
 
-const timeSchema = z.object({
+const frameSchema = z.object({
   id: z.string(),
-  leadHours: finiteNumberSchema,
-  validAt: z.string(),
+  lead_hours: finiteNumberSchema,
+  valid_at: z.string(),
 })
 
 const gridSchema = z.object({
@@ -36,8 +36,8 @@ const gridSchema = z.object({
   dy: finiteNumberSchema,
   origin: z.literal('cell_center'),
   layout: z.literal('row_major'),
-  xWrap: z.enum(['repeat', 'none']),
-  yMode: z.literal('clamp'),
+  x_wrap: z.enum(['repeat', 'none']),
+  y_mode: z.literal('clamp'),
 })
 
 const finiteValueRangeSchema = z.object({
@@ -49,19 +49,19 @@ const scalarLinearInt8EncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i8-v1'),
   dtype: z.literal('int8'),
-  byteOrder: z.literal('none'),
+  byte_order: z.literal('none'),
   nodata: finiteNumberSchema,
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
-  decodeFormula: z.string(),
-  finiteValueRange: finiteValueRangeSchema.optional(),
+  decode_formula: z.string(),
+  finite_value_range: finiteValueRangeSchema.optional(),
 })
 
 const scalarTempCPiecewiseEncodingSchema = z.object({
   id: z.string(),
   format: z.literal('temp-c-piecewise-i8-v1'),
   dtype: z.literal('int8'),
-  byteOrder: z.literal('none'),
+  byte_order: z.literal('none'),
   nodata: z.literal(-128),
 })
 
@@ -74,12 +74,12 @@ const vectorEncodingSchema = z.object({
   id: z.string(),
   format: z.literal('linear-i8-v1'),
   dtype: z.literal('int8'),
-  byteOrder: z.literal('none'),
+  byte_order: z.literal('none'),
   nodata: finiteNumberSchema.optional(),
   scale: finiteNumberSchema,
   offset: finiteNumberSchema,
-  decodeFormula: z.string(),
-  finiteValueRange: finiteValueRangeSchema.optional(),
+  decode_formula: z.string(),
+  finite_value_range: finiteValueRangeSchema.optional(),
 })
 
 const layerAvailabilityStateSchema = z.enum([
@@ -95,11 +95,11 @@ const layerSupportSchema = z.enum([
   'unavailable',
 ])
 
-const layerModelAvailabilitySchema = z.object({
+const layerDatasetAvailabilitySchema = z.object({
   state: layerAvailabilityStateSchema,
   support: layerSupportSchema,
-  requiredArtifacts: z.array(z.string()),
-  optionalArtifacts: z.array(z.string()).default([]),
+  required_artifacts: z.array(z.string()),
+  optional_artifacts: z.array(z.string()).default([]),
 })
 
 const manifestArtifactCommonSchema = {
@@ -109,10 +109,10 @@ const manifestArtifactCommonSchema = {
   level: z.string(),
   components: z.array(componentNameSchema).nonempty(),
   grid: gridSchema,
-  byteLength: finiteNumberSchema.positive(),
-  payloadFile: z.string().min(1),
-  temporalKind: optionalTemporalKindSchema,
-  sourceIntervalHours: optionalSourceIntervalHoursSchema,
+  byte_length: finiteNumberSchema.positive(),
+  payload_file: z.string().min(1),
+  temporal_kind: optionalTemporalKindSchema,
+  source_interval_hours: optionalSourceIntervalHoursSchema,
 }
 
 const scalarArtifactSchema = z.object({
@@ -134,20 +134,20 @@ const manifestArtifactSchema = z.discriminatedUnion('kind', [
 
 const latestForecastRunSchema = z.object({
   run: runSchema,
-  times: z.array(timeSchema).nonempty('expected at least one time'),
+  frames: z.array(frameSchema).nonempty('expected at least one frame'),
   artifacts: z.record(z.string(), manifestArtifactSchema),
 })
   .superRefine((latest, ctx) => {
-    const seenTimes = new Set<string>()
-    for (const [timeIndex, time] of latest.times.entries()) {
-      if (!seenTimes.has(time.id)) {
-        seenTimes.add(time.id)
+    const seenFrames = new Set<string>()
+    for (const [frameIndex, frame] of latest.frames.entries()) {
+      if (!seenFrames.has(frame.id)) {
+        seenFrames.add(frame.id)
         continue
       }
       ctx.addIssue({
         code: 'custom',
-        path: ['times', timeIndex, 'id'],
-        message: `duplicate time id ${time.id}`,
+        path: ['frames', frameIndex, 'id'],
+        message: `duplicate frame id ${frame.id}`,
       })
     }
 
@@ -171,22 +171,22 @@ const latestForecastRunSchema = z.object({
     }
   })
 
-const manifestModelSchema = z.object({
+const manifestDatasetSchema = z.object({
   label: z.string(),
   latest: latestForecastRunSchema.nullable(),
 })
 
 const manifestLayerSchema = z.object({
-  models: z.record(z.string(), layerModelAvailabilitySchema),
+  datasets: z.record(z.string(), layerDatasetAvailabilitySchema),
 })
 
 export const manifestSchema = z.object({
-  schema: z.literal(FORECAST_MANIFEST_SCHEMA),
-  schemaVersion: z.literal(FORECAST_MANIFEST_SCHEMA_VERSION),
-  generatedAt: z.string(),
-  catalogVersion: z.string(),
-  payloadContract: z.literal(FORECAST_PAYLOAD_CONTRACT),
-  models: z.record(z.string(), manifestModelSchema),
+  schema: z.literal(DATA_MANIFEST_SCHEMA),
+  schema_version: z.literal(DATA_MANIFEST_SCHEMA_VERSION),
+  generated_at: z.string(),
+  catalog_version: z.string(),
+  payload_contract: z.literal(DATA_PAYLOAD_CONTRACT),
+  datasets: z.record(z.string(), manifestDatasetSchema),
   layers: z.record(z.string(), manifestLayerSchema),
 })
 
@@ -195,7 +195,7 @@ export function parseManifest(value: unknown): Manifest {
 }
 
 export type ForecastRunSpec = z.infer<typeof runSchema>
-export type ForecastTimeSpec = z.infer<typeof timeSchema>
+export type ForecastFrameSpec = z.infer<typeof frameSchema>
 export type GridSpec = z.infer<typeof gridSchema>
 export type ScalarLinearInt8EncodingSpec = z.infer<typeof scalarLinearInt8EncodingSchema>
 export type ScalarTempCPiecewiseEncodingSpec = z.infer<typeof scalarTempCPiecewiseEncodingSchema>
@@ -206,17 +206,17 @@ export type ArtifactKind = ManifestArtifactSpec['kind']
 export type ScalarArtifactSpec = z.infer<typeof scalarArtifactSchema>
 export type VectorArtifactSpec = z.infer<typeof vectorArtifactSchema>
 export type ManifestArtifactSpec = z.infer<typeof manifestArtifactSchema>
-export type LayerModelAvailability = z.infer<typeof layerModelAvailabilitySchema>
+export type LayerDatasetAvailability = z.infer<typeof layerDatasetAvailabilitySchema>
 export type LatestForecastRun = z.infer<typeof latestForecastRunSchema>
 export type Manifest = z.infer<typeof manifestSchema>
-export type ForecastModelId = string
+export type ForecastDatasetId = string
 export type ActiveForecastRun = {
   manifest: Manifest
-  modelId: ForecastModelId
+  datasetId: ForecastDatasetId
   label: string
   latest: LatestForecastRun
 }
-export type ForecastModelOption = {
-  id: ForecastModelId
+export type ForecastDatasetOption = {
+  id: ForecastDatasetId
   label: string
 }

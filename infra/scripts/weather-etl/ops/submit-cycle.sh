@@ -9,18 +9,18 @@ STACK_DIR="$INFRA_DIR/terraform/weather-etl"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/weather-etl/ops/submit-cycle.sh --cycle <cycle> [--run-id <run_id>] [--model <model>]
+  infra/scripts/weather-etl/ops/submit-cycle.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>]
 
 Description:
-  Submits one AWS Batch worker job per configured forecast hour for a prod ETL
+  Submits one AWS Batch worker job per configured frame for a prod ETL
   cycle. This mirrors etl/scripts/run-cycle.sh, but submits jobs to AWS Batch
   instead of running the ETL locally.
 
 Options:
   --cycle <cycle>                 Forecast cycle string, e.g. 2026021600.
   --run-id <run_id>               Run id for this cycle attempt. Default: generated.
-  --model <model>                 Forecast model id. Default: gfs.
-  --fhours <hours>                Forecast-hour override, e.g. "000 001 006" or "000,001,006".
+  --dataset-id <dataset_id>       Dataset id. Default: gfs.
+  --frames <frames>               Frame override, e.g. "000 001 006" or "000,001,006".
   --config-file <path>            Config to read. Default: config/pipeline/base.json.
   --source-bucket <bucket>        NOAA GFS source bucket. Default: noaa-gfs-bdp-pds.
   --job-name-prefix <prefix>      Batch job name prefix. Default: weather-etl-manual.
@@ -32,7 +32,7 @@ Options:
   -h, --help                      Show this help and exit.
 
 Environment defaults:
-  CYCLE, RUN_ID, MODEL, FHOURS, CONFIG_FILE, CATALOG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
+  CYCLE, RUN_ID, DATASET_ID, FRAMES, CONFIG_FILE, CATALOG_FILE, SOURCE_BUCKET, JOB_NAME_PREFIX,
   SUBMIT_DELAY_SECONDS, DRY_RUN, BACKFILL, SKIP_CONFIG_CHECK, ALLOW_NON_SYNOPTIC_CYCLE,
   ETL_CODE_REVISION, ETL_IMAGE_IDENTITY.
 EOF
@@ -58,8 +58,8 @@ require_value() {
 
 CYCLE="${CYCLE:-}"
 RUN_ID="${RUN_ID:-}"
-MODEL="${MODEL:-gfs}"
-FHOURS_ARG="${FHOURS:-}"
+DATASET_ID="${DATASET_ID:-gfs}"
+FRAMES_ARG="${FRAMES:-}"
 CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/config/pipeline/base.json}"
 CATALOG_FILE="${CATALOG_FILE:-$REPO_ROOT/config/forecast_catalog.json}"
 SOURCE_BUCKET="${SOURCE_BUCKET:-noaa-gfs-bdp-pds}"
@@ -98,24 +98,24 @@ while [[ $# -gt 0 ]]; do
       require_value "--run-id" "$RUN_ID"
       shift
       ;;
-    --model)
+    --dataset-id)
       require_value "$1" "${2:-}"
-      MODEL="$2"
+      DATASET_ID="$2"
       shift 2
       ;;
-    --model=*)
-      MODEL="${1#*=}"
-      require_value "--model" "$MODEL"
+    --dataset-id=*)
+      DATASET_ID="${1#*=}"
+      require_value "--dataset-id" "$DATASET_ID"
       shift
       ;;
-    --fhours)
+    --frames)
       require_value "$1" "${2:-}"
-      FHOURS_ARG="$2"
+      FRAMES_ARG="$2"
       shift 2
       ;;
-    --fhours=*)
-      FHOURS_ARG="${1#*=}"
-      require_value "--fhours" "$FHOURS_ARG"
+    --frames=*)
+      FRAMES_ARG="${1#*=}"
+      require_value "--frames" "$FRAMES_ARG"
       shift
       ;;
     --config-file)
@@ -218,10 +218,10 @@ if [[ ! "$RUN_ID" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]]; then
   exit 1
 fi
 
-case "$MODEL" in
+case "$DATASET_ID" in
   gfs|icon) ;;
   *)
-    echo "Error: prod manual submit supports --model gfs or --model icon; got: $MODEL" >&2
+    echo "Error: prod manual submit supports --dataset-id gfs or --dataset-id icon; got: $DATASET_ID" >&2
     exit 1
     ;;
 esac
@@ -257,7 +257,7 @@ fi
 cd "$STACK_DIR"
 
 QUEUE="$(terraform output -raw batch_job_queue_name)"
-if [[ "$MODEL" == "icon" ]]; then
+if [[ "$DATASET_ID" == "icon" ]]; then
   JOB_DEFINITION="$(terraform output -raw icon_batch_job_definition_arn)"
 else
   JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
@@ -282,7 +282,7 @@ set +e
 BACKFILL_OUTPUT="$(
   PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \
     "$PYTHON_BIN" -m forecast_etl.cli check-backfill \
-      --model "$MODEL" \
+      --dataset-id "$DATASET_ID" \
       --cycle "$CYCLE" \
       --artifact-root-uri "$ARTIFACT_ROOT_URI" \
       "${BACKFILL_ARGS[@]}" \
@@ -368,75 +368,75 @@ DEPLOYED_CONFIG_FILE="$(mktemp "${TMPDIR:-/tmp}/weather-map-pipeline-config.XXXX
 trap 'rm -f "$DEPLOYED_CONFIG_FILE"' EXIT
 aws s3 cp "$PIPELINE_CONFIG_URI" "$DEPLOYED_CONFIG_FILE" >/dev/null
 
-if [[ -n "$FHOURS_ARG" ]]; then
-  mapfile -t FORECAST_HOURS < <(
-    python3 - "$FHOURS_ARG" <<'PY'
+if [[ -n "$FRAMES_ARG" ]]; then
+  mapfile -t FRAMES < <(
+    python3 - "$FRAMES_ARG" <<'PY'
 import re
 import sys
 
 raw = sys.argv[1]
 parts = [part for part in re.split(r"[\s,]+", raw.strip()) if part]
 if not parts:
-    raise SystemExit("--fhours did not contain any forecast hours")
+    raise SystemExit("--frames did not contain any frames")
 for index, part in enumerate(parts):
     try:
         value = int(part, 10)
     except ValueError as exc:
-        raise SystemExit(f"--fhours[{index}] must be an integer forecast hour") from exc
+        raise SystemExit(f"--frames[{index}] must be an integer frame") from exc
     if value < 0 or value > 999:
-        raise SystemExit(f"--fhours[{index}] must be in the range 0..999")
+        raise SystemExit(f"--frames[{index}] must be in the range 0..999")
     print(f"{value:03d}")
 PY
   )
 else
-  mapfile -t FORECAST_HOURS < <(
-    python3 - "$DEPLOYED_CONFIG_FILE" "$MODEL" <<'PY'
+  mapfile -t FRAMES < <(
+    python3 - "$DEPLOYED_CONFIG_FILE" "$DATASET_ID" <<'PY'
 import json
 import sys
 
-config_path, model_id = sys.argv[1:]
+config_path, dataset_id = sys.argv[1:]
 with open(config_path, "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
-if not isinstance(cfg.get("models"), dict):
-    raise SystemExit("config missing models")
-model = cfg["models"].get(model_id)
-if not isinstance(model, dict):
-    raise SystemExit(f"config missing models.{model_id}")
-workload = model.get("workload")
+if not isinstance(cfg.get("datasets"), dict):
+    raise SystemExit("config missing datasets")
+dataset = cfg["datasets"].get(dataset_id)
+if not isinstance(dataset, dict):
+    raise SystemExit(f"config missing datasets.{dataset_id}")
+workload = dataset.get("workload")
 
 if not isinstance(workload, dict):
-    raise SystemExit(f"config missing workload for model {model_id}")
+    raise SystemExit(f"config missing workload for dataset_id {dataset_id}")
 
-if "forecast_hours" in workload:
-    raw_hours = workload["forecast_hours"]
-    if not isinstance(raw_hours, list) or not raw_hours:
-        raise SystemExit("workload.forecast_hours must be a non-empty array")
-    for index, raw in enumerate(raw_hours):
+if "frames" in workload:
+    raw_frames = workload["frames"]
+    if not isinstance(raw_frames, list) or not raw_frames:
+        raise SystemExit("workload.frames must be a non-empty array")
+    for index, raw in enumerate(raw_frames):
         if isinstance(raw, bool):
-            raise SystemExit(f"workload.forecast_hours[{index}] must be an integer forecast hour")
+            raise SystemExit(f"workload.frames[{index}] must be an integer frame")
         try:
             value = int(raw)
         except (TypeError, ValueError) as exc:
-            raise SystemExit(f"workload.forecast_hours[{index}] must be an integer forecast hour") from exc
+            raise SystemExit(f"workload.frames[{index}] must be an integer frame") from exc
         if value < 0 or value > 999:
-            raise SystemExit(f"workload.forecast_hours[{index}] must be in the range 0..999")
+            raise SystemExit(f"workload.frames[{index}] must be in the range 0..999")
         print(f"{value:03d}")
 else:
-    if "forecast_hour_start" not in workload or "forecast_hour_end" not in workload:
-        raise SystemExit("workload must specify forecast_hours or forecast_hour_start/forecast_hour_end")
-    start = int(workload["forecast_hour_start"])
-    end = int(workload["forecast_hour_end"])
+    if "frame_start" not in workload or "frame_end" not in workload:
+        raise SystemExit("workload must specify frames or frame_start/frame_end")
+    start = int(workload["frame_start"])
+    end = int(workload["frame_end"])
     if start < 0 or end > 999 or end < start:
-        raise SystemExit("invalid workload forecast hour range")
+        raise SystemExit("invalid workload frame range")
     for value in range(start, end + 1):
         print(f"{value:03d}")
 PY
   )
 fi
 
-if [[ "${#FORECAST_HOURS[@]}" -eq 0 ]]; then
-  echo "No forecast hours resolved from config." >&2
+if [[ "${#FRAMES[@]}" -eq 0 ]]; then
+  echo "No frames resolved from config." >&2
   exit 1
 fi
 
@@ -448,15 +448,15 @@ echo "  source_config_uri:   $PIPELINE_CONFIG_URI"
 echo "  source_catalog_uri:  $FORECAST_CATALOG_URI"
 echo "  queue:               $QUEUE"
 echo "  job_definition:      $JOB_DEFINITION"
-echo "  model:               $MODEL"
-if [[ "$MODEL" == "gfs" ]]; then
+echo "  dataset_id:          $DATASET_ID"
+if [[ "$DATASET_ID" == "gfs" ]]; then
   echo "  source_bucket:       $SOURCE_BUCKET"
 fi
 echo "  cycle:               $CYCLE"
 echo "  run_id:              $RUN_ID"
 echo "  code_revision:       $ETL_CODE_REVISION"
 echo "  image_identity:      $ETL_IMAGE_IDENTITY"
-echo "  forecast_hours:      ${#FORECAST_HOURS[@]}"
+echo "  frames:              ${#FRAMES[@]}"
 echo "  dry_run:             $DRY_RUN"
 echo "  backfill:            $BACKFILL"
 echo
@@ -464,8 +464,8 @@ echo "Backfill safety"
 echo "$BACKFILL_OUTPUT" | sed 's/^/  /'
 echo
 
-RUN_PIPELINE_CONFIG_URI="${ARTIFACT_ROOT_URI%/}/runs/${MODEL}/${CYCLE}/${RUN_ID}/config/pipeline_config.json"
-RUN_FORECAST_CATALOG_URI="${ARTIFACT_ROOT_URI%/}/runs/${MODEL}/${CYCLE}/${RUN_ID}/config/forecast_catalog.json"
+RUN_PIPELINE_CONFIG_URI="${ARTIFACT_ROOT_URI%/}/runs/${DATASET_ID}/${CYCLE}/${RUN_ID}/config/pipeline_config.json"
+RUN_FORECAST_CATALOG_URI="${ARTIFACT_ROOT_URI%/}/runs/${DATASET_ID}/${CYCLE}/${RUN_ID}/config/forecast_catalog.json"
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "Run snapshot"
   echo "  dry-run init-run"
@@ -476,7 +476,7 @@ else
   INIT_OUTPUT="$(
     PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \
       "$PYTHON_BIN" -m forecast_etl.cli init-run \
-        --model "$MODEL" \
+        --dataset-id "$DATASET_ID" \
         --cycle "$CYCLE" \
         --run-id "$RUN_ID" \
         --artifact-root-uri "$ARTIFACT_ROOT_URI" \
@@ -500,27 +500,27 @@ else
 fi
 
 SUBMITTED=0
-for FHOUR in "${FORECAST_HOURS[@]}"; do
-  if [[ "$MODEL" == "gfs" ]]; then
-    SOURCE_KEY="gfs.${CYCLE_DATE}/${CYCLE_HOUR}/atmos/gfs.t${CYCLE_HOUR}z.pgrb2.0p25.f${FHOUR}"
+for FRAME_ID in "${FRAMES[@]}"; do
+  if [[ "$DATASET_ID" == "gfs" ]]; then
+    SOURCE_KEY="gfs.${CYCLE_DATE}/${CYCLE_HOUR}/atmos/gfs.t${CYCLE_HOUR}z.pgrb2.0p25.f${FRAME_ID}"
     GRIB_SOURCE_URI="s3://${SOURCE_BUCKET}/${SOURCE_KEY}"
   else
     GRIB_SOURCE_URI=""
   fi
-  JOB_NAME="${JOB_NAME_PREFIX}-${MODEL}-${CYCLE}-${RUN_ID}-${FHOUR}-$(date +%s)"
+  JOB_NAME="${JOB_NAME_PREFIX}-${DATASET_ID}-${CYCLE}-${RUN_ID}-${FRAME_ID}-$(date +%s)"
   JOB_NAME="${JOB_NAME:0:128}"
 
   CONTAINER_OVERRIDES="$(
-    python3 - "$MODEL" "$CYCLE" "$RUN_ID" "$FHOUR" "$GRIB_SOURCE_URI" "$RUN_PIPELINE_CONFIG_URI" "$RUN_FORECAST_CATALOG_URI" "$ETL_CODE_REVISION" "$ETL_IMAGE_IDENTITY" <<'PY'
+    python3 - "$DATASET_ID" "$CYCLE" "$RUN_ID" "$FRAME_ID" "$GRIB_SOURCE_URI" "$RUN_PIPELINE_CONFIG_URI" "$RUN_FORECAST_CATALOG_URI" "$ETL_CODE_REVISION" "$ETL_IMAGE_IDENTITY" <<'PY'
 import json
 import sys
 
-model, cycle, run_id, fhour, source_uri, pipeline_config_uri, forecast_catalog_uri, code_revision, image_identity = sys.argv[1:]
+dataset_id, cycle, run_id, frame_id, source_uri, pipeline_config_uri, forecast_catalog_uri, code_revision, image_identity = sys.argv[1:]
 environment = [
-        {"name": "MODEL", "value": model},
+        {"name": "DATASET_ID", "value": dataset_id},
         {"name": "CYCLE", "value": cycle},
         {"name": "RUN_ID", "value": run_id},
-        {"name": "FHOUR", "value": fhour},
+        {"name": "FRAME_ID", "value": frame_id},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
         {"name": "FORECAST_CATALOG_URI", "value": forecast_catalog_uri},
         {"name": "ETL_CODE_REVISION", "value": code_revision},
@@ -532,10 +532,10 @@ print(json.dumps({"environment": environment}, separators=(",", ":")))
 PY
   )"
 
-  if [[ "$MODEL" == "gfs" ]]; then
-    echo "fhour=$FHOUR source=$GRIB_SOURCE_URI"
+  if [[ "$DATASET_ID" == "gfs" ]]; then
+    echo "frame_id=$FRAME_ID source=$GRIB_SOURCE_URI"
   else
-    echo "fhour=$FHOUR source=icon-dwd"
+    echo "frame_id=$FRAME_ID source=icon-dwd"
   fi
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "  dry-run job_name=$JOB_NAME"

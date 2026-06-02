@@ -34,7 +34,7 @@ import { loadWindowFrame } from './windowLoader'
 type PlannedWindowFor<K extends ForecastWindowId> =
   ForecastWindowPlan & {
     id: K
-    loadFrame: (hourToken: string) => Promise<ForecastFrameMap[K]>
+    loadFrame: (frameId: string) => Promise<ForecastFrameMap[K]>
   }
 
 afterEach(() => {
@@ -48,7 +48,7 @@ function plannedWindows(args: {
   syncOptions?: { contour?: boolean; particles?: boolean }
 }): PlannedWindowFor<ForecastWindowId>[] {
   const activeRun = createActiveRunFixture(args.manifest)
-  const targetTimeMs = Date.parse(activeRun.latest.times[0]?.validAt ?? '2026-04-13T12:00:00Z')
+  const targetTimeMs = Date.parse(activeRun.latest.frames[0]?.valid_at ?? '2026-04-13T12:00:00Z')
   const syncOptions = {
     contour: false,
     particles: false,
@@ -70,10 +70,10 @@ function plannedWindows(args: {
   })
   return plan.windowPlans.map((windowPlan) => ({
     ...windowPlan,
-    loadFrame: (hourToken: string) => loadWindowFrame(
+    loadFrame: (frameId: string) => loadWindowFrame(
       artifacts,
       windowPlan,
-      hourToken
+      frameId
     ) as Promise<ForecastFrameMap[ForecastWindowId]>,
   }))
 }
@@ -101,7 +101,7 @@ describe('window plan loading raster window', () => {
 
     const manifest = createSingleTimeManifestFixture({
       cycle: '2026041100',
-      generatedAt: '2026-04-11T00:00:00Z',
+      generated_at: '2026-04-11T00:00:00Z',
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           grid: createGridFixture({
@@ -114,10 +114,10 @@ describe('window plan loading raster window', () => {
             dy: -1,
             origin: 'cell_center',
             layout: 'row_major',
-            xWrap: 'repeat',
-            yMode: 'clamp',
+            x_wrap: 'repeat',
+            y_mode: 'clamp',
           }),
-          byteLength: 4,
+          byte_length: 4,
         }),
       },
     })
@@ -262,7 +262,7 @@ describe('window plan loading overlay window', () => {
         },
       },
       raster: {
-        hourToken: '000',
+        frameId: '000',
         artifactId: 'precip_type_surface',
         cacheKey: `${load.frames[0].cacheKeyPrefix}:000`,
         bandIds: ['snow_frac', 'mix_frac'],
@@ -300,7 +300,7 @@ describe('window plan loading contour window', () => {
       id: 'prmsl_msl_i8_50pa_v1',
       format: 'linear-i8-v1',
       dtype: 'int8',
-      byteOrder: 'none',
+      byte_order: 'none',
       scale: 50,
       offset: 100500,
       nodata: -128,
@@ -318,7 +318,7 @@ describe('window plan loading contour window', () => {
     })
     const loadRawRasterBands = vi.fn().mockResolvedValue({
       artifactId: 'prmsl_msl',
-      hourToken: '003',
+      frameId: '003',
       grid,
       encoding,
       bandIds: ['value'],
@@ -342,7 +342,7 @@ describe('window plan loading contour window', () => {
         },
       },
       raster: {
-        hourToken: '003',
+        frameId: '003',
         artifactId: 'prmsl_msl',
         cacheKey: `${contourPlan.frames[0].cacheKeyPrefix}:003`,
         grid,
@@ -402,7 +402,7 @@ describe('window plan loading particle window', () => {
     expect(frame.raster.bandIds).toEqual(['u', 'v'])
     expect(Array.from(frame.raster.bands[0] ?? [])).toEqual([1, -2, 3, -4])
     expect(Array.from(frame.raster.bands[1] ?? [])).toEqual([-5, 6, -7, 8])
-    expect(frame.raster.hourToken).toBe('000')
+    expect(frame.raster.frameId).toBe('000')
   })
 
   it('rejects unsupported wind vector metadata before fetching payloads', async () => {

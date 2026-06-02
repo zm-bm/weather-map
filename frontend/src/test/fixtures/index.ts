@@ -5,7 +5,7 @@ export {
   createForecastManifestStateFixture,
   createForecastTimesFixture,
   createGridFixture,
-  createLayerModelAvailabilityFixture,
+  createLayerDatasetAvailabilityFixture,
   createManifestFixture,
   createManifestPayloadFixture,
   createScalarArtifactFixture,
@@ -17,7 +17,7 @@ export {
 export type { ManifestFixtureOverrides } from './manifest'
 export {
   createCatalogManifestFixture,
-  createMultiModelManifestFixture,
+  createMultiDatasetManifestFixture,
 } from './manifestScenarios'
 export {
   createForecastSelectionContextValue,

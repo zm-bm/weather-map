@@ -120,7 +120,7 @@ describe('encoded grid frame pair helpers', () => {
   it('builds encoded raster frame specs after exact band-id validation', () => {
     const grid = createGridFixture({ nx: 2, ny: 1 })
     const raster = {
-      hourToken: '000',
+      frameId: '000',
       artifactId: 'tmp_surface',
       cacheKey: 'tmp_surface:000',
       grid,
@@ -143,7 +143,7 @@ describe('encoded grid frame pair helpers', () => {
 
   it('reports encoded raster band-id mismatches consistently', () => {
     const raster = {
-      hourToken: '000',
+      frameId: '000',
       artifactId: 'wind10m_uv',
       cacheKey: 'wind10m_uv:000',
       grid: createGridFixture({ nx: 1, ny: 1 }),

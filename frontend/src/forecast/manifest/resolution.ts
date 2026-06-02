@@ -1,9 +1,9 @@
 import type {
   ActiveForecastRun,
   ArtifactKind,
-  ForecastModelId,
-  ForecastModelOption,
-  LayerModelAvailability,
+  ForecastDatasetId,
+  ForecastDatasetOption,
+  LayerDatasetAvailability,
   Manifest,
   ManifestArtifactSpec,
   ScalarArtifactSpec,
@@ -15,42 +15,42 @@ type ArtifactSpecByKind = {
   vector: VectorArtifactSpec
 }
 
-export function modelOptionsFromManifest(
+export function datasetOptionsFromManifest(
   manifest: Manifest | null
-): ForecastModelOption[] {
+): ForecastDatasetOption[] {
   if (!manifest) return []
 
-  return Object.entries(manifest.models).map(([id, model]) => ({
+  return Object.entries(manifest.datasets).map(([id, dataset]) => ({
     id,
-    label: model.label,
+    label: dataset.label,
   }))
 }
 
-export function activeForecastRunForModel(
+export function activeForecastRunForDataset(
   manifest: Manifest | null,
-  modelId: ForecastModelId | null
+  datasetId: ForecastDatasetId | null
 ): ActiveForecastRun | null {
-  if (!manifest || modelId == null) return null
-  const model = manifest.models[modelId]
-  if (!model?.latest) return null
+  if (!manifest || datasetId == null) return null
+  const dataset = manifest.datasets[datasetId]
+  if (!dataset?.latest) return null
   return {
     manifest,
-    modelId,
-    label: model.label,
-    latest: model.latest,
+    datasetId,
+    label: dataset.label,
+    latest: dataset.latest,
   }
 }
 
 export function resolveActiveForecastRun(
   manifest: Manifest | null,
-  preferredModelId: ForecastModelId | null = null
+  preferredDatasetId: ForecastDatasetId | null = null
 ): ActiveForecastRun | null {
-  const preferred = activeForecastRunForModel(manifest, preferredModelId)
+  const preferred = activeForecastRunForDataset(manifest, preferredDatasetId)
   if (preferred) return preferred
   if (!manifest) return null
 
-  for (const modelId of Object.keys(manifest.models)) {
-    const activeRun = activeForecastRunForModel(manifest, modelId)
+  for (const datasetId of Object.keys(manifest.datasets)) {
+    const activeRun = activeForecastRunForDataset(manifest, datasetId)
     if (activeRun) return activeRun
   }
 
@@ -58,37 +58,37 @@ export function resolveActiveForecastRun(
 }
 
 export function forecastRunScopeKey(activeRun: ActiveForecastRun): string {
-  const { cycle, revision, runId } = activeRun.latest.run
-  return `${activeRun.modelId}:${cycle}:${runId}:${revision}`
+  const { cycle, revision, run_id } = activeRun.latest.run
+  return `${activeRun.datasetId}:${cycle}:${run_id}:${revision}`
 }
 
-export function normalizeForecastHourToken(value: string): string {
+export function normalizeFrameId(value: string): string {
   return value.trim().padStart(3, '0')
 }
 
-export function getLayerModelAvailability(
+export function getLayerDatasetAvailability(
   manifest: Manifest | null,
   layerId: string | null,
-  modelId: ForecastModelId | null
-): LayerModelAvailability | null {
-  if (!manifest || layerId == null || modelId == null) return null
-  return manifest.layers[layerId]?.models[modelId] ?? null
+  datasetId: ForecastDatasetId | null
+): LayerDatasetAvailability | null {
+  if (!manifest || layerId == null || datasetId == null) return null
+  return manifest.layers[layerId]?.datasets[datasetId] ?? null
 }
 
 export function getActiveRunLayerAvailability(
   activeRun: ActiveForecastRun | null,
   layerId: string | null
-): LayerModelAvailability | null {
+): LayerDatasetAvailability | null {
   if (!activeRun) return null
-  return getLayerModelAvailability(activeRun.manifest, layerId, activeRun.modelId)
+  return getLayerDatasetAvailability(activeRun.manifest, layerId, activeRun.datasetId)
 }
 
-export function isLayerAvailableForModel(
+export function isLayerAvailableForDataset(
   manifest: Manifest | null,
   layerId: string | null,
-  modelId: ForecastModelId | null
+  datasetId: ForecastDatasetId | null
 ): boolean {
-  return getLayerModelAvailability(manifest, layerId, modelId)?.state === 'available'
+  return getLayerDatasetAvailability(manifest, layerId, datasetId)?.state === 'available'
 }
 
 export function isLayerAvailableForActiveRun(
@@ -103,22 +103,22 @@ export function resolveCompatibleActiveForecastRun(
   layerId: string | null
 ): ActiveForecastRun | null {
   const manifest = preferredRun?.manifest ?? null
-  const preferredModelId = preferredRun?.modelId ?? null
+  const preferredDatasetId = preferredRun?.datasetId ?? null
   if (!manifest || layerId == null) return preferredRun
-  const modelId = preferredModelId && isLayerAvailableForModel(manifest, layerId, preferredModelId)
-    ? preferredModelId
-    : Object.keys(manifest.models)
-      .find((candidateModelId) => isLayerAvailableForModel(manifest, layerId, candidateModelId)) ?? null
+  const datasetId = preferredDatasetId && isLayerAvailableForDataset(manifest, layerId, preferredDatasetId)
+    ? preferredDatasetId
+    : Object.keys(manifest.datasets)
+      .find((candidateDatasetId) => isLayerAvailableForDataset(manifest, layerId, candidateDatasetId)) ?? null
 
-  return activeForecastRunForModel(manifest, modelId)
+  return activeForecastRunForDataset(manifest, datasetId)
 }
 
-export function hasAnyAvailableModelForLayer(
+export function hasAnyAvailableDatasetForLayer(
   manifest: Manifest | null,
   layerId: string | null
 ): boolean {
-  return Object.keys(manifest?.models ?? {})
-    .some((modelId) => isLayerAvailableForModel(manifest, layerId, modelId))
+  return Object.keys(manifest?.datasets ?? {})
+    .some((datasetId) => isLayerAvailableForDataset(manifest, layerId, datasetId))
 }
 
 export function getActiveRunArtifact(
@@ -142,7 +142,7 @@ export function resolveActiveRunArtifact<D extends ArtifactKind>(
 ): ArtifactSpecByKind[D] {
   const artifact = getActiveRunArtifact(activeRun, artifactId)
   if (!artifact) {
-    throw new Error(`No ${kind} artifact metadata for model=${activeRun.modelId} artifact=${artifactId}`)
+    throw new Error(`No ${kind} artifact metadata for dataset_id=${activeRun.datasetId} artifact=${artifactId}`)
   }
   if (artifact.kind !== kind) {
     throw new Error(`Artifact ${artifactId} is not ${kind} (got ${artifact.kind})`)

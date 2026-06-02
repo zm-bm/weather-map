@@ -23,17 +23,17 @@ ALLOWED_CYCLES = {"00", "06", "12", "18"}
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
 DEFAULT_FORECAST_CATALOG_URI = default_forecast_catalog_uri()
 DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
-MODEL_ID = "gfs"
+DATASET_ID = "gfs"
 
 
 def _filters_from_config(cfg: PipelineConfig) -> dict[str, Any]:
-    model = cfg.model(MODEL_ID)
+    model = cfg.dataset(DATASET_ID)
     artifacts = tuple(model.workload.artifacts)
-    allowed_fhours = set(model.workload.forecast_hours)
+    allowed_frames = set(model.workload.frames)
 
     return {
         "artifacts": artifacts,
-        "allowed_fhours": allowed_fhours,
+        "allowed_frames": allowed_frames,
         "has_work_items": bool(artifacts),
         "allowed_cycles": ALLOWED_CYCLES,
     }
@@ -110,7 +110,7 @@ def _submit_job(
     cycle_date = matched.group(1)
     cycle_hour = matched.group(2)
     cycle = f"{cycle_date}{cycle_hour}"
-    fhour = matched.group(3)
+    frame_id = matched.group(3)
 
     if cycle_hour not in ALLOWED_CYCLES:
         print(f"skip key (cycle filter): cycle_hour={cycle_hour} key={key}")
@@ -118,7 +118,7 @@ def _submit_job(
 
     backfill = check_backfill(
         app_context=app_context,
-        model_id=MODEL_ID,
+        dataset_id=DATASET_ID,
         cycle=cycle,
     )
     if not backfill.ok:
@@ -129,34 +129,34 @@ def _submit_job(
     run_id = coordinated_run_id(
         ddb=ddb,
         table_name=run_coordinator_table,
-        model_id=MODEL_ID,
+        dataset_id=DATASET_ID,
         cycle=cycle,
         now=datetime.now(timezone.utc),
         ttl_seconds=run_coordinator_ttl_seconds(),
     )
     snapshot = app_context.ensure_or_load_run_snapshot(
-        model_id=MODEL_ID,
+        dataset_id=DATASET_ID,
         cycle=cycle,
         run_id=run_id,
     )
     filters = _filters_from_config(snapshot.loaded_config.config)
 
-    if filters["allowed_fhours"] and fhour not in filters["allowed_fhours"]:
-        print(f"skip key (forecast hour filter): fhour={fhour} key={key}")
+    if filters["allowed_frames"] and frame_id not in filters["allowed_frames"]:
+        print(f"skip key (frame filter): frame_id={frame_id} key={key}")
         return 0
 
     if not filters.get("has_work_items", False):
         print(f"skip key (no workload.artifacts configured): key={key}")
         return 0
 
-    suffix = hashlib.sha1(f"{cycle}:{run_id}:{fhour}:{key}".encode("utf-8")).hexdigest()[:8]
-    job_name = f"gfs-{cycle}-{run_id}-{fhour}-{suffix}"[:128]
+    suffix = hashlib.sha1(f"{cycle}:{run_id}:{frame_id}:{key}".encode("utf-8")).hexdigest()[:8]
+    job_name = f"gfs-{cycle}-{run_id}-{frame_id}-{suffix}"[:128]
 
     env_vars = [
         {"name": "CYCLE", "value": cycle},
         {"name": "RUN_ID", "value": run_id},
-        {"name": "FHOUR", "value": fhour},
-        {"name": "MODEL", "value": MODEL_ID},
+        {"name": "FRAME_ID", "value": frame_id},
+        {"name": "DATASET_ID", "value": DATASET_ID},
         {"name": "GRIB_SOURCE_URI", "value": grib_source_uri},
         {"name": "PIPELINE_CONFIG_URI", "value": snapshot.pipeline_config_uri},
         {"name": "FORECAST_CATALOG_URI", "value": snapshot.forecast_catalog_uri},

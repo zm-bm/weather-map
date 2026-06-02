@@ -28,18 +28,18 @@ def runs_report(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
 ) -> dict[str, Any]:
-    """Return read-only status for all known runs of one model cycle."""
+    """Return read-only status for all known runs of one dataset cycle."""
 
-    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, model_id=model_id, cycle=cycle)
-    run_ids = sorted(artifact_repo.list_run_ids(model_id=model_id, cycle=cycle), reverse=True)
+    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
+    run_ids = sorted(artifact_repo.list_run_ids(dataset_id=dataset_id, cycle=cycle), reverse=True)
     runs = [
         _run_summary(
             artifact_repo=artifact_repo,
             store=store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
             pointer_state=pointer_state,
@@ -48,10 +48,10 @@ def runs_report(
     ]
     return {
         "schema": RUNS_SCHEMA,
-        "schemaVersion": SCHEMA_VERSION,
-        "model": model_id,
+        "schema_version": SCHEMA_VERSION,
+        "dataset_id": dataset_id,
         "cycle": cycle,
-        "runCount": len(runs),
+        "run_count": len(runs),
         "runs": runs,
     }
 
@@ -60,13 +60,13 @@ def status_report(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str | None = None,
 ) -> dict[str, Any]:
     """Return read-only operator status for one selected run."""
 
-    run_ids = sorted(artifact_repo.list_run_ids(model_id=model_id, cycle=cycle), reverse=True)
+    run_ids = sorted(artifact_repo.list_run_ids(dataset_id=dataset_id, cycle=cycle), reverse=True)
     explicit_run_id = validate_run_id(run_id) if run_id is not None else None
     selected_run_id = explicit_run_id
     ambiguous = False
@@ -81,48 +81,48 @@ def status_report(
         else:
             return {
                 "schema": STATUS_SCHEMA,
-                "schemaVersion": SCHEMA_VERSION,
-                "model": model_id,
+                "schema_version": SCHEMA_VERSION,
+                "dataset_id": dataset_id,
                 "cycle": cycle,
-                "runId": None,
+                "run_id": None,
                 "state": "not_found",
                 "ambiguous": False,
-                "runCount": 0,
+                "run_count": 0,
                 "warnings": [],
                 "run": None,
             }
     elif selected_run_id not in run_ids:
         return {
             "schema": STATUS_SCHEMA,
-            "schemaVersion": SCHEMA_VERSION,
-            "model": model_id,
+            "schema_version": SCHEMA_VERSION,
+            "dataset_id": dataset_id,
             "cycle": cycle,
-            "runId": selected_run_id,
+            "run_id": selected_run_id,
             "state": "not_found",
             "ambiguous": False,
-            "runCount": len(run_ids),
-            "warnings": [f"run id was not found under runs/{model_id}/{cycle}/{selected_run_id}/"],
+            "run_count": len(run_ids),
+            "warnings": [f"run id was not found under runs/{dataset_id}/{cycle}/{selected_run_id}/"],
             "run": None,
         }
 
-    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, model_id=model_id, cycle=cycle)
+    pointer_state = _cycle_pointer_state(artifact_repo=artifact_repo, dataset_id=dataset_id, cycle=cycle)
     run = _run_summary(
         artifact_repo=artifact_repo,
         store=store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=selected_run_id,
         pointer_state=pointer_state,
     )
     return {
         "schema": STATUS_SCHEMA,
-        "schemaVersion": SCHEMA_VERSION,
-        "model": model_id,
+        "schema_version": SCHEMA_VERSION,
+        "dataset_id": dataset_id,
         "cycle": cycle,
-        "runId": selected_run_id,
+        "run_id": selected_run_id,
         "state": run["state"],
         "ambiguous": ambiguous,
-        "runCount": len(run_ids),
+        "run_count": len(run_ids),
         "warnings": warnings,
         "run": run,
     }
@@ -131,16 +131,16 @@ def status_report(
 def pointers_report(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str | None = None,
 ) -> dict[str, Any]:
     """Return read-only diagnostics for public manifest pointers."""
 
     latest = _inspect_pointer_alias(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         alias="latest",
-        uri=artifact_repo.paths.manifest_latest_uri(model_id=model_id),
+        uri=artifact_repo.paths.manifest_latest_uri(dataset_id=dataset_id),
         expected_schema=LATEST_POINTER_SCHEMA,
         expected_cycle=None,
     )
@@ -154,37 +154,37 @@ def pointers_report(
     if current_cycle is not None:
         current = _inspect_pointer_alias(
             artifact_repo=artifact_repo,
-            model_id=model_id,
+            dataset_id=dataset_id,
             alias="current",
-            uri=artifact_repo.paths.cycle_current_pointer_uri(model_id=model_id, cycle=current_cycle),
+            uri=artifact_repo.paths.cycle_current_pointer_uri(dataset_id=dataset_id, cycle=current_cycle),
             expected_schema=CURRENT_POINTER_SCHEMA,
             expected_cycle=current_cycle,
         )
 
     return {
         "schema": POINTERS_SCHEMA,
-        "schemaVersion": SCHEMA_VERSION,
-        "model": model_id,
+        "schema_version": SCHEMA_VERSION,
+        "dataset_id": dataset_id,
         "cycle": current_cycle,
         "latest": latest,
         "current": current,
     }
 
 
-def _cycle_pointer_state(*, artifact_repo: ArtifactRepository, model_id: str, cycle: str) -> dict[str, Any]:
+def _cycle_pointer_state(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str) -> dict[str, Any]:
     latest = _inspect_pointer_alias(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         alias="latest",
-        uri=artifact_repo.paths.manifest_latest_uri(model_id=model_id),
+        uri=artifact_repo.paths.manifest_latest_uri(dataset_id=dataset_id),
         expected_schema=LATEST_POINTER_SCHEMA,
         expected_cycle=None,
     )
     current = _inspect_pointer_alias(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         alias="current",
-        uri=artifact_repo.paths.cycle_current_pointer_uri(model_id=model_id, cycle=cycle),
+        uri=artifact_repo.paths.cycle_current_pointer_uri(dataset_id=dataset_id, cycle=cycle),
         expected_schema=CURRENT_POINTER_SCHEMA,
         expected_cycle=cycle,
     )
@@ -195,7 +195,7 @@ def _run_summary(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     pointer_state: Mapping[str, Any],
@@ -203,38 +203,38 @@ def _run_summary(
     snapshot = _snapshot_summary(
         artifact_repo=artifact_repo,
         store=store,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
     markers = _marker_summary(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
         snapshot=snapshot["_snapshot"],
     )
     validation = _validation_summary(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
     published = _published_summary(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
     manifests = _manifest_summary(
         artifact_repo=artifact_repo,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
     state = _run_state(snapshot=snapshot, markers=markers)
     summary = {
-        "runId": run_id,
+        "run_id": run_id,
         "state": state,
         "complete": markers["complete"],
         "snapshot": _public_snapshot_summary(snapshot),
@@ -243,12 +243,12 @@ def _run_summary(
         "published": published,
         "manifests": manifests,
         "pointers": {
-            "cycleCurrent": _pointer_match_status(pointer_state.get("current"), run_id=run_id),
-            "modelLatest": _pointer_match_status(pointer_state.get("latest"), run_id=run_id),
+            "cycle_current": _pointer_match_status(pointer_state.get("current"), run_id=run_id),
+            "dataset_latest": _pointer_match_status(pointer_state.get("latest"), run_id=run_id),
         },
         "current": _pointer_matches(pointer_state.get("current"), run_id=run_id),
         "latest": _pointer_matches(pointer_state.get("latest"), run_id=run_id),
-        "publicationReady": _publication_ready(markers=markers, validation=validation),
+        "publication_ready": _publication_ready(markers=markers, validation=validation),
         "diagnostics": _run_diagnostics(
             snapshot=snapshot,
             markers=markers,
@@ -265,11 +265,11 @@ def _snapshot_summary(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
 ) -> dict[str, Any]:
-    run_uri = artifact_repo.paths.run_metadata_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+    run_uri = artifact_repo.paths.run_metadata_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     if not artifact_repo.store.exists(uri=run_uri):
         return {
             "status": "missing",
@@ -281,7 +281,7 @@ def _snapshot_summary(
         snapshot = load_run_snapshot(
             artifact_repo=artifact_repo,
             store=store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
         )
@@ -295,9 +295,9 @@ def _snapshot_summary(
     return {
         "status": "valid",
         "path": artifact_repo.paths.relative_key(run_uri),
-        "configDigest": snapshot.config_digest,
-        "pipelineConfigUri": snapshot.pipeline_config_uri,
-        "forecastCatalogUri": snapshot.forecast_catalog_uri,
+        "config_digest": snapshot.config_digest,
+        "pipeline_config_uri": snapshot.pipeline_config_uri,
+        "forecast_catalog_uri": snapshot.forecast_catalog_uri,
         "error": None,
         "_snapshot": snapshot,
     }
@@ -314,53 +314,53 @@ def _public_snapshot_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
 def _marker_summary(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
     snapshot: LoadedRunSnapshot | None,
 ) -> dict[str, Any]:
     if snapshot is None:
-        existing = artifact_repo.list_success_marker_uris(model_id=model_id, cycle=cycle, run_id=run_id)
+        existing = artifact_repo.list_success_marker_uris(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
         return {
             "expected": None,
             "completed": len(existing),
             "missing": None,
-            "missingSample": [],
-            "invalidSample": [],
+            "missing_sample": [],
+            "invalid_sample": [],
             "complete": None,
-            "lastProgressAt": None,
+            "last_progress_at": None,
         }
 
-    model = snapshot.loaded_config.config.model(model_id)
+    model = snapshot.loaded_config.config.dataset(dataset_id)
     progress = summarize_cycle_progress(
         artifact_root_uri=artifact_repo.paths.artifact_root_uri,
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         artifact_ids=model.workload.artifacts,
-        fhours=model.workload.forecast_hours,
-        objects=artifact_repo.list_cycle_run_objects(model_id=model_id, cycle=cycle),
+        frames=model.workload.frames,
+        objects=artifact_repo.list_cycle_run_objects(dataset_id=dataset_id, cycle=cycle),
         read_json=artifact_repo.read_json_uri,
         run_id=run_id,
-        manifest_present=artifact_repo.public_run_manifest_exists(model_id=model_id, cycle=cycle, run_id=run_id),
+        manifest_present=artifact_repo.public_run_manifest_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id),
     )
     return {
         "expected": progress.expected_markers,
         "completed": progress.found_markers,
         "missing": progress.missing_markers,
-        "missingSample": list(progress.missing_sample),
-        "invalidSample": list(progress.invalid_marker_sample),
+        "missing_sample": list(progress.missing_sample),
+        "invalid_sample": list(progress.invalid_marker_sample),
         "complete": progress.complete,
-        "lastProgressAt": _iso_or_none(progress.last_progress_at),
+        "last_progress_at": _iso_or_none(progress.last_progress_at),
     }
 
 
-def _validation_summary(*, artifact_repo: ArtifactRepository, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
-    uri = artifact_repo.paths.validation_report_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+def _validation_summary(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+    uri = artifact_repo.paths.validation_report_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     path = artifact_repo.paths.relative_key(uri)
-    if not artifact_repo.validation_report_exists(model_id=model_id, cycle=cycle, run_id=run_id):
+    if not artifact_repo.validation_report_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
         return {"status": "missing", "path": path, "errors": 0, "warnings": 0, "error": None}
     try:
-        report = artifact_repo.read_validation_report(model_id=model_id, cycle=cycle, run_id=run_id)
+        report = artifact_repo.read_validation_report(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     except (Exception, SystemExit) as exc:
         return {"status": "invalid", "path": path, "errors": None, "warnings": None, "error": str(exc)}
     status = report.get("status")
@@ -379,40 +379,40 @@ def _validation_summary(*, artifact_repo: ArtifactRepository, model_id: str, cyc
         "path": path,
         "errors": len(errors) if isinstance(errors, list) else None,
         "warnings": len(warnings) if isinstance(warnings, list) else None,
-        "generatedAt": report.get("generatedAt"),
-        "payloadCheckMode": report.get("payloadCheckMode"),
+        "generated_at": report.get("generated_at"),
+        "payload_check_mode": report.get("payload_check_mode"),
         "error": None,
     }
 
 
-def _published_summary(*, artifact_repo: ArtifactRepository, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
-    uri = artifact_repo.paths.published_marker_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+def _published_summary(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+    uri = artifact_repo.paths.published_marker_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     path = artifact_repo.paths.relative_key(uri)
-    if not artifact_repo.published_marker_exists(model_id=model_id, cycle=cycle, run_id=run_id):
+    if not artifact_repo.published_marker_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
         return {"status": "missing", "path": path, "error": None}
     try:
-        marker = artifact_repo.read_published_marker(model_id=model_id, cycle=cycle, run_id=run_id)
+        marker = artifact_repo.read_published_marker(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     except (Exception, SystemExit) as exc:
         return {"status": "invalid", "path": path, "error": str(exc)}
     return {
         "status": "present",
         "path": path,
-        "generatedAt": marker.generated_at,
+        "generated_at": marker.generated_at,
         "revision": marker.revision,
-        "manifestUri": marker.manifest_uri,
+        "manifest_uri": marker.manifest_uri,
         "error": None,
     }
 
 
-def _manifest_summary(*, artifact_repo: ArtifactRepository, model_id: str, cycle: str, run_id: str) -> dict[str, Any]:
-    internal_uri = artifact_repo.paths.run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id)
-    public_uri = artifact_repo.paths.public_run_manifest_uri(model_id=model_id, cycle=cycle, run_id=run_id)
+def _manifest_summary(*, artifact_repo: ArtifactRepository, dataset_id: str, cycle: str, run_id: str) -> dict[str, Any]:
+    internal_uri = artifact_repo.paths.run_manifest_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
+    public_uri = artifact_repo.paths.public_run_manifest_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     return {
-        "internalRunManifestPath": artifact_repo.paths.relative_key(internal_uri),
-        "internalRunManifestExists": artifact_repo.run_manifest_exists(model_id=model_id, cycle=cycle, run_id=run_id),
-        "publicRunManifestPath": artifact_repo.paths.relative_key(public_uri),
-        "publicRunManifestExists": artifact_repo.public_run_manifest_exists(
-            model_id=model_id,
+        "internal_run_manifest_path": artifact_repo.paths.relative_key(internal_uri),
+        "internal_run_manifest_exists": artifact_repo.run_manifest_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id),
+        "public_run_manifest_path": artifact_repo.paths.relative_key(public_uri),
+        "public_run_manifest_exists": artifact_repo.public_run_manifest_exists(
+            dataset_id=dataset_id,
             cycle=cycle,
             run_id=run_id,
         ),
@@ -451,7 +451,7 @@ def _run_diagnostics(
         diagnostics.append(f"validation status is {validation.get('status')}")
     if published.get("status") != "present":
         diagnostics.append(f"published marker status is {published.get('status')}")
-    for label, pointer in (("cycle current", pointer_state.get("current")), ("model latest", pointer_state.get("latest"))):
+    for label, pointer in (("cycle current", pointer_state.get("current")), ("dataset latest", pointer_state.get("latest"))):
         match_status = _pointer_match_status(pointer, run_id=run_id)
         if match_status not in {"matches", "missing"}:
             diagnostics.append(f"{label} pointer status for this run is {match_status}")
@@ -461,7 +461,7 @@ def _run_diagnostics(
 def _inspect_pointer_alias(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     alias: str,
     uri: str,
     expected_schema: str,
@@ -485,7 +485,7 @@ def _inspect_pointer_alias(
     if is_manifest_pointer(raw):
         return _inspect_pointer_object(
             artifact_repo=artifact_repo,
-            model_id=model_id,
+            dataset_id=dataset_id,
             alias=alias,
             uri=uri,
             path=path,
@@ -507,7 +507,7 @@ def _inspect_pointer_alias(
 def _inspect_pointer_object(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     alias: str,
     uri: str,
     path: str,
@@ -529,9 +529,9 @@ def _inspect_pointer_object(
 
     diagnostics: list[str] = []
     status = "valid"
-    if pointer.model != model_id:
+    if pointer.dataset_id != dataset_id:
         status = "malformed"
-        diagnostics.append(f"pointer model mismatch: expected={model_id!r} found={pointer.model!r}")
+        diagnostics.append(f"pointer dataset_id mismatch: expected={dataset_id!r} found={pointer.dataset_id!r}")
     if expected_cycle is not None and pointer.cycle != expected_cycle:
         status = "stale"
         diagnostics.append(f"pointer cycle mismatch: expected={expected_cycle!r} found={pointer.cycle!r}")
@@ -552,12 +552,12 @@ def _inspect_pointer_object(
         **_pointer_base(alias=alias, uri=uri, path=path, status=status, kind="pointer", diagnostics=diagnostics),
         "schema": pointer.schema_name,
         "cycle": pointer.cycle,
-        "runId": pointer.run_id,
+        "run_id": pointer.run_id,
         "revision": pointer.revision,
-        "generatedAt": pointer.generated_at,
-        "manifestPath": pointer.manifest_path,
-        "targetExists": target_status != "target_missing",
-        "targetValid": target_status == "valid",
+        "generated_at": pointer.generated_at,
+        "manifest_path": pointer.manifest_path,
+        "target_exists": target_status != "target_missing",
+        "target_valid": target_status == "valid",
     }
 
 
@@ -611,7 +611,7 @@ def _pointer_base(
 
 
 def _pointer_matches(pointer: object, *, run_id: str) -> bool:
-    return isinstance(pointer, Mapping) and pointer.get("runId") == run_id and pointer.get("status") == "valid"
+    return isinstance(pointer, Mapping) and pointer.get("run_id") == run_id and pointer.get("status") == "valid"
 
 
 def _pointer_match_status(pointer: object, *, run_id: str) -> str:
@@ -622,7 +622,7 @@ def _pointer_match_status(pointer: object, *, run_id: str) -> str:
         return "missing"
     if status != "valid":
         return str(status or "unknown")
-    if pointer.get("runId") == run_id:
+    if pointer.get("run_id") == run_id:
         return "matches"
     return "different"
 

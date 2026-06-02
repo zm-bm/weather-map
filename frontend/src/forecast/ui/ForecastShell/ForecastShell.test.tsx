@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   Manifest,
-  ForecastModelOption,
+  ForecastDatasetOption,
 } from '@/forecast/manifest'
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   ForecastMap: vi.fn(),
 }))
 
-const MODEL_OPTIONS: readonly ForecastModelOption[] = [
+const MODEL_OPTIONS: readonly ForecastDatasetOption[] = [
   { id: 'gfs', label: 'GFS' },
   { id: 'icon', label: 'ICON' },
 ]
@@ -58,7 +58,7 @@ function createForecastShellProps(overrides: {
       ? null
       : createForecastManifestDataFixture({
           manifest,
-          modelOptions: MODEL_OPTIONS,
+          datasetOptions: MODEL_OPTIONS,
         }),
   }
 }
@@ -121,7 +121,7 @@ describe('ForecastShell', () => {
   it('renders map overlays and forecast timeline controls when manifest is available', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000', '003'],
+      frameIds: ['000', '003'],
     })
 
     const { container } = renderForecastShell(createForecastShellProps({ manifest }))
@@ -144,7 +144,7 @@ describe('ForecastShell', () => {
   it('measures the forecast panel to offset mobile map controls without hard-coded panel height', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
-      forecastHours: ['000', '003'],
+      frameIds: ['000', '003'],
     })
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
       if (this.classList.contains('forecast-stage')) {

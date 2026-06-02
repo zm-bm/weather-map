@@ -14,7 +14,7 @@ minimal production observability.
 
 ## Goal
 
-The ETL should have one clear application model for a forecast run. Local runs,
+The ETL should have one clear application model for a dataset run. Local runs,
 manual AWS submits, automatic ingest Lambdas, scheduled publishing, future
 backend inspection, and tests should all use the same core workflow code where
 possible.
@@ -42,11 +42,14 @@ Keep this contract stable while refactoring.
 
 ### Run Identity
 
-- `cycle` remains the canonical forecast cycle id in `YYYYMMDDHH` format.
-- `run_id` identifies one attempt for a `(model, cycle)`.
+- `dataset_id` identifies the configured data product, such as `gfs`, `icon`,
+  `radar`, or `goes-east-ir`.
+- `cycle` remains the canonical UTC batch/window/source issue id in
+  `YYYYMMDDHH` format.
+- `run_id` identifies one attempt for a `(dataset_id, cycle)`.
 - All worker outputs, success markers, validation reports, internal manifests,
   public run manifests, and publish markers are tied to one run id.
-- Automatic GFS and ICON ingest coordinate one run id per model/cycle before
+- Automatic GFS and ICON ingest coordinate one run id per dataset/cycle before
   submitting workers.
 
 ### Run-Scoped Outputs
@@ -54,12 +57,12 @@ Keep this contract stable while refactoring.
 New ETL-produced outputs are immutable and run-first:
 
 ```text
-runs/<model>/<cycle>/<run_id>/
+runs/<dataset_id>/<cycle>/<run_id>/
   run.json
   config/pipeline_config.json
   config/forecast_catalog.json
-  fields/<fhour>/<artifact>.field.<dtype>.bin
-  status/<artifact>/<fhour>._SUCCESS.json
+  fields/<frame_id>/<artifact>.field.<dtype>.bin
+  status/<artifact>/<frame_id>._SUCCESS.json
   validation.json
   manifest.json
   _PUBLISHED.json
@@ -80,23 +83,23 @@ Current readers and publishers do not depend on old top-level `fields/`,
 
 ### Public Manifest Contract
 
-Public aliases remain under `manifests/`, but model latest and cycle current
+Public aliases remain under `manifests/`, but dataset latest and cycle current
 aliases are pointers:
 
 ```text
-manifests/<model>/cycles/<cycle>/runs/<run_id>.json
-manifests/<model>/cycles/<cycle>/current.json
-manifests/<model>/latest.json
-manifests/forecast-manifest.json
+manifests/<dataset_id>/cycles/<cycle>/runs/<run_id>.json
+manifests/<dataset_id>/cycles/<cycle>/current.json
+manifests/<dataset_id>/latest.json
+manifests/data-manifest.json
 ```
 
-The frontend hot path starts from `manifests/forecast-manifest.json`.
+The frontend hot path starts from `manifests/data-manifest.json`.
 Payload references are compact and run-first:
 
 ```text
-run.payloadRoot = runs/gfs/2026053018/<run_id>/fields
-artifact.payloadFile = tmp_surface.field.i8.bin
-payload path = <payloadRoot>/<fhour>/<payloadFile>
+run.payload_root = runs/gfs/2026053018/<run_id>/fields
+artifact.payload_file = tmp_surface.field.i8.bin
+payload path = <payload_root>/<frame_id>/<payload_file>
 ```
 
 Legacy manifest and `/fields/...` compatibility has been removed after cutover.
@@ -106,11 +109,11 @@ Legacy manifest and `/fields/...` compatibility has been removed after cutover.
 The current operator surface stays small:
 
 ```bash
-forecast-etl runs --model gfs --cycle 2026053018 [--json]
-forecast-etl status --model gfs --cycle 2026053018 [--run-id <run_id>] [--json]
-forecast-etl pointers --model gfs [--cycle 2026053018] [--json]
-forecast-etl cleanup-runs --model gfs [--cycle 2026053018] [--json]
-forecast-etl cleanup-runs --model gfs [--cycle 2026053018] --delete --yes
+forecast-etl runs --dataset-id gfs --cycle 2026053018 [--json]
+forecast-etl status --dataset-id gfs --cycle 2026053018 [--run-id <run_id>] [--json]
+forecast-etl pointers --dataset-id gfs [--cycle 2026053018] [--json]
+forecast-etl cleanup-runs --dataset-id gfs [--cycle 2026053018] [--json]
+forecast-etl cleanup-runs --dataset-id gfs [--cycle 2026053018] --delete --yes
 ```
 
 These commands inspect or clean up run-first artifacts. They should not become
@@ -144,7 +147,7 @@ forecast_etl/
   artifacts/          run paths, repositories, markers, snapshots, published state
   sources/            GFS, ICON, NOMADS, DWD source acquisition
   processing/         one-hour extraction, transformations, encoding
-  workflows/          init-run, run-hour, validate, publish, submit-cycle planning
+  workflows/          init-run, run-frame, validate, publish, submit-cycle planning
   execution/          in-process, local-container, and AWS Batch execution adapters
   read_model/         pointer/status/cleanup/health readers for backend and CLI
   aws/                Lambda event parsing and AWS-specific adapters
@@ -154,7 +157,7 @@ forecast_etl/
 The most important split is not the exact folder names. The important split is
 between these responsibilities:
 
-- **Workflow:** what should happen for a model/cycle/run.
+- **Workflow:** what should happen for a dataset/cycle/run.
 - **Executor:** where/how that work runs.
 - **Repository:** how artifacts are named, read, and written.
 - **Reader:** how operator/backend code inspects existing state.
@@ -170,7 +173,7 @@ not move runtime modules, Terraform, or shell script behavior.
 What was locked:
 
 - local `run-cycle.sh` dry-run behavior now proves that an omitted `--run-id`
-  generates one valid run id reused across `init-run`, every `run-hour`,
+  generates one valid run id reused across `init-run`, every `run-frame`,
   `validate-cycle`, and optional `publish-cycle`
 - manual `submit-cycle.sh` tests now exercise fake `init-run` and fake
   `aws batch submit-job`, proving deployed config/catalog inputs, run-scoped
@@ -196,12 +199,12 @@ The production boundary audit is complete. It found no reason to redesign the
 current AWS flow before refactoring. The accepted baseline remains:
 
 ```text
-GFS SNS object event -> GFS ingest Lambda -> Batch hour workers
-ICON EventBridge poll -> ICON ingest Lambda -> Batch hour workers
+GFS SNS object event -> GFS ingest Lambda -> Batch frame workers
+ICON EventBridge poll -> ICON ingest Lambda -> Batch frame workers
 EventBridge schedule -> publisher Lambda -> validate/promote complete runs
 ```
 
-This shape is sound: ingest submits work, hour workers produce run evidence,
+This shape is sound: ingest submits work, frame workers produce run evidence,
 and the scheduled publisher reconciles complete runs from artifact state rather
 than relying on a direct Batch completion callback.
 
@@ -219,20 +222,20 @@ Boundary map:
 
 Current intentional asymmetries:
 
-- GFS is source-event driven. It coordinates one run id per model/cycle and
+- GFS is source-event driven. It coordinates one run id per dataset/cycle and
   snapshots config before submitting workers, but duplicate SNS events can
-  still duplicate-submit the same forecast hour for the same run.
-- ICON is poll driven. It coordinates one run id per model/cycle, snapshots
-  config before marker checks and submission, and already uses per-hour
+  still duplicate-submit the same frame for the same run.
+- ICON is poll driven. It coordinates one run id per dataset/cycle, snapshots
+  config before marker checks and submission, and already uses per-frame
   DynamoDB leases to suppress duplicate submissions.
 - The publisher is artifact-state driven. It scans recent cycles, selects a
   run, validates when needed, promotes pointer-era manifests, and catches
-  failures per model/cycle so one bad candidate does not block the rest.
+  failures per dataset/cycle so one bad candidate does not block the rest.
 
 Follow-ups classified by phase:
 
 - Submission idempotency/resume phase: unify GFS and ICON duplicate-submission
-  behavior with shared in-flight hour claims or an equivalent executor-neutral
+  behavior with shared in-flight frame claims or an equivalent executor-neutral
   mechanism.
 - Planner/executor phase: keep AWS SNS, EventBridge, Lambda, Batch, and
   DynamoDB details behind adapters while local and AWS paths converge on the
@@ -284,14 +287,14 @@ interfaces, or Lambda behavior.
 What changed:
 
 - `ApplicationContext` resolves the URI store, artifact repository, artifact
-  root, config/catalog inputs, model runtime, run snapshots, and run-id
+  root, config/catalog inputs, dataset runtime, run snapshots, and run-id
   selection.
-- `workflows.cycle` wraps init-run, run-hour, run-cycle, validate-cycle,
+- `workflows.cycle` wraps init-run, run-frame, run-cycle, validate-cycle,
   publish-cycle, and backfill checks while leaving heavy processing and manifest
   publication in the existing implementation modules.
 - `workflows.inspection` wraps operator read-side commands for runs, status,
   pointers, and cleanup.
-- `workflows.publisher` owns the scheduled publisher's per model-cycle
+- `workflows.publisher` owns the scheduled publisher's per dataset-cycle
   validate/promote candidate flow.
 - CLI handlers and GFS/ICON/publisher Lambda adapters now route through the
   workflow layer, while keeping adapter-owned event parsing, env parsing, output
@@ -306,15 +309,12 @@ Deferred on purpose:
 - The workflow package is not a cloud abstraction framework; AWS clients remain
   in AWS adapters.
 
-### 2. Add A Provider-Neutral Cycle Submission Plan
+### Completed: 2. Hard Cutover To Dataset/Frame Vocabulary And Add Cycle Plans
 
-Goal: represent one dataset/cycle run as a provider-neutral plan before
-deciding whether the executor is local Docker, AWS Batch, or a future provider.
-This is the main mechanism for converging local and production forecast behavior
-without making the shell scripts own ETL policy, while leaving room for later
-non-forecast ETL such as radar or satellite ingest.
+This phase is complete. It intentionally changed the public contract instead
+of preserving old forecast/model/hour aliases.
 
-Use these reusable planner primitives:
+The reusable planner/runtime primitives are now:
 
 - `dataset_id`: general source/product identifier such as `gfs`, `icon`,
   `radar`, or `goes-east-ir`
@@ -323,86 +323,32 @@ Use these reusable planner primitives:
 - `artifact_id`: produced layer or product within that run
 - `frame_id`: within-cycle time/index dimension
 
-For the current forecast ETL, `dataset_id` maps to the existing `model` value
-and `frame_id` maps to the existing forecast hour / `fhour` value. Do not rename
-run-first S3 paths, public manifest fields, CLI flags, or worker env vars in this
-phase; preserve forecast vocabulary at public adapter boundaries and use the
-generalized names inside the planner.
+What changed:
 
-Provisional implementation:
+- public ETL JSON contracts use snake_case dataset/frame fields
+- config uses `datasets` and `workload.frames`
+- CLI/env uses `--dataset-id`, `--frame-id`, `--frames`,
+  `DATASET_ID`, `FRAME_ID`, and `PUBLISH_DATASETS`
+- old hour/model command names became `run-frame`, `list-frames`, and
+  `list-datasets`
+- public manifests use dataset pointer schemas and
+  `manifests/data-manifest.json`
+- frontend manifest fetching, payload resolution, cache scoping, and health
+  parsing use the dataset/frame contract
+- backend health emits dataset-oriented snake_case JSON
+- Terraform publisher config exposes datasets rather than models
 
-- introduce internal `DatasetCycleSubmissionRequest` and
-  `DatasetCycleSubmissionPlan` structures
-- add a read-only CLI command:
+The read-only planner command now emits the executor-neutral cycle plan:
 
 ```bash
-forecast-etl plan-cycle --model gfs --cycle 2026060112 [--run-id <run_id>] [--json]
+forecast-etl plan-cycle --dataset-id gfs --cycle 2026060112 [--run-id <run_id>] [--frames "000 003"] [--artifact tmp_surface] [--no-publish] [--json]
 ```
 
-- make JSON output the stable machine-readable contract for script and executor
-  integration
-- emit both the generalized identity fields and forecast aliases where useful:
-  `datasetId`, `cycle`, `runId`, `frames[].frameId`, `artifacts[].artifactId`,
-  plus `model`/`fhour` aliases for forecast workers
-- support the same common operator inputs as the local/prod scripts where they
-  affect the plan:
-  - `--model`
-  - `--cycle`
-  - `--run-id`
-  - `--fhours`
-  - `--artifact`
-  - config/catalog/artifact root URIs
-- keep environment-specific execution flags out of the plan command; for
-  example local `--procs` and `--rebuild`, or prod `--backfill`,
-  `--skip-config-check`, `--source-bucket`, and submit pacing remain adapter
-  concerns
-- have the planner accept a request such as:
-
-```python
-DatasetCycleSubmissionRequest(
-    dataset_id="gfs",
-    cycle="2026060112",
-    run_id="20260601T120000Z-a1b2c3d4",
-    artifact_root_uri="...",
-    source_config_uri="...",
-    source_catalog_uri="...",
-    selected_frame_ids=None,
-    selected_artifact_ids=None,
-)
-```
-
-- have the planner return a `DatasetCycleSubmissionPlan` containing:
-  - dataset id, cycle, run id, and artifact root
-  - forecast alias fields for current GFS/ICON callers
-  - run snapshot intent
-  - snapshot config/catalog URIs
-  - selected frame ids
-  - selected artifact ids
-  - per-frame worker job specs
-  - validation step
-  - optional publish step
-  - operator messages or structured summary fields
-- keep the command read-only; it should not create snapshots, submit jobs,
-  validate, publish, or write state
-- generate or accept a run id according to the same rules as current local and
-  manual submit paths
-- compute run snapshot URIs, selected frame ids, selected artifact ids,
-  per-frame worker environments, validation step, and optional publish step in
-  one place
-- make the plan explicit about whether an executor should include a GFS
-  `GRIB_SOURCE_URI` or leave source acquisition to the worker/model source
-  adapter, as ICON does
-
-Expected result:
-
-- run id generation, snapshot URIs, workload selection, and worker environment
-  variables are represented once
-- local and production execution can be compared by diffing plan objects rather
-  than shell output
-- later executor tests can assert plan input/output contracts instead of broad
-  shell internals
-- later radar/satellite ingest can reuse the planner shape without forcing those
-  datasets into forecast-hour terminology
+The plan schema is `weather-map.etl-cycle-submission-plan` and includes
+`dataset_id`, `cycle`, `run_id`, selected `frames`, selected `artifact_ids`,
+run snapshot URIs, per-frame worker specs, validation, and optional
+publication. It is read-only and does not create snapshots, submit jobs,
+validate, publish, or write state.
 
 ### 3. Add Submission Idempotency And Resume Semantics
 
@@ -411,10 +357,10 @@ submit paths are unified.
 
 Provisional implementation:
 
-- automatic ingest and manual submit skip already-complete forecast hours for
+- automatic ingest and manual submit skip already-complete frames for
   the selected run
-- add short-lived in-flight job claims keyed by model, cycle, run id, and
-  forecast hour to suppress duplicate automatic submissions
+- add short-lived in-flight job claims keyed by dataset id, cycle, run id, and
+  frame id to suppress duplicate automatic submissions
 - expired claims allow retry/resume
 - keep the final completeness decision in validation; job claims are submit
   safety, not publication evidence
@@ -424,7 +370,7 @@ Provisional implementation:
 Expected result:
 
 - duplicate SNS/events or repeated manual submits do not create unnecessary
-  duplicate hour jobs once an hour is complete or actively claimed
+  duplicate frame jobs once a frame is complete or actively claimed
 - interrupted runs can be resumed without changing run ids or manually
   filtering every completed hour
 
@@ -475,10 +421,10 @@ scripts/weather-etl/submit-aws-cycle.sh
 - if clearer wrappers are added, have the old paths delegate to them instead of
   breaking operator muscle memory immediately
 - keep common cycle inputs aligned across local and prod wrappers:
-  - `--model`
+  - `--dataset-id`
   - `--cycle`
   - `--run-id`
-  - `--fhours`
+  - `--frames`
   - `--artifact`
   - `--dry-run`
 - allow environment-specific flags where they describe real executor
@@ -511,7 +457,7 @@ Provisional implementation:
   - internal run manifest construction
   - public run manifest writing
   - current/latest pointer promotion
-  - aggregate forecast-manifest rebuild
+  - aggregate data-manifest rebuild
 - keep pointer schemas and public output unchanged
 - make each stage return a structured result that can be logged or surfaced in
   operator commands
@@ -538,12 +484,12 @@ Provisional implementation:
 
 Likely backend-facing queries:
 
-- current model/latest pointer status
+- current dataset/latest pointer status
 - cycle current run
 - run completeness and validation status
 - recent cycles/runs
 - cleanup candidates
-- public forecast-manifest summary
+- public data-manifest summary
 
 ### 8. Add Minimal Production Observability
 
@@ -605,7 +551,7 @@ Provisional implementation:
 Expected result:
 
 - domain modules remain boring and testable
-- future model additions such as HRRR or ECMWF can reuse source/processing
+- future dataset additions such as HRRR or ECMWF can reuse source/processing
   contracts instead of copying GFS/ICON special cases
 
 ## Backend Server Considerations
@@ -626,7 +572,7 @@ Good first backend responsibilities:
 
 - serve status and health summaries
 - expose recent runs and pointer diagnostics
-- proxy or summarize forecast manifest metadata
+- proxy or summarize data manifest metadata
 - provide operator-safe views of cleanup candidates
 - later, expose explicit operator actions by calling existing workflow
   functions
@@ -684,7 +630,7 @@ Potential R2 migration path:
 - no new `etlctl` binary until the existing CLI proves awkward
 - no backend server before the read model boundary is clear
 - no deep rewrite of encoding/extraction math as part of workflow cleanup
-- no manifest schema churn unless a separate product/backend task requires it
+- no further manifest schema churn after the Phase 2 dataset/frame cutover
 - no cloud migration as part of the first refactor pass
 - no broad cloud-neutral framework; keep portability at storage, execution,
   scheduling, and coordination boundaries
@@ -699,7 +645,7 @@ The refactor is working when:
   Lambda configuration do not depend on incidental resource details
 - a read-only cycle plan can represent local and AWS worker submissions without
   writing state
-- duplicate complete or actively claimed hour jobs are suppressed, while
+- duplicate complete or actively claimed frame jobs are suppressed, while
   expired claims allow retry/resume and validation remains the publication gate
 - `cli.py` is small enough to scan quickly
 - publish, validate, status, cleanup, and backfill each have clear module

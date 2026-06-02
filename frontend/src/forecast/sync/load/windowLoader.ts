@@ -4,7 +4,7 @@ import type {
   ArtifactLoader,
   RawRasterBands,
 } from '@/forecast/artifacts'
-import { normalizeForecastHourToken } from '@/forecast/manifest'
+import { normalizeFrameId } from '@/forecast/manifest'
 import type { ForecastTimeSliceSelection } from '@/forecast/time'
 import type {
   EncodedRasterFrame,
@@ -27,44 +27,44 @@ export function clampInterpolationMix(mix: number): number {
 export async function loadFrameWindow<T>(args: {
   selection: ForecastTimeSliceSelection
   previousWindow?: FrameWindow<T> | null
-  loadFrame: (hourToken: string) => Promise<T>
+  loadFrame: (frameId: string) => Promise<T>
 }): Promise<FrameWindow<T>> {
   const { selection, previousWindow, loadFrame } = args
-  const lowerHourToken = normalizeForecastHourToken(selection.lowerHourToken)
-  const upperHourToken = normalizeForecastHourToken(selection.upperHourToken)
+  const lowerFrameId = normalizeFrameId(selection.lowerFrameId)
+  const upperFrameId = normalizeFrameId(selection.upperFrameId)
   const mix = clampInterpolationMix(selection.mix)
-  const reuseFrame = (hourToken: string): T | null => {
+  const reuseFrame = (frameId: string): T | null => {
     if (!previousWindow) return null
-    if (previousWindow.lowerHourToken === hourToken) return previousWindow.lower
-    if (previousWindow.upperHourToken === hourToken) return previousWindow.upper
+    if (previousWindow.lowerFrameId === frameId) return previousWindow.lower
+    if (previousWindow.upperFrameId === frameId) return previousWindow.upper
     return null
   }
 
-  if (lowerHourToken === upperHourToken || mix === 0) {
-    const lower = reuseFrame(lowerHourToken) ?? await loadFrame(lowerHourToken)
+  if (lowerFrameId === upperFrameId || mix === 0) {
+    const lower = reuseFrame(lowerFrameId) ?? await loadFrame(lowerFrameId)
     return {
       lower,
       upper: lower,
       selectedValidTimeMs: selection.selectedValidTimeMs,
-      lowerHourToken,
-      upperHourToken: lowerHourToken,
+      lowerFrameId,
+      upperFrameId: lowerFrameId,
       mix: 0,
     }
   }
 
-  const reusableLower = reuseFrame(lowerHourToken)
-  const reusableUpper = reuseFrame(upperHourToken)
+  const reusableLower = reuseFrame(lowerFrameId)
+  const reusableUpper = reuseFrame(upperFrameId)
   const [lower, upper] = await Promise.all([
-    reusableLower ?? loadFrame(lowerHourToken),
-    reusableUpper ?? loadFrame(upperHourToken),
+    reusableLower ?? loadFrame(lowerFrameId),
+    reusableUpper ?? loadFrame(upperFrameId),
   ])
 
   return {
     lower,
     upper,
     selectedValidTimeMs: selection.selectedValidTimeMs,
-    lowerHourToken,
-    upperHourToken,
+    lowerFrameId,
+    upperFrameId,
     mix,
   }
 }
@@ -106,10 +106,10 @@ async function loadWindow(args: {
     const window = await loadFrameWindow<ForecastFrameMap[ForecastWindowId]>({
       selection: args.selection,
       previousWindow: args.previousWindow,
-      loadFrame: (hourToken) => loadWindowFrame(
+      loadFrame: (frameId) => loadWindowFrame(
         args.artifacts,
         args.windowPlan,
-        hourToken
+        frameId
       ),
     })
     return [args.windowPlan.id, window]
@@ -122,45 +122,45 @@ async function loadWindow(args: {
 export async function loadWindowFrame(
   artifacts: ArtifactLoader,
   windowPlan: ForecastWindowPlan,
-  hourToken: string,
+  frameId: string,
 ): Promise<ForecastFrameMap[ForecastWindowId]> {
   if (windowPlan.output === 'single') {
     return loadSingleFrame(
       artifacts,
       windowPlan.frames[0],
-      hourToken
+      frameId
     )
   }
 
   return loadArrayWindowFrame({
     artifacts,
     frames: windowPlan.frames,
-    hourToken,
+    frameId,
   })
 }
 
 async function loadSingleFrame(
   artifacts: ArtifactLoader,
   frame: RasterFramePlan,
-  hourToken: string,
+  frameId: string,
 ): Promise<ForecastFrameMap[ForecastWindowId]> {
   return loadRasterFramePlan(
     artifacts,
     frame,
-    hourToken
+    frameId
   ) as Promise<ForecastFrameMap[ForecastWindowId]>
 }
 
 async function loadArrayWindowFrame(args: {
   artifacts: ArtifactLoader
   frames: readonly RasterFramePlan[]
-  hourToken: string
+  frameId: string
 }): Promise<ForecastFrameMap[ForecastWindowId]> {
   const loadedFrames = await Promise.all(
     args.frames.map((frame) => loadRasterFramePlan(
       args.artifacts,
       frame,
-      args.hourToken,
+      args.frameId,
     ).catch((error) => {
       if (frame.failurePolicy === 'optional') return null
       throw error
@@ -175,26 +175,26 @@ async function loadArrayWindowFrame(args: {
 async function loadRasterFramePlan(
   artifacts: ArtifactLoader,
   frame: RasterFramePlan,
-  hourToken: string,
+  frameId: string,
 ): Promise<RasterLayerFrame<unknown>> {
   const data = await artifacts.loadRawRasterBands(
     frame.artifactId,
-    hourToken,
+    frameId,
     frame.bandIds,
     { order: frame.order }
   )
   return {
     source: frame.source,
-    raster: buildEncodedRasterFrame(data, `${frame.cacheKeyPrefix}:${data.hourToken}`),
+    raster: buildEncodedRasterFrame(data, `${frame.cacheKeyPrefix}:${data.frameId}`),
   }
 }
 
 function buildEncodedRasterFrame(
   data: RawRasterBands,
-  cacheKey = `${data.artifactId}:${data.hourToken}`
+  cacheKey = `${data.artifactId}:${data.frameId}`
 ): EncodedRasterFrame {
   return {
-    hourToken: data.hourToken,
+    frameId: data.frameId,
     artifactId: data.artifactId,
     cacheKey,
     grid: data.grid,

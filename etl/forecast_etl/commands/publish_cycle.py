@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from ..artifacts.repository import ArtifactRepository
-from ..config.resolved import ModelConfig, PipelineConfig
+from ..config.resolved import DatasetConfig, PipelineConfig
 from ..manifest.publish import PublishResult, run_publish
 from ..runtime import ExecutionContext
 from ..storage.base import UriStore
@@ -15,14 +15,14 @@ from ..storage.routing import make_store
 def publish_cycle(
     *,
     ctx: ExecutionContext,
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
     run_id: str | None = None,
     pipeline_config: PipelineConfig | None = None,
     forecast_catalog: Mapping[str, Any] | None = None,
     store: UriStore | None = None,
 ) -> PublishResult:
-    """Publish the manifest for a processed model cycle."""
+    """Publish the manifest for a processed dataset cycle."""
 
     resolved_store = store if store is not None else make_store()
     artifact_repo = ArtifactRepository.for_root(store=resolved_store, artifact_root_uri=ctx.artifact_root_uri)
@@ -30,7 +30,7 @@ def publish_cycle(
         ctx=ctx,
         cycle=cycle,
         run_id=run_id,
-        model_label=model.label,
+        dataset_label=model.label,
         artifact_ids=model.workload.artifacts,
         artifact_specs=model.artifacts,
         artifact_repo=artifact_repo,

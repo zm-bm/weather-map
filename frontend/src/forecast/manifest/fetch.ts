@@ -5,8 +5,8 @@ import { parseManifest, type Manifest } from './schema'
 export async function fetchManifest(opts?: {
   signal?: AbortSignal
 }): Promise<Manifest> {
-  const manifestUrl = joinUrl(config.artifactBaseUrl, 'manifests/forecast-manifest.json')
+  const manifestUrl = joinUrl(config.artifactBaseUrl, 'manifests/data-manifest.json')
   const res = await fetch(manifestUrl, { signal: opts?.signal })
-  if (!res.ok) throw new Error(`Failed to fetch forecast manifest: ${res.status} ${res.statusText}`)
+  if (!res.ok) throw new Error(`Failed to fetch data manifest: ${res.status} ${res.statusText}`)
   return parseManifest(await res.json())
 }

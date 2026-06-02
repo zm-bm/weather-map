@@ -8,7 +8,7 @@ import {
 } from '@/test/fixtures'
 import type { ArtifactLoader, RawRasterBands } from '@/forecast/artifacts'
 import { prefetchForecastFrames } from './prefetch'
-import { normalizeForecastHourToken } from '@/forecast/manifest'
+import { normalizeFrameId } from '@/forecast/manifest'
 import { createForecastWindowPlanTestFixture } from './windowPlan.testHelpers'
 
 type PrefetchArgsFixture = Parameters<typeof prefetchForecastFrames>[0]
@@ -49,16 +49,16 @@ function plannedWindow(id: 'raster' | 'overlay' | 'contour' | 'particles') {
 }
 
 function prefetchArgs(args: {
-  forecastHours?: string[]
+  frameIds?: string[]
   windowPlans?: readonly PrefetchWindowPlan[]
-  lowerHourToken?: string
-  upperHourToken?: string
+  lowerFrameId?: string
+  upperFrameId?: string
 } = {}): Omit<PrefetchArgsFixture, 'aheadHourCount' | 'concurrency' | 'signal'> {
-  const forecastHours = args.forecastHours ?? ['000', '003', '006', '009']
+  const frameIds = args.frameIds ?? ['000', '003', '006', '009']
   return {
-    lowerHourToken: normalizeForecastHourToken(args.lowerHourToken ?? '000'),
-    upperHourToken: normalizeForecastHourToken(args.upperHourToken ?? '003'),
-    forecastHourTokens: forecastHours.map(normalizeForecastHourToken),
+    lowerFrameId: normalizeFrameId(args.lowerFrameId ?? '000'),
+    upperFrameId: normalizeFrameId(args.upperFrameId ?? '003'),
+    frameIds: frameIds.map(normalizeFrameId),
     artifacts: artifacts(),
     windowPlans: args.windowPlans ?? [
       plannedWindow('raster'),
@@ -72,15 +72,15 @@ function artifacts(): ArtifactLoader {
     canLoadRasterBands: vi.fn(() => true),
     loadRawRasterBands: vi.fn(async (
       artifactId: string,
-      hourToken: string,
+      frameId: string,
       bandIds: readonly string[],
     ) => {
       const id = artifactId.replace(/_artifact$/, '') as keyof typeof loaders
-      await loaders[id]?.(hourToken)
+      await loaders[id]?.(frameId)
       const firstBandId = bandIds[0] ?? 'value'
       return {
         artifactId,
-        hourToken,
+        frameId,
         grid: createGridFixture({
           id: 'test_grid',
           nx: 1,
@@ -112,19 +112,19 @@ describe('prefetchForecastFrames', () => {
 
   it('prefetches planned windows for the current window plus lookahead hours', async () => {
     await prefetchForecastFrames({
-      ...prefetchArgs({ lowerHourToken: '0', upperHourToken: '3' }),
+      ...prefetchArgs({ lowerFrameId: '0', upperFrameId: '3' }),
       aheadHourCount: 2,
       concurrency: 2,
       signal: createSignalFixture(),
     })
 
-    expect(loaders.raster.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+    expect(loaders.raster.mock.calls.map(([frameId]) => frameId)).toEqual([
       '000',
       '003',
       '006',
       '009',
     ])
-    expect(loaders.particles.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+    expect(loaders.particles.mock.calls.map(([frameId]) => frameId)).toEqual([
       '000',
       '003',
       '006',
@@ -141,20 +141,20 @@ describe('prefetchForecastFrames', () => {
           plannedWindow('raster'),
           plannedWindow('contour'),
         ],
-        lowerHourToken: '0',
-        upperHourToken: '3',
+        lowerFrameId: '0',
+        upperFrameId: '3',
       }),
       aheadHourCount: 1,
       concurrency: 2,
       signal: createSignalFixture(),
     })
 
-    expect(loaders.raster.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+    expect(loaders.raster.mock.calls.map(([frameId]) => frameId)).toEqual([
       '000',
       '003',
       '006',
     ])
-    expect(loaders.contour.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+    expect(loaders.contour.mock.calls.map(([frameId]) => frameId)).toEqual([
       '000',
       '003',
       '006',
@@ -223,7 +223,7 @@ describe('prefetchForecastFrames', () => {
   it('skips windows that are not planned', async () => {
     await prefetchForecastFrames({
       ...prefetchArgs({
-        forecastHours: ['000', '003', '006'],
+        frameIds: ['000', '003', '006'],
         windowPlans: [plannedWindow('raster')],
       }),
       aheadHourCount: 1,
@@ -240,7 +240,7 @@ describe('prefetchForecastFrames', () => {
   it('prefetches cloud layer raster payloads when planned', async () => {
     await prefetchForecastFrames({
       ...prefetchArgs({
-        forecastHours: ['000', '003', '006'],
+        frameIds: ['000', '003', '006'],
         windowPlans: [createForecastWindowPlanTestFixture({
           id: 'raster',
           key: 'cloudLayers:key',
@@ -260,7 +260,7 @@ describe('prefetchForecastFrames', () => {
     })
 
     expect(loaders.raster).not.toHaveBeenCalled()
-    expect(loaders.cloudLayers.mock.calls.map(([hourToken]) => hourToken)).toEqual([
+    expect(loaders.cloudLayers.mock.calls.map(([frameId]) => frameId)).toEqual([
       '000',
       '003',
       '006',

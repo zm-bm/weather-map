@@ -4,7 +4,7 @@ This module builds filtered GFS GRIB2 URLs for the NOMADS "filter" endpoint and
 downloads missing GRIBs into a local cache.
 
 Intended usage:
-- GFS model source acquisition downloads once per (cycle, fhour) into etl/cache/grib/gfs
+- GFS dataset source acquisition downloads once per (cycle, frame_id) into etl/cache/grib/gfs
 - Artifact execution then consumes the prepared local GRIB source
 """
 
@@ -19,13 +19,13 @@ from ..cycles import parse_cycle
 from .gfs_layout import grib_name
 
 
-def nomads_url(*, base_url: str, vars_levels: dict[str, str], cycle: str, fhour: str) -> str:
+def nomads_url(*, base_url: str, vars_levels: dict[str, str], cycle: str, frame_id: str) -> str:
     """Build a NOMADS filter endpoint URL for one GFS GRIB file."""
 
     cycle_date, cycle_hour = parse_cycle(cycle)
     params = {
         "dir": f"/gfs.{cycle_date}/{cycle_hour}/atmos",
-        "file": grib_name(cycle_hour=cycle_hour, fhour=fhour),
+        "file": grib_name(cycle_hour=cycle_hour, frame_id=frame_id),
         **vars_levels,
     }
     return f"{base_url}?{urllib.parse.urlencode(params)}"

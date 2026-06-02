@@ -12,11 +12,11 @@ from typing import Any, Iterable
 import boto3  # type: ignore
 
 from ..artifacts.paths import ArtifactPaths
-from ..config.resolved import IconDwdSourceConfig, ModelConfig
+from ..config.resolved import DatasetConfig, IconDwdSourceConfig
 from ..cycles import latest_synoptic_cycles
 from ..source_adapters.icon_dwd import (
     icon_dwd_url,
-    previous_icon_fhour,
+    previous_icon_frame_id,
     required_icon_params,
     required_previous_icon_params,
 )
@@ -32,7 +32,7 @@ DEFAULT_POLL_CYCLE_COUNT = 1
 DEFAULT_LEASE_SECONDS = 14400
 DEFAULT_STATE_TTL_SECONDS = 14 * 24 * 60 * 60
 DEFAULT_READY_MIN_BYTES = 1024
-MODEL_ID = "icon"
+DATASET_ID = "icon"
 DEFAULT_SENTINEL_PARAMS = ("t_2m", "u_10m", "v_10m", "pmsl", "clct")
 RETRYABLE_HTTP_CODES = {403, 404, 408, 409, 425, 429, 500, 502, 503, 504}
 
@@ -105,20 +105,20 @@ def _url_ready(url: str, *, min_bytes: int) -> bool:
             return True
 
 
-def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterable[str], min_bytes: int) -> bool:
+def _params_ready(*, model: DatasetConfig, cycle: str, frame_id: str, params: Iterable[str], min_bytes: int) -> bool:
     source = model.source
     if not isinstance(source, IconDwdSourceConfig):
-        raise SystemExit(f"Model {model.id!r} is not configured for ICON DWD acquisition")
+        raise SystemExit(f"Dataset {model.id!r} is not configured for ICON DWD acquisition")
 
     for param in params:
         url = icon_dwd_url(
             base_url=source.icon_dwd.base_url,
             cycle=cycle,
-            fhour=fhour,
+            frame_id=frame_id,
             icon_param=param,
         )
         if not _url_ready(url, min_bytes=min_bytes):
-            print(f"ICON source not ready: cycle={cycle} fhour={fhour} param={param}", flush=True)
+            print(f"ICON source not ready: cycle={cycle} frame_id={frame_id} param={param}", flush=True)
             return False
     return True
 
@@ -126,12 +126,12 @@ def _params_ready(*, model: ModelConfig, cycle: str, fhour: str, params: Iterabl
 def _existing_success_markers(
     *,
     app_context: ApplicationContext,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run_id: str,
 ) -> set[str]:
     return app_context.artifact_repo.list_success_marker_uris(
-        model_id=model_id,
+        dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
     )
@@ -141,17 +141,17 @@ def _hour_complete(
     *,
     paths: ArtifactPaths,
     existing_markers: set[str],
-    model: ModelConfig,
+    model: DatasetConfig,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
 ) -> bool:
     return all(
         paths.success_marker_uri_parts(
-            model_id=model.id,
+            dataset_id=model.id,
             cycle=cycle,
             run_id=run_id,
-            fhour=fhour,
+            frame_id=frame_id,
             artifact_id=artifact_id,
         )
         in existing_markers
@@ -159,8 +159,8 @@ def _hour_complete(
     )
 
 
-def _lease_pk(*, cycle: str, fhour: str) -> str:
-    return f"{MODEL_ID}#{cycle}#{fhour}"
+def _lease_pk(*, cycle: str, frame_id: str) -> str:
+    return f"{DATASET_ID}#{cycle}#{frame_id}"
 
 
 def _dynamo_s(value: str) -> dict[str, str]:
@@ -171,15 +171,15 @@ def _dynamo_n(value: int) -> dict[str, str]:
     return {"N": str(value)}
 
 
-def _try_acquire_lease(*, ddb, table_name: str, cycle: str, fhour: str, now_epoch: int) -> int | None:
+def _try_acquire_lease(*, ddb, table_name: str, cycle: str, frame_id: str, now_epoch: int) -> int | None:
     lease_seconds = _int_env("ICON_LEASE_SECONDS", DEFAULT_LEASE_SECONDS)
     ttl_seconds = _int_env("ICON_STATE_TTL_SECONDS", DEFAULT_STATE_TTL_SECONDS)
     try:
         response = ddb.update_item(
             TableName=table_name,
-            Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, fhour=fhour))},
+            Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
             UpdateExpression=(
-                "SET #state = :processing, #cycle = :cycle, fhour = :fhour, "
+                "SET #state = :processing, #cycle = :cycle, frame_id = :frame_id, "
                 "lastCheckedAt = :now, leaseUntil = :lease_until, #ttl = :ttl, "
                 "attempt = if_not_exists(attempt, :zero) + :one"
             ),
@@ -188,7 +188,7 @@ def _try_acquire_lease(*, ddb, table_name: str, cycle: str, fhour: str, now_epoc
             ExpressionAttributeValues={
                 ":processing": _dynamo_s("processing"),
                 ":cycle": _dynamo_s(cycle),
-                ":fhour": _dynamo_s(fhour),
+                ":frame_id": _dynamo_s(frame_id),
                 ":now": _dynamo_n(now_epoch),
                 ":lease_until": _dynamo_n(now_epoch + lease_seconds),
                 ":ttl": _dynamo_n(now_epoch + ttl_seconds),
@@ -205,10 +205,10 @@ def _try_acquire_lease(*, ddb, table_name: str, cycle: str, fhour: str, now_epoc
     return int(attempt)
 
 
-def _record_submission(*, ddb, table_name: str, cycle: str, fhour: str, job_id: str, now_epoch: int) -> None:
+def _record_submission(*, ddb, table_name: str, cycle: str, frame_id: str, job_id: str, now_epoch: int) -> None:
     ddb.update_item(
         TableName=table_name,
-        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, fhour=fhour))},
+        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
         UpdateExpression="SET #state = :submitted, jobId = :job_id, submittedAt = :now",
         ExpressionAttributeNames={"#state": "state"},
         ExpressionAttributeValues={
@@ -219,19 +219,19 @@ def _record_submission(*, ddb, table_name: str, cycle: str, fhour: str, job_id: 
     )
 
 
-def _mark_complete(*, ddb, table_name: str, cycle: str, fhour: str, now_epoch: int) -> None:
+def _mark_complete(*, ddb, table_name: str, cycle: str, frame_id: str, now_epoch: int) -> None:
     ttl_seconds = _int_env("ICON_STATE_TTL_SECONDS", DEFAULT_STATE_TTL_SECONDS)
     ddb.update_item(
         TableName=table_name,
-        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, fhour=fhour))},
+        Key={"pk": _dynamo_s(_lease_pk(cycle=cycle, frame_id=frame_id))},
         UpdateExpression=(
-            "SET #state = :complete, #cycle = :cycle, fhour = :fhour, completedAt = :now, #ttl = :ttl"
+            "SET #state = :complete, #cycle = :cycle, frame_id = :frame_id, completedAt = :now, #ttl = :ttl"
         ),
         ExpressionAttributeNames={"#cycle": "cycle", "#state": "state", "#ttl": "ttl"},
         ExpressionAttributeValues={
             ":complete": _dynamo_s("complete"),
             ":cycle": _dynamo_s(cycle),
-            ":fhour": _dynamo_s(fhour),
+            ":frame_id": _dynamo_s(frame_id),
             ":now": _dynamo_n(now_epoch),
             ":ttl": _dynamo_n(now_epoch + ttl_seconds),
         },
@@ -247,16 +247,16 @@ def _submit_job(
     forecast_catalog_uri: str,
     cycle: str,
     run_id: str,
-    fhour: str,
+    frame_id: str,
     attempt: int,
 ) -> str:
-    suffix = hashlib.sha1(f"{cycle}:{run_id}:{fhour}:{attempt}".encode("utf-8")).hexdigest()[:8]
-    job_name = f"icon-{cycle}-{run_id}-{fhour}-{suffix}"[:128]
+    suffix = hashlib.sha1(f"{cycle}:{run_id}:{frame_id}:{attempt}".encode("utf-8")).hexdigest()[:8]
+    job_name = f"icon-{cycle}-{run_id}-{frame_id}-{suffix}"[:128]
     env_vars = [
-        {"name": "MODEL", "value": MODEL_ID},
+        {"name": "DATASET_ID", "value": DATASET_ID},
         {"name": "CYCLE", "value": cycle},
         {"name": "RUN_ID", "value": run_id},
-        {"name": "FHOUR", "value": fhour},
+        {"name": "FRAME_ID", "value": frame_id},
         {"name": "PIPELINE_CONFIG_URI", "value": pipeline_config_uri},
         {"name": "FORECAST_CATALOG_URI", "value": forecast_catalog_uri},
     ]
@@ -268,7 +268,7 @@ def _submit_job(
     )
     job_id = str(response.get("jobId", ""))
     print(
-        f"submitted ICON job: jobName={job_name} jobId={job_id} cycle={cycle} run_id={run_id} fhour={fhour}",
+        f"submitted ICON job: jobName={job_name} jobId={job_id} cycle={cycle} run_id={run_id} frame_id={frame_id}",
         flush=True,
     )
     return job_id
@@ -315,7 +315,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     for cycle in cycles:
         backfill = check_backfill(
             app_context=app_context,
-            model_id=MODEL_ID,
+            dataset_id=DATASET_ID,
             cycle=cycle,
         )
         if not backfill.ok:
@@ -326,58 +326,58 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         cycle_run_id = coordinated_run_id(
             ddb=ddb,
             table_name=run_coordinator_table,
-            model_id=MODEL_ID,
+            dataset_id=DATASET_ID,
             cycle=cycle,
             now=now,
             ttl_seconds=run_coordinator_ttl_seconds(),
         )
         snapshot = app_context.ensure_or_load_run_snapshot(
-            model_id=MODEL_ID,
+            dataset_id=DATASET_ID,
             cycle=cycle,
             run_id=cycle_run_id,
         )
-        model = snapshot.loaded_config.config.model(MODEL_ID)
-        if not model.workload.artifacts or not model.workload.forecast_hours:
+        model = snapshot.loaded_config.config.dataset(DATASET_ID)
+        if not model.workload.artifacts or not model.workload.frames:
             print("ICON workload is empty; nothing to submit", flush=True)
             skipped_cycles += 1
             continue
         required_params = required_icon_params(model)
         previous_required_params = required_previous_icon_params(model)
 
-        if not _params_ready(model=model, cycle=cycle, fhour="000", params=sentinel_params, min_bytes=min_bytes):
+        if not _params_ready(model=model, cycle=cycle, frame_id="000", params=sentinel_params, min_bytes=min_bytes):
             skipped_cycles += 1
             continue
 
         existing_markers = _existing_success_markers(
             app_context=app_context,
-            model_id=model.id,
+            dataset_id=model.id,
             cycle=cycle,
             run_id=cycle_run_id,
         )
-        for fhour in model.workload.forecast_hours:
+        for frame_id in model.workload.frames:
             if _hour_complete(
                 paths=paths,
                 existing_markers=existing_markers,
                 model=model,
                 cycle=cycle,
                 run_id=cycle_run_id,
-                fhour=fhour,
+                frame_id=frame_id,
             ):
-                _mark_complete(ddb=ddb, table_name=state_table, cycle=cycle, fhour=fhour, now_epoch=now_epoch)
+                _mark_complete(ddb=ddb, table_name=state_table, cycle=cycle, frame_id=frame_id, now_epoch=now_epoch)
                 completed += 1
                 continue
 
-            if not _params_ready(model=model, cycle=cycle, fhour=fhour, params=required_params, min_bytes=min_bytes):
+            if not _params_ready(model=model, cycle=cycle, frame_id=frame_id, params=required_params, min_bytes=min_bytes):
                 pending += 1
                 continue
-            previous_fhour = previous_icon_fhour(fhour)
+            previous_frame_id = previous_icon_frame_id(frame_id)
             if (
-                previous_fhour is not None
+                previous_frame_id is not None
                 and previous_required_params
                 and not _params_ready(
                     model=model,
                     cycle=cycle,
-                    fhour=previous_fhour,
+                    frame_id=previous_frame_id,
                     params=previous_required_params,
                     min_bytes=min_bytes,
                 )
@@ -389,7 +389,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 ddb=ddb,
                 table_name=state_table,
                 cycle=cycle,
-                fhour=fhour,
+                frame_id=frame_id,
                 now_epoch=now_epoch,
             )
             if attempt is None:
@@ -404,14 +404,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 forecast_catalog_uri=snapshot.forecast_catalog_uri,
                 cycle=cycle,
                 run_id=cycle_run_id,
-                fhour=fhour,
+                frame_id=frame_id,
                 attempt=attempt,
             )
             _record_submission(
                 ddb=ddb,
                 table_name=state_table,
                 cycle=cycle,
-                fhour=fhour,
+                frame_id=frame_id,
                 job_id=job_id,
                 now_epoch=now_epoch,
             )
@@ -423,6 +423,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "completed": completed,
         "pending": pending,
         "leased": leased,
-        "skippedCycles": skipped_cycles,
+        "skipped_cycles": skipped_cycles,
         "cycles": len(cycles),
     }

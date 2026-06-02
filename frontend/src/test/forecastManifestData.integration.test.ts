@@ -9,7 +9,7 @@ import {
   sampleRasterFrameWithSampler,
 } from '@/forecast/place-probes'
 import {
-  createMultiModelManifestFixture,
+  createMultiDatasetManifestFixture,
   createConfigFixture,
   createForecastSyncPlanFixture,
   createScalarArtifactFixture,
@@ -35,32 +35,32 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('forecast manifest + forecast loading end-to-end', () => {
-  it('fetches forecast manifest once and loads scalar/vector frames from it', async () => {
+describe('data manifest + forecast loading end-to-end', () => {
+  it('fetches data manifest once and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
     const gfsManifest = createSingleTimeManifestFixture({
-      model: { id: 'gfs', label: 'GFS' },
+      dataset: { id: 'gfs', label: 'GFS' },
       cycle: '2026041312',
       run: {
         cycle: '2026041312',
-        runId: '20260413T120000Z-abcdef12',
-        payloadRoot: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
-        generatedAt: '2026-04-13T12:00:00Z',
+        run_id: '20260413T120000Z-abcdef12',
+        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+        generated_at: '2026-04-13T12:00:00Z',
         revision: 'rev',
       },
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           id: 'tmp_surface',
-          payloadFile: 'tmp_surface.field.i8.bin',
+          payload_file: 'tmp_surface.field.i8.bin',
         }),
         wind10m_uv: createVectorArtifactFixture({
           id: 'wind10m_uv',
-          payloadFile: 'wind10m_uv.field.i8.bin',
+          payload_file: 'wind10m_uv.field.i8.bin',
         }),
       },
     })
-    const manifestPayload = createMultiModelManifestFixture({
+    const manifestPayload = createMultiDatasetManifestFixture({
       gfsManifest,
       iconManifest: null,
       layers: gfsManifest.layers,
@@ -69,7 +69,7 @@ describe('forecast manifest + forecast loading end-to-end', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = toUrl(input)
 
-      if (url.endsWith('/manifests/forecast-manifest.json')) {
+      if (url.endsWith('/manifests/data-manifest.json')) {
         return createFetchJsonResponse(manifestPayload)
       }
 
@@ -98,8 +98,8 @@ describe('forecast manifest + forecast loading end-to-end', () => {
       activeRun,
       interpolationWindow: {
         selectedValidTimeMs: Date.UTC(2026, 3, 13, 12),
-        lowerHourToken: '000',
-        upperHourToken: '000',
+        lowerFrameId: '000',
+        upperFrameId: '000',
         lowerValidTimeMs: Date.UTC(2026, 3, 13, 12),
         upperValidTimeMs: Date.UTC(2026, 3, 13, 12),
         mix: 0,

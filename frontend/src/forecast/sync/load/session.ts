@@ -75,9 +75,9 @@ export function createForecastSyncSession(): ForecastSyncSession {
       return prefetchForecastFrames({
         windowPlans: args.plan.windowPlans,
         artifacts,
-        lowerHourToken: args.plan.lowerHourToken,
-        upperHourToken: args.plan.upperHourToken,
-        forecastHourTokens: args.plan.forecastHourTokens,
+        lowerFrameId: args.plan.lowerFrameId,
+        upperFrameId: args.plan.upperFrameId,
+        frameIds: args.plan.frameIds,
         aheadHourCount: args.aheadHourCount,
         concurrency: args.concurrency,
         signal: args.signal,
@@ -133,8 +133,8 @@ function createSyncRequestKey(
 ): string {
   return [
     plan.windowPlanSetKey,
-    plan.lowerHourToken,
-    plan.upperHourToken,
+    plan.lowerFrameId,
+    plan.upperFrameId,
     plan.minuteOffset,
     retryToken,
   ].join(':')

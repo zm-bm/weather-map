@@ -63,7 +63,7 @@ resource "aws_lambda_function" "publisher" {
   environment {
     variables = {
       ARTIFACT_ROOT_URI   = local.artifact_root_uri
-      PUBLISH_MODELS      = join(",", var.publisher_models)
+      PUBLISH_DATASETS    = join(",", var.publisher_datasets)
       PUBLISH_CYCLE_COUNT = tostring(var.publisher_cycle_count)
     }
   }

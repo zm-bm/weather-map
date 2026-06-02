@@ -1,4 +1,4 @@
-"""Resolved ETL configuration models."""
+"""Resolved ETL configuration datasets."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ ArtifactKind: TypeAlias = Literal["scalar", "vector"]
 
 
 class WorkloadConfig(ConfigModel):
-    """Resolved artifact and forecast-hour selection for one model."""
+    """Resolved artifact and forecast-hour selection for one dataset."""
 
-    forecast_hours: UniqueNonEmptyStringTuple
+    frames: UniqueNonEmptyStringTuple
     artifacts: UniqueNonEmptyStringTuple
 
 
@@ -62,7 +62,7 @@ class IconDwdSourceConfig(BaseSourceConfig):
     icon_dwd: IconDwdConfig
 
 
-ModelSourceConfig: TypeAlias = Annotated[
+DatasetSourceConfig: TypeAlias = Annotated[
     GfsNomadsSourceConfig | IconDwdSourceConfig,
     Field(discriminator="type"),
 ]
@@ -102,7 +102,7 @@ class EncodingSpec(ConfigModel):
 
 
 class ArtifactCatalogSpec(ConfigModel):
-    """Reusable artifact definition before model-specific GRIB selectors."""
+    """Reusable artifact definition before dataset-specific GRIB selectors."""
 
     id: NonEmptyStr
     kind: ArtifactKind
@@ -115,7 +115,7 @@ class ArtifactCatalogSpec(ConfigModel):
 
 
 class ArtifactTemporalSpec(ConfigModel):
-    """Temporal semantics for a resolved model artifact."""
+    """Temporal semantics for a resolved dataset artifact."""
 
     kind: NonEmptyStr
     source_interval_hours: FiniteNumber | None = None
@@ -129,7 +129,7 @@ class DerivationInputSpec(ConfigModel):
 
 
 class ArtifactDerivationSpec(ConfigModel):
-    """Source derivation contract for a resolved model artifact."""
+    """Source derivation contract for a resolved dataset artifact."""
 
     type: NonEmptyStr
     first_hour_previous: NonEmptyStr | None = None
@@ -143,8 +143,8 @@ class ArtifactGridTransformSpec(ConfigModel):
     grid_id: NonEmptyStr
 
 
-class ModelArtifactSpec(ConfigModel):
-    """Model-specific GRIB selectors for a catalog artifact."""
+class DatasetArtifactSpec(ConfigModel):
+    """Dataset-specific GRIB selectors for a catalog artifact."""
 
     artifact_id: NonEmptyStr
     component_grib_matches: dict[NonEmptyStr, NonEmptyStringMap | None]
@@ -175,27 +175,27 @@ class ArtifactSpec(ConfigModel):
         return tuple(component.id for component in self.components)
 
 
-class ModelConfig(ConfigModel):
-    """Resolved config for one forecast model."""
+class DatasetConfig(ConfigModel):
+    """Resolved config for one dataset."""
 
     id: NonEmptyStr
     label: NonEmptyStr
-    source: ModelSourceConfig
+    source: DatasetSourceConfig
     workload: WorkloadConfig
-    model_artifacts: dict[str, ModelArtifactSpec]
+    dataset_artifacts: dict[str, DatasetArtifactSpec]
     artifacts: dict[str, ArtifactSpec]
 
 
 class PipelineConfig(ConfigModel):
-    """Resolved ETL config containing the catalog and all configured models."""
+    """Resolved ETL config containing the catalog and all configured datasets."""
 
     artifact_catalog: dict[str, ArtifactCatalogSpec]
-    models: dict[str, ModelConfig]
+    datasets: dict[str, DatasetConfig]
 
-    def model(self, model_id: str) -> ModelConfig:
-        """Return a configured model or fail with the available model ids."""
+    def dataset(self, dataset_id: str) -> DatasetConfig:
+        """Return a configured dataset or fail with the available dataset ids."""
 
-        model = self.models.get(model_id)
-        if model is None:
-            raise SystemExit(f"Unknown model {model_id!r}; configured models: {sorted(self.models)!r}")
-        return model
+        dataset = self.datasets.get(dataset_id)
+        if dataset is None:
+            raise SystemExit(f"Unknown dataset {dataset_id!r}; configured datasets: {sorted(self.datasets)!r}")
+        return dataset

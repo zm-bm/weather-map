@@ -10,7 +10,7 @@ import type {
   VectorArtifactSpec,
 } from '@/forecast/manifest'
 import {
-  normalizeForecastHourToken,
+  normalizeFrameId,
 } from '@/forecast/manifest'
 import { readArtifactPayload } from './payload'
 
@@ -27,7 +27,7 @@ export type RasterBandOrder = 'exact' | 'by-name'
 
 export type RawRasterBands = {
   artifactId: string
-  hourToken: string
+  frameId: string
   grid: GridSpec
   encoding: ManifestEncodingSpec
   bandIds: ReadonlyNonEmptyArray<string>
@@ -42,7 +42,7 @@ export type ArtifactLoader = {
   ) => boolean
   loadRawRasterBands: (
     artifactId: string,
-    hourToken: string,
+    frameId: string,
     bandIds: ReadonlyNonEmptyArray<string>,
     options?: { order?: RasterBandOrder }
   ) => Promise<RawRasterBands>
@@ -56,10 +56,10 @@ export function createArtifactLoader(args: CreateArtifactLoaderArgs): ArtifactLo
       bandIds,
       options
     ),
-    loadRawRasterBands: (artifactId, hourToken, bandIds, options) => loadRawRasterBands({
+    loadRawRasterBands: (artifactId, frameId, bandIds, options) => loadRawRasterBands({
       ...args,
       artifactId,
-      hourToken,
+      frameId,
       bandIds,
       order: options?.order,
     }),
@@ -93,7 +93,7 @@ async function loadRawRasterBands(args: {
   activeRun: ActiveForecastRun
   signal: AbortSignal
   artifactId: string
-  hourToken: string
+  frameId: string
   bandIds: ReadonlyNonEmptyArray<string>
   order?: RasterBandOrder
 }): Promise<RawRasterBands> {
@@ -111,18 +111,18 @@ async function loadRawRasterBands(args: {
     order: args.order,
   })
 
-  const hourToken = normalizeForecastHourToken(args.hourToken)
+  const frameId = normalizeFrameId(args.frameId)
   const payload = await readArtifactPayload({
     config: args.config,
     activeRun: args.activeRun,
-    hourToken,
+    frameId,
     artifact,
     signal: args.signal,
   })
 
   return extractRasterBands({
     artifactId: args.artifactId,
-    hourToken,
+    frameId,
     artifact,
     payload,
     bandIds: args.bandIds,
@@ -153,7 +153,7 @@ function validateRasterBandRequest(args: {
 
 function extractRasterBands(args: {
   artifactId: string
-  hourToken: string
+  frameId: string
   artifact: ManifestArtifactSpec
   payload: ArrayBuffer
   bandIds: ReadonlyNonEmptyArray<string>
@@ -162,7 +162,7 @@ function extractRasterBands(args: {
     artifact,
     artifactId,
     bandIds,
-    hourToken,
+    frameId,
     payload,
   } = args
   const { components, grid } = artifact
@@ -172,14 +172,14 @@ function extractRasterBands(args: {
   if (payload.byteLength !== expectedByteLength) {
     const label = artifact.kind === 'scalar' ? 'Scalar' : 'Vector component'
     throw new Error(
-      `${label} payload byte length mismatch for ${artifactId} ${hourToken}: ` +
+      `${label} payload byte length mismatch for ${artifactId} ${frameId}: ` +
       `got=${payload.byteLength} expected=${expectedByteLength}`
     )
   }
 
   return {
     artifactId,
-    hourToken,
+    frameId,
     grid,
     encoding: artifact.encoding,
     bandIds: [...bandIds] as ReadonlyNonEmptyArray<string>,
@@ -211,8 +211,8 @@ function assertSupportedScalarArtifact(
   if (encoding.dtype !== 'int8') {
     throw new Error(`Unsupported scalar dtype for ${artifactId}: ${encoding.dtype}`)
   }
-  if (encoding.byteOrder !== 'none') {
-    throw new Error(`Unsupported scalar byte order for ${artifactId}: ${encoding.byteOrder}`)
+  if (encoding.byte_order !== 'none') {
+    throw new Error(`Unsupported scalar byte order for ${artifactId}: ${encoding.byte_order}`)
   }
 }
 
@@ -228,11 +228,11 @@ function assertSupportedVectorArtifact(
   if (encoding.dtype !== 'int8') {
     throw new Error(`Unsupported vector dtype for ${artifactId}: ${encoding.dtype}`)
   }
-  if (encoding.byteOrder !== 'none') {
-    throw new Error(`Unsupported vector byte order for ${artifactId}: ${encoding.byteOrder}`)
+  if (encoding.byte_order !== 'none') {
+    throw new Error(`Unsupported vector byte order for ${artifactId}: ${encoding.byte_order}`)
   }
-  if (encoding.decodeFormula !== VECTOR_COMPONENT_DECODE_FORMULA) {
-    throw new Error(`Unsupported vector decode formula for ${artifactId}: ${encoding.decodeFormula}`)
+  if (encoding.decode_formula !== VECTOR_COMPONENT_DECODE_FORMULA) {
+    throw new Error(`Unsupported vector decode formula for ${artifactId}: ${encoding.decode_formula}`)
   }
   if (components.length < 1) {
     throw new Error(`Unsupported vector components for ${artifactId}: ${JSON.stringify(components)}`)

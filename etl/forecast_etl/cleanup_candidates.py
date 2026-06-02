@@ -22,7 +22,7 @@ def cleanup_runs_report(
     *,
     artifact_repo: ArtifactRepository,
     store: UriStore,
-    model_id: str,
+    dataset_id: str,
     cycle: str | None = None,
     now: datetime | None = None,
     delete_candidates: bool = False,
@@ -30,20 +30,20 @@ def cleanup_runs_report(
     """Return cleanup candidates for run-first ETL attempts, optionally deleting candidates."""
 
     resolved_now = _utc(now or datetime.now(timezone.utc))
-    cycles = (cycle,) if cycle is not None else tuple(sorted(artifact_repo.list_run_cycles(model_id=model_id), reverse=True))
+    cycles = (cycle,) if cycle is not None else tuple(sorted(artifact_repo.list_run_cycles(dataset_id=dataset_id), reverse=True))
     runs: list[dict[str, Any]] = []
     for run_cycle in cycles:
         run_statuses = runs_report(
             artifact_repo=artifact_repo,
             store=store,
-            model_id=model_id,
+            dataset_id=dataset_id,
             cycle=run_cycle,
         )["runs"]
         for run in run_statuses:
             runs.append(
                 _cleanup_entry(
                     artifact_repo=artifact_repo,
-                    model_id=model_id,
+                    dataset_id=dataset_id,
                     cycle=run_cycle,
                     run=run,
                     now=resolved_now,
@@ -54,15 +54,15 @@ def cleanup_runs_report(
 
     return {
         "schema": CLEANUP_SCHEMA,
-        "schemaVersion": SCHEMA_VERSION,
-        "model": model_id,
+        "schema_version": SCHEMA_VERSION,
+        "dataset_id": dataset_id,
         "cycle": cycle,
         "mode": "delete" if delete_candidates else "dry-run",
-        "candidateCount": sum(1 for run in runs if run["candidate"]),
-        "protectedCount": sum(1 for run in runs if run["protected"]),
-        "deletedObjectCount": sum(int(run.get("deletedObjectCount") or 0) for run in runs),
-        "deletedBytes": sum(int(run.get("deletedBytes") or 0) for run in runs),
-        "deleteErrorCount": sum(1 for run in runs if run.get("deleteError")),
+        "candidate_count": sum(1 for run in runs if run["candidate"]),
+        "protected_count": sum(1 for run in runs if run["protected"]),
+        "deleted_object_count": sum(int(run.get("deleted_object_count") or 0) for run in runs),
+        "deleted_bytes": sum(int(run.get("deleted_bytes") or 0) for run in runs),
+        "delete_error_count": sum(1 for run in runs if run.get("delete_error")),
         "runs": runs,
     }
 
@@ -70,14 +70,14 @@ def cleanup_runs_report(
 def _cleanup_entry(
     *,
     artifact_repo: ArtifactRepository,
-    model_id: str,
+    dataset_id: str,
     cycle: str,
     run: Mapping[str, Any],
     now: datetime,
 ) -> dict[str, Any]:
-    run_id = validate_run_id(str(run["runId"]))
-    run_prefix = artifact_repo.paths.run_prefix_key(model_id=model_id, cycle=cycle, run_id=run_id)
-    objects = artifact_repo.list_run_objects(model_id=model_id, cycle=cycle, run_id=run_id)
+    run_id = validate_run_id(str(run["run_id"]))
+    run_prefix = artifact_repo.paths.run_prefix_key(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
+    objects = artifact_repo.list_run_objects(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
     age_hours = _age_hours(objects=objects, run_id=run_id, now=now)
     object_count, total_bytes, unknown_size_count = _object_totals(objects)
     state = _cleanup_state(run)
@@ -93,23 +93,23 @@ def _cleanup_entry(
         threshold_hours=threshold_hours,
     )
     return {
-        "model": model_id,
+        "dataset_id": dataset_id,
         "cycle": cycle,
-        "runId": run_id,
+        "run_id": run_id,
         "state": state,
         "candidate": candidate,
         "protected": protected,
         "reason": reason,
-        "ageHours": age_hours,
-        "thresholdHours": threshold_hours,
-        "objectCount": object_count,
-        "totalBytes": total_bytes,
-        "unknownSizeCount": unknown_size_count,
+        "age_hours": age_hours,
+        "threshold_hours": threshold_hours,
+        "object_count": object_count,
+        "total_bytes": total_bytes,
+        "unknown_size_count": unknown_size_count,
         "deleted": False,
-        "deletedObjectCount": 0,
-        "deletedBytes": 0,
-        "deleteError": None,
-        "runPrefix": run_prefix,
+        "deleted_object_count": 0,
+        "deleted_bytes": 0,
+        "delete_error": None,
+        "run_prefix": run_prefix,
     }
 
 
@@ -119,17 +119,17 @@ def _delete_candidates(*, artifact_repo: ArtifactRepository, runs: list[dict[str
             continue
         try:
             deleted = artifact_repo.delete_run_objects(
-                model_id=str(run["model"]),
+                dataset_id=str(run["dataset_id"]),
                 cycle=str(run["cycle"]),
-                run_id=str(run["runId"]),
+                run_id=str(run["run_id"]),
             )
         except (Exception, SystemExit) as exc:
-            run["deleteError"] = str(exc)
+            run["delete_error"] = str(exc)
             continue
         known_sizes = [obj.size for obj in deleted if isinstance(obj.size, int)]
         run["deleted"] = True
-        run["deletedObjectCount"] = len(deleted)
-        run["deletedBytes"] = sum(known_sizes)
+        run["deleted_object_count"] = len(deleted)
+        run["deleted_bytes"] = sum(known_sizes)
 
 
 def _cleanup_state(run: Mapping[str, Any]) -> str:
@@ -152,7 +152,7 @@ def _cleanup_state(run: Mapping[str, Any]) -> str:
 def _protection_reason(run: Mapping[str, Any]) -> tuple[bool, str | None]:
     reasons: list[str] = []
     if bool(run.get("latest")):
-        reasons.append("model latest")
+        reasons.append("dataset latest")
     if bool(run.get("current")):
         reasons.append("cycle current")
     if not reasons:

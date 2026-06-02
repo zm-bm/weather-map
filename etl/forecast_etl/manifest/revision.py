@@ -20,6 +20,6 @@ def _revision_basis(manifest_obj: Mapping[str, Any]) -> dict[str, Any]:
     basis = deepcopy(dict(manifest_obj))
     run = basis.get("run")
     if isinstance(run, dict):
-        run.pop("generatedAt", None)
+        run.pop("generated_at", None)
         run.pop("revision", None)
     return basis

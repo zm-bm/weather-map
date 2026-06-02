@@ -12,7 +12,7 @@ import type {
 export type EncodedRasterBand = Int8Array
 
 export type EncodedRasterFrame = {
-  hourToken: string
+  frameId: string
   artifactId: string
   cacheKey: string
   grid: GridSpec
@@ -37,8 +37,8 @@ export type ForecastWindowId = keyof ForecastFrameMap
 
 export type FrameWindow<T> = {
   selectedValidTimeMs: number
-  lowerHourToken: string
-  upperHourToken: string
+  lowerFrameId: string
+  upperFrameId: string
   mix: number
   lower: T
   upper: T

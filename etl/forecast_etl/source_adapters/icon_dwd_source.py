@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-from ..config.resolved import ModelConfig
+from ..config.resolved import DatasetConfig
 from ..cycles import parse_cycle
 from ..derivations import (
     ICON_AVERAGE_RATE_DERIVATION_TYPES,
@@ -32,22 +32,22 @@ class IconSourceNotReady(RuntimeError):
     """Raised when DWD has not finished publishing a requested ICON input."""
 
 
-def icon_dwd_filename(*, cycle: str, fhour: str, icon_param: str) -> str:
+def icon_dwd_filename(*, cycle: str, frame_id: str, icon_param: str) -> str:
     """Return the DWD ICON GRIB2.bz2 filename for one parameter."""
 
-    return f"icon_global_icosahedral_single-level_{cycle}_{fhour}_{icon_param.upper()}.grib2.bz2"
+    return f"icon_global_icosahedral_single-level_{cycle}_{frame_id}_{icon_param.upper()}.grib2.bz2"
 
 
-def icon_dwd_url(*, base_url: str, cycle: str, fhour: str, icon_param: str) -> str:
+def icon_dwd_url(*, base_url: str, cycle: str, frame_id: str, icon_param: str) -> str:
     """Return the DWD ICON download URL for one cycle/hour/parameter."""
 
     _, cycle_hour = parse_cycle(cycle)
-    filename = icon_dwd_filename(cycle=cycle, fhour=fhour, icon_param=icon_param)
+    filename = icon_dwd_filename(cycle=cycle, frame_id=frame_id, icon_param=icon_param)
     return f"{base_url.rstrip('/')}/{cycle_hour}/{icon_param.lower()}/{filename}"
 
 
-def required_icon_params(model: ModelConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
-    """Return the unique ICON parameters required by the model workload."""
+def required_icon_params(model: DatasetConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
+    """Return the unique ICON parameters required by the dataset workload."""
 
     resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts)
     params: set[str] = set()
@@ -71,7 +71,7 @@ def required_icon_params(model: ModelConfig, artifact_ids: Iterable[str] | None 
     return tuple(sorted(params))
 
 
-def required_previous_icon_params(model: ModelConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
+def required_previous_icon_params(model: DatasetConfig, artifact_ids: Iterable[str] | None = None) -> tuple[str, ...]:
     """Return ICON parameters needed from the previous forecast hour."""
 
     resolved_artifact_ids = tuple(artifact_ids or model.workload.artifacts)
@@ -92,12 +92,12 @@ def required_previous_icon_params(model: ModelConfig, artifact_ids: Iterable[str
     return tuple(sorted(params))
 
 
-def previous_icon_fhour(fhour: str) -> str | None:
-    """Return the previous forecast-hour id, or None for zero-baseline hours."""
+def previous_icon_frame_id(frame_id: str) -> str | None:
+    """Return the previous ICON frame id, or None for zero-baseline frames."""
 
-    if len(fhour) != 3 or not fhour.isdigit():
-        raise SystemExit(f"ICON forecast hour must be a 3-digit string, got {fhour!r}")
-    hour = int(fhour)
+    if len(frame_id) != 3 or not frame_id.isdigit():
+        raise SystemExit(f"ICON frame id must be a 3-digit string, got {frame_id!r}")
+    hour = int(frame_id)
     if hour <= 1:
         return None
     return f"{hour - 1:03d}"

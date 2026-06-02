@@ -23,24 +23,26 @@ JOB_DEFINITION="$(terraform output -raw batch_job_definition_arn)"
 JOB_NAME_PREFIX="${JOB_NAME_PREFIX:-weather-etl-worker}"
 JOB_NAME="${JOB_NAME_PREFIX}-$(date +%s)"
 
-MODEL="${MODEL:-gfs}"
+DATASET_ID="${DATASET_ID:-gfs}"
 CYCLE="${CYCLE:?CYCLE is required}"
-FHOUR="${FHOUR:?FHOUR is required}"
+RUN_ID="${RUN_ID:?RUN_ID is required}"
+FRAME_ID="${FRAME_ID:?FRAME_ID is required}"
 GRIB_SOURCE_URI="${GRIB_SOURCE_URI:?GRIB_SOURCE_URI is required}"
 
 echo "Submitting worker job"
 echo "  queue: $QUEUE"
 echo "  job_definition: $JOB_DEFINITION"
-echo "  model: $MODEL"
-echo "  cycle/fhour: $CYCLE / $FHOUR"
+echo "  dataset_id: $DATASET_ID"
+echo "  cycle/run_id/frame_id: $CYCLE / $RUN_ID / $FRAME_ID"
 echo "  grib_source_uri: $GRIB_SOURCE_URI"
 
 CONTAINER_OVERRIDES="$(cat <<EOF
 {
   "environment": [
-    {"name": "MODEL", "value": "$MODEL"},
+    {"name": "DATASET_ID", "value": "$DATASET_ID"},
     {"name": "CYCLE", "value": "$CYCLE"},
-    {"name": "FHOUR", "value": "$FHOUR"},
+    {"name": "RUN_ID", "value": "$RUN_ID"},
+    {"name": "FRAME_ID", "value": "$FRAME_ID"},
     {"name": "GRIB_SOURCE_URI", "value": "$GRIB_SOURCE_URI"}
   ]
 }

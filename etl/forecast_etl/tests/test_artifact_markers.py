@@ -20,8 +20,8 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
             {
                 "cycle": "2026041200",
                 "run_id": DEFAULT_RUN_ID,
-                "model_id": "gfs",
-                "fhour": "003",
+                "dataset_id": "gfs",
+                "frame_id": "003",
                 "artifact_id": "wind10m_uv",
                 "code_revision": DEFAULT_CODE_REVISION,
                 "image_identity": DEFAULT_IMAGE_IDENTITY,
@@ -49,7 +49,7 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
         )
 
         self.assertEqual(marker.artifact_id, "wind10m_uv")
-        self.assertEqual(marker.model_id, "gfs")
+        self.assertEqual(marker.dataset_id, "gfs")
         self.assertEqual(marker.run_id, DEFAULT_RUN_ID)
         self.assertEqual(marker.code_revision, DEFAULT_CODE_REVISION)
         self.assertEqual(marker.image_identity, DEFAULT_IMAGE_IDENTITY)
@@ -67,8 +67,8 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                 {
                     "cycle": "2026041200",
                     "run_id": DEFAULT_RUN_ID,
-                    "model_id": "gfs",
-                    "fhour": "003",
+                    "dataset_id": "gfs",
+                    "frame_id": "003",
                     "artifact_id": "wind10m_uv",
                     "code_revision": DEFAULT_CODE_REVISION,
                     "image_identity": DEFAULT_IMAGE_IDENTITY,
@@ -91,8 +91,8 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                 {
                     "cycle": "2026041200",
                     "run_id": DEFAULT_RUN_ID,
-                    "model_id": "gfs",
-                    "fhour": "003",
+                    "dataset_id": "gfs",
+                    "frame_id": "003",
                     "artifact_id": "tmp_surface",
                     "code_revision": DEFAULT_CODE_REVISION,
                     "image_identity": DEFAULT_IMAGE_IDENTITY,
@@ -112,8 +112,8 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
             parse_artifact_success_marker(
                 {
                     "cycle": "2026041200",
-                    "model_id": "gfs",
-                    "fhour": "003",
+                    "dataset_id": "gfs",
+                    "frame_id": "003",
                     "artifact_id": "tmp_surface",
                     "code_revision": DEFAULT_CODE_REVISION,
                     "image_identity": DEFAULT_IMAGE_IDENTITY,
