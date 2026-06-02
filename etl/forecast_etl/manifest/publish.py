@@ -6,18 +6,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
-from ..artifacts.markers_schema import ArtifactSuccessMarker, parse_artifact_success_marker
-from ..artifacts.published_schema import published_marker_dict
 from ..artifacts.repository import ArtifactRepository
 from ..config.resolved import ArtifactSpec, PipelineConfig
-from ..run_ids import validate_run_id
-from ..run_snapshots import select_run_id_for_cycle
-from ..run_validation import validation_report_passed
 from ..runtime import ExecutionContext
 from .build import build_cycle_manifest, build_manifest_artifacts
-from .data_manifest import publish_data_manifest
-from .inspect import manifest_info_from_obj
-from .pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict, parse_manifest_pointer
+from .data_manifest_refresh import maybe_publish_data_manifest
+from .marker_evidence import collect_publish_marker_evidence
+from .promotion import promote_built_manifest, promote_existing_published_run
+from .readiness import check_publish_readiness
 
 
 @dataclass(frozen=True)
@@ -47,115 +43,74 @@ def run_publish(
 ) -> PublishResult:
     """Publish a cycle manifest when all requested success markers exist."""
 
-    frames = tuple(ctx.frames or ())
-    artifact_ids = tuple(artifact_ids)
-
-    if not frames:
-        print("Publish not ready: ctx.frames is empty")
-        return PublishResult(ready=False, already_published=False)
-
-    if not artifact_ids:
-        print("Publish not ready: workload.artifacts is empty")
-        return PublishResult(ready=False, already_published=False)
-
-    resolved_run_id, run_errors = select_run_id_for_cycle(
-        artifact_repo=artifact_repo,
-        dataset_id=ctx.dataset_id,
+    readiness = check_publish_readiness(
+        ctx=ctx,
         cycle=cycle,
-        required_run_id=run_id,
+        run_id=run_id,
+        artifact_ids=artifact_ids,
+        artifact_repo=artifact_repo,
     )
-    if run_errors:
-        print(f"Publish not ready: run selection failed for dataset_id={ctx.dataset_id} cycle={cycle}")
-        for error in run_errors[:10]:
-            print(f"run error: {error}")
-        if len(run_errors) > 10:
-            print(f"... and {len(run_errors) - 10} more")
+    if not readiness.ready:
         return PublishResult(
             ready=False,
             already_published=False,
-            run_id=resolved_run_id,
-            marker_errors=tuple(run_errors),
+            run_id=readiness.run_id,
+            marker_errors=readiness.marker_errors,
+            validation_errors=readiness.validation_errors,
         )
+
+    resolved_run_id = readiness.run_id
     if resolved_run_id is None:
         print("Publish not ready: no run found")
         return PublishResult(ready=False, already_published=False)
 
-    validation_passed, validation_errors = validation_report_passed(
-        artifact_repo=artifact_repo,
-        dataset_id=ctx.dataset_id,
-        cycle=cycle,
-        run_id=resolved_run_id,
-    )
-    if not validation_passed:
-        print(f"Publish not ready: validation has not passed for dataset_id={ctx.dataset_id} cycle={cycle} run_id={resolved_run_id}")
-        for error in validation_errors[:10]:
-            print(f"validation error: {error}")
-        if len(validation_errors) > 10:
-            print(f"... and {len(validation_errors) - 10} more")
-        return PublishResult(
-            ready=False,
-            already_published=False,
-            run_id=resolved_run_id,
-            validation_errors=tuple(validation_errors),
-        )
-
-    fast_result = _try_publish_from_existing_run(
+    generated_at = _utc_now_iso()
+    existing_promotion = promote_existing_published_run(
         artifacts=artifact_repo,
         dataset_id=ctx.dataset_id,
         cycle=cycle,
         run_id=resolved_run_id,
-        pipeline_config=pipeline_config,
-        forecast_catalog=forecast_catalog,
-        generated_at=_utc_now_iso(),
     )
-    if fast_result is not None:
-        return fast_result
+    if existing_promotion is not None:
+        maybe_publish_data_manifest(
+            artifacts=artifact_repo,
+            dataset_id=ctx.dataset_id,
+            cycle=cycle,
+            run_id=resolved_run_id,
+            revision=existing_promotion.revision,
+            latest_promoted=existing_promotion.latest_promoted,
+            pipeline_config=pipeline_config,
+            forecast_catalog=forecast_catalog,
+            generated_at=generated_at,
+        )
+        print(
+            "Already published (reused run manifest): "
+            f"{artifact_repo.paths.published_marker_uri(dataset_id=ctx.dataset_id, cycle=cycle, run_id=resolved_run_id)}"
+        )
+        print(f"Published: {existing_promotion.public_manifest_uri}")
+        return PublishResult(
+            ready=True,
+            already_published=existing_promotion.already_published,
+            latest_promoted=existing_promotion.latest_promoted,
+            run_id=resolved_run_id,
+        )
 
-    missing = artifact_repo.missing_success_markers(
-        dataset_id=ctx.dataset_id,
-        cycle=cycle,
-        run_id=resolved_run_id,
-        frames=frames,
-        artifact_ids=artifact_ids,
-    )
-    if missing:
-        print(f"Publish not ready: missing {len(missing)} success markers")
-        for marker in missing[:10]:
-            print(f"missing: {marker}")
-        if len(missing) > 10:
-            print(f"... and {len(missing) - 10} more")
-        return PublishResult(ready=False, already_published=False, missing_markers=tuple(missing))
-
-    expected_marker_count = len(frames) * len(artifact_ids)
-    print(
-        f"Publish reading {expected_marker_count} success markers "
-        f"dataset_id={ctx.dataset_id} cycle={cycle} run_id={resolved_run_id}",
-        flush=True,
-    )
-    marker_cache, marker_errors = _read_publish_markers(
+    marker_evidence = collect_publish_marker_evidence(
         artifact_repo=artifact_repo,
         dataset_id=ctx.dataset_id,
         cycle=cycle,
         run_id=resolved_run_id,
-        frames=frames,
-        artifact_ids=artifact_ids,
-        required_run_id=resolved_run_id,
+        frames=readiness.frames,
+        artifact_ids=readiness.artifact_ids,
     )
-    if marker_errors:
-        print(f"Publish not ready: run id marker validation failed for {len(marker_errors)} marker(s)")
-        for error in marker_errors[:10]:
-            print(f"marker error: {error}")
-        if len(marker_errors) > 10:
-            print(f"... and {len(marker_errors) - 10} more")
+    if not marker_evidence.ready:
         return PublishResult(
             ready=False,
             already_published=False,
             run_id=resolved_run_id,
-            marker_errors=tuple(marker_errors),
+            missing_markers=marker_evidence.missing_markers,
+            marker_errors=marker_evidence.marker_errors,
         )
-    if resolved_run_id is None:
-        print("Publish not ready: no run_id found in success markers")
-        return PublishResult(ready=False, already_published=False)
 
     print(f"Publish building manifest dataset_id={ctx.dataset_id} cycle={cycle} run_id={resolved_run_id}", flush=True)
     manifest_artifacts = build_manifest_artifacts(
@@ -163,13 +118,12 @@ def run_publish(
         dataset_id=ctx.dataset_id,
         cycle=cycle,
         run_id=resolved_run_id,
-        frames=frames,
-        artifact_ids=artifact_ids,
+        frames=readiness.frames,
+        artifact_ids=readiness.artifact_ids,
         artifact_specs=artifact_specs,
-        marker_cache=marker_cache,
+        marker_cache=marker_evidence.marker_cache,
     )
 
-    generated_at = _utc_now_iso()
     manifest_obj = build_cycle_manifest(
         dataset_id=ctx.dataset_id,
         dataset_label=dataset_label,
@@ -181,449 +135,38 @@ def run_publish(
             run_id=resolved_run_id,
         ),
         generated_at=generated_at,
-        frames=frames,
+        frames=readiness.frames,
         artifacts=manifest_artifacts,
     )
-    revision = str(manifest_obj["run"]["revision"])
 
-    already_published = _is_already_published(
-        artifacts=artifact_repo,
-        dataset_id=ctx.dataset_id,
-        run_id=resolved_run_id,
-        revision=revision,
-        cycle=cycle,
-    )
-
-    manifest_to_publish = manifest_obj
-    if already_published:
-        manifest_to_publish = artifact_repo.read_run_manifest(dataset_id=ctx.dataset_id, cycle=cycle, run_id=resolved_run_id)
-    else:
-        artifact_repo.write_run_manifest(
-            dataset_id=ctx.dataset_id,
-            cycle=cycle,
-            run_id=resolved_run_id,
-            manifest=manifest_obj,
-        )
-
-    public_manifest_uri = artifact_repo.write_public_run_manifest(
-        dataset_id=ctx.dataset_id,
-        cycle=cycle,
-        run_id=resolved_run_id,
-        manifest=manifest_to_publish,
-    )
-    current_pointer = _manifest_pointer_for_manifest(
-        artifacts=artifact_repo,
-        schema_name=CURRENT_POINTER_SCHEMA,
-        dataset_id=ctx.dataset_id,
-        cycle=cycle,
-        run_id=resolved_run_id,
-        manifest_obj=manifest_to_publish,
-        public_manifest_uri=public_manifest_uri,
-    )
-    artifact_repo.write_cycle_current_pointer(dataset_id=ctx.dataset_id, cycle=cycle, pointer=current_pointer)
-
-    latest_promoted = _maybe_promote_latest(
-        artifacts=artifact_repo,
-        dataset_id=ctx.dataset_id,
-        cycle=cycle,
-        latest_pointer=_manifest_pointer_for_manifest(
-            artifacts=artifact_repo,
-            schema_name=LATEST_POINTER_SCHEMA,
-            dataset_id=ctx.dataset_id,
-            cycle=cycle,
-            run_id=resolved_run_id,
-            manifest_obj=manifest_to_publish,
-            public_manifest_uri=public_manifest_uri,
-        ),
-    )
-    revision = str(manifest_to_publish["run"]["revision"])
-    if pipeline_config is not None and _should_refresh_data_manifest(
+    promotion = promote_built_manifest(
         artifacts=artifact_repo,
         dataset_id=ctx.dataset_id,
         cycle=cycle,
         run_id=resolved_run_id,
-        revision=revision,
-        latest_promoted=latest_promoted,
-    ):
-        data_manifest_uri = publish_data_manifest(
-            pipeline_config=pipeline_config,
-            artifact_repo=artifact_repo,
-            catalog=forecast_catalog,
-            generated_at=generated_at,
-        )
-        print(f"Published data manifest: {data_manifest_uri}")
-
-    if not already_published:
-        artifact_repo.write_published_marker(
-            dataset_id=ctx.dataset_id,
-            cycle=cycle,
-            run_id=resolved_run_id,
-            marker=published_marker_dict(
-                cycle=cycle,
-                dataset_id=ctx.dataset_id,
-                generated_at=generated_at,
-                revision=revision,
-                manifest_uri=public_manifest_uri,
-            ),
-        )
-
-    print(f"Published: {public_manifest_uri}")
-    return PublishResult(
-        ready=True,
-        already_published=already_published,
-        latest_promoted=latest_promoted,
-        run_id=resolved_run_id,
-    )
-
-
-def _try_publish_from_existing_run(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-    pipeline_config: PipelineConfig | None,
-    forecast_catalog: Mapping | None,
-    generated_at: str,
-) -> PublishResult | None:
-    """Fast path for a run that already has a matching manifest and published marker."""
-
-    if not artifacts.published_marker_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
-        return None
-    if not artifacts.run_manifest_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
-        return None
-
-    try:
-        published_marker = artifacts.read_published_marker(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
-        manifest_obj = artifacts.read_run_manifest(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
-    except (Exception, SystemExit) as exc:
-        print(f"Unable to reuse existing published run; republishing from markers: {exc}")
-        return None
-
-    run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
-    revision = run.get("revision") if isinstance(run, Mapping) else None
-    manifest_run_id = run.get("run_id") if isinstance(run, Mapping) else None
-    if not isinstance(revision, str) or published_marker.revision != revision:
-        return None
-    if manifest_run_id != run_id:
-        print(
-            "Unable to reuse existing published run; run manifest run_id mismatch.\n"
-            f"  expected={run_id!r}\n"
-            f"  found={manifest_run_id!r}"
-        )
-        return None
-
-    public_manifest_uri = artifacts.write_public_run_manifest(
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-        manifest=manifest_obj,
-    )
-    current_pointer = _manifest_pointer_for_manifest(
-        artifacts=artifacts,
-        schema_name=CURRENT_POINTER_SCHEMA,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
         manifest_obj=manifest_obj,
-        public_manifest_uri=public_manifest_uri,
+        generated_at=generated_at,
     )
-    if not _cycle_current_pointer_matches_revision(
-        artifacts=artifacts,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-        revision=revision,
-    ):
-        artifacts.write_cycle_current_pointer(dataset_id=dataset_id, cycle=cycle, pointer=current_pointer)
 
-    latest_promoted = _maybe_promote_latest(
-        artifacts=artifacts,
-        dataset_id=dataset_id,
+    maybe_publish_data_manifest(
+        artifacts=artifact_repo,
+        dataset_id=ctx.dataset_id,
         cycle=cycle,
-        latest_pointer=_manifest_pointer_for_manifest(
-            artifacts=artifacts,
-            schema_name=LATEST_POINTER_SCHEMA,
-            dataset_id=dataset_id,
-            cycle=cycle,
-            run_id=run_id,
-            manifest_obj=manifest_obj,
-            public_manifest_uri=public_manifest_uri,
-        ),
+        run_id=resolved_run_id,
+        revision=promotion.revision,
+        latest_promoted=promotion.latest_promoted,
+        pipeline_config=pipeline_config,
+        forecast_catalog=forecast_catalog,
+        generated_at=generated_at,
     )
-    if pipeline_config is not None and _should_refresh_data_manifest(
-        artifacts=artifacts,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-        revision=revision,
-        latest_promoted=latest_promoted,
-    ):
-        data_manifest_uri = publish_data_manifest(
-            pipeline_config=pipeline_config,
-            artifact_repo=artifacts,
-            catalog=forecast_catalog,
-            generated_at=generated_at,
-        )
-        print(f"Published data manifest: {data_manifest_uri}")
 
-    print(f"Already published (reused run manifest): {artifacts.paths.published_marker_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)}")
-    print(f"Published: {public_manifest_uri}")
+    print(f"Published: {promotion.public_manifest_uri}")
     return PublishResult(
         ready=True,
-        already_published=True,
-        latest_promoted=latest_promoted,
-        run_id=run_id,
+        already_published=promotion.already_published,
+        latest_promoted=promotion.latest_promoted,
+        run_id=resolved_run_id,
     )
-
-
-def _should_refresh_data_manifest(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-    revision: str,
-    latest_promoted: bool,
-) -> bool:
-    if latest_promoted:
-        return True
-    if not _latest_pointer_matches_revision(
-        artifacts=artifacts,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-        revision=revision,
-    ):
-        return False
-    return not _data_manifest_dataset_matches_revision(
-        artifacts=artifacts,
-        dataset_id=dataset_id,
-        revision=revision,
-    )
-
-
-def _read_publish_markers(
-    *,
-    artifact_repo: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-    frames: tuple[str, ...],
-    artifact_ids: tuple[str, ...],
-    required_run_id: str | None,
-) -> tuple[dict[tuple[str, str], ArtifactSuccessMarker], list[str]]:
-    """Read expected markers once and require one consistent run id."""
-
-    markers: dict[tuple[str, str], ArtifactSuccessMarker] = {}
-    run_ids: set[str] = set()
-    errors: list[str] = []
-    for artifact_id in artifact_ids:
-        for frame_id in frames:
-            uri = artifact_repo.paths.success_marker_uri_parts(
-                dataset_id=dataset_id,
-                cycle=cycle,
-                run_id=run_id,
-                frame_id=frame_id,
-                artifact_id=artifact_id,
-            )
-            try:
-                raw_marker = artifact_repo.read_json_uri(uri)
-            except (Exception, SystemExit) as exc:
-                errors.append(f"{uri}: {exc}")
-                continue
-            raw_run_id = raw_marker.get("run_id") if isinstance(raw_marker, Mapping) else None
-            if not isinstance(raw_run_id, str) or not raw_run_id.strip():
-                errors.append(f"{uri}: missing run_id")
-                continue
-            try:
-                marker_run_id = validate_run_id(raw_run_id)
-                run_ids.add(marker_run_id)
-                markers[(artifact_id, frame_id)] = parse_artifact_success_marker(raw_marker, uri=uri)
-            except ValueError as exc:
-                errors.append(f"{uri}: {exc}")
-
-    if required_run_id is not None and run_ids and run_ids != {required_run_id}:
-        errors.append(
-            f"success markers run_id mismatch: expected={required_run_id!r} found={sorted(run_ids)!r}"
-        )
-    if len(run_ids) > 1:
-        errors.append(f"success markers contain multiple run_id values: {sorted(run_ids)!r}")
-    if errors:
-        return markers, errors
-    if required_run_id is not None and not run_ids:
-        return markers, [f"success markers missing required run_id {required_run_id!r}"]
-    return markers, []
-
-
-def _is_already_published(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    run_id: str,
-    revision: str,
-    cycle: str,
-) -> bool:
-    """Return whether the published marker matches the new manifest revision."""
-
-    published_uri = artifacts.paths.published_marker_uri(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
-    if not artifacts.published_marker_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
-        return False
-
-    try:
-        previous = artifacts.read_published_marker(dataset_id=dataset_id, cycle=cycle, run_id=run_id)
-    except (Exception, SystemExit) as exc:
-        print(f"Unable to parse existing publish marker {published_uri}; republishing: {exc}")
-        return False
-
-    previous_revision = previous.revision
-    if previous_revision == revision and artifacts.run_manifest_exists(dataset_id=dataset_id, cycle=cycle, run_id=run_id):
-        print(f"Already published (same revisions): {published_uri}")
-        return True
-
-    print(
-        "Publish marker exists but revision differs; republishing.\n"
-        f"  cycle={cycle}\n"
-        f"  prev_revision={previous_revision!r}\n"
-        f"  new_revision={revision!r}\n"
-        f"  marker={published_uri}"
-    )
-    return False
-
-
-def _manifest_pointer_for_manifest(
-    *,
-    artifacts: ArtifactRepository,
-    schema_name: str,
-    dataset_id: str,
-    cycle: str,
-    manifest_obj: dict,
-    run_id: str,
-    public_manifest_uri: str,
-) -> dict:
-    run = manifest_obj.get("run") if isinstance(manifest_obj, Mapping) else None
-    revision = run.get("revision") if isinstance(run, Mapping) else None
-    generated_at = run.get("generated_at") if isinstance(run, Mapping) else None
-    if not isinstance(revision, str) or not isinstance(generated_at, str):
-        raise SystemExit("Cannot publish manifest pointer without run revision and generated_at")
-    return manifest_pointer_dict(
-        schema_name=schema_name,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        run_id=run_id,
-        revision=revision,
-        generated_at=generated_at,
-        manifest_path=artifacts.paths.relative_key(public_manifest_uri),
-    )
-
-
-def _maybe_promote_latest(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    latest_pointer: Mapping,
-) -> bool:
-    """Promote the cycle manifest to latest unless latest is a newer cycle."""
-
-    current_latest_cycle = _read_latest_cycle(artifacts=artifacts, dataset_id=dataset_id)
-    if current_latest_cycle is None or cycle >= current_latest_cycle:
-        revision = latest_pointer.get("revision") if isinstance(latest_pointer, Mapping) else None
-        run_id = latest_pointer.get("run_id") if isinstance(latest_pointer, Mapping) else None
-        if isinstance(revision, str) and isinstance(run_id, str) and _latest_pointer_matches_revision(
-            artifacts=artifacts,
-            dataset_id=dataset_id,
-            cycle=cycle,
-            run_id=run_id,
-            revision=revision,
-        ):
-            return False
-        artifacts.write_latest_pointer(dataset_id=dataset_id, pointer=latest_pointer)
-        return True
-
-    print(
-        "Skipping latest manifest promotion for older cycle.\n"
-        f"  cycle={cycle}\n"
-        f"  current_latest_cycle={current_latest_cycle}"
-    )
-    return False
-
-
-def _cycle_current_pointer_matches_revision(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-    revision: str,
-) -> bool:
-    if not artifacts.cycle_current_pointer_exists(dataset_id=dataset_id, cycle=cycle):
-        return False
-    try:
-        pointer = artifacts.read_cycle_current_pointer(dataset_id=dataset_id, cycle=cycle)
-    except (Exception, SystemExit):
-        return False
-    if pointer.get("schema") != CURRENT_POINTER_SCHEMA:
-        return False
-    info = manifest_info_from_obj(pointer)
-    return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
-
-
-def _latest_pointer_matches_revision(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    cycle: str,
-    run_id: str,
-    revision: str,
-) -> bool:
-    if not artifacts.latest_manifest_exists(dataset_id=dataset_id):
-        return False
-    try:
-        pointer = artifacts.read_latest_pointer(dataset_id=dataset_id)
-    except (Exception, SystemExit):
-        return False
-    if pointer.get("schema") != LATEST_POINTER_SCHEMA:
-        return False
-    info = manifest_info_from_obj(pointer)
-    return info is not None and info.cycle == cycle and info.run_id == run_id and info.revision == revision
-
-
-def _data_manifest_dataset_matches_revision(
-    *,
-    artifacts: ArtifactRepository,
-    dataset_id: str,
-    revision: str,
-) -> bool:
-    if not artifacts.data_manifest_exists():
-        return False
-    try:
-        data_manifest = artifacts.read_data_manifest()
-    except (Exception, SystemExit):
-        return False
-
-    datasets = data_manifest.get("datasets") if isinstance(data_manifest, Mapping) else None
-    dataset_entry = datasets.get(dataset_id) if isinstance(datasets, Mapping) else None
-    latest = dataset_entry.get("latest") if isinstance(dataset_entry, Mapping) else None
-    info = manifest_info_from_obj(latest) if isinstance(latest, Mapping) else None
-    return info is not None and info.revision == revision
-
-
-def _read_latest_cycle(*, artifacts: ArtifactRepository, dataset_id: str) -> str | None:
-    """Read the current latest manifest cycle, if available and parseable."""
-
-    latest_manifest_uri = artifacts.paths.manifest_latest_uri(dataset_id=dataset_id)
-    if not artifacts.latest_manifest_exists(dataset_id=dataset_id):
-        return None
-
-    try:
-        latest = artifacts.read_latest_pointer(dataset_id=dataset_id)
-    except Exception as exc:
-        print(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}")
-        raise SystemExit(f"Unable to read current latest manifest {latest_manifest_uri}: {exc}") from exc
-
-    pointer = parse_manifest_pointer(latest, expected_schema=LATEST_POINTER_SCHEMA, uri=latest_manifest_uri)
-    return pointer.cycle
 
 
 def _utc_now_iso() -> str:

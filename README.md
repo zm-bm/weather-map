@@ -43,8 +43,8 @@ That runs:
 Refresh local forecast artifacts with a forecast cycle:
 
 ```bash
-etl/scripts/run-cycle.sh --model gfs --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle.sh --model icon --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle.sh --dataset-id icon --cycle <YYYYMMDDHH>
 ```
 
 ## Configuration

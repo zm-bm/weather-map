@@ -39,8 +39,8 @@ infra/scripts/weather-etl/release/upload-static-artifacts.sh
 Manual production cycle submits:
 
 ```bash
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model gfs
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --model icon
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id gfs
+infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
 Manual submits use the Terraform-deployed pipeline config and forecast catalog
@@ -48,7 +48,7 @@ to create a run-scoped snapshot before Batch workers start. The scheduled
 publisher validates complete runs and publishes only runs with a passing
 `validation.json`. Publishing writes immutable public run manifests and updates
 small `current.json`/`latest.json` pointers; direct
-`manifests/<model>/latest.json` reads now return a pointer.
+`manifests/<dataset_id>/latest.json` reads now return a pointer.
 
 See [terraform/weather-etl/README.md](terraform/weather-etl/README.md) for the
 GFS/ICON production architecture and operational details.

@@ -455,77 +455,75 @@ cd infra/terraform/weather-etl && terraform fmt -check && terraform validate
 git diff --check
 ```
 
-### 4. Slim The CLI Around The Workflow Layer
+### Completed: 4. Slim The CLI Around The Workflow Layer
 
-Goal: make `forecast-etl` a thin command surface, not the application layer.
+This phase is complete. `forecast_etl.cli` is now the CLI adapter package,
+not a single large module. The old `forecast_etl/cli.py` file was removed
+and the intermediate `forecast_etl.cli_support` package was folded into the
+final `forecast_etl.cli` package.
 
-Provisional implementation:
+What changed:
 
-- dataset/frame vocabulary cleanup in the workflow context is already done:
-  `ApplicationContext` now exposes `resolve_dataset_runtime` and
-  `DatasetRuntime`
-- keep `cli.py` as the public parser/dispatch entrypoint, but move substantial
-  command behavior and report formatting out of it
-- split command handling by intent, not by historical module names:
-  - run lifecycle commands: `init-run`, `run-frame`, `run-cycle`,
-    `validate-cycle`, `publish-cycle`, `check-backfill`
-  - submission/executor commands: `plan-cycle`, `execute-local-cycle`,
-    `submit-aws-cycle`
-  - read-only operator commands: `runs`, `status`, `pointers`, `cleanup-runs`
-  - small discovery/smoke commands: `list-frames`, `list-datasets`, `smoke`
-- move human/JSON operator output formatting into a small CLI formatting module
-  so command modules can return structured dictionaries or workflow results
-- keep exit codes and stdout/stderr behavior stable
-- route command implementations through workflow functions and application
-  context helpers
-- do not move behavior back out of workflows while slimming the CLI; the CLI
-  should translate argparse input into workflow calls and render the result
+- command handlers moved into focused `forecast_etl.cli` modules by intent:
+  lifecycle, submission/executor, read-only inspection, and small discovery
+  commands
+- parser declaration and dispatch live in `forecast_etl.cli.parser`
+- shared CLI-only helpers moved with those handlers:
+  config/runtime parser parents, `--artifact`, required env/flag fallback
+  validation, `ApplicationContext` construction, key/value formatting, JSON
+  formatting, and not-ready message formatting
+- `submit-aws-cycle` now imports `boto3` lazily in its command handler instead
+  of making every CLI import pay for AWS client setup
+- `forecast_etl.cli.__init__` re-exports `main(argv)` and
+  `build_arg_parser()`, so `forecast-etl = "forecast_etl.cli:main"` remains
+  valid without a packaging change
+- `python -m forecast_etl.cli ...` is handled by `forecast_etl.cli.__main__`,
+  preserving the local and manual submit wrapper entrypoints
+- command names, flags, env fallbacks, exit codes, stdout/stderr behavior,
+  shell wrappers, workflows, manifests, and Terraform behavior did not change
 
 Expected result:
 
-- adding a new command should not make `cli.py` materially harder to read
-- command modules can be tested without constructing full argparse inputs
-- `cli.py` is mostly parser declarations plus dispatch, while workflows remain
-  the application layer
+- `forecast_etl.cli` is small enough to scan as command registration plus
+  dispatch
+- adding a new command should usually mean adding or changing a focused
+  `forecast_etl.cli` module, not expanding the parser entrypoint
+- workflows remain the application layer; CLI modules only translate
+  argparse input into workflow calls and render results
 
-### 5. Finish Splitting Manifest Publication
+### Completed: 5. Finish Splitting Manifest Publication
 
-Status: partially complete.
+This phase is complete. `forecast_etl.manifest.publish.run_publish` remains
+the stable public entrypoint, but the implementation now reads as a sequence of
+publication stages instead of carrying every detail in one module.
 
-Already done:
+What changed:
 
-- manifest document construction lives in `manifest/build.py`
-- pointer schemas and pointer dereference helpers live in `manifest/pointers.py`
-  and `manifest/inspect.py`
-- aggregate `manifests/data-manifest.json` generation lives in
+- manifest document construction stays in `manifest/build.py`
+- pointer schemas and pointer dereference helpers stay in
+  `manifest/pointers.py` and `manifest/inspect.py`
+- aggregate `manifests/data-manifest.json` document generation stays in
   `manifest/data_manifest.py`
-- scheduled publisher candidate orchestration lives in `workflows/publisher.py`
-- public output is pointer-backed and legacy manifest compatibility has been
-  removed
-
-Goal: make publication easier to reason about and safer to change.
-
-Provisional implementation:
-
-- keep `run_publish` as a thin orchestration function
-- extract the remaining responsibilities from `manifest/publish.py` into
-  smaller modules or named stages:
-  - publish readiness and selected-run checks
-  - success-marker collection and publication-specific marker validation
-  - promotion writes for the internal run manifest, immutable public run
-    manifest, cycle current pointer, model latest pointer, and published marker
-  - aggregate data-manifest refresh decision rules
-- keep pointer schemas and public output unchanged
-- make each stage return a structured result that can be logged or surfaced in
-  operator commands without parsing stdout
+- scheduled publisher candidate orchestration stays in `workflows/publisher.py`
+- publish readiness checks now live in `manifest/readiness.py`
+- success-marker evidence collection now lives in
+  `manifest/marker_evidence.py`
+- internal/public run manifest promotion, `current.json`, `latest.json`,
+  `_PUBLISHED.json`, same-cycle rollback, and monotonic latest rules now live
+  in `manifest/promotion.py`
+- aggregate data-manifest refresh decision rules now live in
+  `manifest/data_manifest_refresh.py`
+- pointer schemas, public output shape, CLI behavior, Lambda behavior, and
+  shell-wrapper behavior did not change
 
 Expected result:
 
-- same-cycle rollback and monotonic latest protection are obvious in code
-- pointer promotion and aggregate refresh rules are independently testable
-- aggregate manifest rebuild rules are isolated and easier to test
-- `run_publish` reads as a sequence of named stages, not the implementation of
-  every stage
+- `run_publish` is a thin orchestration function
+- same-cycle rollback and monotonic latest protection are isolated in the
+  promotion stage
+- aggregate manifest rebuild rules are independently testable
+- publication-stage results can be reused by operator/status work without
+  parsing publish stdout
 
 ### 6. Create A Backend-Friendly Read Model
 

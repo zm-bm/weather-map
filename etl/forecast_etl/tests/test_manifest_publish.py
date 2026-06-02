@@ -12,6 +12,8 @@ from forecast_etl.manifest.constants import (
     MANIFEST_SCHEMA,
     MANIFEST_SCHEMA_VERSION,
 )
+from forecast_etl.manifest.data_manifest_refresh import should_refresh_data_manifest
+from forecast_etl.manifest.marker_evidence import collect_publish_marker_evidence
 from forecast_etl.manifest.pointers import CURRENT_POINTER_SCHEMA, LATEST_POINTER_SCHEMA, manifest_pointer_dict
 from forecast_etl.manifest.revision import compute_manifest_revision
 from forecast_etl.tests.fixtures.artifact_configs import (
@@ -427,6 +429,25 @@ class PublishManifestTest(unittest.TestCase):
             self.assertFalse(result.ready)
             self.assertIn("multiple runs found", result.marker_errors[0])
 
+    def test_marker_evidence_reports_missing_markers(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-marker-evidence-", frames=("000", "003")) as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg, frame_id="000")
+
+            evidence = collect_publish_marker_evidence(
+                artifact_repo=fx.artifacts,
+                dataset_id=fx.dataset_id,
+                cycle=fx.cycle,
+                run_id=fx.run_id,
+                frames=fx.frames,
+                artifact_ids=(artifact_id,),
+            )
+
+            self.assertFalse(evidence.ready)
+            self.assertEqual(len(evidence.missing_markers), 1)
+            self.assertIn("/status/tmp_surface/003._SUCCESS.json", evidence.missing_markers[0])
+
     def test_publish_writes_temperature_piecewise_encoding_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-temp-piecewise-") as fx:
             artifact_ids = ("tmp_surface",)
@@ -641,7 +662,7 @@ class PublishManifestTest(unittest.TestCase):
                 )
 
             with patch(
-                "forecast_etl.manifest.publish.publish_data_manifest",
+                "forecast_etl.manifest.data_manifest_refresh.publish_data_manifest",
                 return_value="file:///manifest.json",
             ) as publish_data_manifest:
                 result_new = fx.publish(
@@ -660,6 +681,54 @@ class PublishManifestTest(unittest.TestCase):
             self.assertTrue(result_new.latest_promoted)
             self.assertFalse(result_old.latest_promoted)
             self.assertEqual(publish_data_manifest.call_count, 1)
+
+    def test_data_manifest_refresh_decision_is_independent(self) -> None:
+        with publish_fixture(prefix="weather-map-publish-refresh-decision-") as fx:
+            artifact_id = "tmp_surface"
+            artifact_cfg = minimal_artifact_config()
+            fx.write_scalar_marker(artifact_id=artifact_id, artifact_config=artifact_cfg)
+
+            result = fx.publish(artifact_ids=(artifact_id,), artifacts_cfg={artifact_id: artifact_cfg})
+            self.assertTrue(result.ready)
+            revision = fx.latest_pointer()["revision"]
+
+            self.assertTrue(
+                should_refresh_data_manifest(
+                    artifacts=fx.artifacts,
+                    dataset_id=fx.dataset_id,
+                    cycle=fx.cycle,
+                    run_id=fx.run_id,
+                    revision=revision,
+                    latest_promoted=True,
+                )
+            )
+            self.assertTrue(
+                should_refresh_data_manifest(
+                    artifacts=fx.artifacts,
+                    dataset_id=fx.dataset_id,
+                    cycle=fx.cycle,
+                    run_id=fx.run_id,
+                    revision=revision,
+                    latest_promoted=False,
+                )
+            )
+
+            pipeline_config = parse_pipeline_config(minimal_pipeline_config())
+            fx.publish(
+                artifact_ids=(artifact_id,),
+                artifacts_cfg={artifact_id: artifact_cfg},
+                pipeline_config=pipeline_config,
+            )
+            self.assertFalse(
+                should_refresh_data_manifest(
+                    artifacts=fx.artifacts,
+                    dataset_id=fx.dataset_id,
+                    cycle=fx.cycle,
+                    run_id=fx.run_id,
+                    revision=revision,
+                    latest_promoted=False,
+                )
+            )
 
     def test_republish_same_cycle_refreshes_latest_manifest(self) -> None:
         with publish_fixture(prefix="weather-map-publish-refresh-") as fx:
