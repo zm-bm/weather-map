@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -222,6 +223,34 @@ exit 1
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
         self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
         self.assertNotIn("weather-map-forecast-etl:local publish-cycle", result.stdout)
+
+    def test_dry_run_without_run_id_generates_one_shared_run_id(self) -> None:
+        result = self.run_script(
+            "--model",
+            "icon",
+            "--cycle",
+            "2026021606",
+            "--dry-run",
+        )
+
+        run_ids = re.findall(r"--env RUN_ID=([0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})", result.stdout)
+        self.assertTrue(run_ids)
+        self.assertEqual(len(set(run_ids)), 1)
+        run_id = run_ids[0]
+        self.assertEqual(result.stdout.count(f"--env RUN_ID={run_id}"), 27)
+        self.assertIn(f"--run-id {run_id}", result.stdout)
+        self.assertIn(
+            f"pipeline_config_uri: file:///artifacts/runs/icon/2026021606/{run_id}/config/pipeline_config.json",
+            result.stdout,
+        )
+        self.assertIn(
+            f"forecast_catalog_uri: file:///artifacts/runs/icon/2026021606/{run_id}/config/forecast_catalog.json",
+            result.stdout,
+        )
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local init-run"), 1)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local run-hour"), 24)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local validate-cycle"), 1)
+        self.assertEqual(result.stdout.count("weather-map-forecast-etl:local publish-cycle"), 1)
 
     def test_dry_run_reuses_current_worker_image_without_rebuilding(self) -> None:
         docker_log = self.fake_bin_dir / "docker.log"

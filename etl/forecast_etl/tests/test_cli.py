@@ -310,7 +310,9 @@ class CliTest(unittest.TestCase):
                 return_value=PublishResult(
                     ready=False,
                     already_published=False,
-                    missing_markers=("s3://artifacts/status/gfs/2026021300/tmp_surface/003._SUCCESS.json",),
+                    missing_markers=(
+                        f"s3://artifacts/runs/gfs/2026021300/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
+                    ),
                 ),
             ),
         ):

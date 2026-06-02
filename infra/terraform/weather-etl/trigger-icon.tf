@@ -1,5 +1,5 @@
 resource "aws_dynamodb_table" "icon_ingest_state" {
-  name         = "weather-etl-icon-ingest-state"
+  name         = local.names.icon_ingest_state_table
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
 
@@ -14,117 +14,96 @@ resource "aws_dynamodb_table" "icon_ingest_state" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-icon-ingest-state"
+    Name = local.names.icon_ingest_state_table
   })
 }
 
 resource "aws_iam_role" "ingest_icon_lambda" {
-  name = "weather-etl-ingest-icon-lambda-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
+  name               = local.names.icon_ingest_role
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 
   tags = merge(local.tags, {
-    Name = "weather-etl-ingest-icon-lambda-role"
+    Name = local.names.icon_ingest_role
   })
+}
+
+data "aws_iam_policy_document" "icon_ingest_lambda" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["batch:SubmitJob"]
+    resources = [
+      aws_batch_job_definition.worker_icon.arn,
+      aws_batch_job_queue.etl.arn
+    ]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["dynamodb:UpdateItem"]
+    resources = [
+      aws_dynamodb_table.icon_ingest_state.arn,
+      aws_dynamodb_table.run_coordinator.arn
+    ]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${local.artifacts_bucket_name}"]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::${local.config_bucket_name}/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
+    ]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
+    resources = [
+      "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "ingest_icon_lambda" {
-  name = "weather-etl-ingest-icon-lambda-policy"
-  role = aws_iam_role.ingest_icon_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "batch:SubmitJob"
-        ]
-        Resource = [
-          aws_batch_job_definition.worker_icon.arn,
-          aws_batch_job_queue.etl.arn
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:UpdateItem"
-        ]
-        Resource = [
-          aws_dynamodb_table.icon_ingest_state.arn,
-          aws_dynamodb_table.run_coordinator.arn
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.artifacts_bucket_name}"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.config_bucket_name}/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/icon/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/icon/*"
-        ]
-      }
-    ]
-  })
+  name   = local.names.icon_ingest_policy
+  role   = aws_iam_role.ingest_icon_lambda.id
+  policy = data.aws_iam_policy_document.icon_ingest_lambda.json
 }
 
 resource "aws_lambda_function" "ingest_icon" {
-  function_name    = "weather-etl-ingest-icon"
+  function_name    = local.names.icon_ingest_lambda
   role             = aws_iam_role.ingest_icon_lambda.arn
   runtime          = "python3.12"
   handler          = "forecast_etl.aws.icon_ingest.handler"
-  filename         = local.ingest_lambda_zip_path
-  source_code_hash = filebase64sha256(local.ingest_lambda_zip_path)
-  timeout          = 300
+  filename         = local.shared_lambda_zip_path
+  source_code_hash = local.shared_lambda_zip_hash
+  timeout          = var.icon_ingest_timeout_seconds
   memory_size      = 256
 
   environment {
     variables = {
-      ARTIFACT_ROOT_URI     = "s3://${local.artifacts_bucket_name}"
+      ARTIFACT_ROOT_URI     = local.artifact_root_uri
       BATCH_JOB_QUEUE       = aws_batch_job_queue.etl.name
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker_icon.arn
-      ICON_POLL_CYCLE_COUNT = "1"
+      ICON_POLL_CYCLE_COUNT = tostring(var.icon_poll_cycle_count)
       ICON_STATE_TABLE      = aws_dynamodb_table.icon_ingest_state.name
       PIPELINE_CONFIG_URI   = local.pipeline_config_uri
       FORECAST_CATALOG_URI  = local.forecast_catalog_uri
@@ -133,19 +112,19 @@ resource "aws_lambda_function" "ingest_icon" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-ingest-icon"
+    Name = local.names.icon_ingest_lambda
   })
 
   depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "ingest_icon_poll" {
-  name                = "weather-etl-ingest-icon-poll"
+  name                = local.names.icon_ingest_schedule
   description         = "Poll DWD ICON file readiness and submit ETL jobs"
-  schedule_expression = "rate(10 minutes)"
+  schedule_expression = var.icon_ingest_schedule_expression
 
   tags = merge(local.tags, {
-    Name = "weather-etl-ingest-icon-poll"
+    Name = local.names.icon_ingest_schedule
   })
 }
 

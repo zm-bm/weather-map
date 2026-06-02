@@ -1,106 +1,87 @@
 resource "aws_iam_role" "publisher_lambda" {
-  name = "weather-etl-publisher-lambda-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
+  name               = local.names.publisher_role
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 
   tags = merge(local.tags, {
-    Name = "weather-etl-publisher-lambda-role"
+    Name = local.names.publisher_role
   })
+}
+
+data "aws_iam_policy_document" "publisher_lambda" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${local.artifacts_bucket_name}"]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::${local.config_bucket_name}/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*"
+    ]
+  }
+
+  statement {
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
+    resources = [
+      "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*"
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "publisher_lambda" {
-  name = "weather-etl-publisher-lambda-policy"
-  role = aws_iam_role.publisher_lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.artifacts_bucket_name}"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.config_bucket_name}/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
-          "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*"
-        ]
-      }
-    ]
-  })
+  name   = local.names.publisher_policy
+  role   = aws_iam_role.publisher_lambda.id
+  policy = data.aws_iam_policy_document.publisher_lambda.json
 }
 
 resource "aws_lambda_function" "publisher" {
-  function_name    = "weather-etl-publisher"
+  function_name    = local.names.publisher_lambda
   role             = aws_iam_role.publisher_lambda.arn
   runtime          = "python3.12"
   handler          = "forecast_etl.aws.publisher.handler"
-  filename         = local.ingest_lambda_zip_path
-  source_code_hash = filebase64sha256(local.ingest_lambda_zip_path)
-  timeout          = 300
+  filename         = local.shared_lambda_zip_path
+  source_code_hash = local.shared_lambda_zip_hash
+  timeout          = var.publisher_timeout_seconds
   memory_size      = 256
 
   environment {
     variables = {
-      ARTIFACT_ROOT_URI   = "s3://${local.artifacts_bucket_name}"
-      PUBLISH_MODELS      = "gfs,icon"
-      PUBLISH_CYCLE_COUNT = "8"
+      ARTIFACT_ROOT_URI   = local.artifact_root_uri
+      PUBLISH_MODELS      = join(",", var.publisher_models)
+      PUBLISH_CYCLE_COUNT = tostring(var.publisher_cycle_count)
     }
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-publisher"
+    Name = local.names.publisher_lambda
   })
 
   depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "publisher_schedule" {
-  name                = "weather-etl-publisher-schedule"
+  name                = local.names.publisher_schedule
   description         = "Publish completed ETL cycle manifests"
-  schedule_expression = "rate(10 minutes)"
+  schedule_expression = var.publisher_schedule_expression
 
   tags = merge(local.tags, {
-    Name = "weather-etl-publisher-schedule"
+    Name = local.names.publisher_schedule
   })
 }
 

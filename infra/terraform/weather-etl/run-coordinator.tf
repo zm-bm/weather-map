@@ -1,5 +1,5 @@
 resource "aws_dynamodb_table" "run_coordinator" {
-  name         = "weather-etl-run-coordinator"
+  name         = local.names.run_coordinator_table
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
 
@@ -14,6 +14,6 @@ resource "aws_dynamodb_table" "run_coordinator" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-run-coordinator"
+    Name = local.names.run_coordinator_table
   })
 }

@@ -110,6 +110,33 @@ that config. Changes to `config/pipeline/base.json` or
 `config/forecast_catalog.json` are deployed through this stack so the S3 source
 objects are updated.
 
+## Terraform Runtime Contract
+
+This stack is intentionally organized around the ETL runtime contract:
+
+```text
+artifact_root_uri
+pipeline_config_uri
+forecast_catalog_uri
+run_coordinator_table
+Batch queue and job definitions
+ingest and publisher Lambda names
+ingest and publisher schedules
+```
+
+The existing raw outputs used by the operator scripts remain stable. The stack
+also exposes `etl_runtime_contract`, a grouped output intended for future
+planner/executor work.
+
+Operational knobs such as `environment`, `name_prefix`, worker image tag,
+Batch retries, Lambda timeouts, schedules, scan counts, and retention windows
+are Terraform variables with production defaults. GFS ingest, ICON ingest, and
+the scheduled publisher all use the same Lambda zip artifact.
+
+The artifact and config buckets are treated as greenfield ETL resources:
+`force_destroy` is enabled and `prevent_destroy` is not used. Do not rely on
+this stack to protect old run artifacts during a clean redeploy.
+
 ## Deploy
 
 Production deploys should be coordinated across the worker image, Lambda zip,

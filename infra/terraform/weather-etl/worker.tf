@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "worker" {
-  name                 = "weather-etl-worker"
+  name                 = local.names.worker_repository
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -11,21 +11,21 @@ resource "aws_ecr_repository" "worker" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-worker"
+    Name = local.names.worker_repository
   })
 }
 
 resource "aws_cloudwatch_log_group" "batch" {
-  name              = "/aws/batch/weather-etl"
-  retention_in_days = 14
+  name              = local.names.batch_log_group
+  retention_in_days = var.batch_log_retention_days
 
   tags = merge(local.tags, {
-    Name = "weather-etl-batch"
+    Name = "${local.name_prefix}-batch"
   })
 }
 
 resource "aws_security_group" "batch_tasks" {
-  name        = "weather-etl-batch-tasks"
+  name        = local.names.batch_security_group
   description = "Security group for weather ETL Batch tasks"
   vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
 
@@ -37,19 +37,19 @@ resource "aws_security_group" "batch_tasks" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-batch-tasks"
+    Name = local.names.batch_security_group
   })
 }
 
 resource "aws_batch_compute_environment" "etl" {
-  name         = "weather-etl-fargate-spot"
+  name         = local.names.batch_compute_environment
   service_role = aws_iam_role.batch_service.arn
   type         = "MANAGED"
   state        = "ENABLED"
 
   compute_resources {
     type               = "FARGATE_SPOT"
-    max_vcpus          = 16
+    max_vcpus          = var.batch_max_vcpus
     subnets            = data.terraform_remote_state.network.outputs.public_subnet_ids
     security_group_ids = [aws_security_group.batch_tasks.id]
   }
@@ -57,12 +57,12 @@ resource "aws_batch_compute_environment" "etl" {
   depends_on = [aws_iam_role_policy_attachment.batch_service]
 
   tags = merge(local.tags, {
-    Name = "weather-etl-fargate-spot"
+    Name = local.names.batch_compute_environment
   })
 }
 
 resource "aws_batch_job_queue" "etl" {
-  name     = "weather-etl"
+  name     = local.names.batch_queue
   state    = "ENABLED"
   priority = 1
 
@@ -72,29 +72,29 @@ resource "aws_batch_job_queue" "etl" {
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl"
+    Name = local.names.batch_queue
   })
 }
 
 resource "aws_batch_job_definition" "worker" {
-  name = "weather-etl-worker"
+  name = local.names.worker_gfs_job_definition
   type = "container"
 
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image            = "${aws_ecr_repository.worker.repository_url}:latest"
+    image            = "${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag}"
     executionRoleArn = aws_iam_role.batch_task_execution.arn
     jobRoleArn       = aws_iam_role.batch_job.arn
     resourceRequirements = [
       { type = "VCPU", value = "1" },
-      { type = "MEMORY", value = "2048" }
+      { type = "MEMORY", value = tostring(var.gfs_worker_memory_mib) }
     ]
     networkConfiguration = {
       assignPublicIp = "ENABLED"
     }
     environment = [
-      { name = "ARTIFACT_ROOT_URI", value = "s3://${local.artifacts_bucket_name}" },
+      { name = "ARTIFACT_ROOT_URI", value = local.artifact_root_uri },
       { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
       { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region }
@@ -110,39 +110,39 @@ resource "aws_batch_job_definition" "worker" {
   })
 
   retry_strategy {
-    attempts = 3
+    attempts = var.batch_retry_attempts
   }
 
   timeout {
-    attempt_duration_seconds = 7200
+    attempt_duration_seconds = var.gfs_worker_timeout_seconds
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-worker"
+    Name = local.names.worker_gfs_job_definition
   })
 
   depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
 }
 
 resource "aws_batch_job_definition" "worker_icon" {
-  name = "weather-etl-worker-icon"
+  name = local.names.worker_icon_job_definition
   type = "container"
 
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image            = "${aws_ecr_repository.worker.repository_url}:latest"
+    image            = "${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag}"
     executionRoleArn = aws_iam_role.batch_task_execution.arn
     jobRoleArn       = aws_iam_role.batch_job.arn
     resourceRequirements = [
       { type = "VCPU", value = "1" },
-      { type = "MEMORY", value = "8192" }
+      { type = "MEMORY", value = tostring(var.icon_worker_memory_mib) }
     ]
     networkConfiguration = {
       assignPublicIp = "ENABLED"
     }
     environment = [
-      { name = "ARTIFACT_ROOT_URI", value = "s3://${local.artifacts_bucket_name}" },
+      { name = "ARTIFACT_ROOT_URI", value = local.artifact_root_uri },
       { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
       { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region },
@@ -161,15 +161,15 @@ resource "aws_batch_job_definition" "worker_icon" {
   })
 
   retry_strategy {
-    attempts = 3
+    attempts = var.batch_retry_attempts
   }
 
   timeout {
-    attempt_duration_seconds = 14400
+    attempt_duration_seconds = var.icon_worker_timeout_seconds
   }
 
   tags = merge(local.tags, {
-    Name = "weather-etl-worker-icon"
+    Name = local.names.worker_icon_job_definition
   })
 
   depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]

@@ -14,6 +14,10 @@ output "forecast_catalog_uri" {
   value = local.forecast_catalog_uri
 }
 
+output "artifact_root_uri" {
+  value = local.artifact_root_uri
+}
+
 output "worker_ecr_repository_url" {
   value = aws_ecr_repository.worker.repository_url
 }
@@ -23,6 +27,10 @@ output "batch_job_queue_name" {
 }
 
 output "batch_job_definition_arn" {
+  value = aws_batch_job_definition.worker.arn
+}
+
+output "gfs_batch_job_definition_arn" {
   value = aws_batch_job_definition.worker.arn
 }
 
@@ -52,4 +60,62 @@ output "publisher_lambda_name" {
 
 output "publisher_lambda_arn" {
   value = aws_lambda_function.publisher.arn
+}
+
+output "etl_runtime_contract" {
+  value = {
+    artifact_root_uri    = local.artifact_root_uri
+    pipeline_config_uri  = local.pipeline_config_uri
+    forecast_catalog_uri = local.forecast_catalog_uri
+
+    storage = {
+      artifacts_bucket_name = local.artifacts_bucket_name
+      config_bucket_name    = local.config_bucket_name
+    }
+
+    run_coordinator = {
+      table_name = aws_dynamodb_table.run_coordinator.name
+      table_arn  = aws_dynamodb_table.run_coordinator.arn
+    }
+
+    batch = {
+      queue_name                = aws_batch_job_queue.etl.name
+      queue_arn                 = aws_batch_job_queue.etl.arn
+      gfs_job_definition_arn    = aws_batch_job_definition.worker.arn
+      icon_job_definition_arn   = aws_batch_job_definition.worker_icon.arn
+      worker_ecr_repository_url = aws_ecr_repository.worker.repository_url
+      worker_image_tag          = var.worker_image_tag
+      retry_attempts            = var.batch_retry_attempts
+      gfs_timeout_seconds       = var.gfs_worker_timeout_seconds
+      icon_timeout_seconds      = var.icon_worker_timeout_seconds
+    }
+
+    ingest = {
+      gfs_lambda_name       = aws_lambda_function.ingest.function_name
+      gfs_lambda_arn        = aws_lambda_function.ingest.arn
+      gfs_sns_topic_arn     = local.gfs_sns_topic_arn
+      icon_lambda_name      = aws_lambda_function.ingest_icon.function_name
+      icon_lambda_arn       = aws_lambda_function.ingest_icon.arn
+      icon_schedule_name    = aws_cloudwatch_event_rule.ingest_icon_poll.name
+      icon_schedule         = var.icon_ingest_schedule_expression
+      icon_poll_cycle_count = var.icon_poll_cycle_count
+      icon_state_table_name = aws_dynamodb_table.icon_ingest_state.name
+    }
+
+    publisher = {
+      lambda_name   = aws_lambda_function.publisher.function_name
+      lambda_arn    = aws_lambda_function.publisher.arn
+      schedule_name = aws_cloudwatch_event_rule.publisher_schedule.name
+      schedule      = var.publisher_schedule_expression
+      models        = var.publisher_models
+      cycle_count   = var.publisher_cycle_count
+    }
+
+    retention = {
+      run_days                = var.run_retention_days
+      manifest_days           = var.manifest_retention_days
+      noncurrent_version_days = var.noncurrent_version_retention_days
+      batch_log_days          = var.batch_log_retention_days
+    }
+  }
 }

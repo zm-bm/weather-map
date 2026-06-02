@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from forecast_etl.artifacts.published_schema import parse_published_marker, published_marker_dict
+from forecast_etl.tests.fixtures.artifacts import DEFAULT_RUN_ID
 
 
 class PublishedMarkerTest(unittest.TestCase):
@@ -12,7 +13,7 @@ class PublishedMarkerTest(unittest.TestCase):
             model="icon",
             generated_at="2026-05-11T14:05:00+00:00",
             revision="abc123",
-            manifest_uri="s3://artifacts/manifests/icon/2026051106.json",
+            manifest_uri=f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
         )
 
         self.assertEqual(
@@ -20,7 +21,7 @@ class PublishedMarkerTest(unittest.TestCase):
             {
                 "cycle": "2026051106",
                 "generated_at": "2026-05-11T14:05:00+00:00",
-                "manifest_uri": "s3://artifacts/manifests/icon/2026051106.json",
+                "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
                 "model": "icon",
                 "revision": "abc123",
             },
@@ -33,9 +34,9 @@ class PublishedMarkerTest(unittest.TestCase):
                 "model": "icon",
                 "generated_at": "2026-05-11T14:05:00+00:00",
                 "revision": "abc123",
-                "manifest_uri": "s3://artifacts/manifests/icon/2026051106.json",
+                "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
             },
-            uri="s3://artifacts/status/icon/2026051106/_PUBLISHED.json",
+            uri=f"s3://artifacts/runs/icon/2026051106/{DEFAULT_RUN_ID}/_PUBLISHED.json",
         )
 
         self.assertEqual(marker.cycle, "2026051106")
@@ -49,9 +50,9 @@ class PublishedMarkerTest(unittest.TestCase):
                     "cycle": "2026051106",
                     "model": "icon",
                     "generated_at": "2026-05-11T14:05:00+00:00",
-                    "manifest_uri": "s3://artifacts/manifests/icon/2026051106.json",
+                    "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
                 },
-                uri="s3://artifacts/status/icon/2026051106/_PUBLISHED.json",
+                uri=f"s3://artifacts/runs/icon/2026051106/{DEFAULT_RUN_ID}/_PUBLISHED.json",
             )
 
     def test_parse_published_marker_rejects_invalid_cycle(self) -> None:
@@ -62,7 +63,7 @@ class PublishedMarkerTest(unittest.TestCase):
                     "model": "icon",
                     "generated_at": "2026-05-11T14:05:00+00:00",
                     "revision": "abc123",
-                    "manifest_uri": "s3://artifacts/manifests/icon/2026051106.json",
+                    "manifest_uri": f"s3://artifacts/manifests/icon/cycles/2026051106/runs/{DEFAULT_RUN_ID}.json",
                 }
             )
 

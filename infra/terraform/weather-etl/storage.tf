@@ -1,12 +1,9 @@
 resource "aws_s3_bucket" "artifacts" {
-  bucket = local.artifacts_bucket_resource_name
-
-  lifecycle {
-    prevent_destroy = true
-  }
+  bucket        = local.artifacts_bucket_resource_name
+  force_destroy = true
 
   tags = merge(local.tags, {
-    Name = "weather-etl-artifacts-prod-bucket"
+    Name = "${local.name_prefix}-artifacts-${local.environment}-bucket"
   })
 }
 
@@ -30,11 +27,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
     }
 
     expiration {
-      days = 14
+      days = var.run_retention_days
     }
 
     noncurrent_version_expiration {
-      noncurrent_days = 7
+      noncurrent_days = var.noncurrent_version_retention_days
     }
   }
 
@@ -47,11 +44,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
     }
 
     expiration {
-      days = 45
+      days = var.manifest_retention_days
     }
 
     noncurrent_version_expiration {
-      noncurrent_days = 7
+      noncurrent_days = var.noncurrent_version_retention_days
     }
   }
 
@@ -80,14 +77,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
 }
 
 resource "aws_s3_bucket" "config" {
-  bucket = local.config_bucket_resource_name
-
-  lifecycle {
-    prevent_destroy = true
-  }
+  bucket        = local.config_bucket_resource_name
+  force_destroy = true
 
   tags = merge(local.tags, {
-    Name = "weather-etl-config-prod-bucket"
+    Name = "${local.name_prefix}-config-${local.environment}-bucket"
   })
 }
 

@@ -3,6 +3,18 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
+variable "environment" {
+  type        = string
+  default     = "prod"
+  description = "Deployment environment label used in default names and tags."
+}
+
+variable "name_prefix" {
+  type        = string
+  default     = "weather-etl"
+  description = "Prefix for ETL resource names."
+}
+
 variable "gfs_sns_topic_arn" {
   type    = string
   default = "arn:aws:sns:us-east-1:123901341784:NewGFSObject"
@@ -14,42 +26,128 @@ variable "ingest_lambda_zip_path" {
   description = "Optional override for the built ingest Lambda zip. Defaults to the repo-local etl/dist/weather-etl-ingest-lambda.zip."
 }
 
-locals {
-  environment = "prod"
-
-  state_bucket = "zmbm-tf-state-bucket"
-  state_region = "us-east-1"
-  state_keys = {
-    network = "network.tfstate"
-  }
+variable "artifacts_bucket_name" {
+  type        = string
+  default     = null
+  description = "Optional artifact bucket name. Defaults to <name_prefix>-artifacts-<environment>-<account_id>."
 }
 
-locals {
-  artifacts_bucket_resource_name = "weather-etl-artifacts-prod-${data.aws_caller_identity.current.account_id}"
-  config_bucket_resource_name    = "weather-etl-config-prod-${data.aws_caller_identity.current.account_id}"
-
-  artifacts_bucket_name = aws_s3_bucket.artifacts.bucket
-  config_bucket_name    = aws_s3_bucket.config.bucket
-
-  pipeline_config_path = abspath("${path.root}/../../../config/pipeline/base.json")
-  pipeline_config_key  = "weather-etl/pipeline_config.json"
-  pipeline_config_uri  = "s3://${local.config_bucket_name}/${local.pipeline_config_key}"
-
-  forecast_catalog_path = abspath("${path.root}/../../../config/forecast_catalog.json")
-  forecast_catalog_key  = "weather-etl/forecast_catalog.json"
-  forecast_catalog_uri  = "s3://${local.config_bucket_name}/${local.forecast_catalog_key}"
+variable "config_bucket_name" {
+  type        = string
+  default     = null
+  description = "Optional config bucket name. Defaults to <name_prefix>-config-<environment>-<account_id>."
 }
 
-locals {
-  ingest_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../../etl/dist/weather-etl-ingest-lambda.zip")
-  gfs_sns_topic_arn      = var.gfs_sns_topic_arn
+variable "worker_image_tag" {
+  type        = string
+  default     = "latest"
+  description = "Worker image tag used by Batch job definitions."
 }
 
-locals {
-  tags = {
-    app       = "weather-map"
-    ManagedBy = "terraform"
-    Stack     = "weather-etl"
-    env       = local.environment
-  }
+variable "batch_max_vcpus" {
+  type        = number
+  default     = 16
+  description = "Maximum vCPUs for the managed Batch compute environment."
+}
+
+variable "batch_retry_attempts" {
+  type        = number
+  default     = 3
+  description = "Retry attempts for ETL Batch jobs."
+}
+
+variable "batch_log_retention_days" {
+  type        = number
+  default     = 14
+  description = "Retention window for Batch worker logs."
+}
+
+variable "gfs_worker_memory_mib" {
+  type        = number
+  default     = 2048
+  description = "Memory for GFS Batch hour workers."
+}
+
+variable "icon_worker_memory_mib" {
+  type        = number
+  default     = 8192
+  description = "Memory for ICON Batch hour workers."
+}
+
+variable "gfs_worker_timeout_seconds" {
+  type        = number
+  default     = 7200
+  description = "Attempt timeout for GFS Batch hour workers."
+}
+
+variable "icon_worker_timeout_seconds" {
+  type        = number
+  default     = 14400
+  description = "Attempt timeout for ICON Batch hour workers."
+}
+
+variable "gfs_ingest_timeout_seconds" {
+  type        = number
+  default     = 30
+  description = "Timeout for the GFS ingest Lambda."
+}
+
+variable "icon_ingest_timeout_seconds" {
+  type        = number
+  default     = 300
+  description = "Timeout for the ICON ingest Lambda."
+}
+
+variable "publisher_timeout_seconds" {
+  type        = number
+  default     = 300
+  description = "Timeout for the scheduled publisher Lambda."
+}
+
+variable "icon_ingest_schedule_expression" {
+  type        = string
+  default     = "rate(10 minutes)"
+  description = "EventBridge schedule for ICON source polling."
+}
+
+variable "publisher_schedule_expression" {
+  type        = string
+  default     = "rate(10 minutes)"
+  description = "EventBridge schedule for publisher reconciliation."
+}
+
+variable "icon_poll_cycle_count" {
+  type        = number
+  default     = 1
+  description = "Recent ICON cycle count scanned by the poller."
+}
+
+variable "publisher_models" {
+  type        = list(string)
+  default     = ["gfs", "icon"]
+  description = "Models scanned by the scheduled publisher."
+}
+
+variable "publisher_cycle_count" {
+  type        = number
+  default     = 8
+  description = "Recent synoptic cycle count scanned by the scheduled publisher."
+}
+
+variable "run_retention_days" {
+  type        = number
+  default     = 14
+  description = "S3 lifecycle expiration window for run-scoped artifacts."
+}
+
+variable "manifest_retention_days" {
+  type        = number
+  default     = 45
+  description = "S3 lifecycle expiration window for public manifests."
+}
+
+variable "noncurrent_version_retention_days" {
+  type        = number
+  default     = 7
+  description = "S3 noncurrent version retention for lifecycle-managed prefixes."
 }

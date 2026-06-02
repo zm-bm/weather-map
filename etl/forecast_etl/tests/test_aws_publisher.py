@@ -91,7 +91,9 @@ class PublisherTest(unittest.TestCase):
                 PublishResult(
                     ready=False,
                     already_published=False,
-                    missing_markers=("s3://artifacts/status/gfs/2026051106/tmp_surface/003._SUCCESS.json",),
+                    missing_markers=(
+                        f"s3://artifacts/runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
+                    ),
                 ),
             ],
         )

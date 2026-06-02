@@ -42,7 +42,10 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     components=["u", "v"],
                 ),
             },
-            uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
+            uri=(
+                "file:///tmp/out/runs/gfs/2026041200/"
+                f"{DEFAULT_RUN_ID}/status/wind10m_uv/003._SUCCESS.json"
+            ),
         )
 
         self.assertEqual(marker.artifact_id, "wind10m_uv")
@@ -72,7 +75,10 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     "config_digest": DEFAULT_CONFIG_DIGEST,
                     "artifact": payload,
                 },
-                uri="file:///tmp/out/status/gfs/2026041200/wind10m_uv/003._SUCCESS.json",
+                uri=(
+                    "file:///tmp/out/runs/gfs/2026041200/"
+                    f"{DEFAULT_RUN_ID}/status/wind10m_uv/003._SUCCESS.json"
+                ),
             )
 
         message = str(raised.exception)
@@ -92,7 +98,10 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     "image_identity": DEFAULT_IMAGE_IDENTITY,
                     "config_digest": DEFAULT_CONFIG_DIGEST,
                 },
-                uri="file:///tmp/out/status/gfs/2026041200/tmp_surface/003._SUCCESS.json",
+                uri=(
+                    "file:///tmp/out/runs/gfs/2026041200/"
+                    f"{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json"
+                ),
             )
 
         self.assertIn("artifact", str(raised.exception))
@@ -111,7 +120,10 @@ class ArtifactSuccessMarkerTest(unittest.TestCase):
                     "config_digest": DEFAULT_CONFIG_DIGEST,
                     "artifact": artifact_marker_payload(),
                 },
-                uri="file:///tmp/out/status/gfs/2026041200/tmp_surface/003._SUCCESS.json",
+                uri=(
+                    "file:///tmp/out/runs/gfs/2026041200/"
+                    f"{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json"
+                ),
             )
 
         self.assertIn("run_id", str(raised.exception))
