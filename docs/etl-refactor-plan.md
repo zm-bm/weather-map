@@ -557,42 +557,37 @@ Backend-facing queries now have a clean Python home:
 - cleanup candidates
 - public data-manifest summary
 
-### 7. Add Minimal Production Observability
+### Completed: 7. Add Minimal Production Observability
 
-Goal: add low-noise production signals without turning operations into a
-separate incident-management project. Observability should be a thin read-only
-adapter over the current AWS runtime and the `forecast_etl.inspection` layer,
-not a second ETL state machine.
+This phase is complete. Production ETL now has low-noise alerts without
+introducing a second ETL state machine.
 
-Provisional implementation:
+What changed:
 
-- add infrastructure failure alerts for the GFS ingest Lambda, ICON ingest
-  Lambda, scheduled publisher Lambda, and Batch worker failures
-- add a small read-only ETL state/staleness check using
-  `forecast_etl.inspection.health` and related inspection readers
-- emit a small set of CloudWatch metrics or structured log metrics for dataset
-  freshness, stale/unavailable state, latest cycle lag, and possibly complete
-  unpublished runs
-- alarm only on stable bad states; incomplete/building cycles and ordinary
-  publisher "not ready" results should not page by default
+- `forecast_etl.aws.observability.handler` is a dedicated read-only Lambda
+  adapter in the shared ETL Lambda zip
+- the checker uses `forecast_etl.inspection.health` and the public
+  data-manifest summary reader as its source of truth
+- the checker emits CloudWatch metrics in `WeatherMap/ETL`:
+  `ObservabilityCheckOk`, `DatasetBadState`, `DatasetFresh`,
+  `LatestCycleLagHours`, and `DataManifestValid`
+- the scheduled publisher emits `PublisherFailedCandidates` only for caught
+  per-candidate exceptions; ordinary `not_ready` candidates remain quiet
+- Terraform creates the observability Lambda, EventBridge schedule, required
+  email-backed SNS alert topic, Lambda error alarms, publisher failure alarm,
+  dataset bad-state alarms, data-manifest validity alarm, and Batch
+  failed/queue-blocked EventBridge notifications
+- `observability_alert_email` is a required Terraform variable, so production
+  applies must intentionally choose the notification recipient
+- dataset/public-manifest alarms require stable bad state across configured
+  evaluation periods, while Lambda errors, publisher exceptions, Batch failed
+  jobs, and Batch queue-blocked events alert immediately
 - keep markers, validation reports, pointers, and public manifests as the
   source of truth for ETL state; frame claims are submission throttles, not the
   primary health signal
-- keep the backend optional for alerts. Backend endpoints can expose status,
-  but production alerts should work from AWS plus artifact inspection alone
-- do not send success notifications by default
-- keep notification routing simple and explicit, likely through one optional
-  notification topic/subscription
-- treat DLQs, richer incident workflows, and success summaries as optional
-  follow-ups unless real failures show they are needed
-
-Details intentionally left for the implementation task:
-
-- exact metric names and dimensions
-- stale/latest-lag thresholds per dataset
-- whether the state check is a dedicated Lambda, an existing Lambda mode, or a
-  scheduled backend/ops job
-- notification destination variables and defaults
+- backend/frontend behavior did not change
+- success notifications, DLQs, dashboards, Slack/PagerDuty integrations, and
+  richer incident workflows remain intentionally out of scope
 
 Expected result:
 
@@ -736,18 +731,19 @@ Already achieved:
   resume decisions, and optional publish/validate steps.
 - Duplicate complete or actively claimed frame jobs are suppressed, while
   expired claims allow retry/resume and validation remains the publication gate.
+- `forecast_etl.cli` is split into a small parser/dispatch package with
+  command handlers grouped by intent.
+- Publish, status, cleanup, health, and backend-readable inspection state now
+  have clear module boundaries.
+- Backend-readable state can be inspected without importing worker-heavy code.
+- Production failures and stale public data produce low-noise alerts, while
+  successful cycles remain quiet by default.
 - No public S3 layout, manifest schema, frontend payload resolution, or
   operator command contract changes should happen accidentally during the
   remaining behavior-preserving phases.
 
 Still open:
 
-- `cli.py` is small enough to scan quickly.
-- Publish, validate, status, cleanup, and backfill each have clear module
-  boundaries.
-- Backend-readable state can be inspected without importing worker-heavy code.
-- Production failures and stale public data produce low-noise alerts, while
-  successful cycles remain quiet by default.
 - Artifact storage can be swapped by URI/store adapter without changing worker,
   validator, publisher, or frontend manifest semantics.
 - Tests are organized by behavior and remain green through file moves.

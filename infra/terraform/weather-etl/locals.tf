@@ -62,6 +62,14 @@ locals {
     publisher_policy   = "${local.name_prefix}-publisher-lambda-policy"
     publisher_schedule = "${local.name_prefix}-publisher-schedule"
 
+    observability_lambda           = "${local.name_prefix}-observability"
+    observability_role             = "${local.name_prefix}-observability-lambda-role"
+    observability_policy           = "${local.name_prefix}-observability-lambda-policy"
+    observability_schedule         = "${local.name_prefix}-observability-schedule"
+    observability_alert_topic      = "${local.name_prefix}-alerts"
+    batch_failed_event_rule        = "${local.name_prefix}-batch-failed"
+    batch_queue_blocked_event_rule = "${local.name_prefix}-batch-queue-blocked"
+
     run_coordinator_table = "${local.name_prefix}-run-coordinator"
     frame_claim_table     = "${local.name_prefix}-frame-claims"
   }

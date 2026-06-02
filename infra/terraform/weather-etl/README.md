@@ -138,6 +138,7 @@ frame_claim_table
 Batch queue and job definitions
 ingest and publisher Lambda names
 ingest and publisher schedules
+observability Lambda, schedule, metric namespace, and alert topic
 ```
 
 The existing raw outputs used by the operator scripts remain stable. The stack
@@ -146,8 +147,10 @@ planner/executor work.
 
 Operational knobs such as `environment`, `name_prefix`, worker image tag,
 Batch retries, Lambda timeouts, schedules, scan counts, and retention windows
-are Terraform variables with production defaults. GFS ingest, ICON ingest, and
-the scheduled publisher all use the same Lambda zip artifact.
+are Terraform variables with production defaults. `observability_alert_email`
+is required so production alarms have an explicit notification destination.
+GFS ingest, ICON ingest, the scheduled publisher, and the read-only
+observability checker all use the same Lambda zip artifact.
 
 The artifact and config buckets are treated as greenfield ETL resources:
 `force_destroy` is enabled and `prevent_destroy` is not used. Do not rely on
@@ -190,6 +193,8 @@ current:
 
 ```bash
 cd infra/terraform/weather-etl
+cp terraform.tfvars.example local.auto.tfvars
+# edit local.auto.tfvars
 terraform plan
 terraform apply
 ```
@@ -217,6 +222,49 @@ infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id gf
 
 Publication is handled by the scheduled publisher. It validates complete runs
 before publishing. Manual submit does not submit a dependent publisher job.
+
+## Observability
+
+The stack creates low-noise production alerts through
+`weather-etl-observability`, CloudWatch alarms, and an email-backed SNS topic.
+The email subscription must be confirmed from the AWS SNS confirmation email
+before alarm notifications are delivered.
+
+The read-only observability Lambda runs every 15 minutes by default. It reads
+the deployed config, run artifacts, public pointers, and
+`manifests/data-manifest.json`, then emits metrics in `WeatherMap/ETL`:
+
+```text
+ObservabilityCheckOk
+DatasetBadState
+DatasetFresh
+LatestCycleLagHours
+DataManifestValid
+PublisherFailedCandidates
+```
+
+Alerts are configured for:
+
+- GFS ingest, ICON ingest, publisher, and observability Lambda errors
+- publisher candidate exceptions
+- Batch worker `FAILED` state-change events
+- Batch queue blocked events
+- stable stale, stalled, incomplete, or unavailable dataset state
+- stable missing or malformed `manifests/data-manifest.json`
+
+Normal in-progress cycles stay quiet: `building` dataset state and scheduled
+publisher `not_ready` candidates do not alert by default. Successful cycles do
+not send success notifications.
+
+Manually invoke the checker:
+
+```bash
+aws lambda invoke \
+  --function-name weather-etl-observability \
+  --payload '{}' \
+  /tmp/weather-etl-observability.json
+cat /tmp/weather-etl-observability.json
+```
 
 Enable or disable ICON polling:
 

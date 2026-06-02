@@ -1,0 +1,5 @@
+# Copy to local.auto.tfvars or terraform.tfvars and update values for your environment.
+#
+# The destination files are ignored by git. This example file is safe to commit.
+
+observability_alert_email = "you@example.com"

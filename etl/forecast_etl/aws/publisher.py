@@ -11,6 +11,7 @@ from ..storage.routing import make_store
 from ..uris import default_artifact_root_uri, default_forecast_catalog_uri, default_pipeline_config_uri
 from ..workflows.context import ApplicationContext
 from ..workflows.publisher import publish_candidate
+from .metrics import DEFAULT_METRIC_NAMESPACE, cloudwatch_client, emit_metrics, metric_datum
 
 DEFAULT_ARTIFACT_ROOT_URI = default_artifact_root_uri()
 DEFAULT_PIPELINE_CONFIG_URI = default_pipeline_config_uri()
@@ -97,6 +98,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     latest_promoted = 0
     not_ready = 0
     failed = 0
+    failed_by_dataset: dict[str, int] = {}
     failures: list[dict[str, str]] = []
 
     for dataset_id in datasets:
@@ -110,6 +112,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 )
             except (Exception, SystemExit) as exc:
                 failed += 1
+                failed_by_dataset[dataset_id] = failed_by_dataset.get(dataset_id, 0) + 1
                 failures.append({"dataset_id": dataset_id, "cycle": cycle, "error": str(exc)})
                 print(f"Publisher failed dataset_id={dataset_id} cycle={cycle}: {exc}", flush=True)
                 continue
@@ -138,6 +141,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if result.latest_promoted:
                 latest_promoted += 1
 
+    if failed:
+        _emit_failure_metrics(failed=failed, failed_by_dataset=failed_by_dataset)
+
     return {
         "ok": failed == 0,
         "datasets": len(datasets),
@@ -151,3 +157,26 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "failed": failed,
         "failures": failures[:10],
     }
+
+
+def _emit_failure_metrics(*, failed: int, failed_by_dataset: dict[str, int]) -> None:
+    namespace = os.environ.get("OBSERVABILITY_METRIC_NAMESPACE", DEFAULT_METRIC_NAMESPACE).strip() or DEFAULT_METRIC_NAMESPACE
+    metrics = [
+        metric_datum(
+            name="PublisherFailedCandidates",
+            value=failed,
+            dimensions={"Component": "publisher"},
+        )
+    ]
+    metrics.extend(
+        metric_datum(
+            name="PublisherFailedCandidates",
+            value=count,
+            dimensions={"Component": "publisher", "Dataset": dataset_id},
+        )
+        for dataset_id, count in sorted(failed_by_dataset.items())
+    )
+    try:
+        emit_metrics(cloudwatch=cloudwatch_client(), namespace=namespace, metrics=metrics)
+    except (Exception, SystemExit) as exc:
+        print(f"Publisher failed to emit failure metrics: {exc}", flush=True)

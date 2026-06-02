@@ -84,19 +84,20 @@ class PublisherTest(unittest.TestCase):
         return result, run_publish
 
     def test_publishes_explicit_cycles_and_reports_not_ready(self) -> None:
-        result, run_publish = self._run(
-            {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
-            side_effect=[
-                PublishResult(ready=True, already_published=False, latest_promoted=True),
-                PublishResult(
-                    ready=False,
-                    already_published=False,
-                    missing_markers=(
-                        f"s3://artifacts/runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
+        with patch("forecast_etl.aws.publisher.emit_metrics") as emit_metrics:
+            result, run_publish = self._run(
+                {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
+                side_effect=[
+                    PublishResult(ready=True, already_published=False, latest_promoted=True),
+                    PublishResult(
+                        ready=False,
+                        already_published=False,
+                        missing_markers=(
+                            f"s3://artifacts/runs/gfs/2026051106/{DEFAULT_RUN_ID}/status/tmp_surface/003._SUCCESS.json",
+                        ),
                     ),
-                ),
-            ],
-        )
+                ],
+            )
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["attempted"], 2)
@@ -105,6 +106,7 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(result["latest_promoted"], 1)
         self.assertEqual(result["not_ready"], 1)
         self.assertEqual([call.kwargs["cycle"] for call in run_publish.call_args_list], ["2026051112", "2026051106"])
+        emit_metrics.assert_not_called()
 
     def test_default_scan_uses_recent_cycles_for_configured_models(self) -> None:
         with patch.dict(
@@ -142,13 +144,17 @@ class PublisherTest(unittest.TestCase):
         )
 
     def test_continues_after_one_cycle_fails(self) -> None:
-        result, run_publish = self._run(
-            {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
-            side_effect=[
-                RuntimeError("boom"),
-                PublishResult(ready=True, already_published=True),
-            ],
-        )
+        with (
+            patch("forecast_etl.aws.publisher.cloudwatch_client", return_value=object()),
+            patch("forecast_etl.aws.publisher.emit_metrics", return_value=2) as emit_metrics,
+        ):
+            result, run_publish = self._run(
+                {"datasets": ["gfs"], "cycles": ["2026051112", "2026051106"]},
+                side_effect=[
+                    RuntimeError("boom"),
+                    PublishResult(ready=True, already_published=True),
+                ],
+            )
 
         self.assertFalse(result["ok"])
         self.assertEqual(result["attempted"], 2)
@@ -157,6 +163,10 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(result["already_published"], 1)
         self.assertEqual(result["failures"][0]["dataset_id"], "gfs")
         self.assertEqual(run_publish.call_count, 2)
+        emit_metrics.assert_called_once()
+        metric_data = emit_metrics.call_args.kwargs["metrics"]
+        self.assertEqual([metric["MetricName"] for metric in metric_data], ["PublisherFailedCandidates"] * 2)
+        self.assertEqual(metric_data[0]["Dimensions"], [{"Name": "Component", "Value": "publisher"}])
 
     def test_validates_missing_report_before_publish(self) -> None:
         with (

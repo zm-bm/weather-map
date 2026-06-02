@@ -66,6 +66,18 @@ output "publisher_lambda_arn" {
   value = aws_lambda_function.publisher.arn
 }
 
+output "observability_lambda_name" {
+  value = aws_lambda_function.observability.function_name
+}
+
+output "observability_lambda_arn" {
+  value = aws_lambda_function.observability.arn
+}
+
+output "observability_alert_topic_arn" {
+  value = aws_sns_topic.observability_alerts.arn
+}
+
 output "etl_runtime_contract" {
   value = {
     artifact_root_uri    = local.artifact_root_uri
@@ -117,6 +129,16 @@ output "etl_runtime_contract" {
       schedule      = var.publisher_schedule_expression
       datasets      = var.publisher_datasets
       cycle_count   = var.publisher_cycle_count
+    }
+
+    observability = {
+      lambda_name      = aws_lambda_function.observability.function_name
+      lambda_arn       = aws_lambda_function.observability.arn
+      schedule_name    = aws_cloudwatch_event_rule.observability_schedule.name
+      schedule         = var.observability_schedule_expression
+      metric_namespace = var.observability_metric_namespace
+      alert_topic_arn  = aws_sns_topic.observability_alerts.arn
+      alert_email      = var.observability_alert_email
     }
 
     retention = {
