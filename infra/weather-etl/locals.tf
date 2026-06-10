@@ -18,17 +18,17 @@ locals {
 
   artifact_root_uri = "s3://${local.artifacts_bucket_name}"
 
-  pipeline_path = abspath("${path.root}/../../../config/pipeline.json")
+  pipeline_path = abspath("${path.root}/../../config/pipeline.json")
   pipeline_key  = "${local.name_prefix}/pipeline.json"
   pipeline_uri  = "s3://${local.config_bucket_name}/${local.pipeline_key}"
 
-  catalog_path = abspath("${path.root}/../../../config/catalog.json")
+  catalog_path = abspath("${path.root}/../../config/catalog.json")
   catalog_key  = "${local.name_prefix}/catalog.json"
   catalog_uri  = "s3://${local.config_bucket_name}/${local.catalog_key}"
 }
 
 locals {
-  shared_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../../etl/dist/weather-etl-ingest-lambda.zip")
+  shared_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../etl/dist/weather-etl-ingest-lambda.zip")
   shared_lambda_zip_hash = filebase64sha256(local.shared_lambda_zip_path)
 
   gfs_sns_topic_arn = var.gfs_sns_topic_arn

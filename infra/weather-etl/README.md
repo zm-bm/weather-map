@@ -171,13 +171,13 @@ From the repo root, build the shared Lambda artifact before deploying Lambda
 code changes:
 
 ```bash
-infra/scripts/weather-etl/release/build-ingest-lambda-zip.sh
+scripts/etl-build-lambda.sh
 ```
 
 From the repo root, push the worker image after ETL code or dependency changes:
 
 ```bash
-infra/scripts/weather-etl/release/build-push-worker-image.sh
+scripts/etl-build-worker-image.sh
 ```
 
 The Lambda artifact is shared by the ingest and publisher Lambdas:
@@ -194,7 +194,7 @@ Batch job definitions, run coordinator table, and frame claim table are all
 current:
 
 ```bash
-cd infra/terraform/weather-etl
+cd infra/weather-etl
 cp terraform.tfvars.example local.auto.tfvars
 # edit local.auto.tfvars
 terraform plan
@@ -206,8 +206,8 @@ terraform apply
 From the repo root, manually submit a production cycle:
 
 ```bash
-etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
-etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id icon
+scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
+scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
 Manual submits generate one run id per submitted cycle unless `--run-id` or
@@ -219,7 +219,7 @@ Batch job. Use `--dry-run` to verify the run id, snapshot URIs, and
 submit/skip decisions before touching Batch:
 
 ```bash
-etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run
+scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run
 ```
 
 Publication is handled by the scheduled publisher. It validates complete runs

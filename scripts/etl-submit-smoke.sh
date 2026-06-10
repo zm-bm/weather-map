@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-STACK_DIR="$INFRA_DIR/terraform/weather-etl"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+STACK_DIR="$REPO_ROOT/infra/weather-etl"
 cd "$STACK_DIR"
 
 require_cmd() {

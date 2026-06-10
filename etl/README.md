@@ -6,9 +6,9 @@ submission path for GFS and ICON.
 
 For normal work, start with the shell wrappers:
 
-- `etl/scripts/run-cycle-local.sh` runs a complete local cycle with Docker
+- `scripts/etl-run-local.sh` runs a complete local cycle with Docker
   frame workers.
-- `etl/scripts/run-cycle-aws.sh` submits AWS Batch frame workers for a cycle.
+- `scripts/etl-run-aws.sh` submits AWS Batch frame workers for a cycle.
 
 The Python CLI does the real work behind those wrappers. Use it directly when
 you are debugging a stage, inspecting persisted state, or writing tests.
@@ -18,26 +18,26 @@ you are debugging a stage, inspecting persisted state, or writing tests.
 Set up the shared Python environment:
 
 ```bash
-etl/scripts/bootstrap.sh
+scripts/bootstrap.sh
 ```
 
 Run a local cycle for one dataset:
 
 ```bash
-etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
+scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+scripts/etl-run-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
 ```
 
 Preview the local work without writing artifacts:
 
 ```bash
-etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
+scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 ```
 
 Iterate on a smaller local slice:
 
 ```bash
-etl/scripts/run-cycle-local.sh \
+scripts/etl-run-local.sh \
   --dataset-id gfs \
   --cycle <YYYYMMDDHH> \
   --frames "000 003" \
@@ -68,7 +68,7 @@ By default local runs publish public manifests and refresh local `status.json`.
 Use `--no-publish` to stop after validation:
 
 ```bash
-etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --no-publish
+scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --no-publish
 ```
 
 Omitting `--run-id` creates a new run attempt. Passing `--run-id <run_id>`
@@ -84,8 +84,8 @@ Manual AWS submission is intentionally narrower than local `run-cycle`: it
 submits Batch workers only.
 
 ```bash
-etl/scripts/run-cycle-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
-etl/scripts/run-cycle-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
+scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
 The AWS path creates or resumes a run, snapshots the deployed product config,
@@ -96,7 +96,7 @@ It does not validate or publish inline. In production, the scheduled
 `weather-etl-publisher` Lambda validates complete runs, publishes manifests,
 updates `manifests/index.json`, and refreshes root `status.json`.
 
-Use `infra/terraform/weather-etl/README.md` for deeper production deploy and
+Use `infra/weather-etl/README.md` for deeper production deploy and
 AWS operator details.
 
 ## Debug CLI
@@ -185,6 +185,6 @@ The package is organized around a few stable boundaries:
 ```bash
 cd etl && ../.venv/bin/python -m pytest tests
 cd etl && ../.venv/bin/ruff check weather_etl tests
-bash -n etl/scripts/run-cycle-local.sh
-bash -n etl/scripts/run-cycle-aws.sh
+bash -n scripts/etl-run-local.sh
+bash -n scripts/etl-run-aws.sh
 ```

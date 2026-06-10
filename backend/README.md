@@ -15,12 +15,12 @@ local path, `file://` URI, or `s3://` URI. If unset, the backend uses
 Run directly from the repo root:
 
 ```bash
-etl/scripts/bootstrap.sh
+scripts/bootstrap.sh
 .venv/bin/uvicorn weather_map_backend.app:app --reload
 ```
 
 Build the Lambda artifact:
 
 ```bash
-infra/scripts/backend/release/build-lambda-zip.sh
+scripts/backend-build-lambda.sh
 ```

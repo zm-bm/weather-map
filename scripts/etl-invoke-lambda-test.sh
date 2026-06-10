@@ -2,13 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-STACK_DIR="$INFRA_DIR/terraform/weather-etl"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+STACK_DIR="$REPO_ROOT/infra/weather-etl"
 cd "$STACK_DIR"
 
 FN_NAME="$(terraform output -raw ingest_lambda_name)"
-PAYLOAD_FILE="${PAYLOAD_FILE:-$SCRIPT_DIR/events/sns-test-event.json}"
-OUT_FILE="${OUT_FILE:-$SCRIPT_DIR/events/invoke-output.json}"
+PAYLOAD_FILE="${PAYLOAD_FILE:-$SCRIPT_DIR/events/weather-etl-sns-test-event.json}"
+OUT_FILE="${OUT_FILE:-/tmp/weather-etl-invoke-output.json}"
 
 echo "Invoking lambda: $FN_NAME"
 echo "Payload: $PAYLOAD_FILE"

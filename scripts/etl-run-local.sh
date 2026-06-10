@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	etl/scripts/run-cycle-local.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>] [--frames <frames>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
+	scripts/etl-run-local.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>] [--frames <frames>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
 
 Description:
 	Runs the normal local ETL lifecycle with Docker frame workers:
@@ -162,7 +162,7 @@ if [[ ! "$ETL_WORKER_STAGGER_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
 	exit 1
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ETL_DIR="$ROOT/etl"
 CONFIG_FILE="$ROOT/config/pipeline.json"
 CATALOG_FILE="$ROOT/config/catalog.json"

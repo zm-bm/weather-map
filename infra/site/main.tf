@@ -19,7 +19,7 @@ locals {
     max_ttl     = 86400
   }
   weather_map_api_app_header_value = "weather-map-api"
-  backend_lambda_zip_path          = abspath("${path.root}/../../../backend/dist/weather-map-backend-lambda.zip")
+  backend_lambda_zip_path          = abspath("${path.root}/../../backend/dist/weather-map-backend-lambda.zip")
 }
 
 data "terraform_remote_state" "weather_etl" {

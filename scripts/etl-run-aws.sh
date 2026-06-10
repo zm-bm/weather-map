@@ -2,14 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INFRA_DIR="$REPO_ROOT/infra"
-STACK_DIR="$INFRA_DIR/terraform/weather-etl"
+STACK_DIR="$INFRA_DIR/weather-etl"
 
 usage() {
   cat <<'EOF'
 Usage:
-  etl/scripts/run-cycle-aws.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>]
+  scripts/etl-run-aws.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>]
 
 Description:
   Submits one AWS Batch worker job per resumable frame. This does not validate

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$REPO_ROOT/backend/dist"
 BUILD_DIR="$REPO_ROOT/backend/.lambda-build"
 ZIP_PATH="$DIST_DIR/weather-map-backend-lambda.zip"

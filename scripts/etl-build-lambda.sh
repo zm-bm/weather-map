@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ETL_DIR="$REPO_ROOT/etl"
 CONFIG_FILE="$REPO_ROOT/config/pipeline.json"
 CATALOG_FILE="$REPO_ROOT/config/catalog.json"

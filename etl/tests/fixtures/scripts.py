@@ -108,7 +108,7 @@ class AwsCycleScriptHarness(ScriptHarness):
 def local_cycle_script_harness(repo_root: Path, tmp_path: Path) -> LocalCycleScriptHarness:
     harness = LocalCycleScriptHarness(
         repo_root=repo_root,
-        script=repo_root / "etl" / "scripts" / "run-cycle-local.sh",
+        script=repo_root / "scripts" / "etl-run-local.sh",
         fake_bin_dir=tmp_path,
     )
     harness.write_executable("docker", _FAKE_DOCKER)
@@ -120,7 +120,7 @@ def aws_cycle_script_harness(repo_root: Path, tmp_path: Path) -> AwsCycleScriptH
     batch_log = tmp_path / "batch.log"
     harness = AwsCycleScriptHarness(
         repo_root=repo_root,
-        script=repo_root / "etl" / "scripts" / "run-cycle-aws.sh",
+        script=repo_root / "scripts" / "etl-run-aws.sh",
         fake_bin_dir=tmp_path,
         env_defaults={
             "PYTHON_BIN": (tmp_path / "check-python").as_posix(),

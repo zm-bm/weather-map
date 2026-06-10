@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-STACK_DIR="${STACK_DIR:-$REPO_ROOT/infra/terraform/weather-etl}"
+STACK_DIR="${STACK_DIR:-$REPO_ROOT/infra/weather-etl}"
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-$REPO_ROOT/artifacts}"
 ARTIFACTS_BUCKET="${ARTIFACTS_BUCKET:-}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
@@ -31,7 +31,7 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/weather-etl/release/upload-static-artifacts.sh [options]
+  scripts/etl-upload-static-artifacts.sh [options]
 
 Description:
   Uploads repo-local static artifacts to the weather ETL artifact bucket:
@@ -45,7 +45,7 @@ Description:
 Options:
   --bucket <name>          Artifact bucket name. Default: terraform output artifacts_bucket_name.
   --artifact-root <path>   Local artifact root. Default: repo artifacts/.
-  --stack-dir <path>       Terraform stack dir. Default: infra/terraform/weather-etl.
+  --stack-dir <path>       Terraform stack dir. Default: infra/weather-etl.
   --dry-run                Print AWS CLI dry-run operations without uploading.
   -h, --help               Show this help and exit.
 

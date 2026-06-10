@@ -22,14 +22,14 @@ Typical contents:
 
 How it is used:
 
-- `etl/scripts/run-cycle-local.sh` writes local ETL outputs here.
+- `scripts/etl-run-local.sh` writes local ETL outputs here.
 - The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
 - nginx serves `/manifests/*`, `/runs/*/payloads/*`, `/pmtiles/*`, and `/radio/*`
   directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
 - `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
-  bucket with `infra/scripts/weather-etl/release/upload-static-artifacts.sh`.
+  bucket with `scripts/etl-upload-static-artifacts.sh`.
 
 Generated contents under this directory are ignored by git.
 

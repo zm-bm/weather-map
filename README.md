@@ -10,8 +10,8 @@ ETL, and nginx artifact server for development.
 - `frontend/` is the React/Vite MapLibre app.
 - `backend/` is the FastAPI service used by frontend API routes.
 - `etl/` owns forecast artifact generation and local ETL helpers.
-- `infra/` owns project infrastructure, production ETL config, and production
-  release/operator scripts.
+- `infra/` owns project infrastructure and production ETL config.
+- `scripts/` owns human/operator shell entrypoints.
 - `artifacts/` is the local artifact root served by nginx in development.
 
 ## Prerequisites
@@ -25,7 +25,7 @@ ETL, and nginx artifact server for development.
 Set up the shared Python development environment with:
 
 ```bash
-etl/scripts/bootstrap.sh
+scripts/bootstrap.sh
 ```
 
 Start the dev stack with:
@@ -43,8 +43,8 @@ That runs:
 Refresh local forecast artifacts with a forecast cycle:
 
 ```bash
-etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
+scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+scripts/etl-run-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
 ```
 
 ## Configuration
@@ -73,7 +73,7 @@ npm run build
 
 ## Python Checks
 
-Run from the repo root after `etl/scripts/bootstrap.sh`:
+Run from the repo root after `scripts/bootstrap.sh`:
 
 ```bash
 .venv/bin/python -m pytest etl/tests
