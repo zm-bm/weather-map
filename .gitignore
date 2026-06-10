@@ -147,9 +147,7 @@ vite.config.ts.timestamp-*
 .codex
 
 # Local forecast artifact roots used in development
-artifacts/fields/
 artifacts/manifests/
-artifacts/status/
 artifacts/pmtiles/*
 !artifacts/pmtiles/.gitignore
 artifacts/radio/*
@@ -157,6 +155,7 @@ artifacts/radio/*
 artifacts/glyphs/*
 !artifacts/glyphs/.gitignore
 artifacts/runs/*
+artifacts/status.json
 
 # Local-only glyph source font.
 frontend/src/assets/fonts/NotoSansMonoCJKjp-Regular-BMP.*
