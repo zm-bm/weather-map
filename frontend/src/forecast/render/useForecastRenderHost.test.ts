@@ -259,7 +259,7 @@ describe('useForecastRenderHost', () => {
 
   it('applies render settings changes without reconciling renderers or incrementing host version', async () => {
     const nextRenderSettings: ForecastRenderSettings = {
-      raster: { colorSamplingMode: 'interpolated', opacity: 0.75 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         ...DEFAULT_PARTICLE_RENDER_SETTINGS,
         clearTrailsOnViewChange: false,
@@ -291,7 +291,7 @@ describe('useForecastRenderHost', () => {
     const error = new Error('settings update failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const nextRenderSettings: ForecastRenderSettings = {
-      raster: { colorSamplingMode: 'interpolated', opacity: 0.75 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: DEFAULT_PARTICLE_RENDER_SETTINGS,
     }
     const { result, rerender } = renderHostHook()

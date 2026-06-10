@@ -2,12 +2,14 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { clamp } from '@/core/math'
 import { worldSizeAtZoom, worldWrapForLng } from '@/core/geo'
+import type { PaletteSamplingMode } from '@/forecast/display/palette'
 import type {
   RasterWindow,
 } from '@/forecast/frames'
 import {
   DEFAULT_RASTER_RENDER_SETTINGS,
   type RasterColorSamplingMode,
+  type RasterGridSamplingMode,
   type RasterRenderSettings,
 } from '@/forecast/settings/settings'
 import type { MapFrameController } from '@/map/controllers'
@@ -53,6 +55,8 @@ import {
 
 const COLORMAP_LUT_SIZE = 256
 const BANDED_COLORMAP_LUT_SIZE = 2048
+const SOURCE_SAMPLING_MODE_BILINEAR = 0
+const SOURCE_SAMPLING_MODE_NEAREST = 1
 
 type RasterFrame = RasterWindow['lower']
 type RasterStyleId = 'colormap' | typeof CLOUD_LAYERS_RENDER_PATH_ID
@@ -70,6 +74,7 @@ type RasterState = {
   gl?: WebGL2RenderingContext
   enabled: boolean
   opacity: number
+  gridSamplingMode: RasterGridSamplingMode
   colorSamplingMode: RasterColorSamplingMode
   colormapProgramInfo: ProgramInfo | null
   cloudLayersProgramInfo: ProgramInfo | null
@@ -128,6 +133,7 @@ export function createRasterRuntime(
   const state: RasterState = {
     enabled: true,
     opacity: sanitizeOpacity(settings.opacity),
+    gridSamplingMode: settings.gridSamplingMode,
     colorSamplingMode: settings.colorSamplingMode,
     colormapProgramInfo: null,
     cloudLayersProgramInfo: null,
@@ -181,6 +187,7 @@ export function createRasterRuntime(
 
       state.framePair = resolvedFramePair
       state.activeStyleId = style.id
+      state.gridSamplingMode = settings.gridSamplingMode
       state.colorSamplingMode = settings.colorSamplingMode
       state.map?.triggerRepaint()
     },
@@ -191,11 +198,14 @@ export function createRasterRuntime(
     applySettings: (nextSettings) => {
       const nextOpacity = sanitizeOpacity(nextSettings.opacity)
       if (
+        settings.gridSamplingMode === nextSettings.gridSamplingMode &&
         settings.colorSamplingMode === nextSettings.colorSamplingMode &&
         settings.opacity === nextOpacity
       ) return
+      settings.gridSamplingMode = nextSettings.gridSamplingMode
       settings.colorSamplingMode = nextSettings.colorSamplingMode
       settings.opacity = nextOpacity
+      state.gridSamplingMode = nextSettings.gridSamplingMode
       state.colorSamplingMode = nextSettings.colorSamplingMode
       state.opacity = nextOpacity
       state.map?.triggerRepaint()
@@ -316,7 +326,7 @@ function renderColormapRaster(
   if (!state.map || !framePair || !colormapRenderSpec || !colormapProgramInfo) return
   if (!isColormapRasterFrame(framePair.lowerFrame)) return
 
-  const colormapTexture = state.colorSamplingMode === 'banded'
+  const colormapTexture = paletteSamplingModeForRaster(state.colorSamplingMode) === 'banded'
     ? state.colormapTextureBanded
     : state.colormapTextureInterpolated
   if (!colormapTexture) return
@@ -331,6 +341,7 @@ function renderColormapRaster(
       u_colormap_tex: colormapTexture,
       u_display_range: displayRangeUniform(framePair.lowerFrame.source.display.range),
       u_source_mode: colormapRenderSpec.mode,
+      u_source_sampling_mode: sourceSamplingModeUniform(state.gridSamplingMode),
       ...encodedLinearUniforms(colormapRenderSpec),
       u_matrix: matrix,
       u_opacity: state.opacity,
@@ -368,6 +379,7 @@ function renderCloudLayersRaster(
       u_opacity: state.opacity,
       u_world_size: worldSize,
       u_zoom: zoom,
+      u_source_sampling_mode: sourceSamplingModeUniform(state.gridSamplingMode),
       ...cloudLayerColorUniforms(framePair.lowerFrame),
     },
   })
@@ -418,20 +430,20 @@ function sanitizeOpacity(value: number): number {
 function createColormapTexture(
   gl: WebGL2RenderingContext,
   frame: RasterFrame,
-  colorSamplingMode: RasterColorSamplingMode
+  paletteSamplingMode: PaletteSamplingMode
 ): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) return null
 
-  const lutSize = colorSamplingMode === 'banded'
+  const lutSize = paletteSamplingMode === 'banded'
     ? BANDED_COLORMAP_LUT_SIZE
     : COLORMAP_LUT_SIZE
-  const lut = buildRasterColormapLut(frame, lutSize, colorSamplingMode)
+  const lut = buildRasterColormapLut(frame, lutSize, paletteSamplingMode)
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
   // Interpolated mode blends texels; banded mode uses threshold colors from exact texels.
-  if (colorSamplingMode === 'banded') {
+  if (paletteSamplingMode === 'banded') {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
   } else {
@@ -444,4 +456,14 @@ function createColormapTexture(
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
+}
+
+function paletteSamplingModeForRaster(colorSamplingMode: RasterColorSamplingMode): PaletteSamplingMode {
+  return colorSamplingMode === 'gradient' ? 'interpolated' : 'banded'
+}
+
+function sourceSamplingModeUniform(gridSamplingMode: RasterGridSamplingMode): number {
+  return gridSamplingMode === 'nearest'
+    ? SOURCE_SAMPLING_MODE_NEAREST
+    : SOURCE_SAMPLING_MODE_BILINEAR
 }

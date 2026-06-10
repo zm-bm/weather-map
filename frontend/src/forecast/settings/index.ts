@@ -28,6 +28,7 @@ export {
   PARTICLE_TRAIL_OPACITY_MIN,
   PARTICLE_TRAIL_OPACITY_STEP,
   RASTER_COLOR_SAMPLING_MODES,
+  RASTER_GRID_SAMPLING_MODES,
   RASTER_OPACITY_MAX,
   RASTER_OPACITY_MIN,
   RASTER_OPACITY_STEP,
@@ -47,6 +48,7 @@ export type {
   ParticleSettings,
   PressureContourSettings,
   RasterColorSamplingMode,
+  RasterGridSamplingMode,
   RasterRenderSettings,
   UnitSettings,
 } from './settings'

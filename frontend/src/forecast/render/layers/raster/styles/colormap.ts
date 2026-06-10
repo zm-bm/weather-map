@@ -4,10 +4,10 @@ import type {
 } from '@/forecast/display'
 import {
   samplePaletteColor,
+  type PaletteSamplingMode,
   type PaletteColorStop,
 } from '@/forecast/display/palette'
 import type { RasterWindow } from '@/forecast/frames'
-import type { RasterColorSamplingMode } from '@/forecast/settings/settings'
 
 type RasterFrame = RasterWindow['lower']
 
@@ -24,14 +24,14 @@ export function createColormapKey(frame: RasterFrame): string {
 export function buildRasterColormapLut(
   frame: RasterFrame,
   size: number,
-  colorSamplingMode: RasterColorSamplingMode
+  paletteSamplingMode: PaletteSamplingMode
 ): Uint8Array {
   const display = gradientDisplay(frame)
   return buildColormapLut(
     display.palette.stops,
     display.range,
     size,
-    colorSamplingMode
+    paletteSamplingMode
   )
 }
 
@@ -39,7 +39,7 @@ export function buildColormapLut(
   stops: readonly PaletteColorStop[],
   displayRange: DisplayRange,
   size: number,
-  colorSamplingMode: RasterColorSamplingMode
+  paletteSamplingMode: PaletteSamplingMode
 ): Uint8Array {
   const { min: rangeMin, max: rangeMax } = displayRange
   const span = Math.max(1e-6, rangeMax - rangeMin)
@@ -47,7 +47,7 @@ export function buildColormapLut(
 
   for (let idx = 0; idx < size; idx += 1) {
     const value = rangeMin + (span * idx) / Math.max(1, size - 1)
-    const color = samplePaletteColor(stops, value, colorSamplingMode)
+    const color = samplePaletteColor(stops, value, paletteSamplingMode)
     const offset = idx * 4
     lut[offset] = color[0]
     lut[offset + 1] = color[1]

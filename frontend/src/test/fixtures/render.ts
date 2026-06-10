@@ -29,6 +29,7 @@ const MOCK_ACTIVE_UNIFORMS = [
   { name: 'u_display_range', type: GL_FLOAT_VEC2 },
   { name: 'u_time_mix', type: GL_FLOAT },
   { name: 'u_source_mode', type: GL_INT },
+  { name: 'u_source_sampling_mode', type: GL_INT },
   { name: 'u_has_nodata', type: GL_INT },
   { name: 'u_nodata', type: GL_INT },
   { name: 'u_scale', type: GL_FLOAT },

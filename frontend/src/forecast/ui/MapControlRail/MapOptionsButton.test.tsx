@@ -20,7 +20,8 @@ const SETTINGS: ForecastSettings = {
   ...DEFAULT_FORECAST_SETTINGS,
   raster: {
     ...DEFAULT_FORECAST_SETTINGS.raster,
-    colorSamplingMode: 'interpolated',
+    gridSamplingMode: 'smooth',
+    colorSamplingMode: 'gradient',
   },
   pressureContours: {
     enabled: true,
@@ -48,10 +49,13 @@ describe('MapOptionsButton', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Map options' })
-    const panel = screen.getByText('Layer Color').closest('.map-control-options-panel') as HTMLDivElement | null
+    const panel = screen.getByText('Grid').closest('.map-control-options-panel') as HTMLDivElement | null
     const showParticlesCheckbox = screen.getByRole('checkbox', { name: 'Show particles', hidden: true })
     const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Show pressure contours', hidden: true })
+    const smoothRadio = screen.getByRole('radio', { name: 'Smooth', hidden: true })
+    const gradientRadio = screen.getByRole('radio', { name: 'Gradient', hidden: true })
     const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
+    const nearestRadio = screen.getByRole('radio', { name: 'Nearest', hidden: true })
     const opacitySlider = screen.getByRole('slider', { name: 'Layer opacity', hidden: true }) as HTMLInputElement
     const densitySlider = screen.getByRole('slider', { name: 'Particle density', hidden: true }) as HTMLInputElement
     const speedSlider = screen.getByRole('slider', { name: 'Particle speed', hidden: true }) as HTMLInputElement
@@ -61,7 +65,10 @@ describe('MapOptionsButton', () => {
 
     expect(panel).toBeTruthy()
     expect(panel?.hidden).toBe(true)
+    expect(smoothRadio).toBeChecked()
+    expect(gradientRadio).toBeChecked()
     expect(bandedRadio).not.toBeChecked()
+    expect(nearestRadio).not.toBeChecked()
     expect(opacitySlider.value).toBe(String(DEFAULT_FORECAST_SETTINGS.raster.opacity))
     expect(densitySlider.value).toBe(String(DEFAULT_FORECAST_SETTINGS.particles.particleCount))
     expect(speedSlider.value).toBe('1')
@@ -100,6 +107,9 @@ describe('MapOptionsButton', () => {
       trailFade: TRAIL_FADE,
     })
 
+    fireEvent.click(nearestRadio)
+    expect(actions.updateRaster).toHaveBeenCalledWith({ gridSamplingMode: 'nearest' })
+
     fireEvent.click(bandedRadio)
     expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
     rerender(
@@ -107,6 +117,7 @@ describe('MapOptionsButton', () => {
         settings={{
           ...SETTINGS,
           raster: {
+            gridSamplingMode: 'nearest',
             colorSamplingMode: 'banded',
             opacity: 0.65,
           },
@@ -122,6 +133,7 @@ describe('MapOptionsButton', () => {
         settingsActions={actions}
       />
     )
+    expect(nearestRadio).toBeChecked()
     expect(bandedRadio).toBeChecked()
     expect(opacitySlider.value).toBe('0.65')
     expect(densitySlider.value).toBe('12000')
@@ -137,6 +149,7 @@ describe('MapOptionsButton', () => {
         settings={{
           ...SETTINGS,
           raster: {
+            gridSamplingMode: 'nearest',
             colorSamplingMode: 'banded',
             opacity: 0.65,
           },
@@ -167,6 +180,7 @@ describe('MapOptionsButton', () => {
         settings={{
           ...SETTINGS,
           raster: {
+            gridSamplingMode: 'nearest',
             colorSamplingMode: 'banded',
             opacity: 0.65,
           },
@@ -198,7 +212,7 @@ describe('MapOptionsButton', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Map options' })
-    const panel = screen.getByText('Layer Color').closest('.map-control-options-panel') as HTMLDivElement | null
+    const panel = screen.getByText('Grid').closest('.map-control-options-panel') as HTMLDivElement | null
     const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
 
     fireEvent.click(button)

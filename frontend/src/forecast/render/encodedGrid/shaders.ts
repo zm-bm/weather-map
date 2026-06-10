@@ -153,6 +153,37 @@ EncodedSample sampleTempCLayer(isampler2DArray textureArray, int layer, int x, i
   return encodedValue(decodeTempCStored(stored));
 }
 
+int nearestGridX(EncodedGridLocation location, vec2 gridSize) {
+  return int(encodedWrapRepeat(floor(location.gridX + 0.5), gridSize.x));
+}
+
+int nearestGridY(EncodedGridLocation location, vec2 gridSize) {
+  return clamp(int(floor(location.gridY + 0.5)), 0, int(gridSize.y) - 1);
+}
+
+EncodedSample sampleLinearNearestLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset) {
+  return sampleLinearLayer(
+    textureArray,
+    layer,
+    nearestGridX(location, gridSize),
+    nearestGridY(location, gridSize),
+    hasNodata,
+    nodata,
+    scale,
+    offset
+  );
+}
+
+EncodedSample sampleTempCNearestLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, vec2 gridSize, int nodata) {
+  return sampleTempCLayer(
+    textureArray,
+    layer,
+    nearestGridX(location, gridSize),
+    nearestGridY(location, gridSize),
+    nodata
+  );
+}
+
 EncodedSample sampleLinearBilinearLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, int hasNodata, int nodata, float scale, float offset) {
   return weightedEncodedSample(
     sampleLinearLayer(textureArray, layer, location.x0, location.y0, hasNodata, nodata, scale, offset),
@@ -187,6 +218,30 @@ EncodedSample sampleLinearTemporalLayer(isampler2DArray lowerTextureArray, isamp
   );
 }
 
+EncodedSample sampleLinearNearestTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, int layer, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset, float mixValue) {
+  return blendEncodedSamples(
+    sampleLinearNearestLayer(lowerTextureArray, layer, location, gridSize, hasNodata, nodata, scale, offset),
+    sampleLinearNearestLayer(upperTextureArray, layer, location, gridSize, hasNodata, nodata, scale, offset),
+    clamp(mixValue, 0.0, 1.0)
+  );
+}
+
+EncodedSample sampleLinearNearestClampedTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, int layer, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset, float minValue, float maxValue, float mixValue) {
+  return blendEncodedSamples(
+    clampEncodedSample(
+      sampleLinearNearestLayer(lowerTextureArray, layer, location, gridSize, hasNodata, nodata, scale, offset),
+      minValue,
+      maxValue
+    ),
+    clampEncodedSample(
+      sampleLinearNearestLayer(upperTextureArray, layer, location, gridSize, hasNodata, nodata, scale, offset),
+      minValue,
+      maxValue
+    ),
+    clamp(mixValue, 0.0, 1.0)
+  );
+}
+
 EncodedSample sampleLinearClampedTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, int layer, EncodedGridLocation location, int hasNodata, int nodata, float scale, float offset, float minValue, float maxValue, float mixValue) {
   return blendEncodedSamples(
     clampEncodedSample(
@@ -207,6 +262,14 @@ EncodedSample sampleTempCTemporalLayer(isampler2DArray lowerTextureArray, isampl
   return blendEncodedSamples(
     sampleTempCBilinearLayer(lowerTextureArray, layer, location, nodata),
     sampleTempCBilinearLayer(upperTextureArray, layer, location, nodata),
+    clamp(mixValue, 0.0, 1.0)
+  );
+}
+
+EncodedSample sampleTempCNearestTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, int layer, EncodedGridLocation location, vec2 gridSize, int nodata, float mixValue) {
+  return blendEncodedSamples(
+    sampleTempCNearestLayer(lowerTextureArray, layer, location, gridSize, nodata),
+    sampleTempCNearestLayer(upperTextureArray, layer, location, gridSize, nodata),
     clamp(mixValue, 0.0, 1.0)
   );
 }
@@ -233,10 +296,30 @@ EncodedSample sampleWindSpeedBilinearLayer(isampler2DArray textureArray, Encoded
   );
 }
 
+EncodedSample sampleWindSpeedNearestLayer(isampler2DArray textureArray, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset) {
+  return sampleWindSpeedCell(
+    textureArray,
+    nearestGridX(location, gridSize),
+    nearestGridY(location, gridSize),
+    hasNodata,
+    nodata,
+    scale,
+    offset
+  );
+}
+
 EncodedSample sampleWindSpeedTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, EncodedGridLocation location, int hasNodata, int nodata, float scale, float offset, float mixValue) {
   return blendEncodedSamples(
     sampleWindSpeedBilinearLayer(lowerTextureArray, location, hasNodata, nodata, scale, offset),
     sampleWindSpeedBilinearLayer(upperTextureArray, location, hasNodata, nodata, scale, offset),
+    clamp(mixValue, 0.0, 1.0)
+  );
+}
+
+EncodedSample sampleWindSpeedNearestTemporalLayer(isampler2DArray lowerTextureArray, isampler2DArray upperTextureArray, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset, float mixValue) {
+  return blendEncodedSamples(
+    sampleWindSpeedNearestLayer(lowerTextureArray, location, gridSize, hasNodata, nodata, scale, offset),
+    sampleWindSpeedNearestLayer(upperTextureArray, location, gridSize, hasNodata, nodata, scale, offset),
     clamp(mixValue, 0.0, 1.0)
   );
 }

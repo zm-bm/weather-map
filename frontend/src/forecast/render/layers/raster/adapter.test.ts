@@ -103,7 +103,7 @@ describe('rasterAdapter', () => {
   it('applies render settings to the raster controller', () => {
     const applySettings = vi.fn()
     const map = createRenderLayerMapFixture()
-    const settings = { colorSamplingMode: 'interpolated', opacity: 0.75 } as const
+    const settings = { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 } as const
     const unregister = registerRasterControllerFixture(map, createRenderControllerFixture({ applySettings }))
 
     try {

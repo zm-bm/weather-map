@@ -1,7 +1,9 @@
 import type { UnitSystem } from '@/forecast/display/units'
 
-export const RASTER_COLOR_SAMPLING_MODES = ['interpolated', 'banded'] as const
+export const RASTER_GRID_SAMPLING_MODES = ['smooth', 'nearest'] as const
+export const RASTER_COLOR_SAMPLING_MODES = ['gradient', 'banded'] as const
 
+export type RasterGridSamplingMode = typeof RASTER_GRID_SAMPLING_MODES[number]
 export type RasterColorSamplingMode = typeof RASTER_COLOR_SAMPLING_MODES[number]
 
 export const RASTER_OPACITY_MIN = 0.35
@@ -33,12 +35,14 @@ export const PARTICLE_TRAIL_FADE_MIN = 0.94
 export const PARTICLE_TRAIL_FADE_MAX = 0.992
 
 export type RasterRenderSettings = {
+  gridSamplingMode: RasterGridSamplingMode
   colorSamplingMode: RasterColorSamplingMode
   opacity: number
 }
 
 export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
-  colorSamplingMode: 'interpolated',
+  gridSamplingMode: 'smooth',
+  colorSamplingMode: 'gradient',
   opacity: 1.0,
 }
 

@@ -22,7 +22,7 @@ describe('settingsPersistence', () => {
 
   it('loads valid persisted UI preferences over defaults', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: {
         enabled: false,
         particleCount: 11000,
@@ -36,7 +36,7 @@ describe('settingsPersistence', () => {
     })
 
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
-      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: expect.objectContaining({
         enabled: false,
         particleCount: 11000,
@@ -52,7 +52,7 @@ describe('settingsPersistence', () => {
 
   it('ignores malformed and invalid persisted settings', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'invalid', opacity: 2 },
+      raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
       particles: {
         enabled: 'false',
         particleCount: 1,
@@ -114,6 +114,7 @@ describe('settingsPersistence', () => {
   it('ignores out-of-range persisted map controls', () => {
     storeRawSettings({
       raster: {
+        gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
         opacity: 0.1,
       },
@@ -130,6 +131,7 @@ describe('settingsPersistence', () => {
 
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
       raster: {
+        gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
         opacity: DEFAULT_FORECAST_SETTINGS.raster.opacity,
       },
@@ -148,7 +150,7 @@ describe('settingsPersistence', () => {
   it('saves only persisted UI preferences', () => {
     saveStoredForecastSettings({
       ...DEFAULT_FORECAST_SETTINGS,
-      raster: { colorSamplingMode: 'banded', opacity: 0.75 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         ...DEFAULT_FORECAST_SETTINGS.particles,
         enabled: false,
@@ -164,7 +166,7 @@ describe('settingsPersistence', () => {
     } satisfies ForecastSettings)
 
     expect(loadRawSettings()).toEqual({
-      raster: { colorSamplingMode: 'banded', opacity: 0.75 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         enabled: false,
         particleCount: 15000,

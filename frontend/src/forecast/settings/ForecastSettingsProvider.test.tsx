@@ -37,7 +37,11 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     act(() => {
-      result.current.actions.updateRaster({ colorSamplingMode: 'banded', opacity: 0.7 })
+      result.current.actions.updateRaster({
+        gridSamplingMode: 'nearest',
+        colorSamplingMode: 'banded',
+        opacity: 0.7,
+      })
       result.current.actions.updateParticles({
         enabled: false,
         particleCount: 12000,
@@ -51,7 +55,11 @@ describe('ForecastSettingsProvider', () => {
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      raster: expect.objectContaining({ colorSamplingMode: 'banded', opacity: 0.7 }),
+      raster: expect.objectContaining({
+        gridSamplingMode: 'nearest',
+        colorSamplingMode: 'banded',
+        opacity: 0.7,
+      }),
       particles: expect.objectContaining({
         enabled: false,
         particleCount: 12000,
@@ -83,7 +91,7 @@ describe('ForecastSettingsProvider', () => {
 
   it('loads valid stored UI preferences', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: {
         enabled: false,
         particleCount: 11000,
@@ -99,7 +107,7 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      raster: { colorSamplingMode: 'banded', opacity: 0.65 },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: expect.objectContaining({
         enabled: false,
         particleCount: 11000,
@@ -115,7 +123,7 @@ describe('ForecastSettingsProvider', () => {
 
   it('falls back to defaults for invalid stored settings', () => {
     storeRawSettings({
-      raster: { colorSamplingMode: 'invalid', opacity: 2 },
+      raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
       particles: {
         enabled: 'false',
         particleCount: 1,
@@ -138,7 +146,11 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     act(() => {
-      result.current.actions.updateRaster({ colorSamplingMode: 'banded', opacity: 0.75 })
+      result.current.actions.updateRaster({
+        gridSamplingMode: 'nearest',
+        colorSamplingMode: 'banded',
+        opacity: 0.75,
+      })
       result.current.actions.updateParticles({
         enabled: false,
         particleCount: 15000,
@@ -154,6 +166,7 @@ describe('ForecastSettingsProvider', () => {
     await waitFor(() => {
       expect(JSON.parse(localStorage.getItem(FORECAST_SETTINGS_STORAGE_KEY) ?? '')).toEqual({
         raster: {
+          gridSamplingMode: 'nearest',
           colorSamplingMode: 'banded',
           opacity: 0.75,
         },

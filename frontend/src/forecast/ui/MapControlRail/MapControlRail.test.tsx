@@ -60,7 +60,8 @@ describe('MapControlRail', () => {
           ...DEFAULT_FORECAST_SETTINGS,
           raster: {
             ...DEFAULT_FORECAST_SETTINGS.raster,
-            colorSamplingMode: 'interpolated',
+            gridSamplingMode: 'smooth',
+            colorSamplingMode: 'gradient',
           },
           pressureContours: {
             enabled: true,
@@ -73,10 +74,12 @@ describe('MapControlRail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Map options' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show pressure contours' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show particles' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Nearest' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Banded' }))
 
     expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
     expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
+    expect(actions.updateRaster).toHaveBeenCalledWith({ gridSamplingMode: 'nearest' })
     expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
   })
 })

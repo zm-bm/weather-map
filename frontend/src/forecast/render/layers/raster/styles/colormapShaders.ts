@@ -21,6 +21,7 @@ uniform vec2 u_grid_size;
 uniform vec2 u_display_range;
 uniform float u_time_mix;
 uniform int u_source_mode;
+uniform int u_source_sampling_mode;
 uniform int u_has_nodata;
 uniform int u_nodata;
 uniform float u_scale;
@@ -34,11 +35,24 @@ uniform float u_opacity;
 const int SOURCE_MODE_LINEAR = ${COLORMAP_SOURCE_MODE_LINEAR};
 const int SOURCE_MODE_TEMP_C = ${COLORMAP_SOURCE_MODE_TEMP_C};
 const int SOURCE_MODE_WIND_SPEED = ${COLORMAP_SOURCE_MODE_WIND_SPEED};
+const int SOURCE_SAMPLING_MODE_NEAREST = 1;
 
 ${ENCODED_GRID_GLSL}
 
 EncodedSample sampleColormapRaster(EncodedGridLocation location, float mixValue) {
   if (u_source_mode == SOURCE_MODE_TEMP_C) {
+    if (u_source_sampling_mode == SOURCE_SAMPLING_MODE_NEAREST) {
+      return sampleTempCNearestTemporalLayer(
+        u_encoded_tex_lower,
+        u_encoded_tex_upper,
+        0,
+        location,
+        u_grid_size,
+        u_nodata,
+        mixValue
+      );
+    }
+
     return sampleTempCTemporalLayer(
       u_encoded_tex_lower,
       u_encoded_tex_upper,
@@ -50,10 +64,39 @@ EncodedSample sampleColormapRaster(EncodedGridLocation location, float mixValue)
   }
 
   if (u_source_mode == SOURCE_MODE_WIND_SPEED) {
+    if (u_source_sampling_mode == SOURCE_SAMPLING_MODE_NEAREST) {
+      return sampleWindSpeedNearestTemporalLayer(
+        u_encoded_tex_lower,
+        u_encoded_tex_upper,
+        location,
+        u_grid_size,
+        u_has_nodata,
+        u_nodata,
+        u_scale,
+        u_offset,
+        mixValue
+      );
+    }
+
     return sampleWindSpeedTemporalLayer(
       u_encoded_tex_lower,
       u_encoded_tex_upper,
       location,
+      u_has_nodata,
+      u_nodata,
+      u_scale,
+      u_offset,
+      mixValue
+    );
+  }
+
+  if (u_source_sampling_mode == SOURCE_SAMPLING_MODE_NEAREST) {
+    return sampleLinearNearestTemporalLayer(
+      u_encoded_tex_lower,
+      u_encoded_tex_upper,
+      0,
+      location,
+      u_grid_size,
       u_has_nodata,
       u_nodata,
       u_scale,

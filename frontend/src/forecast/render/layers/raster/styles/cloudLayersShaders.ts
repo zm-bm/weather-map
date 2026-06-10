@@ -20,54 +20,54 @@ uniform float u_scale;
 uniform float u_offset;
 uniform float u_opacity;
 uniform float u_zoom;
+uniform int u_source_sampling_mode;
 uniform vec3 u_low_cloud_color;
 uniform vec3 u_middle_cloud_color;
 uniform vec3 u_high_cloud_color;
 
 ${ENCODED_GRID_GLSL}
 
+const int SOURCE_SAMPLING_MODE_NEAREST = 1;
+
+EncodedSample sampleCloudDeckLayer(int layer, EncodedGridLocation location, float mixValue) {
+  if (u_source_sampling_mode == SOURCE_SAMPLING_MODE_NEAREST) {
+    return sampleLinearNearestClampedTemporalLayer(
+      u_encoded_tex_lower,
+      u_encoded_tex_upper,
+      layer,
+      location,
+      u_grid_size,
+      1,
+      -128,
+      u_scale / 100.0,
+      u_offset / 100.0,
+      0.0,
+      1.0,
+      mixValue
+    );
+  }
+
+  return sampleLinearClampedTemporalLayer(
+    u_encoded_tex_lower,
+    u_encoded_tex_upper,
+    layer,
+    location,
+    1,
+    -128,
+    u_scale / 100.0,
+    u_offset / 100.0,
+    0.0,
+    1.0,
+    mixValue
+  );
+}
+
 vec4 sampleCloudDecks(float sampleGridX, float sampleGridY, float nx, float ny, float mixValue) {
   EncodedGridLocation location = encodedGridLocationAt(sampleGridX, sampleGridY, vec2(nx, ny));
 
-  EncodedSample low = sampleLinearClampedTemporalLayer(
-    u_encoded_tex_lower,
-    u_encoded_tex_upper,
-    0,
-    location,
-    1,
-    -128,
-    u_scale / 100.0,
-    u_offset / 100.0,
-    0.0,
-    1.0,
-    mixValue
-  );
-  EncodedSample middle = sampleLinearClampedTemporalLayer(
-    u_encoded_tex_lower,
-    u_encoded_tex_upper,
-    1,
-    location,
-    1,
-    -128,
-    u_scale / 100.0,
-    u_offset / 100.0,
-    0.0,
-    1.0,
-    mixValue
-  );
-  EncodedSample high = sampleLinearClampedTemporalLayer(
-    u_encoded_tex_lower,
-    u_encoded_tex_upper,
-    2,
-    location,
-    1,
-    -128,
-    u_scale / 100.0,
-    u_offset / 100.0,
-    0.0,
-    1.0,
-    mixValue
-  );
+  EncodedSample low = sampleCloudDeckLayer(0, location, mixValue);
+  EncodedSample middle = sampleCloudDeckLayer(1, location, mixValue);
+  EncodedSample high = sampleCloudDeckLayer(2, location, mixValue);
 
   return vec4(
     low.value * low.valid,

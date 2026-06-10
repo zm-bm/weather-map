@@ -19,6 +19,7 @@ import {
   PARTICLE_TRAIL_OPACITY_MIN,
   PARTICLE_TRAIL_OPACITY_STEP,
   RASTER_COLOR_SAMPLING_MODES,
+  RASTER_GRID_SAMPLING_MODES,
   RASTER_OPACITY_MAX,
   RASTER_OPACITY_MIN,
   RASTER_OPACITY_STEP,
@@ -27,6 +28,7 @@ import {
   particleTrailFadeFromLength,
   particleTrailLengthFromFade,
   type RasterColorSamplingMode,
+  type RasterGridSamplingMode,
   type ForecastSettings,
   type ForecastSettingsActions,
 } from '@/forecast/settings'
@@ -79,7 +81,12 @@ export default function MapOptionsButton({
     settingsActions.updatePressureContours({ enabled: nextValue })
   }
 
-  const handleLayerColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleGridSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.currentTarget.value as RasterGridSamplingMode
+    settingsActions.updateRaster({ gridSamplingMode: nextValue })
+  }
+
+  const handleColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.currentTarget.value as RasterColorSamplingMode
     settingsActions.updateRaster({ colorSamplingMode: nextValue })
   }
@@ -131,18 +138,33 @@ export default function MapOptionsButton({
       </button>
       <div className="map-control-options-panel" hidden={!isOpen}>
         <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Layer Color</div>
-          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Layer color sampling mode">
+          <div className="map-control-options-heading wm-mono-caps">Grid</div>
+          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Grid sampling mode">
+            {RASTER_GRID_SAMPLING_MODES.map((mode) => (
+              <label className="map-control-options-row wm-mono-caps" key={mode}>
+                <input
+                  type="radio"
+                  name="grid-sampling-mode"
+                  value={mode}
+                  checked={settings.raster.gridSamplingMode === mode}
+                  onChange={handleGridSamplingModeChange}
+                />
+                <span>{gridSamplingModeLabel(mode)}</span>
+              </label>
+            ))}
+          </div>
+          <div className="map-control-options-heading wm-mono-caps">Colors</div>
+          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Color sampling mode">
             {RASTER_COLOR_SAMPLING_MODES.map((mode) => (
               <label className="map-control-options-row wm-mono-caps" key={mode}>
                 <input
                   type="radio"
-                  name="layer-color-sampling-mode"
+                  name="color-sampling-mode"
                   value={mode}
                   checked={settings.raster.colorSamplingMode === mode}
-                  onChange={handleLayerColorSamplingModeChange}
+                  onChange={handleColorSamplingModeChange}
                 />
-                <span>{mode === 'interpolated' ? 'Interpolated' : 'Banded'}</span>
+                <span>{colorSamplingModeLabel(mode)}</span>
               </label>
             ))}
           </div>
@@ -291,6 +313,14 @@ function OptionSlider({
 
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`
+}
+
+function gridSamplingModeLabel(mode: RasterGridSamplingMode): string {
+  return mode === 'smooth' ? 'Smooth' : 'Nearest'
+}
+
+function colorSamplingModeLabel(mode: RasterColorSamplingMode): string {
+  return mode === 'gradient' ? 'Gradient' : 'Banded'
 }
 
 function formatParticleCount(value: number): string {

@@ -16,11 +16,13 @@ import {
   PARTICLE_TRAIL_OPACITY_MAX,
   PARTICLE_TRAIL_OPACITY_MIN,
   RASTER_COLOR_SAMPLING_MODES,
+  RASTER_GRID_SAMPLING_MODES,
   RASTER_OPACITY_MAX,
   RASTER_OPACITY_MIN,
   type ForecastSettings,
   type ParticleSizeSettings,
   type RasterColorSamplingMode,
+  type RasterGridSamplingMode,
   particleSizeSettingsForRatio,
 } from './settings'
 
@@ -28,6 +30,7 @@ export const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
 
 type PersistedForecastSettings = {
   raster: {
+    gridSamplingMode: RasterGridSamplingMode
     colorSamplingMode: RasterColorSamplingMode
     opacity: number
   }
@@ -85,6 +88,7 @@ export function saveStoredForecastSettings(settings: ForecastSettings): void {
 function toStoredForecastSettings(settings: ForecastSettings): PersistedForecastSettings {
   return {
     raster: {
+      gridSamplingMode: settings.raster.gridSamplingMode,
       colorSamplingMode: settings.raster.colorSamplingMode,
       opacity: settings.raster.opacity,
     },
@@ -130,6 +134,9 @@ function validRasterSettings(value: unknown): StoredForecastSettings['raster'] |
   if (!isRecord(value)) return null
 
   const raster: NonNullable<StoredForecastSettings['raster']> = {}
+  if (isRasterGridSamplingMode(value.gridSamplingMode)) {
+    raster.gridSamplingMode = value.gridSamplingMode
+  }
   if (isRasterColorSamplingMode(value.colorSamplingMode)) {
     raster.colorSamplingMode = value.colorSamplingMode
   }
@@ -195,6 +202,10 @@ function validUnitSettings(value: unknown): StoredForecastSettings['units'] | nu
   return {
     system: value.system,
   }
+}
+
+function isRasterGridSamplingMode(value: unknown): value is RasterGridSamplingMode {
+  return typeof value === 'string' && RASTER_GRID_SAMPLING_MODES.includes(value as RasterGridSamplingMode)
 }
 
 function isRasterColorSamplingMode(value: unknown): value is RasterColorSamplingMode {

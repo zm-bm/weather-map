@@ -283,18 +283,27 @@ describe('ForecastMap', () => {
     const controlProps = getLatestControlProps()
 
     act(() => {
-      controlProps.settingsActions?.updateRaster({ colorSamplingMode: 'banded' })
+      controlProps.settingsActions?.updateRaster({
+        gridSamplingMode: 'nearest',
+        colorSamplingMode: 'banded',
+      })
     })
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
       renderSettings: expect.objectContaining({
-        raster: expect.objectContaining({ colorSamplingMode: 'banded' }),
+        raster: expect.objectContaining({
+          gridSamplingMode: 'nearest',
+          colorSamplingMode: 'banded',
+        }),
       }),
     }))
     expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
       settings: expect.objectContaining({
-        raster: expect.objectContaining({ colorSamplingMode: 'banded' }),
+        raster: expect.objectContaining({
+          gridSamplingMode: 'nearest',
+          colorSamplingMode: 'banded',
+        }),
       }),
     }))
   })
