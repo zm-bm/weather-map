@@ -42,12 +42,12 @@ export function useForecastManifest(): ForecastManifestState {
     const { manifest } = request
     const datasetOptions = datasetOptionsFromManifest(manifest)
     if (datasetOptions.length === 0) {
-      return startupError('Data manifest did not list any datasets.', retry)
+      return startupError('Manifest index did not list any datasets.', retry)
     }
 
     const activeRun = resolveActiveForecastRun(manifest)
     if (activeRun == null) {
-      return startupError('Data manifest did not include latest render data for any dataset.', retry)
+      return startupError('Manifest index did not include latest render data for any dataset.', retry)
     }
 
     return {

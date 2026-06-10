@@ -28,5 +28,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "../config/forecast_catalog.json"]
+  "include": ["src", "../config/catalog.json"]
 }

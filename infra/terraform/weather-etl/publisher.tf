@@ -39,9 +39,11 @@ data "aws_iam_policy_document" "publisher_lambda" {
     actions = ["s3:PutObject"]
     resources = [
       "arn:aws:s3:::${local.artifacts_bucket_name}/manifests/*",
-      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*"
+      "arn:aws:s3:::${local.artifacts_bucket_name}/runs/*",
+      "arn:aws:s3:::${local.artifacts_bucket_name}/status.json"
     ]
   }
+
 }
 
 resource "aws_iam_role_policy" "publisher_lambda" {
@@ -54,7 +56,7 @@ resource "aws_lambda_function" "publisher" {
   function_name    = local.names.publisher_lambda
   role             = aws_iam_role.publisher_lambda.arn
   runtime          = "python3.12"
-  handler          = "forecast_etl.aws.publisher.handler"
+  handler          = "weather_etl.adapters.aws.publisher_lambda.handler"
   filename         = local.shared_lambda_zip_path
   source_code_hash = local.shared_lambda_zip_hash
   timeout          = var.publisher_timeout_seconds
@@ -62,10 +64,9 @@ resource "aws_lambda_function" "publisher" {
 
   environment {
     variables = {
-      ARTIFACT_ROOT_URI              = local.artifact_root_uri
-      PUBLISH_DATASETS               = join(",", var.publisher_datasets)
-      PUBLISH_CYCLE_COUNT            = tostring(var.publisher_cycle_count)
-      OBSERVABILITY_METRIC_NAMESPACE = var.observability_metric_namespace
+      ARTIFACT_ROOT_URI   = local.artifact_root_uri
+      PUBLISH_DATASETS    = join(",", var.publisher_datasets)
+      PUBLISH_CYCLE_COUNT = tostring(var.publisher_cycle_count)
     }
   }
 
@@ -73,7 +74,7 @@ resource "aws_lambda_function" "publisher" {
     Name = local.names.publisher_lambda
   })
 
-  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "publisher_schedule" {

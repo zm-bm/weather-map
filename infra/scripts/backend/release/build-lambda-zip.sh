@@ -10,7 +10,7 @@ ZIP_PATH="$DIST_DIR/weather-map-backend-lambda.zip"
 PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 
 cleanup_source_build_artifacts() {
-  rm -rf "$REPO_ROOT/etl/build" "$REPO_ROOT/backend/build"
+  rm -rf "$REPO_ROOT/backend/build"
 }
 
 trap cleanup_source_build_artifacts EXIT
@@ -20,7 +20,6 @@ cleanup_source_build_artifacts
 mkdir -p "$BUILD_DIR/package" "$DIST_DIR"
 
 "$PYTHON_BIN" -m pip install --no-cache-dir --upgrade --target "$BUILD_DIR/package" \
-  "$REPO_ROOT/etl" \
   "$REPO_ROOT/backend"
 
 (

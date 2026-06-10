@@ -9,8 +9,8 @@ afterEach(() => {
 
 function createForecastManifestPayload() {
   return {
-    schema: 'weather-map.data-manifest',
-    schema_version: 1,
+    schema: 'weather-map.manifest-index',
+    schema_version: 2,
     generated_at: '2026-05-16T00:00:00Z',
     catalog_version: 'forecast-catalog-v1',
     payload_contract: 'field-binary-v2',
@@ -21,7 +21,7 @@ function createForecastManifestPayload() {
           run: {
             cycle: '2026040900',
             run_id: '20260409T000000Z-abcdef12',
-            payload_root: 'runs/gfs/2026040900/20260409T000000Z-abcdef12/fields',
+            payload_root: 'runs/gfs/2026040900/20260409T000000Z-abcdef12/payloads',
             generated_at: '2026-04-09T00:00:00Z',
             revision: 'test-revision',
           },
@@ -66,7 +66,7 @@ function createForecastManifestPayload() {
                 finite_value_range: { min: -50, max: 50 },
               },
               byte_length: 4,
-              payload_file: 'tmp_surface.field.i8.bin',
+              payload_file: 'tmp_surface.i8.bin',
             },
           },
         },
@@ -88,13 +88,13 @@ function createForecastManifestPayload() {
 }
 
 describe('fetchManifest', () => {
-  it('fetches the data manifest', async () => {
+  it('fetches the manifest index', async () => {
     const fetchMock = stubFetchJsonOnce(createForecastManifestPayload())
 
     const manifest = await fetchManifest()
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/manifests/data-manifest.json',
+      'http://localhost:3000/manifests/index.json',
       expect.any(Object)
     )
     const artifact = manifest.datasets.gfs?.latest?.artifacts.tmp_surface
@@ -109,7 +109,7 @@ describe('fetchManifest', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(fetchManifest()).rejects.toThrow(
-      'Failed to fetch data manifest: 404 Not Found'
+      'Failed to fetch manifest index: 404 Not Found'
     )
   })
 

@@ -50,27 +50,10 @@ resource "aws_iam_role_policy" "weather_map_api_lambda" {
       {
         Effect = "Allow"
         Action = [
-          "s3:ListBucket"
-        ]
-        Resource = "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}"
-        Condition = {
-          StringLike = {
-            "s3:prefix" = [
-              "manifests/*",
-              "runs/*"
-            ]
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Action = [
           "s3:GetObject"
         ]
         Resource = [
-          "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/manifests/*",
-          "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/runs/*",
-          "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.config_bucket_name}/weather-etl/pipeline_config.json"
+          "arn:aws:s3:::${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}/status.json"
         ]
       }
     ]
@@ -89,8 +72,7 @@ resource "aws_lambda_function" "weather_map_api" {
 
   environment {
     variables = {
-      ARTIFACT_ROOT_URI   = "s3://${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}"
-      PIPELINE_CONFIG_URI = data.terraform_remote_state.weather_etl.outputs.pipeline_config_uri
+      ARTIFACT_ROOT_URI = "s3://${data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name}"
     }
   }
 

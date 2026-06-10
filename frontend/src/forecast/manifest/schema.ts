@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const DATA_MANIFEST_SCHEMA = 'weather-map.data-manifest'
-export const DATA_MANIFEST_SCHEMA_VERSION = 1
+export const MANIFEST_INDEX_SCHEMA = 'weather-map.manifest-index'
+export const MANIFEST_INDEX_SCHEMA_VERSION = 2
 export const DATA_PAYLOAD_CONTRACT = 'field-binary-v2'
 
 const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
@@ -181,8 +181,8 @@ const manifestLayerSchema = z.object({
 })
 
 export const manifestSchema = z.object({
-  schema: z.literal(DATA_MANIFEST_SCHEMA),
-  schema_version: z.literal(DATA_MANIFEST_SCHEMA_VERSION),
+  schema: z.literal(MANIFEST_INDEX_SCHEMA),
+  schema_version: z.literal(MANIFEST_INDEX_SCHEMA_VERSION),
   generated_at: z.string(),
   catalog_version: z.string(),
   payload_contract: z.literal(DATA_PAYLOAD_CONTRACT),

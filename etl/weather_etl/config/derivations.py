@@ -1,0 +1,17 @@
+"""Static artifact derivation identifiers."""
+
+from __future__ import annotations
+
+DERIVATION_ICON_TOT_PREC_DELTA_RATE = "icon_tot_prec_delta_rate"
+DERIVATION_GFS_RUN_TOTAL_PRECIP = "gfs_run_total_precip"
+DERIVATION_PRECIP_TYPE_OVERLAY_FROM_GFS = "precip_type_overlay_from_gfs"
+DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS = "precip_type_overlay_from_icon_components"
+DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW = "thunderstorm_mask_from_icon_ww"
+
+ICON_WEATHER_CODE_DERIVATION_TYPES = {
+    DERIVATION_THUNDERSTORM_MASK_FROM_ICON_WW,
+}
+ICON_AVERAGE_RATE_DERIVATION_TYPES = {
+    DERIVATION_ICON_TOT_PREC_DELTA_RATE,
+    DERIVATION_PRECIP_TYPE_OVERLAY_FROM_ICON_COMPONENTS,
+}

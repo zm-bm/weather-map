@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from .health import build_health
+from weather_map_backend.health import build_health
+
 from .settings import load_settings
 
 app = FastAPI(title="Weather Map API", version="0.0.0")

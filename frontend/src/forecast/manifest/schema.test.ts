@@ -17,13 +17,13 @@ type MutableManifestPayload = Record<string, unknown> & {
 }
 
 describe('parseManifest', () => {
-  it('accepts the data manifest shape', () => {
+  it('accepts the manifest index shape', () => {
     const payload = createManifestPayloadFixture()
 
     const manifest = parseManifest(payload)
 
-    expect(manifest.schema).toBe('weather-map.data-manifest')
-    expect(manifest.schema_version).toBe(1)
+    expect(manifest.schema).toBe('weather-map.manifest-index')
+    expect(manifest.schema_version).toBe(2)
     expect(manifest.payload_contract).toBe('field-binary-v2')
     expect(manifest.datasets.gfs?.latest?.run.cycle).toBe('2026041312')
     expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.byte_length).toBe(4)
@@ -36,8 +36,8 @@ describe('parseManifest', () => {
 
     expect(manifest.datasets.gfs?.latest?.run.run_id).toBe('20260413T120000Z-abcdef12')
     expect(manifest.datasets.gfs?.latest?.run.payload_root)
-      .toBe('runs/gfs/2026041312/20260413T120000Z-abcdef12/fields')
-    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.payload_file).toBe('tmp_surface.field.i8.bin')
+      .toBe('runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads')
+    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.payload_file).toBe('tmp_surface.i8.bin')
   })
 
   it('rejects manifests without run-first payload references', () => {

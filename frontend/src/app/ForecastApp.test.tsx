@@ -85,7 +85,7 @@ describe('ForecastApp', () => {
     mocks.shellProps = null
   })
 
-  it('passes data manifest data to the shell', () => {
+  it('passes manifest index data to the shell', () => {
     const data = createForecastManifestDataFixture()
     mocks.manifestState = createReadyManifestState(data)
 
@@ -98,7 +98,7 @@ describe('ForecastApp', () => {
   it('mounts app status at the app level and projects manifest loading state', () => {
     renderForecastApp()
 
-    expectStatusText('Loading Forecast', 'Fetching data manifest.')
+    expectStatusText('Loading Forecast', 'Fetching manifest index.')
     expect(screen.getByText('Loading Forecast').closest('.forecast-screen__status-overlay'))
       .not.toBeNull()
   })

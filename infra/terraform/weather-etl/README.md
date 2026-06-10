@@ -1,6 +1,6 @@
 # Weather ETL Stack
 
-Production forecast ETL infrastructure for GFS and ICON.
+Production weather ETL infrastructure for GFS and ICON.
 
 ## Flow
 
@@ -37,42 +37,44 @@ Publication is scheduled separately:
 3. Complete runs are validated into run-scoped `validation.json` reports when
    needed.
 4. Runs with passing validation publish immutable public run manifests, update
-   `current.json`/`latest.json` pointers, write the run-scoped `_PUBLISHED.json`,
-   and rebuild the aggregate frontend data manifest when latest changes.
+   full-manifest `current.json`/`latest.json` aliases, write the run-scoped
+   `publication.json`, and rebuild the aggregate frontend manifest index when
+   latest changes.
 
 Both forecast datasets use the same worker image. Each run uses pinned copies of the
-pipeline config and forecast catalog stored under its run prefix.
+pipeline config and catalog stored under its run prefix.
 
 New ETL output is grouped by run:
 
 ```text
 runs/<dataset_id>/<cycle>/<run_id>/
   run.json
-  config/pipeline_config.json
-  config/forecast_catalog.json
-  fields/<frame_id>/<artifact>.field.<dtype>.bin
+  config/pipeline.json
+  config/catalog.json
+  payloads/<frame_id>/<artifact>.<dtype>.bin
   status/<artifact>/<frame_id>._SUCCESS.json
   validation.json
   manifest.json
-  _PUBLISHED.json
+  publication.json
 ```
 
 Public aliases remain under `manifests/`. Public payload serving is run-first
-only through `/runs/*/fields/*`; legacy top-level `/fields/*` payload paths are
-no longer exposed.
+only through `/runs/*/payloads/*`; old type-first payload paths are no longer
+exposed.
 
-Pointer-era public manifests use:
+Public manifests use:
 
 ```text
 manifests/<dataset_id>/cycles/<cycle>/runs/<run_id>.json
 manifests/<dataset_id>/cycles/<cycle>/current.json
 manifests/<dataset_id>/latest.json
-manifests/data-manifest.json
+manifests/index.json
 ```
 
-Direct reads of `manifests/<dataset_id>/latest.json` return a small
-`weather-map.dataset-latest-pointer` object. The frontend hot path continues to
-read only `manifests/data-manifest.json`.
+Direct reads of `manifests/<dataset_id>/latest.json` and
+`manifests/<dataset_id>/cycles/<cycle>/current.json` return full
+`weather-map.dataset-cycle-manifest` objects. The frontend hot path continues
+to read only `manifests/index.json`.
 
 Automatic GFS and ICON ingest share a small DynamoDB run coordinator table:
 
@@ -111,18 +113,18 @@ claimed.
 
 ## Config
 
-Terraform uploads the production ETL config and forecast catalog. Ingest
+Terraform uploads the production ETL config and catalog. Ingest
 Lambdas and manual submit tooling use these deployed objects as the source of
 truth when creating a run snapshot:
 
 ```text
-PIPELINE_CONFIG_URI=s3://<config-bucket>/weather-etl/pipeline_config.json
-FORECAST_CATALOG_URI=s3://<config-bucket>/weather-etl/forecast_catalog.json
+PIPELINE_URI=s3://<config-bucket>/weather-etl/pipeline.json
+CATALOG_URI=s3://<config-bucket>/weather-etl/catalog.json
 ```
 
 Frames and produced artifact ids come from `datasets.<dataset_id>.workload` in
-that config. Changes to `config/pipeline/base.json` or
-`config/forecast_catalog.json` are deployed through this stack so the S3 source
+that config. Changes to `config/pipeline.json` or
+`config/catalog.json` are deployed through this stack so the S3 source
 objects are updated.
 
 ## Terraform Runtime Contract
@@ -131,14 +133,14 @@ This stack is intentionally organized around the ETL runtime contract:
 
 ```text
 artifact_root_uri
-pipeline_config_uri
-forecast_catalog_uri
+pipeline_uri
+catalog_uri
 run_coordinator_table
 frame_claim_table
 Batch queue and job definitions
 ingest and publisher Lambda names
 ingest and publisher schedules
-observability Lambda, schedule, metric namespace, and alert topic
+operational alerts and alert topic
 ```
 
 The existing raw outputs used by the operator scripts remain stable. The stack
@@ -149,8 +151,8 @@ Operational knobs such as `environment`, `name_prefix`, worker image tag,
 Batch retries, Lambda timeouts, schedules, scan counts, and retention windows
 are Terraform variables with production defaults. `observability_alert_email`
 is required so production alarms have an explicit notification destination.
-GFS ingest, ICON ingest, the scheduled publisher, and the read-only
-observability checker all use the same Lambda zip artifact.
+GFS ingest, ICON ingest, and the scheduled publisher all use the same Lambda
+zip artifact.
 
 The artifact and config buckets are treated as greenfield ETL resources:
 `force_destroy` is enabled and `prevent_destroy` is not used. Do not rely on
@@ -204,8 +206,8 @@ terraform apply
 From the repo root, manually submit a production cycle:
 
 ```bash
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id gfs
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id icon
+etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
+etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
 Manual submits generate one run id per submitted cycle unless `--run-id` or
@@ -217,7 +219,7 @@ Batch job. Use `--dry-run` to verify the run id, snapshot URIs, and
 submit/skip decisions before touching Batch:
 
 ```bash
-infra/scripts/weather-etl/ops/submit-cycle.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run
+etl/scripts/run-cycle-aws.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run
 ```
 
 Publication is handled by the scheduled publisher. It validates complete runs
@@ -225,46 +227,23 @@ before publishing. Manual submit does not submit a dependent publisher job.
 
 ## Observability
 
-The stack creates low-noise production alerts through
-`weather-etl-observability`, CloudWatch alarms, and an email-backed SNS topic.
-The email subscription must be confirmed from the AWS SNS confirmation email
-before alarm notifications are delivered.
+The stack creates low-noise AWS operational alerts through CloudWatch alarms,
+EventBridge Batch events, and an email-backed SNS topic. The email subscription
+must be confirmed from the AWS SNS confirmation email before alarm notifications
+are delivered.
 
-The read-only observability Lambda runs every 15 minutes by default. It reads
-the deployed config, run artifacts, public pointers, and
-`manifests/data-manifest.json`, then emits metrics in `WeatherMap/ETL`:
-
-```text
-ObservabilityCheckOk
-DatasetBadState
-DatasetFresh
-LatestCycleLagHours
-DataManifestValid
-PublisherFailedCandidates
-```
+The scheduled publisher refreshes the published root `status.json` document on
+each run. Health consumers should read that document instead of CloudWatch
+custom ETL metrics.
 
 Alerts are configured for:
 
-- GFS ingest, ICON ingest, publisher, and observability Lambda errors
-- publisher candidate exceptions
+- GFS ingest, ICON ingest, and publisher Lambda errors
 - Batch worker `FAILED` state-change events
 - Batch queue blocked events
-- stable stale, stalled, incomplete, or unavailable dataset state
-- stable missing or malformed `manifests/data-manifest.json`
 
-Normal in-progress cycles stay quiet: `building` dataset state and scheduled
-publisher `not_ready` candidates do not alert by default. Successful cycles do
-not send success notifications.
-
-Manually invoke the checker:
-
-```bash
-aws lambda invoke \
-  --function-name weather-etl-observability \
-  --payload '{}' \
-  /tmp/weather-etl-observability.json
-cat /tmp/weather-etl-observability.json
-```
+Normal in-progress cycles and publisher `not_ready` candidates stay quiet.
+Successful cycles do not send success notifications.
 
 Enable or disable ICON polling:
 

@@ -39,8 +39,6 @@ services:
     volumes:
       - ./artifacts:/artifacts:ro
       - ./backend/weather_map_backend:/app/backend/weather_map_backend:ro
-      - ./etl/forecast_etl:/app/etl/forecast_etl:ro
-      - ./config:/app/config:ro
     environment:
       - ARTIFACT_ROOT_URI=file:///artifacts
 

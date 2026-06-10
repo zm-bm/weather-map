@@ -124,7 +124,7 @@ describe('scalar payload', () => {
     expect(Array.from(frame.bands[0] ?? [])).toEqual([1, 2, 3, 4])
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/runs/gfs/2026041100/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin'
+      'http://localhost:3000/runs/gfs/2026041100/20260413T120000Z-abcdef12/payloads/000/tmp_surface.i8.bin'
     )
   })
 

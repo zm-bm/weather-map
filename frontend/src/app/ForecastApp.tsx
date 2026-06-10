@@ -33,7 +33,7 @@ function getForecastAppStatus(
       mode: 'blocking',
       level: 'loading',
       title: 'Loading Forecast',
-      detail: 'Fetching data manifest.',
+      detail: 'Fetching manifest index.',
     }
   }
 

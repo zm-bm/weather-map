@@ -95,8 +95,8 @@ resource "aws_batch_job_definition" "worker" {
     }
     environment = [
       { name = "ARTIFACT_ROOT_URI", value = local.artifact_root_uri },
-      { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
-      { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
+      { name = "PIPELINE_URI", value = local.pipeline_uri },
+      { name = "CATALOG_URI", value = local.catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region }
     ]
     logConfiguration = {
@@ -121,7 +121,7 @@ resource "aws_batch_job_definition" "worker" {
     Name = local.names.worker_gfs_job_definition
   })
 
-  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }
 
 resource "aws_batch_job_definition" "worker_icon" {
@@ -143,8 +143,8 @@ resource "aws_batch_job_definition" "worker_icon" {
     }
     environment = [
       { name = "ARTIFACT_ROOT_URI", value = local.artifact_root_uri },
-      { name = "PIPELINE_CONFIG_URI", value = local.pipeline_config_uri },
-      { name = "FORECAST_CATALOG_URI", value = local.forecast_catalog_uri },
+      { name = "PIPELINE_URI", value = local.pipeline_uri },
+      { name = "CATALOG_URI", value = local.catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region },
       { name = "ICON_SOURCE_WAIT_SECONDS", value = "2700" },
       { name = "ICON_REGRID_DESCRIPTION_FILE", value = "/opt/dwd-regrid/descriptions/icon/icon_description.txt" },
@@ -172,5 +172,5 @@ resource "aws_batch_job_definition" "worker_icon" {
     Name = local.names.worker_icon_job_definition
   })
 
-  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }

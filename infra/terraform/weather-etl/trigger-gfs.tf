@@ -2,7 +2,7 @@ resource "aws_lambda_function" "ingest" {
   function_name    = local.names.gfs_ingest_lambda
   role             = aws_iam_role.ingest_lambda.arn
   runtime          = "python3.12"
-  handler          = "forecast_etl.aws.gfs_ingest.handler"
+  handler          = "weather_etl.adapters.aws.gfs_ingest_lambda.handler"
   filename         = local.shared_lambda_zip_path
   source_code_hash = local.shared_lambda_zip_hash
   timeout          = var.gfs_ingest_timeout_seconds
@@ -13,8 +13,8 @@ resource "aws_lambda_function" "ingest" {
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker.arn
       ARTIFACT_ROOT_URI     = local.artifact_root_uri
       FRAME_CLAIM_TABLE     = aws_dynamodb_table.frame_claims.name
-      PIPELINE_CONFIG_URI   = local.pipeline_config_uri
-      FORECAST_CATALOG_URI  = local.forecast_catalog_uri
+      PIPELINE_URI          = local.pipeline_uri
+      CATALOG_URI           = local.catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name
     }
   }
@@ -23,7 +23,7 @@ resource "aws_lambda_function" "ingest" {
     Name = local.names.gfs_ingest_lambda
   })
 
-  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }
 
 resource "aws_sns_topic_subscription" "ingest" {

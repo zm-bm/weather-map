@@ -8,6 +8,17 @@ export type HealthDatasetStatus =
   | 'incomplete'
   | 'unavailable'
 
+export type HealthLifecycleStage =
+  | 'missing_snapshot'
+  | 'invalid_snapshot'
+  | 'pending_frames'
+  | 'invalid_markers'
+  | 'ready_for_validation'
+  | 'validation_failed'
+  | 'ready_for_publish'
+  | 'published'
+  | 'published_with_manifest_drift'
+
 export type HealthProgress = {
   cycle: string
   published: boolean
@@ -28,6 +39,9 @@ export type HealthDataset = {
   latest_observed_cycle: string | null
   latest_published_cycle: string | null
   latest_published_generated_at: string | null
+  lifecycle_stage: HealthLifecycleStage | null
+  lifecycle_cycle: string | null
+  lifecycle_run_id: string | null
   progress: HealthProgress | null
   publish_lag: {
     grace_hours: number | null
@@ -37,7 +51,7 @@ export type HealthDataset = {
 
 export type HealthPayload = {
   schema: 'weather-map.health'
-  schema_version: 1
+  schema_version: 2
   generated_at: string
   status: HealthOverallStatus
   datasets: HealthDataset[]

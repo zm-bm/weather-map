@@ -2,8 +2,10 @@
 
 Defines the shared semantic vocabulary for Weather Map.
 
-Use this file to distinguish user-facing layer concepts from ETL artifacts,
-forecast time concepts, render layers, and MapLibre implementation details.
+Use this file to distinguish user-facing layer concepts from forecast product
+config, ETL artifacts, forecast time concepts, render layers, and MapLibre
+implementation details. For detailed forecast config editing rules, see
+`forecast-config.md`.
 
 ## Layer Terms
 
@@ -26,11 +28,10 @@ forecast time concepts, render layers, and MapLibre implementation details.
   enabled by map options. Examples are precipitation-type patterns and pressure
   contours. The `overlay` render layer is specifically the layer-attached
   overlay renderer; pressure contours use the separate `contour` render layer.
-- `forecast catalog`: the frontend-owned list of `rasterLayerGroups`,
-  `rasterLayers`, overlay layers, contour layers, particle layers, grouped
-  display-profile references, and source recipes. The first id in a group's
-  `rasterLayerIds` list is the group default. The catalog package owns JSON
-  schema validation and normalized catalog entries.
+- `catalog` / `catalog.json`: the product/frontend presentation contract. It
+  lists `rasterLayerGroups`, `rasterLayers`, overlay layers, contour layers,
+  particle layers, display-profile references, and artifact source recipes.
+  The first id in a group's `rasterLayerIds` list is the group default.
 - `display profile`: frontend display metadata referenced by raster layers.
   A display profile owns the label, display range, unit options, legend labels,
   and palette colors for one or more layers.
@@ -40,8 +41,13 @@ forecast time concepts, render layers, and MapLibre implementation details.
 ## Time Terms
 
 - `cycle`: UTC batch/window/source issue timestamp, formatted as `YYYYMMDDHH`.
+- `run` / `run_id`: one ETL attempt to produce and publish a dataset cycle. A
+  cycle can have multiple runs; an explicit run id resumes one run.
 - `frame_id`: the within-cycle time/index dimension, formatted as `000`,
   `001`, `003`, etc. for forecast datasets.
+- `frame worker`: the ETL execution unit for one dataset/cycle/run/frame. A
+  frame worker reads source data and writes the selected artifact payloads plus
+  completion markers for that frame.
 - `valid time`: the actual UTC forecast time represented in the UI.
 - `frame`: one discrete forecast data time in the frontend: one active run plus
   one lead-hour token. This is the preferred data/render term.
@@ -54,8 +60,20 @@ forecast time concepts, render layers, and MapLibre implementation details.
 
 ## Artifact Terms
 
-- `artifact catalog`: the ETL-owned config defining which artifacts the ETL
-  produces. This is distinct from the frontend-owned forecast catalog.
+- `pipeline` / `pipeline.json`: the ETL production contract. It defines
+  dataset sources, frame workloads, artifact specs, source selectors, and
+  derivations.
+- `dataset source` / `source type`: the ETL acquisition family and settings for
+  one dataset, such as `gfs_nomads` or `icon_dwd_icosahedral`. This is distinct
+  from a frontend layer source recipe.
+- `product config`: the paired forecast configuration formed by loading
+  `pipeline.json` and `catalog.json` together and validating that the catalog's
+  artifact/band requirements match what the pipeline can publish.
+- `artifact catalog`: the `pipeline.json.artifact_catalog` section defining
+  artifact ids, kind, component order, units, transforms, and encoding. This is
+  distinct from `catalog.json`.
+- `workload`: the dataset-specific frame range and artifact set the ETL plans
+  for a cycle run.
 - `artifact`: an ETL-produced payload advertised by the manifest, with decode
   metadata used by the frontend artifact loader.
 - `artifact payload`: the encoded binary bytes for one artifact at one frame.
@@ -63,9 +81,17 @@ forecast time concepts, render layers, and MapLibre implementation details.
 - `vector artifact`: an artifact containing multiple ordered component grids.
   Some vectors are physical `u/v` vectors, while others are component bundles
   such as `snow_frac` / `mix_frac`.
-- `manifest`: the artifact availability and decode contract for a dataset run. It
-  describes artifacts, grids, encodings, available frames, and run
-  identity; it does not define the user-facing layer taxonomy.
+- `manifest`: the artifact availability and decode contract for a dataset run.
+  It describes artifacts, grids, encodings, available frames, and run identity;
+  it does not define the user-facing layer taxonomy.
+- `run manifest`: the immutable manifest for one dataset/cycle/run.
+- `latest manifest` / `current manifest`: mutable public aliases that point
+  consumers at the selected run for a dataset or cycle.
+- `manifest index`: `manifests/index.json`, the frontend-facing product index
+  built from product config plus latest manifests. It summarizes which catalog
+  layers are available for each dataset.
+- `status.json`: the root public ETL health document. ETL writes it from
+  durable state; the backend reads it to serve `/api/health`.
 - `frame ref`: the frontend artifact module's resolved reference to an artifact
   payload for one frame, including the manifest-provided payload path and byte
   length.

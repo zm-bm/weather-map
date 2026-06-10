@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import catalogJson from '../../../../config/forecast_catalog.json'
+import catalogJson from '../../../../config/catalog.json'
 import {
   DISPLAY_PROFILE_IDS,
 } from '@/forecast/display'

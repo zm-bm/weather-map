@@ -3,8 +3,8 @@ import type {
   Manifest,
 } from '@/forecast/manifest'
 import {
-  DATA_MANIFEST_SCHEMA,
-  DATA_MANIFEST_SCHEMA_VERSION,
+  MANIFEST_INDEX_SCHEMA,
+  MANIFEST_INDEX_SCHEMA_VERSION,
   DATA_PAYLOAD_CONTRACT,
   activeForecastRunForDataset,
 } from '@/forecast/manifest'
@@ -33,8 +33,8 @@ export function createMultiDatasetManifestFixture(options: {
     : latestFromFixture(options.iconManifest, 'icon')
 
   return {
-    schema: DATA_MANIFEST_SCHEMA,
-    schema_version: DATA_MANIFEST_SCHEMA_VERSION,
+    schema: MANIFEST_INDEX_SCHEMA,
+    schema_version: MANIFEST_INDEX_SCHEMA_VERSION,
     generated_at: '2026-05-16T00:00:00Z',
     catalog_version: 'forecast-catalog-v1',
     payload_contract: DATA_PAYLOAD_CONTRACT,

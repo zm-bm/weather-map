@@ -75,7 +75,7 @@ resource "aws_lambda_function" "ingest_icon" {
   function_name    = local.names.icon_ingest_lambda
   role             = aws_iam_role.ingest_icon_lambda.arn
   runtime          = "python3.12"
-  handler          = "forecast_etl.aws.icon_ingest.handler"
+  handler          = "weather_etl.adapters.aws.icon_ingest_lambda.handler"
   filename         = local.shared_lambda_zip_path
   source_code_hash = local.shared_lambda_zip_hash
   timeout          = var.icon_ingest_timeout_seconds
@@ -88,8 +88,8 @@ resource "aws_lambda_function" "ingest_icon" {
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker_icon.arn
       FRAME_CLAIM_TABLE     = aws_dynamodb_table.frame_claims.name
       ICON_POLL_CYCLE_COUNT = tostring(var.icon_poll_cycle_count)
-      PIPELINE_CONFIG_URI   = local.pipeline_config_uri
-      FORECAST_CATALOG_URI  = local.forecast_catalog_uri
+      PIPELINE_URI          = local.pipeline_uri
+      CATALOG_URI           = local.catalog_uri
       RUN_COORDINATOR_TABLE = aws_dynamodb_table.run_coordinator.name
     }
   }
@@ -98,7 +98,7 @@ resource "aws_lambda_function" "ingest_icon" {
     Name = local.names.icon_ingest_lambda
   })
 
-  depends_on = [aws_s3_object.forecast_config, aws_s3_object.forecast_catalog]
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }
 
 resource "aws_cloudwatch_event_rule" "ingest_icon_poll" {

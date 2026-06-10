@@ -4,7 +4,9 @@ Last updated: 2026-05-24
 
 ## Next Priorities
 
-### 0. Add "nearest" layer sampling mode
+### 0.1. Add "nearest" layer sampling mode
+### 0.2. Pre-warm cache after model run
+
 
 ### 1. Audit Default Palette And Boundary Correctness
 
@@ -107,11 +109,11 @@ unless they are opt-in or otherwise low-noise.
 
 ## Recently Completed
 
-### Define Field Layer Requirements
+### Consolidate Forecast Config Documentation
 
-Created `forecast-field-layer-requirements.md` as a staging contract for
-raster-rendered layer units, display ranges, encoded ranges, precision,
-thresholds, nodata behavior, clipping behavior, and sampling expectations.
+Replaced the staging forecast registry documents with `forecast-config.md`,
+which documents the two-file `pipeline.json` / `catalog.json` model, product
+agreement rules, and compact dataset support summary.
 
 ### Audit Artifact Encoding Correctness
 

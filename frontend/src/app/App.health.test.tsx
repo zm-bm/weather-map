@@ -41,6 +41,7 @@ describe('App health route', () => {
     render(<App />)
 
     expect(await screen.findByText('Weather Map Health')).toBeInTheDocument()
+    expect(screen.getByText('Pending frames')).toBeInTheDocument()
     expect(screen.queryByTestId('forecast-screen')).not.toBeInTheDocument()
     expect(mocks.useForecastManifest).not.toHaveBeenCalled()
   })
@@ -67,9 +68,29 @@ function jsonResponse(payload: unknown): Response {
 function createHealthPayload() {
   return {
     schema: 'weather-map.health',
-    schema_version: 1,
+    schema_version: 2,
     generated_at: '2026-05-11T18:00:00Z',
-    status: 'healthy',
-    datasets: [],
+    status: 'degraded',
+    datasets: [
+      {
+        dataset_id: 'gfs',
+        label: 'GFS',
+        status: 'building',
+        reason: 'Expected cycle is still building.',
+        expected_cycle: '2026051112',
+        expected_cycle_deadline: '2026-05-11T15:00:00Z',
+        latest_observed_cycle: '2026051112',
+        latest_published_cycle: '2026051106',
+        latest_published_generated_at: '2026-05-11T07:00:00Z',
+        lifecycle_stage: 'pending_frames',
+        lifecycle_cycle: '2026051112',
+        lifecycle_run_id: '20260511T183000Z-abcdef12',
+        progress: null,
+        publish_lag: {
+          grace_hours: 3.5,
+          source: 'recent-history',
+        },
+      },
+    ],
   }
 }

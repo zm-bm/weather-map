@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { fetchHealth } from './fetchHealth'
-import type { HealthDataset, HealthPayload } from './types'
+import type { HealthDataset, HealthLifecycleStage, HealthPayload } from './types'
 
 type HealthState = {
   loading: boolean
@@ -19,6 +19,18 @@ const STATUS_LABELS: Record<string, string> = {
   stalled: 'Stalled',
   stale: 'Stale',
   incomplete: 'Incomplete',
+}
+
+const LIFECYCLE_STAGE_LABELS: Record<HealthLifecycleStage, string> = {
+  missing_snapshot: 'Missing snapshot',
+  invalid_snapshot: 'Invalid snapshot',
+  pending_frames: 'Pending frames',
+  invalid_markers: 'Invalid markers',
+  ready_for_validation: 'Ready for validation',
+  validation_failed: 'Validation failed',
+  ready_for_publish: 'Ready for publish',
+  published: 'Published',
+  published_with_manifest_drift: 'Published with manifest drift',
 }
 
 const DATE_TIME = new Intl.DateTimeFormat(undefined, {
@@ -136,6 +148,7 @@ function DatasetHealthCard({ dataset }: { dataset: HealthDataset }) {
         <Fact label="Published Cycle" value={formatCycle(dataset.latest_published_cycle)} />
         <Fact label="Latest Seen" value={formatCycle(dataset.latest_observed_cycle)} />
         <Fact label="Published At" value={formatDateTime(dataset.latest_published_generated_at)} />
+        {dataset.lifecycle_stage && <Fact label="Lifecycle" value={formatLifecycleStage(dataset.lifecycle_stage)} />}
         <Fact label="Grace Window" value={dataset.publish_lag.grace_hours == null ? '--' : `${dataset.publish_lag.grace_hours}h`} />
       </dl>
 
@@ -212,6 +225,10 @@ function formatDateTime(value: string | null | undefined): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
   return DATE_TIME.format(date)
+}
+
+function formatLifecycleStage(stage: HealthLifecycleStage): string {
+  return LIFECYCLE_STAGE_LABELS[stage]
 }
 
 export default HealthPage

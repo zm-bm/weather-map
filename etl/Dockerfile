@@ -6,7 +6,7 @@ ARG ETL_CODE_REVISION=unknown
 ARG ETL_IMAGE_IDENTITY=unknown
 
 ENV PYTHONUNBUFFERED=1
-ENV FORECAST_ETL_DIR=/app/etl
+ENV WEATHER_ETL_DIR=/app/etl
 ENV ICON_REGRID_DESCRIPTION_FILE=/opt/dwd-regrid/descriptions/icon/icon_description.txt
 ENV ICON_REGRID_WEIGHTS_FILE=/opt/dwd-regrid/weights/icon/icon_weights.nc
 ENV ETL_CODE_REVISION=${ETL_CODE_REVISION}
@@ -28,11 +28,11 @@ COPY --from=dwd_regrid /data/descriptions/icon/icon_description.txt /opt/dwd-reg
 COPY --from=dwd_regrid /data/weights/icon/icon_weights.nc /opt/dwd-regrid/weights/icon/icon_weights.nc
 
 COPY etl/pyproject.toml ./etl/pyproject.toml
-COPY etl/forecast_etl ./etl/forecast_etl
+COPY etl/weather_etl ./etl/weather_etl
 COPY config ./config
 
 RUN pip install --no-cache-dir --upgrade pip "setuptools>=64" \
     && pip install --no-cache-dir --no-build-isolation ./etl
 
-ENTRYPOINT ["forecast-etl"]
+ENTRYPOINT ["weather-etl"]
 CMD ["run-frame"]

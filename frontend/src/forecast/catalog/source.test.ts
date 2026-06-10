@@ -9,7 +9,7 @@ import {
   type RasterSource,
 } from './source'
 
-describe('forecast catalog source helpers', () => {
+describe('catalog source helpers', () => {
   it('derives required raster band ids on non-base render layer sources', () => {
     const overlaySource = {
       id: 'precipitation_type',

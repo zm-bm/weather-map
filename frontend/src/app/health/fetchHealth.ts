@@ -18,7 +18,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthPayload> 
 function parseHealthPayload(value: unknown): HealthPayload {
   if (!isObject(value)) throw new Error('Invalid health payload: expected object')
   if (value.schema !== 'weather-map.health') throw new Error('Invalid health payload schema')
-  if (value.schema_version !== 1) throw new Error('Invalid health payload schema version')
+  if (value.schema_version !== 2) throw new Error('Invalid health payload schema version')
   if (!isStatus(value.status)) throw new Error('Invalid health payload status')
   if (!Array.isArray(value.datasets)) throw new Error('Invalid health payload datasets')
   if (typeof value.generated_at !== 'string') throw new Error('Invalid health payload generated_at')

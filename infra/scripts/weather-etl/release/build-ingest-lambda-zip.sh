@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 ETL_DIR="$REPO_ROOT/etl"
-CONFIG_FILE="$REPO_ROOT/config/pipeline/base.json"
-FORECAST_CATALOG_FILE="$REPO_ROOT/config/forecast_catalog.json"
+CONFIG_FILE="$REPO_ROOT/config/pipeline.json"
+CATALOG_FILE="$REPO_ROOT/config/catalog.json"
 DIST_DIR="${DIST_DIR:-$ETL_DIR/dist}"
 OUTPUT_ZIP="${OUTPUT_ZIP:-$DIST_DIR/weather-etl-ingest-lambda.zip}"
 PYTHON_BIN="${PYTHON_BIN:-python3.12}"
@@ -41,7 +41,7 @@ BUILD_SRC="$TMP_DIR/src"
 
 mkdir -p "$STAGE_DIR" "$DIST_DIR" "$BUILD_SRC"
 
-for required_file in "$CONFIG_FILE" "$FORECAST_CATALOG_FILE"; do
+for required_file in "$CONFIG_FILE" "$CATALOG_FILE"; do
   if [[ ! -f "$required_file" ]]; then
     echo "Missing required file for Lambda bundle: $required_file" >&2
     exit 1
@@ -51,7 +51,7 @@ done
 PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" -m venv "$BUILD_VENV"
 
 cp "$ETL_DIR/pyproject.toml" "$BUILD_SRC/pyproject.toml"
-cp -R "$ETL_DIR/forecast_etl" "$BUILD_SRC/forecast_etl"
+cp -R "$ETL_DIR/weather_etl" "$BUILD_SRC/weather_etl"
 
 PYTHONDONTWRITEBYTECODE=1 "$BUILD_PYTHON" -m pip --isolated install \
   --disable-pip-version-check \
@@ -67,13 +67,13 @@ PYTHONDONTWRITEBYTECODE=1 "$BUILD_PYTHON" -m pip --isolated install \
   --target "$STAGE_DIR" \
   "$BUILD_SRC" >/dev/null
 
-mkdir -p "$STAGE_DIR/config/pipeline"
-cp "$CONFIG_FILE" "$STAGE_DIR/config/pipeline/base.json"
-cp "$FORECAST_CATALOG_FILE" "$STAGE_DIR/config/forecast_catalog.json"
+mkdir -p "$STAGE_DIR/config"
+cp "$CONFIG_FILE" "$STAGE_DIR/config/pipeline.json"
+cp "$CATALOG_FILE" "$STAGE_DIR/config/catalog.json"
 
 find "$STAGE_DIR" -type d -name '__pycache__' -prune -exec rm -rf {} +
 find "$STAGE_DIR" -type f -name '*.pyc' -delete
-rm -rf "$STAGE_DIR/bin" "$STAGE_DIR/forecast_etl/tests"
+rm -rf "$STAGE_DIR/bin"
 
 # Normalize mtimes so repeated builds from unchanged sources produce the same zip.
 find "$STAGE_DIR" -type f -exec touch -t 200001010000 {} +

@@ -8,9 +8,8 @@ locals {
   weather_map_artifact_origin = {
     bucket_name = data.terraform_remote_state.weather_etl.outputs.artifacts_bucket_name
     path_patterns = tolist([
-      "/manifests/latest.json",
       "/manifests/*",
-      "/runs/*/fields/*",
+      "/runs/*/payloads/*",
       "/glyphs/*",
       "/pmtiles/*",
       "/radio/*",

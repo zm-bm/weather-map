@@ -20,7 +20,7 @@ describe('useForecastManifest', () => {
     vi.clearAllMocks()
   })
 
-  it('reports loading while the data manifest is loading', () => {
+  it('reports loading while the manifest index is loading', () => {
     mocks.fetchManifest.mockReturnValue(new Promise(() => {}))
 
     const { result } = renderHook(() => useForecastManifest())
@@ -61,7 +61,7 @@ describe('useForecastManifest', () => {
     await waitFor(() => {
       expect(empty.result.current.phase).toBe('error')
     })
-    expect(empty.result.current.error?.message).toBe('Data manifest did not list any datasets.')
+    expect(empty.result.current.error?.message).toBe('Manifest index did not list any datasets.')
     empty.unmount()
 
     mocks.fetchManifest.mockResolvedValueOnce(createMultiDatasetManifestFixture({
@@ -73,11 +73,11 @@ describe('useForecastManifest', () => {
       expect(noLatest.result.current.phase).toBe('error')
     })
     expect(noLatest.result.current.error?.message).toBe(
-      'Data manifest did not include latest render data for any dataset.'
+      'Manifest index did not include latest render data for any dataset.'
     )
   })
 
-  it('returns ready forecast data from the data manifest', async () => {
+  it('returns ready forecast data from the manifest index', async () => {
     const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
         dataset: { id: 'gfs', label: 'GFS' },

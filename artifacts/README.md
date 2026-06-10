@@ -6,20 +6,26 @@ It mirrors the object layout used in the production artifact bucket so the app c
 
 Typical contents:
 
-- `manifests/<model>/latest.json`
-- `manifests/<model>/<cycle>.json`
-- `runs/<model>/<cycle>/<run_id>/fields/<fhour>/<artifact>.field.<dtype>.bin`
-- `runs/<model>/<cycle>/<run_id>/status/<artifact>/<fhour>._SUCCESS.json`
+- `manifests/<dataset_id>/latest.json`
+- `manifests/<dataset_id>/cycles/<cycle>/current.json`
+- `manifests/<dataset_id>/cycles/<cycle>/runs/<run_id>.json`
+- `manifests/index.json`
+- `status.json`
+- `runs/<dataset_id>/<cycle>/<run_id>/payloads/<frame_id>/<artifact>.<dtype>.bin`
+- `runs/<dataset_id>/<cycle>/<run_id>/status/<artifact>/<frame_id>._SUCCESS.json`
+- `runs/<dataset_id>/<cycle>/<run_id>/validation.json`
+- `runs/<dataset_id>/<cycle>/<run_id>/manifest.json`
+- `runs/<dataset_id>/<cycle>/<run_id>/publication.json`
 - `pmtiles/<name>.pmtiles`
 - `radio/playlist.json`
 - `radio/<track>.mp3`
-- legacy `fields/...` and `status/...` objects while old manifests age out
 
 How it is used:
 
-- `etl/scripts/run-cycle.sh` writes local ETL outputs here.
+- `etl/scripts/run-cycle-local.sh` writes local ETL outputs here.
+- The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
-- nginx serves `/manifests/*`, `/runs/*/fields/*`, legacy `/fields/*`, `/pmtiles/*`, and `/radio/*`
+- nginx serves `/manifests/*`, `/runs/*/payloads/*`, `/pmtiles/*`, and `/radio/*`
   directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
 - `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact

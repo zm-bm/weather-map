@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "weather-map-forecast-etl"
+name = "weather-map-etl"
 version = "0.0.0"
 requires-python = ">=3.10"
 dependencies = [
@@ -13,25 +13,29 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pytest>=8.0.0",
     "ruff>=0.8.0",
 ]
 
 [project.scripts]
-forecast-etl = "forecast_etl.cli:main"
+weather-etl = "weather_etl.adapters.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["forecast_etl*"]
+include = ["weather_etl*"]
 
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-src = ["forecast_etl"]
+src = ["weather_etl", "tests"]
 exclude = [
     ".venv",
     "cache",
     "dist",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff.lint]
 select = [

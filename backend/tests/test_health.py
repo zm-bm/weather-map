@@ -1,35 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import ast
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from forecast_etl.artifacts.status import CycleProgress
-from forecast_etl.inspection.health import ArtifactHealthStatus, DatasetArtifactHealth
-from forecast_etl.inspection.snapshot import PublishLagEstimate
-from weather_map_backend import health as health_module
 from weather_map_backend.health import build_health
-from weather_map_backend.settings import Settings
+from weather_map_backend.settings import Settings, load_settings
+from weather_map_backend.status_document import read_status_document
 
 NOW = datetime(2026, 5, 11, 18, 30, tzinfo=timezone.utc)
+STATUS_GENERATED_AT = "2026-05-11T18:00:00Z"
 
 
-def test_health_serializes_dataset_health_and_aggregates_status(monkeypatch) -> None:
-    monkeypatch.setattr(health_module, "load_pipeline_config", lambda uri: _config("gfs", "icon"))
-    monkeypatch.setattr(health_module, "make_store", object)
+def test_health_formats_published_status_document(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    _write_status(settings, _status_document(datasets=(_dataset("gfs", status="fresh"), _building_dataset("icon"))))
 
-    def read_health(**kwargs) -> DatasetArtifactHealth:
-        if kwargs["dataset"].id == "gfs":
-            return _artifact_health(status="fresh", reason="Latest expected cycle is published.", progress=None)
-        return _artifact_health(status="building", reason="Expected cycle is still building.", progress=_progress())
-
-    monkeypatch.setattr(health_module, "read_dataset_artifact_health", read_health)
-
-    health = build_health(_settings(), now=NOW)
+    health = build_health(settings, now=NOW)
 
     assert health["schema"] == "weather-map.health"
-    assert health["schema_version"] == 1
-    assert health["generated_at"] == "2026-05-11T18:30:00Z"
+    assert health["schema_version"] == 2
+    assert health["generated_at"] == STATUS_GENERATED_AT
     assert health["status"] == "degraded"
     assert health["datasets"][0]["status"] == "fresh"
     assert health["datasets"][0]["progress"] is None
@@ -43,6 +35,9 @@ def test_health_serializes_dataset_health_and_aggregates_status(monkeypatch) -> 
         "latest_observed_cycle": "2026051112",
         "latest_published_cycle": "2026051106",
         "latest_published_generated_at": "2026-05-11T07:00:00Z",
+        "lifecycle_stage": "pending_frames",
+        "lifecycle_cycle": "2026051112",
+        "lifecycle_run_id": "20260511T183000Z-abcdef12",
         "progress": {
             "cycle": "2026051112",
             "run_id": "20260511T183000Z-abcdef12",
@@ -62,114 +57,178 @@ def test_health_serializes_dataset_health_and_aggregates_status(monkeypatch) -> 
     }
 
 
-def test_health_reports_healthy_when_all_datasets_are_fresh(monkeypatch) -> None:
-    monkeypatch.setattr(health_module, "load_pipeline_config", lambda uri: _config("gfs", "icon"))
-    monkeypatch.setattr(health_module, "make_store", object)
-    monkeypatch.setattr(
-        health_module,
-        "read_dataset_artifact_health",
-        lambda **kwargs: _artifact_health(status="fresh", reason="Latest expected cycle is published.", progress=None),
-    )
+def test_health_reports_healthy_when_all_status_datasets_are_fresh(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    _write_status(settings, _status_document(datasets=(_dataset("gfs", status="fresh"), _dataset("icon", status="fresh"))))
 
-    health = build_health(_settings(), now=NOW)
+    health = build_health(settings, now=NOW)
 
     assert health["status"] == "healthy"
     assert {dataset["status"] for dataset in health["datasets"]} == {"fresh"}
 
 
-def test_health_falls_back_when_config_load_fails(monkeypatch) -> None:
-    def raise_config_error(uri: str):
-        raise RuntimeError("config missing")
+def test_health_reports_unavailable_when_status_document_is_missing(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
 
-    monkeypatch.setattr(health_module, "load_pipeline_config", raise_config_error)
-    monkeypatch.setattr(health_module, "make_store", object)
+    health = build_health(settings, now=NOW)
 
-    health = build_health(_settings(), now=NOW)
-
+    assert health["generated_at"] == "2026-05-11T18:30:00Z"
     assert health["status"] == "unavailable"
     assert [dataset["dataset_id"] for dataset in health["datasets"]] == ["gfs", "icon"]
     assert all(dataset["status"] == "unavailable" for dataset in health["datasets"])
     assert all(dataset["progress"] is None for dataset in health["datasets"])
-    assert all("Unable to load ETL config: config missing" == dataset["reason"] for dataset in health["datasets"])
+    assert all(dataset["lifecycle_stage"] is None for dataset in health["datasets"])
+    assert all(dataset["lifecycle_cycle"] is None for dataset in health["datasets"])
+    assert all(dataset["lifecycle_run_id"] is None for dataset in health["datasets"])
+    assert all(dataset["reason"].startswith("Unable to read ETL status:") for dataset in health["datasets"])
 
 
-def test_health_loads_real_prod_pipeline_config(monkeypatch) -> None:
-    monkeypatch.setattr(health_module, "make_store", object)
-    monkeypatch.setattr(
-        health_module,
-        "read_dataset_artifact_health",
-        lambda **kwargs: _artifact_health(status="fresh", reason="Latest expected cycle is published.", progress=None),
-    )
-
-    repo_root = Path(__file__).resolve().parents[2]
-    settings = _settings(pipeline_config_uri=(repo_root / "config" / "pipeline" / "base.json").as_uri())
+def test_health_reports_unavailable_when_status_document_is_malformed(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    root = Path(settings.artifact_root_uri.removeprefix("file://"))
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "status.json").write_text('{"schema": "wrong"}', encoding="utf-8")
 
     health = build_health(settings, now=NOW)
 
-    assert health["status"] == "healthy"
-    assert [dataset["dataset_id"] for dataset in health["datasets"]] == ["gfs", "icon"]
-    assert all(dataset["status"] == "fresh" for dataset in health["datasets"])
+    assert health["status"] == "unavailable"
+    assert all("Invalid ETL status document" in dataset["reason"] for dataset in health["datasets"])
 
 
-@dataclass(frozen=True)
-class _Model:
-    id: str
-    label: str
+def test_load_settings_reads_only_artifact_root(monkeypatch) -> None:
+    monkeypatch.setenv("ARTIFACT_ROOT_URI", "file:///tmp/artifacts")
+
+    settings = load_settings()
+
+    assert settings == Settings(artifact_root_uri="file:///tmp/artifacts")
 
 
-@dataclass(frozen=True)
-class _Config:
-    datasets: dict[str, _Model]
+def test_status_document_reader_supports_s3_uri() -> None:
+    document = _status_document(datasets=(_dataset("gfs", status="fresh"),))
+    s3_client = _FakeS3Client({("bucket", "artifacts/status.json"): json.dumps(document).encode("utf-8")})
+
+    assert read_status_document(artifact_root_uri="s3://bucket/artifacts", s3_client=s3_client) == document
+    assert s3_client.requests == [("bucket", "artifacts/status.json")]
 
 
-def _config(*dataset_ids: str) -> _Config:
-    return _Config(datasets={dataset_id: _Model(id=dataset_id, label=dataset_id.upper()) for dataset_id in dataset_ids})
+def test_backend_package_does_not_import_weather_etl() -> None:
+    package_root = Path(__file__).resolve().parents[1] / "weather_map_backend"
+    offenders: list[str] = []
+    for path in package_root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            else:
+                continue
+            if any(name == "weather_etl" or name.startswith("weather_etl.") for name in names):
+                offenders.append(path.relative_to(package_root).as_posix())
+
+    assert offenders == []
 
 
-def _artifact_health(
-    *,
-    status: ArtifactHealthStatus,
-    reason: str,
-    progress: CycleProgress | None,
-) -> DatasetArtifactHealth:
-    return DatasetArtifactHealth(
-        status=status,
-        reason=reason,
-        expected_cycle="2026051112",
-        expected_cycle_deadline=datetime(2026, 5, 11, 15, tzinfo=timezone.utc),
-        latest_observed_cycle="2026051112",
-        latest_published_cycle="2026051106",
-        latest_published_generated_at=datetime(2026, 5, 11, 7, tzinfo=timezone.utc),
-        progress=progress,
-        publish_lag=PublishLagEstimate(hours=3.456, source="recent-history"),
+def _settings(tmp_path: Path) -> Settings:
+    return Settings(artifact_root_uri=(tmp_path / "artifacts").as_uri())
+
+
+def _write_status(settings: Settings, document: dict) -> None:
+    root = Path(settings.artifact_root_uri.removeprefix("file://"))
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "status.json").write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _status_document(*, datasets: tuple[dict, ...]) -> dict:
+    bad_dataset_count = sum(1 for dataset in datasets if dataset["bad_state"])
+    return {
+        "schema": "weather-map.etl-status",
+        "schema_version": 1,
+        "generated_at": STATUS_GENERATED_AT,
+        "ok": bad_dataset_count == 0,
+        "artifact_root_uri": "file:///tmp/artifacts",
+        "product_config_digest": "sha256:" + "0" * 64,
+        "config_error": None,
+        "dataset_count": len(datasets),
+        "bad_dataset_count": bad_dataset_count,
+        "inspection_failure_count": 0,
+        "datasets": list(datasets),
+        "manifest_index": {
+            "status": "valid",
+            "valid": True,
+            "path": "manifests/index.json",
+            "generated_at": STATUS_GENERATED_AT,
+            "dataset_count": len(datasets),
+            "latest_dataset_count": len(datasets),
+            "diagnostics": [],
+        },
+    }
+
+
+def _dataset(dataset_id: str, *, status: str) -> dict:
+    return {
+        "dataset_id": dataset_id,
+        "label": dataset_id.upper(),
+        "status": status,
+        "bad_state": status not in {"fresh", "building"},
+        "reason": "Latest expected cycle is published.",
+        "expected_cycle": "2026051112",
+        "expected_cycle_deadline": "2026-05-11T15:00:00Z",
+        "latest_observed_cycle": "2026051112",
+        "latest_published_cycle": "2026051112",
+        "latest_published_generated_at": "2026-05-11T14:00:00Z",
+        "latest_cycle_lag_hours": 0.0,
+        "lifecycle_stage": "published",
+        "lifecycle_cycle": "2026051112",
+        "lifecycle_run_id": "20260511T183000Z-abcdef12",
+        "progress": None,
+        "publish_lag": {
+            "grace_hours": 3.46,
+            "source": "recent-history",
+        },
+    }
+
+
+def _building_dataset(dataset_id: str) -> dict:
+    dataset = _dataset(dataset_id, status="building")
+    dataset.update(
+        {
+            "reason": "Expected cycle is still building.",
+            "latest_published_cycle": "2026051106",
+            "latest_published_generated_at": "2026-05-11T07:00:00Z",
+            "latest_cycle_lag_hours": 6.0,
+            "lifecycle_stage": "pending_frames",
+            "progress": {
+                "cycle": "2026051112",
+                "run_id": "20260511T183000Z-abcdef12",
+                "run_count": 1,
+                "published": False,
+                "manifest_present": False,
+                "expected_markers": 4,
+                "found_markers": 2,
+                "missing_markers": 2,
+                "last_progress_at": "2026-05-11T18:30:00Z",
+                "missing_sample": ["tmp_surface/002"],
+                "invalid_marker_sample": [],
+            },
+        }
     )
+    return dataset
 
 
-def _progress() -> CycleProgress:
-    return CycleProgress(
-        cycle="2026051112",
-        published=False,
-        manifest_present=False,
-        expected_markers=4,
-        found_markers=2,
-        missing_markers=2,
-        last_progress_at=NOW,
-        missing_sample=("tmp_surface/002",),
-        invalid_marker_sample=(),
-        run_id="20260511T183000Z-abcdef12",
-        run_count=1,
-    )
+class _FakeBody:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def read(self) -> bytes:
+        return self._data
 
 
-def _settings(*, pipeline_config_uri: str = "file:///tmp/pipeline_config.json") -> Settings:
-    return Settings(
-        artifact_root_uri="file:///tmp/weather-map-artifacts",
-        pipeline_config_uri=pipeline_config_uri,
-        stale_fallback_hours=9,
-        recent_progress_hours=2,
-        publish_grace_cushion_hours=1,
-        publish_grace_min_hours=3,
-        publish_grace_max_hours=12,
-        history_cycle_count=4,
-        status_cycle_count=4,
-    )
+class _FakeS3Client:
+    def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:
+        self.objects = objects
+        self.requests: list[tuple[str, str]] = []
+
+    def get_object(self, *, Bucket: str, Key: str) -> dict:
+        self.requests.append((Bucket, Key))
+        return {"Body": _FakeBody(self.objects[(Bucket, Key)])}

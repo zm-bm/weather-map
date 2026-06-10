@@ -114,18 +114,18 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "config" {
   }
 }
 
-resource "aws_s3_object" "forecast_config" {
+resource "aws_s3_object" "pipeline" {
   bucket       = local.config_bucket_name
-  key          = local.pipeline_config_key
-  source       = local.pipeline_config_path
-  etag         = filemd5(local.pipeline_config_path)
+  key          = local.pipeline_key
+  source       = local.pipeline_path
+  etag         = filemd5(local.pipeline_path)
   content_type = "application/json"
 }
 
-resource "aws_s3_object" "forecast_catalog" {
+resource "aws_s3_object" "catalog" {
   bucket       = local.config_bucket_name
-  key          = local.forecast_catalog_key
-  source       = local.forecast_catalog_path
-  etag         = filemd5(local.forecast_catalog_path)
+  key          = local.catalog_key
+  source       = local.catalog_path
+  etag         = filemd5(local.catalog_path)
   content_type = "application/json"
 }

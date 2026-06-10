@@ -18,13 +18,13 @@ locals {
 
   artifact_root_uri = "s3://${local.artifacts_bucket_name}"
 
-  pipeline_config_path = abspath("${path.root}/../../../config/pipeline/base.json")
-  pipeline_config_key  = "${local.name_prefix}/pipeline_config.json"
-  pipeline_config_uri  = "s3://${local.config_bucket_name}/${local.pipeline_config_key}"
+  pipeline_path = abspath("${path.root}/../../../config/pipeline.json")
+  pipeline_key  = "${local.name_prefix}/pipeline.json"
+  pipeline_uri  = "s3://${local.config_bucket_name}/${local.pipeline_key}"
 
-  forecast_catalog_path = abspath("${path.root}/../../../config/forecast_catalog.json")
-  forecast_catalog_key  = "${local.name_prefix}/forecast_catalog.json"
-  forecast_catalog_uri  = "s3://${local.config_bucket_name}/${local.forecast_catalog_key}"
+  catalog_path = abspath("${path.root}/../../../config/catalog.json")
+  catalog_key  = "${local.name_prefix}/catalog.json"
+  catalog_uri  = "s3://${local.config_bucket_name}/${local.catalog_key}"
 }
 
 locals {
@@ -62,10 +62,6 @@ locals {
     publisher_policy   = "${local.name_prefix}-publisher-lambda-policy"
     publisher_schedule = "${local.name_prefix}-publisher-schedule"
 
-    observability_lambda           = "${local.name_prefix}-observability"
-    observability_role             = "${local.name_prefix}-observability-lambda-role"
-    observability_policy           = "${local.name_prefix}-observability-lambda-policy"
-    observability_schedule         = "${local.name_prefix}-observability-schedule"
     observability_alert_topic      = "${local.name_prefix}-alerts"
     batch_failed_event_rule        = "${local.name_prefix}-batch-failed"
     batch_queue_blocked_event_rule = "${local.name_prefix}-batch-queue-blocked"

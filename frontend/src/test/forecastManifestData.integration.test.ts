@@ -35,8 +35,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('data manifest + forecast loading end-to-end', () => {
-  it('fetches data manifest once and loads scalar/vector frames from it', async () => {
+describe('manifest index + forecast loading end-to-end', () => {
+  it('fetches manifest index once and loads scalar/vector frames from it', async () => {
     const scalarPayload = createScalarPayloadFixture([1, 2, 3, 4])
     const vectorPayload = createVectorPayloadFixture([5, 6, 7, 8], [-1, -2, -3, -4])
     const gfsManifest = createSingleTimeManifestFixture({
@@ -45,18 +45,18 @@ describe('data manifest + forecast loading end-to-end', () => {
       run: {
         cycle: '2026041312',
         run_id: '20260413T120000Z-abcdef12',
-        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads',
         generated_at: '2026-04-13T12:00:00Z',
         revision: 'rev',
       },
       artifacts: {
         tmp_surface: createScalarArtifactFixture({
           id: 'tmp_surface',
-          payload_file: 'tmp_surface.field.i8.bin',
+          payload_file: 'tmp_surface.i8.bin',
         }),
         wind10m_uv: createVectorArtifactFixture({
           id: 'wind10m_uv',
-          payload_file: 'wind10m_uv.field.i8.bin',
+          payload_file: 'wind10m_uv.i8.bin',
         }),
       },
     })
@@ -69,15 +69,15 @@ describe('data manifest + forecast loading end-to-end', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = toUrl(input)
 
-      if (url.endsWith('/manifests/data-manifest.json')) {
+      if (url.endsWith('/manifests/index.json')) {
         return createFetchJsonResponse(manifestPayload)
       }
 
-      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin')) {
+      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads/000/tmp_surface.i8.bin')) {
         return createFetchArrayBufferResponse(scalarPayload)
       }
 
-      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/wind10m_uv.field.i8.bin')) {
+      if (url.endsWith('/runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads/000/wind10m_uv.i8.bin')) {
         return createFetchArrayBufferResponse(vectorPayload)
       }
 

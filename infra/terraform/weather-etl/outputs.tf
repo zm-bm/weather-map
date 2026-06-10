@@ -6,12 +6,12 @@ output "config_bucket_name" {
   value = local.config_bucket_name
 }
 
-output "pipeline_config_uri" {
-  value = local.pipeline_config_uri
+output "pipeline_uri" {
+  value = local.pipeline_uri
 }
 
-output "forecast_catalog_uri" {
-  value = local.forecast_catalog_uri
+output "catalog_uri" {
+  value = local.catalog_uri
 }
 
 output "artifact_root_uri" {
@@ -66,23 +66,15 @@ output "publisher_lambda_arn" {
   value = aws_lambda_function.publisher.arn
 }
 
-output "observability_lambda_name" {
-  value = aws_lambda_function.observability.function_name
-}
-
-output "observability_lambda_arn" {
-  value = aws_lambda_function.observability.arn
-}
-
 output "observability_alert_topic_arn" {
   value = aws_sns_topic.observability_alerts.arn
 }
 
 output "etl_runtime_contract" {
   value = {
-    artifact_root_uri    = local.artifact_root_uri
-    pipeline_config_uri  = local.pipeline_config_uri
-    forecast_catalog_uri = local.forecast_catalog_uri
+    artifact_root_uri = local.artifact_root_uri
+    pipeline_uri      = local.pipeline_uri
+    catalog_uri       = local.catalog_uri
 
     storage = {
       artifacts_bucket_name = local.artifacts_bucket_name
@@ -132,13 +124,8 @@ output "etl_runtime_contract" {
     }
 
     observability = {
-      lambda_name      = aws_lambda_function.observability.function_name
-      lambda_arn       = aws_lambda_function.observability.arn
-      schedule_name    = aws_cloudwatch_event_rule.observability_schedule.name
-      schedule         = var.observability_schedule_expression
-      metric_namespace = var.observability_metric_namespace
-      alert_topic_arn  = aws_sns_topic.observability_alerts.arn
-      alert_email      = var.observability_alert_email
+      alert_topic_arn = aws_sns_topic.observability_alerts.arn
+      alert_email     = var.observability_alert_email
     }
 
     retention = {

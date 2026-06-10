@@ -104,12 +104,6 @@ variable "publisher_timeout_seconds" {
   description = "Timeout for the scheduled publisher Lambda."
 }
 
-variable "observability_timeout_seconds" {
-  type        = number
-  default     = 60
-  description = "Timeout for the read-only ETL observability Lambda."
-}
-
 variable "icon_ingest_schedule_expression" {
   type        = string
   default     = "rate(10 minutes)"
@@ -120,12 +114,6 @@ variable "publisher_schedule_expression" {
   type        = string
   default     = "rate(10 minutes)"
   description = "EventBridge schedule for publisher reconciliation."
-}
-
-variable "observability_schedule_expression" {
-  type        = string
-  default     = "rate(15 minutes)"
-  description = "EventBridge schedule for read-only ETL observability checks."
 }
 
 variable "icon_poll_cycle_count" {
@@ -144,18 +132,6 @@ variable "publisher_cycle_count" {
   type        = number
   default     = 8
   description = "Recent synoptic cycle count scanned by the scheduled publisher."
-}
-
-variable "observability_metric_namespace" {
-  type        = string
-  default     = "WeatherMap/ETL"
-  description = "CloudWatch custom metric namespace for ETL observability metrics."
-}
-
-variable "observability_alarm_evaluation_periods" {
-  type        = number
-  default     = 2
-  description = "Evaluation periods for stable ETL artifact-state alarms."
 }
 
 variable "observability_alert_email" {

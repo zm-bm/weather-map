@@ -68,7 +68,7 @@ describe('readArtifactPayload', () => {
     await readArtifactPayload(payloadArgs())
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin'
+      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads/000/tmp_surface.i8.bin'
     )
   })
 
@@ -77,12 +77,12 @@ describe('readArtifactPayload', () => {
       run: {
         ...BASE_LATEST_RUN.run,
         run_id: '20260413T120000Z-abcdef12',
-        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/fields',
+        payload_root: 'runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads',
       },
       artifacts: {
         tmp_surface: {
           ...SCALAR_ARTIFACT,
-          payload_file: 'tmp_surface.field.i8.bin',
+          payload_file: 'tmp_surface.i8.bin',
         },
       },
       scalarArtifactIds: ['tmp_surface'],
@@ -96,7 +96,7 @@ describe('readArtifactPayload', () => {
     }))
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/fields/000/tmp_surface.field.i8.bin'
+      'http://localhost:3000/runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads/000/tmp_surface.i8.bin'
     )
   })
 
@@ -223,7 +223,7 @@ describe('readArtifactPayload', () => {
     ).rejects.toThrow('Failed to fetch scalar payload: 404 Not Found')
   })
 
-  it('fails when payload byte length does not match the data manifest', async () => {
+  it('fails when payload byte length does not match the manifest index', async () => {
     stubFetchArrayBufferOnce(new Uint8Array([1, 2, 3, 4]).buffer)
 
     await expect(

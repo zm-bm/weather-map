@@ -1,138 +1,190 @@
-# Forecast ETL
+# Weather ETL
 
-ETL package and worker image for forecast-like datasets such as GFS and ICON.
-Local development and production submission both run through the same cycle
-planning/executor path.
+This package builds forecast artifacts for Weather Map. It owns the Python ETL
+code, the Docker worker image, the local cycle runner, and the AWS Batch worker
+submission path for GFS and ICON.
 
-## Key Files
+For normal work, start with the shell wrappers:
 
-- `../config/pipeline/base.json`: production pipeline config source.
-- `../config/pipeline/local.json`: local pipeline override.
-- `../config/forecast_catalog.json`: canonical forecast layer catalog.
-- `forecast_etl/`: ETL package.
-- `Dockerfile`: Batch/local worker image.
-- `scripts/run-cycle.sh`: local cycle runner.
-- `scripts/bootstrap.sh`: optional repo-root venv setup for tests and direct CLI work.
+- `etl/scripts/run-cycle-local.sh` runs a complete local cycle with Docker
+  frame workers.
+- `etl/scripts/run-cycle-aws.sh` submits AWS Batch frame workers for a cycle.
 
-## Local Runs
+The Python CLI does the real work behind those wrappers. Use it directly when
+you are debugging a stage, inspecting persisted state, or writing tests.
 
-Local cycle runs use Docker for frame workers. The host wrapper builds or
-refreshes `weather-map-forecast-etl:local`, then delegates execution to
-`forecast-etl execute-local-cycle`.
+## Quick Start
 
-```bash
-etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle.sh --dataset-id gfs --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle.sh --dataset-id icon --cycle <YYYYMMDDHH>
-etl/scripts/run-cycle.sh --cycle <YYYYMMDDHH> --frames "000 003" --artifact cloud_layers
-```
-
-Omitting `--run-id` creates a new attempt. Passing `--run-id <run_id>` resumes
-that run and skips frames whose marker evidence is already complete. Local runs
-do not use persistent frame claims.
-
-The local executor runs:
-
-```text
-init-run -> plan-cycle -> pending run-frame containers -> validate-cycle -> optional publish-cycle
-```
-
-`--no-publish` suppresses only public manifest publication; validation still
-runs. `--dry-run` prints the planned containers and final validate/publish
-steps without writing artifacts. `--artifact` can narrow local iteration, but a
-fresh filtered run is expected to fail validation unless the other required
-artifacts already exist under the same run id.
-
-Local outputs are written under the repo-level `artifacts/` directory.
-Downloads and prepared GRIB files are cached under `etl/cache/`.
-
-## Direct CLI
-
-Use the venv for development, tests, and operator inspection:
+Set up the shared Python environment:
 
 ```bash
 etl/scripts/bootstrap.sh
-.venv/bin/forecast-etl list-datasets
-.venv/bin/forecast-etl list-frames --dataset-id <dataset_id>
-.venv/bin/forecast-etl init-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/forecast-etl plan-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> [--run-id <run_id>] --json
-.venv/bin/forecast-etl run-frame --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --frame-id <FFF>
-.venv/bin/forecast-etl validate-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/forecast-etl publish-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/forecast-etl runs --dataset-id <dataset_id> --cycle <YYYYMMDDHH>
-.venv/bin/forecast-etl status --dataset-id <dataset_id> --cycle <YYYYMMDDHH> [--run-id <run_id>]
-.venv/bin/forecast-etl pointers --dataset-id <dataset_id> [--cycle <YYYYMMDDHH>]
-.venv/bin/forecast-etl cleanup-runs --dataset-id <dataset_id> [--cycle <YYYYMMDDHH>] [--json]
 ```
 
-`run-frame`, `validate-cycle`, and `publish-cycle` should use the run snapshot
-config/catalog URIs once the snapshot exists. `publish-cycle` refuses runs
-without a passing `validation.json`.
+Run a local cycle for one dataset:
 
-The operator inspection commands are read-only except
-`cleanup-runs --delete --yes`, which deletes only cleanup-candidate
-`runs/<dataset_id>/<cycle>/<run_id>/` prefixes.
-
-Inspection logic lives under `forecast_etl.inspection`. Backend/API code should
-read ETL state through that package instead of importing worker, source,
-extraction, or publishing internals.
-
-## Pipeline Shape
-
-The config is dataset-aware:
-
-- `datasets.gfs` reads NOAA GFS data.
-- `datasets.icon` reads DWD ICON data and regrids it inside the worker image.
-- `datasets.<dataset_id>.workload` controls frame ids and artifact ids.
-
-Each `run-frame` writes field payloads and success markers. Markers include
-`dataset_id`, `cycle`, `run_id`, `frame_id`, artifact metadata, code revision,
-image identity, and config digest. Validation reads the run snapshot and marker
-metadata, writes `validation.json`, and remains the publication gate.
-
-Production/manual AWS submission is resume-aware:
-
-- omitted `--run-id` creates a new run attempt
-- explicit `--run-id` resumes an existing run
-- complete frames are skipped from marker evidence
-- active DynamoDB frame claims suppress duplicate submissions
-- expired claims allow retry
-
-```text
-source adapter -> prepared GRIB -> field payloads -> success markers -> validation -> run manifest -> pointers
+```bash
+etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+etl/scripts/run-cycle-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
 ```
 
-Public manifests use compact run-first payload references:
+Preview the local work without writing artifacts:
 
-```text
-run.payload_root = runs/<dataset_id>/<cycle>/<run_id>/fields
-artifact.payload_file = <artifact>.field.<dtype>.bin
-frontend path = <payload_root>/<frame_id>/<payload_file>
+```bash
+etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 ```
 
-## Artifacts
+Iterate on a smaller local slice:
+
+```bash
+etl/scripts/run-cycle-local.sh \
+  --dataset-id gfs \
+  --cycle <YYYYMMDDHH> \
+  --frames "000 003" \
+  --artifact cloud_layers
+```
+
+`--artifact` and `--frames` are for local iteration and targeted reruns. A
+fresh filtered run may fail validation unless the rest of the required run
+already exists under the same `run_id`.
+
+## Local Cycle
+
+Local runs use the same planned frame-worker shape as AWS, but launch those
+workers in local Docker containers. The wrapper builds or refreshes the
+`weather-map-etl:local` image, then delegates to:
+
+```bash
+.venv/bin/weather-etl run-cycle --dataset-id gfs --cycle <YYYYMMDDHH>
+```
+
+The local lifecycle is:
 
 ```text
-runs/<dataset_id>/<cycle>/<run_id>/run.json
-runs/<dataset_id>/<cycle>/<run_id>/config/pipeline_config.json
-runs/<dataset_id>/<cycle>/<run_id>/config/forecast_catalog.json
-runs/<dataset_id>/<cycle>/<run_id>/fields/<frame_id>/<artifact>.field.<dtype>.bin
-runs/<dataset_id>/<cycle>/<run_id>/status/<artifact>/<frame_id>._SUCCESS.json
-runs/<dataset_id>/<cycle>/<run_id>/validation.json
-runs/<dataset_id>/<cycle>/<run_id>/manifest.json
-runs/<dataset_id>/<cycle>/<run_id>/_PUBLISHED.json
+init-run -> plan-cycle -> run-frame containers -> validate-cycle -> publish-cycle
+```
+
+By default local runs publish public manifests and refresh local `status.json`.
+Use `--no-publish` to stop after validation:
+
+```bash
+etl/scripts/run-cycle-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --no-publish
+```
+
+Omitting `--run-id` creates a new run attempt. Passing `--run-id <run_id>`
+resumes that run and skips frames whose completion markers are already complete.
+Local runs do not use persistent DynamoDB frame claims.
+
+Local outputs go under the repo-level `artifacts/` directory. Downloads and
+prepared GRIB files are cached under `etl/cache/`.
+
+## AWS Submission
+
+Manual AWS submission is intentionally narrower than local `run-cycle`: it
+submits Batch workers only.
+
+```bash
+etl/scripts/run-cycle-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
+etl/scripts/run-cycle-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+```
+
+The AWS path creates or resumes a run, snapshots the deployed product config,
+plans frame workers, skips complete or actively claimed frames, and submits the
+remaining workers to Batch.
+
+It does not validate or publish inline. In production, the scheduled
+`weather-etl-publisher` Lambda validates complete runs, publishes manifests,
+updates `manifests/index.json`, and refreshes root `status.json`.
+
+Use `infra/terraform/weather-etl/README.md` for deeper production deploy and
+AWS operator details.
+
+## Debug CLI
+
+The shell wrappers are the normal human entrypoints. These commands are useful
+when you need to inspect or run one piece of the lifecycle:
+
+```bash
+.venv/bin/weather-etl list-datasets
+.venv/bin/weather-etl list-frames --dataset-id <dataset_id>
+
+.venv/bin/weather-etl init-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+.venv/bin/weather-etl plan-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --json
+.venv/bin/weather-etl run-frame --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --frame-id <FFF>
+.venv/bin/weather-etl validate-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+.venv/bin/weather-etl publish-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+
+.venv/bin/weather-etl runs --dataset-id <dataset_id> --cycle <YYYYMMDDHH>
+.venv/bin/weather-etl status --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+```
+
+`runs` and `status` are read-only inspection commands. `publish-cycle` refuses
+runs without a passing `validation.json`.
+
+## Config
+
+Forecast product config lives at the repo root:
+
+- `config/pipeline.json`: what the ETL can produce.
+- `config/catalog.json`: what the product/frontend exposes.
+
+The ETL snapshots both files into every run before frame workers start. That
+keeps a run pinned to the config it was planned with, even if the repo or
+deployed config changes later.
+
+For the config model and the current product support table, see
+`../docs/forecast-config.md`.
+
+## Artifacts And Health
+
+A run writes durable state under `runs/<dataset_id>/<cycle>/<run_id>/`:
+
+```text
+run.json
+config/pipeline.json
+config/catalog.json
+payloads/<frame_id>/<artifact>.<dtype>.bin
+status/<artifact>/<frame_id>._SUCCESS.json
+validation.json
+manifest.json
+publication.json
+```
+
+Published public state lives at the artifact root:
+
+```text
 manifests/<dataset_id>/cycles/<cycle>/runs/<run_id>.json
 manifests/<dataset_id>/cycles/<cycle>/current.json
 manifests/<dataset_id>/latest.json
-manifests/data-manifest.json
+manifests/index.json
+status.json
 ```
 
-`latest.json` has schema `weather-map.dataset-latest-pointer`, and
-`current.json` has schema `weather-map.dataset-cycle-current-pointer`.
+`status.json` is the public ETL health document. The backend reads it to serve
+`/api/health`; backend/API code should not inspect ETL internals directly.
+
+## Code Map
+
+The package is organized around a few stable boundaries:
+
+- `adapters/`: CLI and AWS Lambda entrypoint adapters.
+- `operations/`: ETL use cases: run planning, frame work, validation,
+  publication, source submission, and status refresh.
+- `workers/`: frame worker specs, worker plans, frame claims, and local
+  Docker / AWS Batch launch mechanics.
+- `state/`: durable artifact, run, manifest, and inspection/status-document
+  state.
+- `config/`: static product config contracts for `pipeline.json` and
+  `catalog.json`.
+- `sources/`: GFS/ICON acquisition and readiness logic.
+- `processing/`: transform code that runs inside frame workers.
+- `storage/`: URI and object-store I/O helpers.
 
 ## Checks
 
 ```bash
-cd etl && ../.venv/bin/python -m unittest discover forecast_etl/tests
-cd etl && ../.venv/bin/ruff check forecast_etl
+cd etl && ../.venv/bin/python -m pytest tests
+cd etl && ../.venv/bin/ruff check weather_etl tests
+bash -n etl/scripts/run-cycle-local.sh
+bash -n etl/scripts/run-cycle-aws.sh
 ```

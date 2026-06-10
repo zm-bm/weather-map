@@ -16,7 +16,7 @@ import {
   resolveCompatibleActiveForecastRun,
 } from './resolution'
 
-describe('data manifest active run resolution', () => {
+describe('manifest index active run resolution', () => {
   it('uses the preferred dataset when it has a latest run', () => {
     const manifest = createMultiDatasetManifestFixture({
       gfsManifest: createSingleTimeManifestFixture({
@@ -65,7 +65,7 @@ describe('data manifest active run resolution', () => {
       run: {
         cycle: '2026040912',
         run_id: '20260409T130000Z-abcdef12',
-        payload_root: 'runs/gfs/2026040912/20260409T130000Z-abcdef12/fields',
+        payload_root: 'runs/gfs/2026040912/20260409T130000Z-abcdef12/payloads',
         generated_at: '2026-04-09T13:00:00Z',
         revision: 'rev-1',
       },

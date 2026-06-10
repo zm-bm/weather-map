@@ -15,8 +15,8 @@ import type {
   VectorEncodingSpec,
 } from '@/forecast/manifest'
 import {
-  DATA_MANIFEST_SCHEMA,
-  DATA_MANIFEST_SCHEMA_VERSION,
+  MANIFEST_INDEX_SCHEMA,
+  MANIFEST_INDEX_SCHEMA_VERSION,
   DATA_PAYLOAD_CONTRACT,
   activeForecastRunForDataset,
   datasetOptionsFromManifest,
@@ -164,7 +164,7 @@ export function createScalarArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
-    payload_file: overrides.payload_file ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
+    payload_file: overrides.payload_file ?? `${id}.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
     temporal_kind: overrides.temporal_kind,
     source_interval_hours: overrides.source_interval_hours,
   }
@@ -192,7 +192,7 @@ export function createVectorArtifactFixture(
       components,
       dtype: encoding.dtype,
     }),
-    payload_file: overrides.payload_file ?? `${id}.field.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
+    payload_file: overrides.payload_file ?? `${id}.${FIELD_DTYPE_SUFFIX[encoding.dtype]}.bin`,
     temporal_kind: overrides.temporal_kind,
     source_interval_hours: overrides.source_interval_hours,
   }
@@ -277,7 +277,7 @@ export function createLatestRunFixture(
       ...overrides.run,
       cycle,
       run_id,
-      payload_root: overrides.run?.payload_root ?? `runs/${overrides.dataset?.id ?? FIXTURE_DATASET_ID}/${cycle}/${run_id}/fields`,
+      payload_root: overrides.run?.payload_root ?? `runs/${overrides.dataset?.id ?? FIXTURE_DATASET_ID}/${cycle}/${run_id}/payloads`,
       generated_at,
       revision,
     },
@@ -389,8 +389,8 @@ export function createManifestFixture(
   const dataset = overrides.dataset ?? { id: FIXTURE_DATASET_ID, label: FIXTURE_DATASET_LABEL }
   const latest = createLatestRunFixture(overrides)
   return {
-    schema: DATA_MANIFEST_SCHEMA,
-    schema_version: DATA_MANIFEST_SCHEMA_VERSION,
+    schema: MANIFEST_INDEX_SCHEMA,
+    schema_version: MANIFEST_INDEX_SCHEMA_VERSION,
     generated_at: overrides.generated_at ?? FIXTURE_GENERATED_AT,
     catalog_version: 'forecast-catalog-v1',
     payload_contract: DATA_PAYLOAD_CONTRACT,
