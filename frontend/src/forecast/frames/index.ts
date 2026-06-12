@@ -56,3 +56,13 @@ export type ProbeWindow = RasterWindow
 export type ForecastWindows = Partial<{
   [K in ForecastWindowId]: ForecastWindow<K>
 }>
+
+export {
+  effectiveGridBoundaryModes,
+  gridCoordIsInsideDomain,
+  GRID_X_WRAP_NONE,
+  GRID_X_WRAP_REPEAT,
+  GRID_Y_MODE_CLAMP,
+  GRID_Y_MODE_NONE,
+  type EffectiveGridBoundaryModes,
+} from './gridDomain'

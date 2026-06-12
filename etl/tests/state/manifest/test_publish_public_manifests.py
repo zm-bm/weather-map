@@ -29,17 +29,22 @@ def test_publish_does_not_promote_older_cycle_over_newer_latest() -> None:
             cycle=cycle_new,
             artifact_ids=scalar_artifacts,
             artifacts_cfg=artifacts_cfg,
+            publish_view=False,
         )
         assert result_new.ready
-        assert result_new.latest_promoted
+        product_config = fx.product_config_for(artifact_ids=scalar_artifacts, artifacts_cfg=artifacts_cfg)
+        view_new = fx.refresh_view(product_config=product_config, cycle=cycle_new)
+        assert view_new.published
 
         result_old = fx.publish(
             cycle=cycle_old,
             artifact_ids=scalar_artifacts,
             artifacts_cfg=artifacts_cfg,
+            publish_view=False,
         )
         assert result_old.ready
-        assert not result_old.latest_promoted
+        view_old = fx.refresh_view(product_config=product_config, cycle=cycle_old)
+        assert not view_old.published
 
         latest_manifest = fx.latest_manifest()
         old_cycle_manifest = fx.cycle_manifest(cycle=cycle_old)
@@ -97,3 +102,32 @@ def test_publish_can_repromote_previous_run_for_same_cycle() -> None:
         assert fx.latest_manifest()["run"]["revision"] == first_revision
         assert fx.current_manifest()["run"]["run_id"] == fx.run_id
 
+
+def test_run_manifest_publish_does_not_refresh_dataset_view() -> None:
+    with publish_fixture(prefix="weather-map-publish-no-promote-") as fx:
+        artifact_id = "tmp_surface"
+        artifact_cfg = minimal_artifact_config()
+        fx.write_scalar_marker(
+            artifact_id=artifact_id,
+            artifact_config=artifact_cfg,
+        )
+
+        result = fx.publish(
+            artifact_ids=(artifact_id,),
+            artifacts_cfg={artifact_id: artifact_cfg},
+            publish_view=False,
+        )
+
+        assert result.ready
+        assert fx.artifacts.public_run_manifest_exists(
+            dataset_id=fx.dataset_id,
+            cycle=fx.cycle,
+            run_id=fx.run_id,
+        )
+        assert fx.artifacts.publication_exists(
+            dataset_id=fx.dataset_id,
+            cycle=fx.cycle,
+            run_id=fx.run_id,
+        )
+        assert not fx.artifacts.latest_manifest_exists(dataset_id=fx.dataset_id)
+        assert not fx.artifacts.cycle_current_manifest_exists(dataset_id=fx.dataset_id, cycle=fx.cycle)

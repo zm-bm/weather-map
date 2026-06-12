@@ -59,7 +59,7 @@ export function createRasterLayerSourceFixture(args: {
   }
 }
 
-export function createCloudLayersRasterSourceFixture(args: {
+export function createCloudLayersLayerSourceFixture(args: {
   layerId?: string
   artifactId?: string
   display?: ForecastDisplayProfile

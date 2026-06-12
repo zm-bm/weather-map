@@ -4,10 +4,12 @@ from __future__ import annotations
 
 GFS_NOMADS_SOURCE_TYPE = "gfs_nomads"
 ICON_DWD_SOURCE_TYPE = "icon_dwd_icosahedral"
+MRMS_AWS_S3_SOURCE_TYPE = "mrms_aws_s3"
 
 SOURCE_TYPES = {
     GFS_NOMADS_SOURCE_TYPE,
     ICON_DWD_SOURCE_TYPE,
+    MRMS_AWS_S3_SOURCE_TYPE,
 }
 
 

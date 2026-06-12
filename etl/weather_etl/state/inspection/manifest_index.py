@@ -100,7 +100,7 @@ def _product_index_diagnostics(
             product_config=product_config,
             artifact_repo=artifact_repo,
             generated_at="inspection-generated-at-ignored",
-            strict_latest_manifests=True,
+            strict_dataset_ids=tuple(product_config.pipeline_config.datasets),
         )
     except (ValueError, SystemExit) as exc:
         return [f"unable to build expected manifest index: {exc}"]

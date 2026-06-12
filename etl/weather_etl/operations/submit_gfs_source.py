@@ -16,12 +16,11 @@ from ..sources.submission import (
     SourceSubmissionScope,
     SourceSubmissionStatus,
 )
-from ..state.manifest.submission_policy import check_cycle_submission_policy
 from ..state.runs.dynamo_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 from ..state.runs.ids import generate_run_id, validate_run_id
 from ..workers.backends.aws_batch import launch_aws_batch_plan_workers
 from ..workers.claims.dynamo import DynamoFrameClaimStore
-from .plan_cycle import plan_cycle
+from .plan_run import plan_run
 
 KEY_RE = re.compile(r"^gfs\.(\d{8})/(\d{2})/atmos/gfs\.t\d{2}z\.pgrb2\.0p25\.f(\d{3})$")
 ALLOWED_CYCLES = {"00", "06", "12", "18"}
@@ -65,15 +64,6 @@ def submit_gfs_source_object(
         print(f"skip key (cycle filter): cycle_hour={candidate.cycle_hour} key={candidate.key}")
         return _candidate_result(candidate, status="skipped", scope="object", reason="cycle_filter")
 
-    submission_decision = check_cycle_submission_policy(
-        artifact_repo=env.artifact_repo,
-        dataset_id=DATASET_ID,
-        cycle=candidate.cycle,
-    )
-    if not submission_decision.allowed:
-        print(f"skip key (submission policy): {submission_decision.message} key={candidate.key}")
-        return _candidate_result(candidate, status="blocked", scope="cycle", reason="submission_policy", cycles=1)
-
     now = datetime.now(timezone.utc)
     run_id = validate_run_id(
         coordinated_run_id(
@@ -116,7 +106,7 @@ def submit_gfs_source_object(
         )
 
     claim_store = DynamoFrameClaimStore(ddb=ddb, table_name=frame_claim_table)
-    plan = plan_cycle(
+    plan = plan_run(
         env=env,
         dataset_id=DATASET_ID,
         cycle=candidate.cycle,

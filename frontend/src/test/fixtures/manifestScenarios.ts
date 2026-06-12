@@ -12,6 +12,7 @@ import {
   createLayerDatasetAvailabilityFixture,
   createLatestRunFixture,
   createManifestLayerFixture,
+  createScalarArtifactFixture,
 } from './manifest'
 
 export function createMultiDatasetManifestFixture(options: {
@@ -61,12 +62,36 @@ export function createCatalogManifestFixture(
     support: 'unavailable',
     required_artifacts,
   })
+  const mrmsLatest = createLatestRunFixture({
+    dataset: { id: 'mrms', label: 'MRMS' },
+    cycle: '2026061100',
+    frames: [{
+      id: '20260611000000',
+      lead_hours: 0,
+      valid_at: '2026-06-11T00:00:00Z',
+    }],
+    artifacts: {
+      observed_radar_base_reflectivity: createScalarArtifactFixture({
+        id: 'observed_radar_base_reflectivity',
+        units: 'dBZ',
+        parameter: 'ReflectivityAtLowestAltitude',
+        level: 'lowest altitude',
+      }),
+      observed_radar_composite_reflectivity: createScalarArtifactFixture({
+        id: 'observed_radar_composite_reflectivity',
+        units: 'dBZ',
+        parameter: 'MergedReflectivityQCComposite',
+        level: 'composite',
+      }),
+    },
+  })
 
-  return createMultiDatasetManifestFixture({
+  const manifest = createMultiDatasetManifestFixture({
     layers: {
       temperature: createManifestLayerFixture({
         gfs: available(['tmp_surface']),
         icon: available(['tmp_surface']),
+        mrms: unsupported(['tmp_surface']),
       }),
       relative_humidity: createManifestLayerFixture({
         gfs: available(['rh_surface']),
@@ -92,9 +117,30 @@ export function createCatalogManifestFixture(
         gfs: available(['visibility_surface']),
         icon: unsupported(['visibility_surface']),
       }),
+      observed_radar_base_reflectivity: createManifestLayerFixture({
+        gfs: unsupported(['observed_radar_base_reflectivity']),
+        icon: unsupported(['observed_radar_base_reflectivity']),
+        mrms: available(['observed_radar_base_reflectivity']),
+      }),
+      observed_radar_composite_reflectivity: createManifestLayerFixture({
+        gfs: unsupported(['observed_radar_composite_reflectivity']),
+        icon: unsupported(['observed_radar_composite_reflectivity']),
+        mrms: available(['observed_radar_composite_reflectivity']),
+      }),
       ...layers,
     },
   })
+
+  return {
+    ...manifest,
+    datasets: {
+      ...manifest.datasets,
+      mrms: {
+        label: 'MRMS',
+        latest: mrmsLatest,
+      },
+    },
+  }
 }
 
 function latestFromFixture(

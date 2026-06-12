@@ -103,6 +103,8 @@ describe('particle shader source', () => {
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_upper')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_vector_scale')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_vector_offset')
+    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform int u_x_wrap')
+    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform int u_y_mode')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('ivec2 stored = texelFetch')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain(
       'return (vec2(stored) * u_vector_scale) + u_vector_offset'
@@ -119,6 +121,8 @@ describe('particle shader source', () => {
   it('reuses shared encodedGrid lookup math while keeping packed wind texture sampling', () => {
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('struct EncodedGridLocation')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('encodedGridLocationForLonLat')
+    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('location.valid <= 0.0')
+    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('vector_lower.z <= 0.0 || vector_upper.z <= 0.0')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('ivec2(location.x0, location.y0)')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_lower')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).not.toContain('isampler2DArray')

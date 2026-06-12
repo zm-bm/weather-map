@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
@@ -10,6 +11,7 @@ from typing import Any, Iterable, Mapping
 from ...core.cycles import validate_cycle_id
 from ...core.timestamps import utc_now_iso
 from ...storage.base import UriObject, UriStore, UriWriteMetadata
+from ...storage.uris import join_uri
 from ..manifest.schema import CycleManifest, parse_cycle_manifest
 from ..runs.ids import validate_run_id
 from ..runs.metadata import RunSnapshot, run_document_dict
@@ -66,6 +68,46 @@ class ArtifactRepository:
         uri = self.paths.payload_uri(item, dtype=dtype)
         self._write_bytes(uri=uri, data=gzip.compress(payload, mtime=0), metadata=PAYLOAD_METADATA)
         return uri
+
+    def materialize_rolling_payload(
+        self,
+        *,
+        dataset_id: str,
+        frame_id: str,
+        payload_file: str,
+        source_path: str,
+        byte_length: int,
+        sha256: str,
+    ) -> str:
+        """Copy one immutable run payload into the stable rolling payload namespace."""
+
+        source_uri = join_uri(self.paths.artifact_root_uri, [source_path])
+        target_uri = self.paths.rolling_payload_uri_parts(
+            dataset_id=dataset_id,
+            frame_id=frame_id,
+            payload_file=payload_file,
+        )
+        target_key = self.paths.relative_key(target_uri)
+
+        if self.store.exists(uri=target_uri):
+            existing_bytes = self.store.read_bytes(uri=target_uri)
+            if _payload_matches_metadata(
+                compressed_payload=existing_bytes,
+                expected_byte_length=byte_length,
+                expected_sha256=sha256,
+            ):
+                return target_key
+
+        source_bytes = self.store.read_bytes(uri=source_uri)
+        _validate_payload_bytes(
+            compressed_payload=source_bytes,
+            expected_byte_length=byte_length,
+            expected_sha256=sha256,
+            uri=source_uri,
+        )
+
+        self._write_bytes(uri=target_uri, data=source_bytes, metadata=PAYLOAD_METADATA)
+        return target_key
 
     def write_success_marker(self, *, item: ArtifactWorkItem, artifact: Mapping[str, Any]) -> str:
         """Write one artifact success marker and return its artifact URI."""
@@ -503,3 +545,31 @@ class ArtifactRepository:
 
     def _write_bytes(self, *, uri: str, data: bytes, metadata: UriWriteMetadata) -> None:
         self.store.write_bytes_with_metadata(uri=uri, data=data, metadata=metadata)
+
+
+def _validate_payload_bytes(
+    *,
+    compressed_payload: bytes,
+    expected_byte_length: int,
+    expected_sha256: str,
+    uri: str,
+) -> None:
+    if not _payload_matches_metadata(
+        compressed_payload=compressed_payload,
+        expected_byte_length=expected_byte_length,
+        expected_sha256=expected_sha256,
+    ):
+        raise SystemExit(f"Payload bytes do not match manifest metadata: {uri}")
+
+
+def _payload_matches_metadata(
+    *,
+    compressed_payload: bytes,
+    expected_byte_length: int,
+    expected_sha256: str,
+) -> bool:
+    try:
+        payload = gzip.decompress(compressed_payload)
+    except OSError:
+        return False
+    return len(payload) == expected_byte_length and hashlib.sha256(payload).hexdigest() == expected_sha256

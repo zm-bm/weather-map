@@ -25,7 +25,6 @@ from weather_etl.sources.prepared_grib import PreparedGribSource
 from weather_etl.state.artifacts.repository import ArtifactRepository
 from weather_etl.state.manifest.index import read_index_latest_revision
 from weather_etl.state.manifest.schema import parse_cycle_manifest
-from weather_etl.state.manifest.submission_policy import CycleSubmissionDecision
 from weather_etl.state.runs.snapshots import LoadedRunSnapshot
 from weather_etl.state.runs.validation import validate_run
 from weather_etl.storage.local import LocalFSStore
@@ -201,7 +200,6 @@ def test_publish_rerun_repairs_public_manifests_without_markers() -> None:
 
         assert result_second.ready
         assert result_second.already_published
-        assert result_second.latest_promoted
         assert fx.cycle_manifest() == original_manifest
         assert fx.current_manifest() == original_manifest
         assert fx.latest_manifest() == original_manifest
@@ -231,7 +229,7 @@ def test_publish_rerun_repairs_missing_manifest_index() -> None:
         assert result_with_index.already_published
         assert fx.artifacts.manifest_index_exists()
 
-        with patch("weather_etl.state.manifest.publish.publish_index") as publish_index:
+        with patch("weather_etl.state.manifest.public_view.publish_index") as publish_index:
             result_again = fx.publish(
                 artifact_ids=(artifact_id,),
                 artifacts_cfg={artifact_id: artifact_cfg},
@@ -303,10 +301,6 @@ def test_gfs_source_resubmission_skips_completed_frame(loaded_run_snapshot_facto
         ddb = FakeDynamoClient()
 
         with (
-            patch(
-                "weather_etl.operations.submit_gfs_source.check_cycle_submission_policy",
-                return_value=_submission_decision(dataset_id="gfs", cycle=fx.cycle, allowed=True),
-            ),
             patch("weather_etl.operations.submit_gfs_source.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
         ):
@@ -356,10 +350,6 @@ def test_icon_source_resubmission_skips_completed_frame(loaded_run_snapshot_fact
         now = datetime(2026, 5, 11, 12, tzinfo=timezone.utc)
 
         with (
-            patch(
-                "weather_etl.operations.submit_icon_ready.check_cycle_submission_policy",
-                return_value=_submission_decision(dataset_id="icon", cycle=cycle, allowed=True),
-            ),
             patch("weather_etl.operations.submit_icon_ready.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
             patch("weather_etl.operations.submit_icon_ready._url_ready", return_value=True),
@@ -407,10 +397,6 @@ def test_source_resubmission_skips_active_frame_claim(loaded_run_snapshot_factor
         }
 
         with (
-            patch(
-                "weather_etl.operations.submit_gfs_source.check_cycle_submission_policy",
-                return_value=_submission_decision(dataset_id="gfs", cycle=fx.cycle, allowed=True),
-            ),
             patch("weather_etl.operations.submit_gfs_source.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
         ):
@@ -460,17 +446,4 @@ def _env(fx) -> EtlEnvironment:
         pipeline_uri="file:///config/pipeline.json",
         catalog_uri="file:///config/catalog.json",
         store=fx.store,
-    )
-
-
-def _submission_decision(*, dataset_id: str, cycle: str, allowed: bool) -> CycleSubmissionDecision:
-    return CycleSubmissionDecision(
-        dataset_id=dataset_id,
-        cycle=cycle,
-        latest_status="valid",
-        latest_cycle=cycle,
-        backfill_required=not allowed,
-        force_backfill=False,
-        allowed=allowed,
-        message="allowed" if allowed else "blocked",
     )

@@ -9,17 +9,12 @@ import time
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
-from ..claims.store import FrameClaimStore
 from ..launch import (
     WorkerLaunchRecord,
     WorkerLaunchRequest,
-    WorkerLaunchSummary,
-    launch_cycle_plan_workers,
 )
-from ..plan import CyclePlan
 from ..spec import FrameWorkerSpec
 
 
@@ -116,39 +111,9 @@ def worker_container_cmd(
         local_image=local_image,
         artifacts_dir=artifacts_dir,
         cache_dir=cache_dir,
+        extra_mounts=None,
         env=env,
         command=list(worker.command[1:]),
-    )
-
-
-def launch_local_docker_plan_workers(
-    *,
-    plan: CyclePlan,
-    claim_store: FrameClaimStore,
-    local_image: str,
-    artifacts_dir: Path,
-    cache_dir: Path,
-    procs: int,
-    worker_stagger_seconds: float,
-    now: datetime,
-    workers: tuple[FrameWorkerSpec, ...] | None = None,
-    dry_run: bool = False,
-) -> WorkerLaunchSummary:
-    """Launch selected cycle-plan workers through local Docker."""
-
-    return launch_cycle_plan_workers(
-        plan=plan,
-        claim_store=claim_store,
-        backend=LocalDockerWorkerBackend(
-            local_image=local_image,
-            artifacts_dir=artifacts_dir,
-            cache_dir=cache_dir,
-            procs=procs,
-            worker_stagger_seconds=worker_stagger_seconds,
-        ),
-        now=now,
-        workers=workers,
-        dry_run=dry_run,
     )
 
 
@@ -157,6 +122,7 @@ def local_container_cmd(
     local_image: str,
     artifacts_dir: Path,
     cache_dir: Path | None,
+    extra_mounts: Mapping[Path, str] | None = None,
     env: Mapping[str, str],
     command: list[str],
 ) -> list[str]:
@@ -173,6 +139,9 @@ def local_container_cmd(
     ]
     if cache_dir is not None:
         cmd.extend(["--volume", f"{cache_dir.as_posix()}:/app/etl/cache"])
+    if extra_mounts:
+        for host_path, container_path in sorted(extra_mounts.items(), key=lambda item: item[1]):
+            cmd.extend(["--volume", f"{host_path.as_posix()}:{container_path}:ro"])
     merged_env = dict(env)
     for metadata_env in ("ETL_CODE_REVISION", "ETL_IMAGE_IDENTITY"):
         value = os.environ.get(metadata_env)
@@ -195,10 +164,24 @@ def run_command(cmd: list[str]) -> int:
     return subprocess.run(cmd, check=False).returncode
 
 
-def container_uri(value: str, *, artifacts_dir: Path) -> str:
-    host_prefix = artifacts_dir.as_uri()
-    if value == host_prefix:
-        return "file:///artifacts"
-    if value.startswith(host_prefix + "/"):
-        return "file:///artifacts/" + value[len(host_prefix) + 1 :]
+def container_uri(
+    value: str,
+    *,
+    artifacts_dir: Path,
+    extra_mounts: Mapping[Path, str] | None = None,
+) -> str:
+    mount_points: dict[Path, str] = {artifacts_dir.resolve(): "/artifacts"}
+    if extra_mounts:
+        mount_points.update({path.resolve(): container_path for path, container_path in extra_mounts.items()})
+    for host_root, container_root in mount_points.items():
+        host_prefix = host_root.as_uri()
+        container_prefix = _file_uri(Path(container_root))
+        if value == host_prefix:
+            return container_prefix
+        if value.startswith(host_prefix + "/"):
+            return container_prefix.rstrip("/") + "/" + value[len(host_prefix) + 1 :]
     return value
+
+
+def _file_uri(path: Path) -> str:
+    return Path(path).expanduser().resolve().as_uri()

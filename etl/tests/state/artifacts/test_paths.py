@@ -26,6 +26,20 @@ def test_payload_uri_parts_uses_shared_weather_payload_layout() -> None:
     )
 
 
+def test_rolling_payload_uri_parts_use_stable_dataset_payload_layout() -> None:
+    paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
+
+    assert paths.rolling_payload_root_key(dataset_id="mrms") == "runs/mrms/rolling/payloads"
+    assert paths.rolling_payload_uri_parts(
+        dataset_id="mrms",
+        frame_id="20260611000238",
+        payload_file="observed_radar_base_reflectivity.i8.bin",
+    ) == (
+        "file:///tmp/weather-map-artifacts/"
+        "runs/mrms/rolling/payloads/20260611000238/observed_radar_base_reflectivity.i8.bin"
+    )
+
+
 def test_payload_uri_delegates_to_explicit_parts_layout() -> None:
     paths = ArtifactPaths("file:///tmp/weather-map-artifacts")
     item = ArtifactWorkItem(

@@ -28,11 +28,6 @@ export function forecastValidTimeMsList(times: ForecastTimelineTime[]): number[]
   return times.map((time) => forecastTimeMs(time) ?? 0)
 }
 
-export function normalizeMinuteMs(validTimeMsValue: number): number {
-  if (!Number.isFinite(validTimeMsValue)) return 0
-  return Math.floor(validTimeMsValue / FORECAST_TIME_STEP_MS) * FORECAST_TIME_STEP_MS
-}
-
 function normalizeMinuteOffset(
   minuteOffset: number,
   totalMinutes: number
@@ -47,6 +42,17 @@ function normalizeMinuteOffset(
 function normalizeStepCount(stepCount: number): number {
   if (!Number.isFinite(stepCount)) return 0
   return Math.trunc(stepCount)
+}
+
+type ForecastTimeBounds = NonNullable<ReturnType<typeof forecastTimeBounds>>
+
+function validTimeMsForNormalizedMinuteOffset(
+  bounds: ForecastTimeBounds,
+  minuteOffset: number
+): number {
+  if (minuteOffset <= 0) return bounds.startValidTimeMs
+  if (minuteOffset >= bounds.totalMinutes) return bounds.endValidTimeMs
+  return bounds.startValidTimeMs + (minuteOffset * MINUTE_MS)
 }
 
 export function forecastTimeBounds(
@@ -72,10 +78,14 @@ export function clampForecastValidTimeMs(
   const bounds = forecastTimeBounds(times)
   if (!bounds) return 0
 
-  const normalized = normalizeMinuteMs(value)
-  if (normalized <= bounds.startValidTimeMs) return bounds.startValidTimeMs
-  if (normalized >= bounds.endValidTimeMs) return bounds.endValidTimeMs
-  return normalized
+  if (!Number.isFinite(value) || value <= bounds.startValidTimeMs) return bounds.startValidTimeMs
+  if (value >= bounds.endValidTimeMs) return bounds.endValidTimeMs
+
+  const normalizedOffset = normalizeMinuteOffset(
+    Math.floor((value - bounds.startValidTimeMs) / MINUTE_MS),
+    bounds.totalMinutes
+  )
+  return validTimeMsForNormalizedMinuteOffset(bounds, normalizedOffset)
 }
 
 export function initialForecastValidTimeMs(
@@ -106,7 +116,7 @@ export function validTimeMsForMinuteOffset(
   if (!bounds) return 0
 
   const normalizedMinutes = normalizeMinuteOffset(minuteOffset, bounds.totalMinutes)
-  return bounds.startValidTimeMs + (normalizedMinutes * MINUTE_MS)
+  return validTimeMsForNormalizedMinuteOffset(bounds, normalizedMinutes)
 }
 
 export function stepForecastValidTimeMs(
@@ -123,7 +133,7 @@ export function stepForecastValidTimeMs(
   const currentOffset = minuteOffsetForValidTime(times, currentValidTimeMs)
   const currentStep = Math.floor(currentOffset / FORECAST_TIME_STEP_MINUTES)
   const nextStep = ((currentStep + normalizeStepCount(stepCount)) % steps + steps) % steps
-  return bounds.startValidTimeMs + (nextStep * FORECAST_TIME_STEP_MS)
+  return validTimeMsForNormalizedMinuteOffset(bounds, nextStep * FORECAST_TIME_STEP_MINUTES)
 }
 
 export function interpolationWindowMinuteOffset(

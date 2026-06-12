@@ -74,7 +74,7 @@ function plannedWindows(args: {
       artifacts,
       windowPlan,
       frameId
-    ) as Promise<ForecastFrameMap[ForecastWindowId]>,
+    ),
   }))
 }
 

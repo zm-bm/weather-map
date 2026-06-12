@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import type { GridSpec } from '@/forecast/manifest'
 import {
   createGridFixture,
   createMockWebGl2,
@@ -9,7 +8,12 @@ import {
 import { EncodedGridTextureCache } from './texture'
 import {
   assertEncodedRasterBandIds,
+  ENCODED_GRID_X_WRAP_NONE,
+  ENCODED_GRID_X_WRAP_REPEAT,
+  ENCODED_GRID_Y_MODE_CLAMP,
+  ENCODED_GRID_Y_MODE_NONE,
   encodedFramePairUniforms,
+  encodedGridBoundaryUniforms,
   encodedGridUniforms,
   encodedLinearUniforms,
   encodedRasterBandIdMismatch,
@@ -21,10 +25,6 @@ import {
 type FrameFixture = {
   key: string
   values: Int8Array
-}
-
-type GridFrameFixture = FrameFixture & {
-  grid: GridSpec
 }
 
 describe('encoded grid frame pair helpers', () => {
@@ -55,6 +55,7 @@ describe('encoded grid frame pair helpers', () => {
       }),
     })
 
+    expect(pair?.grid).toBe(grid)
     expect(pair?.upperFrame).toBe(frame)
     expect(pair?.upperTexture).toBe(pair?.lowerTexture)
     expect(pair?.timeMix).toBe(0)
@@ -114,6 +115,40 @@ describe('encoded grid frame pair helpers', () => {
       u_lat0: 90,
       u_dx: 0.25,
       u_dy: -0.25,
+      u_x_wrap: ENCODED_GRID_X_WRAP_NONE,
+      u_y_mode: ENCODED_GRID_Y_MODE_NONE,
+    })
+  })
+
+  it('derives effective boundary uniforms from grid coverage', () => {
+    const globalGrid = createGridFixture({
+      nx: 1440,
+      ny: 720,
+      lon0: 0,
+      lat0: 90,
+      dx: 0.25,
+      dy: -0.25,
+      x_wrap: 'repeat',
+      y_mode: 'clamp',
+    })
+    const staleRegionalGrid = createGridFixture({
+      nx: 3500,
+      ny: 1750,
+      lon0: -130,
+      lat0: 55,
+      dx: 0.02,
+      dy: -0.02,
+      x_wrap: 'repeat',
+      y_mode: 'clamp',
+    })
+
+    expect(encodedGridBoundaryUniforms(globalGrid)).toEqual({
+      u_x_wrap: ENCODED_GRID_X_WRAP_REPEAT,
+      u_y_mode: ENCODED_GRID_Y_MODE_CLAMP,
+    })
+    expect(encodedGridBoundaryUniforms(staleRegionalGrid)).toEqual({
+      u_x_wrap: ENCODED_GRID_X_WRAP_NONE,
+      u_y_mode: ENCODED_GRID_Y_MODE_NONE,
     })
   })
 
@@ -168,20 +203,19 @@ describe('encoded grid frame pair helpers', () => {
     const grid = createGridFixture({ nx: 2, ny: 2, lon0: -180, lat0: 90, dx: 0.25, dy: -0.25 })
     const lowerTexture = {} as WebGLTexture
     const upperTexture = {} as WebGLTexture
-    const lowerFrame: GridFrameFixture = {
+    const lowerFrame: FrameFixture = {
       key: 'frame:000',
-      grid,
       values: new Int8Array([1, 2, 3, 4]),
     }
-    const upperFrame: GridFrameFixture = {
+    const upperFrame: FrameFixture = {
       key: 'frame:001',
-      grid,
       values: new Int8Array([5, 6, 7, 8]),
     }
 
     expect(encodedFramePairUniforms({
       lowerFrame,
       upperFrame,
+      grid,
       lowerTexture,
       upperTexture,
       timeMix: 0.25,
@@ -193,6 +227,8 @@ describe('encoded grid frame pair helpers', () => {
       u_lat0: 90,
       u_dx: 0.25,
       u_dy: -0.25,
+      u_x_wrap: ENCODED_GRID_X_WRAP_NONE,
+      u_y_mode: ENCODED_GRID_Y_MODE_NONE,
       u_time_mix: 0.25,
     })
   })

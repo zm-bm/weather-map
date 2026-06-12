@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from weather_etl.config.pipeline import load_pipeline_config_document, parse_pipeline_config
+from weather_etl.config.sources import MRMS_AWS_S3_SOURCE_TYPE
 
 from tests.fixtures.artifact_configs import (
     cloud_layers_config,
@@ -72,6 +73,7 @@ def test_pipeline_config_parses_frame_range() -> None:
     assert "tmp_surface" in dataset.artifacts
     assert dataset.artifacts["tmp_surface"].component_ids == ("value",)
     assert dataset.artifacts["tmp_surface"].kind == "scalar"
+    assert dataset.mode == "forecast_cycle"
 
 
 def test_pipeline_config_parses_current_pipeline_json() -> None:
@@ -79,7 +81,82 @@ def test_pipeline_config_parses_current_pipeline_json() -> None:
 
     parsed = load_pipeline_config_document((repo_root / "config" / "pipeline.json").as_uri()).config
 
-    assert tuple(parsed.datasets) == ("gfs", "icon")
+    assert tuple(parsed.datasets) == ("gfs", "icon", "mrms")
+    mrms = parsed.dataset("mrms")
+    assert mrms.source.type == "mrms_aws_s3"
+    assert mrms.source.raw["bucket"] == "noaa-mrms-pds"
+    assert mrms.source.raw["prefix"] == "CONUS"
+    assert mrms.workload.frames == ()
+    assert mrms.mode == "rolling_observed"
+
+
+def test_pipeline_config_parses_mrms_rolling_observed_policy() -> None:
+    cfg = minimal_pipeline_config()
+    gfs_dataset_config(cfg)["source"] = {
+        "type": MRMS_AWS_S3_SOURCE_TYPE,
+        "grid_id": "mrms_conus_0p01",
+        "bucket": "noaa-mrms-pds",
+        "prefix": "CONUS",
+    }
+    gfs_dataset_config(cfg)["lifecycle"] = {
+        "type": "rolling_observed",
+        "display_window_minutes": 120,
+        "publish_scan_minutes": 180,
+    }
+    del gfs_dataset_config(cfg)["workload"]
+
+    dataset = parse_pipeline_config(cfg).dataset("gfs")
+
+    assert dataset.lifecycle is not None
+    assert dataset.lifecycle.display_window_minutes == 120
+    assert dataset.lifecycle.publish_scan_minutes == 180
+    assert dataset.workload.frames == ()
+    assert dataset.mode == "rolling_observed"
+
+
+def test_pipeline_config_rejects_forecast_dataset_without_workload_frames() -> None:
+    cfg = minimal_pipeline_config()
+    del gfs_dataset_config(cfg)["workload"]
+
+    with pytest.raises(SystemExit, match="forecast_cycle datasets must define workload frames"):
+        parse_pipeline_config(cfg)
+
+
+def test_pipeline_config_rejects_mrms_without_rolling_observed_lifecycle() -> None:
+    cfg = minimal_pipeline_config()
+    gfs_dataset_config(cfg)["source"] = {
+        "type": MRMS_AWS_S3_SOURCE_TYPE,
+        "grid_id": "mrms_conus_0p01",
+        "bucket": "noaa-mrms-pds",
+        "prefix": "CONUS",
+    }
+
+    with pytest.raises(SystemExit, match="Unsupported dataset mode"):
+        parse_pipeline_config(cfg)
+
+
+def test_pipeline_config_rejects_forecast_source_with_rolling_observed_lifecycle() -> None:
+    cfg = minimal_pipeline_config()
+    gfs_dataset_config(cfg)["lifecycle"] = {
+        "type": "rolling_observed",
+        "display_window_minutes": 120,
+        "publish_scan_minutes": 180,
+    }
+
+    with pytest.raises(SystemExit, match="Unsupported dataset mode"):
+        parse_pipeline_config(cfg)
+
+
+def test_pipeline_config_rejects_rolling_observed_scan_shorter_than_display_window() -> None:
+    cfg = minimal_pipeline_config()
+    gfs_dataset_config(cfg)["lifecycle"] = {
+        "type": "rolling_observed",
+        "display_window_minutes": 120,
+        "publish_scan_minutes": 60,
+    }
+
+    with pytest.raises(SystemExit, match="publish_scan_minutes"):
+        parse_pipeline_config(cfg)
 
 
 def test_pipeline_config_derives_workload_artifacts_from_dataset_artifact_order() -> None:

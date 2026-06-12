@@ -41,6 +41,8 @@ const MOCK_ACTIVE_UNIFORMS = [
   { name: 'u_lat0', type: GL_FLOAT },
   { name: 'u_dx', type: GL_FLOAT },
   { name: 'u_dy', type: GL_FLOAT },
+  { name: 'u_x_wrap', type: GL_INT },
+  { name: 'u_y_mode', type: GL_INT },
   { name: 'u_opacity', type: GL_FLOAT },
   { name: 'u_zoom', type: GL_FLOAT },
   { name: 'u_low_cloud_color', type: GL_FLOAT_VEC3 },

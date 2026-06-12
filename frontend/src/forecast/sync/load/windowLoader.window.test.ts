@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  createCloudLayersRasterSourceFixture,
+  createCloudLayersLayerSourceFixture,
   createContourSourceFixture,
   createGridFixture,
   createOverlaySourceFixture,
@@ -100,6 +100,7 @@ function rasterWindowPlan() {
     failurePolicy: 'required',
     output: 'single',
     frame: {
+      sourceKind: 'raster',
       source,
       artifactId: source.artifactId,
       bandIds: ['value'],
@@ -116,6 +117,7 @@ function overlayWindowPlan() {
     failurePolicy: 'optional',
     output: 'array',
     frames: [{
+      sourceKind: 'overlay',
       source,
       artifactId: source.source.artifactId,
       bandIds: ['snow_frac', 'mix_frac'],
@@ -134,6 +136,7 @@ function contourWindowPlan() {
     failurePolicy: 'optional',
     output: 'single',
     frame: {
+      sourceKind: 'contour',
       source,
       artifactId: source.source.artifactId,
       bandIds: ['value'],
@@ -150,6 +153,7 @@ function particlesWindowPlan() {
     failurePolicy: 'required',
     output: 'single',
     frame: {
+      sourceKind: 'particles',
       source,
       artifactId: source.source.artifactId,
       bandIds: ['u', 'v'],
@@ -159,13 +163,14 @@ function particlesWindowPlan() {
 }
 
 function cloudLayersWindowPlan() {
-  const source = createCloudLayersRasterSourceFixture()
+  const source = createCloudLayersLayerSourceFixture()
   return createForecastWindowPlanTestFixture({
     id: 'raster',
     key: 'raster:key',
     failurePolicy: 'required',
     output: 'single',
     frame: {
+      sourceKind: 'raster',
       source,
       artifactId: source.artifactId,
       bandIds: ['low', 'middle', 'high'],

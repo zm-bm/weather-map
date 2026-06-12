@@ -7,7 +7,12 @@ import {
 import {
   createPackedVectorFramePair,
   deletePackedVectorFramePairTextures,
+  packedVectorFramePairUniforms,
 } from './vectorTexture'
+import {
+  ENCODED_GRID_X_WRAP_NONE,
+  ENCODED_GRID_Y_MODE_NONE,
+} from '../../encodedGrid'
 
 describe('particle vector texture helpers', () => {
   it('uploads wind vectors as signed interleaved RG8I textures', () => {
@@ -28,6 +33,10 @@ describe('particle vector texture helpers', () => {
       gl.BYTE,
       new Int8Array([1, -1, 2, -2, 3, -3, 4, -4]),
     )
+    expect(packedVectorFramePairUniforms(pair!)).toMatchObject({
+      u_x_wrap: ENCODED_GRID_X_WRAP_NONE,
+      u_y_mode: ENCODED_GRID_Y_MODE_NONE,
+    })
   })
 
   it('reuses lower-to-upper textures across vector frame transitions', () => {

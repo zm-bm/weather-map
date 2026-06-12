@@ -4,45 +4,13 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from tests.fixtures.aws import FakeBatchClient, FakeDynamoClient
-from tests.fixtures.cycle_plan import cycle_plan as build_cycle_plan
-from tests.fixtures.cycle_plan import frame_state, frame_worker
 from tests.fixtures.publish import publish_fixture
+from tests.fixtures.run_plan import frame_state, frame_worker
+from tests.fixtures.run_plan import run_plan as build_run_plan
 from weather_etl.config.sources import ICON_DWD_SOURCE_TYPE
 from weather_etl.environment import EtlEnvironment
 from weather_etl.operations.submit_icon_ready import submit_ready_icon_cycles
-from weather_etl.state.manifest.submission_policy import CycleSubmissionDecision
 from weather_etl.workers.launch import WorkerLaunchRecord, WorkerLaunchSummary
-
-
-def test_submit_ready_icon_cycles_stops_when_submission_policy_blocks(fake_env: EtlEnvironment) -> None:
-    with (
-        patch(
-            "weather_etl.operations.submit_icon_ready.check_cycle_submission_policy",
-            return_value=_decision(allowed=False),
-        ),
-        patch.object(fake_env, "ensure_or_load_run_snapshot") as ensure_snapshot,
-    ):
-        result = submit_ready_icon_cycles(
-            batch=FakeBatchClient(),
-            ddb=FakeDynamoClient(),
-            queue="weather-etl",
-            job_definition="weather-etl-worker-icon:1",
-            frame_claim_table="frame-claims",
-            run_coordinator_table="run-coordinator",
-            env=fake_env,
-            cycles=("2026021300",),
-            sentinel_params=("t_2m",),
-            min_bytes=1,
-            now=datetime(2026, 2, 13, tzinfo=timezone.utc),
-        )
-
-    assert result.submitted == 0
-    assert result.skipped_cycles == 1
-    assert result.blocked == 1
-    assert result.outcomes[0].status == "blocked"
-    assert result.outcomes[0].scope == "cycle"
-    assert result.outcomes[0].reason == "submission_policy"
-    ensure_snapshot.assert_not_called()
 
 
 def test_submit_ready_icon_cycles_reports_pending_sentinel(loaded_run_snapshot_factory) -> None:
@@ -70,10 +38,6 @@ def test_submit_ready_icon_cycles_reports_pending_sentinel(loaded_run_snapshot_f
         )
 
         with (
-            patch(
-                "weather_etl.operations.submit_icon_ready.check_cycle_submission_policy",
-                return_value=_decision(allowed=True),
-            ),
             patch("weather_etl.operations.submit_icon_ready.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
             patch("weather_etl.operations.submit_icon_ready._url_ready", return_value=False),
@@ -123,7 +87,7 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
             run_id=fx.run_id,
             artifact_root_uri=fx.artifact_root_uri,
         )
-        plan = build_cycle_plan(
+        plan = build_run_plan(
             dataset_id="icon",
             cycle=cycle,
             run_id=fx.run_id,
@@ -148,13 +112,9 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
             )
 
         with (
-            patch(
-                "weather_etl.operations.submit_icon_ready.check_cycle_submission_policy",
-                return_value=_decision(allowed=True),
-            ),
             patch("weather_etl.operations.submit_icon_ready.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
-            patch("weather_etl.operations.submit_icon_ready.plan_cycle", return_value=plan),
+            patch("weather_etl.operations.submit_icon_ready.plan_run", return_value=plan),
             patch("weather_etl.operations.submit_icon_ready._url_ready", return_value=True),
             patch(
                 "weather_etl.operations.submit_icon_ready.launch_aws_batch_plan_workers",
@@ -181,16 +141,3 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
         ("001", "submitted", "batch_submitted"),
         ("002", "submitted", "batch_submitted"),
     ]
-
-
-def _decision(*, allowed: bool) -> CycleSubmissionDecision:
-    return CycleSubmissionDecision(
-        dataset_id="icon",
-        cycle="2026021300",
-        latest_status="valid",
-        latest_cycle="2026021306",
-        backfill_required=not allowed,
-        force_backfill=False,
-        allowed=allowed,
-        message="allowed" if allowed else "blocked",
-    )

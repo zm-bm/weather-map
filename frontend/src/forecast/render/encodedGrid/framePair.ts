@@ -1,10 +1,24 @@
-import type { EncodedRasterFrame } from '@/forecast/frames'
+import {
+  type EncodedRasterFrame,
+  effectiveGridBoundaryModes,
+  GRID_X_WRAP_NONE as ENCODED_GRID_X_WRAP_NONE,
+  GRID_X_WRAP_REPEAT as ENCODED_GRID_X_WRAP_REPEAT,
+  GRID_Y_MODE_CLAMP as ENCODED_GRID_Y_MODE_CLAMP,
+  GRID_Y_MODE_NONE as ENCODED_GRID_Y_MODE_NONE,
+} from '@/forecast/frames'
 import {
   EncodedGridTextureCache,
   type EncodedGridBand,
 } from './texture'
 
 type GridSpec = EncodedRasterFrame['grid']
+
+export {
+  ENCODED_GRID_X_WRAP_NONE,
+  ENCODED_GRID_X_WRAP_REPEAT,
+  ENCODED_GRID_Y_MODE_CLAMP,
+  ENCODED_GRID_Y_MODE_NONE,
+}
 
 export type EncodedGridFrameSpec = {
   key: string
@@ -50,6 +64,7 @@ export function encodedRasterBandIdMismatch(args: {
 export type EncodedFramePair<TFrame> = {
   lowerFrame: TFrame
   upperFrame: TFrame
+  grid: GridSpec
   lowerTexture: WebGLTexture
   upperTexture: WebGLTexture
   timeMix: number
@@ -93,6 +108,7 @@ export function resolveEncodedFramePair<TFrame>(args: {
   return {
     lowerFrame: args.lowerFrame,
     upperFrame,
+    grid: lowerSpec.grid,
     lowerTexture,
     upperTexture,
     timeMix: upperFrame === args.lowerFrame ? 0 : args.mix,
@@ -144,6 +160,8 @@ export function encodedGridUniforms(grid: GridSpec): {
   u_lat0: number
   u_dx: number
   u_dy: number
+  u_x_wrap: number
+  u_y_mode: number
 } {
   return {
     u_grid_size: [grid.nx, grid.ny],
@@ -151,6 +169,18 @@ export function encodedGridUniforms(grid: GridSpec): {
     u_lat0: grid.lat0,
     u_dx: grid.dx,
     u_dy: grid.dy,
+    ...encodedGridBoundaryUniforms(grid),
+  }
+}
+
+export function encodedGridBoundaryUniforms(grid: GridSpec): {
+  u_x_wrap: number
+  u_y_mode: number
+} {
+  const modes = effectiveGridBoundaryModes(grid)
+  return {
+    u_x_wrap: modes.xWrapUniform,
+    u_y_mode: modes.yModeUniform,
   }
 }
 
@@ -164,22 +194,16 @@ export function encodedFramePairUniforms<TFrame>(
   u_lat0: number
   u_dx: number
   u_dy: number
+  u_x_wrap: number
+  u_y_mode: number
   u_time_mix: number
 } {
-  const grid = encodedFrameGrid(framePair.lowerFrame)
   return {
     u_encoded_tex_lower: framePair.lowerTexture,
     u_encoded_tex_upper: framePair.upperTexture,
-    ...encodedGridUniforms(grid),
+    ...encodedGridUniforms(framePair.grid),
     u_time_mix: framePair.timeMix,
   }
-}
-
-function encodedFrameGrid(frame: unknown): GridSpec {
-  const maybeFrame = frame as { grid?: GridSpec; raster?: { grid?: GridSpec } }
-  const grid = maybeFrame.grid ?? maybeFrame.raster?.grid
-  if (!grid) throw new Error('Encoded frame is missing grid metadata')
-  return grid
 }
 
 export type EncodedLinearUniformSource = {

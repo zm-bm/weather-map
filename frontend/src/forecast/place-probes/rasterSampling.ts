@@ -1,4 +1,8 @@
-import type { ProbeWindow } from '@/forecast/frames'
+import {
+  effectiveGridBoundaryModes,
+  gridCoordIsInsideDomain,
+  type ProbeWindow,
+} from '@/forecast/frames'
 import { clamp, clamp01, wrap } from '@/core/math'
 
 type ProbeFrame = ProbeWindow['lower']
@@ -162,14 +166,15 @@ export function isRasterProbeSamplerCompatible(
   sampler: RasterProbeSampler
 ): boolean {
   const { grid } = frame.raster
+  const modes = effectiveGridBoundaryModes(grid)
   return grid.nx === sampler.nx &&
     grid.ny === sampler.ny &&
     grid.lon0 === sampler.lon0 &&
     grid.lat0 === sampler.lat0 &&
     grid.dx === sampler.dx &&
     grid.dy === sampler.dy &&
-    grid.x_wrap === sampler.x_wrap &&
-    grid.y_mode === sampler.y_mode &&
+    modes.xWrap === sampler.x_wrap &&
+    modes.yMode === sampler.y_mode &&
     hasExpectedRasterCellCount(frame, sampler.nx * sampler.ny)
 }
 
@@ -248,12 +253,19 @@ function createRasterSampleGeometry(
   if (nx < 1 || ny < 1 || dx === 0 || dy === 0) return null
   if (!hasExpectedRasterCellCount(frame, nx * ny)) return null
 
-  const gridX = toGridCoord(coords.lon, lon0, dx, nx, grid.x_wrap === 'repeat')
-  const gridY = clamp((coords.lat - lat0) / dy, 0, ny - 1)
+  const rawGridX = (coords.lon - lon0) / dx
+  const rawGridY = (coords.lat - lat0) / dy
+  if (!gridCoordIsInsideDomain({ grid, gridX: rawGridX, gridY: rawGridY })) return null
+
+  const modes = effectiveGridBoundaryModes(grid)
+  const gridX = modes.xWrap === 'repeat'
+    ? wrap(rawGridX, nx)
+    : clamp(rawGridX, 0, nx - 1)
+  const gridY = clamp(rawGridY, 0, ny - 1)
 
   const x0 = Math.floor(gridX)
   const y0 = Math.floor(gridY)
-  const x1 = grid.x_wrap === 'repeat'
+  const x1 = modes.xWrap === 'repeat'
     ? wrapIndex(x0 + 1, nx)
     : Math.min(x0 + 1, nx - 1)
   const y1 = Math.min(y0 + 1, ny - 1)
@@ -272,8 +284,8 @@ function createRasterSampleGeometry(
     lat0,
     dx,
     dy,
-    x_wrap: grid.x_wrap,
-    y_mode: grid.y_mode,
+    x_wrap: modes.xWrap,
+    y_mode: modes.yMode,
     cells: [
       createSampleGeometryCell(x0, y0, nx, (1 - tx) * (1 - ty)),
       createSampleGeometryCell(x1, y0, nx, tx * (1 - ty)),
@@ -387,19 +399,6 @@ function decodeTempC(stored: number): number {
   if (idx <= 54) return -35 + (idx * 0.5)
   if (idx <= 222) return -7.75 + ((idx - 55) * 0.25)
   return 34.5 + ((idx - 223) * 0.5)
-}
-
-function toGridCoord(
-  value: number,
-  origin: number,
-  step: number,
-  span: number,
-  repeats: boolean,
-) {
-  const rawCoord = (value - origin) / step
-  return repeats
-    ? wrap(rawCoord, span)
-    : clamp(rawCoord, 0, span - 1)
 }
 
 function wrapIndex(value: number, span: number) {

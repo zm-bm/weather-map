@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -36,8 +37,10 @@ class RecordingStore:
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
         self.metadata: dict[str, UriWriteMetadata] = {}
+        self.read_counts: dict[str, int] = {}
 
     def read_bytes(self, *, uri: str) -> bytes:
+        self.read_counts[uri] = self.read_counts.get(uri, 0) + 1
         return self.objects[uri]
 
     def write_bytes(self, *, uri: str, data: bytes) -> None:
@@ -77,6 +80,57 @@ def test_write_payload_gzips_and_sets_payload_metadata() -> None:
 
     assert gzip.decompress(store.objects[uri]) == payload
     assert store.metadata[uri] == PAYLOAD_METADATA
+
+
+def test_materialize_rolling_payload_copies_verified_payload() -> None:
+    store = RecordingStore()
+    repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
+    payload = bytes([1, 2, 3, 4])
+    source_path = "runs/mrms/2026061100/20260611T000000Z-abcdef12/payloads/20260611000000/radar.i8.bin"
+    source_uri = "s3://bucket/artifacts/" + source_path
+    store.write_bytes_with_metadata(
+        uri=source_uri,
+        data=gzip.compress(payload, mtime=0),
+        metadata=PAYLOAD_METADATA,
+    )
+
+    key = repo.materialize_rolling_payload(
+        dataset_id="mrms",
+        frame_id="20260611000000",
+        payload_file="radar.i8.bin",
+        source_path=source_path,
+        byte_length=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+
+    uri = "s3://bucket/artifacts/runs/mrms/rolling/payloads/20260611000000/radar.i8.bin"
+    assert key == "runs/mrms/rolling/payloads/20260611000000/radar.i8.bin"
+    assert gzip.decompress(store.objects[uri]) == payload
+    assert store.metadata[uri] == PAYLOAD_METADATA
+
+
+def test_materialize_rolling_payload_reuses_current_target_without_source_read() -> None:
+    store = RecordingStore()
+    repo = ArtifactRepository.for_root(store=store, artifact_root_uri="s3://bucket/artifacts")
+    payload = bytes([1, 2, 3, 4])
+    compressed = gzip.compress(payload, mtime=0)
+    source_path = "runs/mrms/2026061100/20260611T000000Z-abcdef12/payloads/20260611000000/radar.i8.bin"
+    source_uri = "s3://bucket/artifacts/" + source_path
+    target_uri = "s3://bucket/artifacts/runs/mrms/rolling/payloads/20260611000000/radar.i8.bin"
+    store.write_bytes_with_metadata(uri=source_uri, data=compressed, metadata=PAYLOAD_METADATA)
+    store.write_bytes_with_metadata(uri=target_uri, data=compressed, metadata=PAYLOAD_METADATA)
+
+    key = repo.materialize_rolling_payload(
+        dataset_id="mrms",
+        frame_id="20260611000000",
+        payload_file="radar.i8.bin",
+        source_path=source_path,
+        byte_length=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+
+    assert key == "runs/mrms/rolling/payloads/20260611000000/radar.i8.bin"
+    assert store.read_counts == {target_uri: 1}
 
 
 def test_json_writes_use_expected_metadata_profiles() -> None:

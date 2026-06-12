@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from tests.fixtures.cycle_plan import cycle_plan, frame_worker
+from tests.fixtures.run_plan import frame_worker, run_plan
 from weather_etl.workers.claims.store import FrameClaim, FrameClaimResult, NullFrameClaimStore
 from weather_etl.workers.launch import (
     WorkerLaunchRecord,
     WorkerLaunchRequest,
-    launch_cycle_plan_workers,
     launch_planned_workers,
+    launch_run_plan_workers,
 )
 from weather_etl.workers.spec import FrameWorkerSpec
 
@@ -214,18 +214,18 @@ def test_launch_planned_workers_accepts_null_claim_store() -> None:
     assert backend.calls[0]["requests"][0].attempt == 1
 
 
-def test_launch_cycle_plan_workers_uses_plan_identity_and_worker_subset() -> None:
+def test_launch_run_plan_workers_uses_plan_identity_and_worker_subset() -> None:
     now = datetime(2026, 5, 11, tzinfo=timezone.utc)
     backend = _FakeBackend()
     claims = _FakeClaimStore((FrameClaimResult(acquired=True, attempt=1),))
-    plan = cycle_plan(
+    plan = run_plan(
         cycle="2026051100",
         run_id="20260511T010203Z-abcdef12",
         artifact_root_uri="file:///artifacts",
         workers=(_worker("003"), _worker("006")),
     )
 
-    summary = launch_cycle_plan_workers(
+    summary = launch_run_plan_workers(
         plan=plan,
         workers=(plan.workers[1],),
         claim_store=claims,

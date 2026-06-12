@@ -16,6 +16,8 @@ uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
+uniform int u_x_wrap;
+uniform int u_y_mode;
 uniform float u_scale;
 uniform float u_offset;
 uniform float u_opacity;
@@ -63,7 +65,7 @@ EncodedSample sampleCloudDeckLayer(int layer, EncodedGridLocation location, floa
 }
 
 vec4 sampleCloudDecks(float sampleGridX, float sampleGridY, float nx, float ny, float mixValue) {
-  EncodedGridLocation location = encodedGridLocationAt(sampleGridX, sampleGridY, vec2(nx, ny));
+  EncodedGridLocation location = encodedGridLocationAt(sampleGridX, sampleGridY, vec2(nx, ny), u_x_wrap, u_y_mode);
 
   EncodedSample low = sampleCloudDeckLayer(0, location, mixValue);
   EncodedSample middle = sampleCloudDeckLayer(1, location, mixValue);
@@ -170,7 +172,16 @@ void main() {
     return;
   }
 
-  EncodedGridLocation location = encodedGridLocationForMercator(v_mercator, u_grid_size, u_lon0, u_lat0, u_dx, u_dy);
+  EncodedGridLocation location = encodedGridLocationForMercator(
+    v_mercator,
+    u_grid_size,
+    u_lon0,
+    u_lat0,
+    u_dx,
+    u_dy,
+    u_x_wrap,
+    u_y_mode
+  );
 
   float mixValue = clamp(u_time_mix, 0.0, 1.0);
   vec4 cloudDecks = sampleCloudDecks(location.gridX, location.gridY, nx, ny, mixValue);

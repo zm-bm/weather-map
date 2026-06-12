@@ -42,6 +42,8 @@ export const DISPLAY_PROFILE_IDS = [
   'freezing-level',
   'precipitable-water',
   'composite-reflectivity',
+  'observed-radar-base-reflectivity',
+  'observed-radar-composite-reflectivity',
   'cape',
   'cin',
 ] as const
@@ -293,7 +295,7 @@ const REFLECTIVITY_UNITS: UnitDisplay<GradientUnitOption> = {
     id: 'dbz',
     label: 'dBZ',
     valueFormat: 'whole',
-    legendLabels: [0, 10, 20, 30, 40, 50, 60, 70, 75],
+    legendLabels: [-35, -25, -15, -5, 5, 15, 25, 35, 45, 55, 65, 75],
   }],
 }
 
@@ -421,7 +423,21 @@ export const FORECAST_DISPLAY_PROFILES = {
   'composite-reflectivity': {
     kind: 'gradient',
     label: 'Simulated Radar',
-    range: { min: 0, max: 75 },
+    range: { min: -35, max: 75 },
+    units: REFLECTIVITY_UNITS,
+    palette: REFLECTIVITY_PALETTE,
+  },
+  'observed-radar-base-reflectivity': {
+    kind: 'gradient',
+    label: 'Observed Radar Base',
+    range: { min: -35, max: 75 },
+    units: REFLECTIVITY_UNITS,
+    palette: REFLECTIVITY_PALETTE,
+  },
+  'observed-radar-composite-reflectivity': {
+    kind: 'gradient',
+    label: 'Observed Radar Composite',
+    range: { min: -35, max: 75 },
     units: REFLECTIVITY_UNITS,
     palette: REFLECTIVITY_PALETTE,
   },

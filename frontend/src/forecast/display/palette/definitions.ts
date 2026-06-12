@@ -264,15 +264,17 @@ export const CIN_PALETTE = palette('severe.cin.jkg.v1', [
     stop(500, [96, 58, 148]),
 ])
 
-export const REFLECTIVITY_PALETTE = palette('radar.reflectivity.dbz.v1', [
-    stop(0, [180, 180, 180]),
-    stop(5, [110, 225, 110]),
-    stop(10, [60, 205, 75]),
-    stop(20, [35, 155, 55]),
-    stop(30, [238, 226, 65]),
-    stop(40, [236, 150, 55]),
-    stop(50, [214, 64, 64]),
-    stop(60, [166, 56, 146]),
-    stop(70, [112, 48, 150]),
-    stop(75, [245, 245, 245]),
+export const REFLECTIVITY_PALETTE = palette('radar.reflectivity.dbz.v2', [
+    stop(-35, [204, 255, 255]),
+    stop(-25, [204, 153, 204]),
+    stop(-15, [153, 102, 153]),
+    stop(-5, [153, 153, 102]),
+    stop(5, [0, 235, 235]),
+    stop(15, [0, 0, 247]),
+    stop(25, [0, 199, 0]),
+    stop(35, [255, 255, 0]),
+    stop(45, [255, 143, 0]),
+    stop(55, [215, 0, 0]),
+    stop(65, [255, 0, 255]),
+    stop(75, [155, 87, 203]),
 ])

@@ -17,6 +17,10 @@ from weather_etl.sources.prepared_grib import PreparedGribSource
 
 MATCH_OPERATOR_SEPARATOR = "__"
 MATCH_OPERATOR_PREFIX = "prefix"
+GLOBAL_LON_SPAN_DEGREES = 360.0
+GLOBAL_LAT_SPAN_DEGREES = 180.0
+GLOBAL_SPAN_TOLERANCE_DEGREES = 1.0
+GLOBAL_POLE_EDGE_TOLERANCE_DEGREES = 1.0
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,28 @@ def _needs_half_cell_shift(origin: float, step: float) -> bool:
     return abs(fractional - 0.5) < 1e-6
 
 
+def _x_wrap_mode(*, nx: int, dx: float) -> str:
+    span = abs(dx) * nx
+    return "repeat" if _near(span, GLOBAL_LON_SPAN_DEGREES) else "none"
+
+
+def _y_mode(*, ny: int, lat0: float, dy: float) -> str:
+    edge_a = lat0 - (0.5 * dy)
+    edge_b = lat0 + (dy * (ny - 1)) + (0.5 * dy)
+    north = max(edge_a, edge_b)
+    south = min(edge_a, edge_b)
+    span = abs(dy) * ny
+    covers_poles = (
+        north >= 90.0 - GLOBAL_POLE_EDGE_TOLERANCE_DEGREES and
+        south <= -90.0 + GLOBAL_POLE_EDGE_TOLERANCE_DEGREES
+    )
+    return "clamp" if _near(span, GLOBAL_LAT_SPAN_DEGREES) and covers_poles else "none"
+
+
+def _near(value: float, target: float) -> bool:
+    return math.isfinite(value) and abs(value - target) <= GLOBAL_SPAN_TOLERANCE_DEGREES
+
+
 def grid_meta_from_grib(*, grib_path: Path, run: RunFn) -> dict[str, Any]:
     """Read frontend grid metadata from a GRIB file via GDAL."""
 
@@ -62,18 +88,21 @@ def grid_meta_from_grib(*, grib_path: Path, run: RunFn) -> dict[str, Any]:
     dx = float(gt[1])
     dy = float(gt[5])
 
+    adjusted_lon0 = lon0 + (0.5 * dx if _needs_half_cell_shift(lon0, dx) else 0.0)
+    adjusted_lat0 = lat0 + (0.5 * dy if _needs_half_cell_shift(lat0, dy) else 0.0)
+
     return {
         "crs": "EPSG:4326",
         "nx": nx,
         "ny": ny,
-        "lon0": lon0 + (0.5 * dx if _needs_half_cell_shift(lon0, dx) else 0.0),
-        "lat0": lat0 + (0.5 * dy if _needs_half_cell_shift(lat0, dy) else 0.0),
+        "lon0": adjusted_lon0,
+        "lat0": adjusted_lat0,
         "dx": dx,
         "dy": dy,
         "origin": "cell_center",
         "layout": "row_major",
-        "x_wrap": "repeat",
-        "y_mode": "clamp",
+        "x_wrap": _x_wrap_mode(nx=nx, dx=dx),
+        "y_mode": _y_mode(ny=ny, lat0=adjusted_lat0, dy=dy),
     }
 
 

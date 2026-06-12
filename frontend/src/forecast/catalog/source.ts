@@ -4,39 +4,31 @@ import type { ForecastDisplayProfile } from '@/forecast/display'
 
 const idSchema = z.string().trim().min(1)
 
-export const rasterBandSchema = z.object({
+export const artifactBandSchema = z.object({
   id: idSchema,
 }).strict()
 
-export const rasterSourceSchema = z.object({
+export const artifactSourceSchema = z.object({
   artifactId: idSchema,
-  bands: z.array(rasterBandSchema).nonempty(),
-}).strict()
-
-export const sourceBandSchema = rasterBandSchema
-
-export const loadSourceSchema = z.object({
-  artifactId: idSchema,
-  bands: z.array(sourceBandSchema).nonempty(),
+  bands: z.array(artifactBandSchema).nonempty(),
 }).strict()
 
 export const overlaySourceSchema = z.object({
   id: idSchema,
   style: z.literal('precipitation-type-pattern'),
-  source: loadSourceSchema,
+  source: artifactSourceSchema,
   optional: z.boolean().default(false),
 }).strict()
 
-export const contourSourceSchema = loadSourceSchema
-export const particleSourceSchema = loadSourceSchema
+export const contourSourceSchema = artifactSourceSchema
+export const particleSourceSchema = artifactSourceSchema
 
-export type RasterSource = z.infer<typeof rasterSourceSchema>
-export type LoadSource = z.infer<typeof loadSourceSchema>
+export type ArtifactSource = z.infer<typeof artifactSourceSchema>
 export type OverlaySource = z.infer<typeof overlaySourceSchema>
-export type ContourSource = { id: string; source: LoadSource }
-export type ParticleSource = { id: string; source: LoadSource }
+export type ContourSource = { id: string; source: ArtifactSource }
+export type ParticleSource = { id: string; source: ArtifactSource }
 
-export type ForecastLayerSource = RasterSource & {
+export type ForecastLayerSource = ArtifactSource & {
   layerId: string
   display: ForecastDisplayProfile
   overlays: readonly OverlaySource[]

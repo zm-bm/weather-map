@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   hasExactBandIds,
   sourceBandIds,
+  type ArtifactSource,
   type ContourSource,
   type OverlaySource,
   type ParticleSource,
-  type RasterSource,
 } from './source'
 
 describe('catalog source helpers', () => {
@@ -44,14 +44,14 @@ describe('catalog source helpers', () => {
     const valueSource = {
       artifactId: 'tmp_surface',
       bands: [{ id: 'value' }],
-    } satisfies RasterSource
+    } satisfies ArtifactSource
     const wind = {
       artifactId: 'wind10m_uv',
       bands: [
         { id: 'u' },
         { id: 'v' },
       ],
-    } satisfies RasterSource
+    } satisfies ArtifactSource
     const cloud = {
       artifactId: 'cloud_layers',
       bands: [
@@ -59,7 +59,7 @@ describe('catalog source helpers', () => {
         { id: 'middle' },
         { id: 'high' },
       ],
-    } satisfies RasterSource
+    } satisfies ArtifactSource
 
     expect(sourceBandIds(valueSource)).toEqual(['value'])
     expect(sourceBandIds(wind)).toEqual(['u', 'v'])

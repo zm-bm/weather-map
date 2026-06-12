@@ -102,6 +102,11 @@ class ArtifactPaths:
 
         return self._run_key(dataset_id=dataset_id, cycle=cycle, run_id=run_id, parts=("payloads",))
 
+    def rolling_payload_root_key(self, *, dataset_id: str) -> str:
+        """Relative public payload root key for a dataset's rolling view."""
+
+        return "/".join(["runs", safe_segment(dataset_id), "rolling", "payloads"])
+
     def payload_filename(self, *, artifact_id: str, dtype: str) -> str:
         """Payload filename for one artifact and dtype."""
 
@@ -130,6 +135,22 @@ class ArtifactPaths:
             run_id=run_id,
             parts=("payloads", frame_id, self.payload_filename(artifact_id=artifact_id, dtype=dtype)),
         )
+
+    def rolling_payload_uri_parts(
+        self,
+        *,
+        dataset_id: str,
+        frame_id: str,
+        payload_file: str,
+    ) -> str:
+        """Payload URI for a materialized rolling-view frame payload."""
+
+        key = "/".join([
+            self.rolling_payload_root_key(dataset_id=dataset_id),
+            validate_frame_id(frame_id),
+            safe_segment(payload_file),
+        ])
+        return join_uri(self.artifact_root_uri, [key])
 
     def success_marker_uri_parts(
         self,

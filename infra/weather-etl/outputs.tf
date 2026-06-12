@@ -38,6 +38,10 @@ output "icon_batch_job_definition_arn" {
   value = aws_batch_job_definition.worker_icon.arn
 }
 
+output "mrms_batch_job_definition_arn" {
+  value = aws_batch_job_definition.worker_mrms.arn
+}
+
 output "frame_claim_table_name" {
   value = aws_dynamodb_table.frame_claims.name
 }
@@ -56,6 +60,22 @@ output "icon_ingest_lambda_name" {
 
 output "icon_ingest_lambda_arn" {
   value = aws_lambda_function.ingest_icon.arn
+}
+
+output "mrms_ingest_lambda_name" {
+  value = aws_lambda_function.ingest_mrms.function_name
+}
+
+output "mrms_ingest_lambda_arn" {
+  value = aws_lambda_function.ingest_mrms.arn
+}
+
+output "mrms_ingest_queue_arn" {
+  value = aws_sqs_queue.mrms_ingest.arn
+}
+
+output "mrms_ingest_dlq_arn" {
+  value = aws_sqs_queue.mrms_ingest_dlq.arn
 }
 
 output "publisher_lambda_name" {
@@ -96,11 +116,13 @@ output "etl_runtime_contract" {
       queue_arn                 = aws_batch_job_queue.etl.arn
       gfs_job_definition_arn    = aws_batch_job_definition.worker.arn
       icon_job_definition_arn   = aws_batch_job_definition.worker_icon.arn
+      mrms_job_definition_arn   = aws_batch_job_definition.worker_mrms.arn
       worker_ecr_repository_url = aws_ecr_repository.worker.repository_url
       worker_image_tag          = var.worker_image_tag
       retry_attempts            = var.batch_retry_attempts
       gfs_timeout_seconds       = var.gfs_worker_timeout_seconds
       icon_timeout_seconds      = var.icon_worker_timeout_seconds
+      mrms_timeout_seconds      = var.mrms_worker_timeout_seconds
     }
 
     ingest = {
@@ -112,15 +134,22 @@ output "etl_runtime_contract" {
       icon_schedule_name    = aws_cloudwatch_event_rule.ingest_icon_poll.name
       icon_schedule         = var.icon_ingest_schedule_expression
       icon_poll_cycle_count = var.icon_poll_cycle_count
+      mrms_lambda_name      = aws_lambda_function.ingest_mrms.function_name
+      mrms_lambda_arn       = aws_lambda_function.ingest_mrms.arn
+      mrms_sns_topic_arn    = local.mrms_sns_topic_arn
+      mrms_queue_arn        = aws_sqs_queue.mrms_ingest.arn
+      mrms_dlq_arn          = aws_sqs_queue.mrms_ingest_dlq.arn
+      mrms_source_bucket    = "noaa-mrms-pds"
+      mrms_source_prefix    = "CONUS"
     }
 
     publisher = {
-      lambda_name   = aws_lambda_function.publisher.function_name
-      lambda_arn    = aws_lambda_function.publisher.arn
-      schedule_name = aws_cloudwatch_event_rule.publisher_schedule.name
-      schedule      = var.publisher_schedule_expression
-      datasets      = var.publisher_datasets
-      cycle_count   = var.publisher_cycle_count
+      lambda_name          = aws_lambda_function.publisher.function_name
+      lambda_arn           = aws_lambda_function.publisher.arn
+      schedule_name        = aws_cloudwatch_event_rule.publisher_schedule.name
+      schedule             = var.publisher_schedule_expression
+      datasets             = var.publisher_datasets
+      forecast_cycle_count = var.publisher_forecast_cycle_count
     }
 
     observability = {
@@ -129,10 +158,12 @@ output "etl_runtime_contract" {
     }
 
     retention = {
-      run_days                = var.run_retention_days
-      manifest_days           = var.manifest_retention_days
-      noncurrent_version_days = var.noncurrent_version_retention_days
-      batch_log_days          = var.batch_log_retention_days
+      run_days                 = var.run_retention_days
+      manifest_days            = var.manifest_retention_days
+      mrms_run_days            = var.mrms_run_retention_days
+      mrms_cycle_manifest_days = var.mrms_cycle_manifest_retention_days
+      noncurrent_version_days  = var.noncurrent_version_retention_days
+      batch_log_days           = var.batch_log_retention_days
     }
   }
 }

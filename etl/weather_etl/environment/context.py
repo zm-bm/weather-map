@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import field_validator
 
 from ..core.frames import validate_frame_id
-from ..core.validation import FrozenModel, NonEmptyStr, UniqueNonEmptyStringTuple
+from ..core.validation import FrozenModel, NonEmptyStr
 from ..storage.uris import ARTIFACT_ROOT_SCHEMES, normalize_resource_uri
 
 
@@ -14,7 +14,7 @@ class ExecutionContext(FrozenModel):
 
     dataset_id: NonEmptyStr
     artifact_root_uri: NonEmptyStr
-    frames: UniqueNonEmptyStringTuple
+    frames: tuple[str, ...]
 
     @field_validator("artifact_root_uri")
     @classmethod

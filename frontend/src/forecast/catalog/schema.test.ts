@@ -65,11 +65,33 @@ describe('parseForecastCatalog', () => {
 
     expect(catalog.rasterLayers[0]?.id).toBe('temperature')
     expect(catalog.rasterLayers[0]?.displayProfile).toBe('temperature')
-    expect(catalog.rasterLayers[0]?.source.bands).toEqual([{ id: 'value' }])
+    expect(catalog.rasterLayers[0]!.source.bands).toEqual([{ id: 'value' }])
     expect(catalog.rasterLayerGroups[0]?.rasterLayerIds).toEqual(['temperature'])
     expect(catalog.contourLayers[0]?.source.bands.map((band) => band.id)).toEqual(['value'])
     expect(catalog.particleLayers[0]?.source.bands.map((band) => band.id)).toEqual(['u', 'v'])
     expect(catalog.overlayLayers[0]?.source.bands.map((band) => band.id)).toEqual(['snow_frac', 'mix_frac'])
+  })
+
+  it('rejects raster layers without display profiles', () => {
+    const rasterLayer = {
+      id: 'temperature',
+      groupId: 'temperature',
+      source: {
+        artifactId: 'tmp_surface',
+        bands: [{ id: 'value' }],
+      },
+    } as const
+
+    expect(() => parseForecastCatalog({
+      ...BASE_CATALOG,
+      rasterLayerGroups: [{
+        ...BASE_CATALOG.rasterLayerGroups[0],
+        rasterLayerIds: ['temperature'],
+      }],
+      rasterLayers: [{
+        ...rasterLayer,
+      }],
+    })).toThrow(/displayProfile/)
   })
 
   it('rejects stale root, group, and raster-layer shape', () => {
@@ -143,7 +165,7 @@ describe('parseForecastCatalog', () => {
   })
 
   it('accepts top-level overlay references and rejects invalid overlay metadata', () => {
-    expect(parseForecastCatalog({
+    const catalog = parseForecastCatalog({
       ...BASE_CATALOG,
       rasterLayers: [
         {
@@ -151,7 +173,9 @@ describe('parseForecastCatalog', () => {
           overlays: ['precipitation_type'],
         },
       ],
-    }).rasterLayers[0]?.overlays?.[0]).toBe('precipitation_type')
+    })
+
+    expect(catalog.rasterLayers[0]?.overlays?.[0]).toBe('precipitation_type')
 
     expect(() => parseForecastCatalog({
       ...BASE_CATALOG,
@@ -247,7 +271,7 @@ describe('parseForecastCatalog', () => {
   })
 
   it('accepts multi-band sources and rejects stale band input metadata', () => {
-    expect(parseForecastCatalog({
+    const catalog = parseForecastCatalog({
       ...BASE_CATALOG,
       rasterLayers: [
         {
@@ -258,7 +282,9 @@ describe('parseForecastCatalog', () => {
           },
         },
       ],
-    }).rasterLayers[0]?.source.bands.map((band) => band.id)).toEqual(['u', 'v'])
+    })
+
+    expect(catalog.rasterLayers[0]!.source.bands.map((band) => band.id)).toEqual(['u', 'v'])
 
     expect(() => parseForecastCatalog({
       ...BASE_CATALOG,

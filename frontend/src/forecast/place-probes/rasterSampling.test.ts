@@ -9,6 +9,7 @@ import {
   sampleRasterFrameWithSampler,
 } from './rasterSampling'
 import type { ProbeWindow } from '@/forecast/frames'
+import type { GridSpec } from '@/forecast/manifest'
 import {
   createCloudLayersRasterFrameFixture,
   createRasterFrameFixture,
@@ -17,11 +18,11 @@ import {
   createVectorEncodingFixture,
 } from '@/test/fixtures'
 
-function createFrame(values: number[]): ProbeWindow['lower'] {
+function createFrame(values: number[], gridOverrides: Partial<GridSpec> = {}): ProbeWindow['lower'] {
   const frame = createRasterFrameFixture({
     values: Int8Array.from(values, (value) => Number.isNaN(value) ? -128 : value),
   })
-  return withProbeGrid(frame)
+  return withProbeGrid(frame, gridOverrides)
 }
 
 function createWindFrame(args: {
@@ -52,7 +53,7 @@ function createUnknownBandFrame(): ProbeWindow['lower'] {
   })
 }
 
-function withProbeGrid(frame: ProbeWindow['lower']): ProbeWindow['lower'] {
+function withProbeGrid(frame: ProbeWindow['lower'], gridOverrides: Partial<GridSpec> = {}): ProbeWindow['lower'] {
   return {
     ...frame,
     raster: {
@@ -63,6 +64,7 @@ function withProbeGrid(frame: ProbeWindow['lower']): ProbeWindow['lower'] {
         lat0: 1,
         dx: 1,
         dy: -1,
+        ...gridOverrides,
       },
     },
   }
@@ -89,14 +91,34 @@ describe('probeRasterFrame', () => {
     expect(probe?.points.map((point) => point.value)).toEqual([10, null, 30, 50])
   })
 
-  it('wraps longitudes across repeating grids', () => {
-    const probe = probeRasterFrame(createFrame([10, 20, 30, 40]), {
-      lon: 2.25,
-      lat: 0.5,
+  it('wraps longitudes across global repeating grids', () => {
+    const probe = probeRasterFrame(createFrame([10, 20, 30, 40], {
+      nx: 4,
+      ny: 1,
+      lon0: -135,
+      lat0: 0,
+      dx: 90,
+      dy: -180,
+      x_wrap: 'repeat',
+      y_mode: 'clamp',
+    }), {
+      lon: 247.5,
+      lat: 0,
     })
 
     expect(probe?.gridX).toBe(0.25)
-    expect(probe?.value).toBe(22.5)
+    expect(probe?.value).toBe(12.5)
+  })
+
+  it('returns null outside regional grid bounds', () => {
+    expect(probeRasterFrame(createFrame([10, 20, 30, 40]), {
+      lon: 2,
+      lat: 0.5,
+    })).toBeNull()
+    expect(probeRasterFrame(createFrame([10, 20, 30, 40]), {
+      lon: 0.5,
+      lat: 2,
+    })).toBeNull()
   })
 
   it('blends probe values across a raster interpolation window', () => {

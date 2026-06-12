@@ -9,7 +9,7 @@ from weather_etl.config.product import (
     LoadedProductConfig,
     build_loaded_product_config,
 )
-from weather_etl.config.sources import GFS_NOMADS_SOURCE_TYPE, ICON_DWD_SOURCE_TYPE
+from weather_etl.config.sources import GFS_NOMADS_SOURCE_TYPE, ICON_DWD_SOURCE_TYPE, MRMS_AWS_S3_SOURCE_TYPE
 from weather_etl.state.runs.metadata import RunMetadata
 from weather_etl.state.runs.snapshots import LoadedRunSnapshot
 
@@ -126,22 +126,32 @@ def raw_pipeline_config(
             cfg["artifact_catalog"].setdefault(artifact_id, catalog_artifact(artifact_config))
             artifact_entries[artifact_id] = dataset_artifact(artifact_config)
 
-        workload: dict[str, Any] = {
-            "frame_start": frame_start,
-            "frame_end": frame_end,
-        }
+        workload: dict[str, Any] = {}
+        if source_type != MRMS_AWS_S3_SOURCE_TYPE:
+            workload.update({
+                "frame_start": frame_start,
+                "frame_end": frame_end,
+            })
         if workload_artifacts is not None:
             workload["artifacts"] = list(workload_artifacts)
 
-        cfg["datasets"][dataset_id] = {
+        dataset_cfg: dict[str, Any] = {
             "label": dataset_id.upper(),
             "source": _source_config(
                 source_type=source_type,
                 rate_limit_seconds=rate_limit_seconds,
             ),
-            "workload": workload,
             "artifacts": artifact_entries,
         }
+        if workload:
+            dataset_cfg["workload"] = workload
+        if source_type == MRMS_AWS_S3_SOURCE_TYPE:
+            dataset_cfg["lifecycle"] = {
+                "type": "rolling_observed",
+                "display_window_minutes": 120,
+                "publish_scan_minutes": 180,
+            }
+        cfg["datasets"][dataset_id] = dataset_cfg
 
     return cfg
 

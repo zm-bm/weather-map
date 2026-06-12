@@ -7,12 +7,12 @@ from pathlib import Path
 
 from ...operations.init_run import init_run
 from ...operations.inspect_runs import inspect_runs, inspect_status
-from ...operations.plan_cycle import plan_cycle
-from ...operations.publish_cycle import publish_cycle
-from ...operations.run_cycle import run_cycle
+from ...operations.plan_run import plan_run
+from ...operations.publish_run import publish_run
 from ...operations.run_frame import run_frame
-from ...operations.submit_cycle import submit_aws_batch_cycle
-from ...operations.validate_cycle import validate_cycle
+from ...operations.run_local import run_local
+from ...operations.submit_aws_run import submit_aws_batch_run
+from ...operations.validate_run import validate_run
 from .arguments import optional_str, parse_frame_selection, require_dataset_id, require_str
 from .context import build_environment
 from .formatting import print_not_ready, print_operator_report
@@ -47,6 +47,7 @@ def cmd_init_run(args: argparse.Namespace) -> int:
         dataset_id=require_dataset_id(args),
         cycle=str(args.cycle),
         run_id=args.run_id,
+        selected_frames=parse_frame_selection(args.frames),
     )
     print(f"run_id={snapshot.run_id}")
     print(f"product_config_digest={snapshot.product_config_digest}")
@@ -55,10 +56,10 @@ def cmd_init_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_plan_cycle(args: argparse.Namespace) -> int:
-    """Print a read-only cycle worker plan."""
+def cmd_plan_run(args: argparse.Namespace) -> int:
+    """Print a read-only run worker plan."""
 
-    plan = plan_cycle(
+    plan = plan_run(
         env=build_environment(args),
         dataset_id=require_dataset_id(args),
         cycle=str(args.cycle),
@@ -71,16 +72,15 @@ def cmd_plan_cycle(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_run_cycle(args: argparse.Namespace) -> int:
-    """Run the normal local full lifecycle for one dataset cycle."""
+def cmd_run_local(args: argparse.Namespace) -> int:
+    """Run the normal local full lifecycle for selected run targets."""
 
     if args.procs < 1:
         raise SystemExit("--procs must be at least 1")
-    cycle = str(args.cycle)
-    results = run_cycle(
+    results = run_local(
         env=build_environment(args),
         dataset_id=str(args.dataset_id) if args.dataset_id else None,
-        cycle=cycle,
+        cycle=str(args.cycle) if args.cycle else None,
         run_id=args.run_id,
         selected_frames=parse_frame_selection(args.frames),
         selected_artifacts=args.artifacts,
@@ -95,19 +95,18 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
     return 0 if all(result.ok for result in results) else 1
 
 
-def cmd_submit_aws_cycle(args: argparse.Namespace) -> int:
-    """Submit AWS Batch frame workers for one cycle."""
+def cmd_submit_aws_run(args: argparse.Namespace) -> int:
+    """Submit AWS Batch frame workers for one run."""
 
     import boto3  # type: ignore
 
-    result = submit_aws_batch_cycle(
+    result = submit_aws_batch_run(
         env=build_environment(args),
         dataset_id=require_dataset_id(args),
         cycle=str(args.cycle),
         run_id=args.run_id,
         selected_frames=parse_frame_selection(args.frames),
         selected_artifacts=args.artifacts,
-        force_backfill=bool(args.force_backfill),
         dry_run=bool(args.dry_run),
         batch=boto3.client("batch"),
         ddb=boto3.client("dynamodb"),
@@ -121,29 +120,29 @@ def cmd_submit_aws_cycle(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
-def cmd_publish_cycle(args: argparse.Namespace) -> int:
-    """Publish one processed dataset cycle as a debug/repair stage."""
+def cmd_publish_run(args: argparse.Namespace) -> int:
+    """Publish one processed run as a debug/repair stage."""
 
     dataset_id = require_dataset_id(args)
     cycle = str(args.cycle)
-    result = publish_cycle(
+    result = publish_run(
         env=build_environment(args),
         dataset_id=dataset_id,
         cycle=cycle,
         required_run_id=args.run_id,
     )
-    if not result.ready and result.publish_result is None:
+    if not result.ready and result.run_publish_result is None:
         print_not_ready(label="Publish", dataset_id=dataset_id, cycle=cycle, result=result)
         return 2
     return 0 if result.ready else 2
 
 
-def cmd_validate_cycle(args: argparse.Namespace) -> int:
-    """Validate one processed dataset cycle as a debug/repair stage."""
+def cmd_validate_run(args: argparse.Namespace) -> int:
+    """Validate one processed run as a debug/repair stage."""
 
     dataset_id = require_dataset_id(args)
     cycle = str(args.cycle)
-    result = validate_cycle(
+    result = validate_run(
         env=build_environment(args),
         dataset_id=dataset_id,
         cycle=cycle,

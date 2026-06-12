@@ -12,8 +12,11 @@ describe('encoded grid shader source', () => {
   it('exposes the shared lookup, decode, sampling, and blending contract', () => {
     expect(ENCODED_GRID_GLSL).toContain('struct EncodedSample')
     expect(ENCODED_GRID_GLSL).toContain('struct EncodedGridLocation')
+    expect(ENCODED_GRID_GLSL).toContain('const int ENCODED_GRID_X_WRAP_REPEAT')
+    expect(ENCODED_GRID_GLSL).toContain('const int ENCODED_GRID_Y_MODE_CLAMP')
     expect(ENCODED_GRID_GLSL).toContain('float mercatorYToLatitude')
     expect(ENCODED_GRID_GLSL).toContain('EncodedGridLocation encodedGridLocationForMercator')
+    expect(ENCODED_GRID_GLSL).toContain('location.valid <= 0.0')
     expect(ENCODED_GRID_GLSL).toContain('bool encodedIsMissing')
     expect(ENCODED_GRID_GLSL).toContain('EncodedSample sampleLinearBilinearLayer')
     expect(ENCODED_GRID_GLSL).toContain('EncodedSample sampleLinearNearestClampedTemporalLayer')

@@ -134,7 +134,6 @@ describe('pressure contour encoded runtime', () => {
       expect.anything(),
       0
     )
-
     runtime.onRemove(map as never, gl as never)
   })
 

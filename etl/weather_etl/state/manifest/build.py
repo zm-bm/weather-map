@@ -8,7 +8,7 @@ from typing import Any, Iterable, Mapping
 from ...config.pipeline import ArtifactSpec
 from ...core.cycles import cycle_datetime
 from ...core.frames import parse_lead_hour_frame_id
-from ...core.timestamps import isoformat_utc
+from ...core.timestamps import isoformat_utc, parse_iso_datetime_utc
 from ...core.validation import parse_model
 from ..artifacts.markers_schema import ArtifactSuccessMarker
 from ..artifacts.repository import ArtifactRepository
@@ -70,6 +70,7 @@ def build_cycle_manifest(
     generated_at: str,
     frames: Iterable[str],
     artifacts: Mapping[str, Mapping[str, Any]],
+    frame_valid_times: Mapping[str, str] | None = None,
 ) -> CycleManifest:
     """Build a complete cycle manifest and compute its stable revision."""
 
@@ -88,19 +89,34 @@ def build_cycle_manifest(
             "label": dataset_label,
         },
         "run": run,
-        "frames": _cycle_frame_entries(cycle=cycle, frames=frames),
+        "frames": _cycle_frame_entries(cycle=cycle, frames=frames, frame_valid_times=frame_valid_times),
         "artifacts": artifacts,
     }
     run["revision"] = compute_manifest_revision(manifest_obj)
     return parse_model(CycleManifest, manifest_obj)
 
 
-def _cycle_frame_entries(*, cycle: str, frames: Iterable[str]) -> list[dict[str, object]]:
+def _cycle_frame_entries(
+    *,
+    cycle: str,
+    frames: Iterable[str],
+    frame_valid_times: Mapping[str, str] | None,
+) -> list[dict[str, object]]:
     """Build manifest frame entries from a cycle and frame ids."""
 
     cycle_dt = cycle_datetime(cycle)
     frame_entries: list[dict[str, object]] = []
     for frame_id in frames:
+        if frame_valid_times is not None:
+            valid_at = frame_valid_times.get(frame_id)
+            if valid_at is None:
+                raise SystemExit(f"Cycle manifest missing valid_at override for frame id: {frame_id!r}")
+            frame_entries.append({
+                "id": frame_id,
+                "lead_hours": 0,
+                "valid_at": isoformat_utc(parse_iso_datetime_utc(valid_at)),
+            })
+            continue
         try:
             lead_hours = parse_lead_hour_frame_id(frame_id)
         except ValueError as exc:

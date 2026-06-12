@@ -36,6 +36,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
   }
 
   rule {
+    id     = "expire-mrms-runs"
+    status = "Enabled"
+
+    filter {
+      prefix = "runs/mrms/"
+    }
+
+    expiration {
+      days = var.mrms_run_retention_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_retention_days
+    }
+  }
+
+  rule {
     id     = "expire-manifests"
     status = "Enabled"
 
@@ -45,6 +62,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
 
     expiration {
       days = var.manifest_retention_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_retention_days
+    }
+  }
+
+  rule {
+    id     = "expire-mrms-cycle-manifests"
+    status = "Enabled"
+
+    filter {
+      prefix = "manifests/mrms/cycles/"
+    }
+
+    expiration {
+      days = var.mrms_cycle_manifest_retention_days
     }
 
     noncurrent_version_expiration {

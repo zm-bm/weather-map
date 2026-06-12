@@ -15,8 +15,8 @@ import type {
   RasterLayerFrame,
 } from '@/forecast/frames'
 import type {
+  ForecastFramePlan,
   ForecastWindowPlan,
-  RasterFramePlan,
 } from '../plan'
 
 export function clampInterpolationMix(mix: number): number {
@@ -125,11 +125,8 @@ export async function loadWindowFrame(
   frameId: string,
 ): Promise<ForecastFrameMap[ForecastWindowId]> {
   if (windowPlan.output === 'single') {
-    return loadSingleFrame(
-      artifacts,
-      windowPlan.frames[0],
-      frameId
-    )
+    const frame = await loadForecastFramePlan(artifacts, windowPlan.frames[0], frameId)
+    return frame as ForecastFrameMap[ForecastWindowId]
   }
 
   return loadArrayWindowFrame({
@@ -139,25 +136,13 @@ export async function loadWindowFrame(
   })
 }
 
-async function loadSingleFrame(
-  artifacts: ArtifactLoader,
-  frame: RasterFramePlan,
-  frameId: string,
-): Promise<ForecastFrameMap[ForecastWindowId]> {
-  return loadRasterFramePlan(
-    artifacts,
-    frame,
-    frameId
-  ) as Promise<ForecastFrameMap[ForecastWindowId]>
-}
-
 async function loadArrayWindowFrame(args: {
   artifacts: ArtifactLoader
-  frames: readonly RasterFramePlan[]
+  frames: readonly ForecastFramePlan<'overlay'>[]
   frameId: string
-}): Promise<ForecastFrameMap[ForecastWindowId]> {
+}): Promise<ForecastFrameMap['overlay']> {
   const loadedFrames = await Promise.all(
-    args.frames.map((frame) => loadRasterFramePlan(
+    args.frames.map((frame) => loadForecastFramePlan(
       args.artifacts,
       frame,
       args.frameId,
@@ -167,16 +152,16 @@ async function loadArrayWindowFrame(args: {
     }))
   )
 
-  return loadedFrames.filter((frame): frame is RasterLayerFrame<unknown> => (
+  return loadedFrames.filter((frame): frame is RasterLayerFrame<ForecastFramePlan<'overlay'>['source']> => (
     frame != null
-  )) as ForecastFrameMap[ForecastWindowId]
+  ))
 }
 
-async function loadRasterFramePlan(
+async function loadForecastFramePlan<K extends ForecastWindowId>(
   artifacts: ArtifactLoader,
-  frame: RasterFramePlan,
+  frame: ForecastFramePlan<K>,
   frameId: string,
-): Promise<RasterLayerFrame<unknown>> {
+): Promise<RasterLayerFrame<ForecastFramePlan<K>['source']>> {
   const data = await artifacts.loadRawRasterBands(
     frame.artifactId,
     frameId,

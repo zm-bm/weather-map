@@ -1,15 +1,22 @@
 export const ENCODED_GRID_LOCATION_GLSL = `
 const float ENCODED_GRID_PI = 3.14159265358979323846;
+const int ENCODED_GRID_X_WRAP_NONE = 0;
+const int ENCODED_GRID_X_WRAP_REPEAT = 1;
+const int ENCODED_GRID_Y_MODE_NONE = 0;
+const int ENCODED_GRID_Y_MODE_CLAMP = 1;
 
 struct EncodedGridLocation {
   float lon;
   float lat;
   float gridX;
   float gridY;
+  float valid;
   int x0;
   int y0;
   int x1;
   int y1;
+  int nearestX;
+  int nearestY;
   float w00;
   float w10;
   float w01;
@@ -28,29 +35,40 @@ float mercatorYToLatitude(float y) {
   return latitudeRad * 180.0 / ENCODED_GRID_PI;
 }
 
-EncodedGridLocation encodedGridLocationAt(float gridX, float gridY, vec2 gridSize) {
+EncodedGridLocation encodedGridLocationAt(float gridX, float gridY, vec2 gridSize, int xWrap, int yMode) {
   float nx = gridSize.x;
   float ny = gridSize.y;
-  float wrappedGridX = encodedWrapRepeat(gridX, nx);
-  float clampedGridY = clamp(gridY, 0.0, ny - 1.0);
+  bool xRepeats = xWrap == ENCODED_GRID_X_WRAP_REPEAT;
+  bool yClamps = yMode == ENCODED_GRID_Y_MODE_CLAMP;
+  bool xValid = xRepeats || (gridX >= -0.5 && gridX <= nx - 0.5);
+  bool yValid = yClamps || (gridY >= -0.5 && gridY <= ny - 0.5);
+  float sampleGridX = xRepeats ? encodedWrapRepeat(gridX, nx) : clamp(gridX, 0.0, nx - 1.0);
+  float sampleGridY = clamp(gridY, 0.0, ny - 1.0);
 
-  int x0 = int(floor(wrappedGridX));
-  int y0 = int(floor(clampedGridY));
-  int x1 = int(encodedWrapRepeat(float(x0 + 1), nx));
+  int x0 = int(floor(sampleGridX));
+  int y0 = int(floor(sampleGridY));
+  int x1 = xRepeats ? int(encodedWrapRepeat(float(x0 + 1), nx)) : min(x0 + 1, int(nx) - 1);
   int y1 = min(y0 + 1, int(ny) - 1);
+  int nearestX = xRepeats
+    ? int(encodedWrapRepeat(floor(sampleGridX + 0.5), nx))
+    : clamp(int(floor(sampleGridX + 0.5)), 0, int(nx) - 1);
+  int nearestY = clamp(int(floor(sampleGridY + 0.5)), 0, int(ny) - 1);
 
-  float tx = fract(wrappedGridX);
-  float ty = fract(clampedGridY);
+  float tx = fract(sampleGridX);
+  float ty = fract(sampleGridY);
 
   return EncodedGridLocation(
     0.0,
     0.0,
-    wrappedGridX,
-    clampedGridY,
+    sampleGridX,
+    sampleGridY,
+    xValid && yValid ? 1.0 : 0.0,
     x0,
     y0,
     x1,
     y1,
+    nearestX,
+    nearestY,
     (1.0 - tx) * (1.0 - ty),
     tx * (1.0 - ty),
     (1.0 - tx) * ty,
@@ -58,25 +76,29 @@ EncodedGridLocation encodedGridLocationAt(float gridX, float gridY, vec2 gridSiz
   );
 }
 
-EncodedGridLocation encodedGridLocationForLonLat(vec2 lonLat, vec2 gridSize, float lon0, float lat0, float dx, float dy) {
+EncodedGridLocation encodedGridLocationForLonLat(vec2 lonLat, vec2 gridSize, float lon0, float lat0, float dx, float dy, int xWrap, int yMode) {
   EncodedGridLocation location = encodedGridLocationAt(
     (lonLat.x - lon0) / dx,
     (lonLat.y - lat0) / dy,
-    gridSize
+    gridSize,
+    xWrap,
+    yMode
   );
   location.lon = lonLat.x;
   location.lat = lonLat.y;
   return location;
 }
 
-EncodedGridLocation encodedGridLocationForMercator(vec2 mercator, vec2 gridSize, float lon0, float lat0, float dx, float dy) {
+EncodedGridLocation encodedGridLocationForMercator(vec2 mercator, vec2 gridSize, float lon0, float lat0, float dx, float dy, int xWrap, int yMode) {
   return encodedGridLocationForLonLat(
     vec2((mercator.x * 360.0) - 180.0, mercatorYToLatitude(mercator.y)),
     gridSize,
     lon0,
     lat0,
     dx,
-    dy
+    dy,
+    xWrap,
+    yMode
   );
 }
 `
@@ -154,14 +176,15 @@ EncodedSample sampleTempCLayer(isampler2DArray textureArray, int layer, int x, i
 }
 
 int nearestGridX(EncodedGridLocation location, vec2 gridSize) {
-  return int(encodedWrapRepeat(floor(location.gridX + 0.5), gridSize.x));
+  return location.nearestX;
 }
 
 int nearestGridY(EncodedGridLocation location, vec2 gridSize) {
-  return clamp(int(floor(location.gridY + 0.5)), 0, int(gridSize.y) - 1);
+  return location.nearestY;
 }
 
 EncodedSample sampleLinearNearestLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset) {
+  if (location.valid <= 0.0) return encodedMissing();
   return sampleLinearLayer(
     textureArray,
     layer,
@@ -175,6 +198,7 @@ EncodedSample sampleLinearNearestLayer(isampler2DArray textureArray, int layer, 
 }
 
 EncodedSample sampleTempCNearestLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, vec2 gridSize, int nodata) {
+  if (location.valid <= 0.0) return encodedMissing();
   return sampleTempCLayer(
     textureArray,
     layer,
@@ -185,6 +209,7 @@ EncodedSample sampleTempCNearestLayer(isampler2DArray textureArray, int layer, E
 }
 
 EncodedSample sampleLinearBilinearLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, int hasNodata, int nodata, float scale, float offset) {
+  if (location.valid <= 0.0) return encodedMissing();
   return weightedEncodedSample(
     sampleLinearLayer(textureArray, layer, location.x0, location.y0, hasNodata, nodata, scale, offset),
     sampleLinearLayer(textureArray, layer, location.x1, location.y0, hasNodata, nodata, scale, offset),
@@ -198,6 +223,7 @@ EncodedSample sampleLinearBilinearLayer(isampler2DArray textureArray, int layer,
 }
 
 EncodedSample sampleTempCBilinearLayer(isampler2DArray textureArray, int layer, EncodedGridLocation location, int nodata) {
+  if (location.valid <= 0.0) return encodedMissing();
   return weightedEncodedSample(
     sampleTempCLayer(textureArray, layer, location.x0, location.y0, nodata),
     sampleTempCLayer(textureArray, layer, location.x1, location.y0, nodata),
@@ -284,6 +310,7 @@ EncodedSample sampleWindSpeedCell(isampler2DArray textureArray, int x, int y, in
 }
 
 EncodedSample sampleWindSpeedBilinearLayer(isampler2DArray textureArray, EncodedGridLocation location, int hasNodata, int nodata, float scale, float offset) {
+  if (location.valid <= 0.0) return encodedMissing();
   return weightedEncodedSample(
     sampleWindSpeedCell(textureArray, location.x0, location.y0, hasNodata, nodata, scale, offset),
     sampleWindSpeedCell(textureArray, location.x1, location.y0, hasNodata, nodata, scale, offset),
@@ -297,6 +324,7 @@ EncodedSample sampleWindSpeedBilinearLayer(isampler2DArray textureArray, Encoded
 }
 
 EncodedSample sampleWindSpeedNearestLayer(isampler2DArray textureArray, EncodedGridLocation location, vec2 gridSize, int hasNodata, int nodata, float scale, float offset) {
+  if (location.valid <= 0.0) return encodedMissing();
   return sampleWindSpeedCell(
     textureArray,
     nearestGridX(location, gridSize),

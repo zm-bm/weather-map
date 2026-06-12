@@ -20,12 +20,11 @@ from ..sources.icon.dwd import (
     required_previous_icon_params,
 )
 from ..sources.submission import SourceSubmissionOutcome, SourceSubmissionResult, SourceSubmissionStatus
-from ..state.manifest.submission_policy import check_cycle_submission_policy
 from ..state.runs.dynamo_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
 from ..state.runs.ids import generate_run_id, validate_run_id
 from ..workers.backends.aws_batch import launch_aws_batch_plan_workers
 from ..workers.claims.dynamo import DynamoFrameClaimStore
-from .plan_cycle import plan_cycle
+from .plan_run import plan_run
 
 DATASET_ID = "icon"
 RETRYABLE_HTTP_CODES = {403, 404, 408, 409, 425, 429, 500, 502, 503, 504}
@@ -84,15 +83,6 @@ def _submit_ready_icon_cycle(
     min_bytes: int,
     now: datetime,
 ) -> tuple[SourceSubmissionOutcome, ...]:
-    submission_decision = check_cycle_submission_policy(
-        artifact_repo=env.artifact_repo,
-        dataset_id=DATASET_ID,
-        cycle=cycle,
-    )
-    if not submission_decision.allowed:
-        print(f"skip ICON cycle (submission policy): {submission_decision.message}", flush=True)
-        return (_cycle_outcome(cycle=cycle, status="blocked", reason="submission_policy"),)
-
     cycle_run_id = validate_run_id(
         coordinated_run_id(
             ddb=ddb,
@@ -141,7 +131,7 @@ def _submit_ready_icon_cycle(
             ),
         )
 
-    plan = plan_cycle(
+    plan = plan_run(
         env=env,
         dataset_id=DATASET_ID,
         cycle=cycle,

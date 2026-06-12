@@ -356,6 +356,16 @@ function createManifestLayersFixture(
     composite_reflectivity: createManifestLayerFixture({
       [datasetId]: has('refc_entire_atmosphere') ? available(['refc_entire_atmosphere']) : unavailable(['refc_entire_atmosphere']),
     }),
+    observed_radar_base_reflectivity: createManifestLayerFixture({
+      [datasetId]: has('observed_radar_base_reflectivity')
+        ? available(['observed_radar_base_reflectivity'])
+        : unavailable(['observed_radar_base_reflectivity']),
+    }),
+    observed_radar_composite_reflectivity: createManifestLayerFixture({
+      [datasetId]: has('observed_radar_composite_reflectivity')
+        ? available(['observed_radar_composite_reflectivity'])
+        : unavailable(['observed_radar_composite_reflectivity']),
+    }),
     cape: createManifestLayerFixture({
       [datasetId]: has('cape_index') ? available(['cape_index']) : unavailable(['cape_index']),
     }),

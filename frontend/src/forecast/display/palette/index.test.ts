@@ -73,6 +73,24 @@ describe('forecast palettes', () => {
       .toEqual([-30, -22, -15, -8, 0, 8, 12, 16, 20, 24, 30])
   })
 
+  it('defines the shared reflectivity palette from the reference legend stops', () => {
+    expect(REFLECTIVITY_PALETTE.id).toBe('radar.reflectivity.dbz.v2')
+    expect(REFLECTIVITY_PALETTE.stops).toEqual([
+      { value: -35, color: [204, 255, 255] },
+      { value: -25, color: [204, 153, 204] },
+      { value: -15, color: [153, 102, 153] },
+      { value: -5, color: [153, 153, 102] },
+      { value: 5, color: [0, 235, 235] },
+      { value: 15, color: [0, 0, 247] },
+      { value: 25, color: [0, 199, 0] },
+      { value: 35, color: [255, 255, 0] },
+      { value: 45, color: [255, 143, 0] },
+      { value: 55, color: [215, 0, 0] },
+      { value: 65, color: [255, 0, 255] },
+      { value: 75, color: [155, 87, 203] },
+    ])
+  })
+
   it('rejects invalid palette contracts', () => {
     expect(() => parseForecastPalettes([
       VALID_PALETTE,

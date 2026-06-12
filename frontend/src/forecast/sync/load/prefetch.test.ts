@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createCloudLayersLayerSourceFixture,
+  createContourSourceFixture,
   createDeferred,
   createGridFixture,
+  createOverlaySourceFixture,
+  createParticleSourceFixture,
+  createRasterLayerSourceFixture,
   createScalarEncodingFixture,
   createSignalFixture,
 } from '@/test/fixtures'
@@ -24,27 +29,67 @@ const loaders = {
 
 function plannedWindow(id: 'raster' | 'overlay' | 'contour' | 'particles') {
   const artifactId = `${id}_artifact`
-  const frame = {
-    source: { id },
-    artifactId,
-    bandIds: ['value'] as const,
-    cacheKeyPrefix: `${id}:key`,
-  }
   if (id === 'overlay') {
+    const source = createOverlaySourceFixture({ artifactId })
     return createForecastWindowPlanTestFixture({
       id,
       key: `${id}:key`,
       failurePolicy: 'optional',
       output: 'array',
-      frames: [frame],
+      frames: [{
+        sourceKind: 'overlay',
+        source,
+        artifactId,
+        bandIds: ['snow_frac', 'mix_frac'],
+        cacheKeyPrefix: `${id}:key`,
+      }],
     })
   }
+  if (id === 'contour') {
+    const source = createContourSourceFixture({ artifactId })
+    return createForecastWindowPlanTestFixture({
+      id,
+      key: `${id}:key`,
+      failurePolicy: 'optional',
+      output: 'single',
+      frame: {
+        sourceKind: 'contour',
+        source,
+        artifactId,
+        bandIds: ['value'],
+        cacheKeyPrefix: `${id}:key`,
+      },
+    })
+  }
+  if (id === 'particles') {
+    const source = createParticleSourceFixture({ artifactId })
+    return createForecastWindowPlanTestFixture({
+      id,
+      key: `${id}:key`,
+      failurePolicy: 'required',
+      output: 'single',
+      frame: {
+        sourceKind: 'particles',
+        source,
+        artifactId,
+        bandIds: ['u', 'v'],
+        cacheKeyPrefix: `${id}:key`,
+      },
+    })
+  }
+  const source = createRasterLayerSourceFixture({ artifactId })
   return createForecastWindowPlanTestFixture({
     id,
     key: `${id}:key`,
-    failurePolicy: id === 'contour' ? 'optional' : 'required',
+    failurePolicy: 'required',
     output: 'single',
-    frame,
+    frame: {
+      sourceKind: 'raster',
+      source,
+      artifactId,
+      bandIds: ['value'],
+      cacheKeyPrefix: `${id}:key`,
+    },
   })
 }
 
@@ -247,9 +292,10 @@ describe('prefetchForecastFrames', () => {
           failurePolicy: 'required',
           output: 'single',
           frame: {
-            source: { id: 'cloudLayers' },
+            sourceKind: 'raster',
+            source: createCloudLayersLayerSourceFixture({ artifactId: 'cloudLayers_artifact' }),
             artifactId: 'cloudLayers_artifact',
-            bandIds: ['value'],
+            bandIds: ['low', 'middle', 'high'],
             cacheKeyPrefix: 'cloudLayers:key',
           },
         })],

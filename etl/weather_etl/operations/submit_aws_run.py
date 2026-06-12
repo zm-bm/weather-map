@@ -1,4 +1,4 @@
-"""AWS Batch cycle executor."""
+"""AWS Batch run executor."""
 
 from __future__ import annotations
 
@@ -9,16 +9,15 @@ from typing import Any, Iterable
 from ..core.cycles import parse_cycle
 from ..environment import EtlEnvironment
 from ..sources.registry import aws_batch_source_uri_overrides
-from ..state.manifest.submission_policy import CycleSubmissionDecision, check_cycle_submission_policy
 from ..state.runs.ids import generate_run_id, parse_run_id
 from ..workers.backends.aws_batch import batch_worker_job_name, launch_aws_batch_plan_workers
 from ..workers.claims.dynamo import DynamoFrameClaimStore
-from .plan_cycle import plan_cycle
+from .plan_run import plan_run
 
 
 @dataclass(frozen=True)
-class AwsCycleSubmissionResult:
-    """AWS Batch submission summary for one dataset cycle."""
+class AwsRunSubmissionResult:
+    """AWS Batch submission summary for one run."""
 
     ok: bool
     dataset_id: str
@@ -29,7 +28,7 @@ class AwsCycleSubmissionResult:
     failures: int = 0
 
 
-def submit_aws_batch_cycle(
+def submit_aws_batch_run(
     *,
     env: EtlEnvironment,
     dataset_id: str,
@@ -37,7 +36,6 @@ def submit_aws_batch_cycle(
     run_id: str | None,
     selected_frames: Iterable[str] | None,
     selected_artifacts: Iterable[str] | None,
-    force_backfill: bool,
     dry_run: bool,
     batch: Any,
     ddb: Any,
@@ -48,28 +46,14 @@ def submit_aws_batch_cycle(
     job_name_prefix: str,
     submit_delay_seconds: float,
     now: datetime | None = None,
-) -> AwsCycleSubmissionResult:
-    """Submit one cycle plan to AWS Batch with frame claims."""
+) -> AwsRunSubmissionResult:
+    """Submit one run plan to AWS Batch with frame claims."""
 
     parse_cycle(cycle)
     effective_now = now or datetime.now(timezone.utc)
     claim_store = DynamoFrameClaimStore(ddb=ddb, table_name=frame_claim_table)
-    submission_decision = check_cycle_submission_policy(
-        artifact_repo=env.artifact_repo,
-        dataset_id=dataset_id,
-        cycle=cycle,
-        force_backfill=force_backfill,
-    )
-    if not submission_decision.allowed:
-        for key, value in _submission_decision_key_values(submission_decision):
-            print(f"{key}={value}", flush=True)
-        raise SystemExit(2)
 
     resolved_run_id = parse_run_id(run_id) if run_id else generate_run_id(now=effective_now)
-    print("Cycle submission policy", flush=True)
-    for key, value in _submission_decision_key_values(submission_decision):
-        print(f"  {key}={value}", flush=True)
-
     if dry_run:
         print("Run snapshot", flush=True)
         try:
@@ -101,7 +85,7 @@ def submit_aws_batch_cycle(
         frames=source_frames,
         source_bucket=source_bucket,
     )
-    plan = plan_cycle(
+    plan = plan_run(
         env=env,
         dataset_id=dataset_id,
         cycle=cycle,
@@ -116,7 +100,7 @@ def submit_aws_batch_cycle(
     )
     workers = tuple(plan.workers)
     frame_states = tuple(plan.frame_states)
-    print("Cycle plan", flush=True)
+    print("Run plan", flush=True)
     print(f"  dataset_id={dataset_id}", flush=True)
     print(f"  cycle={cycle}", flush=True)
     print(f"  run_id={resolved_run_id}", flush=True)
@@ -167,7 +151,7 @@ def submit_aws_batch_cycle(
             "after all expected success markers exist.",
             flush=True,
         )
-    return AwsCycleSubmissionResult(
+    return AwsRunSubmissionResult(
         ok=True,
         dataset_id=dataset_id,
         cycle=cycle,
@@ -175,20 +159,3 @@ def submit_aws_batch_cycle(
         workers_started=launch_summary.workers_started,
         workers_skipped=workers_skipped,
     )
-
-
-def _submission_decision_key_values(decision: CycleSubmissionDecision) -> tuple[tuple[str, str], ...]:
-    return (
-        ("dataset_id", decision.dataset_id),
-        ("cycle", decision.cycle),
-        ("latest_status", decision.latest_status),
-        ("latest_cycle", decision.latest_cycle or ""),
-        ("backfill_required", _bool(decision.backfill_required)),
-        ("force_backfill", _bool(decision.force_backfill)),
-        ("allowed", _bool(decision.allowed)),
-        ("message", decision.message),
-    )
-
-
-def _bool(value: bool) -> str:
-    return "true" if value else "false"

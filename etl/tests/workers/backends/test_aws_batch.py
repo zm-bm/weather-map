@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.fixtures.cycle_plan import frame_worker
+from tests.fixtures.run_plan import frame_worker
 from weather_etl.workers.backends.aws_batch import (
     AwsBatchWorkerBackend,
     batch_worker_job_name,

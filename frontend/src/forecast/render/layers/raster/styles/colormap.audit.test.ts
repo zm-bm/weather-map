@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { FORECAST_RASTER_LAYERS } from '@/forecast/catalog'
+import {
+  FORECAST_RASTER_LAYERS,
+  type ForecastRasterLayer,
+} from '@/forecast/catalog'
 import {
   normalizePaletteColor,
   samplePaletteColor,
@@ -9,7 +12,6 @@ import {
   type PaletteSamplingMode,
   type SampledPaletteColor,
 } from '@/forecast/display/palette'
-import type { ForecastRasterLayer } from '@/forecast/catalog'
 import { buildColormapLut } from './colormap'
 import { COLORMAP_FRAGMENT_SHADER_SOURCE } from './colormapShaders'
 
@@ -110,7 +112,9 @@ function boundaryDelta(
 
 function hasGradientDisplay(
   layer: ForecastRasterLayer,
-): layer is ForecastRasterLayer & { display: Extract<ForecastRasterLayer['display'], { kind: 'gradient' }> } {
+): layer is ForecastRasterLayer & {
+  display: Extract<ForecastRasterLayer['display'], { kind: 'gradient' }>
+} {
   return layer.display.kind === 'gradient'
 }
 

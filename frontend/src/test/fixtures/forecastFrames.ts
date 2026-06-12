@@ -21,7 +21,7 @@ import {
   createVectorEncodingFixture,
 } from './manifest'
 import {
-  createCloudLayersRasterSourceFixture,
+  createCloudLayersLayerSourceFixture,
   createContourSourceFixture,
   createOverlaySourceFixture,
   createParticleSourceFixture,
@@ -196,7 +196,7 @@ export function createCloudLayersRasterFrameFixture(args: {
   const artifactId = args.artifactId ?? 'cloud_layers'
 
   return createRasterLayerFrameFixture({
-    source: createCloudLayersRasterSourceFixture({ layerId, artifactId }),
+    source: createCloudLayersLayerSourceFixture({ layerId, artifactId }),
     artifactId,
     frameId,
     cacheKey: `fixture:cloud:${artifactId}:${frameId}`,

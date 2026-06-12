@@ -25,6 +25,8 @@ uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
+uniform int u_x_wrap;
+uniform int u_y_mode;
 
 ${PRESSURE_CONTOUR_CONSTANTS_GLSL}
 ${ENCODED_GRID_GLSL}
@@ -32,7 +34,7 @@ ${PRESSURE_SMOOTHING_GLSL}
 ${PRESSURE_CONTOUR_STYLE_GLSL}
 
 EncodedSample sampleInterpolatedRawPressureHpa(float gridX, float gridY, float mixValue) {
-  EncodedGridLocation location = encodedGridLocationAt(gridX, gridY, u_grid_size);
+  EncodedGridLocation location = encodedGridLocationAt(gridX, gridY, u_grid_size, u_x_wrap, u_y_mode);
   EncodedSample pressurePa = sampleLinearTemporalLayer(
     u_encoded_tex_lower,
     u_encoded_tex_upper,
@@ -75,7 +77,16 @@ void main() {
     return;
   }
 
-  EncodedGridLocation location = encodedGridLocationForMercator(v_mercator, u_grid_size, u_lon0, u_lat0, u_dx, u_dy);
+  EncodedGridLocation location = encodedGridLocationForMercator(
+    v_mercator,
+    u_grid_size,
+    u_lon0,
+    u_lat0,
+    u_dx,
+    u_dy,
+    u_x_wrap,
+    u_y_mode
+  );
   EncodedSample pressureSample = sampleSmoothedRawPressureHpa(location.gridX, location.gridY, clamp(u_time_mix, 0.0, 1.0));
   if (pressureSample.valid <= 0.0) {
     outColor = vec4(0.0);

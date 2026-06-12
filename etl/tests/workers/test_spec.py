@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.fixtures.cycle_plan import cycle_plan, frame_worker
+from tests.fixtures.run_plan import frame_worker, run_plan
 from weather_etl.workers.spec import FrameWorkerSpec, worker_spec_hash
 
 
@@ -45,8 +45,8 @@ def test_frame_worker_spec_hash_excludes_source_uri() -> None:
     assert base.worker_spec_hash == changed_source.worker_spec_hash
 
 
-def test_cycle_plan_returns_worker_for_frame() -> None:
-    plan = cycle_plan(workers=(frame_worker("003"), frame_worker("006")))
+def test_run_plan_returns_worker_for_frame() -> None:
+    plan = run_plan(workers=(frame_worker("003"), frame_worker("006")))
 
     assert plan.worker_for_frame("006") == plan.workers[1]
     assert plan.worker_for_frame("009") is None

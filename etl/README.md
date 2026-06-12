@@ -51,17 +51,25 @@ already exists under the same `run_id`.
 ## Local Cycle
 
 Local runs use the same planned frame-worker shape as AWS, but launch those
-workers in local Docker containers. The wrapper builds or refreshes the
-`weather-map-etl:local` image, then delegates to:
+workers in local Docker containers. The wrapper builds or refreshes a stable
+base image plus a fast app image:
+
+- `LOCAL_ETL_BASE_IMAGE` defaults to `weather-map-etl-base:local`
+- `LOCAL_ETL_IMAGE` defaults to `weather-map-etl:local`
+
+The worker image does not bake in repo `config/`; runtime config is still
+supplied via `--pipeline-uri` and `--catalog-uri`.
+
+After the images are current, the wrapper delegates to:
 
 ```bash
-.venv/bin/weather-etl run-cycle --dataset-id gfs --cycle <YYYYMMDDHH>
+.venv/bin/weather-etl run-local --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
 The local lifecycle is:
 
 ```text
-init-run -> plan-cycle -> run-frame containers -> validate-cycle -> publish-cycle
+init-run -> plan-run -> run-frame containers -> validate-run -> publish-run
 ```
 
 By default local runs publish public manifests and refresh local `status.json`.
@@ -80,7 +88,7 @@ prepared GRIB files are cached under `etl/cache/`.
 
 ## AWS Submission
 
-Manual AWS submission is intentionally narrower than local `run-cycle`: it
+Manual AWS submission is intentionally narrower than local `run-local`: it
 submits Batch workers only.
 
 ```bash
@@ -109,16 +117,16 @@ when you need to inspect or run one piece of the lifecycle:
 .venv/bin/weather-etl list-frames --dataset-id <dataset_id>
 
 .venv/bin/weather-etl init-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/weather-etl plan-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --json
+.venv/bin/weather-etl plan-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --json
 .venv/bin/weather-etl run-frame --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --frame-id <FFF>
-.venv/bin/weather-etl validate-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/weather-etl publish-cycle --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+.venv/bin/weather-etl validate-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+.venv/bin/weather-etl publish-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
 
 .venv/bin/weather-etl runs --dataset-id <dataset_id> --cycle <YYYYMMDDHH>
 .venv/bin/weather-etl status --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
 ```
 
-`runs` and `status` are read-only inspection commands. `publish-cycle` refuses
+`runs` and `status` are read-only inspection commands. `publish-run` refuses
 runs without a passing `validation.json`.
 
 ## Config

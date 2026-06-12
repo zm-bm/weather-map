@@ -23,24 +23,33 @@ describe('parseManifest', () => {
     const manifest = parseManifest(payload)
 
     expect(manifest.schema).toBe('weather-map.manifest-index')
-    expect(manifest.schema_version).toBe(2)
+    expect(manifest.schema_version).toBe(3)
     expect(manifest.payload_contract).toBe('field-binary-v2')
     expect(manifest.datasets.gfs?.latest?.run.cycle).toBe('2026041312')
-    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.byte_length).toBe(4)
-  })
-
-  it('accepts compact run payload references', () => {
-    const payload = createManifestPayloadFixture()
-
-    const manifest = parseManifest(payload)
-
     expect(manifest.datasets.gfs?.latest?.run.run_id).toBe('20260413T120000Z-abcdef12')
     expect(manifest.datasets.gfs?.latest?.run.payload_root)
       .toBe('runs/gfs/2026041312/20260413T120000Z-abcdef12/payloads')
+    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.byte_length).toBe(4)
     expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.payload_file).toBe('tmp_surface.i8.bin')
   })
 
-  it('rejects manifests without run-first payload references', () => {
+  it('accepts regional grid boundary metadata', () => {
+    const payload = createManifestPayloadFixture() as MutableManifestPayload
+    const artifact = payload.datasets.gfs?.latest?.artifacts.tmp_surface
+    if (!artifact) throw new Error('Expected artifact fixture')
+    artifact.grid = {
+      ...(artifact.grid as Record<string, unknown>),
+      x_wrap: 'none',
+      y_mode: 'none',
+    }
+
+    const manifest = parseManifest(payload)
+
+    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.grid.x_wrap).toBe('none')
+    expect(manifest.datasets.gfs?.latest?.artifacts.tmp_surface.grid.y_mode).toBe('none')
+  })
+
+  it('rejects manifests without payload metadata', () => {
     const missingRunId = createManifestPayloadFixture() as MutableManifestPayload
     const latestWithoutRunId = missingRunId.datasets.gfs?.latest
     if (!latestWithoutRunId) throw new Error('Expected latest fixture')

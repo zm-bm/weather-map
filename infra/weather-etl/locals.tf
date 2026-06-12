@@ -31,7 +31,8 @@ locals {
   shared_lambda_zip_path = var.ingest_lambda_zip_path != null ? var.ingest_lambda_zip_path : abspath("${path.root}/../../etl/dist/weather-etl-ingest-lambda.zip")
   shared_lambda_zip_hash = filebase64sha256(local.shared_lambda_zip_path)
 
-  gfs_sns_topic_arn = var.gfs_sns_topic_arn
+  gfs_sns_topic_arn  = var.gfs_sns_topic_arn
+  mrms_sns_topic_arn = var.mrms_sns_topic_arn
 }
 
 locals {
@@ -47,6 +48,7 @@ locals {
     worker_repository          = "${local.name_prefix}-worker"
     worker_gfs_job_definition  = "${local.name_prefix}-worker"
     worker_icon_job_definition = "${local.name_prefix}-worker-icon"
+    worker_mrms_job_definition = "${local.name_prefix}-worker-mrms"
 
     gfs_ingest_lambda = "${local.name_prefix}-ingest-gfs"
     gfs_ingest_role   = "${local.name_prefix}-ingest-lambda-role"
@@ -56,6 +58,12 @@ locals {
     icon_ingest_role     = "${local.name_prefix}-ingest-icon-lambda-role"
     icon_ingest_policy   = "${local.name_prefix}-ingest-icon-lambda-policy"
     icon_ingest_schedule = "${local.name_prefix}-ingest-icon-poll"
+
+    mrms_ingest_lambda = "${local.name_prefix}-ingest-mrms"
+    mrms_ingest_role   = "${local.name_prefix}-ingest-mrms-lambda-role"
+    mrms_ingest_policy = "${local.name_prefix}-ingest-mrms-lambda-policy"
+    mrms_queue         = "${local.name_prefix}-mrms-ingest"
+    mrms_dlq           = "${local.name_prefix}-mrms-ingest-dlq"
 
     publisher_lambda   = "${local.name_prefix}-publisher"
     publisher_role     = "${local.name_prefix}-publisher-lambda-role"

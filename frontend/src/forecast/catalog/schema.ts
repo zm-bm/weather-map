@@ -5,10 +5,10 @@ import {
   DISPLAY_PROFILE_IDS,
 } from '@/forecast/display'
 import {
+  artifactSourceSchema,
   contourSourceSchema,
   overlaySourceSchema,
   particleSourceSchema,
-  rasterSourceSchema,
 } from './source'
 
 const idSchema = z.string().trim().min(1)
@@ -18,7 +18,7 @@ const rasterLayerSchema = z.object({
   id: idSchema,
   groupId: idSchema,
   displayProfile: z.enum(DISPLAY_PROFILE_IDS),
-  source: rasterSourceSchema,
+  source: artifactSourceSchema,
   overlays: z.array(idSchema).default([]),
 }).strict()
 

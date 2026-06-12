@@ -33,6 +33,8 @@ uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
+uniform int u_x_wrap;
+uniform int u_y_mode;
 uniform float u_world_size;
 uniform float u_pattern_opacity;
 
@@ -150,7 +152,16 @@ void main() {
     return;
   }
 
-  EncodedGridLocation location = encodedGridLocationForMercator(v_mercator, u_grid_size, u_lon0, u_lat0, u_dx, u_dy);
+  EncodedGridLocation location = encodedGridLocationForMercator(
+    v_mercator,
+    u_grid_size,
+    u_lon0,
+    u_lat0,
+    u_dx,
+    u_dy,
+    u_x_wrap,
+    u_y_mode
+  );
   float mixValue = clamp(u_time_mix, 0.0, 1.0);
 
   EncodedSample snowSample = sampleComponent(0, location, mixValue);

@@ -107,6 +107,7 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
       failurePolicy: 'required',
       output: 'single',
       frames: [{
+        sourceKind: 'raster',
         source: {
           layerId: 'temperature',
           artifactId: 'tmp_surface',

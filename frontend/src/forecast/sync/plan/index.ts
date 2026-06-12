@@ -2,13 +2,16 @@ import type { ReadonlyNonEmptyArray } from '@/core/types'
 import {
   forecastRasterLayerSourceFromLayer,
   getAvailableParticleLayer,
-  getAvailableRasterLayer,
   getDefaultAvailableContourLayer,
+  resolveRenderableRasterLayer,
   sourceBandIds,
+  type ArtifactSource,
   type ContourLayer,
+  type ContourSource,
   type ForecastLayerSource,
-  type LoadSource,
+  type OverlaySource,
   type ParticleLayer,
+  type ParticleSource,
 } from '@/forecast/catalog'
 import {
   canLoadRasterBandsForRun,
@@ -30,8 +33,16 @@ const NO_WINDOW_PLAN_KEY = 'data:none'
 
 export type ForecastWindowFailurePolicy = 'required' | 'optional'
 
-export type RasterFramePlan = {
-  source: unknown
+type ForecastFramePlanSourceMap = {
+  raster: ForecastLayerSource
+  overlay: OverlaySource
+  contour: ContourSource
+  particles: ParticleSource
+}
+
+type ForecastFramePlanBase<K extends ForecastWindowId> = {
+  sourceKind: K
+  source: ForecastFramePlanSourceMap[K]
   artifactId: string
   bandIds: ReadonlyNonEmptyArray<string>
   cacheKeyPrefix: string
@@ -39,23 +50,29 @@ export type RasterFramePlan = {
   failurePolicy?: ForecastWindowFailurePolicy
 }
 
-type SingleForecastWindowPlan = {
-  id: ForecastWindowId
-  key: string
-  failurePolicy: ForecastWindowFailurePolicy
-  output: 'single'
-  frames: readonly [RasterFramePlan]
-}
+export type ForecastFramePlan<K extends ForecastWindowId = ForecastWindowId> =
+  K extends ForecastWindowId ? ForecastFramePlanBase<K> : never
 
-type ArrayForecastWindowPlan = {
+type SingleForecastWindowId = Exclude<ForecastWindowId, 'overlay'>
+
+type SingleForecastWindowPlan<K extends SingleForecastWindowId = SingleForecastWindowId> =
+  K extends SingleForecastWindowId ? {
+    id: K
+    key: string
+    failurePolicy: ForecastWindowFailurePolicy
+    output: 'single'
+    frames: readonly [ForecastFramePlan<K>]
+  } : never
+
+type OverlayForecastWindowPlan = {
   id: 'overlay'
   key: string
   failurePolicy: ForecastWindowFailurePolicy
   output: 'array'
-  frames: ReadonlyNonEmptyArray<RasterFramePlan>
+  frames: ReadonlyNonEmptyArray<ForecastFramePlan<'overlay'>>
 }
 
-export type ForecastWindowPlan = SingleForecastWindowPlan | ArrayForecastWindowPlan
+export type ForecastWindowPlan = SingleForecastWindowPlan | OverlayForecastWindowPlan
 
 export type WindowPlanKeyMap = Partial<Record<ForecastWindowId, string>>
 
@@ -87,8 +104,8 @@ export type ResolveForecastSyncPlanArgs = {
 }
 
 export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): ForecastSyncPlan | null {
-  const selectedLayer = getAvailableRasterLayer(args.activeRun, args.selectedLayerId)
-  if (args.activeRun == null || selectedLayer == null) return null
+  const renderableLayer = resolveRenderableRasterLayer(args.activeRun, args.selectedLayerId)
+  if (args.activeRun == null || renderableLayer == null) return null
 
   const selectedContourLayer = args.syncOptions.contour
     ? getDefaultAvailableContourLayer(args.activeRun)
@@ -101,7 +118,7 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
     args.targetTimeMs
   )
   const runScope = forecastRunScopeKey(args.activeRun)
-  const layerSource = forecastRasterLayerSourceFromLayer(selectedLayer)
+  const layerSource = forecastRasterLayerSourceFromLayer(renderableLayer.layer)
   const windowPlans = createWindowPlans({
     activeRun: args.activeRun,
     layerSource,
@@ -136,11 +153,10 @@ function createWindowPlans(args: {
   const plans: ForecastWindowPlan[] = []
 
   plans.push(singleWindowPlan({
-    id: 'raster',
     failurePolicy: 'required',
-    frame: rasterFramePlan({
+    frame: forecastFramePlan({
       runScope: args.runScope,
-      id: 'raster',
+      sourceKind: 'raster',
       sourceId: args.layerSource.layerId,
       source: args.layerSource,
       loadSource: args.layerSource,
@@ -149,9 +165,9 @@ function createWindowPlans(args: {
 
   if (args.layerSource.overlays.length > 0) {
     const frames = args.layerSource.overlays.flatMap((source) => {
-      const frame = rasterFramePlan({
+      const frame = forecastFramePlan({
         runScope: args.runScope,
-        id: 'overlay',
+        sourceKind: 'overlay',
         sourceId: source.id,
         source,
         loadSource: source.source,
@@ -179,13 +195,12 @@ function createWindowPlans(args: {
 
   if (args.contourLayer != null) {
     plans.push(singleWindowPlan({
-      id: 'contour',
       failurePolicy: 'optional',
-      frame: rasterFramePlan({
+      frame: forecastFramePlan({
         runScope: args.runScope,
-        id: 'contour',
+        sourceKind: 'contour',
         sourceId: args.contourLayer.id,
-        source: frameSourceFromCatalogEntry(args.contourLayer),
+        source: contourSourceFromLayer(args.contourLayer),
         loadSource: args.contourLayer.source,
       }),
     }))
@@ -193,13 +208,12 @@ function createWindowPlans(args: {
 
   if (args.particleLayer != null) {
     plans.push(singleWindowPlan({
-      id: 'particles',
       failurePolicy: 'required',
-      frame: rasterFramePlan({
+      frame: forecastFramePlan({
         runScope: args.runScope,
-        id: 'particles',
+        sourceKind: 'particles',
         sourceId: args.particleLayer.id,
-        source: frameSourceFromCatalogEntry(args.particleLayer),
+        source: particleSourceFromLayer(args.particleLayer),
         loadSource: args.particleLayer.source,
       }),
     }))
@@ -208,24 +222,24 @@ function createWindowPlans(args: {
   return plans
 }
 
-function singleWindowPlan(args: {
-  id: ForecastWindowId
+function singleWindowPlan<K extends SingleForecastWindowId>(args: {
   failurePolicy: ForecastWindowFailurePolicy
-  frame: RasterFramePlan
-}): ForecastWindowPlan {
-  return {
-    id: args.id,
+  frame: ForecastFramePlan<K>
+}): SingleForecastWindowPlan<K> {
+  const plan = {
+    id: args.frame.sourceKind as K,
     key: args.frame.cacheKeyPrefix,
     failurePolicy: args.failurePolicy,
     output: 'single',
-    frames: [args.frame],
+    frames: [args.frame] as readonly [ForecastFramePlan<K>],
   }
+  return plan as SingleForecastWindowPlan<K>
 }
 
 function overlayWindowPlan(args: {
   runScope: string
-  frames: ReadonlyNonEmptyArray<RasterFramePlan>
-}): ForecastWindowPlan {
+  frames: ReadonlyNonEmptyArray<ForecastFramePlan<'overlay'>>
+}): OverlayForecastWindowPlan {
   return {
     id: 'overlay',
     key: `${args.runScope}:overlay:${args.frames.map((frame) => frame.cacheKeyPrefix).join('+')}`,
@@ -235,38 +249,46 @@ function overlayWindowPlan(args: {
   }
 }
 
-function frameSourceFromCatalogEntry(entry: ContourLayer | ParticleLayer) {
+function contourSourceFromLayer(entry: ContourLayer): ContourSource {
   return {
     id: entry.id,
     source: entry.source,
   }
 }
 
-function rasterFramePlan(args: {
+function particleSourceFromLayer(entry: ParticleLayer): ParticleSource {
+  return {
+    id: entry.id,
+    source: entry.source,
+  }
+}
+
+function forecastFramePlan<K extends ForecastWindowId>(args: {
   runScope: string
-  id: ForecastWindowId
+  sourceKind: K
   sourceId: string
-  source: unknown
-  loadSource: LoadSource
+  source: ForecastFramePlanSourceMap[K]
+  loadSource: ArtifactSource
   order?: RasterBandOrder
   failurePolicy?: ForecastWindowFailurePolicy
-}): RasterFramePlan {
+}): ForecastFramePlan<K> {
   const bandIds = sourceBandIds(args.loadSource)
   const cacheKeyPrefix = sourceKey({
     runScope: args.runScope,
-    id: args.id,
+    id: args.sourceKind,
     sourceId: args.sourceId,
     artifactId: args.loadSource.artifactId,
     bandIds,
   })
   return {
+    sourceKind: args.sourceKind,
     source: args.source,
     artifactId: args.loadSource.artifactId,
     bandIds,
     cacheKeyPrefix,
     ...(args.order === undefined ? {} : { order: args.order }),
     ...(args.failurePolicy === undefined ? {} : { failurePolicy: args.failurePolicy }),
-  }
+  } as ForecastFramePlan<K>
 }
 
 function isNonEmpty<T>(items: readonly T[]): items is ReadonlyNonEmptyArray<T> {

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from tests.fixtures.artifact_configs import wind_artifact_config
-from tests.fixtures.artifacts import DEFAULT_RUN_ID, temp_artifact_fixture
+from tests.fixtures.artifacts import DEFAULT_RUN_ID
 from tests.fixtures.aws import FakeBatchClient, FakeDynamoClient
 from tests.fixtures.pipeline import add_dataset_artifact, minimal_pipeline_config
 from weather_etl.adapters.aws import gfs_ingest_lambda
@@ -261,28 +260,6 @@ class TestAwsGfsIngest:
         assert len(self.batch.submissions) == 1
         claim = self.ddb.items[f"gfs#2026021300#{DEFAULT_RUN_ID}#003"]
         assert claim["state"] == "claimed"
-
-    def test_handler_skips_older_than_latest_cycle(self) -> None:
-        with temp_artifact_fixture() as artifacts:
-            artifacts.write_manifest(
-                dataset_id="gfs",
-                cycle="2026021306",
-                generated_at=datetime(2026, 2, 13, 6, tzinfo=timezone.utc),
-            )
-            with (
-                patch.dict(os.environ, {"ARTIFACT_ROOT_URI": artifacts.paths.artifact_root_uri}, clear=False),
-                patch("weather_etl.environment.ensure_or_load_run_snapshot") as ensure_snapshot,
-                patch("weather_etl.adapters.aws.gfs_ingest_lambda.boto3.client", side_effect=self._client),
-            ):
-                result = gfs_ingest_lambda.handler(
-                    _sns_event("gfs.20260213/00/atmos/gfs.t00z.pgrb2.0p25.f003"),
-                    None,
-                )
-
-        assert result == {"ok": True, "submitted": 0, "seen": 1}
-        assert self.batch.submissions == []
-        assert self.ddb.updates == []
-        ensure_snapshot.assert_not_called()
 
     def _client(self, name: str):
         if name == "batch":

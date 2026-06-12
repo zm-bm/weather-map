@@ -539,6 +539,7 @@ def _icon_dataset_for_artifacts(
         source=_icon_source(),
         workload=WorkloadConfig(frames=(frame_id,), artifacts=workload_artifacts),
         artifacts=artifacts,
+        mode="forecast_cycle",
     )
 
 

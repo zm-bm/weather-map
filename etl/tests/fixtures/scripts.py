@@ -8,6 +8,9 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+ETL_BASE_FINGERPRINT_LABEL = "org.zmbm.weather-map.weather-etl.base-fingerprint"
+ETL_APP_FINGERPRINT_LABEL = "org.zmbm.weather-map.weather-etl.app-fingerprint"
+
 
 @dataclass(frozen=True)
 class ScriptHarness:
@@ -44,11 +47,12 @@ class ScriptHarness:
 
 
 @dataclass(frozen=True)
-class LocalCycleScriptHarness(ScriptHarness):
-    def current_image_source_fingerprint(self) -> str:
+class EtlImageScriptHarness(ScriptHarness):
+    def current_base_image_source_fingerprint(self) -> str:
+        return self._fingerprint_paths([Path("etl/Dockerfile.base")])
+
+    def current_app_image_source_fingerprint(self) -> str:
         relative_paths = [
-            Path("config/catalog.json"),
-            Path("config/pipeline.json"),
             Path("etl/Dockerfile"),
             Path("etl/pyproject.toml"),
         ]
@@ -59,7 +63,12 @@ class LocalCycleScriptHarness(ScriptHarness):
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
         )
+        return self._fingerprint_paths(relative_paths)
 
+    def image_labels_json(self, image_labels: dict[str, dict[str, str]]) -> str:
+        return json.dumps(image_labels, sort_keys=True)
+
+    def _fingerprint_paths(self, relative_paths: list[Path]) -> str:
         sha256sum_lines = []
         for relative_path in sorted(relative_paths, key=lambda path: path.as_posix()):
             digest = hashlib.sha256((self.repo_root / relative_path).read_bytes()).hexdigest()
@@ -68,21 +77,38 @@ class LocalCycleScriptHarness(ScriptHarness):
 
 
 @dataclass(frozen=True)
-class AwsCycleScriptHarness(ScriptHarness):
+class LocalRunScriptHarness(EtlImageScriptHarness):
+    pass
+
+
+@dataclass(frozen=True)
+class WorkerImageBuildScriptHarness(EtlImageScriptHarness):
+    fake_docker_log: Path
+    fake_aws_log: Path
+
+    def docker_log(self) -> str:
+        if not self.fake_docker_log.exists():
+            return ""
+        return self.fake_docker_log.read_text(encoding="utf-8")
+
+    def aws_log(self) -> str:
+        if not self.fake_aws_log.exists():
+            return ""
+        return self.fake_aws_log.read_text(encoding="utf-8")
+
+
+@dataclass(frozen=True)
+class AwsRunScriptHarness(ScriptHarness):
     fake_cli_log: Path
     fake_batch_log: Path
 
     def run(
         self,
         *args: str,
-        submission_policy_status: int = 0,
         env_overrides: dict[str, str] | None = None,
         check: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        merged_overrides = {"FAKE_SUBMISSION_POLICY_STATUS": str(submission_policy_status)}
-        if env_overrides is not None:
-            merged_overrides.update(env_overrides)
-        return super().run(*args, env_overrides=merged_overrides, check=check)
+        return super().run(*args, env_overrides=env_overrides, check=check)
 
     def cli_log(self) -> str:
         return self.fake_cli_log.read_text(encoding="utf-8")
@@ -105,8 +131,8 @@ class AwsCycleScriptHarness(ScriptHarness):
         return jobs
 
 
-def local_cycle_script_harness(repo_root: Path, tmp_path: Path) -> LocalCycleScriptHarness:
-    harness = LocalCycleScriptHarness(
+def local_run_script_harness(repo_root: Path, tmp_path: Path) -> LocalRunScriptHarness:
+    harness = LocalRunScriptHarness(
         repo_root=repo_root,
         script=repo_root / "scripts" / "etl-run-local.sh",
         fake_bin_dir=tmp_path,
@@ -115,10 +141,10 @@ def local_cycle_script_harness(repo_root: Path, tmp_path: Path) -> LocalCycleScr
     return harness
 
 
-def aws_cycle_script_harness(repo_root: Path, tmp_path: Path) -> AwsCycleScriptHarness:
+def aws_run_script_harness(repo_root: Path, tmp_path: Path) -> AwsRunScriptHarness:
     cli_log = tmp_path / "cli.log"
     batch_log = tmp_path / "batch.log"
-    harness = AwsCycleScriptHarness(
+    harness = AwsRunScriptHarness(
         repo_root=repo_root,
         script=repo_root / "scripts" / "etl-run-aws.sh",
         fake_bin_dir=tmp_path,
@@ -135,25 +161,85 @@ def aws_cycle_script_harness(repo_root: Path, tmp_path: Path) -> AwsCycleScriptH
     return harness
 
 
+def worker_image_build_script_harness(repo_root: Path, tmp_path: Path) -> WorkerImageBuildScriptHarness:
+    docker_log = tmp_path / "docker.log"
+    aws_log = tmp_path / "aws.log"
+    harness = WorkerImageBuildScriptHarness(
+        repo_root=repo_root,
+        script=repo_root / "scripts" / "etl-build-worker-image.sh",
+        fake_bin_dir=tmp_path,
+        env_defaults={
+            "FAKE_DOCKER_LOG": docker_log.as_posix(),
+            "FAKE_AWS_LOG": aws_log.as_posix(),
+        },
+        fake_docker_log=docker_log,
+        fake_aws_log=aws_log,
+    )
+    harness.write_executable("docker", _FAKE_DOCKER)
+    harness.write_executable("aws", _FAKE_AWS)
+    return harness
+
+
 _FAKE_DOCKER = """#!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" == "image" && "${2:-}" == "inspect" ]]; then
-	if [[ -z "${FAKE_DOCKER_IMAGE_FINGERPRINT:-}" ]]; then
-		exit 1
-	fi
-	printf "%s\\n" "$FAKE_DOCKER_IMAGE_FINGERPRINT"
-	exit 0
-fi
-
-if [[ "${1:-}" == "build" ]]; then
+log_command() {
 	if [[ -n "${FAKE_DOCKER_LOG:-}" ]]; then
-		printf "build" >> "$FAKE_DOCKER_LOG"
+		printf "%s" "$1" >> "$FAKE_DOCKER_LOG"
+		shift
 		for arg in "$@"; do
 			printf " %q" "$arg" >> "$FAKE_DOCKER_LOG"
 		done
 		printf "\\n" >> "$FAKE_DOCKER_LOG"
 	fi
+}
+
+if [[ "${1:-}" == "image" && "${2:-}" == "inspect" ]]; then
+	format="${4:-}"
+	image="${5:-}"
+	label="${format#*\\"}"
+	label="${label%%\\"*}"
+	if [[ -n "${FAKE_DOCKER_IMAGE_LABELS_JSON:-}" ]]; then
+		python3 - "$image" "$label" <<'PY'
+import json
+import os
+import sys
+
+image = sys.argv[1]
+label = sys.argv[2]
+labels = json.loads(os.environ["FAKE_DOCKER_IMAGE_LABELS_JSON"])
+if image not in labels:
+    raise SystemExit(1)
+value = labels[image].get(label, "<no value>")
+print(value)
+PY
+		exit $?
+	fi
+	if [[ -n "${FAKE_DOCKER_IMAGE_FINGERPRINT:-}" ]]; then
+		printf "%s\\n" "$FAKE_DOCKER_IMAGE_FINGERPRINT"
+		exit 0
+	fi
+	exit 1
+fi
+
+if [[ "${1:-}" == "build" ]]; then
+	log_command "$@"
+	exit 0
+fi
+
+if [[ "${1:-}" == "tag" ]]; then
+	log_command "$@"
+	exit 0
+fi
+
+if [[ "${1:-}" == "push" ]]; then
+	log_command "$@"
+	exit 0
+fi
+
+if [[ "${1:-}" == "login" ]]; then
+	log_command "$@"
+	cat >/dev/null || true
 	exit 0
 fi
 
@@ -178,7 +264,7 @@ if [[ "${1:-}" == "run" ]]; then
 				esac
 				shift 2
 				;;
-			list-frames|run-frame|publish-cycle|validate-cycle|init-run)
+			list-frames|run-frame|publish-run|validate-run|init-run)
 				mode="$1"
 				shift
 				;;
@@ -197,12 +283,12 @@ if [[ "${1:-}" == "run" ]]; then
 		exit 0
 	fi
 
-	if [[ "$mode" == "publish-cycle" ]]; then
+	if [[ "$mode" == "publish-run" ]]; then
 		echo "Published: dataset_id=$dataset_id cycle=${CYCLE:-unknown}"
 		exit 0
 	fi
 
-	if [[ "$mode" == "validate-cycle" ]]; then
+	if [[ "$mode" == "validate-run" ]]; then
 		echo "Validation passed: dataset_id=$dataset_id cycle=$cycle"
 		exit 0
 	fi
@@ -267,6 +353,42 @@ esac
 
 _FAKE_AWS = """#!/usr/bin/env bash
 set -euo pipefail
+
+log_command() {
+  if [[ -n "${FAKE_AWS_LOG:-}" ]]; then
+    printf "%s" "$1" >> "$FAKE_AWS_LOG"
+    shift
+    for arg in "$@"; do
+      printf " %q" "$arg" >> "$FAKE_AWS_LOG"
+    done
+    printf "\\n" >> "$FAKE_AWS_LOG"
+  fi
+}
+
+log_command "$@"
+
+if [[ "${1:-}" == "sts" && "${2:-}" == "get-caller-identity" ]]; then
+  echo "${FAKE_AWS_ACCOUNT_ID:-123456789012}"
+  exit 0
+fi
+
+if [[ "${1:-}" == "ecr" && "${2:-}" == "describe-repositories" ]]; then
+  if [[ "${FAKE_AWS_ECR_REPO_EXISTS:-true}" == "true" ]]; then
+    echo '{"repositories":[{"repositoryName":"weather-etl-worker"}]}'
+    exit 0
+  fi
+  exit 254
+fi
+
+if [[ "${1:-}" == "ecr" && "${2:-}" == "create-repository" ]]; then
+  echo '{"repository":{"repositoryName":"weather-etl-worker"}}'
+  exit 0
+fi
+
+if [[ "${1:-}" == "ecr" && "${2:-}" == "get-login-password" ]]; then
+  echo "fake-password"
+  exit 0
+fi
 
 if [[ "${1:-}" == "s3" && "${2:-}" == "cp" ]]; then
   dst="${4:-}"
@@ -340,7 +462,7 @@ set -euo pipefail
 
 printf "%s\\n" "$*" >> "{cli_log.as_posix()}"
 
-if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "weather_etl" && "${{3:-}}" == "submit-aws-cycle" ]]; then
+if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "weather_etl" && "${{3:-}}" == "submit-aws-run" ]]; then
   dataset_id="gfs"
   cycle=""
   run_id=""
@@ -349,7 +471,6 @@ if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "weather_etl" && "${{3:-}}" == "submit
   job_definition=""
   source_bucket="noaa-gfs-bdp-pds"
   dry_run="false"
-  force_backfill="false"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dataset-id)
@@ -384,22 +505,11 @@ if [[ "${{1:-}}" == "-m" && "${{2:-}}" == "weather_etl" && "${{3:-}}" == "submit
         dry_run="true"
         shift
         ;;
-      --force-backfill)
-        force_backfill="true"
-        shift
-        ;;
       *)
         shift
         ;;
     esac
   done
-  if [[ "${{FAKE_SUBMISSION_POLICY_STATUS:-0}}" != "0" ]]; then
-    echo "Cycle submission policy check failed." >&2
-    echo "allowed=false" >&2
-    exit "$FAKE_SUBMISSION_POLICY_STATUS"
-  fi
-  echo "Cycle submission policy"
-  echo "  force_backfill=$force_backfill"
   echo "Run snapshot"
   echo "  run_id=$run_id"
   echo "  product_config_digest=sha256:$(printf '%064d' 1)"

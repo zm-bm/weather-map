@@ -64,11 +64,11 @@ resource "aws_lambda_function" "publisher" {
 
   environment {
     variables = {
-      ARTIFACT_ROOT_URI   = local.artifact_root_uri
-      CATALOG_URI         = local.catalog_uri
-      PIPELINE_URI        = local.pipeline_uri
-      PUBLISH_DATASETS    = join(",", var.publisher_datasets)
-      PUBLISH_CYCLE_COUNT = tostring(var.publisher_cycle_count)
+      ARTIFACT_ROOT_URI            = local.artifact_root_uri
+      CATALOG_URI                  = local.catalog_uri
+      PIPELINE_URI                 = local.pipeline_uri
+      PUBLISH_DATASETS             = join(",", var.publisher_datasets)
+      PUBLISH_FORECAST_CYCLE_COUNT = tostring(var.publisher_forecast_cycle_count)
     }
   }
 

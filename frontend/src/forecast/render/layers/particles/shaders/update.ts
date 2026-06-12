@@ -15,6 +15,8 @@ uniform float u_lon0;
 uniform float u_lat0;
 uniform float u_dx;
 uniform float u_dy;
+uniform int u_x_wrap;
+uniform int u_y_mode;
 uniform float u_vector_scale;
 uniform float u_vector_offset;
 uniform float u_time_mix;
@@ -99,34 +101,43 @@ vec2 decode_vector(isampler2D vectorTex, ivec2 coord) {
 }
 
 // Sample vector field in lon/lat space with wrap-aware bilinear filtering.
-vec2 sample_vector_bilinear(isampler2D vectorTex, float lon, float lat) {
+vec3 sample_vector_bilinear(isampler2D vectorTex, float lon, float lat) {
   EncodedGridLocation location = encodedGridLocationForLonLat(
     vec2(lon, lat),
     u_vector_size,
     u_lon0,
     u_lat0,
     u_dx,
-    u_dy
+    u_dy,
+    u_x_wrap,
+    u_y_mode
   );
+  if (location.valid <= 0.0) return vec3(0.0, 0.0, 0.0);
 
   vec2 w00 = decode_vector(vectorTex, ivec2(location.x0, location.y0));
   vec2 w10 = decode_vector(vectorTex, ivec2(location.x1, location.y0));
   vec2 w01 = decode_vector(vectorTex, ivec2(location.x0, location.y1));
   vec2 w11 = decode_vector(vectorTex, ivec2(location.x1, location.y1));
 
-  return (w00 * location.w00) +
+  vec2 vectorValue = (w00 * location.w00) +
     (w10 * location.w10) +
     (w01 * location.w01) +
     (w11 * location.w11);
+  return vec3(vectorValue, 1.0);
 }
 
 void main() {
   uint id = uint(gl_VertexID);
   vec4 state = a_state;
   float time_mix = clamp(u_time_mix, 0.0, 1.0);
-  vec2 vector_lower = sample_vector_bilinear(u_vector_tex_lower, state.x, state.y);
-  vec2 vector_upper = sample_vector_bilinear(u_vector_tex_upper, state.x, state.y);
-  vec2 vector_mps = mix(vector_lower, vector_upper, time_mix);
+  vec3 vector_lower = sample_vector_bilinear(u_vector_tex_lower, state.x, state.y);
+  vec3 vector_upper = sample_vector_bilinear(u_vector_tex_upper, state.x, state.y);
+  if (vector_lower.z <= 0.0 || vector_upper.z <= 0.0) {
+    v_state = respawn(id);
+    gl_Position = vec4(0.0);
+    return;
+  }
+  vec2 vector_mps = mix(vector_lower.xy, vector_upper.xy, time_mix);
   float speed_mps = length(vector_mps);
   float age = state.z + u_dt_sec;
 

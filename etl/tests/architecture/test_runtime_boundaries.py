@@ -82,7 +82,6 @@ BOUNDARY_RULES = (
     ),
 )
 
-
 def _internal_imports(package: str) -> dict[str, set[str]]:
     imports_by_file: dict[str, set[str]] = {}
     package_root = PACKAGE_ROOT / package
@@ -152,10 +151,10 @@ class TestRuntimeBoundaryContract:
 
         assert violations == {}
 
-    def test_submit_cycle_does_not_import_validation_or_publish_runtime(self) -> None:
-        imports = _internal_imports("operations").get("operations/submit_cycle.py", set())
+    def test_submit_aws_run_does_not_import_validation_or_publish_runtime(self) -> None:
+        imports = _internal_imports("operations").get("operations/submit_aws_run.py", set())
         forbidden = (
-            "weather_etl.operations.publish_cycle",
+            "weather_etl.operations.publish_run",
             "weather_etl.state.manifest.publish",
             "weather_etl.state.runs.validation",
         )

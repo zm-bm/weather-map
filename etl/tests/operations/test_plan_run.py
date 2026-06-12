@@ -15,11 +15,11 @@ from tests.fixtures.pipeline import add_dataset_artifact, loaded_product_config,
 from tests.fixtures.publish import publish_fixture
 from weather_etl.config.pipeline import parse_pipeline_config
 from weather_etl.environment import EtlEnvironment
-from weather_etl.operations.plan_cycle import plan_cycle
+from weather_etl.operations.plan_run import plan_run
 from weather_etl.state.runs.metadata import RunMetadata
 from weather_etl.state.runs.snapshots import LoadedRunSnapshot
 from weather_etl.workers.claims.store import FrameClaim, FrameClaimStore
-from weather_etl.workers.plan import PLAN_SCHEMA, PLAN_SCHEMA_VERSION, CyclePlan
+from weather_etl.workers.plan import PLAN_SCHEMA, PLAN_SCHEMA_VERSION, RunPlan
 
 
 class _FakeClaimStore(FrameClaimStore):
@@ -78,7 +78,7 @@ def test_plan_uses_loaded_snapshot_run_id_when_no_run_id_is_supplied() -> None:
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,
@@ -89,7 +89,7 @@ def test_plan_uses_loaded_snapshot_run_id_when_no_run_id_is_supplied() -> None:
             loaded_snapshot=_snapshot(cycle=fx.cycle),
         )
 
-    assert isinstance(plan, CyclePlan)
+    assert isinstance(plan, RunPlan)
     assert plan.run_id == DEFAULT_RUN_ID
     assert plan.workers[0].env["RUN_ID"] == DEFAULT_RUN_ID
     assert plan.to_operator_dict()["schema"] == PLAN_SCHEMA
@@ -106,7 +106,7 @@ def test_plan_rejects_loaded_snapshot_run_id_mismatch() -> None:
         )
 
         with pytest.raises(SystemExit, match="Loaded run snapshot mismatch"):
-            plan_cycle(
+            plan_run(
                 env=env,
                 dataset_id="gfs",
                 cycle=fx.cycle,
@@ -128,7 +128,7 @@ def test_plan_skips_marker_backed_complete_frames_and_submits_pending_frames() -
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,
@@ -147,9 +147,9 @@ def test_plan_skips_marker_backed_complete_frames_and_submits_pending_frames() -
     assert plan.workers[0].env["GRIB_SOURCE_URI"] == "s3://source/gfs.f003"
     assert "source_uri" not in plan.workers[0].to_plan_dict()
     assert plan.workers[0].command[:2] == ("weather-etl", "run-frame")
-    assert plan.validation.command[:2] == ("weather-etl", "validate-cycle")
+    assert plan.validation.command[:2] == ("weather-etl", "validate-run")
     assert plan.publish is not None
-    assert plan.publish.command[:2] == ("weather-etl", "publish-cycle")
+    assert plan.publish.command[:2] == ("weather-etl", "publish-run")
     assert plan.to_operator_dict()["frame_ids"] == ["000", "003"]
     assert plan.to_operator_dict()["frames"] == ["000", "003"]
 
@@ -164,7 +164,7 @@ def test_frame_state_reports_total_missing_markers_and_sample() -> None:
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,
@@ -203,7 +203,7 @@ def test_plan_skips_active_claimed_frames() -> None:
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,
@@ -241,7 +241,7 @@ def test_plan_marks_expired_claimed_frames_pending() -> None:
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,
@@ -278,7 +278,7 @@ def test_plan_does_not_treat_complete_claim_as_frame_completion() -> None:
             store=fx.store,
         )
 
-        plan = plan_cycle(
+        plan = plan_run(
             env=env,
             dataset_id="gfs",
             cycle=fx.cycle,

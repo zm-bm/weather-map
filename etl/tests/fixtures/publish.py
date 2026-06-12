@@ -15,7 +15,8 @@ from weather_etl.environment.context import ExecutionContext
 from weather_etl.state.artifacts.identity import ArtifactWorkItem
 from weather_etl.state.artifacts.paths import ArtifactPaths
 from weather_etl.state.artifacts.repository import ArtifactRepository
-from weather_etl.state.manifest.publish import PublishResult, run_publish
+from weather_etl.state.manifest.public_view import DatasetViewPublishResult, publish_dataset_view
+from weather_etl.state.manifest.publish import RunManifestPublishResult, publish_run_manifest
 from weather_etl.state.runs.validation import PAYLOAD_CHECK_MODE, VALIDATION_SCHEMA, VALIDATION_SCHEMA_VERSION
 from weather_etl.storage.base import UriStore
 from weather_etl.storage.routing import make_store
@@ -152,14 +153,15 @@ class PublishFixture:
         cycle: str | None = None,
         run_id: str | None = None,
         auto_validate: bool = True,
-    ) -> PublishResult:
+        publish_view: bool = True,
+    ) -> RunManifestPublishResult:
         if auto_validate:
             self.write_passing_validation(cycle=cycle, run_id=run_id, artifact_ids=artifact_ids)
         product_config = product_config or self.product_config_for(
             artifact_ids=artifact_ids,
             artifacts_cfg=artifacts_cfg,
         )
-        return run_publish(
+        result = publish_run_manifest(
             dataset_label=self.dataset_label,
             ctx=self.ctx,
             cycle=cycle or self.cycle,
@@ -167,7 +169,28 @@ class PublishFixture:
             artifact_ids=tuple(artifact_ids),
             artifact_specs=artifact_specs_for_dataset(dataset_id=self.dataset_id, raw_artifacts=artifacts_cfg),
             artifact_repo=self.artifacts,
+        )
+        if result.ready and publish_view:
+            self.refresh_view(
+                product_config=product_config,
+                cycle=cycle or self.cycle,
+                run_id=result.run_id or run_id or self.run_id,
+            )
+        return result
+
+    def refresh_view(
+        self,
+        *,
+        product_config: LoadedProductConfig,
+        cycle: str | None = None,
+        run_id: str | None = None,
+    ) -> DatasetViewPublishResult:
+        return publish_dataset_view(
             product_config=product_config,
+            artifact_repo=self.artifacts,
+            dataset_id=self.dataset_id,
+            cycle=cycle or self.cycle,
+            run_id=run_id or self.run_id,
         )
 
     def product_config_for(

@@ -5,10 +5,9 @@ import {
   type ForecastDisplayProfile,
 } from '@/forecast/display'
 import {
+  type ArtifactSource,
   type ForecastLayerSource,
-  type LoadSource,
   type OverlaySource,
-  type RasterSource,
 } from './source'
 import { FORECAST_CATALOG } from './schema'
 
@@ -17,7 +16,8 @@ export type ForecastRasterLayer = {
   groupId: string
   displayProfile: DisplayProfileId
   display: ForecastDisplayProfile
-  source: RasterSource
+  label: string
+  source: ArtifactSource
   overlays: readonly OverlaySource[]
 }
 
@@ -30,13 +30,13 @@ export type ForecastRasterLayerGroup = {
 export type ParticleLayer = {
   id: string
   label: string
-  source: LoadSource
+  source: ArtifactSource
 }
 
 export type ContourLayer = {
   id: string
   label: string
-  source: LoadSource
+  source: ArtifactSource
 }
 
 type RawForecastRasterLayer = typeof FORECAST_CATALOG.rasterLayers[number]
@@ -97,12 +97,18 @@ export function requireForecastRasterLayer(
   return layer
 }
 
+export function forecastRasterLayerLabel(layer: ForecastRasterLayer): string {
+  return layer.label
+}
+
 function layerFromRaw(raw: RawForecastRasterLayer): ForecastRasterLayer {
+  const display = getDisplayProfile(raw.displayProfile)
   return {
     id: raw.id,
     groupId: raw.groupId,
     displayProfile: raw.displayProfile,
-    display: getDisplayProfile(raw.displayProfile),
+    display,
+    label: display.label,
     source: raw.source,
     overlays: raw.overlays.map((overlayId) => requireOverlayLayer(overlayId)),
   }

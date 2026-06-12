@@ -10,7 +10,7 @@ afterEach(() => {
 function createForecastManifestPayload() {
   return {
     schema: 'weather-map.manifest-index',
-    schema_version: 2,
+    schema_version: 3,
     generated_at: '2026-05-16T00:00:00Z',
     catalog_version: 'forecast-catalog-v1',
     payload_contract: 'field-binary-v2',

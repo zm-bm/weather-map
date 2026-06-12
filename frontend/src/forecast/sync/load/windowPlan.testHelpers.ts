@@ -2,13 +2,14 @@ import type { ReadonlyNonEmptyArray } from '@/core/types'
 import type { RasterBandOrder } from '@/forecast/artifacts'
 import type { ForecastWindowId } from '@/forecast/frames'
 import type {
+  ForecastFramePlan,
   ForecastWindowFailurePolicy,
   ForecastWindowPlan,
-  RasterFramePlan,
 } from '../plan'
 
-type RasterFramePlanFixtureArgs = {
-  source: unknown
+type ForecastFramePlanFixtureArgs = {
+  sourceKind: ForecastWindowId
+  source: ForecastFramePlan['source']
   artifactId: string
   bandIds: ReadonlyNonEmptyArray<string>
   cacheKeyPrefix: string
@@ -16,33 +17,38 @@ type RasterFramePlanFixtureArgs = {
   failurePolicy?: ForecastWindowFailurePolicy
 }
 
+type SingleForecastWindowId = Exclude<ForecastWindowId, 'overlay'>
+
+type SingleForecastWindowPlanFixtureArgs = {
+  id: SingleForecastWindowId
+  key: string
+  failurePolicy: ForecastWindowFailurePolicy
+  output: 'single'
+  frame: ForecastFramePlanFixtureArgs
+}
+
 type ForecastWindowPlanFixtureArgs =
-  | {
-    id: ForecastWindowId
-    key: string
-    failurePolicy: ForecastWindowFailurePolicy
-    output: 'single'
-    frame: RasterFramePlanFixtureArgs
-  }
+  | SingleForecastWindowPlanFixtureArgs
   | {
     id: 'overlay'
     key: string
     failurePolicy: ForecastWindowFailurePolicy
     output: 'array'
-    frames: ReadonlyNonEmptyArray<RasterFramePlanFixtureArgs>
+    frames: ReadonlyNonEmptyArray<ForecastFramePlanFixtureArgs>
   }
 
-export function createRasterFramePlanTestFixture(
-  args: RasterFramePlanFixtureArgs
-): RasterFramePlan {
+export function createForecastFramePlanTestFixture(
+  args: ForecastFramePlanFixtureArgs
+): ForecastFramePlan {
   return {
+    sourceKind: args.sourceKind,
     source: args.source,
     artifactId: args.artifactId,
     bandIds: args.bandIds,
     cacheKeyPrefix: args.cacheKeyPrefix,
     ...(args.order === undefined ? {} : { order: args.order }),
     ...(args.failurePolicy === undefined ? {} : { failurePolicy: args.failurePolicy }),
-  }
+  } as ForecastFramePlan
 }
 
 export function createForecastWindowPlanTestFixture(
@@ -56,9 +62,9 @@ export function createForecastWindowPlanTestFixture(
       failurePolicy: args.failurePolicy,
       output: args.output,
       frames: [
-        createRasterFramePlanTestFixture(firstFrame),
-        ...remainingFrames.map(createRasterFramePlanTestFixture),
-      ],
+        createForecastFramePlanTestFixture(firstFrame),
+        ...remainingFrames.map(createForecastFramePlanTestFixture),
+      ] as ReadonlyNonEmptyArray<ForecastFramePlan<'overlay'>>,
     }
   }
 
@@ -67,6 +73,6 @@ export function createForecastWindowPlanTestFixture(
     key: args.key,
     failurePolicy: args.failurePolicy,
     output: args.output,
-    frames: [createRasterFramePlanTestFixture(args.frame)],
-  }
+    frames: [createForecastFramePlanTestFixture(args.frame)],
+  } as ForecastWindowPlan
 }

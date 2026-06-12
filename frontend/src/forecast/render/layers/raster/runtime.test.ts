@@ -14,6 +14,10 @@ import {
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
   WORLD_WRAP_COPY_OFFSETS,
 } from '../../gpu'
+import {
+  ENCODED_GRID_X_WRAP_NONE,
+  ENCODED_GRID_Y_MODE_NONE,
+} from '../../encodedGrid'
 import { createRenderControllerRegistry } from '../../maplibre/layerAdapter'
 import { createRasterRuntime, type RasterController } from './runtime'
 import { COLORMAP_FRAGMENT_SHADER_SOURCE } from './styles/colormapShaders'
@@ -105,6 +109,8 @@ describe('raster runtime encoded sources', () => {
     expect(gl.uniform1i).toHaveBeenCalledWith('u_encoded_tex_lower', expect.any(Number))
     expect(gl.uniform1i).toHaveBeenCalledWith('u_encoded_tex_upper', expect.any(Number))
     expect(gl.uniform1i).toHaveBeenCalledWith('u_source_sampling_mode', 0)
+    expect(gl.uniform1i).toHaveBeenCalledWith('u_x_wrap', ENCODED_GRID_X_WRAP_NONE)
+    expect(gl.uniform1i).toHaveBeenCalledWith('u_y_mode', ENCODED_GRID_Y_MODE_NONE)
     expect(gl.drawArrays).toHaveBeenCalledTimes(WORLD_WRAP_COPY_OFFSETS.length)
 
     runtime.onRemove(map as never, gl as never)

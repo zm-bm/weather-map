@@ -69,18 +69,19 @@ def build_index(
     product_config: LoadedProductConfig,
     artifact_repo: ArtifactRepository,
     generated_at: str | None = None,
-    strict_latest_manifests: bool = False,
+    strict_dataset_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Build the frontend manifest index from config and latest manifests."""
 
     generated_at = generated_at or utc_now_iso()
     pipeline_config = product_config.pipeline_config
     requirements = product_config.catalog_requirements
+    strict_dataset_id_set = set(strict_dataset_ids)
     latest_by_dataset = {
         dataset_id: _read_latest_manifest_entry(
             artifact_repo=artifact_repo,
             dataset_id=dataset_id,
-            strict=strict_latest_manifests,
+            strict=dataset_id in strict_dataset_id_set,
         )
         for dataset_id in pipeline_config.datasets
     }
@@ -119,6 +120,7 @@ def publish_index(
     product_config: LoadedProductConfig,
     artifact_repo: ArtifactRepository,
     generated_at: str | None = None,
+    strict_dataset_ids: Iterable[str] = (),
 ) -> str:
     """Generate and publish the current frontend manifest index."""
 
@@ -126,7 +128,7 @@ def publish_index(
         product_config=product_config,
         artifact_repo=artifact_repo,
         generated_at=generated_at,
-        strict_latest_manifests=True,
+        strict_dataset_ids=strict_dataset_ids,
     )
     return artifact_repo.write_manifest_index(manifest=manifest)
 
@@ -177,7 +179,12 @@ def _invalid_latest_manifest_message(*, dataset_id: str, exc: BaseException) -> 
     return f"latest manifest for dataset {dataset_id!r} is invalid: {exc}"
 
 
-def _compact_artifact_entry(*, artifact_id: str, artifact: ManifestArtifact, frame_ids: tuple[str, ...]) -> dict[str, Any]:
+def _compact_artifact_entry(
+    *,
+    artifact_id: str,
+    artifact: ManifestArtifact,
+    frame_ids: tuple[str, ...],
+) -> dict[str, Any]:
     artifact_entry = artifact.model_dump(mode="json", exclude_none=True, exclude={"frames"})
     artifact_entry["byte_length"] = _artifact_byte_length(
         artifact_id=artifact_id,

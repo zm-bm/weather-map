@@ -71,6 +71,24 @@ def test_get_to_file_keeps_downloaded_tmp_until_replace(tmp_path: Path) -> None:
     assert client.key == "path/input.grib2"
 
 
+def test_public_read_bucket_uses_unsigned_s3_client(tmp_path: Path) -> None:
+    signed_client = FakeS3Client(b"signed")
+    unsigned_client = FakeS3Client(b"public")
+    store = S3Store(unsigned_read_buckets=frozenset({"public-bucket"}))
+    dst = tmp_path / "input.grib2"
+
+    with (
+        patch.object(S3Store, "_client", return_value=signed_client),
+        patch("weather_etl.storage.s3._unsigned_s3_client", return_value=unsigned_client),
+    ):
+        store.get_to_file(uri="s3://public-bucket/path/input.grib2", dst=dst)
+
+    assert dst.read_bytes() == b"public"
+    assert not hasattr(signed_client, "bucket")
+    assert unsigned_client.bucket == "public-bucket"
+    assert unsigned_client.key == "path/input.grib2"
+
+
 def test_write_bytes_writes_raw_payloads_without_artifact_headers() -> None:
     client = FakeS3Client()
     store = S3Store()

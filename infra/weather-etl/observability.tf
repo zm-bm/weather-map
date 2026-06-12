@@ -2,6 +2,7 @@ locals {
   lambda_error_alarm_functions = {
     gfs_ingest  = aws_lambda_function.ingest.function_name
     icon_ingest = aws_lambda_function.ingest_icon.function_name
+    mrms_ingest = aws_lambda_function.ingest_mrms.function_name
     publisher   = aws_lambda_function.publisher.function_name
   }
 }

@@ -63,4 +63,19 @@ describe('raster colormap helpers', () => {
     expect(getLutAlpha(lut, 0)).toBe(0)
     expect(getLutAlpha(lut, 9)).toBe(255)
   })
+
+  it('samples exact stop colors for stop-aligned LUT entries in both modes', () => {
+    const stops = [
+      stop(0, [0, 0, 0]),
+      stop(10, [100, 50, 0]),
+      stop(20, [255, 255, 255]),
+    ]
+    const expectedRgb = [[0, 0, 0], [100, 50, 0], [255, 255, 255]]
+
+    for (const mode of ['banded', 'interpolated'] as const) {
+      const lut = buildColormapLut(stops, { min: 0, max: 20 }, stops.length, mode)
+
+      expect(stops.map((_stop, index) => getLutRgb(lut, index))).toEqual(expectedRgb)
+    }
+  })
 })

@@ -6,7 +6,7 @@ import struct
 from pathlib import Path
 
 import pytest
-from weather_etl.processing.grib import extract_float32_band_bytes, find_grib_band, gdalinfo_json
+from weather_etl.processing.grib import extract_float32_band_bytes, find_grib_band, gdalinfo_json, grid_meta_from_grib
 from weather_etl.processing.proc import RunResult
 
 
@@ -15,6 +15,32 @@ def _gdalinfo_run(info: dict):
         return RunResult(argv=tuple(str(item) for item in argv), returncode=0, stdout=json.dumps(info))
 
     return run
+
+
+def test_grid_meta_from_grib_marks_global_grid_as_wrapping_and_clamped() -> None:
+    grid = grid_meta_from_grib(
+        grib_path=Path("global.grib2"),
+        run=_gdalinfo_run({
+            "size": [1440, 720],
+            "geoTransform": [0.0, 0.25, 0.0, 90.0, 0.0, -0.25],
+        }),
+    )
+
+    assert grid["x_wrap"] == "repeat"
+    assert grid["y_mode"] == "clamp"
+
+
+def test_grid_meta_from_grib_marks_regional_grid_as_non_wrapping_and_unclamped() -> None:
+    grid = grid_meta_from_grib(
+        grib_path=Path("mrms.grib2"),
+        run=_gdalinfo_run({
+            "size": [7000, 3500],
+            "geoTransform": [-130.0, 0.01, 0.0, 55.0, 0.0, -0.01],
+        }),
+    )
+
+    assert grid["x_wrap"] == "none"
+    assert grid["y_mode"] == "none"
 
 
 def test_find_grib_band_keeps_exact_match_behavior() -> None:

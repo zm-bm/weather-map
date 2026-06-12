@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.fixtures.cycle_plan import frame_worker
+from tests.fixtures.run_plan import frame_worker
 from weather_etl.workers.backends.local_docker import (
     LocalDockerWorkerBackend,
     container_uri,
@@ -32,6 +32,7 @@ def test_local_container_cmd_includes_artifact_cache_and_env(tmp_path: Path) -> 
             local_image="weather-etl:local",
             artifacts_dir=artifacts_dir,
             cache_dir=cache_dir,
+            extra_mounts=None,
             env={"DATASET_ID": "gfs"},
             command=["run-frame"],
         )
@@ -43,6 +44,24 @@ def test_local_container_cmd_includes_artifact_cache_and_env(tmp_path: Path) -> 
     assert "DATASET_ID=gfs" in cmd
     assert "ETL_CODE_REVISION=rev-1" in cmd
     assert cmd[-2:] == ["weather-etl:local", "run-frame"]
+
+
+def test_local_container_cmd_includes_readonly_input_mounts(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    config_dir = tmp_path / "config"
+
+    with patch.dict("os.environ", {}, clear=True):
+        cmd = local_container_cmd(
+            local_image="weather-etl:local",
+            artifacts_dir=artifacts_dir,
+            cache_dir=None,
+            extra_mounts={config_dir: "/config/1"},
+            env={"PIPELINE_URI": "file:///config/1/pipeline.json"},
+            command=["init-run"],
+        )
+
+    assert f"{config_dir.as_posix()}:/config/1:ro" in cmd
+    assert "PIPELINE_URI=file:///config/1/pipeline.json" in cmd
 
 
 def test_worker_container_cmd_uses_frame_command_and_containerized_env(tmp_path: Path) -> None:
@@ -67,6 +86,21 @@ def test_worker_container_cmd_uses_frame_command_and_containerized_env(tmp_path:
     assert "ARTIFACT_ROOT_URI=file:///artifacts" in cmd
     assert "PIPELINE_URI=file:///artifacts/runs/gfs/config/pipeline.json" in cmd
     assert cmd[-5:] == ["run-frame", "--dataset-id", "gfs", "--frame-id", "003"]
+
+
+def test_container_uri_maps_extra_readonly_mounts_to_container_paths(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    config_dir = tmp_path / "config"
+    pipeline = config_dir / "pipeline.json"
+
+    assert (
+        container_uri(
+            pipeline.as_uri(),
+            artifacts_dir=artifacts_dir,
+            extra_mounts={config_dir: "/config/1"},
+        )
+        == "file:///config/1/pipeline.json"
+    )
 
 
 def test_local_docker_backend_reports_worker_failures(tmp_path: Path) -> None:

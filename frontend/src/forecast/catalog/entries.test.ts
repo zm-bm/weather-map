@@ -25,8 +25,8 @@ import {
   getAvailableParticleLayer,
   getDefaultAvailableContourLayer,
   getDefaultAvailableParticleLayerId,
-  getForecastRasterLayerArtifact,
   isForecastRasterLayerAvailable,
+  resolveRenderableRasterLayer,
 } from './availability'
 
 function isLayerAvailableForActiveRun(
@@ -36,16 +36,23 @@ function isLayerAvailableForActiveRun(
   return isForecastRasterLayerAvailable(activeRun, layer)
 }
 
+function requireRasterLayer(layer: ForecastRasterLayer | undefined): ForecastRasterLayer {
+  if (layer == null) {
+    throw new Error('Expected raster layer')
+  }
+  return layer
+}
+
 describe('layer catalog', () => {
   it('defines display behavior for every layer', () => {
     expect(FORECAST_RASTER_LAYERS.every((layer) => layer.displayProfile && layer.display.units && layer.display.kind)).toBe(true)
     expect(FORECAST_RASTER_LAYERS.every((layer) => ['gradient', 'cloud-layers'].includes(layer.display.kind))).toBe(true)
-    expect(FORECAST_RASTER_LAYERS_BY_ID.temperature?.displayProfile).toBe('temperature')
-    expect(FORECAST_RASTER_LAYERS_BY_ID.apparent_temperature?.displayProfile).toBe('apparent-temperature')
-    expect(FORECAST_RASTER_LAYERS_BY_ID.wind_speed?.displayProfile).toBe('wind-speed')
-    expect(FORECAST_RASTER_LAYERS_BY_ID.wind_gust?.displayProfile).toBe('wind-gust')
-    expect(FORECAST_RASTER_LAYERS_BY_ID.relative_humidity?.displayProfile).toBe('relative-humidity')
-    expect(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover?.displayProfile).toBe('cloud-cover')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.temperature).displayProfile).toBe('temperature')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.apparent_temperature).displayProfile).toBe('apparent-temperature')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.wind_speed).displayProfile).toBe('wind-speed')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.wind_gust).displayProfile).toBe('wind-gust')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.relative_humidity).displayProfile).toBe('relative-humidity')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover).displayProfile).toBe('cloud-cover')
   })
 
   it('keeps layer ids and group membership internally consistent', () => {
@@ -131,7 +138,7 @@ describe('layer catalog', () => {
 
   it('defines Cloud Layers as the default Clouds & Visibility layer backed by low middle high cloud vectors', () => {
     const cloudGroup = FORECAST_RASTER_LAYER_GROUPS.find((group) => group.id === 'clouds_visibility')
-    const cloudLayers = FORECAST_RASTER_LAYERS_BY_ID.cloud_layers!
+    const cloudLayers = requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.cloud_layers)
 
     expect(cloudGroup?.rasterLayerIds[0]).toBe('cloud_layers')
     expect(cloudGroup?.rasterLayerIds).toContain(cloudLayers.id)
@@ -150,11 +157,11 @@ describe('layer catalog', () => {
         ],
       },
     })
-    expect(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover?.display.label).toBe('Total/Sky Cover')
+    expect(requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover).display.label).toBe('Total/Sky Cover')
   })
 
   it('accepts Cloud Layers only when low middle high components are available', () => {
-    const cloudLayers = FORECAST_RASTER_LAYERS_BY_ID.cloud_layers!
+    const cloudLayers = requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.cloud_layers)
     const availableManifest = createSingleTimeManifestFixture({
       artifacts: {
         cloud_layers: createVectorArtifactFixture({
@@ -174,6 +181,11 @@ describe('layer catalog', () => {
 
     expect(isLayerAvailableForActiveRun(createActiveRunFixture(availableManifest), cloudLayers)).toBe(true)
     expect(isLayerAvailableForActiveRun(createActiveRunFixture(badManifest), cloudLayers)).toBe(false)
+    expect(resolveRenderableRasterLayer(createActiveRunFixture(availableManifest), 'cloud_layers')).toMatchObject({
+      layer: { id: 'cloud_layers' },
+      artifact: { id: 'cloud_layers' },
+    })
+    expect(resolveRenderableRasterLayer(createActiveRunFixture(badManifest), 'cloud_layers')).toBeNull()
   })
 
   it('accepts frontend-derived wind speed when vector wind is available', () => {
@@ -182,7 +194,7 @@ describe('layer catalog', () => {
       vectorArtifactIds: ['wind10m_uv'],
     })
 
-    const windSpeed = FORECAST_RASTER_LAYERS_BY_ID.wind_speed!
+    const windSpeed = requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.wind_speed)
     const activeRun = createActiveRunFixture(manifest)
 
     expect(windSpeed.source).toMatchObject({
@@ -193,6 +205,10 @@ describe('layer catalog', () => {
       ],
     })
     expect(isLayerAvailableForActiveRun(activeRun, windSpeed)).toBe(true)
+    expect(resolveRenderableRasterLayer(activeRun, 'wind_speed')).toMatchObject({
+      layer: { id: 'wind_speed' },
+      artifact: { id: 'wind10m_uv' },
+    })
   })
 
   it('hides frontend-derived wind speed when vector wind components are unavailable', () => {
@@ -210,8 +226,13 @@ describe('layer catalog', () => {
     })
     const activeRun = createActiveRunFixture(manifest)
 
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_RASTER_LAYERS_BY_ID.wind_speed!)).toBe(false)
-    expect(isLayerAvailableForActiveRun(activeRun, FORECAST_RASTER_LAYERS_BY_ID.wind_gust!)).toBe(true)
+    expect(isLayerAvailableForActiveRun(activeRun, requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.wind_speed))).toBe(false)
+    expect(isLayerAvailableForActiveRun(activeRun, requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.wind_gust))).toBe(true)
+    expect(resolveRenderableRasterLayer(activeRun, 'wind_speed')).toBeNull()
+    expect(resolveRenderableRasterLayer(activeRun, 'wind_gust')).toMatchObject({
+      layer: { id: 'wind_gust' },
+      artifact: { id: 'gust_surface' },
+    })
   })
 
   it('rejects catalog layers backed by non-scalar artifacts', () => {
@@ -226,7 +247,7 @@ describe('layer catalog', () => {
       vectorArtifactIds: [],
     })
 
-    expect(() => isLayerAvailableForActiveRun(createActiveRunFixture(manifest), FORECAST_RASTER_LAYERS_BY_ID.temperature!)).toThrow(
+    expect(() => resolveRenderableRasterLayer(createActiveRunFixture(manifest), 'temperature')).toThrow(
       'Layer temperature requires scalar artifact tmp_surface, got vector'
     )
   })
@@ -242,7 +263,7 @@ describe('layer catalog', () => {
       },
     })
 
-    const precipLayer = FORECAST_RASTER_LAYERS_BY_ID.precipitation_rate!
+    const precipLayer = requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.precipitation_rate)
     const activeRun = createActiveRunFixture(manifest)
 
     expect(precipLayer.source).toMatchObject({
@@ -260,7 +281,10 @@ describe('layer catalog', () => {
     }])
     expect(OVERLAY_LAYERS.map((overlay) => overlay.id)).toContain('precipitation_type')
     expect(isLayerAvailableForActiveRun(activeRun, precipLayer)).toBe(true)
-    const artifact = getForecastRasterLayerArtifact(activeRun, precipLayer)
-    expect(artifact).toMatchObject({ units: 'kg m^-2 s^-1', parameter: 'prate' })
+    const resolved = resolveRenderableRasterLayer(activeRun, 'precipitation_rate')
+    expect(resolved).toMatchObject({
+      layer: { id: 'precipitation_rate' },
+      artifact: { units: 'kg m^-2 s^-1', parameter: 'prate' },
+    })
   })
 })

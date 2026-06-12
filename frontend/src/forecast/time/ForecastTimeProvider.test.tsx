@@ -12,6 +12,23 @@ import ForecastTimeProvider from './ForecastTimeProvider'
 import { DEFAULT_PLAY_MIN_INTERVAL_MS } from './state'
 
 const DEFAULT_FRAME_IDS = ['000', '003', '006']
+const OBSERVED_FRAME_SPECS = [
+  {
+    id: '20260611000238',
+    lead_hours: 0,
+    valid_at: '2026-06-11T00:02:38Z',
+  },
+  {
+    id: '20260611000440',
+    lead_hours: 0,
+    valid_at: '2026-06-11T00:04:40Z',
+  },
+  {
+    id: '20260611005839',
+    lead_hours: 0,
+    valid_at: '2026-06-11T00:58:39Z',
+  },
+]
 
 function createTimelineManifest(
   overrides: ManifestFixtureOverrides = {}
@@ -255,6 +272,31 @@ describe('ForecastTimeProvider', () => {
       vi.runOnlyPendingTimers()
     })
     expect(getContext().state.targetTimeMs).toBe(validAt0002)
+  })
+
+  it('wraps autoplay from a non-minute-aligned observed range end', () => {
+    vi.setSystemTime(new Date('2026-06-11T01:00:00Z'))
+    const manifest = createTimelineManifest({
+      frames: OBSERVED_FRAME_SPECS,
+    })
+    const validAtStart = Date.UTC(2026, 5, 11, 0, 2, 38)
+    const validAtEnd = Date.UTC(2026, 5, 11, 0, 58, 39)
+    const { getContext } = renderForecastTimeProvider(manifest)
+
+    expect(getContext().state.appliedTimeMs).toBe(validAtEnd)
+    expect(getContext().state.targetTimeMs).toBe(validAtEnd)
+
+    act(() => {
+      getContext().controls.togglePlay()
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS)
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(getContext().state.targetTimeMs).toBe(validAtStart)
+    expect(getContext().state.isInFlight).toBe(true)
   })
 
   it('lets a manual seek win over a scheduled playback tick', () => {

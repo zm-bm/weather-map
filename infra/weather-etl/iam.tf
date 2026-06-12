@@ -98,9 +98,12 @@ data "aws_iam_policy_document" "batch_job_s3" {
   }
 
   statement {
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::noaa-gfs-bdp-pds/*"]
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::noaa-gfs-bdp-pds/*",
+      "arn:aws:s3:::noaa-mrms-pds/*"
+    ]
   }
 }
 
@@ -158,6 +161,12 @@ data "aws_iam_policy_document" "gfs_ingest_lambda" {
       aws_dynamodb_table.run_coordinator.arn,
       aws_dynamodb_table.frame_claims.arn
     ]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${local.artifacts_bucket_name}"]
   }
 
   statement {

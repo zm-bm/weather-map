@@ -1,5 +1,6 @@
 import type { ContourWindow } from '@/forecast/frames'
 import {
+  encodedGridUniforms,
   encodedLinearUniforms,
   type EncodedFramePair,
 } from '../../encodedGrid'
@@ -116,6 +117,7 @@ export function createSmoothedPressureFramePair(args: {
   return {
     lowerFrame: rawFramePair.lowerFrame,
     upperFrame: rawFramePair.upperFrame,
+    grid: rawFramePair.grid,
     lowerTexture,
     upperTexture,
     timeMix: rawFramePair.timeMix,
@@ -237,7 +239,7 @@ function renderSmoothedPressureTexture(args: {
   bindWrappedWorldQuad(gl, prefilter.programInfo, quad)
   setUniforms(prefilter.programInfo, {
     u_encoded_tex: rawTexture,
-    u_grid_size: [frame.raster.grid.nx, frame.raster.grid.ny],
+    ...encodedGridUniforms(frame.raster.grid),
     ...encodedLinearUniforms(renderSpec),
   })
   drawWrappedWorldQuad(gl, quad)

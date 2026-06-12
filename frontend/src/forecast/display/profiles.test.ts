@@ -49,6 +49,27 @@ describe('forecast display profiles', () => {
       .toBe('cloud.layers.middle.v1')
   })
 
+  it('uses the refreshed reflectivity palette, labels, and display range across radar profiles', () => {
+    const reflectivityProfileIds = [
+      'composite-reflectivity',
+      'observed-radar-base-reflectivity',
+      'observed-radar-composite-reflectivity',
+    ] as const
+
+    for (const profileId of reflectivityProfileIds) {
+      const profile = FORECAST_DISPLAY_PROFILES[profileId]
+      if (profile.kind !== 'gradient') {
+        throw new Error(`${profileId} should use a gradient display`)
+      }
+      expect(profile.palette.id).toBe('radar.reflectivity.dbz.v2')
+      expect(profile.range).toEqual({ min: -35, max: 75 })
+      expect(profile.units.options).toEqual([expect.objectContaining({
+        id: 'dbz',
+        legendLabels: [-35, -25, -15, -5, 5, 15, 25, 35, 45, 55, 65, 75],
+      })])
+    }
+  })
+
   it('round-trips display units through native values', () => {
     for (const profile of Object.values(FORECAST_DISPLAY_PROFILES)) {
       for (const option of profile.units.options) {

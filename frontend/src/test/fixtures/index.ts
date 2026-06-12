@@ -37,7 +37,7 @@ export {
   createUvRasterFrameFixture,
 } from './forecastFrames'
 export {
-  createCloudLayersRasterSourceFixture,
+  createCloudLayersLayerSourceFixture,
   createContourSourceFixture,
   createOverlaySourceFixture,
   createParticleSourceFixture,

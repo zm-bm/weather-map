@@ -28,14 +28,13 @@ Options:
   --job-name-prefix <prefix>      Batch job name prefix. Default: weather-etl-manual.
   --submit-delay-seconds <n>      Delay between submissions. Default: 0.
   --dry-run                       Print jobs without submitting or claiming.
-  --force-backfill                Force submitting a cycle older than current latest.
   --skip-config-check             Skip local-vs-S3 config/catalog md5 checks.
   --allow-non-synoptic-cycle      Allow cycles outside 00/06/12/18.
   -h, --help                      Show this help and exit.
 
 Environment defaults:
   CYCLE, RUN_ID, DATASET_ID, FRAMES, CONFIG_FILE, CATALOG_FILE, SOURCE_BUCKET,
-  JOB_NAME_PREFIX, SUBMIT_DELAY_SECONDS, DRY_RUN, FORCE_BACKFILL, SKIP_CONFIG_CHECK,
+  JOB_NAME_PREFIX, SUBMIT_DELAY_SECONDS, DRY_RUN, SKIP_CONFIG_CHECK,
   ALLOW_NON_SYNOPTIC_CYCLE, ETL_CODE_REVISION, ETL_IMAGE_IDENTITY.
 EOF
 }
@@ -69,7 +68,6 @@ SOURCE_BUCKET="${SOURCE_BUCKET:-noaa-gfs-bdp-pds}"
 JOB_NAME_PREFIX="${JOB_NAME_PREFIX:-weather-etl-manual}"
 SUBMIT_DELAY_SECONDS="${SUBMIT_DELAY_SECONDS:-0}"
 DRY_RUN="${DRY_RUN:-false}"
-FORCE_BACKFILL="${FORCE_BACKFILL:-false}"
 SKIP_CONFIG_CHECK="${SKIP_CONFIG_CHECK:-false}"
 ALLOW_NON_SYNOPTIC_CYCLE="${ALLOW_NON_SYNOPTIC_CYCLE:-false}"
 ETL_CODE_REVISION="${ETL_CODE_REVISION:-$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)}"
@@ -186,10 +184,6 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN="true"
       shift
       ;;
-    --force-backfill)
-      FORCE_BACKFILL="true"
-      shift
-      ;;
     --skip-config-check)
       SKIP_CONFIG_CHECK="true"
       shift
@@ -291,7 +285,7 @@ if [[ "$SKIP_CONFIG_CHECK" != "true" ]]; then
 fi
 
 cmd=(
-  "$PYTHON_BIN" -m weather_etl submit-aws-cycle
+  "$PYTHON_BIN" -m weather_etl submit-aws-run
   --dataset-id "$DATASET_ID"
   --cycle "$CYCLE"
   --artifact-root-uri "$ARTIFACT_ROOT_URI"
@@ -313,9 +307,6 @@ fi
 if [[ "$DRY_RUN" == "true" ]]; then
   cmd+=(--dry-run)
 fi
-if [[ "$FORCE_BACKFILL" == "true" ]]; then
-  cmd+=(--force-backfill)
-fi
 for artifact in "${SELECTED_ARTIFACTS[@]}"; do
   cmd+=(--artifact "$artifact")
 done
@@ -332,7 +323,6 @@ echo "  dataset_id:          $DATASET_ID"
 echo "  cycle:               $CYCLE"
 echo "  run_id:              ${RUN_ID:-generated}"
 echo "  dry_run:             $DRY_RUN"
-echo "  force_backfill:      $FORCE_BACKFILL"
 echo
 
 PYTHONPATH="$REPO_ROOT/etl${PYTHONPATH:+:$PYTHONPATH}" \

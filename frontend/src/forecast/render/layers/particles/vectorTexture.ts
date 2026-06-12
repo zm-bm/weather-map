@@ -2,7 +2,7 @@ import type { ParticlesWindow } from '@/forecast/frames'
 import {
   sourceBandIds,
 } from '@/forecast/catalog/source'
-import { encodedRasterBandIdMismatch } from '../../encodedGrid'
+import { encodedGridBoundaryUniforms, encodedRasterBandIdMismatch } from '../../encodedGrid'
 import { toCellCenterOrigin } from './geo'
 
 type ParticleFrame = ParticlesWindow['lower']
@@ -100,6 +100,7 @@ export function packedVectorFramePairUniforms(framePair: PackedVectorFramePair) 
     u_lat0: samplingOrigin.lat0,
     u_dx: raster.grid.dx,
     u_dy: raster.grid.dy,
+    ...encodedGridBoundaryUniforms(raster.grid),
     u_vector_scale: encoding.scale,
     u_vector_offset: encoding.offset,
     u_vector_size: [raster.grid.nx, raster.grid.ny],

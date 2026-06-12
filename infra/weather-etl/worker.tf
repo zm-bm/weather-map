@@ -174,3 +174,51 @@ resource "aws_batch_job_definition" "worker_icon" {
 
   depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
 }
+
+resource "aws_batch_job_definition" "worker_mrms" {
+  name = local.names.worker_mrms_job_definition
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image            = "${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag}"
+    executionRoleArn = aws_iam_role.batch_task_execution.arn
+    jobRoleArn       = aws_iam_role.batch_job.arn
+    resourceRequirements = [
+      { type = "VCPU", value = "1" },
+      { type = "MEMORY", value = tostring(var.mrms_worker_memory_mib) }
+    ]
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+    environment = [
+      { name = "ARTIFACT_ROOT_URI", value = local.artifact_root_uri },
+      { name = "PIPELINE_URI", value = local.pipeline_uri },
+      { name = "CATALOG_URI", value = local.catalog_uri },
+      { name = "AWS_DEFAULT_REGION", value = var.aws_region }
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.batch.name
+        awslogs-region        = var.aws_region
+        awslogs-stream-prefix = "worker-mrms"
+      }
+    }
+  })
+
+  retry_strategy {
+    attempts = var.batch_retry_attempts
+  }
+
+  timeout {
+    attempt_duration_seconds = var.mrms_worker_timeout_seconds
+  }
+
+  tags = merge(local.tags, {
+    Name = local.names.worker_mrms_job_definition
+  })
+
+  depends_on = [aws_s3_object.pipeline, aws_s3_object.catalog]
+}

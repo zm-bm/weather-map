@@ -8,8 +8,7 @@ import {
 import {
   hasExactBandIds,
   sourceBandIds,
-  type LoadSource,
-  type RasterSource,
+  type ArtifactSource,
 } from './source'
 import {
   CONTOUR_LAYERS,
@@ -20,7 +19,12 @@ import {
   type ParticleLayer,
 } from './entries'
 
-export function getForecastRasterLayerArtifact(
+export type RenderableRasterLayer = {
+  layer: ForecastRasterLayer
+  artifact: ManifestArtifactSpec
+}
+
+function getForecastRasterLayerArtifact(
   activeRun: ActiveForecastRun,
   layer: ForecastRasterLayer,
 ): ManifestArtifactSpec | null {
@@ -42,14 +46,23 @@ export function isForecastRasterLayerAvailable(
   return artifact.kind === 'scalar' || hasExactBandIds(artifact.components, sourceBandIds(layer.source))
 }
 
-export function getAvailableRasterLayer(
+export function resolveRenderableRasterLayer(
   activeRun: ActiveForecastRun | null,
   layerId: string | null,
-): ForecastRasterLayer | null {
+): RenderableRasterLayer | null {
   if (activeRun == null || layerId == null) return null
   const layer = FORECAST_RASTER_LAYERS_BY_ID[layerId]
+  if (layer == null) return null
   const availability = getActiveRunLayerAvailability(activeRun, layerId)
-  return layer != null && availability?.state === 'available' ? layer : null
+  if (availability?.state !== 'available') return null
+
+  const artifact = getForecastRasterLayerArtifact(activeRun, layer)
+  if (!artifact) return null
+  if (artifact.kind === 'vector' && !hasExactBandIds(artifact.components, sourceBandIds(layer.source))) {
+    return null
+  }
+
+  return { layer, artifact }
 }
 
 export function getAvailableParticleLayer(
@@ -93,7 +106,7 @@ function isBandIdLayerAvailable(
   return artifact.kind === 'scalar' || hasExactBandIds(artifact.components, bandIds)
 }
 
-function expectedStorageKindForSource(source: LoadSource | RasterSource): ArtifactKind {
+function expectedStorageKindForSource(source: ArtifactSource): ArtifactKind {
   return expectedStorageKindForBandIds(sourceBandIds(source))
 }
 

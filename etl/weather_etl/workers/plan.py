@@ -1,4 +1,4 @@
-"""Typed cycle plan carriers and stable operator serialization."""
+"""Typed run plan carriers and stable operator serialization."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from typing import Any, Literal
 
 from .spec import FrameWorkerSpec
 
-PLAN_SCHEMA = "weather-map.etl-cycle-submission-plan"
-PLAN_SCHEMA_VERSION = 2
+PLAN_SCHEMA = "weather-map.etl-run-plan"
+PLAN_SCHEMA_VERSION = 3
 FramePlanState = Literal["pending", "missing", "complete", "invalid", "claimed"]
 
 
 @dataclass(frozen=True)
-class CycleCommandPlan:
+class RunCommandPlan:
     """One planned CLI command plus environment."""
 
     env: Mapping[str, str]
@@ -29,7 +29,7 @@ class CycleCommandPlan:
 
 @dataclass(frozen=True)
 class FrameStatePlan:
-    """One frame's completion/claim state in a cycle plan."""
+    """One frame's completion/claim state in a run plan."""
 
     frame_id: str
     state: FramePlanState
@@ -60,8 +60,8 @@ class FrameStatePlan:
 
 
 @dataclass(frozen=True)
-class CyclePlan:
-    """Typed cycle plan used by operations, with stable operator serialization."""
+class RunPlan:
+    """Typed run plan used by operations, with stable operator serialization."""
 
     dataset_id: str
     cycle: str
@@ -78,8 +78,8 @@ class CyclePlan:
     artifact_ids: tuple[str, ...]
     workers: tuple[FrameWorkerSpec, ...]
     frame_states: tuple[FrameStatePlan, ...]
-    validation: CycleCommandPlan
-    publish: CycleCommandPlan | None
+    validation: RunCommandPlan
+    publish: RunCommandPlan | None
 
     def worker_for_frame(self, frame_id: str) -> FrameWorkerSpec | None:
         """Return the planned worker for a frame, if one exists."""

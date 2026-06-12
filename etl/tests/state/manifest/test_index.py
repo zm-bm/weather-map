@@ -253,7 +253,7 @@ def test_sets_latest_to_null_when_latest_manifest_is_malformed(tmp_path: Path) -
     assert manifest_index["layers"]["native_scalar"]["datasets"]["gfs"]["state"] == "temporarily_unavailable"
 
 
-def test_strict_build_rejects_malformed_latest_manifest(tmp_path: Path) -> None:
+def test_strict_dataset_build_rejects_that_dataset_malformed_latest(tmp_path: Path) -> None:
     product_config = _default_product_config()
     repo = _repo(tmp_path)
     repo.store.write_bytes(uri=repo.paths.latest_manifest_uri(dataset_id="gfs"), data=b"{not-json")
@@ -263,8 +263,33 @@ def test_strict_build_rejects_malformed_latest_manifest(tmp_path: Path) -> None:
             product_config=product_config,
             artifact_repo=repo,
             generated_at="2026-05-16T00:00:00Z",
-            strict_latest_manifests=True,
+            strict_dataset_ids=("gfs",),
         )
+
+
+def test_strict_dataset_build_tolerates_unrelated_malformed_latest(tmp_path: Path) -> None:
+    product_config = _default_product_config()
+    cfg = product_config.pipeline_config
+    repo = _repo(tmp_path)
+    gfs = cfg.dataset("gfs")
+    write_latest_manifest(
+        repo,
+        dataset_id="gfs",
+        manifest=cycle_manifest_dict(gfs, cycle="2026051606", artifact_ids=("tmp_surface",)),
+    )
+    repo.store.write_bytes(uri=repo.paths.latest_manifest_uri(dataset_id="icon"), data=b"{not-json")
+
+    manifest_index = build_index(
+        product_config=product_config,
+        artifact_repo=repo,
+        generated_at="2026-05-16T00:00:00Z",
+        strict_dataset_ids=("gfs",),
+    )
+
+    assert manifest_index["datasets"]["gfs"]["latest"] is not None
+    assert manifest_index["datasets"]["icon"]["latest"] is None
+    assert manifest_index["layers"]["native_scalar"]["datasets"]["gfs"]["state"] == "available"
+    assert manifest_index["layers"]["unsupported_scalar"]["datasets"]["icon"]["state"] == "temporarily_unavailable"
 
 
 @pytest.mark.parametrize(

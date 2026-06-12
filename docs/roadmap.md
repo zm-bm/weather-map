@@ -4,9 +4,7 @@ Last updated: 2026-05-24
 
 ## Next Priorities
 
-### 0.1. Add "nearest" layer sampling mode
-### 0.2. Pre-warm cache after model run
-
+### 0.1. Pre-warm cache after model run
 
 ### 1. Audit Default Palette And Boundary Correctness
 
@@ -52,33 +50,7 @@ Key work:
 This should answer: can users safely customize layer color palettes without
 breaking legends, units, or renderer boundary behavior?
 
-### 3. Add Selected Forecast Rendering Controls
-
-Expose a small, useful set of runtime controls in the map options UI.
-
-This should be a curated app control surface, not a debug panel. Good
-candidates are controls that are safe to adjust live and easy to understand,
-such as field opacity/intensity or particle density/speed.
-
-### 4. Add NEXRAD Observed Radar
-
-Add observed radar as a separate source family, not as a normal forecast model
-layer.
-
-Start with `nexrad_reflectivity`, but settle source, payload, cache, and time
-semantics before adding catalog UI. Observed radar should be clearly labeled as
-observed data and should not be confused with forecast reflectivity.
-
-Key decisions:
-
-- whether radar uses raster tiles, artifact-backed grids, or another payload
-  shape
-- whether radar uses the forecast timeline, a recent-observed timeline, or a
-  hybrid control
-- cache scope and refresh behavior for recent observed data
-- how observed radar coexists with model reflectivity and storm layers
-
-### 5. Add Forecast Model Expansion Track
+### 4. Add Forecast Model Expansion Track
 
 Plan support for additional forecast models such as HRRR and ECMWF.
 
@@ -99,7 +71,7 @@ Key decisions:
 - whether model selection should be global, per-layer, or hidden until support
   is broad enough
 
-### 6. Add ETL Health Notifications
+### 5. Add ETL Health Notifications
 
 Add low-noise notifications when ETL health is stale, failing, or otherwise
 requires attention.

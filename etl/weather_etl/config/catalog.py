@@ -132,8 +132,14 @@ def catalog_requirements(catalog: Mapping[str, Any]) -> CatalogRequirements:
     parsed_catalog = parse_catalog(catalog)
     overlays_by_id = {layer.id: layer for layer in parsed_catalog.overlay_layers}
     raster_layers = tuple(
-        _raster_layer_requirements(layer, overlays_by_id=overlays_by_id)
+        layer_requirements
         for layer in parsed_catalog.raster_layers
+        if (
+            layer_requirements := _raster_layer_requirements(
+                layer,
+                overlays_by_id=overlays_by_id,
+            )
+        ) is not None
     )
     top_level_layers = (
         *(_overlay_layer_requirements(overlay) for overlay in parsed_catalog.overlay_layers),
@@ -150,7 +156,7 @@ def _raster_layer_requirements(
     layer: _RasterLayer,
     *,
     overlays_by_id: Mapping[str, _OverlayLayer],
-) -> CatalogLayerRequirements:
+) -> CatalogLayerRequirements | None:
     source_requirements = _source_layer_requirements(layer_id=layer.id, source=layer.source, optional=False)
     required = list(source_requirements.required)
     optional_requirements = list(source_requirements.optional)

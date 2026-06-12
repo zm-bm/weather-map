@@ -92,7 +92,10 @@ def require_dataset_id(args: argparse.Namespace) -> str:
 
 
 def _normalize_frame(raw: str, *, index: int) -> str:
+    value = raw.strip()
+    if len(value) == 14 and value.isdigit():
+        return value
     try:
-        return format_lead_hour_frame_id(raw)
+        return format_lead_hour_frame_id(value)
     except ValueError as exc:
-        raise SystemExit(f"--frames[{index}] must be a lead-hour frame: {exc}") from None
+        raise SystemExit(f"--frames[{index}] must be a lead-hour or YYYYMMDDHHMMSS frame id: {exc}") from None

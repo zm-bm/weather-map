@@ -23,7 +23,6 @@ export {
   initialForecastValidTimeMs,
   MINUTE_MS,
   minuteOffsetForValidTime,
-  normalizeMinuteMs,
   resolveForecastInterpolationWindow,
   stepForecastValidTimeMs,
   validTimeMsForMinuteOffset,

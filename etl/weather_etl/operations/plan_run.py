@@ -12,10 +12,11 @@ from ..config.pipeline import DatasetConfig
 from ..config.product import product_config_digest as compute_product_config_digest
 from ..core.cycles import parse_cycle
 from ..environment import EtlEnvironment
+from ..sources.registry import resolve_source_frame_ids
 from ..state.runs.completion import FrameCompletion, inspect_frame_completion
 from ..state.runs.ids import generate_run_id, parse_run_id
 from ..state.runs.snapshots import LoadedRunSnapshot
-from ..workers.plan import CycleCommandPlan, CyclePlan, FramePlanState, FrameStatePlan
+from ..workers.plan import FramePlanState, FrameStatePlan, RunCommandPlan, RunPlan
 from ..workers.spec import FrameWorkerSpec
 from .workload_selection import (
     WorkloadSelectionError,
@@ -27,7 +28,7 @@ _FRAME_STATE_SAMPLE_LIMIT = 5
 
 
 @dataclass(frozen=True)
-class _CyclePlanContext:
+class _RunPlanContext:
     run_id: str
     dataset: DatasetConfig
     snapshot: LoadedRunSnapshot | None
@@ -54,7 +55,7 @@ class _ClaimReader(Protocol):
         ...
 
 
-def plan_cycle(
+def plan_run(
     *,
     env: EtlEnvironment,
     dataset_id: str,
@@ -67,7 +68,7 @@ def plan_cycle(
     source_uris_by_frame: Mapping[str, str] | None = None,
     now: datetime | None = None,
     loaded_snapshot: LoadedRunSnapshot | None = None,
-) -> CyclePlan:
+) -> RunPlan:
     """Build a read-only plan for local/AWS execution."""
 
     parse_cycle(cycle)
@@ -79,7 +80,11 @@ def plan_cycle(
         loaded_snapshot=loaded_snapshot,
     )
     try:
-        frames = selected_workload_frame_ids(configured=context.dataset.workload.frames, selected=selected_frames)
+        frames = _planned_frame_ids(
+            context=context,
+            selected_frames=selected_frames,
+            store=env.store,
+        )
         artifact_ids = selected_workload_artifact_ids(context.dataset, selected_artifacts)
     except WorkloadSelectionError as exc:
         raise SystemExit(str(exc)) from None
@@ -107,7 +112,7 @@ def plan_cycle(
         if worker is not None:
             workers.append(worker)
 
-    return CyclePlan(
+    return RunPlan(
         dataset_id=dataset_id,
         cycle=cycle,
         run_id=context.run_id,
@@ -125,16 +130,32 @@ def plan_cycle(
         frame_states=tuple(frame_states),
         validation=_command_plan(
             env=common_env,
-            command=_stage_command("validate-cycle", dataset_id=dataset_id, cycle=cycle, run_id=context.run_id),
+            command=_stage_command("validate-run", dataset_id=dataset_id, cycle=cycle, run_id=context.run_id),
         ),
         publish=(
             _command_plan(
                 env=common_env,
-                command=_stage_command("publish-cycle", dataset_id=dataset_id, cycle=cycle, run_id=context.run_id),
+                command=_stage_command("publish-run", dataset_id=dataset_id, cycle=cycle, run_id=context.run_id),
             )
             if publish
             else None
         ),
+    )
+
+
+def _planned_frame_ids(
+    *,
+    context: _RunPlanContext,
+    selected_frames: Iterable[str] | None,
+    store,
+) -> tuple[str, ...]:
+    if context.snapshot is not None:
+        return selected_workload_frame_ids(configured=context.dataset.workload.frames, selected=selected_frames)
+
+    return resolve_source_frame_ids(
+        dataset=context.dataset,
+        selected_frames=selected_frames,
+        store=store,
     )
 
 
@@ -145,7 +166,7 @@ def _load_planning_context(
     cycle: str,
     run_id: str | None,
     loaded_snapshot: LoadedRunSnapshot | None,
-) -> _CyclePlanContext:
+) -> _RunPlanContext:
     resolved_run_id = _resolved_planning_run_id(run_id=run_id, loaded_snapshot=loaded_snapshot)
     snapshot = loaded_snapshot
     try:
@@ -159,7 +180,7 @@ def _load_planning_context(
         digest = compute_product_config_digest(runtime.product_config)
 
     paths = env.artifact_repo.paths
-    return _CyclePlanContext(
+    return _RunPlanContext(
         run_id=resolved_run_id,
         dataset=dataset,
         snapshot=snapshot,
@@ -187,7 +208,7 @@ def _resolved_planning_run_id(*, run_id: str | None, loaded_snapshot: LoadedRunS
 def _common_worker_env(
     *,
     env: EtlEnvironment,
-    context: _CyclePlanContext,
+    context: _RunPlanContext,
     dataset_id: str,
     cycle: str,
 ) -> dict[str, str]:
@@ -209,7 +230,7 @@ def _common_worker_env(
 def _plan_frame(
     *,
     env: EtlEnvironment,
-    context: _CyclePlanContext,
+    context: _RunPlanContext,
     dataset_id: str,
     cycle: str,
     frame_id: str,
@@ -261,7 +282,7 @@ def _plan_frame(
 def _frame_completion(
     *,
     env: EtlEnvironment,
-    context: _CyclePlanContext,
+    context: _RunPlanContext,
     cycle: str,
     frame_id: str,
     artifact_ids: tuple[str, ...],
@@ -378,5 +399,5 @@ def _stage_command(command_name: str, *, dataset_id: str, cycle: str, run_id: st
     )
 
 
-def _command_plan(*, env: Mapping[str, str], command: Iterable[str]) -> CycleCommandPlan:
-    return CycleCommandPlan(env=dict(env), command=tuple(command))
+def _command_plan(*, env: Mapping[str, str], command: Iterable[str]) -> RunCommandPlan:
+    return RunCommandPlan(env=dict(env), command=tuple(command))

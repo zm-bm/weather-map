@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import type { ForecastDatasetId, ForecastDatasetOption, Manifest } from '@/forecast/manifest'
@@ -224,6 +224,36 @@ describe('ForecastPanel', () => {
 
     expect(sourceSelect()).toHaveValue('gfs')
     expect(measurementSelect()).toHaveValue('visibility')
+  })
+
+  it('shows observed radar measurements and constrains source choices to MRMS', async () => {
+    const manifest = createCatalogManifestFixture()
+
+    renderPanelWithManifest(manifest, {
+      activeDatasetId: 'gfs',
+      datasetOptions: [
+        ...MODEL_OPTIONS,
+        { id: 'mrms', label: 'MRMS' },
+      ],
+    })
+
+    expect(screen.getByRole('option', { name: 'Observed Radar Base' }))
+      .toHaveValue('observed_radar_base_reflectivity')
+    expect(screen.getByRole('option', { name: 'Observed Radar Base' }))
+      .toBeEnabled()
+    expect(screen.getByRole('option', { name: 'Observed Radar Composite' }))
+      .toHaveValue('observed_radar_composite_reflectivity')
+    expect(screen.getByRole('option', { name: 'Observed Radar Composite' }))
+      .toBeEnabled()
+
+    selectMeasurement('observed_radar_base_reflectivity')
+
+    await waitFor(() => {
+      expect(measurementSelect()).toHaveValue('observed_radar_base_reflectivity')
+      expect(sourceSelect()).toHaveValue('mrms')
+    })
+    expect(screen.getByRole('option', { name: 'MRMS' })).toBeEnabled()
+    expect(screen.getByRole('option', { name: 'ICON (unavailable)' })).toBeDisabled()
   })
 
   it('updates selected layer through the grouped measurement control without rendering unit controls', () => {

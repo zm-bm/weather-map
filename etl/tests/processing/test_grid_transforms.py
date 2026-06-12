@@ -43,6 +43,17 @@ def test_regular_grid_downsample_2x_updates_odd_grid_metadata() -> None:
     assert result["x_wrap"] == "repeat"
 
 
+def test_regular_grid_downsample_2x_retains_regional_boundary_modes() -> None:
+    result = regular_grid_downsample_2x_meta({
+        **_grid(),
+        "x_wrap": "none",
+        "y_mode": "none",
+    })
+
+    assert result["x_wrap"] == "none"
+    assert result["y_mode"] == "none"
+
+
 def test_regular_grid_downsample_2x_uses_prefilter_wrap_and_bounds() -> None:
     values = [float(value) for value in range(15)]
     result = _unpack_f32(

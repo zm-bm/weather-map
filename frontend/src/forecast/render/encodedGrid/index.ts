@@ -6,6 +6,7 @@ export {
 } from './texture'
 export {
   encodedFramePairUniforms,
+  encodedGridBoundaryUniforms,
   encodedGridUniforms,
   encodedLinearUniforms,
   encodedRasterBandIdMismatch,
@@ -13,6 +14,10 @@ export {
   assertEncodedRasterBandIds,
   resolveEncodedFramePair,
   validateEncodedGridFrameSpec,
+  ENCODED_GRID_X_WRAP_NONE,
+  ENCODED_GRID_X_WRAP_REPEAT,
+  ENCODED_GRID_Y_MODE_NONE,
+  ENCODED_GRID_Y_MODE_CLAMP,
   type EncodedFramePair,
   type EncodedGridFrameSpec,
   type EncodedLinearUniformSource,

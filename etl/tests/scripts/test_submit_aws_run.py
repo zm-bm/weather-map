@@ -5,50 +5,15 @@ from pathlib import Path
 import pytest
 
 from tests.fixtures.artifacts import DEFAULT_RUN_ID
-from tests.fixtures.scripts import AwsCycleScriptHarness, aws_cycle_script_harness
+from tests.fixtures.scripts import AwsRunScriptHarness, aws_run_script_harness
 
 
 @pytest.fixture
-def script(repo_root: Path, tmp_path: Path) -> AwsCycleScriptHarness:
-    return aws_cycle_script_harness(repo_root, tmp_path)
+def script(repo_root: Path, tmp_path: Path) -> AwsRunScriptHarness:
+    return aws_run_script_harness(repo_root, tmp_path)
 
 
-def test_older_cycle_blocks_without_force_backfill_flag(script: AwsCycleScriptHarness) -> None:
-    result = script.run(
-        "--cycle",
-        "2026051100",
-        "--dry-run",
-        "--skip-config-check",
-        submission_policy_status=2,
-    )
-
-    assert result.returncode == 2
-    assert "Cycle submission policy check failed." in result.stderr
-    assert "allowed=false" in result.stderr
-    assert "Run snapshot" not in result.stdout
-    assert "dry-run job_name" not in result.stdout
-    assert "submit-aws-cycle" in script.cli_log()
-
-
-def test_force_backfill_flag_allows_dry_run(script: AwsCycleScriptHarness) -> None:
-    result = script.run(
-        "--cycle",
-        "2026051100",
-        "--force-backfill",
-        "--dry-run",
-        "--skip-config-check",
-    )
-
-    assert result.returncode == 0
-    assert "force_backfill:      true" in result.stdout
-    assert "Cycle submission policy" in result.stdout
-    assert "force_backfill=true" in result.stdout
-    assert "Run snapshot" in result.stdout
-    assert "dry-run job_name" in result.stdout
-    assert "--force-backfill" in script.cli_log()
-
-
-def test_dry_run_shows_submission_policy_before_snapshot_and_jobs(script: AwsCycleScriptHarness) -> None:
+def test_dry_run_shows_snapshot_before_jobs(script: AwsRunScriptHarness) -> None:
     result = script.run(
         "--cycle",
         "2026051100",
@@ -59,17 +24,16 @@ def test_dry_run_shows_submission_policy_before_snapshot_and_jobs(script: AwsCyc
     )
 
     assert result.returncode == 0
-    assert result.stdout.index("Cycle submission policy") < result.stdout.index("Run snapshot")
     assert result.stdout.index("Run snapshot") < result.stdout.index("dry-run job_name")
     assert "source_pipeline_uri: s3://config-bucket/pipeline.json" in result.stdout
     assert "source_catalog_uri:  s3://config-bucket/catalog.json" in result.stdout
     assert _run_config_line("gfs", "2026051100") in result.stdout
     assert _run_catalog_line("gfs", "2026051100") in result.stdout
     assert result.stdout.count("dry-run job_name") == 2
-    assert "submit-aws-cycle" in script.cli_log()
+    assert "submit-aws-run" in script.cli_log()
 
 
-def test_submit_uses_one_snapshot_and_run_scoped_batch_env(script: AwsCycleScriptHarness) -> None:
+def test_submit_uses_one_snapshot_and_run_scoped_batch_env(script: AwsRunScriptHarness) -> None:
     result = script.run(
         "--cycle",
         "2026051100",
@@ -82,7 +46,7 @@ def test_submit_uses_one_snapshot_and_run_scoped_batch_env(script: AwsCycleScrip
     assert "Submitted 2 Batch jobs." in result.stdout
     assert "The scheduled weather-etl-publisher Lambda will validate the run and publish manifests" in result.stdout
     cli_log = script.cli_log()
-    assert "submit-aws-cycle" in cli_log
+    assert "submit-aws-run" in cli_log
     assert " init-run " not in cli_log
 
     jobs = script.submitted_batch_jobs()
@@ -101,7 +65,7 @@ def test_submit_uses_one_snapshot_and_run_scoped_batch_env(script: AwsCycleScrip
         assert env["GRIB_SOURCE_URI"] == _gfs_source_uri("2026051100", expected_frame_id)
 
 
-def test_icon_submit_uses_icon_job_definition_and_no_grib_source_env(script: AwsCycleScriptHarness) -> None:
+def test_icon_submit_uses_icon_job_definition_and_no_grib_source_env(script: AwsRunScriptHarness) -> None:
     result = script.run(
         "--dataset-id",
         "icon",

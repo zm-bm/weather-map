@@ -42,6 +42,23 @@ describe('resolveForecastSyncPlan', () => {
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })).toBeNull()
+
+    const nonRenderableActiveRun = createActiveRunFixture(createManifestFixture({
+      artifacts: {
+        wind10m_uv: createVectorArtifactFixture({
+          id: 'wind10m_uv',
+          components: ['speed'],
+        }),
+      },
+    }))
+
+    expect(resolveForecastSyncPlan({
+      activeRun: nonRenderableActiveRun,
+      selectedLayerId: 'wind_speed',
+      selectedParticleLayerId: null,
+      targetTimeMs: Date.UTC(2026, 3, 9),
+      syncOptions,
+    })).toBeNull()
   })
 
   it('resolves raster and particle window plans', () => {
@@ -73,6 +90,7 @@ describe('resolveForecastSyncPlan', () => {
         failurePolicy: 'required',
         output: 'single',
         frames: [expect.objectContaining({
+          sourceKind: 'raster',
           artifactId: 'wind10m_uv',
           bandIds: ['u', 'v'],
           source: expect.objectContaining({
@@ -92,6 +110,7 @@ describe('resolveForecastSyncPlan', () => {
         failurePolicy: 'required',
         output: 'single',
         frames: [expect.objectContaining({
+          sourceKind: 'particles',
           artifactId: 'wind10m_uv',
           bandIds: ['u', 'v'],
           source: {
@@ -155,6 +174,7 @@ describe('resolveForecastSyncPlan', () => {
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:cloud_layers:cloud_layers:low+middle+high',
         output: 'single',
         frames: [expect.objectContaining({
+          sourceKind: 'raster',
           artifactId: 'cloud_layers',
           bandIds: ['low', 'middle', 'high'],
           source: expect.objectContaining({
@@ -177,6 +197,7 @@ describe('resolveForecastSyncPlan', () => {
         output: 'array',
         frames: [
           expect.objectContaining({
+            sourceKind: 'overlay',
             source: {
               id: 'precipitation_type',
               style: 'precipitation-type-pattern',
@@ -218,6 +239,7 @@ describe('resolveForecastSyncPlan', () => {
         failurePolicy: 'optional',
         output: 'single',
         frames: [expect.objectContaining({
+          sourceKind: 'contour',
           artifactId: 'prmsl_msl',
           bandIds: ['value'],
           source: {

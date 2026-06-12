@@ -1,6 +1,6 @@
 # Weather ETL Stack
 
-Production weather ETL infrastructure for GFS and ICON.
+Production weather ETL infrastructure for GFS, ICON, and MRMS.
 
 ## Flow
 
@@ -30,10 +30,23 @@ ICON is polled:
 5. Batch workers download ICON files from DWD, decompress, regrid with direct
    CDO, and write field artifacts plus success markers.
 
+MRMS is event-driven through SQS:
+
+1. NOAA publishes an MRMS object notification to SNS.
+2. SNS delivers the message to the MRMS ingest SQS queue with a DLQ.
+3. `weather-etl-ingest-mrms` filters the object key to the two configured
+   CONUS reflectivity products.
+4. For each product object, the Lambda waits until the counterpart product
+   exists for the same timestamp, creates a deterministic single-frame run id,
+   writes the run snapshot, and submits one Batch `run-frame` job.
+5. The worker reads both MRMS GRIB2 objects from `s3://noaa-mrms-pds/CONUS`
+   and writes observed radar field artifacts plus success markers.
+
 Publication is scheduled separately:
 
 1. EventBridge invokes `weather-etl-publisher` every 10 minutes.
-2. The publisher checks recent synoptic cycles for configured datasets.
+2. The publisher checks recent synoptic cycles for forecast datasets and recent
+   hourly cycles for MRMS.
 3. Complete runs are validated into run-scoped `validation.json` reports when
    needed.
 4. Runs with passing validation publish immutable public run manifests, update
@@ -41,7 +54,7 @@ Publication is scheduled separately:
    `publication.json`, and rebuild the aggregate frontend manifest index when
    latest changes.
 
-Both forecast datasets use the same worker image. Each run uses pinned copies of the
+All datasets use the same worker image. Each run uses pinned copies of the
 pipeline config and catalog stored under its run prefix.
 
 New ETL output is grouped by run:
@@ -110,6 +123,8 @@ claimed.
   - https://www.nco.ncep.noaa.gov/pmb/products/gfs/
 - ICON global: DWD Open Data
   - https://opendata.dwd.de/weather/nwp/icon/grib/
+- MRMS CONUS: `s3://noaa-mrms-pds/CONUS`
+  - https://registry.opendata.aws/noaa-mrms-pds/
 
 ## Config
 
@@ -210,6 +225,9 @@ scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
 scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
+MRMS production ingest is normally driven by the SNS/SQS notification path so
+the Lambda can create a timestamp-pinned single-frame run snapshot.
+
 Manual submits generate one run id per submitted cycle unless `--run-id` or
 `RUN_ID` is supplied. Supplying `--run-id` resumes that existing run and skips
 complete or actively claimed frames. Before submitting workers, the script
@@ -239,6 +257,7 @@ custom ETL metrics.
 Alerts are configured for:
 
 - GFS ingest, ICON ingest, and publisher Lambda errors
+- MRMS ingest Lambda errors
 - Batch worker `FAILED` state-change events
 - Batch queue blocked events
 
@@ -256,6 +275,7 @@ Useful live logs:
 
 ```bash
 aws logs tail /aws/lambda/weather-etl-ingest-icon --since 2h --follow
+aws logs tail /aws/lambda/weather-etl-ingest-mrms --since 2h --follow
 aws logs tail /aws/batch/weather-etl --since 2h --follow
 ```
 

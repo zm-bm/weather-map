@@ -4,23 +4,23 @@ set -euo pipefail
 usage() {
 	cat <<'EOF'
 Usage:
-	scripts/etl-run-local.sh --cycle <cycle> [--run-id <run_id>] [--dataset-id <dataset_id>] [--frames <frames>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
+	scripts/etl-run-local.sh [--cycle <cycle>] [--run-id <run_id>] [--dataset-id <dataset_id>] [--frames <frames>] [--artifact <id>] [--procs <n>] [--no-publish] [--rebuild] [--dry-run]
 
 Description:
 	Runs the normal local ETL lifecycle with Docker frame workers:
 	initialize the run, plan frames, run pending frame containers, validate, and
-	publish unless --no-publish is set. When --dataset-id is omitted, every
-	configured dataset is refreshed sequentially.
+	publish unless --no-publish is set. When --dataset-id is omitted, forecast
+	datasets are refreshed sequentially.
 
 Options:
-	--cycle <cycle>  Cycle string (example: 2026021600)
+	--cycle <cycle>  Cycle string (example: 2026021600); required for forecast datasets, optional for MRMS
 	--run-id <run_id>  Run id for this cycle attempt (default: generated)
-	--dataset-id <dataset_id>  Dataset id (default: all configured datasets)
-	--frames <frames>  Frame override, e.g. "000 001 006" or "000,001,006"
+	--dataset-id <dataset_id>  Dataset id (default: forecast datasets)
+	--frames <frames>  Frame override, e.g. "000 001 006", or MRMS timestamps "20260611000000,20260611000200"
 	--artifact <id>  Artifact id to process; repeat to process multiple artifacts
-	--procs <n>  Maximum concurrent local worker containers (default: 1)
+	--procs <n>  Maximum concurrent local run-frame worker containers across the invocation (default: 1)
 	--no-publish  Skip the final manifest publish step
-	--rebuild  Force a local worker image rebuild
+	--rebuild  Force local ETL base and app image rebuilds
 	--dry-run  Print planned containers without writing artifacts
 	-h, --help  Show this help and exit
 
@@ -28,6 +28,7 @@ Environment:
 	RUN_ID  Run id override; same format as --run-id
 	ETL_CODE_REVISION  Code revision recorded in run metadata and success markers
 	ETL_IMAGE_IDENTITY  Image identity recorded in run metadata and success markers
+	LOCAL_ETL_BASE_IMAGE  Local ETL base image tag (default: weather-map-etl-base:local)
 	LOCAL_ETL_IMAGE  Local worker image tag (default: weather-map-etl:local)
 	ETL_WORKER_STAGGER_SECONDS  Delay between parallel worker starts (default: 5)
 EOF
@@ -52,6 +53,7 @@ PROCS="1"
 DRY_RUN="${DRY_RUN:-false}"
 FORCE_REBUILD="false"
 NO_PUBLISH="false"
+LOCAL_ETL_BASE_IMAGE="${LOCAL_ETL_BASE_IMAGE:-weather-map-etl-base:local}"
 LOCAL_ETL_IMAGE="${LOCAL_ETL_IMAGE:-weather-map-etl:local}"
 ETL_CODE_REVISION="${ETL_CODE_REVISION:-}"
 ETL_IMAGE_IDENTITY="${ETL_IMAGE_IDENTITY:-}"
@@ -144,12 +146,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ -z "$CYCLE" ]]; then
-	echo "Error: --cycle <cycle> is required." >&2
-	usage >&2
-	exit 1
-fi
-if [[ ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
+if [[ -n "$CYCLE" && ! "$CYCLE" =~ ^[0-9]{10}$ ]]; then
 	echo "Error: --cycle must be YYYYMMDDHH, got: $CYCLE" >&2
 	exit 1
 fi
@@ -168,7 +165,7 @@ CONFIG_FILE="$ROOT/config/pipeline.json"
 CATALOG_FILE="$ROOT/config/catalog.json"
 ARTIFACTS_DIR="$ROOT/artifacts"
 CACHE_DIR="$ETL_DIR/cache"
-IMAGE_FINGERPRINT_LABEL="org.zmbm.weather-map.weather-etl.source-fingerprint"
+source "$ROOT/scripts/lib/etl-image-build.sh"
 PYTHON_BIN="${PYTHON_BIN:-$ROOT/.venv/bin/python}"
 if [[ ! -x "$PYTHON_BIN" ]]; then
 	PYTHON_BIN="python3"
@@ -178,7 +175,7 @@ if [[ -z "$ETL_CODE_REVISION" ]]; then
 	ETL_CODE_REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 fi
 if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
-	ETL_IMAGE_IDENTITY="$LOCAL_ETL_IMAGE"
+	ETL_IMAGE_IDENTITY=""
 fi
 
 mkdir -p "$ARTIFACTS_DIR" "$CACHE_DIR"
@@ -190,70 +187,69 @@ require_docker() {
 	fi
 }
 
-image_source_fingerprint() {
-	(
-		cd "$ROOT"
-		{
-			printf '%s\0' \
-				config/catalog.json \
-				config/pipeline.json \
-				etl/Dockerfile \
-				etl/pyproject.toml
-			find etl/weather_etl \
-				-type f \
-				! -path '*/__pycache__/*' \
-				! -name '*.pyc' \
-				-print0
-		} | LC_ALL=C sort -z | xargs -0 sha256sum
-	) | sha256sum | awk '{print $1}'
-}
-
-inspect_image_fingerprint() {
-	docker image inspect \
-		--format "{{ index .Config.Labels \"$IMAGE_FINGERPRINT_LABEL\" }}" \
-		"$LOCAL_ETL_IMAGE" 2>/dev/null
-}
-
-build_worker_image() {
+build_base_image() {
 	local fingerprint="$1"
 	docker build \
 		--network=host \
+		--label "$ETL_BASE_FINGERPRINT_LABEL=$fingerprint" \
+		-f "$ETL_DIR/Dockerfile.base" \
+		-t "$LOCAL_ETL_BASE_IMAGE" \
+		"$ROOT"
+}
+
+build_app_image() {
+	local base_fingerprint="$1"
+	local app_fingerprint="$2"
+	local image_identity="$3"
+	docker build \
+		--network=host \
+		--build-arg "ETL_BASE_IMAGE=$LOCAL_ETL_BASE_IMAGE" \
 		--build-arg "ETL_CODE_REVISION=$ETL_CODE_REVISION" \
-		--build-arg "ETL_IMAGE_IDENTITY=$LOCAL_ETL_IMAGE@$fingerprint" \
-		--label "$IMAGE_FINGERPRINT_LABEL=$fingerprint" \
+		--build-arg "ETL_IMAGE_IDENTITY=$image_identity" \
+		--label "$ETL_BASE_FINGERPRINT_LABEL=$base_fingerprint" \
+		--label "$ETL_APP_FINGERPRINT_LABEL=$app_fingerprint" \
 		-f "$ETL_DIR/Dockerfile" \
 		-t "$LOCAL_ETL_IMAGE" \
 		"$ROOT"
 }
 
-prepare_worker_image() {
-	local expected_fingerprint
-	local current_fingerprint
-	local build_reason
-	expected_fingerprint="$(image_source_fingerprint)"
-	if [[ "$FORCE_REBUILD" == "true" ]]; then
-		build_reason="forced by --rebuild"
-	elif ! current_fingerprint="$(inspect_image_fingerprint)"; then
-		build_reason="image is missing"
-	elif [[ -z "$current_fingerprint" || "$current_fingerprint" == "<no value>" ]]; then
-		build_reason="image has no source fingerprint"
-	elif [[ "$current_fingerprint" != "$expected_fingerprint" ]]; then
-		build_reason="ETL image inputs changed"
-	else
-		echo "Worker image is current; skipping rebuild."
-		return 0
+prepare_worker_images() {
+	local expected_base_fingerprint="$1"
+	local expected_app_fingerprint="$2"
+	local image_identity="$3"
+	local base_build_reason=""
+	local app_build_reason=""
+	local base_rebuilt="false"
+
+	base_build_reason="$(etl_base_image_rebuild_reason "$LOCAL_ETL_BASE_IMAGE" "$expected_base_fingerprint" "$FORCE_REBUILD")"
+	if [[ -n "$base_build_reason" ]]; then
+		echo "Building ETL base image ($base_build_reason)."
+		build_base_image "$expected_base_fingerprint"
+		base_rebuilt="true"
 	fi
-	echo "Building worker image ($build_reason)."
-	build_worker_image "$expected_fingerprint"
+
+	app_build_reason="$(etl_app_image_rebuild_reason "$LOCAL_ETL_IMAGE" "$expected_app_fingerprint" "$expected_base_fingerprint" "$base_rebuilt" "$FORCE_REBUILD")"
+	if [[ -n "$app_build_reason" ]]; then
+		echo "Building ETL app image ($app_build_reason)."
+		build_app_image "$expected_base_fingerprint" "$expected_app_fingerprint" "$image_identity"
+	fi
+
+	if [[ -z "$base_build_reason" && -z "$app_build_reason" ]]; then
+		echo "Worker images are current; skipping rebuild."
+	fi
 }
 
 require_docker
-echo "Preparing local ETL worker image: $LOCAL_ETL_IMAGE"
-prepare_worker_image
+EXPECTED_BASE_FINGERPRINT="$(etl_base_image_source_fingerprint "$ROOT")"
+EXPECTED_APP_FINGERPRINT="$(etl_app_image_source_fingerprint "$ROOT")"
+if [[ -z "$ETL_IMAGE_IDENTITY" ]]; then
+	ETL_IMAGE_IDENTITY="$LOCAL_ETL_IMAGE@base-$EXPECTED_BASE_FINGERPRINT.app-$EXPECTED_APP_FINGERPRINT"
+fi
+echo "Preparing local ETL worker images: $LOCAL_ETL_BASE_IMAGE -> $LOCAL_ETL_IMAGE"
+prepare_worker_images "$EXPECTED_BASE_FINGERPRINT" "$EXPECTED_APP_FINGERPRINT" "$ETL_IMAGE_IDENTITY"
 
 cmd=(
-	"$PYTHON_BIN" -m weather_etl run-cycle
-	--cycle "$CYCLE"
+	"$PYTHON_BIN" -m weather_etl run-local
 	--artifact-root-uri "file://$ARTIFACTS_DIR"
 	--pipeline-uri "file://$CONFIG_FILE"
 	--catalog-uri "file://$CATALOG_FILE"
@@ -263,6 +259,9 @@ cmd=(
 	--procs "$PROCS"
 	--worker-stagger-seconds "$ETL_WORKER_STAGGER_SECONDS"
 )
+if [[ -n "$CYCLE" ]]; then
+	cmd+=(--cycle "$CYCLE")
+fi
 if [[ -n "$RUN_ID" ]]; then
 	cmd+=(--run-id "$RUN_ID")
 fi

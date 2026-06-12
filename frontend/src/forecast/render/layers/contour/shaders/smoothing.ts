@@ -25,19 +25,21 @@ uniform int u_has_nodata;
 uniform int u_nodata;
 uniform float u_scale;
 uniform float u_offset;
+uniform int u_x_wrap;
+uniform int u_y_mode;
 
 ${PRESSURE_CONTOUR_CONSTANTS_GLSL}
 ${ENCODED_GRID_GLSL}
 ${PRESSURE_SMOOTHING_GLSL}
 
 EncodedSample samplePressureCellHpa(int x, int y) {
-  int sampleX = int(encodedWrapRepeat(float(x), u_grid_size.x));
-  int sampleY = clamp(y, 0, int(u_grid_size.y) - 1);
+  EncodedGridLocation location = encodedGridLocationAt(float(x), float(y), u_grid_size, u_x_wrap, u_y_mode);
+  if (location.valid <= 0.0) return encodedMissing();
   EncodedSample pressurePa = sampleLinearLayer(
     u_encoded_tex,
     0,
-    sampleX,
-    sampleY,
+    location.nearestX,
+    location.nearestY,
     u_has_nodata,
     u_nodata,
     u_scale,

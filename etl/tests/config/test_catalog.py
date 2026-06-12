@@ -51,6 +51,33 @@ def test_catalog_requirements_collects_all_source_artifact_ids() -> None:
     assert requirements.raster_layers[0].optional[0].artifact_id == "precip_type_surface"
 
 
+def test_catalog_requirements_includes_observed_radar_artifact_layers() -> None:
+    requirements = catalog_requirements(
+        {
+            "catalogVersion": "test",
+            "rasterLayers": [
+                {
+                    "id": "temperature",
+                    "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]},
+                },
+                {
+                    "id": "observed_radar_base_reflectivity",
+                    "source": {
+                        "artifactId": "observed_radar_base_reflectivity",
+                        "bands": [{"id": "value"}],
+                    },
+                },
+            ],
+        }
+    )
+
+    assert [layer.layer_id for layer in requirements.raster_layers] == [
+        "temperature",
+        "observed_radar_base_reflectivity",
+    ]
+    assert requirements.source_artifact_ids == {"tmp_surface", "observed_radar_base_reflectivity"}
+
+
 def test_catalog_requirements_rejects_duplicate_overlay_ids() -> None:
     with pytest.raises(SystemExit, match="duplicate id"):
         catalog_requirements(

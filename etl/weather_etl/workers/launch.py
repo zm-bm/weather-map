@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Protocol
 
 from .claims.store import FrameClaimStore
-from .plan import CyclePlan
+from .plan import RunPlan
 from .spec import FrameWorkerSpec
 
 
@@ -145,9 +145,9 @@ def launch_planned_workers(
     return WorkerLaunchSummary(records=tuple(record for record in records if record is not None))
 
 
-def launch_cycle_plan_workers(
+def launch_run_plan_workers(
     *,
-    plan: CyclePlan,
+    plan: RunPlan,
     claim_store: FrameClaimStore,
     backend: WorkerLaunchBackend,
     now: datetime,

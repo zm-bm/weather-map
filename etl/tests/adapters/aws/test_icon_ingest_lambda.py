@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -10,7 +9,6 @@ from tests.fixtures.artifacts import (
     DEFAULT_PRODUCT_CONFIG_DIGEST,
     DEFAULT_RUN_ID,
     artifact_marker_payload,
-    manifest_payload,
 )
 from tests.fixtures.aws import FakeBatchClient, FakeDynamoClient
 from weather_etl.adapters.aws import icon_ingest_lambda
@@ -283,26 +281,6 @@ class TestIconIngest:
         )
         assert "#cycle = :cycle" in complete_update["UpdateExpression"]
         assert complete_update["ExpressionAttributeNames"]["#cycle"] == "cycle"
-
-    def test_older_than_latest_cycle_skips_before_run_coordination(self) -> None:
-        self.store = _FakeStore(
-            objects={
-                "s3://artifacts/manifests/icon/latest.json": json.dumps(
-                    manifest_payload(
-                        cycle="2026051118",
-                        dataset_id="icon",
-                        generated_at=datetime(2026, 5, 11, 19, tzinfo=timezone.utc),
-                    )
-                ).encode("utf-8")
-            }
-        )
-
-        result = self._run(ready=lambda url, min_bytes: True)
-
-        assert result["submitted"] == 0
-        assert result["skipped_cycles"] == 1
-        assert self.batch.submissions == []
-        assert self.ddb.updates == []
 
     def test_complete_cycle_response_omits_published_count(self) -> None:
         paths = ArtifactPaths("s3://artifacts")

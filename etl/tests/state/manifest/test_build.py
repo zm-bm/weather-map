@@ -89,6 +89,36 @@ def test_manifest_revision_is_computed_from_manifest_object() -> None:
     assert compute_manifest_revision(artifact_changed) != revision
 
 
+def test_manifest_uses_observed_frame_valid_times_when_provided() -> None:
+    manifest = build_cycle_manifest(
+        dataset_id="mrms",
+        dataset_label="MRMS",
+        cycle="2026061100",
+        run_id=DEFAULT_RUN_ID,
+        payload_root=f"runs/mrms/2026061100/{DEFAULT_RUN_ID}/payloads",
+        generated_at="2026-06-11T01:00:00Z",
+        frames=("20260611000000", "20260611000200"),
+        frame_valid_times={
+            "20260611000000": "2026-06-11T00:00:00Z",
+            "20260611000200": "2026-06-11T00:02:00Z",
+        },
+        artifacts={
+            "observed_radar_base_reflectivity": manifest_artifact_entry(
+                "observed_radar_base_reflectivity",
+                cycle="2026061100",
+                run_id=DEFAULT_RUN_ID,
+                frame_ids=("20260611000000", "20260611000200"),
+                byte_length=2,
+            ),
+        },
+    )
+
+    assert [frame.model_dump() for frame in manifest.frames] == [
+        {"id": "20260611000000", "lead_hours": 0, "valid_at": "2026-06-11T00:00:00Z"},
+        {"id": "20260611000200", "lead_hours": 0, "valid_at": "2026-06-11T00:02:00Z"},
+    ]
+
+
 def test_publish_writes_scalar_manifest_and_is_idempotent() -> None:
     with publish_fixture(prefix="weather-map-publish-scalar-", frames=("000", "003")) as fx:
         artifact_ids = ("tmp_surface", "rh_surface")
@@ -222,7 +252,7 @@ def test_publish_writes_manifest_index_from_product_config() -> None:
         assert fx.artifacts.manifest_index_exists()
         manifest_index = fx.artifacts.read_manifest_index()
         assert manifest_index["schema"] == "weather-map.manifest-index"
-        assert manifest_index["schema_version"] == 2
+        assert manifest_index["schema_version"] == 3
         assert manifest_index["payload_contract"] == "field-binary-v2"
         assert manifest_index["catalog_version"] == "test-forecast-catalog"
         assert "latest_cycle" not in manifest_index["datasets"]["gfs"]

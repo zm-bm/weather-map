@@ -20,6 +20,12 @@ variable "gfs_sns_topic_arn" {
   default = "arn:aws:sns:us-east-1:123901341784:NewGFSObject"
 }
 
+variable "mrms_sns_topic_arn" {
+  type        = string
+  default     = "arn:aws:sns:us-east-1:123901341784:NewMRMSObject"
+  description = "NOAA MRMS SNS topic ARN that publishes public MRMS S3 object notifications."
+}
+
 variable "ingest_lambda_zip_path" {
   type        = string
   default     = null
@@ -74,6 +80,12 @@ variable "icon_worker_memory_mib" {
   description = "Memory for ICON Batch hour workers."
 }
 
+variable "mrms_worker_memory_mib" {
+  type        = number
+  default     = 4096
+  description = "Memory for MRMS single-timestamp Batch workers."
+}
+
 variable "gfs_worker_timeout_seconds" {
   type        = number
   default     = 7200
@@ -86,6 +98,12 @@ variable "icon_worker_timeout_seconds" {
   description = "Attempt timeout for ICON Batch hour workers."
 }
 
+variable "mrms_worker_timeout_seconds" {
+  type        = number
+  default     = 3600
+  description = "Attempt timeout for MRMS single-timestamp Batch workers."
+}
+
 variable "gfs_ingest_timeout_seconds" {
   type        = number
   default     = 30
@@ -96,6 +114,24 @@ variable "icon_ingest_timeout_seconds" {
   type        = number
   default     = 300
   description = "Timeout for the ICON ingest Lambda."
+}
+
+variable "mrms_ingest_timeout_seconds" {
+  type        = number
+  default     = 60
+  description = "Timeout for the MRMS ingest Lambda."
+}
+
+variable "mrms_sqs_visibility_timeout_seconds" {
+  type        = number
+  default     = 180
+  description = "Visibility timeout for MRMS SNS/SQS ingest messages."
+}
+
+variable "mrms_sqs_message_retention_seconds" {
+  type        = number
+  default     = 345600
+  description = "Retention period for MRMS ingest queue and DLQ messages."
 }
 
 variable "publisher_timeout_seconds" {
@@ -124,11 +160,11 @@ variable "icon_poll_cycle_count" {
 
 variable "publisher_datasets" {
   type        = list(string)
-  default     = ["gfs", "icon"]
+  default     = ["gfs", "icon", "mrms"]
   description = "Datasets scanned by the scheduled publisher."
 }
 
-variable "publisher_cycle_count" {
+variable "publisher_forecast_cycle_count" {
   type        = number
   default     = 8
   description = "Recent synoptic cycle count scanned by the scheduled publisher."
@@ -154,6 +190,18 @@ variable "manifest_retention_days" {
   type        = number
   default     = 45
   description = "S3 lifecycle expiration window for public manifests."
+}
+
+variable "mrms_run_retention_days" {
+  type        = number
+  default     = 1
+  description = "S3 lifecycle expiration window for MRMS run-scoped payloads and metadata."
+}
+
+variable "mrms_cycle_manifest_retention_days" {
+  type        = number
+  default     = 7
+  description = "S3 lifecycle expiration window for immutable MRMS cycle run manifests."
 }
 
 variable "noncurrent_version_retention_days" {

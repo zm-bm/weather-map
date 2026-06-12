@@ -150,28 +150,16 @@ function resolvePayloadRef(args: {
     throw new Error(`No ${args.artifact.kind} frame ref for dataset_id=${args.activeRun.datasetId} artifact=${artifactId} frame=${args.frameId}`)
   }
 
-  return {
-    path: resolveFramePayloadPath({
-      activeRun: args.activeRun,
-      artifact: args.artifact,
-      frameId: frame.id,
-    }),
-    byteLength: args.artifact.byte_length,
-  }
-}
-
-function resolveFramePayloadPath(args: {
-  activeRun: ActiveForecastRun
-  artifact: Pick<ManifestArtifactSpec, 'payload_file'>
-  frameId: string
-}): string {
   const { payload_root } = args.activeRun.latest.run
   const { payload_file } = args.artifact
-  return [
-    payload_root,
-    args.frameId,
-    payload_file,
-  ].join('/')
+  return {
+    path: [
+      payload_root,
+      frame.id,
+      payload_file,
+    ].join('/'),
+    byteLength: args.artifact.byte_length,
+  }
 }
 
 function assertPayloadSize(args: {

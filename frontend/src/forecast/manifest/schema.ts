@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const MANIFEST_INDEX_SCHEMA = 'weather-map.manifest-index'
-export const MANIFEST_INDEX_SCHEMA_VERSION = 2
+export const MANIFEST_INDEX_SCHEMA_VERSION = 3
 export const DATA_PAYLOAD_CONTRACT = 'field-binary-v2'
 
 const ARTIFACT_TEMPORAL_KINDS = ['instantaneous_rate', 'average_rate', 'accumulation'] as const
@@ -37,7 +37,7 @@ const gridSchema = z.object({
   origin: z.literal('cell_center'),
   layout: z.literal('row_major'),
   x_wrap: z.enum(['repeat', 'none']),
-  y_mode: z.literal('clamp'),
+  y_mode: z.enum(['clamp', 'none']),
 })
 
 const finiteValueRangeSchema = z.object({

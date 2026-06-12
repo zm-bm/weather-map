@@ -12,10 +12,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import boto3  # type: ignore
+from botocore import UNSIGNED  # type: ignore
 from botocore.config import Config  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
 from .base import UriObject, UriStore, UriWriteMetadata
+
+DEFAULT_UNSIGNED_READ_BUCKETS = frozenset({"noaa-mrms-pds"})
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,7 @@ class S3Store(UriStore):
     """URI store implementation for S3 objects."""
 
     name: str = "s3"
+    unsigned_read_buckets: frozenset[str] = DEFAULT_UNSIGNED_READ_BUCKETS
 
     def _parse_s3_uri(self, uri: str, *, require_key: bool = False) -> tuple[str, str]:
         parsed = urlparse(uri)
@@ -38,6 +42,11 @@ class S3Store(UriStore):
 
     def _client(self):
         return _s3_client()
+
+    def _read_client(self, bucket: str):
+        if bucket in self.unsigned_read_buckets:
+            return _unsigned_s3_client()
+        return self._client()
 
     def _put_extra_args(self, *, metadata: UriWriteMetadata | None) -> dict[str, str]:
         if metadata is None:
@@ -58,7 +67,7 @@ class S3Store(UriStore):
     def read_bytes(self, *, uri: str) -> bytes:
         bucket, key = self._parse_s3_uri(uri, require_key=True)
         try:
-            resp = self._client().get_object(Bucket=bucket, Key=key)
+            resp = self._read_client(bucket).get_object(Bucket=bucket, Key=key)
         except ClientError as e:
             if self._is_not_found(e):
                 raise FileNotFoundError(uri) from e
@@ -79,7 +88,7 @@ class S3Store(UriStore):
 
     def exists(self, *, uri: str) -> bool:
         bucket, key = self._parse_s3_uri(uri)
-        s3 = self._client()
+        s3 = self._read_client(bucket)
 
         if not key or key.endswith("/"):
             resp = s3.list_objects_v2(Bucket=bucket, Prefix=key, MaxKeys=1)
@@ -98,7 +107,7 @@ class S3Store(UriStore):
 
     def list_objects(self, *, prefix_uri: str) -> list[UriObject]:
         bucket, prefix = self._parse_s3_uri(prefix_uri)
-        s3 = self._client()
+        s3 = self._read_client(bucket)
         paginator = s3.get_paginator("list_objects_v2")
         items: list[UriObject] = []
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
@@ -119,7 +128,7 @@ class S3Store(UriStore):
         bucket, key = self._parse_s3_uri(uri, require_key=True)
         dst.parent.mkdir(parents=True, exist_ok=True)
         tmp = dst.with_suffix(dst.suffix + ".tmp")
-        s3 = self._client()
+        s3 = self._read_client(bucket)
         try:
             with open(tmp, "wb") as f:
                 s3.download_fileobj(bucket, key, f)
@@ -165,6 +174,19 @@ def _s3_client():
     return boto3.client(
         "s3",
         config=Config(
+            max_pool_connections=64,
+            connect_timeout=10,
+            read_timeout=60,
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def _unsigned_s3_client():
+    return boto3.client(
+        "s3",
+        config=Config(
+            signature_version=UNSIGNED,
             max_pool_connections=64,
             connect_timeout=10,
             read_timeout=60,

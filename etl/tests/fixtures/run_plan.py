@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from weather_etl.workers.launch import WorkerLaunchRecord, WorkerLaunchSummary
-from weather_etl.workers.plan import CycleCommandPlan, CyclePlan, FrameStatePlan
+from weather_etl.workers.plan import FrameStatePlan, RunCommandPlan, RunPlan
 from weather_etl.workers.spec import FrameWorkerSpec
 
 from tests.fixtures.artifacts import DEFAULT_PRODUCT_CONFIG_DIGEST, DEFAULT_RUN_ID
@@ -55,7 +55,7 @@ def frame_state(
     )
 
 
-def cycle_plan(
+def run_plan(
     *,
     dataset_id: str = "gfs",
     cycle: str = DEFAULT_CYCLE,
@@ -73,14 +73,14 @@ def cycle_plan(
     snapshot_exists: bool = True,
     resume: bool = True,
     publish: bool = True,
-) -> CyclePlan:
+) -> RunPlan:
     resolved_frame_states = frame_states if frame_states is not None else ()
     resolved_frame_ids = (
         frame_ids
         if frame_ids is not None
         else tuple(state.frame_id for state in resolved_frame_states) or tuple(worker.frame_id for worker in workers)
     )
-    return CyclePlan(
+    return RunPlan(
         dataset_id=dataset_id,
         cycle=cycle,
         run_id=run_id,
@@ -96,8 +96,8 @@ def cycle_plan(
         artifact_ids=artifact_ids,
         workers=workers,
         frame_states=resolved_frame_states,
-        validation=CycleCommandPlan(env={}, command=("weather-etl", "validate-cycle")),
-        publish=CycleCommandPlan(env={}, command=("weather-etl", "publish-cycle")) if publish else None,
+        validation=RunCommandPlan(env={}, command=("weather-etl", "validate-run")),
+        publish=RunCommandPlan(env={}, command=("weather-etl", "publish-run")) if publish else None,
     )
 
 

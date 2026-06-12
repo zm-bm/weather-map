@@ -15,6 +15,8 @@ import {
 import {
   FORECAST_RASTER_LAYER_GROUPS,
   FORECAST_RASTER_LAYERS_BY_ID,
+  forecastRasterLayerLabel,
+  resolveRenderableRasterLayer,
 } from '@/forecast/catalog'
 import {
   clearPointerShortcut,
@@ -51,7 +53,7 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const layers = FORECAST_RASTER_LAYERS_BY_ID
   const selectedLayer = selectedLayerId == null ? null : layers[selectedLayerId]
   const selectedLayerAvailability = getActiveRunLayerAvailability(activeRun, selectedLayerId)
-  const selectedLayerIsRenderable = selectedLayerAvailability?.state === 'available'
+  const selectedLayerIsRenderable = resolveRenderableRasterLayer(activeRun, selectedLayerId) != null
   const showUnavailableMessage = selectedLayer != null && (
     selectedLayerAvailability?.state === 'temporarily_unavailable' ||
     selectedLayerAvailability?.state === 'unsupported' ||
@@ -60,8 +62,8 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
   const unavailableMessage = selectedLayer == null
     ? null
     : selectedLayerAvailability?.state === 'unsupported'
-      ? `${selectedLayer.display.label} is not available from ${activeDatasetLabel}.`
-      : `${selectedLayer.display.label} is temporarily unavailable for this ${activeDatasetLabel} cycle.`
+      ? `${forecastRasterLayerLabel(selectedLayer)} is not available from ${activeDatasetLabel}.`
+      : `${forecastRasterLayerLabel(selectedLayer)} is temporarily unavailable for this ${activeDatasetLabel} cycle.`
 
   return (
     <section ref={ref} className="forecast-panel wm-panel-shell" aria-label="Local forecast panel">
@@ -85,7 +87,7 @@ const ForecastPanel = forwardRef<HTMLElement>(function ForecastPanel(_props, ref
                     {group.rasterLayerIds.map((layerId) => {
                       const layer = layers[layerId]
                       const hasSource = hasAnyAvailableDatasetForLayer(manifest, layerId)
-                      const label = layer?.display.label ?? String(layerId)
+                      const label = layer == null ? String(layerId) : forecastRasterLayerLabel(layer)
 
                       return (
                         <option key={layerId} value={layerId} disabled={!hasSource}>

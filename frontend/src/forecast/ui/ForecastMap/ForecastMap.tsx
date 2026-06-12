@@ -106,7 +106,7 @@ export default function ForecastMap({
   )
 }
 
-type ForecastFeatureFlags = {
+type ForecastSyncFeatureFlags = {
   particlesEnabled: boolean
   pressureContoursEnabled: boolean
 }
@@ -114,7 +114,7 @@ type ForecastFeatureFlags = {
 function createRenderProfile({
   particlesEnabled,
   pressureContoursEnabled,
-}: ForecastFeatureFlags): ForecastRenderProfile {
+}: ForecastSyncFeatureFlags): ForecastRenderProfile {
   const layerIds: ForecastRenderLayerId[] = ['raster', 'overlay']
   if (pressureContoursEnabled) layerIds.push('contour')
   if (particlesEnabled) layerIds.push('particles')
@@ -134,7 +134,7 @@ function createRenderSettings(settings: ForecastSettings): ForecastRenderSetting
 function createSyncOptions({
   particlesEnabled,
   pressureContoursEnabled,
-}: ForecastFeatureFlags): ForecastSyncOptions {
+}: ForecastSyncFeatureFlags): ForecastSyncOptions {
   return {
     contour: pressureContoursEnabled,
     particles: particlesEnabled,

@@ -13,9 +13,9 @@ from ..launch import (
     WorkerLaunchRecord,
     WorkerLaunchRequest,
     WorkerLaunchSummary,
-    launch_cycle_plan_workers,
+    launch_run_plan_workers,
 )
-from ..plan import CyclePlan
+from ..plan import RunPlan
 from ..spec import FrameWorkerSpec
 
 
@@ -88,7 +88,7 @@ def batch_worker_job_name(
 
 def launch_aws_batch_plan_workers(
     *,
-    plan: CyclePlan,
+    plan: RunPlan,
     claim_store: FrameClaimStore,
     batch: Any,
     queue: str,
@@ -101,7 +101,7 @@ def launch_aws_batch_plan_workers(
 ) -> WorkerLaunchSummary:
     """Launch selected cycle-plan workers through AWS Batch."""
 
-    return launch_cycle_plan_workers(
+    return launch_run_plan_workers(
         plan=plan,
         claim_store=claim_store,
         backend=AwsBatchWorkerBackend(

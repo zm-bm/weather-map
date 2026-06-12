@@ -2,6 +2,7 @@ export {
   FORECAST_RASTER_LAYER_GROUPS,
   FORECAST_RASTER_LAYERS,
   FORECAST_RASTER_LAYERS_BY_ID,
+  forecastRasterLayerLabel,
   forecastRasterLayerSourceFromLayer,
   getDefaultRasterLayerId,
   getForecastRasterLayer,
@@ -13,21 +14,19 @@ export type {
   ParticleLayer,
 } from './entries'
 export {
-  getAvailableRasterLayer,
   getAvailableParticleLayer,
   getDefaultAvailableContourLayer,
   getDefaultAvailableParticleLayerId,
-  getForecastRasterLayerArtifact,
+  resolveRenderableRasterLayer,
 } from './availability'
 export {
   hasExactBandIds,
   sourceBandIds,
 } from './source'
 export type {
+  ArtifactSource,
   ContourSource,
   ForecastLayerSource,
-  LoadSource,
   OverlaySource,
   ParticleSource,
-  RasterSource,
 } from './source'

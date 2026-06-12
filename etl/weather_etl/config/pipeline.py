@@ -8,24 +8,26 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from ..core.frames import format_lead_hour_frame_id
+from ..core.frames import format_lead_hour_frame_id, validate_frame_id
 from ..core.validation import (
     FiniteNumber,
     FrozenModel,
     LeadHourFrameInt,
     NonEmptyStr,
     NonEmptyStringMap,
+    PositiveInt,
     UniqueNonEmptyStringTuple,
     parse_model,
 )
 from ._json import read_json_object
 from .encoding import EncodingSpec
-from .sources import validate_source_type
+from .sources import MRMS_AWS_S3_SOURCE_TYPE, validate_source_type
 
 if TYPE_CHECKING:
     from ..storage.base import UriStore
 
 ArtifactKind: TypeAlias = Literal["scalar", "vector"]
+DatasetMode: TypeAlias = Literal["forecast_cycle", "rolling_observed"]
 
 __all__ = [
     "ArtifactDerivationSpec",
@@ -34,7 +36,9 @@ __all__ = [
     "ArtifactSpec",
     "ArtifactTemporalSpec",
     "ComponentSpec",
+    "DatasetLifecycleConfig",
     "DatasetConfig",
+    "DatasetMode",
     "DerivationInputSpec",
     "LoadedPipelineConfig",
     "load_pipeline_config_document",
@@ -47,20 +51,34 @@ __all__ = [
 
 
 class WorkloadInput(FrozenModel):
-    """Raw workload range, normalized to concrete forecast lead-hour frame ids."""
+    """Raw workload frame and artifact selection."""
 
-    frame_start: LeadHourFrameInt
-    frame_end: LeadHourFrameInt
+    frame_start: LeadHourFrameInt | None = None
+    frame_end: LeadHourFrameInt | None = None
+    explicit_frames: UniqueNonEmptyStringTuple | None = Field(default=None, alias="frames")
     artifacts: UniqueNonEmptyStringTuple | None = None
 
     @model_validator(mode="after")
     def _validate_range(self) -> "WorkloadInput":
+        has_range = self.frame_start is not None or self.frame_end is not None
+        if self.explicit_frames is not None:
+            if has_range:
+                raise ValueError("workload.frames must not be combined with frame_start/frame_end")
+            return self
+        if not has_range:
+            return self
+        if self.frame_start is None or self.frame_end is None:
+            raise ValueError("workload frame_start and frame_end must be defined together")
         if self.frame_end < self.frame_start:
             raise ValueError("frame_end must be greater than or equal to frame_start")
         return self
 
     @property
     def frames(self) -> tuple[str, ...]:
+        if self.explicit_frames is not None:
+            return tuple(validate_frame_id(frame_id) for frame_id in self.explicit_frames)
+        if self.frame_start is None or self.frame_end is None:
+            return ()
         return tuple(format_lead_hour_frame_id(hour) for hour in range(self.frame_start, self.frame_end + 1))
 
 
@@ -167,6 +185,20 @@ class DatasetArtifactInput(FrozenModel):
         }
 
 
+class DatasetLifecycleConfig(FrozenModel):
+    """Optional lifecycle policy for datasets whose public view is not one cycle."""
+
+    type: Literal["rolling_observed"]
+    display_window_minutes: PositiveInt
+    publish_scan_minutes: PositiveInt
+
+    @model_validator(mode="after")
+    def _validate_scan_window(self) -> "DatasetLifecycleConfig":
+        if self.publish_scan_minutes < self.display_window_minutes:
+            raise ValueError("publish_scan_minutes must be greater than or equal to display_window_minutes")
+        return self
+
+
 def _validate_unique_component_ids(component_ids: tuple[str, ...]) -> None:
     seen: set[str] = set()
     for component_id in component_ids:
@@ -180,8 +212,9 @@ class DatasetConfigInput(FrozenModel):
 
     label: NonEmptyStr
     source: SourceConfig
-    workload: WorkloadInput
+    workload: WorkloadInput | None = None
     artifacts: dict[NonEmptyStr, DatasetArtifactInput] = Field(min_length=1)
+    lifecycle: DatasetLifecycleConfig | None = None
 
 
 class PipelineConfigInput(FrozenModel):
@@ -195,18 +228,27 @@ class PipelineConfigInput(FrozenModel):
 class WorkloadConfig(FrozenModel):
     """Resolved frame and artifact selection for one dataset."""
 
-    frames: UniqueNonEmptyStringTuple
+    frames: tuple[str, ...]
     artifacts: UniqueNonEmptyStringTuple
 
     @classmethod
-    def from_input(cls, raw: WorkloadInput, *, dataset_artifact_ids: tuple[str, ...]) -> "WorkloadConfig":
+    def from_input(
+        cls,
+        raw: WorkloadInput | None,
+        *,
+        mode: DatasetMode,
+        dataset_artifact_ids: tuple[str, ...],
+    ) -> "WorkloadConfig":
         """Parse a raw workload range into configured lead-hour frame ids."""
 
-        artifact_ids = raw.artifacts or dataset_artifact_ids
+        artifact_ids = raw.artifacts if raw is not None and raw.artifacts is not None else dataset_artifact_ids
         for artifact_id in artifact_ids:
             if artifact_id not in dataset_artifact_ids:
                 raise SystemExit(f"workload.artifacts references unknown artifact: {artifact_id!r}")
-        return cls(frames=raw.frames, artifacts=artifact_ids)
+        frames = raw.frames if raw is not None else ()
+        if mode == "forecast_cycle" and not frames:
+            raise SystemExit("forecast_cycle datasets must define workload frames")
+        return cls(frames=frames, artifacts=artifact_ids)
 
 
 class ComponentSpec(FrozenModel):
@@ -340,6 +382,19 @@ def _validate_selector_placement(
             )
 
 
+def _derive_dataset_mode(*, dataset_id: str, source_type: str, lifecycle_type: str | None) -> DatasetMode:
+    if source_type == MRMS_AWS_S3_SOURCE_TYPE and lifecycle_type == "rolling_observed":
+        return "rolling_observed"
+    if source_type != MRMS_AWS_S3_SOURCE_TYPE and lifecycle_type is None:
+        return "forecast_cycle"
+
+    lifecycle_desc = lifecycle_type or "none"
+    raise SystemExit(
+        "Unsupported dataset mode: "
+        f"dataset_id={dataset_id!r} source_type={source_type!r} lifecycle={lifecycle_desc!r}"
+    )
+
+
 class DatasetConfig(FrozenModel):
     """Resolved config for one dataset."""
 
@@ -348,6 +403,8 @@ class DatasetConfig(FrozenModel):
     source: SourceConfig
     workload: WorkloadConfig
     artifacts: dict[str, ArtifactSpec]
+    lifecycle: DatasetLifecycleConfig | None = None
+    mode: DatasetMode = Field(exclude=True)
 
     @classmethod
     def from_input(
@@ -360,6 +417,11 @@ class DatasetConfig(FrozenModel):
         """Resolve one raw dataset config against the shared pipeline artifact catalog."""
 
         validate_source_type(dataset_id=dataset_id, source_type=raw.source.type)
+        mode = _derive_dataset_mode(
+            dataset_id=dataset_id,
+            source_type=raw.source.type,
+            lifecycle_type=raw.lifecycle.type if raw.lifecycle is not None else None,
+        )
         resolved_artifacts = {}
         for artifact_id, raw_dataset_artifact in raw.artifacts.items():
             pipeline_artifact = artifact_catalog.get(artifact_id)
@@ -375,8 +437,14 @@ class DatasetConfig(FrozenModel):
             id=dataset_id,
             label=raw.label,
             source=raw.source,
-            workload=WorkloadConfig.from_input(raw.workload, dataset_artifact_ids=tuple(raw.artifacts)),
+            workload=WorkloadConfig.from_input(
+                raw.workload,
+                mode=mode,
+                dataset_artifact_ids=tuple(raw.artifacts),
+            ),
             artifacts=resolved_artifacts,
+            lifecycle=raw.lifecycle,
+            mode=mode,
         )
 
 
