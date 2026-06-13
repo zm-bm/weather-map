@@ -195,4 +195,5 @@ cd etl && ../.venv/bin/python -m pytest tests
 cd etl && ../.venv/bin/ruff check weather_etl tests
 bash -n scripts/etl-run-local.sh
 bash -n scripts/etl-run-aws.sh
+bash -n scripts/etl-deploy.sh
 ```

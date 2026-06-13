@@ -572,7 +572,7 @@
       },
       "workload": {
         "frame_start": 0,
-        "frame_end": 72
+        "frame_end": 48
       },
       "artifacts": {
         "tmp_surface": {
@@ -878,7 +878,7 @@
       },
       "workload": {
         "frame_start": 1,
-        "frame_end": 72
+        "frame_end": 48
       },
       "artifacts": {
         "tmp_surface": {

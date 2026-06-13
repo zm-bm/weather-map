@@ -182,17 +182,33 @@ Local ETL reruns are fine for validating intermediate task work; bundle related
 ETL hardening tasks into one production deploy when that is less operationally
 painful.
 
-From the repo root, build the shared Lambda artifact before deploying Lambda
-code changes:
+From the repo root, run the normal ETL deploy entrypoint:
 
 ```bash
-scripts/etl-build-lambda.sh
+scripts/etl-deploy.sh
 ```
 
-From the repo root, push the worker image after ETL code or dependency changes:
+The script builds the shared Lambda artifact, runs Terraform init/validate/plan
+with one internally resolved worker image tag, prompts before any AWS mutation,
+creates or updates the Terraform-owned ECR repository, builds and pushes the
+split ETL worker image, and then applies the full stack with the same image tag.
+
+To inspect the plan without applying:
 
 ```bash
-scripts/etl-build-worker-image.sh
+scripts/etl-deploy.sh --plan-only
+```
+
+To deploy without prompts:
+
+```bash
+scripts/etl-deploy.sh --auto-approve
+```
+
+To also upload static glyph, PMTiles, and radio assets after the deploy:
+
+```bash
+scripts/etl-deploy.sh --upload-static
 ```
 
 The Lambda artifact is shared by the ingest and publisher Lambdas:
@@ -203,17 +219,12 @@ etl/dist/weather-etl-ingest-lambda.zip
 
 The worker image contains GDAL, CDO, eccodes tools, and ICON regrid assets.
 
-After building the Lambda zip and pushing the worker image, apply this stack so
-the ingest/publisher Lambdas, EventBridge rules, IAM, config/catalog objects,
-Batch job definitions, run coordinator table, and frame claim table are all
-current:
+For a new environment, create local Terraform variables before deploying:
 
 ```bash
 cd infra/weather-etl
 cp terraform.tfvars.example local.auto.tfvars
 # edit local.auto.tfvars
-terraform plan
-terraform apply
 ```
 
 ## Operations

@@ -29,6 +29,7 @@ class ScriptHarness:
         self,
         *args: str,
         env_overrides: dict[str, str] | None = None,
+        input_text: str | None = None,
         check: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
@@ -43,6 +44,7 @@ class ScriptHarness:
             check=check,
             text=True,
             capture_output=True,
+            input=input_text,
         )
 
 
@@ -82,9 +84,11 @@ class LocalRunScriptHarness(EtlImageScriptHarness):
 
 
 @dataclass(frozen=True)
-class WorkerImageBuildScriptHarness(EtlImageScriptHarness):
+class DeployScriptHarness(EtlImageScriptHarness):
     fake_docker_log: Path
     fake_aws_log: Path
+    fake_terraform_log: Path
+    fake_command_log: Path
 
     def docker_log(self) -> str:
         if not self.fake_docker_log.exists():
@@ -96,6 +100,16 @@ class WorkerImageBuildScriptHarness(EtlImageScriptHarness):
             return ""
         return self.fake_aws_log.read_text(encoding="utf-8")
 
+    def terraform_log(self) -> str:
+        if not self.fake_terraform_log.exists():
+            return ""
+        return self.fake_terraform_log.read_text(encoding="utf-8")
+
+    def command_log(self) -> str:
+        if not self.fake_command_log.exists():
+            return ""
+        return self.fake_command_log.read_text(encoding="utf-8")
+
 
 @dataclass(frozen=True)
 class AwsRunScriptHarness(ScriptHarness):
@@ -106,9 +120,10 @@ class AwsRunScriptHarness(ScriptHarness):
         self,
         *args: str,
         env_overrides: dict[str, str] | None = None,
+        input_text: str | None = None,
         check: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        return super().run(*args, env_overrides=env_overrides, check=check)
+        return super().run(*args, env_overrides=env_overrides, input_text=input_text, check=check)
 
     def cli_log(self) -> str:
         return self.fake_cli_log.read_text(encoding="utf-8")
@@ -161,22 +176,33 @@ def aws_run_script_harness(repo_root: Path, tmp_path: Path) -> AwsRunScriptHarne
     return harness
 
 
-def worker_image_build_script_harness(repo_root: Path, tmp_path: Path) -> WorkerImageBuildScriptHarness:
+def deploy_script_harness(repo_root: Path, tmp_path: Path) -> DeployScriptHarness:
     docker_log = tmp_path / "docker.log"
     aws_log = tmp_path / "aws.log"
-    harness = WorkerImageBuildScriptHarness(
+    terraform_log = tmp_path / "terraform.log"
+    command_log = tmp_path / "command.log"
+    harness = DeployScriptHarness(
         repo_root=repo_root,
-        script=repo_root / "scripts" / "etl-build-worker-image.sh",
+        script=repo_root / "scripts" / "etl-deploy.sh",
         fake_bin_dir=tmp_path,
         env_defaults={
             "FAKE_DOCKER_LOG": docker_log.as_posix(),
             "FAKE_AWS_LOG": aws_log.as_posix(),
+            "FAKE_TERRAFORM_LOG": terraform_log.as_posix(),
+            "FAKE_COMMAND_LOG": command_log.as_posix(),
+            "PYTHON_BIN": (tmp_path / "python3.12").as_posix(),
+            "DIST_DIR": (tmp_path / "dist").as_posix(),
         },
         fake_docker_log=docker_log,
         fake_aws_log=aws_log,
+        fake_terraform_log=terraform_log,
+        fake_command_log=command_log,
     )
     harness.write_executable("docker", _FAKE_DOCKER)
     harness.write_executable("aws", _FAKE_AWS)
+    harness.write_executable("terraform", _FAKE_TERRAFORM)
+    harness.write_executable("python3.12", _FAKE_LAMBDA_BUILD_PYTHON)
+    harness.write_executable("zip", _FAKE_ZIP)
     return harness
 
 
@@ -184,6 +210,13 @@ _FAKE_DOCKER = """#!/usr/bin/env bash
 set -euo pipefail
 
 log_command() {
+	if [[ -n "${FAKE_COMMAND_LOG:-}" ]]; then
+		printf "docker" >> "$FAKE_COMMAND_LOG"
+		for arg in "$@"; do
+			printf " %q" "$arg" >> "$FAKE_COMMAND_LOG"
+		done
+		printf "\\n" >> "$FAKE_COMMAND_LOG"
+	fi
 	if [[ -n "${FAKE_DOCKER_LOG:-}" ]]; then
 		printf "%s" "$1" >> "$FAKE_DOCKER_LOG"
 		shift
@@ -330,12 +363,52 @@ exit 1
 _FAKE_TERRAFORM = """#!/usr/bin/env bash
 set -euo pipefail
 
+log_command_all() {
+  if [[ -n "${FAKE_COMMAND_LOG:-}" ]]; then
+    printf "terraform" >> "$FAKE_COMMAND_LOG"
+    for arg in "$@"; do
+      printf " %q" "$arg" >> "$FAKE_COMMAND_LOG"
+    done
+    printf "\\n" >> "$FAKE_COMMAND_LOG"
+  fi
+  if [[ -n "${FAKE_TERRAFORM_LOG:-}" ]]; then
+    printf "%s" "$1" >> "$FAKE_TERRAFORM_LOG"
+    shift
+    for arg in "$@"; do
+      printf " %q" "$arg" >> "$FAKE_TERRAFORM_LOG"
+    done
+    printf "\\n" >> "$FAKE_TERRAFORM_LOG"
+  fi
+}
+
+if [[ "${1:-}" == -chdir=* ]]; then
+  shift
+fi
+
+log_command_all "$@"
+
+case "${1:-}" in
+  init|validate|plan)
+    exit 0
+    ;;
+  apply)
+    exit 0
+    ;;
+esac
+
+if [[ "${1:-}" == "output" && "${2:-}" == "etl_runtime_contract" ]]; then
+  echo '{"artifact_root_uri":"s3://artifacts-bucket"}'
+  exit 0
+fi
+
 if [[ "${1:-}" != "output" || "${2:-}" != "-raw" ]]; then
   echo "unexpected terraform command: $*" >&2
   exit 1
 fi
 
 case "${3:-}" in
+  worker_ecr_repository_url) echo "123456789012.dkr.ecr.us-east-1.amazonaws.com/weather-etl-worker" ;;
+  artifacts_bucket_name) echo "artifacts-bucket" ;;
   batch_job_queue_name) echo "weather-etl" ;;
   batch_job_definition_arn) echo "arn:aws:batch:us-east-1:123:job-definition/weather-etl-worker:1" ;;
   icon_batch_job_definition_arn) echo "arn:aws:batch:us-east-1:123:job-definition/weather-etl-worker-icon:1" ;;
@@ -355,6 +428,13 @@ _FAKE_AWS = """#!/usr/bin/env bash
 set -euo pipefail
 
 log_command() {
+  if [[ -n "${FAKE_COMMAND_LOG:-}" ]]; then
+    printf "aws" >> "$FAKE_COMMAND_LOG"
+    for arg in "$@"; do
+      printf " %q" "$arg" >> "$FAKE_COMMAND_LOG"
+    done
+    printf "\\n" >> "$FAKE_COMMAND_LOG"
+  fi
   if [[ -n "${FAKE_AWS_LOG:-}" ]]; then
     printf "%s" "$1" >> "$FAKE_AWS_LOG"
     shift
@@ -391,8 +471,10 @@ if [[ "${1:-}" == "ecr" && "${2:-}" == "get-login-password" ]]; then
 fi
 
 if [[ "${1:-}" == "s3" && "${2:-}" == "cp" ]]; then
+  src="${3:-}"
   dst="${4:-}"
-  cat > "$dst" <<'JSON'
+  if [[ "$src" == s3://* && "$dst" != s3://* ]]; then
+    cat > "$dst" <<'JSON'
 {
   "datasets": {
     "gfs": {
@@ -410,6 +492,7 @@ if [[ "${1:-}" == "s3" && "${2:-}" == "cp" ]]; then
   }
 }
 JSON
+  fi
   exit 0
 fi
 
@@ -453,6 +536,56 @@ fi
 
 echo "unexpected aws command: $*" >&2
 exit 1
+"""
+
+
+_FAKE_LAMBDA_BUILD_PYTHON = """#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-c" ]]; then
+  echo "3.12"
+  exit 0
+fi
+
+if [[ "${1:-}" == "-m" && "${2:-}" == "venv" ]]; then
+  venv_dir="${3:-}"
+  mkdir -p "$venv_dir/bin"
+  cat > "$venv_dir/bin/python" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "-m" && "${2:-}" == "pip" ]]; then
+  exit 0
+fi
+echo "unexpected fake build venv python command: $*" >&2
+exit 1
+SH
+  chmod +x "$venv_dir/bin/python"
+  exit 0
+fi
+
+echo "unexpected fake lambda build python command: $*" >&2
+exit 1
+"""
+
+
+_FAKE_ZIP = """#!/usr/bin/env bash
+set -euo pipefail
+
+target=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -*) shift ;;
+    *)
+      target="$1"
+      break
+      ;;
+  esac
+done
+if [[ -z "$target" ]]; then
+  echo "missing fake zip target" >&2
+  exit 1
+fi
+printf "fake zip payload\\n" > "$target"
 """
 
 

@@ -16,23 +16,23 @@ Terraform modules stay in the sibling shared infra repo.
 
 ## Weather ETL
 
-Build the shared ingest Lambda zip before applying Lambda changes:
+Deploy the weather ETL stack:
 
 ```bash
-scripts/etl-build-lambda.sh
+scripts/etl-deploy.sh
 ```
 
-Push the Batch worker image after code or dependency changes in `etl/`:
+Preview without applying:
 
 ```bash
-scripts/etl-build-worker-image.sh
+scripts/etl-deploy.sh --plan-only
 ```
 
 Upload static artifact assets from `artifacts/glyphs/`, `artifacts/pmtiles/`,
-and `artifacts/radio/`:
+and `artifacts/radio/` as part of the ETL deploy:
 
 ```bash
-scripts/etl-upload-static-artifacts.sh
+scripts/etl-deploy.sh --upload-static
 ```
 
 Manual production cycle submits:

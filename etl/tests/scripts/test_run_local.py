@@ -31,8 +31,8 @@ def test_icon_dry_run_uses_one_worker_container_per_configured_frame(script: Loc
         "--dry-run",
     )
 
-    assert "frames: 72" in result.stdout
-    assert result.stdout.count("weather-map-etl:local run-frame") == 72
+    assert "frames: 48" in result.stdout
+    assert result.stdout.count("weather-map-etl:local run-frame") == 48
     assert "--volume " + (script.repo_root / "artifacts").as_posix() + ":/artifacts" in result.stdout
     assert "--volume " + (script.repo_root / "etl" / "cache").as_posix() + ":/app/etl/cache" in result.stdout
     assert "--env ARTIFACT_ROOT_URI=file:///artifacts" in result.stdout
@@ -41,7 +41,7 @@ def test_icon_dry_run_uses_one_worker_container_per_configured_frame(script: Loc
     assert "--env DATASET_ID=icon" in result.stdout
     assert f"--env RUN_ID={DEFAULT_RUN_ID}" in result.stdout
     assert "--env FRAME_ID=001" in result.stdout
-    assert "--env FRAME_ID=072" in result.stdout
+    assert "--env FRAME_ID=048" in result.stdout
     assert "GRIB_SOURCE_URI" not in result.stdout
     assert result.stdout.count("weather-map-etl:local init-run") == 1
     assert result.stdout.count("weather-map-etl:local validate-run") == 1
@@ -60,8 +60,8 @@ def test_no_publish_skips_final_publish_container(script: LocalRunScriptHarness)
         "--dry-run",
     )
 
-    assert "frames: 72" in result.stdout
-    assert result.stdout.count("weather-map-etl:local run-frame") == 72
+    assert "frames: 48" in result.stdout
+    assert result.stdout.count("weather-map-etl:local run-frame") == 48
     assert result.stdout.count("weather-map-etl:local validate-run") == 1
     assert "weather-map-etl:local publish-run" not in result.stdout
 
@@ -79,12 +79,12 @@ def test_dry_run_without_run_id_generates_one_shared_run_id(script: LocalRunScri
     assert run_ids
     assert len(set(run_ids)) == 1
     run_id = run_ids[0]
-    assert result.stdout.count(f"--env RUN_ID={run_id}") == 75
+    assert result.stdout.count(f"--env RUN_ID={run_id}") == 51
     assert f"--run-id {run_id}" in result.stdout
     assert f"pipeline_uri: file:///artifacts/runs/icon/2026021606/{run_id}/config/pipeline.json" in result.stdout
     assert f"catalog_uri: file:///artifacts/runs/icon/2026021606/{run_id}/config/catalog.json" in result.stdout
     assert result.stdout.count("weather-map-etl:local init-run") == 1
-    assert result.stdout.count("weather-map-etl:local run-frame") == 72
+    assert result.stdout.count("weather-map-etl:local run-frame") == 48
     assert result.stdout.count("weather-map-etl:local validate-run") == 1
     assert result.stdout.count("weather-map-etl:local publish-run") == 1
 
@@ -196,11 +196,11 @@ def test_gfs_dry_run_resolves_configured_frames(script: LocalRunScriptHarness) -
         "--dry-run",
     )
 
-    assert "frames: 73" in result.stdout
+    assert "frames: 49" in result.stdout
     assert "--env DATASET_ID=gfs" in result.stdout
     assert f"--env RUN_ID={DEFAULT_RUN_ID}" in result.stdout
     assert "--env FRAME_ID=000" in result.stdout
-    assert "--env FRAME_ID=072" in result.stdout
+    assert "--env FRAME_ID=048" in result.stdout
 
 
 def test_mrms_dry_run_allows_frames_without_cycle(script: LocalRunScriptHarness) -> None:

@@ -29,7 +29,7 @@ How it is used:
   directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
 - `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
-  bucket with `scripts/etl-upload-static-artifacts.sh`.
+  bucket with `scripts/etl-deploy.sh --upload-static`.
 
 Generated contents under this directory are ignored by git.
 
