@@ -140,39 +140,6 @@ class TestIconIngest:
         assert result["skipped_cycles"] == 1
         assert self.batch.submissions == []
 
-    def test_partial_target_hour_does_not_submit(self) -> None:
-        def ready(url, min_bytes):
-            return "_000_" in url
-
-        result = self._run(ready=ready)
-
-        assert result["submitted"] == 0
-        assert result["pending"] == 1
-        assert self.batch.submissions == []
-
-    def test_derived_rate_waits_for_previous_hour_source(self, loaded_run_snapshot_factory) -> None:
-        self.loaded_snapshot = loaded_run_snapshot_factory(
-            dataset_id="icon",
-            source_types={"icon": ICON_DWD_SOURCE_TYPE},
-            frame_start=3,
-            frame_end=3,
-            artifacts=("prate_surface",),
-            cycle="2026051112",
-        )
-        checked_urls: list[str] = []
-
-        def ready(url, min_bytes):
-            checked_urls.append(url)
-            return "_002_" not in url
-
-        result = self._run(ready=ready)
-
-        assert result["submitted"] == 0
-        assert result["pending"] == 1
-        assert self.batch.submissions == []
-        assert any("_003_TOT_PREC" in url for url in checked_urls)
-        assert any("_002_TOT_PREC" in url for url in checked_urls)
-
     def test_ready_hour_submits_icon_batch_job(self) -> None:
         result = self._run(ready=lambda url, min_bytes: True)
 

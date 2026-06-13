@@ -146,7 +146,7 @@ resource "aws_batch_job_definition" "worker_icon" {
       { name = "PIPELINE_URI", value = local.pipeline_uri },
       { name = "CATALOG_URI", value = local.catalog_uri },
       { name = "AWS_DEFAULT_REGION", value = var.aws_region },
-      { name = "ICON_SOURCE_WAIT_SECONDS", value = "2700" },
+      { name = "ICON_SOURCE_WAIT_SECONDS", value = "120" },
       { name = "ICON_REGRID_DESCRIPTION_FILE", value = "/opt/dwd-regrid/descriptions/icon/icon_description.txt" },
       { name = "ICON_REGRID_WEIGHTS_FILE", value = "/opt/dwd-regrid/weights/icon/icon_weights.nc" }
     ]
@@ -161,7 +161,7 @@ resource "aws_batch_job_definition" "worker_icon" {
   })
 
   retry_strategy {
-    attempts = var.batch_retry_attempts
+    attempts = 1
   }
 
   timeout {

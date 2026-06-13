@@ -15,9 +15,6 @@ from ..environment import EtlEnvironment
 from ..sources.icon.config import IconDwdSourceSettings, parse_icon_dwd_source
 from ..sources.icon.dwd import (
     icon_dwd_url,
-    previous_icon_frame_id,
-    required_icon_params,
-    required_previous_icon_params,
 )
 from ..sources.submission import SourceSubmissionOutcome, SourceSubmissionResult, SourceSubmissionStatus
 from ..state.runs.dynamo_coordinator import coordinated_run_id, run_coordinator_ttl_seconds
@@ -112,8 +109,6 @@ def _submit_ready_icon_cycle(
         )
 
     icon_source = _icon_source_settings(dataset)
-    required_params = required_icon_params(dataset)
-    previous_required_params = required_previous_icon_params(dataset)
 
     if not _params_ready(
         base_url=icon_source.normalized_base_url,
@@ -183,41 +178,6 @@ def _submit_ready_icon_cycle(
                 frame_id=frame_id,
                 status="pending",
                 reason="invalid_completion_markers",
-            )
-            continue
-        if not _params_ready(
-            base_url=icon_source.normalized_base_url,
-            cycle=cycle,
-            frame_id=frame_id,
-            params=required_params,
-            min_bytes=min_bytes,
-        ):
-            outcomes_by_frame[frame_id] = _frame_outcome(
-                cycle=cycle,
-                run_id=cycle_run_id,
-                frame_id=frame_id,
-                status="pending",
-                reason="current_not_ready",
-            )
-            continue
-        previous_frame_id = previous_icon_frame_id(frame_id)
-        if (
-            previous_frame_id is not None
-            and previous_required_params
-            and not _params_ready(
-                base_url=icon_source.normalized_base_url,
-                cycle=cycle,
-                frame_id=previous_frame_id,
-                params=previous_required_params,
-                min_bytes=min_bytes,
-            )
-        ):
-            outcomes_by_frame[frame_id] = _frame_outcome(
-                cycle=cycle,
-                run_id=cycle_run_id,
-                frame_id=frame_id,
-                status="pending",
-                reason="previous_not_ready",
             )
             continue
         worker = plan.worker_for_frame(frame_id)

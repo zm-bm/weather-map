@@ -63,14 +63,14 @@ def test_submit_ready_icon_cycles_reports_pending_sentinel(loaded_run_snapshot_f
     assert result.outcomes[0].reason == "sentinel_not_ready"
 
 
-def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapshot_factory) -> None:
+def test_submit_ready_icon_cycles_uses_plan_state_for_frame_eligibility(loaded_run_snapshot_factory) -> None:
     cycle = "2026051112"
     with publish_fixture(
-        prefix="weather-map-icon-ready-workers-",
+        prefix="weather-map-icon-ready-plan-state-",
         dataset_id="icon",
         dataset_label="ICON",
         cycle=cycle,
-        frames=("001", "002"),
+        frames=("001", "002", "003", "004", "005", "006"),
     ) as fx:
         env = EtlEnvironment(
             artifact_root_uri=fx.artifact_root_uri,
@@ -82,17 +82,25 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
             dataset_id="icon",
             source_types={"icon": ICON_DWD_SOURCE_TYPE},
             frame_start=1,
-            frame_end=2,
+            frame_end=6,
             cycle=cycle,
             run_id=fx.run_id,
             artifact_root_uri=fx.artifact_root_uri,
         )
+        workers = (frame_worker("001", dataset_id="icon"), frame_worker("002", dataset_id="icon"))
         plan = build_run_plan(
             dataset_id="icon",
             cycle=cycle,
             run_id=fx.run_id,
-            workers=(frame_worker("001", dataset_id="icon"), frame_worker("002", dataset_id="icon")),
-            frame_states=(frame_state("001", "pending"), frame_state("002", "pending")),
+            workers=workers,
+            frame_states=(
+                frame_state("001", "pending"),
+                frame_state("002", "pending"),
+                frame_state("003", "complete"),
+                frame_state("004", "claimed"),
+                frame_state("005", "invalid"),
+                frame_state("006", "pending"),
+            ),
         )
 
         def launch_workers(**kwargs):
@@ -111,15 +119,18 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
                 )
             )
 
+        checked_urls: list[str] = []
+
+        def url_ready(url, min_bytes):
+            checked_urls.append(url)
+            return True
+
         with (
             patch("weather_etl.operations.submit_icon_ready.generate_run_id", return_value=fx.run_id),
             patch.object(env, "ensure_or_load_run_snapshot", return_value=loaded_snapshot),
             patch("weather_etl.operations.submit_icon_ready.plan_run", return_value=plan),
-            patch("weather_etl.operations.submit_icon_ready._url_ready", return_value=True),
-            patch(
-                "weather_etl.operations.submit_icon_ready.launch_aws_batch_plan_workers",
-                side_effect=launch_workers,
-            ) as launch_aws_batch_plan_workers,
+            patch("weather_etl.operations.submit_icon_ready._url_ready", side_effect=url_ready),
+            patch("weather_etl.operations.submit_icon_ready.launch_aws_batch_plan_workers", side_effect=launch_workers),
         ):
             result = submit_ready_icon_cycles(
                 batch=FakeBatchClient(),
@@ -135,9 +146,13 @@ def test_submit_ready_icon_cycles_launches_ready_workers_once(loaded_run_snapsho
                 now=datetime(2026, 5, 11, 12, tzinfo=timezone.utc),
             )
 
-    assert launch_aws_batch_plan_workers.call_count == 1
-    assert result.submitted == 2
+    assert len(checked_urls) == 1
+    assert "_000_T_2M" in checked_urls[0]
     assert [(outcome.frame_id, outcome.status, outcome.reason) for outcome in result.outcomes[1:]] == [
         ("001", "submitted", "batch_submitted"),
         ("002", "submitted", "batch_submitted"),
+        ("003", "completed", "complete"),
+        ("004", "claimed", "claimed"),
+        ("005", "pending", "invalid_completion_markers"),
+        ("006", "pending", "no_worker"),
     ]

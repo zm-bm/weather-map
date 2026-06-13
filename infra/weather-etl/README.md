@@ -21,14 +21,14 @@ ICON is polled:
 1. EventBridge invokes `weather-etl-ingest-icon` every 10 minutes.
 2. The Lambda checks only the latest `00/06/12/18 UTC` DWD ICON cycle
    (`ICON_POLL_CYCLE_COUNT=1`).
-3. It waits for sentinel `f000` files, verifies required files for each
-   configured frame, and uses the shared frame claim table to avoid duplicate
-   submissions.
+3. It waits for sentinel `f000` files and uses the shared frame claim table to
+   avoid duplicate submissions.
 4. The Lambda gets or creates one run id for the dataset cycle, creates or reads
-   that run's config/catalog snapshot, and uses that snapshot for readiness and
-   completion checks before submitting frame jobs.
-5. Batch workers download ICON files from DWD, decompress, regrid with direct
-   CDO, and write field artifacts plus success markers.
+   that run's config/catalog snapshot, and uses that snapshot for completion and
+   claim checks before submitting frame jobs.
+5. Batch workers download ICON files from DWD with a short source-readiness
+   retry window, decompress, regrid with direct CDO, and write field artifacts
+   plus success markers.
 
 MRMS is event-driven through SQS:
 

@@ -87,6 +87,7 @@ resource "aws_lambda_function" "ingest_icon" {
       BATCH_JOB_QUEUE       = aws_batch_job_queue.etl.name
       BATCH_JOB_DEFINITION  = aws_batch_job_definition.worker_icon.arn
       FRAME_CLAIM_TABLE     = aws_dynamodb_table.frame_claims.name
+      FRAME_CLAIM_SECONDS   = "900"
       ICON_POLL_CYCLE_COUNT = tostring(var.icon_poll_cycle_count)
       PIPELINE_URI          = local.pipeline_uri
       CATALOG_URI           = local.catalog_uri
