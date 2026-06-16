@@ -1,0 +1,4 @@
+export {
+  CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE,
+  COLORMAP_FRAGMENT_SHADER_SOURCE,
+} from '../shaderSources'

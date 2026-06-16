@@ -19,7 +19,7 @@ import {
   runTrailPass,
   runUpdatePass,
   type ParticlePassState,
-} from './passes'
+} from './renderPasses'
 import {
   createParticleStateBufferPair,
   deleteParticleStateBufferPair,

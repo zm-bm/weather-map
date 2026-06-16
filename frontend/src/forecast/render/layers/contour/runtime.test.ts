@@ -13,14 +13,10 @@ import {
 } from './runtime'
 import {
   PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE,
-} from './shaders/contour'
-import {
   PRESSURE_CONTOUR_RAW_FRAGMENT_SHADER_SOURCE,
-} from './shaders/rawContour'
-import {
   PRESSURE_SMOOTHING_FRAGMENT_SHADER_SOURCE,
-} from './shaders/smoothing'
-import { pressureFramePairRenderSpec } from './pressureEncoding'
+} from './shaders'
+import { pressureFramePairRenderSpec } from './renderPaths/pressure'
 
 function createMapFixture() {
   return {

@@ -5,17 +5,12 @@ import {
   type ContourWindow,
 } from '@/forecast/frames'
 import {
-  sourceBandIds,
-} from '@/forecast/catalog/source'
-import {
   EncodedGridTextureCache,
   encodedFramePairUniforms,
   encodedGridUniforms,
   encodedLinearUniforms,
-  encodedRasterFrameSpec,
   resolveEncodedFramePair,
   type EncodedFramePair,
-  type EncodedGridFrameSpec,
 } from '../../encodedGrid'
 import {
   asWebGL2,
@@ -32,20 +27,19 @@ import type { CustomLayerRuntime } from '../../maplibre/customLayer'
 import type { MapFrameController } from '@/map/controllers'
 import {
   PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE,
-} from './shaders/contour'
-import {
   PRESSURE_CONTOUR_RAW_FRAGMENT_SHADER_SOURCE,
-} from './shaders/rawContour'
+} from './shaders'
 import {
   createPressurePrefilter,
   createSmoothedPressureFramePair,
   disposePressurePrefilter,
   type PressurePrefilter,
-} from './pressurePrefilter'
+} from './renderPaths/pressurePrefilter'
 import {
+  pressureEncodedGridFrameSpec,
   pressureFramePairRenderSpec,
   type PressureEncodingRenderSpec,
-} from './pressureEncoding'
+} from './renderPaths/pressure'
 
 export type ContourController = MapFrameController<ContourWindow | null>
 
@@ -221,14 +215,6 @@ function applyPressureContourWindow(
   })
   state.renderSpec = renderSpec
   state.map?.triggerRepaint()
-}
-
-function pressureEncodedGridFrameSpec(frame: ContourWindowFrame): EncodedGridFrameSpec {
-  return encodedRasterFrameSpec({
-    raster: frame.raster,
-    expectedBandIds: sourceBandIds(frame.source.source),
-    label: `pressure contour ${frame.raster.artifactId}`,
-  })
 }
 
 function clearPressureFrameState(state: ContourState): void {

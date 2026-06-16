@@ -20,8 +20,10 @@ import {
 } from '../../encodedGrid'
 import { createRenderControllerRegistry } from '../../maplibre/layerAdapter'
 import { createRasterRuntime, type RasterController } from './runtime'
-import { COLORMAP_FRAGMENT_SHADER_SOURCE } from './styles/colormapShaders'
-import { CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE } from './styles/cloudLayers'
+import {
+  CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE,
+  COLORMAP_FRAGMENT_SHADER_SOURCE,
+} from './shaders'
 
 function createMapFixture() {
   return {
@@ -310,7 +312,7 @@ describe('raster runtime encoded sources', () => {
     runtime.onRemove(map as never, gl as never)
   })
 
-  it('rejects raster windows with mismatched lower and upper styles', () => {
+  it('rejects raster windows with mismatched lower and upper render paths', () => {
     const controllers = createRenderControllerRegistry<RasterController>()
     const runtime = createRasterRuntime(controllers)
     const gl = createMockWebGl2()
@@ -327,7 +329,7 @@ describe('raster runtime encoded sources', () => {
       lowerFrameId: scalarFrame.raster.frameId,
       upperFrameId: cloudFrame.raster.frameId,
       mix: 0.5,
-    })).toThrow('Raster frame render style mismatch: lower=colormap upper=cloud-layers')
+    })).toThrow('Raster frame render path mismatch: lower=colormap upper=cloud-layers')
 
     runtime.onRemove(map as never, gl as never)
   })

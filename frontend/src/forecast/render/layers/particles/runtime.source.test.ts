@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import PARTICLE_PASS_SOURCE from './passes/particles.ts?raw'
-import PASSES_INDEX_SOURCE from './passes/index.ts?raw'
-import TRAIL_PASS_SOURCE from './passes/trails.ts?raw'
-import UPDATE_PASS_SOURCE from './passes/update.ts?raw'
+import PARTICLE_PASS_SOURCE from './renderPasses/particles.ts?raw'
+import PASSES_INDEX_SOURCE from './renderPasses/index.ts?raw'
+import TRAIL_PASS_SOURCE from './renderPasses/trails.ts?raw'
+import UPDATE_PASS_SOURCE from './renderPasses/update.ts?raw'
 import RUNTIME_SOURCE from './runtime.ts?raw'
 import STATE_BUFFERS_SOURCE from './stateBuffers.ts?raw'
 import VECTOR_TEXTURE_SOURCE from './vectorTexture.ts?raw'
@@ -76,9 +76,9 @@ describe('particle runtime source', () => {
   })
 
   it('keeps particle orchestration pointed at pass and shader indexes', () => {
-    expect(RUNTIME_SOURCE).toContain("} from './passes'")
+    expect(RUNTIME_SOURCE).toContain("} from './renderPasses'")
     expect(RUNTIME_SOURCE).toContain("} from './shaders'")
-    expect(RUNTIME_SOURCE).not.toContain("from './passes/update'")
+    expect(RUNTIME_SOURCE).not.toContain("from './renderPasses/update'")
     expect(RUNTIME_SOURCE).not.toContain("from './shaders/update'")
   })
 

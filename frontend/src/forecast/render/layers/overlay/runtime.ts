@@ -20,8 +20,8 @@ import {
   normalizePatternOpacity,
   stepPatternOpacity,
   type PrecipitationTypeOverlayRenderEntry,
-} from './styles/precipitationType'
-import { OVERLAY_FRAGMENT_SHADER_SOURCE } from './styles/precipitationTypeShaders'
+} from './renderPaths/precipitationType'
+import { OVERLAY_FRAGMENT_SHADER_SOURCE } from './shaders'
 
 export type OverlayController = MapFrameController<OverlayWindow | null>
 

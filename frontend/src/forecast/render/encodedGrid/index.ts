@@ -21,11 +21,11 @@ export {
   type EncodedFramePair,
   type EncodedGridFrameSpec,
   type EncodedLinearUniformSource,
-} from './framePair'
+} from './frames'
 export {
   ENCODED_DERIVED_GLSL,
   ENCODED_GRID_GLSL,
   ENCODED_GRID_LOCATION_GLSL,
   ENCODED_SAMPLE_GLSL,
   ENCODED_TEXTURE_ARRAY_GLSL,
-} from './shaders'
+} from './shaderSources'

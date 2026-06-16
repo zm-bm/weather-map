@@ -15,8 +15,6 @@ import {
   OVERLAY_PATTERN_FADE_OUT_MS,
   precipTypeOverlayPatternWeights,
   stepPatternOpacity,
-} from './styles/precipitationType'
-import {
   OVERLAY_MIX_ALPHA,
   OVERLAY_MAX_PATTERN_TILE_PIXELS,
   OVERLAY_MAX_PATTERN_ZOOM,
@@ -24,8 +22,8 @@ import {
   OVERLAY_MIN_PATTERN_ZOOM,
   OVERLAY_SNOW_ALPHA,
   overlayPatternTilePixelsForZoom,
-} from './styles/precipitationTypeConstants'
-import { OVERLAY_FRAGMENT_SHADER_SOURCE } from './styles/precipitationTypeShaders'
+} from './renderPaths/precipitationType'
+import { OVERLAY_FRAGMENT_SHADER_SOURCE } from './shaders'
 
 describe('overlay runtime helpers', () => {
   it('uses standard encoded texture uniforms in the overlay shader', () => {

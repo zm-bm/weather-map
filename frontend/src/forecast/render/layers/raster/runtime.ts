@@ -36,30 +36,29 @@ import type { CustomLayerRuntime } from '../../maplibre/customLayer'
 import type { RenderControllerLifecycle } from '../../maplibre/layerAdapter'
 import {
   buildRasterColormapLut,
+  colormapEncodedGridFrameSpec,
+  colormapRasterRenderSpec,
   createColormapKey,
-} from './styles/colormap'
-import { COLORMAP_FRAGMENT_SHADER_SOURCE } from './styles/colormapShaders'
+  isColormapRasterFrame,
+  type ColormapRasterRenderSpec,
+} from './renderPaths/colormap'
 import {
   CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE,
+  COLORMAP_FRAGMENT_SHADER_SOURCE,
+} from './shaders'
+import {
   CLOUD_LAYERS_RENDER_PATH_ID,
   cloudLayersEncodedGridFrameSpec,
   cloudLayerColorUniforms,
   isCloudLayersRasterFrame,
-} from './styles/cloudLayers'
-import {
-  colormapEncodedGridFrameSpec,
-  colormapRasterRenderSpec,
-  isColormapRasterFrame,
-  type ColormapRasterRenderSpec,
-} from './styles/colormapSource'
+} from './renderPaths/cloudLayers'
+import { rasterSourceSamplingModeUniform } from './renderPaths/sampling'
 
 const COLORMAP_LUT_SIZE = 256
 const BANDED_COLORMAP_LUT_SIZE = 2048
-const SOURCE_SAMPLING_MODE_BILINEAR = 0
-const SOURCE_SAMPLING_MODE_NEAREST = 1
 
 type RasterFrame = RasterWindow['lower']
-type RasterStyleId = 'colormap' | typeof CLOUD_LAYERS_RENDER_PATH_ID
+type RasterRenderPathId = 'colormap' | typeof CLOUD_LAYERS_RENDER_PATH_ID
 type LinearRasterEncoding = {
   scale: number
   offset: number
@@ -81,15 +80,15 @@ type RasterState = {
   quad: WrappedWorldQuad | null
   textureCache: EncodedGridTextureCache
   framePair: EncodedFramePair<RasterFrame> | null
-  activeStyleId: RasterStyleId | null
+  activeRenderPathId: RasterRenderPathId | null
   colormapRenderSpec: ColormapRasterRenderSpec | null
   colormapTextureInterpolated: WebGLTexture | null
   colormapTextureBanded: WebGLTexture | null
   colormapKey: string | null
 }
 
-type RasterStyle = {
-  id: RasterStyleId
+type RasterRenderPath = {
+  id: RasterRenderPathId
   matches: (frame: RasterFrame) => boolean
   frameSpec: (frame: RasterFrame) => EncodedGridFrameSpec
   applyFrame?: (
@@ -105,7 +104,7 @@ type RasterStyle = {
   clear?: (state: RasterState) => void
 }
 
-const RASTER_STYLES: readonly RasterStyle[] = [
+const RASTER_RENDER_PATHS: readonly RasterRenderPath[] = [
   {
     id: 'colormap',
     matches: isColormapRasterFrame,
@@ -126,13 +125,15 @@ export function createRasterRuntime(
   controllerRegistry: RenderControllerLifecycle<RasterController>,
   initialSettings: RasterRenderSettings = DEFAULT_RASTER_RENDER_SETTINGS
 ): CustomLayerRuntime {
+  const initialOpacity = sanitizeOpacity(initialSettings.opacity)
   const settings: RasterRenderSettings = {
     ...DEFAULT_RASTER_RENDER_SETTINGS,
     ...initialSettings,
+    opacity: initialOpacity,
   }
   const state: RasterState = {
     enabled: true,
-    opacity: sanitizeOpacity(settings.opacity),
+    opacity: initialOpacity,
     gridSamplingMode: settings.gridSamplingMode,
     colorSamplingMode: settings.colorSamplingMode,
     colormapProgramInfo: null,
@@ -140,7 +141,7 @@ export function createRasterRuntime(
     quad: null,
     textureCache: new EncodedGridTextureCache(),
     framePair: null,
-    activeStyleId: null,
+    activeRenderPathId: null,
     colormapRenderSpec: null,
     colormapTextureInterpolated: null,
     colormapTextureBanded: null,
@@ -165,8 +166,8 @@ export function createRasterRuntime(
         return
       }
 
-      const style = rasterStyleForWindow(frame)
-      const previousStyle = rasterStyleById(state.activeStyleId)
+      const renderPath = rasterRenderPathForWindow(frame)
+      const previousRenderPath = rasterRenderPathById(state.activeRenderPathId)
       const resolvedFramePair = resolveEncodedFramePair({
         gl,
         textureCache: state.textureCache,
@@ -174,19 +175,19 @@ export function createRasterRuntime(
         lowerFrame: frame.lower,
         upperFrame: frame.upper,
         mix: frame.mix,
-        frameSpec: style.frameSpec,
+        frameSpec: renderPath.frameSpec,
       })
       if (!resolvedFramePair) {
         throw new Error('Failed to create raster texture')
       }
 
-      if (previousStyle && previousStyle.id !== style.id) {
-        previousStyle.clear?.(state)
+      if (previousRenderPath && previousRenderPath.id !== renderPath.id) {
+        previousRenderPath.clear?.(state)
       }
-      style.applyFrame?.(gl, state, resolvedFramePair.lowerFrame)
+      renderPath.applyFrame?.(gl, state, resolvedFramePair.lowerFrame)
 
       state.framePair = resolvedFramePair
-      state.activeStyleId = style.id
+      state.activeRenderPathId = renderPath.id
       state.gridSamplingMode = settings.gridSamplingMode
       state.colorSamplingMode = settings.colorSamplingMode
       state.map?.triggerRepaint()
@@ -242,10 +243,10 @@ export function createRasterRuntime(
     render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
       if (!gl2 || !state.map || !state.quad || !state.enabled || state.opacity <= 0) return
-      const { framePair, activeStyleId } = state
-      if (!framePair || !activeStyleId) return
+      const { framePair, activeRenderPathId } = state
+      if (!framePair || !activeRenderPathId) return
 
-      rasterStyleById(activeStyleId)?.render(state, gl2, input.modelViewProjectionMatrix)
+      rasterRenderPathById(activeRenderPathId)?.render(state, gl2, input.modelViewProjectionMatrix)
     },
 
     onRemove(map) {
@@ -264,7 +265,7 @@ export function createRasterRuntime(
       state.gl = undefined
       state.enabled = true
       state.framePair = null
-      state.activeStyleId = null
+      state.activeRenderPathId = null
       state.colormapProgramInfo = null
       state.cloudLayersProgramInfo = null
       state.quad = null
@@ -341,7 +342,7 @@ function renderColormapRaster(
       u_colormap_tex: colormapTexture,
       u_display_range: displayRangeUniform(framePair.lowerFrame.source.display.range),
       u_source_mode: colormapRenderSpec.mode,
-      u_source_sampling_mode: sourceSamplingModeUniform(state.gridSamplingMode),
+      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.gridSamplingMode),
       ...encodedLinearUniforms(colormapRenderSpec),
       u_matrix: matrix,
       u_opacity: state.opacity,
@@ -379,16 +380,16 @@ function renderCloudLayersRaster(
       u_opacity: state.opacity,
       u_world_size: worldSize,
       u_zoom: zoom,
-      u_source_sampling_mode: sourceSamplingModeUniform(state.gridSamplingMode),
+      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.gridSamplingMode),
       ...cloudLayerColorUniforms(framePair.lowerFrame),
     },
   })
 }
 
 function clearRasterFrame(state: RasterState): void {
-  rasterStyleById(state.activeStyleId)?.clear?.(state)
+  rasterRenderPathById(state.activeRenderPathId)?.clear?.(state)
   state.framePair = null
-  state.activeStyleId = null
+  state.activeRenderPathId = null
 }
 
 function clearColormapRasterTextures(state: RasterState): void {
@@ -402,25 +403,25 @@ function clearColormapRasterTextures(state: RasterState): void {
   state.colormapKey = null
 }
 
-function rasterStyleForWindow(frame: RasterWindow): RasterStyle {
-  const lowerStyle = rasterStyleForFrame(frame.lower)
-  const upperStyle = rasterStyleForFrame(frame.upper)
-  if (lowerStyle.id !== upperStyle.id) {
-    throw new Error(`Raster frame render style mismatch: lower=${lowerStyle.id} upper=${upperStyle.id}`)
+function rasterRenderPathForWindow(frame: RasterWindow): RasterRenderPath {
+  const lowerRenderPath = rasterRenderPathForFrame(frame.lower)
+  const upperRenderPath = rasterRenderPathForFrame(frame.upper)
+  if (lowerRenderPath.id !== upperRenderPath.id) {
+    throw new Error(`Raster frame render path mismatch: lower=${lowerRenderPath.id} upper=${upperRenderPath.id}`)
   }
-  return lowerStyle
+  return lowerRenderPath
 }
 
-function rasterStyleForFrame(frame: RasterFrame): RasterStyle {
-  const style = RASTER_STYLES.find((entry) => entry.matches(frame))
-  if (!style) {
+function rasterRenderPathForFrame(frame: RasterFrame): RasterRenderPath {
+  const renderPath = RASTER_RENDER_PATHS.find((entry) => entry.matches(frame))
+  if (!renderPath) {
     throw new Error(`Unsupported raster source for ${frame.source.layerId}`)
   }
-  return style
+  return renderPath
 }
 
-function rasterStyleById(id: RasterStyleId | null): RasterStyle | null {
-  return RASTER_STYLES.find((entry) => entry.id === id) ?? null
+function rasterRenderPathById(id: RasterRenderPathId | null): RasterRenderPath | null {
+  return RASTER_RENDER_PATHS.find((entry) => entry.id === id) ?? null
 }
 
 function sanitizeOpacity(value: number): number {
@@ -460,10 +461,4 @@ function createColormapTexture(
 
 function paletteSamplingModeForRaster(colorSamplingMode: RasterColorSamplingMode): PaletteSamplingMode {
   return colorSamplingMode === 'gradient' ? 'interpolated' : 'banded'
-}
-
-function sourceSamplingModeUniform(gridSamplingMode: RasterGridSamplingMode): number {
-  return gridSamplingMode === 'nearest'
-    ? SOURCE_SAMPLING_MODE_NEAREST
-    : SOURCE_SAMPLING_MODE_BILINEAR
 }
