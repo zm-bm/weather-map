@@ -1,135 +1,165 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  PRESSURE_CONTOUR_HALO_ALPHA,
+  PRESSURE_CONTOUR_EDGE_EPSILON_HPA,
   PRESSURE_CONTOUR_INTERVAL_HPA,
-  PRESSURE_CONTOUR_MAIN_ALPHA,
-  interpolatePressureHpa,
-  pressureContourPhaseBandWeights,
-  pressureContourPhaseDistanceHpa,
-  smoothPressureHpa3x3,
+  PRESSURE_CONTOUR_MAX_LEVELS_PER_CELL,
+  PRESSURE_CONTOUR_MIN_COVERAGE,
+  interpolatePressureField,
+  isPressureFieldContourable,
+  pressureContourLevelsForCell,
+  pressureMarchingSquareSegmentCount,
+  pressureMarchingSquareSaddlePairing,
+  smoothPressureField3x3,
 } from './pressure'
 
 describe('pressure contour math helpers', () => {
-  it('computes distance to the nearest 4 hPa contour interval', () => {
+  it('keeps pressure contours on 4 hPa intervals', () => {
     expect(PRESSURE_CONTOUR_INTERVAL_HPA).toBe(4)
-    expect(pressureContourPhaseDistanceHpa(1000)).toBe(0)
-    expect(pressureContourPhaseDistanceHpa(1002)).toBe(2)
-    expect(pressureContourPhaseDistanceHpa(1003.5)).toBeCloseTo(0.5)
+    expect(PRESSURE_CONTOUR_EDGE_EPSILON_HPA).toBe(1e-4)
+    expect(PRESSURE_CONTOUR_MAX_LEVELS_PER_CELL).toBe(32)
+    expect(PRESSURE_CONTOUR_MIN_COVERAGE).toBe(0.875)
   })
 
   it('preserves a flat field through the 3x3 smoothing kernel', () => {
-    expect(smoothPressureHpa3x3([
+    const sample = smoothPressureField3x3([
       1000, 1000, 1000,
       1000, 1000, 1000,
       1000, 1000, 1000,
-    ])).toBe(1000)
+    ])
+
+    expect(sample.pressureHpa).toBe(1000)
+    expect(sample.coverage).toBe(1)
+    expect(isPressureFieldContourable(sample)).toBe(true)
   })
 
   it('reduces a single-cell pressure spike', () => {
-    const smoothedPressure = smoothPressureHpa3x3([
+    const smoothedPressure = smoothPressureField3x3([
       1000, 1000, 1000,
       1000, 1008, 1000,
       1000, 1000, 1000,
     ])
 
-    expect(smoothedPressure).toBeCloseTo(1002)
-    expect(smoothedPressure).toBeGreaterThan(1000)
-    expect(smoothedPressure).toBeLessThan(1008)
+    expect(smoothedPressure.pressureHpa).toBeCloseTo(1002)
+    expect(smoothedPressure.pressureHpa).toBeGreaterThan(1000)
+    expect(smoothedPressure.pressureHpa).toBeLessThan(1008)
+    expect(smoothedPressure.coverage).toBe(1)
   })
 
-  it('normalizes smoothing weights over valid neighbors only', () => {
-    expect(smoothPressureHpa3x3([
+  it('tracks partial smoothing coverage below the contour threshold', () => {
+    const sample = smoothPressureField3x3([
       Number.NaN, 1002, Number.NaN,
       1002, 1002, 1002,
       Number.NaN, 1002, Number.NaN,
-    ])).toBe(1002)
+    ])
+
+    expect(sample.pressureHpa).toBe(1002)
+    expect(sample.coverage).toBe(0.75)
+    expect(sample.coverage).toBeLessThan(PRESSURE_CONTOUR_MIN_COVERAGE)
+    expect(isPressureFieldContourable(sample)).toBe(false)
+  })
+
+  it('accepts cells missing only low-weight smoothing support', () => {
+    const sample = smoothPressureField3x3([
+      Number.NaN, 1002, 1002,
+      1002, 1002, 1002,
+      1002, 1002, 1002,
+    ])
+
+    expect(sample.pressureHpa).toBe(1002)
+    expect(sample.coverage).toBe(0.9375)
+    expect(isPressureFieldContourable(sample)).toBe(true)
   })
 
   it('requires a valid center pressure sample before smoothing', () => {
-    expect(smoothPressureHpa3x3([
+    const centerMissing = smoothPressureField3x3([
       1000, 1000, 1000,
       1000, Number.NaN, 1000,
       1000, 1000, 1000,
-    ])).toBeNaN()
-    expect(smoothPressureHpa3x3([
+    ])
+    const allMissing = smoothPressureField3x3([
       Number.NaN, Number.NaN, Number.NaN,
       Number.NaN, Number.NaN, Number.NaN,
       Number.NaN, Number.NaN, Number.NaN,
-    ])).toBeNaN()
+    ])
+
+    expect(centerMissing.pressureHpa).toBeNaN()
+    expect(centerMissing.coverage).toBe(0)
+    expect(isPressureFieldContourable(centerMissing)).toBe(false)
+    expect(allMissing.pressureHpa).toBeNaN()
+    expect(allMissing.coverage).toBe(0)
+    expect(isPressureFieldContourable(allMissing)).toBe(false)
   })
 
-  it('produces softened white main alpha near a contour with a faint halo', () => {
-    const weights = pressureContourPhaseBandWeights({
-      pressureHpa: 1000,
-      pressureDerivativeHpa: 1,
-    })
-
-    expect(weights.mainAlpha).toBeCloseTo(PRESSURE_CONTOUR_MAIN_ALPHA)
-    expect(weights.haloAlpha).toBeCloseTo(PRESSURE_CONTOUR_HALO_ALPHA)
+  it('does not contour flat pressure cells', () => {
+    expect(pressureMarchingSquareSegmentCount([1000, 1000, 1000, 1000], 1000)).toBe(0)
+    expect(pressureMarchingSquareSegmentCount([1002, 1002, 1002, 1002], 1000)).toBe(0)
   })
 
-  it('fades to zero away from a contour', () => {
-    const weights = pressureContourPhaseBandWeights({
-      pressureHpa: 1002,
-      pressureDerivativeHpa: 0.1,
-    })
-
-    expect(weights.mainAlpha).toBe(0)
-    expect(weights.haloAlpha).toBe(0)
+  it('selects contour levels from the whole pressure cell range', () => {
+    expect(pressureContourLevelsForCell([999, 1009, 1001, 1003])).toEqual([1000, 1004, 1008])
+    expect(pressureContourLevelsForCell([1000, 1002, 1000, 1002])).toEqual([1000])
+    expect(pressureContourLevelsForCell([1000, 1000, 1000, 1000])).toEqual([])
   })
 
-  it('treats non-finite pressure or flat pressure derivative as no contour', () => {
-    expect(pressureContourPhaseBandWeights({
-      pressureHpa: Number.NaN,
-      pressureDerivativeHpa: 1,
-    })).toEqual({ mainAlpha: 0, haloAlpha: 0 })
-    expect(pressureContourPhaseBandWeights({
-      pressureHpa: 1000,
-      pressureDerivativeHpa: 0,
-    })).toEqual({ mainAlpha: 0, haloAlpha: 0 })
+  it('counts one segment for a cell that crosses a contour level once', () => {
+    expect(pressureMarchingSquareSegmentCount([999, 1001, 999, 1001], 1000)).toBe(1)
   })
 
-  it('interpolates lower and upper smoothed pressure before contour styling', () => {
-    const lowerHpa = smoothPressureHpa3x3([
+  it('keeps contours connected when one corner is exactly on the contour level', () => {
+    expect(pressureMarchingSquareSegmentCount([1000, 1001, 999, 1001], 1000)).toBe(1)
+  })
+
+  it('counts two segments for a saddle cell', () => {
+    expect(pressureMarchingSquareSegmentCount([999, 1001, 1001, 999], 1000)).toBe(2)
+  })
+
+  it('chooses saddle pairings from the center pressure value', () => {
+    expect(pressureMarchingSquareSaddlePairing([1001, 999, 999, 1001], 1000))
+      .toBe('bottom-right/top-left')
+    expect(pressureMarchingSquareSaddlePairing([999, 1001, 1001, 999], 1000))
+      .toBe('bottom-left/right-top')
+    expect(pressureMarchingSquareSaddlePairing([998, 1001, 1001, 998], 1000))
+      .toBe('bottom-right/top-left')
+  })
+
+  it('rejects invalid pressure cells before marching squares', () => {
+    expect(pressureMarchingSquareSegmentCount([999, Number.NaN, 1001, 1001], 1000)).toBe(0)
+    expect(pressureMarchingSquareSegmentCount([999, 1001, 1001, 999], Number.NaN)).toBe(0)
+    expect(pressureContourLevelsForCell([999, Number.NaN, 1001, 1001])).toEqual([])
+  })
+
+  it('interpolates lower and upper smoothed pressure before contouring', () => {
+    const lower = smoothPressureField3x3([
       998, 998, 998,
       998, 998, 998,
       998, 998, 998,
     ])
-    const upperHpa = smoothPressureHpa3x3([
+    const upper = smoothPressureField3x3([
       1002, 1002, 1002,
       1002, 1002, 1002,
       1002, 1002, 1002,
     ])
-    const pressureHpa = interpolatePressureHpa({
-      lowerHpa,
-      upperHpa,
+    const pressure = interpolatePressureField({
+      lower,
+      upper,
       mix: 0.5,
     })
-    const weights = pressureContourPhaseBandWeights({
-      pressureHpa,
-      pressureDerivativeHpa: 1,
-    })
 
-    expect(pressureHpa).toBe(1000)
-    expect(weights.mainAlpha).toBeCloseTo(PRESSURE_CONTOUR_MAIN_ALPHA)
+    expect(pressure.pressureHpa).toBe(1000)
+    expect(pressure.coverage).toBe(1)
   })
 
-  it('falls back to the finite pressure side when only one frame has data', () => {
-    expect(interpolatePressureHpa({
-      lowerHpa: Number.NaN,
-      upperHpa: 1004,
-      mix: 0.5,
-    })).toBe(1004)
-    expect(interpolatePressureHpa({
-      lowerHpa: 996,
-      upperHpa: Number.NaN,
-      mix: 0.5,
-    })).toBe(996)
-    expect(interpolatePressureHpa({
-      lowerHpa: Number.NaN,
-      upperHpa: Number.NaN,
-      mix: 0.5,
-    })).toBeNaN()
+  it('requires both frames for intermediate temporal interpolation', () => {
+    const lower = { pressureHpa: 996, coverage: 1 }
+    const upper = { pressureHpa: 1004, coverage: 1 }
+    const missing = { pressureHpa: Number.NaN, coverage: 0 }
+
+    expect(interpolatePressureField({ lower: missing, upper, mix: 0.5 }).pressureHpa)
+      .toBeNaN()
+    expect(interpolatePressureField({ lower, upper: missing, mix: 0.5 }).pressureHpa)
+      .toBeNaN()
+    expect(interpolatePressureField({ lower: missing, upper, mix: 1 })).toEqual(upper)
+    expect(interpolatePressureField({ lower, upper: missing, mix: 0 })).toEqual(lower)
   })
 })

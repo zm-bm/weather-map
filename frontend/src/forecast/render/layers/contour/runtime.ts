@@ -6,9 +6,7 @@ import {
 } from '@/forecast/frames'
 import {
   EncodedGridTextureCache,
-  encodedFramePairUniforms,
   encodedGridUniforms,
-  encodedLinearUniforms,
   resolveEncodedFramePair,
   type EncodedFramePair,
 } from '../../encodedGrid'
@@ -27,7 +25,6 @@ import type { CustomLayerRuntime } from '../../maplibre/customLayer'
 import type { MapFrameController } from '@/map/controllers'
 import {
   PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE,
-  PRESSURE_CONTOUR_RAW_FRAGMENT_SHADER_SOURCE,
 } from './shaders'
 import {
   createPressurePrefilter,
@@ -50,7 +47,6 @@ type ContourState = {
   gl?: WebGL2RenderingContext
   enabled: boolean
   programInfo: ProgramInfo | null
-  rawProgramInfo: ProgramInfo | null
   prefilter: PressurePrefilter | null
   quad: WrappedWorldQuad | null
   rawTextureCache: EncodedGridTextureCache
@@ -65,7 +61,6 @@ export function createContourRuntime(
   const state: ContourState = {
     enabled: true,
     programInfo: null,
-    rawProgramInfo: null,
     prefilter: null,
     quad: null,
     rawTextureCache: new EncodedGridTextureCache(),
@@ -104,16 +99,10 @@ export function createContourRuntime(
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
         fragmentSource: PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE,
       })
-      state.rawProgramInfo = createProgramInfo({
-        gl: gl2,
-        label: 'contour-raw',
-        vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
-        fragmentSource: PRESSURE_CONTOUR_RAW_FRAGMENT_SHADER_SOURCE,
-      })
       state.quad = createWrappedWorldQuad(gl2)
       state.prefilter = createPressurePrefilter(gl2)
 
-      if (!state.rawProgramInfo || !state.quad) {
+      if (!state.programInfo || !state.quad) {
         return
       }
     },
@@ -125,8 +114,8 @@ export function createContourRuntime(
       if (!state.enabled || !rawFramePair || !renderSpec) return
 
       const { smoothedFramePair } = state
-      const usePrefiltered = smoothedFramePair != null && state.programInfo != null
-      const programInfo = usePrefiltered ? state.programInfo : state.rawProgramInfo
+      const programInfo = state.programInfo
+      if (!smoothedFramePair) return
       if (!programInfo) return
 
       drawWrappedWorldCopies({
@@ -135,17 +124,10 @@ export function createContourRuntime(
         quad: state.quad,
         centerWrap: worldWrapForLng(state.map.getCenter().lng),
         uniforms: {
-          ...(usePrefiltered
-            ? {
-                u_pressure_tex_lower: smoothedFramePair.lowerTexture,
-                u_pressure_tex_upper: smoothedFramePair.upperTexture,
-                ...encodedGridUniforms(rawFramePair.lowerFrame.raster.grid),
-                u_time_mix: smoothedFramePair.timeMix,
-              }
-            : {
-                ...encodedFramePairUniforms(rawFramePair),
-                ...encodedLinearUniforms(renderSpec),
-              }),
+          u_pressure_tex_lower: smoothedFramePair.lowerTexture,
+          u_pressure_tex_upper: smoothedFramePair.upperTexture,
+          ...encodedGridUniforms(rawFramePair.lowerFrame.raster.grid),
+          u_time_mix: smoothedFramePair.timeMix,
           u_matrix: input.modelViewProjectionMatrix,
           u_world_size: worldSizeAtZoom(state.map.getZoom()),
         },
@@ -162,7 +144,6 @@ export function createContourRuntime(
         if (state.prefilter) disposePressurePrefilter(gl, state.prefilter)
         if (state.quad) deleteBufferInfo(gl, state.quad)
         if (state.programInfo) gl.deleteProgram(state.programInfo.program)
-        if (state.rawProgramInfo) gl.deleteProgram(state.rawProgramInfo.program)
       }
 
       state.map = undefined
@@ -172,7 +153,6 @@ export function createContourRuntime(
       state.smoothedFramePair = null
       state.renderSpec = null
       state.programInfo = null
-      state.rawProgramInfo = null
       state.prefilter = null
       state.quad = null
     },
@@ -224,5 +204,8 @@ function clearPressureFrameState(state: ContourState): void {
 }
 
 function isContourAvailable(state: ContourState): boolean {
-  return state.gl != null && state.rawProgramInfo != null && state.quad != null
+  return state.gl != null &&
+    state.programInfo != null &&
+    state.quad != null &&
+    state.prefilter?.available === true
 }

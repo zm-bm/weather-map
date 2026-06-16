@@ -63,7 +63,10 @@ export type PressurePrefilter = {
 }
 
 export function createPressurePrefilter(gl: WebGL2RenderingContext): PressurePrefilter | null {
-  if (!gl.getExtension('EXT_color_buffer_float')) return null
+  if (!gl.getExtension('EXT_color_buffer_float')) {
+    console.warn('[contour] EXT_color_buffer_float is required for pressure contours; contours disabled')
+    return null
+  }
 
   const framebuffer = gl.createFramebuffer()
   if (!framebuffer) return null
@@ -186,11 +189,11 @@ function createPressureRenderTargetTexture(
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.R32F,
+      gl.RG32F,
       frame.raster.grid.nx,
       frame.raster.grid.ny,
       0,
-      gl.RED,
+      gl.RG,
       gl.FLOAT,
       null
     )
@@ -199,7 +202,7 @@ function createPressureRenderTargetTexture(
   } catch (error) {
     gl.bindTexture(gl.TEXTURE_2D, null)
     gl.deleteTexture(texture)
-    console.warn('[contour] failed to create smoothed pressure texture:', error)
+    console.warn('[contour] failed to create smoothed pressure field texture:', error)
     return null
   }
 }
@@ -228,7 +231,7 @@ function renderSmoothedPressureTexture(args: {
   if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     prefilter.available = false
-    console.warn('[contour] smoothed pressure framebuffer is incomplete; using raw fallback')
+    console.warn('[contour] smoothed pressure framebuffer is incomplete; contours disabled')
     return false
   }
 

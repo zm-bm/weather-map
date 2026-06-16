@@ -3,7 +3,7 @@ precision highp float;
 precision highp int;
 precision highp isampler2DArray;
 
-out float outPressureHpa;
+out vec2 outPressureField;
 
 uniform isampler2DArray u_encoded_tex;
 uniform vec2 u_grid_size;
@@ -14,9 +14,18 @@ uniform float u_offset;
 uniform int u_x_wrap;
 uniform int u_y_mode;
 
-#pragma weather-map include pressure-contour-constants
+#pragma weather-map include smoothing-constants
 #pragma weather-map include encoded-grid
-#pragma weather-map include pressure-smoothing
+
+float pressureKernelWeight(int offsetX, int offsetY) {
+  if (offsetX == 0 && offsetY == 0) return SMOOTHING_CENTER_WEIGHT;
+  if (offsetX == 0 || offsetY == 0) return SMOOTHING_AXIS_WEIGHT;
+  return SMOOTHING_CORNER_WEIGHT;
+}
+
+float pressureMissingValue() {
+  return uintBitsToFloat(0x7fc00000u);
+}
 
 EncodedSample samplePressureCellHpa(int x, int y) {
   EncodedGridLocation location = encodedGridLocationAt(float(x), float(y), u_grid_size, u_x_wrap, u_y_mode);
@@ -40,7 +49,7 @@ void main() {
   int centerY = int(gl_FragCoord.y);
   EncodedSample center = samplePressureCellHpa(centerX, centerY);
   if (center.valid <= 0.0) {
-    outPressureHpa = pressureMissingValue();
+    outPressureField = vec2(pressureMissingValue(), 0.0);
     return;
   }
 
@@ -57,7 +66,7 @@ void main() {
     }
   }
 
-  outPressureHpa = totalWeight > 0.0
-    ? weightedPressureHpa / totalWeight
-    : pressureMissingValue();
+  outPressureField = totalWeight > 0.0
+    ? vec2(weightedPressureHpa / totalWeight, totalWeight / SMOOTHING_FULL_WEIGHT)
+    : vec2(pressureMissingValue(), 0.0);
 }

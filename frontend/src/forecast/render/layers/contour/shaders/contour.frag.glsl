@@ -18,28 +18,11 @@ uniform float u_dy;
 uniform int u_x_wrap;
 uniform int u_y_mode;
 
-#pragma weather-map include pressure-contour-constants
+#pragma weather-map include contour-constants
 #pragma weather-map include encoded-grid
-#pragma weather-map include pressure-contour-style
-
-EncodedSample sampleSmoothedPressureTexel(sampler2D pressureTex, int x, int y) {
-  float value = texelFetch(pressureTex, ivec2(x, y), 0).r;
-  if (isnan(value)) return encodedMissing();
-  return encodedValue(value);
-}
-
-EncodedSample sampleSmoothedPressureBilinear(sampler2D pressureTex, EncodedGridLocation location) {
-  return weightedEncodedSample(
-    sampleSmoothedPressureTexel(pressureTex, location.x0, location.y0),
-    sampleSmoothedPressureTexel(pressureTex, location.x1, location.y0),
-    sampleSmoothedPressureTexel(pressureTex, location.x0, location.y1),
-    sampleSmoothedPressureTexel(pressureTex, location.x1, location.y1),
-    location.w00,
-    location.w10,
-    location.w01,
-    location.w11
-  );
-}
+#pragma weather-map include pressure-field
+#pragma weather-map include marching-squares
+#pragma weather-map include contour-line
 
 void main() {
   if (u_grid_size.x < 2.0 || u_grid_size.y < 2.0) {
@@ -57,17 +40,67 @@ void main() {
     u_x_wrap,
     u_y_mode
   );
+  vec2 cellUv = vec2(location.w10 + location.w11, location.w01 + location.w11);
+  vec2 gridCoord = vec2(location.gridX, location.gridY);
+  vec2 gridDx = dFdx(gridCoord);
+  vec2 gridDy = dFdy(gridCoord);
+  float gridDeterminant = (gridDx.x * gridDy.y) - (gridDy.x * gridDx.y);
   float mixValue = clamp(u_time_mix, 0.0, 1.0);
-  EncodedSample pressureSample = blendEncodedSamples(
-    sampleSmoothedPressureBilinear(u_pressure_tex_lower, location),
-    sampleSmoothedPressureBilinear(u_pressure_tex_upper, location),
+  PressureFieldCell pressureCell = blendPressureFieldCells(
+    samplePressureFieldCell(u_pressure_tex_lower, location),
+    samplePressureFieldCell(u_pressure_tex_upper, location),
     mixValue
   );
 
-  if (pressureSample.valid <= 0.0) {
+  if (pressureCell.valid <= 0.0 || abs(gridDeterminant) <= 1e-8) {
     outColor = vec4(0.0);
     return;
   }
 
-  outColor = pressureContourColor(pressureSample.value);
+  float cellMinHpa = pressureCellMinHpa(pressureCell);
+  float cellMaxHpa = pressureCellMaxHpa(pressureCell);
+  if (!pressureCellCanContour(cellMinHpa, cellMaxHpa)) {
+    outColor = vec4(0.0);
+    return;
+  }
+
+  float firstContourLevelHpa = firstContourLevelForCell(cellMinHpa);
+  float bestDistancePx = 1e20;
+  for (int contourLevelIndex = 0; contourLevelIndex < MAX_CONTOUR_LEVELS_PER_CELL; contourLevelIndex++) {
+    float contourLevelHpa = firstContourLevelHpa + (float(contourLevelIndex) * CONTOUR_INTERVAL_HPA);
+    if (contourLevelHpa > cellMaxHpa + CONTOUR_EDGE_EPSILON_HPA) break;
+
+    PressureContourSegments segments = pressureMarchingSquareSegments(pressureCell, contourLevelHpa);
+    if (segments.count <= 0) continue;
+
+    float distancePx = pressureSegmentDistancePx(
+      cellUv,
+      segments.p0,
+      segments.p1,
+      gridDx,
+      gridDy,
+      gridDeterminant
+    );
+    if (segments.count > 1) {
+      distancePx = min(
+        distancePx,
+        pressureSegmentDistancePx(
+          cellUv,
+          segments.p2,
+          segments.p3,
+          gridDx,
+          gridDy,
+          gridDeterminant
+        )
+      );
+    }
+    bestDistancePx = min(bestDistancePx, distancePx);
+  }
+
+  if (bestDistancePx >= 1e19) {
+    outColor = vec4(0.0);
+    return;
+  }
+
+  outColor = pressureContourLineColor(bestDistancePx);
 }
