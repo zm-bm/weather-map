@@ -35,9 +35,7 @@ function plannedWindow(id: 'raster' | 'overlay' | 'contour' | 'particles') {
       id,
       key: `${id}:key`,
       failurePolicy: 'optional',
-      output: 'array',
       frames: [{
-        sourceKind: 'overlay',
         source,
         artifactId,
         bandIds: ['snow_frac', 'mix_frac'],
@@ -46,35 +44,37 @@ function plannedWindow(id: 'raster' | 'overlay' | 'contour' | 'particles') {
     })
   }
   if (id === 'contour') {
-    const source = createContourSourceFixture({ artifactId })
+    const source = {
+      ...createContourSourceFixture({ artifactId }),
+      label: 'Pressure Contours',
+    }
     return createForecastWindowPlanTestFixture({
       id,
       key: `${id}:key`,
       failurePolicy: 'optional',
-      output: 'single',
-      frame: {
-        sourceKind: 'contour',
+      frames: [{
         source,
         artifactId,
         bandIds: ['value'],
         cacheKeyPrefix: `${id}:key`,
-      },
+      }],
     })
   }
   if (id === 'particles') {
-    const source = createParticleSourceFixture({ artifactId })
+    const source = {
+      ...createParticleSourceFixture({ artifactId }),
+      label: 'Wind',
+    }
     return createForecastWindowPlanTestFixture({
       id,
       key: `${id}:key`,
       failurePolicy: 'required',
-      output: 'single',
-      frame: {
-        sourceKind: 'particles',
+      frames: [{
         source,
         artifactId,
         bandIds: ['u', 'v'],
         cacheKeyPrefix: `${id}:key`,
-      },
+      }],
     })
   }
   const source = createRasterLayerSourceFixture({ artifactId })
@@ -82,14 +82,12 @@ function plannedWindow(id: 'raster' | 'overlay' | 'contour' | 'particles') {
     id,
     key: `${id}:key`,
     failurePolicy: 'required',
-    output: 'single',
-    frame: {
-      sourceKind: 'raster',
+    frames: [{
       source,
       artifactId,
       bandIds: ['value'],
       cacheKeyPrefix: `${id}:key`,
-    },
+    }],
   })
 }
 
@@ -290,14 +288,12 @@ describe('prefetchForecastFrames', () => {
           id: 'raster',
           key: 'cloudLayers:key',
           failurePolicy: 'required',
-          output: 'single',
-          frame: {
-            sourceKind: 'raster',
+          frames: [{
             source: createCloudLayersLayerSourceFixture({ artifactId: 'cloudLayers_artifact' }),
             artifactId: 'cloudLayers_artifact',
             bandIds: ['low', 'middle', 'high'],
             cacheKeyPrefix: 'cloudLayers:key',
-          },
+          }],
         })],
       }),
       aheadHourCount: 1,

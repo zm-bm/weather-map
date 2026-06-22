@@ -20,9 +20,8 @@ const FRAMES = [
 ] as const
 
 const INITIAL_FRAME_ID = FRAMES[FRAMES.length - 1].id
-const BASE_REFLECTIVITY_ARTIFACT_ID = 'observed_radar_base_reflectivity'
 const COMPOSITE_REFLECTIVITY_ARTIFACT_ID = 'observed_radar_composite_reflectivity'
-const PAYLOAD_FILE = `${BASE_REFLECTIVITY_ARTIFACT_ID}.i8.bin`
+const PAYLOAD_FILE = `${COMPOSITE_REFLECTIVITY_ARTIFACT_ID}.i8.bin`
 
 const payloadByFrameId: Record<string, readonly number[]> = {
   '20260611000238': [8, 12, 16, 20],
@@ -86,9 +85,9 @@ test('loads mocked MRMS observed radar and advances playback through rolling pay
     await route.fulfill({ status: 204 })
   })
 
-  await page.goto('/?layer=observed_radar_base_reflectivity')
+  await page.goto('/?layer=observed_radar_composite_reflectivity')
 
-  await expect(page.getByLabel('Measurement')).toHaveValue(BASE_REFLECTIVITY_ARTIFACT_ID)
+  await expect(page.getByLabel('Measurement')).toHaveValue(COMPOSITE_REFLECTIVITY_ARTIFACT_ID)
   await expect(page.getByLabel('Forecast source', { exact: true })).toHaveValue('mrms')
   await expect(page.getByText(/Forecast (Load|Startup) Failed/)).toHaveCount(0)
 
@@ -135,11 +134,6 @@ function createMrmsManifest() {
           },
           frames: FRAMES,
           artifacts: {
-            [BASE_REFLECTIVITY_ARTIFACT_ID]: createReflectivityArtifact({
-              id: BASE_REFLECTIVITY_ARTIFACT_ID,
-              parameter: 'ReflectivityAtLowestAltitude',
-              level: 'lowest altitude',
-            }),
             [COMPOSITE_REFLECTIVITY_ARTIFACT_ID]: createReflectivityArtifact({
               id: COMPOSITE_REFLECTIVITY_ARTIFACT_ID,
               parameter: 'MergedReflectivityQCComposite',
@@ -151,7 +145,6 @@ function createMrmsManifest() {
       },
     },
     layers: {
-      [BASE_REFLECTIVITY_ARTIFACT_ID]: createAvailableLayer(BASE_REFLECTIVITY_ARTIFACT_ID),
       [COMPOSITE_REFLECTIVITY_ARTIFACT_ID]: createAvailableLayer(COMPOSITE_REFLECTIVITY_ARTIFACT_ID),
     },
   }

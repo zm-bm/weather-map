@@ -12,8 +12,7 @@ export type ForecastTimeViewState = {
 
 export type ForecastTimeControls = {
   requestTime: (timeMs: number) => void
-  requestNext: () => void
-  requestPrev: () => void
+  resetToNow: () => void
   togglePlay: () => void
 }
 

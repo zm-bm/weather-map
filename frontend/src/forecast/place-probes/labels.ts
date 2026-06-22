@@ -56,29 +56,30 @@ export function createPlaceProbeLabels(
   samplerState: PlaceProbeSamplers,
   formatProbeValue: ForecastPlaceProbeValueFormatter,
 ): PlaceProbeValueLabel[] {
-  return places.map((place, index) => ({
-    id: place.id,
-    name: place.name,
-    localName: place.localName,
-    lon: place.lon,
-    lat: place.lat,
-    sortKey: place.sortKey,
-    probeText: getPlaceProbeText(index, frame, samplerState, formatProbeValue),
-  }))
+  return places.map((place, index) => {
+    const rawProbeValue = getPlaceProbeValue(index, frame, samplerState)
+    const probeText = frame == null ? '' : formatProbeValue(rawProbeValue).text
+    return {
+      id: place.id,
+      lon: place.lon,
+      lat: place.lat,
+      sortKey: place.sortKey,
+      labelText: [place.name, place.localName, probeText].filter(Boolean).join('\n'),
+    }
+  })
 }
 
-function getPlaceProbeText(
+function getPlaceProbeValue(
   placeIndex: number,
   frame: ProbeWindow | null,
   samplerState: PlaceProbeSamplers,
-  formatProbeValue: ForecastPlaceProbeValueFormatter,
-): string {
+): number | null {
   const sampler = samplerState.samplers[placeIndex]
   const rawValue = frame != null && sampler != null
     ? sampleRasterWindowWithSampler(frame, sampler)
     : null
 
-  return formatProbeValue(rawValue, frame == null).text
+  return rawValue != null && Number.isFinite(rawValue) ? rawValue : null
 }
 
 function getRasterFrameGridKey(frame: ProbeWindow['lower']): string {

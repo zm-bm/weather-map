@@ -71,12 +71,6 @@ export function createCatalogManifestFixture(
       valid_at: '2026-06-11T00:00:00Z',
     }],
     artifacts: {
-      observed_radar_base_reflectivity: createScalarArtifactFixture({
-        id: 'observed_radar_base_reflectivity',
-        units: 'dBZ',
-        parameter: 'ReflectivityAtLowestAltitude',
-        level: 'lowest altitude',
-      }),
       observed_radar_composite_reflectivity: createScalarArtifactFixture({
         id: 'observed_radar_composite_reflectivity',
         units: 'dBZ',
@@ -109,18 +103,13 @@ export function createCatalogManifestFixture(
         gfs: available(['cloud_layers']),
         icon: available(['cloud_layers']),
       }),
+      cloud_cover: createManifestLayerFixture({
+        gfs: available(['tcdc']),
+        icon: unsupported(['tcdc']),
+      }),
       accumulated_precipitation: createManifestLayerFixture({
         gfs: available(['precip_total_surface']),
         icon: available(['precip_total_surface']),
-      }),
-      visibility: createManifestLayerFixture({
-        gfs: available(['visibility_surface']),
-        icon: unsupported(['visibility_surface']),
-      }),
-      observed_radar_base_reflectivity: createManifestLayerFixture({
-        gfs: unsupported(['observed_radar_base_reflectivity']),
-        icon: unsupported(['observed_radar_base_reflectivity']),
-        mrms: available(['observed_radar_base_reflectivity']),
       }),
       observed_radar_composite_reflectivity: createManifestLayerFixture({
         gfs: unsupported(['observed_radar_composite_reflectivity']),

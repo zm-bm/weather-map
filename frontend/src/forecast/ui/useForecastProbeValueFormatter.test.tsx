@@ -1,25 +1,11 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createForecastSelectionContextValue,
-  createManifestFixture,
-  createScalarArtifactFixture,
-} from '@/test/fixtures'
-import { useForecastPlaceProbeValueFormatter } from './useForecastPlaceProbeValueFormatter'
+import { useForecastProbeValueFormatter } from './useForecastProbeValueFormatter'
 
 const mocks = vi.hoisted(() => ({
-  selectionContext: null as unknown,
   unitSystem: 'imperial' as 'imperial' | 'metric',
 }))
-
-vi.mock('@/forecast/selection', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/forecast/selection')>()
-  return {
-    ...actual,
-    useLoadedForecastSelectionContext: () => mocks.selectionContext,
-  }
-})
 
 vi.mock('@/forecast/settings', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/forecast/settings')>()
@@ -36,48 +22,20 @@ vi.mock('@/forecast/settings', async (importOriginal) => {
         updateRaster: vi.fn(),
         updateParticles: vi.fn(),
         updatePressureContours: vi.fn(),
-        updateUnits: vi.fn(),
         toggleUnitSystem: vi.fn(),
       },
     }),
   }
 })
 
-const manifest = createManifestFixture({
-  cycle: '2026041100',
-  scalarArtifactIds: ['tmp_surface', 'rh_surface', 'prmsl_msl', 'prate_surface'],
-  vectorArtifactIds: ['wind10m_uv'],
-  artifacts: {
-    tmp_surface: createScalarArtifactFixture(),
-    rh_surface: createScalarArtifactFixture({
-      units: '%',
-      parameter: 'rh',
-    }),
-    prmsl_msl: createScalarArtifactFixture({
-      id: 'prmsl_msl',
-      units: 'Pa',
-      parameter: 'prmsl',
-    }),
-    prate_surface: createScalarArtifactFixture({
-      units: 'mm/hr',
-      parameter: 'prate',
-    }),
-  },
-})
-
 function renderDisplayHook(options: {
-  selectedLayerId?: 'temperature' | 'relative_humidity' | 'air_pressure' | 'precipitation_rate'
+  selectedLayerId?: 'temperature' | 'relative_humidity' | 'air_pressure' | 'precipitation_rate' | 'accumulated_precipitation' | 'cloud_layers' | 'wind_speed' | 'composite_reflectivity'
   unitSystem?: 'imperial' | 'metric'
 } = {}) {
   mocks.unitSystem = options.unitSystem ?? 'imperial'
-  mocks.selectionContext = createForecastSelectionContextValue(
-    manifest,
-    {
-      selectedLayerId: options.selectedLayerId ?? 'temperature',
-    }
-  )
+  const selectedLayerId = options.selectedLayerId ?? 'temperature'
 
-  return renderHook(() => useForecastPlaceProbeValueFormatter())
+  return renderHook(() => useForecastProbeValueFormatter(selectedLayerId))
 }
 
 describe('probe value display', () => {
@@ -108,7 +66,11 @@ describe('probe value display', () => {
   it('formats precipitation values with two fixed decimal places', () => {
     const { result } = renderDisplayHook({ selectedLayerId: 'precipitation_rate' })
 
+    expect(result.current(0).text).toBe('0.00 in/hr')
+    expect(result.current(0.25).text).toBe('0.01 in/hr')
+    expect(result.current(0.75).text).toBe('0.03 in/hr')
     expect(result.current(2.54).text).toBe('0.10 in/hr')
+    expect(result.current(7.62).text).toBe('0.30 in/hr')
   })
 
   it('formats metric precipitation values with two fixed decimal places', () => {
@@ -118,6 +80,49 @@ describe('probe value display', () => {
     })
 
     expect(result.current(2.5).text).toBe('2.50 mm/hr')
+  })
+
+  it('formats accumulated precipitation probes', () => {
+    const { result } = renderDisplayHook({ selectedLayerId: 'accumulated_precipitation' })
+
+    expect(result.current(0).text).toBe('0 in')
+    expect(result.current(2.54).text).toBe('0.1 in')
+    expect(result.current(12.7).text).toBe('0.5 in')
+    expect(result.current(25.4).text).toBe('1 in')
+  })
+
+  it('formats radar probes', () => {
+    const { result } = renderDisplayHook({ selectedLayerId: 'composite_reflectivity' })
+
+    expect(result.current(13).text).toBe('13 dBZ')
+    expect(result.current(33).text).toBe('33 dBZ')
+    expect(result.current(45).text).toBe('45 dBZ')
+  })
+
+  it('formats cloud-layer probes', () => {
+    const { result } = renderDisplayHook({ selectedLayerId: 'cloud_layers' })
+
+    expect(result.current(88).text).toBe('88 %')
+    expect(result.current(41).text).toBe('41 %')
+    expect(result.current(12).text).toBe('12 %')
+  })
+
+  it('formats wind probes', () => {
+    const { result } = renderDisplayHook({ selectedLayerId: 'wind_speed' })
+
+    expect(result.current(2).text).toBe('4 mph')
+    expect(result.current(5).text).toBe('11 mph')
+    expect(result.current(9).text).toBe('20 mph')
+    expect(result.current(18).text).toBe('40 mph')
+  })
+
+  it('formats metric wind probes', () => {
+    const { result } = renderDisplayHook({
+      selectedLayerId: 'wind_speed',
+      unitSystem: 'metric',
+    })
+
+    expect(result.current(9).text).toBe('32 km/h')
   })
 
   it('omits the unit while a sample is loading', () => {

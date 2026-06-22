@@ -1,4 +1,5 @@
 import { act } from '@testing-library/react'
+import type { LayerSpecification } from 'maplibre-gl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -15,7 +16,6 @@ import {
   createPlaceFeature,
   createProbeablePlacesMap,
   getLastProbeCollection,
-  getLastProbeTextDiff,
   type ProbeablePlacesMap,
 } from './session.testFixtures'
 
@@ -113,11 +113,22 @@ describe('createForecastPlaceProbeSession', () => {
       map,
       layerId: 'temperature',
       valueFormatter: mocks.formatProbeValue,
-      initialFrame: mocks.frame,
       ...options,
     })
+    session.setFrame(mocks.frame)
     session.start()
     return session
+  }
+
+  function getAddedProbeTextField(map: ProbeablePlacesMap): unknown[] {
+    const layer = map.addLayer.mock.calls
+      .map(([candidate]) => candidate as LayerSpecification)
+      .find((candidate) => candidate.id === placeProbeLayerIds.layer)
+    const textField = (layer?.layout as Record<string, unknown> | undefined)?.['text-field']
+    if (!Array.isArray(textField)) {
+      throw new Error('Missing place-probe text-field expression')
+    }
+    return textField
   }
 
   it('does not schedule source updates before start', () => {
@@ -126,20 +137,18 @@ describe('createForecastPlaceProbeSession', () => {
       map,
       layerId: 'temperature',
       valueFormatter: mocks.formatProbeValue,
-      initialFrame: null,
     })
 
     session.setFrame(mocks.frame)
-    session.setLayerId('dew_point')
-    session.setValueFormatter(vi.fn())
 
     expect(window.requestAnimationFrame).not.toHaveBeenCalled()
     expect(map.addSource).not.toHaveBeenCalled()
     expect(map.addLayer).not.toHaveBeenCalled()
   })
 
-  it('adds one GeoJSON source/layer and renders probe text', () => {
+  it('adds GeoJSON source/layers and renders probe text', () => {
     const map = createProbeablePlacesMap()
+    map.setZoom(4.25)
     map.setSourceFeatures([
       createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 }),
       createPlaceFeature('Milwaukee', -87.9, 43.04, { population: 570_000 }),
@@ -161,12 +170,13 @@ describe('createForecastPlaceProbeSession', () => {
     )
     expect(mocks.createRasterProbeSampler).toHaveBeenCalledTimes(2)
     expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
-      expect.objectContaining({ name: 'Chicago', sortKey: 0, probeText: '20 F' }),
-      expect.objectContaining({ name: 'Milwaukee', sortKey: 1, probeText: '20 F' }),
+      { sortKey: 0, labelText: 'Chicago\n20 F' },
+      { sortKey: 1, labelText: 'Milwaukee\n20 F' },
     ])
+    expect(getAddedProbeTextField(map)).toEqual(['get', 'labelText'])
   })
 
-  it('keeps non-latin local names in probe feature properties', () => {
+  it('keeps non-latin local names in the rendered label text', () => {
     const map = createProbeablePlacesMap()
     map.setSourceFeatures([
       createPlaceFeature('東京', 139.69, 35.68, {
@@ -179,11 +189,7 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(getLastProbeCollection(map)?.features[0]?.properties).toEqual(
-      expect.objectContaining({
-        name: 'Tokyo',
-        localName: '東京',
-        probeText: '20 F',
-      }),
+      { sortKey: 0, labelText: 'Tokyo\n東京\n20 F' },
     )
   })
 
@@ -206,55 +212,32 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(1)
-    expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(map.probeSource?.updateData).toHaveBeenCalledTimes(1)
-    expect(getLastProbeTextDiff(map)?.update?.[0]).toEqual({
-      id: 'Chicago:-87.6250:41.8750',
-      addOrUpdateProperties: [{ key: 'probeText', value: '25 F' }],
-    })
+    expect(map.probeSource?.setData).toHaveBeenCalledTimes(2)
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
+      { sortKey: 0, labelText: 'Chicago\n25 F' },
+    ])
   })
 
-  it('skips playback source updates when displayed values are unchanged', () => {
+  it('uses canvas size to select more labels on large maps', () => {
     const map = createProbeablePlacesMap()
-    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
+    map.setZoom(5.25)
+    map.setCanvasSize(1920, 1080)
+    map.setSourceFeatures(Array.from({ length: 80 }, (_entry, index) => (
+      createPlaceFeature(`Rank ${index}`, index % 20, Math.floor(index / 20), {
+        populationRank: index + 1,
+      })
+    )))
 
-    const session = startSession(map)
+    startSession(map)
     act(flushAnimationFrames)
 
-    act(() => {
-      session.setFrame({
-        lower: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
-        upper: { source: { layerId: 'temperature' }, raster: { grid: mocks.testGrid } },
-        mix: 0.5,
-      } as unknown as ProbeWindow)
-    })
-    act(flushAnimationFrames)
-
-    expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(map.probeSource?.updateData).not.toHaveBeenCalled()
-  })
-
-  it('keeps the source/layer installed when the selected layer changes', () => {
-    const map = createProbeablePlacesMap()
-    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
-
-    const session = startSession(map)
-    act(flushAnimationFrames)
-
-    session.setLayerId('dew_point')
-    act(flushAnimationFrames)
-
-    expect(map.addLayer).toHaveBeenCalledTimes(1)
-    expect(map.removeLayer).not.toHaveBeenCalled()
-    expect(map.removeSource).not.toHaveBeenCalled()
-    expect(getLastProbeTextDiff(map)?.update?.[0]).toEqual({
-      id: 'Chicago:-87.6250:41.8750',
-      addOrUpdateProperties: [{ key: 'probeText', value: 'Loading' }],
-    })
+    expect(map.getCanvas).toHaveBeenCalled()
+    expect(getLastProbeCollection(map)?.features).toHaveLength(72)
   })
 
   it('refreshes source features after map movement settles', () => {
     const map = createProbeablePlacesMap()
+    map.setZoom(4.25)
     map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
 
     startSession(map)
@@ -271,47 +254,123 @@ describe('createForecastPlaceProbeSession', () => {
       expect.anything(),
       expect.objectContaining({ name: 'Madison' })
     )
-    expect(getLastProbeTextDiff(map)).toEqual({
-      add: [
-        expect.objectContaining({
-          properties: expect.objectContaining({ name: 'Madison', sortKey: 0, probeText: '20 F' }),
-        }),
-      ],
-      remove: ['Chicago:-87.6250:41.8750'],
-    })
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties)).toEqual([
+      { sortKey: 0, labelText: 'Madison\n20 F' },
+    ])
   })
 
-  it('keeps current probes during a provisional empty viewport refresh until idle', () => {
+  it('keeps previous probe labels during same-tier map movement', () => {
     const map = createProbeablePlacesMap()
-    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
+    map.setZoom(5.25)
+    map.setBounds(0, 10, 0, 10)
+    map.setSourceFeatures([
+      createPlaceFeature('Sticky', 5, 5, { populationRank: 10 }),
+    ])
 
     startSession(map)
     act(flushAnimationFrames)
 
-    map.setSourceFeatures([])
+    map.setSourceFeatures([
+      createPlaceFeature('New Top', 5.2, 5.2, { capital: 'yes', population: 1_000_000 }),
+      createPlaceFeature('Sticky', 5, 5, { populationRank: 10 }),
+    ])
     act(() => {
       map.emit('moveend')
     })
     act(flushAnimationFrames)
 
-    expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
-    expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.name)).toEqual(['Chicago'])
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toEqual([
+      'Sticky\n20 F',
+      'New Top\n20 F',
+    ])
+  })
 
+  it('resets previous probe retention after crossing zoom tiers', () => {
+    const map = createProbeablePlacesMap()
+    map.setZoom(4)
+    map.setBounds(0, 10, 0, 10)
+    map.setSourceFeatures([
+      createPlaceFeature('Major', 5, 5, { population: 1_000_000 }),
+    ])
+
+    startSession(map)
+    act(flushAnimationFrames)
+
+    map.setZoom(5.25)
+    map.setSourceFeatures([
+      createPlaceFeature('New Top', 5.2, 5.2, { capital: 'yes', population: 1_000_000 }),
+      createPlaceFeature('Major', 5, 5, { population: 1_000_000 }),
+    ])
     act(() => {
-      map.emit('idle')
+      map.emit('moveend')
     })
     act(flushAnimationFrames)
 
-    expect(map.querySourceFeatures).toHaveBeenCalledTimes(3)
-    expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(getLastProbeTextDiff(map)).toEqual({
-      remove: ['Chicago:-87.6250:41.8750'],
-    })
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toEqual([
+      'New Top\n20 F',
+      'Major\n20 F',
+    ])
   })
 
-  it('keeps current probes during a provisional partial viewport refresh until idle', () => {
+  it('uses padded bounds when refreshing probe candidates', () => {
     const map = createProbeablePlacesMap()
+    map.setZoom(5.25)
+    map.setBounds(0, 10, 0, 10)
+    map.setSourceFeatures([
+      createPlaceFeature('Inside', 5, 5, { populationRank: 1 }),
+      createPlaceFeature('Padded Edge', 11.5, 5, { populationRank: 2 }),
+      createPlaceFeature('Outside', 13.5, 5, { populationRank: 3 }),
+    ])
+
+    startSession(map)
+    act(flushAnimationFrames)
+
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toEqual([
+      'Inside\n20 F',
+      'Padded Edge\n20 F',
+    ])
+  })
+
+  it('uses visible bounds for spread grid sizing', () => {
+    const map = createProbeablePlacesMap()
+    map.setZoom(5.25)
+    map.setBounds(0, 6, 0, 10)
+    map.setSourceFeatures([
+      ...Array.from({ length: 35 }, (_entry, index) => (
+        createPlaceFeature(`Cluster ${index}`, 0.9 + index * 0.001, 5, {
+          populationRank: index + 1,
+        })
+      )),
+      createPlaceFeature('Visible Grid Slot', 1.1, 5, { populationRank: 60 }),
+    ])
+
+    startSession(map)
+    act(flushAnimationFrames)
+
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toContain(
+      'Visible Grid Slot\n20 F',
+    )
+  })
+
+  it.each([
+    {
+      name: 'empty',
+      nextFeatures: [],
+      expectedLabels: [],
+    },
+    {
+      name: 'partial',
+      nextFeatures: [
+        createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 }),
+      ],
+      expectedLabels: ['Chicago\n20 F'],
+    },
+  ])('keeps current probes during a provisional $name viewport refresh until idle', ({
+    nextFeatures,
+    expectedLabels,
+  }) => {
+    const map = createProbeablePlacesMap()
+    map.setZoom(4.25)
     map.setSourceFeatures([
       createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 }),
       createPlaceFeature('Milwaukee', -87.9, 43.04, { population: 570_000 }),
@@ -320,7 +379,7 @@ describe('createForecastPlaceProbeSession', () => {
     startSession(map)
     act(flushAnimationFrames)
 
-    map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
+    map.setSourceFeatures(nextFeatures)
     act(() => {
       map.emit('moveend')
     })
@@ -328,10 +387,9 @@ describe('createForecastPlaceProbeSession', () => {
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(2)
     expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(map.probeSource?.updateData).not.toHaveBeenCalled()
-    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.name)).toEqual([
-      'Chicago',
-      'Milwaukee',
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toEqual([
+      'Chicago\n20 F',
+      'Milwaukee\n20 F',
     ])
 
     act(() => {
@@ -340,13 +398,11 @@ describe('createForecastPlaceProbeSession', () => {
     act(flushAnimationFrames)
 
     expect(map.querySourceFeatures).toHaveBeenCalledTimes(3)
-    expect(map.probeSource?.setData).toHaveBeenCalledTimes(1)
-    expect(getLastProbeTextDiff(map)).toEqual({
-      remove: ['Milwaukee:-87.9000:43.0400'],
-    })
+    expect(map.probeSource?.setData).toHaveBeenCalledTimes(2)
+    expect(getLastProbeCollection(map)?.features.map((feature) => feature.properties.labelText)).toEqual(expectedLabels)
   })
 
-  it('uses idle as a candidate refresh follow-up but not after playback text diffs', () => {
+  it('uses idle as a candidate refresh follow-up but not after playback updates', () => {
     const map = createProbeablePlacesMap()
     map.setSourceFeatures([createPlaceFeature('Chicago', -87.625, 41.875, { population: 2_700_000 })])
 

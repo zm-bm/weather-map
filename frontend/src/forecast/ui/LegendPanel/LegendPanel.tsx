@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import { useForecastSettings } from '@/forecast/settings'
 import {
@@ -17,12 +19,37 @@ import {
   canToggleUnitSystem,
   getUnitOptionForSystem,
   type GradientUnitOption,
+  type UnitSystem,
 } from '@/forecast/display/units'
 
-type LegendRasterBandDisplay = {
+type LegendScaleTick = {
   id: string
-  color: SampledPaletteColor
+  label: string
+  positionPct: number
 }
+
+type ScaleSpec = {
+  id: string
+  ariaLabel: string
+  backgroundImage: string
+  unitLabel: string
+  ticks?: readonly LegendScaleTick[]
+  footerLabel?: string
+  onClick?: () => void
+}
+
+type CloudLayerDisplay = Extract<ForecastRasterLayer['display'], { kind: 'cloud-layers' }>
+
+const LEGEND_LABEL_INPUT_MIN_PCT = 6
+const LEGEND_LABEL_INPUT_MAX_PCT = 94
+const LEGEND_LABEL_OUTPUT_MIN_PCT = 6
+const LEGEND_LABEL_OUTPUT_MAX_PCT = 86
+const CLOUD_LAYER_SCALE_GROUP_LABEL = 'Low, middle, and high cloud layer opacity from 0 to 100 percent'
+const CLOUD_LAYER_SCALES = [
+  { id: 'low', label: 'LOW', ariaName: 'Low' },
+  { id: 'middle', label: 'MID', ariaName: 'Middle' },
+  { id: 'high', label: 'HIGH', ariaName: 'High' },
+] as const
 
 export default function LegendPanel() {
   const { selectedLayerId } = useLoadedForecastSelectionContext()
@@ -36,152 +63,213 @@ export default function LegendPanel() {
   if (layer == null) return null
 
   const display = layer.display
-  const selectedOption = getUnitOptionForSystem(display.units, settings.units.system)
-  const canCycleUnits = canToggleUnitSystem(display.units)
-  const unitPillClassName = [
-    'legend-panel__unit-pill',
-    canCycleUnits ? 'legend-panel__unit-pill--interactive' : '',
-    !canCycleUnits ? 'legend-panel__unit-pill--static' : '',
-  ].filter(Boolean).join(' ')
+  const scaleSpecs = legendScaleSpecsForLayer({
+    layer,
+    unitSystem: settings.units.system,
+    onToggleUnitSystem: actions.toggleUnitSystem,
+  })
+  const scales = scaleSpecs.map((spec) => (
+    <LegendScale key={spec.id} spec={spec} />
+  ))
   const panelClassName = [
     'legend-panel',
     display.kind === 'cloud-layers'
       ? 'legend-panel--cloud-layers'
       : 'legend-panel--gradient',
-  ].join(' ')
+  ].filter(Boolean).join(' ')
 
   return (
-    <section className={panelClassName} aria-label={`${display.label} legend`}>
+    <section
+      className={panelClassName}
+      data-display-profile={layer.displayProfile}
+      aria-label={`${display.label} legend`}
+    >
       <div className="legend-panel__body">
-        {canCycleUnits ? (
-          <button
-            type="button"
-            className={unitPillClassName}
-            aria-label={`Cycle ${display.label} units. Current units ${selectedOption.label}.`}
-            onClick={actions.toggleUnitSystem}
-          >
-            <span className="legend-panel__unit-current">{selectedOption.label}</span>
-          </button>
+        {scaleSpecs.length === 1 ? (
+          <div className="legend-panel__scale-frame">
+            {scales}
+          </div>
         ) : (
-          <span className={unitPillClassName} aria-label={`${display.label} units ${selectedOption.label}.`}>
-            <span className="legend-panel__unit-current">{selectedOption.label}</span>
-          </span>
-        )}
-
-        {display.kind === 'cloud-layers' ? (
-          <CloudLayersLegend bands={rasterBandDisplays(layer)} />
-        ) : (
-          <GradientLegend
-            layerId={layer.id}
-            paletteStops={display.palette.stops}
-            selectedOption={getUnitOptionForSystem(display.units, settings.units.system)}
-          />
+          <div className="legend-panel__scale-group" aria-label={CLOUD_LAYER_SCALE_GROUP_LABEL}>
+            {scales}
+          </div>
         )}
       </div>
     </section>
   )
 }
 
-function GradientLegend({
+function legendScaleSpecsForLayer({
+  layer,
+  unitSystem,
+  onToggleUnitSystem,
+}: {
+  layer: ForecastRasterLayer
+  unitSystem: UnitSystem
+  onToggleUnitSystem: () => void
+}): readonly ScaleSpec[] {
+  const display = layer.display
+  if (display.kind === 'cloud-layers') {
+    const selectedOption = getUnitOptionForSystem(display.units, unitSystem)
+    return cloudLayerScales(display, selectedOption.label)
+  }
+
+  const selectedOption = getUnitOptionForSystem(display.units, unitSystem)
+  const canCycleUnits = canToggleUnitSystem(display.units)
+  return [gradientScale({
+    layerId: layer.id,
+    label: display.label,
+    canCycleUnits,
+    onToggleUnitSystem,
+    paletteStops: display.palette.stops,
+    selectedOption,
+  })]
+}
+
+function gradientScale({
   layerId,
+  label,
+  canCycleUnits,
+  onToggleUnitSystem,
   paletteStops,
   selectedOption,
 }: {
   layerId: string
+  label: string
+  canCycleUnits: boolean
+  onToggleUnitSystem: () => void
   paletteStops: readonly PaletteColorStop[]
   selectedOption: GradientUnitOption
-}) {
-  const legendTicks = getLegendTicks(selectedOption)
+}): ScaleSpec {
   const legendGradient = toLegendContinuousGradient(
     paletteStops,
-    selectedOption,
     'to top'
   )
+  const legendTicks = getLegendTicks(selectedOption).map((tick) => ({
+    id: `${layerId}-${selectedOption.id}-${tick.value}`,
+    label: tick.label,
+    positionPct: insetTickPositionPct(tick.positionPct),
+  }))
 
-  return (
-    <div className="legend-panel__scale-frame">
-      <div className="legend-panel__scale-wrap">
-        <div
-          className="legend-panel__scale"
-          style={{ backgroundImage: legendGradient }}
-        >
-          {legendTicks.map((tick) => (
-            <span
-              key={`${layerId}-${selectedOption.id}-${tick.value}`}
-              className="legend-panel__tick-label"
-              style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
-            >
-              {tick.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+  return {
+    id: layerId,
+    ariaLabel: canCycleUnits
+      ? `Cycle ${label} units. Current units ${selectedOption.label}.`
+      : `${label} units ${selectedOption.label}.`,
+    backgroundImage: legendGradient,
+    unitLabel: selectedOption.label,
+    ticks: legendTicks,
+    onClick: canCycleUnits ? onToggleUnitSystem : undefined,
+  }
 }
 
-function CloudLayersLegend({ bands }: { bands: readonly LegendRasterBandDisplay[] }) {
-  const swatches = [
-    { id: 'low', label: 'LOW', ariaLabel: 'Low darker lower cloud deck' },
-    { id: 'middle', label: 'MID', ariaLabel: 'Middle bright cloud deck' },
-    { id: 'high', label: 'HIGH', ariaLabel: 'High pale upper cloud deck' },
-  ] as const
-
-  return (
-    <div className="legend-panel__cloud-layers-frame" aria-label="Cloud layer stacked decks and coverage opacity">
-      <div className="legend-panel__cloud-layers-swatches" aria-label="Cloud layer stacked decks">
-        {swatches.map((swatch) => (
-          <span
-            key={swatch.id}
-            className={`legend-panel__cloud-layers-swatch legend-panel__cloud-layers-swatch--${swatch.id}`}
-            aria-label={swatch.ariaLabel}
-            style={{ background: cloudSwatchBackground(bands.find((band) => band.id === swatch.id)?.color) }}
-          >
-            <span>{swatch.label}</span>
-          </span>
-        ))}
-      </div>
-      <div className="legend-panel__cloud-layers-opacity-scale" aria-label="Composite coverage opacity from 0 to 100 percent">
-        <div className="legend-panel__cloud-layers-opacity-wrap">
-          <div className="legend-panel__cloud-layers-opacity" aria-hidden="true" />
-        </div>
-        <div className="legend-panel__cloud-layers-ticks" aria-hidden="true">
-          <span>100%</span>
-          <span>50%</span>
-          <span>0%</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function rasterBandDisplays(layer: ForecastRasterLayer): LegendRasterBandDisplay[] {
-  return layer.source.bands.map((band) => {
-    const palette = layer.display.kind === 'cloud-layers'
-      ? layer.display.bandPalettes[band.id]
-      : layer.display.palette
+function cloudLayerScales(
+  display: CloudLayerDisplay,
+  unitLabel: string,
+): readonly ScaleSpec[] {
+  return CLOUD_LAYER_SCALES.map(({ id, label, ariaName }) => {
+    const palette = display.bandPalettes[id]
     if (!palette) {
-      throw new Error(`Display profile ${layer.display.label} has no palette for band ${band.id}`)
+      throw new Error(`Display profile ${display.label} has no palette for band ${id}`)
     }
+
     return {
-      id: band.id,
-      color: samplePaletteColor(palette.stops, 100, 'interpolated'),
+      id,
+      ariaLabel: `${ariaName} cloud layer opacity units ${unitLabel}.`,
+      backgroundImage: toLegendContinuousGradient(
+        cloudLayerOpacityStops(samplePaletteColor(palette.stops, 100, 'interpolated')),
+        'to top',
+      ),
+      unitLabel,
+      footerLabel: label,
     }
   })
 }
 
-function cloudSwatchBackground(color: LegendRasterBandDisplay['color'] | undefined): string | undefined {
-  if (!color) return undefined
-  const lower: [number, number, number, number] = [
-    Math.round(color[0] * 0.72),
-    Math.round(color[1] * 0.72),
-    Math.round(color[2] * 0.72),
-    color[3],
-  ]
-  return `linear-gradient(180deg, ${rgba(color, 0.96)}, ${rgba(lower, 0.92)})`
+function LegendScale({
+  spec,
+}: {
+  spec: ScaleSpec
+}) {
+  const {
+    ariaLabel,
+    backgroundImage,
+    footerLabel,
+    onClick,
+    ticks = [],
+    unitLabel,
+  } = spec
+  const interactive = onClick != null
+  const scaleClassName = [
+    'legend-panel__scale',
+    interactive ? 'legend-panel__scale--interactive' : 'legend-panel__scale--static',
+  ].join(' ')
+  const scaleStyle = { backgroundImage } satisfies CSSProperties
+  const scaleContent = (
+    <>
+      <span className="legend-panel__scale-unit">{unitLabel}</span>
+      {ticks.map((tick) => (
+        <span
+          key={tick.id}
+          className="legend-panel__tick-label"
+          style={{ bottom: `${tick.positionPct.toFixed(2)}%` }}
+        >
+          {tick.label}
+        </span>
+      ))}
+    </>
+  )
+
+  return (
+    <div className="legend-panel__scale-wrap">
+      {interactive ? (
+        <button
+          type="button"
+          className={scaleClassName}
+          style={scaleStyle}
+          aria-label={ariaLabel}
+          onClick={onClick}
+        >
+          {scaleContent}
+        </button>
+      ) : (
+        <div
+          className={scaleClassName}
+          style={scaleStyle}
+          aria-label={ariaLabel}
+        >
+          {scaleContent}
+        </div>
+      )}
+      {footerLabel ? (
+        <span className="legend-panel__scale-footer">{footerLabel}</span>
+      ) : null}
+    </div>
+  )
 }
 
-function rgba(color: readonly [number, number, number, number], alphaScale: number): string {
+function insetTickPositionPct(positionPct: number): number {
+  const normalized = (
+    positionPct - LEGEND_LABEL_INPUT_MIN_PCT
+  ) / (
+    LEGEND_LABEL_INPUT_MAX_PCT - LEGEND_LABEL_INPUT_MIN_PCT
+  )
+  const clamped = Math.max(0, Math.min(1, normalized))
+  return LEGEND_LABEL_OUTPUT_MIN_PCT + (clamped * (LEGEND_LABEL_OUTPUT_MAX_PCT - LEGEND_LABEL_OUTPUT_MIN_PCT))
+}
+
+function cloudLayerOpacityStops(color: SampledPaletteColor): readonly PaletteColorStop[] {
+  return [
+    { value: 0, color: colorWithAlphaScale(color, 0.06) },
+    { value: 52, color: colorWithAlphaScale(color, 0.42) },
+    { value: 100, color: colorWithAlphaScale(color, 0.96) },
+  ]
+}
+
+function colorWithAlphaScale(
+  color: SampledPaletteColor,
+  alphaScale: number,
+): PaletteColorStop['color'] {
   const alpha = Math.max(0, Math.min(1, (color[3] / 255) * alphaScale))
-  return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha.toFixed(3)})`
+  return [color[0], color[1], color[2], Math.round(alpha * 255)]
 }

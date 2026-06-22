@@ -1,50 +1,59 @@
 import {
+  useRef,
   useState,
-  type ChangeEvent,
-  type FocusEvent,
-  type MouseEvent,
+  type CSSProperties,
+  type KeyboardEvent,
   type PointerEvent,
-  type TouchEvent,
 } from 'react'
 
 import {
+  FORECAST_TIME_STEP_MINUTES,
   formatValidTimeLabel,
   formatValidTimeScaleLabel,
-} from '@/forecast/time'
-import {
-  FORECAST_TIME_STEP_MINUTES,
-  forecastTimeBounds,
+  type ForecastTimelineTime,
   minuteOffsetForValidTime,
   validTimeMsForMinuteOffset,
 } from '@/forecast/time'
-import { useForecastTimeContext } from '@/forecast/time'
-
-type SliderReleaseEvent =
-  | PointerEvent<HTMLInputElement>
-  | MouseEvent<HTMLInputElement>
-  | TouchEvent<HTMLInputElement>
-
-type SliderStartEvent =
-  | PointerEvent<HTMLInputElement>
-  | MouseEvent<HTMLInputElement>
-  | TouchEvent<HTMLInputElement>
 
 type TimelineScaleTick = {
   id: string
-  kind: 'major' | 'minor'
+  kind: 'major' | 'medium' | 'minor'
   label: string | null
-  labelAlign: 'start' | 'middle' | 'end'
   positionPct: number
 }
 
-type TimelineBounds = NonNullable<ReturnType<typeof forecastTimeBounds>>
+type TimelineBounds = {
+  startValidTimeMs: number
+  endValidTimeMs: number
+  totalMinutes: number
+}
+
+type TimelineDrag = {
+  pointerId: number
+  startClientX: number
+  startMinuteOffset: number
+  scaleWidthPx: number
+  moved: boolean
+}
+
+type TimelineScrubberProps = {
+  times: ForecastTimelineTime[]
+  bounds: TimelineBounds | null
+  requestedTimeMs: number
+  disabled: boolean
+  onRequestTime: (timeMs: number) => void
+}
 
 const SCALE_MINOR_HOUR_STEP = 2
+const SCALE_MEDIUM_HOUR_STEP = 6
+const RULER_DRAG_THRESHOLD_PX = 2
+const RULER_MIN_WIDTH_PX = 360
+const RULER_PX_PER_MINUTE = 1 / 6
+const KEYBOARD_FAST_STEP_MINUTES = 15
 
-function nextLocalDayMs(epochMs: number): number {
-  const date = new Date(epochMs)
-  date.setHours(24, 0, 0, 0)
-  return date.getTime()
+type TimelineScaleStyle = CSSProperties & {
+  '--wm-timeline-scale-strip-width': string
+  '--wm-timeline-selected-position': string
 }
 
 function nextLocalHourBlockMs(epochMs: number, hourStep: number): number {
@@ -60,173 +69,227 @@ function timelineScalePositionPct(bounds: TimelineBounds, epochMs: number): numb
   return ((epochMs - bounds.startValidTimeMs) / spanMs) * 100
 }
 
-function timelineScaleLabelAlign(positionPct: number): TimelineScaleTick['labelAlign'] {
-  if (positionPct <= 14) return 'start'
-  if (positionPct >= 86) return 'end'
-  return 'middle'
-}
-
-function timelineScaleTick(
-  bounds: TimelineBounds,
-  epochMs: number,
-  kind: TimelineScaleTick['kind']
-): TimelineScaleTick {
-  const positionPct = timelineScalePositionPct(bounds, epochMs)
-
-  return {
-    id: `${kind}:${epochMs}`,
-    kind,
-    label: kind === 'major' ? formatValidTimeScaleLabel(epochMs) : null,
-    labelAlign: timelineScaleLabelAlign(positionPct),
-    positionPct,
-  }
+function timelineScaleTickKind(epochMs: number): TimelineScaleTick['kind'] {
+  const date = new Date(epochMs)
+  if (date.getHours() === 0) return 'major'
+  if (date.getHours() % SCALE_MEDIUM_HOUR_STEP === 0) return 'medium'
+  return 'minor'
 }
 
 function createTimelineScaleTicks(bounds: TimelineBounds | null): TimelineScaleTick[] {
   if (!bounds || bounds.totalMinutes <= 0) return []
 
-  const majorTickTimes = new Set<number>()
   const ticks: TimelineScaleTick[] = []
-  let majorTickMs = nextLocalDayMs(bounds.startValidTimeMs)
+  let tickMs = nextLocalHourBlockMs(bounds.startValidTimeMs, SCALE_MINOR_HOUR_STEP)
 
-  while (majorTickMs < bounds.endValidTimeMs) {
-    if (majorTickMs > bounds.startValidTimeMs) {
-      majorTickTimes.add(majorTickMs)
-      ticks.push(timelineScaleTick(bounds, majorTickMs, 'major'))
+  while (tickMs < bounds.endValidTimeMs) {
+    if (tickMs > bounds.startValidTimeMs) {
+      const kind = timelineScaleTickKind(tickMs)
+      ticks.push({
+        id: `${kind}:${tickMs}`,
+        kind,
+        label: kind === 'major' ? formatValidTimeScaleLabel(tickMs) : null,
+        positionPct: timelineScalePositionPct(bounds, tickMs),
+      })
     }
 
-    const nextTickMs = nextLocalDayMs(majorTickMs)
-    if (nextTickMs <= majorTickMs) break
-    majorTickMs = nextTickMs
+    const nextTickMs = nextLocalHourBlockMs(tickMs, SCALE_MINOR_HOUR_STEP)
+    if (nextTickMs <= tickMs) break
+    tickMs = nextTickMs
   }
 
-  let minorTickMs = nextLocalHourBlockMs(bounds.startValidTimeMs, SCALE_MINOR_HOUR_STEP)
-
-  while (minorTickMs < bounds.endValidTimeMs) {
-    if (minorTickMs > bounds.startValidTimeMs && !majorTickTimes.has(minorTickMs)) {
-      ticks.push(timelineScaleTick(bounds, minorTickMs, 'minor'))
-    }
-
-    const nextTickMs = nextLocalHourBlockMs(minorTickMs, SCALE_MINOR_HOUR_STEP)
-    if (nextTickMs <= minorTickMs) break
-    minorTickMs = nextTickMs
-  }
-
-  return ticks.sort((a, b) => a.positionPct - b.positionPct)
+  return ticks
 }
 
-export default function TimelineScrubber() {
-  const {
-    times,
-    state: forecastTimeState,
-    controls: forecastTimeControls,
-  } = useForecastTimeContext()
-  const {
-    appliedTimeMs,
-    targetTimeMs,
-    pendingTimeMs,
-  } = forecastTimeState
-  const { requestTime } = forecastTimeControls
+function normalizeMinuteOffset(
+  minuteOffset: number,
+  totalMinutes: number
+): number {
+  if (!Number.isFinite(minuteOffset)) return 0
+  const clampedMinutes = Math.max(0, Math.min(totalMinutes, Math.round(minuteOffset)))
+  if (clampedMinutes === totalMinutes) return totalMinutes
+  return Math.round(clampedMinutes / FORECAST_TIME_STEP_MINUTES) * FORECAST_TIME_STEP_MINUTES
+}
 
-  const bounds = forecastTimeBounds(times)
+function scaleWidthForBounds(bounds: TimelineBounds | null): number {
+  if (!bounds || bounds.totalMinutes <= 0) return RULER_MIN_WIDTH_PX
+  return Math.max(RULER_MIN_WIDTH_PX, bounds.totalMinutes * RULER_PX_PER_MINUTE)
+}
+
+export default function TimelineScrubber({
+  times,
+  bounds,
+  requestedTimeMs,
+  disabled,
+  onRequestTime,
+}: TimelineScrubberProps) {
   const totalMinutes = bounds?.totalMinutes ?? 0
-  const requestedTimeMs = pendingTimeMs ?? targetTimeMs
   const requestedMinuteOffset = minuteOffsetForValidTime(times, requestedTimeMs)
-  const timelineControlsDisabled = times.length <= 1 || bounds == null
-  const [sliderDraftMinuteOffset, setSliderDraftMinuteOffset] = useState<number | null>(null)
-  const sliderMinuteOffsetValue = sliderDraftMinuteOffset ?? requestedMinuteOffset
+  const [draftMinuteOffset, setDraftMinuteOffset] = useState<number | null>(null)
+  const dragRef = useRef<TimelineDrag | null>(null)
+  const scaleStripRef = useRef<HTMLDivElement | null>(null)
+  const activeMinuteOffset = draftMinuteOffset ?? requestedMinuteOffset
 
   const selectedTimeMs = bounds == null
-    ? appliedTimeMs
-    : validTimeMsForMinuteOffset(times, sliderMinuteOffsetValue)
-  const selectedTimeLabel = formatValidTimeLabel(selectedTimeMs) ?? 'Now'
+    ? requestedTimeMs
+    : validTimeMsForMinuteOffset(times, activeMinuteOffset)
+  const selectedTimeLabel = formatValidTimeLabel(selectedTimeMs) ?? 'Valid time'
+  const selectedPositionPct = bounds == null ? 0 : timelineScalePositionPct(bounds, selectedTimeMs)
   const scaleTicks = createTimelineScaleTicks(bounds)
-
-  const commitSliderTime = (minuteOffset: number) => {
-    if (timelineControlsDisabled) return
-    requestTime(validTimeMsForMinuteOffset(times, minuteOffset))
+  const scaleWidthPx = scaleWidthForBounds(bounds)
+  const scaleStyle: TimelineScaleStyle = {
+    '--wm-timeline-scale-strip-width': `max(100%, ${scaleWidthPx}px)`,
+    '--wm-timeline-selected-position': `${-selectedPositionPct}%`,
   }
 
-  const sliderMinuteOffset = (event: Pick<ChangeEvent<HTMLInputElement>, 'currentTarget'>) => (
-    Number(event.currentTarget.value)
-  )
-
-  const startSliderDraft = (minuteOffset: number) => {
-    setSliderDraftMinuteOffset(minuteOffset)
+  const commitMinuteOffset = (minuteOffset: number) => {
+    if (disabled) return
+    onRequestTime(validTimeMsForMinuteOffset(times, normalizeMinuteOffset(minuteOffset, totalMinutes)))
   }
 
-  const commitSliderDraft = (minuteOffset: number) => {
-    if (sliderDraftMinuteOffset === null) return
-    setSliderDraftMinuteOffset(null)
-    commitSliderTime(minuteOffset)
+  const minuteOffsetForDrag = (event: Pick<PointerEvent<HTMLDivElement>, 'clientX'>) => {
+    const drag = dragRef.current
+    if (drag == null) return activeMinuteOffset
+
+    const deltaX = event.clientX - drag.startClientX
+    const minuteDelta = (deltaX / drag.scaleWidthPx) * totalMinutes
+    return normalizeMinuteOffset(drag.startMinuteOffset - minuteDelta, totalMinutes)
   }
 
-  const cancelSliderDraft = () => {
-    setSliderDraftMinuteOffset(null)
+  const clearDrag = () => {
+    dragRef.current = null
+    setDraftMinuteOffset(null)
   }
 
-  const handleSliderStart = (event: SliderStartEvent) => {
-    startSliderDraft(sliderMinuteOffset(event))
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (disabled || bounds == null) return
+
+    event.preventDefault()
+    event.currentTarget.focus()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    const measuredScaleWidth = scaleStripRef.current?.getBoundingClientRect().width ?? 0
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startMinuteOffset: activeMinuteOffset,
+      scaleWidthPx: measuredScaleWidth > 0 ? measuredScaleWidth : scaleWidthPx,
+      moved: false,
+    }
   }
 
-  const handleSliderRelease = (event: SliderReleaseEvent) => {
-    commitSliderDraft(sliderMinuteOffset(event))
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag == null || event.pointerId !== drag.pointerId) return
+
+    event.preventDefault()
+    const deltaX = event.clientX - drag.startClientX
+    if (!drag.moved && Math.abs(deltaX) < RULER_DRAG_THRESHOLD_PX) return
+    drag.moved = true
+    setDraftMinuteOffset(minuteOffsetForDrag(event))
+  }
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag == null || event.pointerId !== drag.pointerId) return
+
+    event.preventDefault()
+    const finalMinuteOffset = minuteOffsetForDrag(event)
+    const hasMoved = drag.moved
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    clearDrag()
+    if (!hasMoved) return
+    commitMinuteOffset(finalMinuteOffset)
+  }
+
+  const handlePointerCancel = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag == null || event.pointerId !== drag.pointerId) return
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    clearDrag()
+  }
+
+  const handleBlur = () => {
+    clearDrag()
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault()
+      return
+    }
+
+    if (disabled) return
+
+    let nextMinuteOffset: number | null = null
+    if (event.key === 'ArrowLeft') {
+      nextMinuteOffset = activeMinuteOffset - (
+        event.shiftKey ? KEYBOARD_FAST_STEP_MINUTES : FORECAST_TIME_STEP_MINUTES
+      )
+    } else if (event.key === 'ArrowRight') {
+      nextMinuteOffset = activeMinuteOffset + (
+        event.shiftKey ? KEYBOARD_FAST_STEP_MINUTES : FORECAST_TIME_STEP_MINUTES
+      )
+    }
+
+    if (nextMinuteOffset == null) return
+    event.preventDefault()
+    setDraftMinuteOffset(null)
+    commitMinuteOffset(nextMinuteOffset)
   }
 
   return (
-    <section className="timeline-scrubber timeline-bar__zone timeline-bar__zone--timeline" aria-label="Forecast timeline">
-      <div className="timeline-scrubber__time-header">
-        <strong className="timeline-scrubber__selected-time wm-display-caps">
-          {selectedTimeLabel}
-        </strong>
-      </div>
-
-      <div className="timeline-scrubber__slider-stack">
-        <input
-          className="timeline-scrubber__slider"
-          type="range"
-          min={0}
-          max={totalMinutes}
-          step={FORECAST_TIME_STEP_MINUTES}
-          value={sliderMinuteOffsetValue}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const minuteOffset = sliderMinuteOffset(event)
-            if (sliderDraftMinuteOffset !== null) {
-              setSliderDraftMinuteOffset(minuteOffset)
-              return
-            }
-            commitSliderTime(minuteOffset)
-          }}
-          onPointerDown={handleSliderStart}
-          onMouseDown={handleSliderStart}
-          onTouchStart={handleSliderStart}
-          onPointerUp={handleSliderRelease}
-          onPointerCancel={cancelSliderDraft}
-          onMouseUp={handleSliderRelease}
-          onTouchEnd={handleSliderRelease}
-          onBlur={(event: FocusEvent<HTMLInputElement>) => {
-            commitSliderDraft(sliderMinuteOffset(event))
-          }}
-          disabled={timelineControlsDisabled}
+    <section
+      id="forecast-timeline-scrubber"
+      className="timeline-scrubber timeline-bar__zone timeline-bar__zone--timeline"
+      aria-label="Forecast timeline"
+    >
+      <div className="timeline-scrubber__ruler-wrap">
+        <div
+          className="timeline-scrubber__ruler"
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
           aria-label="Forecast time"
-        />
-
-        <div className="timeline-scrubber__scale" aria-hidden="true">
-          {scaleTicks.map((tick) => (
-            <span
-              key={tick.id}
-              className={`timeline-scrubber__scale-tick timeline-scrubber__scale-tick--${tick.kind}`}
-              style={{ left: `${tick.positionPct}%` }}
-            >
-              {tick.label ? (
-                <span
-                  className={`timeline-scrubber__scale-label timeline-scrubber__scale-label--${tick.labelAlign}`}
-                >
-                  {tick.label}
-                </span>
-              ) : null}
+          aria-orientation="horizontal"
+          aria-disabled={disabled ? 'true' : undefined}
+          aria-valuemin={0}
+          aria-valuemax={totalMinutes}
+          aria-valuenow={activeMinuteOffset}
+          aria-valuetext={selectedTimeLabel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+        >
+          <span className="timeline-scrubber__time-badge wm-display-caps" aria-hidden="true">
+            <span className="timeline-scrubber__time-badge-text">
+              {selectedTimeLabel}
             </span>
-          ))}
+          </span>
+          <div className="timeline-scrubber__scale" aria-hidden="true">
+            <div
+              ref={scaleStripRef}
+              className="timeline-scrubber__scale-strip"
+              style={scaleStyle}
+            >
+              {scaleTicks.map((tick) => (
+                <span
+                  key={tick.id}
+                  className={`timeline-scrubber__scale-tick timeline-scrubber__scale-tick--${tick.kind}`}
+                  style={{ left: `${tick.positionPct}%` }}
+                >
+                  {tick.label ? (
+                    <span className="timeline-scrubber__scale-label">
+                      {tick.label}
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          </div>
+          <span className="timeline-scrubber__current-marker" aria-hidden="true" />
         </div>
       </div>
     </section>

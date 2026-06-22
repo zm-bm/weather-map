@@ -14,12 +14,138 @@
 }
 
 :root {
-  --wm-bg: #0e1442;
-  --wm-panel: #1d2c73;
-  --wm-panel-dark: #15245f;
-  --wm-panel-deep: #102053;
-  --wm-panel-line: #d4d9ea;
+  --wm-bg: #0c1230;
+  --wm-panel: #182765;
+  --wm-panel-dark: #122154;
+  --wm-panel-deep: #0b163c;
+  --wm-panel-line: rgba(223, 230, 246, 0.72);
   --wm-panel-shadow: #0a1033;
+  --wm-surface-panel: rgb(12, 24, 61);
+  --wm-surface-panel-strong: rgb(14, 27, 69);
+  --wm-surface-overlay: rgb(8, 18, 50);
+  --wm-surface-overlay-strong: rgb(10, 22, 58);
+  --wm-surface-border: rgba(214, 224, 248, 0.34);
+  --wm-surface-border-subtle: rgba(214, 224, 248, 0.18);
+  --wm-surface-border-strong: rgba(255, 238, 198, 0.62);
+  --wm-surface-persistent-border: rgba(214, 224, 248, 0.14);
+  --wm-surface-persistent-shadow: 0 8px 20px rgba(5, 10, 28, 0.18);
+  --wm-surface-persistent-background:
+    linear-gradient(180deg, rgba(255, 244, 214, 0.035), transparent 22%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(11, 24, 66) 0%, rgb(6, 16, 46) 100%);
+  --wm-surface-persistent-background-compact:
+    linear-gradient(180deg, rgba(255, 244, 214, 0.025), transparent 22%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(9, 21, 58) 0%, rgb(5, 13, 38) 100%);
+  --wm-surface-temporary-border: rgba(255, 238, 198, 0.42);
+  --wm-surface-temporary-shadow: 0 14px 32px rgba(3, 8, 28, 0.42);
+  --wm-surface-temporary-background:
+    linear-gradient(180deg, rgba(230, 173, 74, 0.08), transparent 14%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(9, 20, 56), rgb(5, 12, 36));
+  --wm-surface-data-border: rgba(214, 224, 248, 0.18);
+  --wm-surface-data-shadow: 0 12px 28px rgba(3, 8, 28, 0.34);
+  --wm-surface-data-background:
+    linear-gradient(180deg, rgba(255, 244, 214, 0.055), transparent 22%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(10, 22, 58), rgb(5, 12, 36));
+  --wm-surface-attribution-border: rgba(214, 224, 248, 0.08);
+  --wm-surface-attribution-background: rgba(6, 14, 40, 0.42);
+  --wm-radius-panel: 5px;
+  --wm-radius-control: 4px;
+  --wm-radius-dock: 7px;
+  --wm-radius-pill: 999px;
+  --wm-chrome-border-quiet: rgba(214, 224, 248, 0.1);
+  --wm-chrome-border-control: rgba(214, 224, 248, 0.16);
+  --wm-chrome-border-active: rgba(255, 231, 188, 0.34);
+  --wm-chrome-outline: rgba(5, 10, 28, 0.36);
+  --wm-chrome-inset-highlight: rgba(255, 246, 222, 0.05);
+  --wm-chrome-surface-quiet:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.035), rgba(255, 247, 222, 0) 42%),
+    rgba(5, 12, 36, 0.2);
+  --wm-chrome-surface-control:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.04), rgba(255, 247, 222, 0) 36%),
+    rgba(8, 20, 58, 0.5);
+  --wm-chrome-surface-control-hover:
+    linear-gradient(180deg, rgba(255, 244, 220, 0.07), rgba(255, 244, 220, 0.01) 36%),
+    rgba(18, 37, 86, 0.64);
+  --wm-chrome-surface-active:
+    linear-gradient(180deg, rgba(230, 173, 74, 0.22), rgba(230, 173, 74, 0.06) 48%),
+    rgba(28, 42, 82, 0.76);
+  --wm-chrome-surface-active-hover:
+    linear-gradient(180deg, rgba(255, 194, 88, 0.26), rgba(230, 173, 74, 0.08) 48%),
+    rgba(39, 52, 91, 0.82);
+  --wm-chrome-shadow-quiet:
+    inset 0 0 0 1px rgba(7, 11, 31, 0.22),
+    0 2px 6px rgba(4, 10, 34, 0.14);
+  --wm-chrome-shadow-control:
+    inset 0 0 0 1px var(--wm-chrome-outline),
+    0 6px 14px rgba(5, 10, 28, 0.16),
+    inset 0 1px 0 var(--wm-chrome-inset-highlight);
+  --wm-chrome-shadow-dock:
+    inset 0 1px 0 rgba(255, 246, 220, 0.08),
+    0 6px 16px rgba(5, 10, 28, 0.14);
+  --wm-chrome-shadow-active:
+    inset 0 1px 0 rgba(255, 246, 220, 0.16),
+    0 0 0 1px rgba(5, 10, 28, 0.24);
+  --wm-hud-surface:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.045), rgba(255, 247, 222, 0) 38%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(9, 21, 58), rgb(5, 13, 39));
+  --wm-hud-surface-quiet:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.032), rgba(255, 247, 222, 0) 42%),
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    linear-gradient(180deg, rgb(8, 18, 50), rgb(5, 13, 39));
+  --wm-hud-surface-hover:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.055), rgba(255, 247, 222, 0) 44%),
+    linear-gradient(180deg, rgb(13, 28, 66), rgb(7, 18, 48));
+  --wm-hud-surface-active:
+    linear-gradient(180deg, rgba(230, 173, 74, 0.16), rgba(230, 173, 74, 0.045) 52%),
+    linear-gradient(180deg, rgb(28, 42, 82), rgb(17, 29, 62));
+  --wm-hud-surface-active-hover:
+    linear-gradient(180deg, rgba(255, 194, 88, 0.19), rgba(230, 173, 74, 0.06) 52%),
+    linear-gradient(180deg, rgb(35, 48, 88), rgb(20, 32, 66));
+  --wm-hud-icon-surface:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.07), rgba(255, 247, 222, 0) 45%),
+    linear-gradient(180deg, rgb(18, 36, 82), rgb(10, 24, 62));
+  --wm-hud-border: rgba(214, 224, 248, 0.2);
+  --wm-hud-border-quiet: rgba(214, 224, 248, 0.14);
+  --wm-hud-border-control: rgba(214, 224, 248, 0.22);
+  --wm-hud-border-active: rgba(255, 231, 188, 0.3);
+  --wm-hud-shadow:
+    inset 0 1px 0 rgba(255, 241, 207, 0.1),
+    0 10px 22px rgba(4, 9, 28, 0.3),
+    0 2px 0 rgba(3, 8, 26, 0.28);
+  --wm-hud-shadow-quiet:
+    inset 0 1px 0 rgba(255, 241, 207, 0.06),
+    0 7px 16px rgba(4, 9, 28, 0.2);
+  --wm-hud-shadow-active:
+    inset 0 1px 0 rgba(255, 241, 207, 0.12),
+    inset 0 0 0 1px rgba(255, 222, 162, 0.05);
   --wm-text: #f2f2f0;
   --wm-text-muted: #d2d4df;
   --wm-text-cool: #e9edf7;
@@ -29,18 +155,24 @@
   --wm-text-cream-bright: #fff3d2;
   --wm-text-warm: #fff8e5;
   --wm-text-danger-soft: #ffd9d2;
-  --wm-accent: #d38b1e;
-  --wm-accent-strong: #efb44d;
-  --wm-accent-deep: #8f4f0e;
+  --wm-accent: #c98525;
+  --wm-accent-strong: #e6ad4a;
+  --wm-accent-deep: #714214;
+  --wm-focus-ring: rgba(230, 173, 74, 0.74);
+  --wm-focus-ring-soft: rgba(230, 173, 74, 0.42);
+  --wm-focus-shadow: rgba(5, 10, 31, 0.42);
+  --wm-focus-inset: rgba(255, 246, 224, 0.1);
   --wm-highlight: #eff3ff;
-  --wm-titlebar-start: #d9982d;
-  --wm-titlebar-mid: #be731d;
-  --wm-titlebar-end: #7d4010;
-  --wm-stripe-light: rgba(255, 255, 255, 0.012);
-  --wm-stripe-dark: rgba(0, 0, 0, 0.015);
-  --wm-outline-strong: rgba(8, 12, 37, 0.9);
-  --wm-gloss-soft: rgba(255, 255, 255, 0.08);
-  --wm-gloss-faint: rgba(255, 255, 255, 0.02);
+  --wm-crt-scanline-light: rgba(255, 255, 255, 0.04);
+  --wm-crt-scanline-dark: rgba(3, 8, 25, 0.12);
+  --wm-crt-scanline-size: 4px;
+  --wm-crt-column-red: rgba(255, 120, 78, 0.018);
+  --wm-crt-column-blue: rgba(92, 172, 255, 0.014);
+  --wm-crt-vignette: rgba(0, 0, 0, 0.12);
+  --wm-crt-panel-opacity: 0.3;
+  --wm-outline-strong: rgba(7, 11, 31, 0.68);
+  --wm-gloss-soft: rgba(255, 255, 255, 0.05);
+  --wm-gloss-faint: rgba(255, 255, 255, 0.015);
   --wm-ui-border-cool-soft: rgba(210, 218, 239, 0.42);
   --wm-ui-border-cool: rgba(210, 218, 239, 0.5);
   --wm-ui-border-cool-strong: rgba(212, 217, 234, 0.8);
@@ -49,47 +181,60 @@
   --wm-rule-cool-muted: rgba(217, 224, 244, 0.22);
   --wm-rule-cool-soft: rgba(217, 224, 244, 0.32);
   --wm-rule-warm-soft: rgba(255, 235, 196, 0.25);
-  --wm-shadow: 0 10px 0 rgba(0, 0, 0, 0.22);
+  --wm-shadow: 0 10px 26px rgba(5, 10, 28, 0.3);
+  --wm-overlay-shadow: 0 10px 24px rgba(5, 10, 28, 0.24);
   --wm-font-display: "Star4000", "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif;
   --wm-font-body: "Star4000", "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
   --wm-font-mono: var(--wm-font-display);
 }
 
 .wm-panel-shell {
-  border: 3px solid var(--wm-panel-line);
-  border-radius: var(--wm-panel-shell-radius, 4px);
+  border: 1px solid var(--wm-panel-line);
+  border-radius: var(--wm-panel-shell-radius, var(--wm-radius-panel));
   background: var(
     --wm-panel-shell-background,
-    repeating-linear-gradient(
-      0deg,
-      var(--wm-stripe-light) 0 2px,
-      var(--wm-stripe-dark) 2px 4px
-    ),
-    linear-gradient(180deg, #20306f 0%, #122357 100%)
+    var(--wm-surface-persistent-background)
   );
-  box-shadow: var(--wm-shadow);
-  outline: 2px solid var(--wm-outline-strong);
-  outline-offset: -5px;
+  box-shadow:
+    inset 0 0 0 1px rgba(7, 11, 31, 0.46),
+    var(--wm-shadow);
 }
 
 .wm-docked-band-shell {
   position: relative;
-  border-top: 1px solid rgba(255, 233, 188, 0.52);
+  border-top: 1px solid var(--wm-surface-persistent-border);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
-  border-radius: 2px 2px 0 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 16%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.01) 0 2px,
-      rgba(0, 0, 0, 0.018) 2px 4px
-    ),
-    linear-gradient(180deg, #18275f 0%, #12204d 42%, #0b1332 100%);
+  border-radius: var(--wm-docked-band-radius, var(--wm-radius-dock) var(--wm-radius-dock) 0 0);
+  background: var(--wm-surface-persistent-background);
   box-shadow:
-    inset 0 1px 0 rgba(255, 246, 220, 0.14),
-    0 -14px 24px rgba(0, 0, 0, 0.2);
+    inset 0 1px 0 rgba(255, 246, 220, 0.1),
+    var(--wm-surface-persistent-shadow);
+}
+
+.app-root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--wm-crt-scanline-light) 0 1px,
+      var(--wm-crt-scanline-dark) 1px var(--wm-crt-scanline-size)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--wm-crt-column-red) 0 1px,
+      transparent 1px 3px,
+      var(--wm-crt-column-blue) 3px 4px,
+      transparent 4px 6px
+    ),
+    radial-gradient(circle at center, transparent 58%, var(--wm-crt-vignette) 100%);
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
 }
 
 .wm-docked-band-shell::before {
@@ -103,34 +248,10 @@
   background: rgba(7, 12, 37, 0.5);
 }
 
-.wm-titlebar {
-  background: linear-gradient(180deg, var(--wm-titlebar-start) 0%, var(--wm-titlebar-mid) 54%, var(--wm-titlebar-end) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.55);
-}
-
-.wm-module-shell {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.wm-module-titlebar {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 14px;
-}
-
 .wm-display-caps {
   font-family: var(--wm-font-display);
   letter-spacing: var(--wm-display-caps-spacing, 0);
   text-transform: uppercase;
-}
-
-.wm-mono-meta {
-  font-size: 13px;
-  font-family: var(--wm-font-mono);
-  letter-spacing: 0;
 }
 
 .wm-mono-caps {
@@ -147,28 +268,20 @@
   text-overflow: ellipsis;
 }
 
-.wm-eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: #fff4ce;
-  text-shadow: 1px 1px 0 rgba(65, 36, 9, 0.45);
-}
-
 .wm-bevel-button {
-  border: var(--wm-bevel-border, 2px solid var(--wm-ui-border-cool));
-  border-radius: var(--wm-bevel-radius, 3px);
+  border: var(--wm-bevel-border, 1px solid var(--wm-chrome-border-control));
+  border-radius: var(--wm-bevel-radius, var(--wm-radius-control));
   background: var(
     --wm-bevel-background,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 45%),
-    linear-gradient(180deg, #324595 0%, #1f317b 100%)
+    var(--wm-chrome-surface-control)
   );
   color: var(--wm-bevel-text, var(--wm-text));
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: var(
+    --wm-bevel-shadow,
+    inset 0 1px 0 rgba(255, 246, 224, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24)
+  );
   transition: border-color 120ms ease, filter 120ms ease, transform 120ms ease;
 }
 
@@ -181,27 +294,15 @@
   cursor: default;
 }
 
-.wm-choice-chip {
-  --wm-bevel-border: 2px solid var(--wm-ui-border-cool-soft);
-  --wm-bevel-background:
-    linear-gradient(180deg, rgba(110, 131, 214, 0.22), rgba(10, 20, 61, 0.22)),
-    var(--wm-panel-dark);
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--wm-text);
-  font-family: var(--wm-font-display);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.wm-choice-chip--active {
-  --wm-bevel-border: 2px solid var(--wm-ui-border-warm-active);
-  --wm-bevel-background:
-    linear-gradient(180deg, rgba(243, 178, 82, 0.34), rgba(110, 46, 9, 0.18)),
-    #2d3d8d;
-  --wm-bevel-text: var(--wm-text-warm);
+@media (prefers-reduced-motion: reduce) {
+  .app-root *,
+  .app-root *::before,
+  .app-root *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 html,

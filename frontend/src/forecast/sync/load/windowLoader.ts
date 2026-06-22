@@ -124,21 +124,21 @@ export async function loadWindowFrame(
   windowPlan: ForecastWindowPlan,
   frameId: string,
 ): Promise<ForecastFrameMap[ForecastWindowId]> {
-  if (windowPlan.output === 'single') {
-    const frame = await loadForecastFramePlan(artifacts, windowPlan.frames[0], frameId)
-    return frame as ForecastFrameMap[ForecastWindowId]
+  if (windowPlan.id === 'overlay') {
+    return loadArrayWindowFrame({
+      artifacts,
+      frames: windowPlan.frames,
+      frameId,
+    })
   }
 
-  return loadArrayWindowFrame({
-    artifacts,
-    frames: windowPlan.frames,
-    frameId,
-  })
+  const frame = await loadForecastFramePlan(artifacts, windowPlan.frames[0], frameId)
+  return frame as ForecastFrameMap[ForecastWindowId]
 }
 
 async function loadArrayWindowFrame(args: {
   artifacts: ArtifactLoader
-  frames: readonly ForecastFramePlan<'overlay'>[]
+  frames: readonly ForecastFramePlan[]
   frameId: string
 }): Promise<ForecastFrameMap['overlay']> {
   const loadedFrames = await Promise.all(
@@ -152,16 +152,16 @@ async function loadArrayWindowFrame(args: {
     }))
   )
 
-  return loadedFrames.filter((frame): frame is RasterLayerFrame<ForecastFramePlan<'overlay'>['source']> => (
+  return loadedFrames.filter((frame): frame is RasterLayerFrame<ForecastFramePlan['source']> => (
     frame != null
-  ))
+  )) as ForecastFrameMap['overlay']
 }
 
-async function loadForecastFramePlan<K extends ForecastWindowId>(
+async function loadForecastFramePlan(
   artifacts: ArtifactLoader,
-  frame: ForecastFramePlan<K>,
+  frame: ForecastFramePlan,
   frameId: string,
-): Promise<RasterLayerFrame<ForecastFramePlan<K>['source']>> {
+): Promise<RasterLayerFrame<ForecastFramePlan['source']>> {
   const data = await artifacts.loadRawRasterBands(
     frame.artifactId,
     frameId,

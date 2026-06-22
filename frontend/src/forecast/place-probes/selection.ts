@@ -1,262 +1,187 @@
 import type {
   PlaceProbe,
-  PlaceProbeProject,
-  PlaceProbeScreenPoint,
-  SelectPlaceProbesOptions,
+  PlaceProbeBounds,
+  PlaceProbeViewportSize,
 } from './places'
+import { PLACE_PROBE_POLICY } from './policy'
 
-const DEFAULT_PLACE_PROBE_LIMIT = 30
-const PLACE_PROBE_SPREAD_CELL_PX = 220
-const PLACE_PROBE_MIN_SPACING_PX = 90
-const PLACE_PROBE_SPREAD_SLOT_RATIO = 0.33
-
-type SelectPlaceProbesBySpreadOptions = Pick<
-  SelectPlaceProbesOptions,
-  'limit' | 'cellSizePx' | 'minSpacingPx' | 'previousPlaces'
-> & {
-  project?: PlaceProbeProject | null
+type SpreadBounds = {
+  west: number
+  east: number
+  south: number
+  north: number
 }
 
-type ProjectedPlaceProbe = PlaceProbe & {
-  screenPoint: PlaceProbeScreenPoint
-}
-
-type SelectionState = {
-  places: ProjectedPlaceProbe[]
-  placeIds: Set<string>
-  occupiedCells: Set<string>
-}
-
-export function selectPlaceProbesBySpread(
+export function selectSpreadPlaceProbes(
   candidates: PlaceProbe[],
-  {
-    limit = DEFAULT_PLACE_PROBE_LIMIT,
-    project = null,
-    cellSizePx = PLACE_PROBE_SPREAD_CELL_PX,
-    minSpacingPx = PLACE_PROBE_MIN_SPACING_PX,
-    previousPlaces = [],
-  }: SelectPlaceProbesBySpreadOptions,
+  options: {
+    gridBounds?: PlaceProbeBounds | null
+    relaxedCandidates?: PlaceProbe[]
+    viewportSize?: PlaceProbeViewportSize | null
+    previousPlaces?: PlaceProbe[]
+  } = {},
 ): PlaceProbe[] {
-  const normalizedLimit = normalizePlaceLimit(limit)
-  if (normalizedLimit <= 0 || candidates.length === 0) return []
-  if (candidates.length <= normalizedLimit) return assignSortKeys(candidates)
-
-  if (project == null) return assignSortKeys(candidates.slice(0, normalizedLimit))
-
-  const projectedCandidates = projectPlaceProbes(candidates, project)
-  if (projectedCandidates.length === 0) {
-    return assignSortKeys(candidates.slice(0, normalizedLimit))
+  const viewportSize = validViewportSize(options.viewportSize)
+  const gridBounds = validSpreadBounds(options.gridBounds)
+  if (viewportSize == null || gridBounds == null) {
+    return assignSortKeys(candidates.slice(0, PLACE_PROBE_POLICY.labels.defaultLimit))
   }
 
-  return assignSortKeys(selectProjectedPlaceProbes(
-    projectedCandidates,
-    normalizedLimit,
-    normalizeCellSize(cellSizePx),
-    normalizeMinSpacing(minSpacingPx),
-    previousPlaces,
+  const limit = labelLimitForViewport(viewportSize)
+  return assignSortKeys(selectByGridSpread(
+    candidates,
+    options.relaxedCandidates ?? [],
+    gridCellSizeForBounds(gridBounds, gridForViewport(viewportSize, limit)),
+    limit,
+    options.previousPlaces ?? [],
   ))
-}
-
-function selectProjectedPlaceProbes(
-  candidates: ProjectedPlaceProbe[],
-  limit: number,
-  cellSizePx: number,
-  minSpacingPx: number,
-  previousPlaces: PlaceProbe[],
-): PlaceProbe[] {
-  const coreCount = getStableCorePlaceCount(limit, candidates.length)
-  const state = createSelectionState(candidates.slice(0, coreCount), cellSizePx)
-  if (state.places.length >= limit) return state.places
-
-  const candidatesAfterCore = candidates.slice(coreCount)
-
-  if (addPreviousPlaces(state, candidates, previousPlaces, limit, cellSizePx)) return state.places
-  if (addEmptyCellPlaces(state, candidatesAfterCore, limit, cellSizePx, minSpacingPx)) return state.places
-  if (minSpacingPx > 1) {
-    if (addEmptyCellPlaces(
-      state,
-      candidatesAfterCore,
-      limit,
-      cellSizePx,
-      minSpacingPx * 0.65,
-    )) return state.places
-  }
-
-  if (addSpacedPlaces(state, candidates, limit, minSpacingPx)) return state.places
-  if (minSpacingPx > 1) {
-    if (addSpacedPlaces(state, candidates, limit, minSpacingPx * 0.65)) return state.places
-  }
-
-  addRankFallbackPlaces(state, candidates, limit)
-  return state.places
-}
-
-function createSelectionState(
-  initialPlaces: ProjectedPlaceProbe[],
-  cellSizePx: number,
-): SelectionState {
-  return {
-    places: [...initialPlaces],
-    placeIds: new Set(initialPlaces.map((place) => place.id)),
-    occupiedCells: new Set(
-      initialPlaces.map((place) => getScreenCellKey(place.screenPoint, cellSizePx))
-    ),
-  }
-}
-
-function addPreviousPlaces(
-  state: SelectionState,
-  candidates: ProjectedPlaceProbe[],
-  previousPlaces: PlaceProbe[],
-  limit: number,
-  cellSizePx: number,
-): boolean {
-  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]))
-
-  for (const previousPlace of previousPlaces) {
-    if (state.places.length >= limit) return true
-
-    const candidate = candidatesById.get(previousPlace.id)
-    if (candidate == null) continue
-    addSelectedPlace(state, candidate, cellSizePx)
-  }
-  return state.places.length >= limit
-}
-
-function addEmptyCellPlaces(
-  state: SelectionState,
-  candidates: ProjectedPlaceProbe[],
-  limit: number,
-  cellSizePx: number,
-  minSpacingPx: number,
-): boolean {
-  for (const candidate of candidates) {
-    if (state.places.length >= limit) return true
-    if (state.placeIds.has(candidate.id)) continue
-
-    const cellKey = getScreenCellKey(candidate.screenPoint, cellSizePx)
-    if (state.occupiedCells.has(cellKey)) continue
-    if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
-
-    addSelectedPlace(state, candidate, cellSizePx)
-  }
-  return state.places.length >= limit
-}
-
-function addSpacedPlaces(
-  state: SelectionState,
-  candidates: ProjectedPlaceProbe[],
-  limit: number,
-  minSpacingPx: number,
-): boolean {
-  for (const candidate of candidates) {
-    if (state.places.length >= limit) return true
-    if (state.placeIds.has(candidate.id)) continue
-    if (isTooCloseToSelectedPlace(candidate, state.places, minSpacingPx)) continue
-
-    addSelectedPlace(state, candidate)
-  }
-  return state.places.length >= limit
-}
-
-function addRankFallbackPlaces(
-  state: SelectionState,
-  candidates: ProjectedPlaceProbe[],
-  limit: number,
-): void {
-  for (const candidate of candidates) {
-    if (state.places.length >= limit) return
-    addSelectedPlace(state, candidate)
-  }
-}
-
-function addSelectedPlace(
-  state: SelectionState,
-  place: ProjectedPlaceProbe,
-  cellSizePx?: number,
-): void {
-  if (state.placeIds.has(place.id)) return
-
-  state.places.push(place)
-  state.placeIds.add(place.id)
-  if (cellSizePx != null) {
-    state.occupiedCells.add(getScreenCellKey(place.screenPoint, cellSizePx))
-  }
-}
-
-function projectPlaceProbes(
-  candidates: PlaceProbe[],
-  project: PlaceProbeProject,
-): ProjectedPlaceProbe[] {
-  const projectedCandidates: ProjectedPlaceProbe[] = []
-
-  for (const candidate of candidates) {
-    const screenPoint = project(candidate)
-    if (screenPoint == null || !isFiniteScreenPoint(screenPoint)) continue
-    projectedCandidates.push({
-      ...candidate,
-      screenPoint,
-    })
-  }
-
-  return projectedCandidates
-}
-
-function isTooCloseToSelectedPlace(
-  candidate: ProjectedPlaceProbe,
-  selected: ProjectedPlaceProbe[],
-  minSpacingPx: number,
-): boolean {
-  if (minSpacingPx <= 0) return false
-
-  const minDistanceSquared = minSpacingPx * minSpacingPx
-  return selected.some((place) => {
-    const dx = candidate.screenPoint.x - place.screenPoint.x
-    const dy = candidate.screenPoint.y - place.screenPoint.y
-    return dx * dx + dy * dy < minDistanceSquared
-  })
-}
-
-function getScreenCellKey(point: PlaceProbeScreenPoint, cellSizePx: number): string {
-  return `${Math.floor(point.x / cellSizePx)}:${Math.floor(point.y / cellSizePx)}`
-}
-
-function getStableCorePlaceCount(limit: number, candidateCount: number): number {
-  if (limit <= 1) return Math.min(limit, candidateCount)
-
-  const spreadSlots = Math.max(1, Math.floor(limit * PLACE_PROBE_SPREAD_SLOT_RATIO))
-  return Math.min(candidateCount, Math.max(1, limit - spreadSlots))
 }
 
 function assignSortKeys(places: PlaceProbe[]): PlaceProbe[] {
   return places.map((place, index) => ({
-    id: place.id,
-    name: place.name,
-    localName: place.localName,
-    lon: place.lon,
-    lat: place.lat,
-    tier: place.tier,
+    ...place,
     sortKey: index,
-    population: place.population,
-    populationRank: place.populationRank,
   }))
 }
 
-function normalizePlaceLimit(limit: number): number {
-  if (!Number.isFinite(limit)) return DEFAULT_PLACE_PROBE_LIMIT
-  return Math.max(0, Math.floor(limit))
+function selectByGridSpread(
+  candidates: PlaceProbe[],
+  relaxedCandidates: PlaceProbe[],
+  cellSize: { width: number; height: number },
+  limit: number,
+  previousPlaces: PlaceProbe[],
+): PlaceProbe[] {
+  const selected: PlaceProbe[] = []
+  const selectedIds = new Set<string>()
+  const filledCells = new Set<string>()
+  const candidatesById = placesById(candidates)
+  const relaxedCandidatesById = placesById(relaxedCandidates)
+  const addPlaceInEmptyCell = (place: PlaceProbe) => {
+    if (selectedIds.has(place.id)) return
+
+    const cellKey = cellKeyForPlace(place, cellSize)
+    if (cellKey == null || filledCells.has(cellKey)) return
+
+    selected.push(place)
+    selectedIds.add(place.id)
+    filledCells.add(cellKey)
+  }
+  const addPlacesInEmptyCells = (places: PlaceProbe[]) => {
+    for (const place of places) {
+      if (selected.length >= limit) return
+      addPlaceInEmptyCell(place)
+    }
+  }
+  const addRankFallbackPlaces = (places: PlaceProbe[]) => {
+    for (const place of places) {
+      if (selected.length >= limit) return
+      if (selectedIds.has(place.id)) continue
+      selected.push(place)
+      selectedIds.add(place.id)
+    }
+  }
+
+  addPlacesInEmptyCells(previousPlaces.flatMap((place) => candidatesById.get(place.id) ?? []))
+  addPlacesInEmptyCells(candidates)
+  addPlacesInEmptyCells(previousPlaces.flatMap((place) => relaxedCandidatesById.get(place.id) ?? []))
+  addPlacesInEmptyCells(relaxedCandidates)
+  addRankFallbackPlaces(candidates)
+
+  return selected
 }
 
-function normalizeCellSize(cellSizePx: number): number {
-  if (!Number.isFinite(cellSizePx) || cellSizePx <= 0) return PLACE_PROBE_SPREAD_CELL_PX
-  return cellSizePx
+function placesById(places: readonly PlaceProbe[]): Map<string, PlaceProbe> {
+  return new Map(places.map((place) => [place.id, place]))
 }
 
-function normalizeMinSpacing(minSpacingPx: number): number {
-  if (!Number.isFinite(minSpacingPx) || minSpacingPx < 0) return PLACE_PROBE_MIN_SPACING_PX
-  return minSpacingPx
+function labelLimitForViewport({ width, height }: PlaceProbeViewportSize): number {
+  return clamp(
+    Math.round((width * height) / PLACE_PROBE_POLICY.labels.areaPx),
+    PLACE_PROBE_POLICY.labels.defaultLimit,
+    PLACE_PROBE_POLICY.labels.maxLimit,
+  )
 }
 
-function isFiniteScreenPoint(point: PlaceProbeScreenPoint): boolean {
-  return Number.isFinite(point.x) && Number.isFinite(point.y)
+function gridForViewport(
+  { width, height }: PlaceProbeViewportSize,
+  limit: number,
+): { columns: number; rows: number } {
+  const aspectRatio = width / height
+  const columns = clamp(
+    Math.round(Math.sqrt(limit * aspectRatio)),
+    PLACE_PROBE_POLICY.grid.minColumns,
+    PLACE_PROBE_POLICY.grid.maxColumns,
+  )
+  return {
+    columns,
+    rows: clamp(
+      Math.ceil(limit / columns),
+      PLACE_PROBE_POLICY.grid.minRows,
+      PLACE_PROBE_POLICY.grid.maxRows,
+    ),
+  }
+}
+
+function gridCellSizeForBounds(
+  bounds: SpreadBounds,
+  { columns, rows }: { columns: number; rows: number },
+): { width: number; height: number } {
+  return {
+    width: (bounds.east - bounds.west) / columns,
+    height: (bounds.north - bounds.south) / rows,
+  }
+}
+
+function cellKeyForPlace(
+  place: PlaceProbe,
+  { width, height }: { width: number; height: number },
+): string | null {
+  if (width <= 0 || height <= 0) return null
+  const column = Math.floor((place.lon - PLACE_PROBE_POLICY.grid.worldWest) / width)
+  const row = Math.floor((place.lat - PLACE_PROBE_POLICY.grid.worldSouth) / height)
+  return `${column}:${row}`
+}
+
+function validViewportSize(size: PlaceProbeViewportSize | null | undefined): PlaceProbeViewportSize | null {
+  if (
+    size == null ||
+    !Number.isFinite(size.width) ||
+    !Number.isFinite(size.height) ||
+    size.width <= 0 ||
+    size.height <= 0
+  ) {
+    return null
+  }
+
+  return size
+}
+
+function validSpreadBounds(bounds: PlaceProbeBounds | null | undefined): SpreadBounds | null {
+  if (bounds == null) return null
+
+  const west = bounds.getWest?.()
+  const east = bounds.getEast?.()
+  const south = bounds.getSouth?.()
+  const north = bounds.getNorth?.()
+
+  if (
+    !isFiniteNumber(west) ||
+    !isFiniteNumber(east) ||
+    !isFiniteNumber(south) ||
+    !isFiniteNumber(north) ||
+    east <= west ||
+    north <= south
+  ) {
+    return null
+  }
+
+  return { west, east, south, north }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }

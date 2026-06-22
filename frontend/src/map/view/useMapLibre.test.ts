@@ -6,42 +6,59 @@ import { BASEMAP_SOURCE_ID } from '../basemap'
 
 const mocks = vi.hoisted(() => {
   let styleLoaded = false
-  const listeners = new globalThis.Map<string, Set<() => void>>()
+  const listeners = new globalThis.Map<string, Set<(event?: unknown) => void>>()
+  const controls = new Set<unknown>()
   const map = {
-    on: vi.fn((event: string, handler: () => void) => {
-      const handlers = listeners.get(event) ?? new Set<() => void>()
+    on: vi.fn((event: string, handler: (event?: unknown) => void) => {
+      const handlers = listeners.get(event) ?? new Set<(event?: unknown) => void>()
       handlers.add(handler)
       listeners.set(event, handlers)
     }),
-    off: vi.fn((event: string, handler: () => void) => {
+    off: vi.fn((event: string, handler: (event?: unknown) => void) => {
       listeners.get(event)?.delete(handler)
     }),
     isStyleLoaded: vi.fn(() => styleLoaded),
+    addControl: vi.fn((control: unknown) => {
+      controls.add(control)
+    }),
+    removeControl: vi.fn((control: unknown) => {
+      controls.delete(control)
+    }),
+    hasControl: vi.fn((control: unknown) => controls.has(control)),
     remove: vi.fn(),
   }
+  const AttributionControl = vi.fn(function MockAttributionControl(this: { options: unknown }, options: unknown) {
+    this.options = options
+  })
   const MockMapConstructor = vi.fn(function MockMap() {
     return map
   })
 
   return {
     addProtocol: vi.fn(),
+    AttributionControl,
     Map: MockMapConstructor,
     loadStoredViewport: vi.fn(() => null),
     saveStoredViewport: vi.fn(),
-    getMap: () => map,
+    mapFixture: () => map,
     setStyleLoaded: (value: boolean) => {
       styleLoaded = value
     },
-    emit: (event: string) => {
-      for (const handler of listeners.get(event) ?? []) handler()
+    emit: (event: string, payload?: unknown) => {
+      for (const handler of listeners.get(event) ?? []) handler(payload)
     },
     reset: () => {
       styleLoaded = false
       listeners.clear()
+      controls.clear()
       map.on.mockClear()
       map.off.mockClear()
       map.isStyleLoaded.mockClear()
+      map.addControl.mockClear()
+      map.removeControl.mockClear()
+      map.hasControl.mockClear()
       map.remove.mockClear()
+      AttributionControl.mockClear()
     },
   }
 })
@@ -49,6 +66,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('maplibre-gl', () => ({
   default: {
     addProtocol: mocks.addProtocol,
+    AttributionControl: mocks.AttributionControl,
     Map: mocks.Map,
   },
 }))
@@ -112,6 +130,11 @@ describe('useMapLibre', () => {
     renderMapLibre()
 
     expect(mocks.Map).toHaveBeenCalledTimes(1)
+    expect(mocks.AttributionControl).toHaveBeenCalledWith({ compact: false })
+    expect(mocks.mapFixture().addControl).toHaveBeenCalledWith(
+      expect.any(mocks.AttributionControl),
+      'bottom-left',
+    )
     const options = latestMapOptions()
     const style = latestStyle()
 
@@ -126,10 +149,10 @@ describe('useMapLibre', () => {
     ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:3000/basemap/{z}/{x}/{y}']
     expect((baseStyleJson.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification).tiles).toBeUndefined()
 
-    const layerIds = (style.layers ?? []).map((layer) => layer.id)
-    expect(layerIds).toContain('background')
-    expect(layerIds).toContain('water')
-    expect(layerIds.some((layerId) => layerId.startsWith('label_city_'))).toBe(false)
+    expect((style.layers ?? []).map((layer) => layer.id)).toEqual(expect.arrayContaining([
+      'background',
+      'water',
+    ]))
   })
 
   it('omits the basemap source and dependent layers when no basemap url is configured', async () => {
@@ -153,26 +176,100 @@ describe('useMapLibre', () => {
     expect((style.layers ?? []).map((layer) => layer.id)).toEqual(['background'])
   })
 
-  it('bumps readiness on style load', () => {
+  it('exposes the map after style load', () => {
     const { result } = renderMapLibre()
 
-    expect(result.current.mapReadyVersion).toBe(0)
+    expect(result.current.map).toBeNull()
 
     act(() => {
       mocks.emit('style.load')
     })
 
-    expect(result.current.mapReadyVersion).toBe(1)
+    expect(result.current.map).toBe(mocks.mapFixture())
   })
 
-  it('bumps readiness immediately when the style is already loaded', async () => {
+  it('exposes the map immediately when the style is already loaded', async () => {
     mocks.setStyleLoaded(true)
 
     const { result } = renderMapLibre()
 
     await waitFor(() => {
-      expect(result.current.mapReadyVersion).toBe(1)
+      expect(result.current.map).toBe(mocks.mapFixture())
     })
+  })
+
+  it('reports map construction errors', async () => {
+    mocks.Map.mockImplementationOnce(function MockMap() {
+      throw new Error('WebGL unavailable')
+    })
+
+    const { result } = renderMapLibre()
+
+    await waitFor(() => {
+      expect(result.current.mapError?.message).toBe('WebGL unavailable')
+    })
+    expect(result.current.map).toBeNull()
+  })
+
+  it('reports renderer startup errors before the first style load', async () => {
+    const { result } = renderMapLibre()
+
+    act(() => {
+      mocks.emit('error', {
+        error: {
+          message: 'Failed to initialize WebGL',
+          type: 'webglcontextcreationerror',
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.mapError?.message).toBe('Failed to initialize WebGL')
+    })
+  })
+
+  it('normalizes JSON-encoded renderer startup errors', async () => {
+    const { result } = renderMapLibre()
+
+    act(() => {
+      mocks.emit('error', {
+        error: JSON.stringify({
+          type: 'webglcontextcreationerror',
+          message: 'Failed to initialize WebGL',
+        }),
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.mapError?.message).toBe('Failed to initialize WebGL')
+    })
+  })
+
+  it('can retry map construction after a startup error', async () => {
+    mocks.Map.mockImplementationOnce(function MockMap() {
+      throw new Error('WebGL unavailable')
+    })
+    const { result } = renderMapLibre()
+
+    await waitFor(() => {
+      expect(result.current.mapError?.message).toBe('WebGL unavailable')
+    })
+
+    act(() => {
+      result.current.retryMap()
+    })
+
+    await waitFor(() => {
+      expect(mocks.Map).toHaveBeenCalledTimes(2)
+    })
+    expect(result.current.mapError).toBeNull()
+    expect(result.current.map).toBeNull()
+
+    act(() => {
+      mocks.emit('style.load')
+    })
+
+    expect(result.current.map).toBe(mocks.mapFixture())
   })
 
   it('removes listeners and tears down the map on unmount', () => {
@@ -180,9 +277,10 @@ describe('useMapLibre', () => {
 
     unmount()
 
-    expect(mocks.getMap().off).toHaveBeenCalledWith('moveend', expect.any(Function))
-    expect(mocks.getMap().off).toHaveBeenCalledWith('style.load', expect.any(Function))
-    expect(mocks.getMap().off).toHaveBeenCalledWith('error', expect.any(Function))
-    expect(mocks.getMap().remove).toHaveBeenCalledTimes(1)
+    expect(mocks.mapFixture().off).toHaveBeenCalledWith('moveend', expect.any(Function))
+    expect(mocks.mapFixture().off).toHaveBeenCalledWith('style.load', expect.any(Function))
+    expect(mocks.mapFixture().off).toHaveBeenCalledWith('error', expect.any(Function))
+    expect(mocks.mapFixture().removeControl).toHaveBeenCalledWith(expect.any(mocks.AttributionControl))
+    expect(mocks.mapFixture().remove).toHaveBeenCalledTimes(1)
   })
 })

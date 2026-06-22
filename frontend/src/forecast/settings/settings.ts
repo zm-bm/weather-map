@@ -207,7 +207,6 @@ export type ForecastSettingsActions = {
   updateRaster: (patch: Partial<RasterRenderSettings>) => void
   updateParticles: (patch: Partial<ParticleSettings>) => void
   updatePressureContours: (patch: Partial<PressureContourSettings>) => void
-  updateUnits: (patch: Partial<UnitSettings>) => void
   toggleUnitSystem: () => void
 }
 

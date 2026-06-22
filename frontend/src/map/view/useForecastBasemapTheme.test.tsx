@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { createBasemapThemeMapFixture } from '@/test/fixtures'
 import { BASEMAP_LAYER_IDS } from '../basemap'
@@ -8,11 +8,9 @@ import { useForecastBasemapTheme } from './useForecastBasemapTheme'
 describe('useForecastBasemapTheme', () => {
   it('updates the map theme when the selected layer changes', () => {
     const map = createBasemapThemeMapFixture()
-    const getMap = vi.fn(() => map)
     const { rerender } = renderHook(
       ({ selectedLayerId }) => useForecastBasemapTheme({
-        getMap,
-        mapReadyVersion: 1,
+        map,
         selectedLayerId,
       }),
       { initialProps: { selectedLayerId: 'temperature' as string | null } }
@@ -43,15 +41,12 @@ describe('useForecastBasemapTheme', () => {
 
   it('waits for the map style to be ready', () => {
     const map = createBasemapThemeMapFixture()
-    const getMap = vi.fn(() => map)
 
     renderHook(() => useForecastBasemapTheme({
-      getMap,
-      mapReadyVersion: 0,
+      map: null,
       selectedLayerId: 'cloud_layers',
     }))
 
-    expect(getMap).not.toHaveBeenCalled()
     expect(map.setPaintProperty).not.toHaveBeenCalled()
   })
 })

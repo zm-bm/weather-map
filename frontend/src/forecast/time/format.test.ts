@@ -19,16 +19,16 @@ describe('forecast time format helpers', () => {
     expect(formatValidTimeScaleLabel(null)).toBeNull()
   })
 
-  it('formats midnight scale labels with weekday date context', () => {
+  it('formats midnight scale labels with compact date context', () => {
     const localMidnightMs = new Date(2026, 3, 11, 0, 0, 0, 0).getTime()
     const label = formatValidTimeScaleLabel(localMidnightMs)
     const expected = new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
       month: 'short',
       day: 'numeric',
     }).format(new Date(localMidnightMs))
 
     expect(label).toBe(expected)
     expect(label).not.toMatch(/\b12\s?(AM|PM)\b|:/i)
+    expect(label).not.toMatch(/^[A-Za-z]{3},/)
   })
 })

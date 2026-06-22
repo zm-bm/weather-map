@@ -1,5 +1,5 @@
-import type { ChangeEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useCallback, useRef } from 'react'
 
 import {
   DEFAULT_PARTICLE_RENDER_SETTINGS,
@@ -27,100 +27,34 @@ import {
   particleSizeSettingsForRatio,
   particleTrailFadeFromLength,
   particleTrailLengthFromFade,
+  useForecastSettings,
   type RasterColorSamplingMode,
   type RasterGridSamplingMode,
-  type ForecastSettings,
-  type ForecastSettingsActions,
 } from '@/forecast/settings'
+import { useDismissablePanel } from '../useDismissablePanel'
 
 export type MapOptionsButtonProps = {
-  settings: ForecastSettings
-  settingsActions: ForecastSettingsActions
+  isOpen: boolean
+  onOpenChange: (isOpen: boolean) => void
 }
 
 export default function MapOptionsButton({
-  settings,
-  settingsActions,
+  isOpen,
+  onOpenChange,
 }: MapOptionsButtonProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const { settings, actions } = useForecastSettings()
   const particleSpeedRatio = settings.particles.flowSpeedScale /
     DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale
   const particleSizeRatio = particleSizeRatioForSettings(settings.particles)
   const particleTrailLength = particleTrailLengthFromFade(settings.particles.trailFade)
+  const windControlsDisabled = !settings.particles.enabled
+  const closePanel = useCallback(() => onOpenChange(false), [onOpenChange])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const root = rootRef.current
-      if (!root || !(event.target instanceof Node)) return
-      if (root.contains(event.target)) return
-
-      setIsOpen(false)
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown, true)
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true)
-    }
-  }, [isOpen])
+  useDismissablePanel(isOpen, rootRef, closePanel)
 
   const handleToggle = () => {
-    setIsOpen((value) => !value)
-  }
-
-  const handleParticlesEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.checked
-    settingsActions.updateParticles({ enabled: nextValue })
-  }
-
-  const handlePressureContoursEnabledChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.checked
-    settingsActions.updatePressureContours({ enabled: nextValue })
-  }
-
-  const handleGridSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.value as RasterGridSamplingMode
-    settingsActions.updateRaster({ gridSamplingMode: nextValue })
-  }
-
-  const handleColorSamplingModeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.currentTarget.value as RasterColorSamplingMode
-    settingsActions.updateRaster({ colorSamplingMode: nextValue })
-  }
-
-  const handleLayerOpacityChange = (value: number) => {
-    settingsActions.updateRaster({ opacity: value })
-  }
-
-  const handleParticleDensityChange = (value: number) => {
-    settingsActions.updateParticles({ particleCount: value })
-  }
-
-  const handleParticleSpeedChange = (value: number) => {
-    settingsActions.updateParticles({
-      flowSpeedScale: Math.round(
-        DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * value
-      ),
-    })
-  }
-
-  const handleParticleSizeChange = (value: number) => {
-    settingsActions.updateParticles(particleSizeSettingsForRatio(value))
-  }
-
-  const handleParticleTrailOpacityChange = (value: number) => {
-    settingsActions.updateParticles({
-      trailCompositeOpacity: value,
-    })
-  }
-
-  const handleParticleTrailLengthChange = (value: number) => {
-    settingsActions.updateParticles({
-      trailFade: particleTrailFadeFromLength(value),
-    })
+    onOpenChange(!isOpen)
   }
 
   return (
@@ -128,144 +62,172 @@ export default function MapOptionsButton({
       <button
         type="button"
         className="map-control-button map-control-button--options"
-        title="Map options"
-        aria-label="Map options"
+        title="Map display options"
+        aria-label="Map display options"
         aria-pressed={isOpen}
         aria-expanded={isOpen}
         onClick={handleToggle}
       >
         <span className="map-control-icon map-control-icon--options" />
       </button>
-      <div className="map-control-options-panel" hidden={!isOpen}>
-        <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Grid</div>
-          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Grid sampling mode">
-            {RASTER_GRID_SAMPLING_MODES.map((mode) => (
-              <label className="map-control-options-row wm-mono-caps" key={mode}>
-                <input
-                  type="radio"
-                  name="grid-sampling-mode"
-                  value={mode}
-                  checked={settings.raster.gridSamplingMode === mode}
-                  onChange={handleGridSamplingModeChange}
-                />
-                <span>{gridSamplingModeLabel(mode)}</span>
-              </label>
-            ))}
+      {isOpen ? (
+        <div className="map-control-options-panel">
+          <div className="map-control-options-header">
+            <strong className="map-control-options-title wm-display-caps">Display Options</strong>
+            <button
+              type="button"
+              className="map-control-options-close"
+              aria-label="Close display options"
+              onClick={closePanel}
+            >
+              <span className="map-control-options-close-icon" aria-hidden="true" />
+            </button>
           </div>
-          <div className="map-control-options-heading wm-mono-caps">Colors</div>
-          <div className="map-control-options-radio-group" role="radiogroup" aria-label="Color sampling mode">
-            {RASTER_COLOR_SAMPLING_MODES.map((mode) => (
-              <label className="map-control-options-row wm-mono-caps" key={mode}>
-                <input
-                  type="radio"
-                  name="color-sampling-mode"
-                  value={mode}
-                  checked={settings.raster.colorSamplingMode === mode}
-                  onChange={handleColorSamplingModeChange}
-                />
-                <span>{colorSamplingModeLabel(mode)}</span>
-              </label>
-            ))}
-          </div>
-          <OptionSlider
-            label="Opacity"
-            ariaLabel="Layer opacity"
-            value={settings.raster.opacity}
-            valueText={formatPercent(settings.raster.opacity)}
-            min={RASTER_OPACITY_MIN}
-            max={RASTER_OPACITY_MAX}
-            step={RASTER_OPACITY_STEP}
-            onChange={handleLayerOpacityChange}
-          />
-        </div>
-        <div className="map-control-options-divider" />
-        <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Overlays</div>
-          <label className="map-control-options-row wm-mono-caps">
-            <input
-              type="checkbox"
-              checked={settings.pressureContours.enabled}
-              onChange={handlePressureContoursEnabledChange}
+          <section className="map-control-options-section">
+            <div className="map-control-options-heading wm-mono-caps">Layer</div>
+            <div className="map-control-options-subheading wm-mono-caps">Color style</div>
+            <div className="map-control-options-radio-group" role="radiogroup" aria-label="Color sampling mode">
+              {RASTER_COLOR_SAMPLING_MODES.map((mode) => (
+                <label className="map-control-options-row wm-mono-caps" key={mode}>
+                  <input
+                    type="radio"
+                    name="color-sampling-mode"
+                    value={mode}
+                    checked={settings.raster.colorSamplingMode === mode}
+                    onChange={(event) => actions.updateRaster({
+                      colorSamplingMode: event.currentTarget.value as RasterColorSamplingMode,
+                    })}
+                  />
+                  <span>{colorSamplingModeLabel(mode)}</span>
+                </label>
+              ))}
+            </div>
+            <div className="map-control-options-subheading wm-mono-caps">Grid</div>
+            <div className="map-control-options-radio-group" role="radiogroup" aria-label="Grid sampling mode">
+              {RASTER_GRID_SAMPLING_MODES.map((mode) => (
+                <label className="map-control-options-row wm-mono-caps" key={mode}>
+                  <input
+                    type="radio"
+                    name="grid-sampling-mode"
+                    value={mode}
+                    checked={settings.raster.gridSamplingMode === mode}
+                    onChange={(event) => actions.updateRaster({
+                      gridSamplingMode: event.currentTarget.value as RasterGridSamplingMode,
+                    })}
+                  />
+                  <span>{gridSamplingModeLabel(mode)}</span>
+                </label>
+              ))}
+            </div>
+            <OptionSlider
+              label="Opacity"
+              name="layer-opacity"
+              value={settings.raster.opacity}
+              valueText={formatPercent(settings.raster.opacity)}
+              min={RASTER_OPACITY_MIN}
+              max={RASTER_OPACITY_MAX}
+              step={RASTER_OPACITY_STEP}
+              onChange={(value) => actions.updateRaster({ opacity: value })}
             />
-            <span>Show pressure contours</span>
-          </label>
-        </div>
-        <div className="map-control-options-divider" />
-        <div className="map-control-options-section">
-          <div className="map-control-options-heading wm-mono-caps">Particles</div>
-          <label className="map-control-options-row wm-mono-caps">
-            <input
-              type="checkbox"
-              checked={settings.particles.enabled}
-              onChange={handleParticlesEnabledChange}
+          </section>
+          <div className="map-control-options-divider" />
+          <section className="map-control-options-section">
+            <div className="map-control-options-heading wm-mono-caps">Effects</div>
+            <label className="map-control-options-row wm-mono-caps">
+              <input
+                type="checkbox"
+                name="pressure-contours-enabled"
+                checked={settings.pressureContours.enabled}
+                onChange={(event) => actions.updatePressureContours({
+                  enabled: event.currentTarget.checked,
+                })}
+              />
+              <span>Pressure contours</span>
+            </label>
+            <label className="map-control-options-row wm-mono-caps">
+              <input
+                type="checkbox"
+                name="particles-enabled"
+                checked={settings.particles.enabled}
+                onChange={(event) => actions.updateParticles({
+                  enabled: event.currentTarget.checked,
+                })}
+              />
+              <span>Wind animation</span>
+            </label>
+          </section>
+          <div className="map-control-options-divider" />
+          <section className="map-control-options-section">
+            <div className="map-control-options-heading wm-mono-caps">Wind</div>
+            <OptionSlider
+              label="Density"
+              name="particle-density"
+              value={settings.particles.particleCount}
+              valueText={formatParticleCount(settings.particles.particleCount)}
+              min={PARTICLE_COUNT_MIN}
+              max={PARTICLE_COUNT_MAX}
+              step={PARTICLE_COUNT_STEP}
+              disabled={windControlsDisabled}
+              onChange={(value) => actions.updateParticles({ particleCount: value })}
             />
-            <span>Show particles</span>
-          </label>
-          <OptionSlider
-            label="Density"
-            ariaLabel="Particle density"
-            value={settings.particles.particleCount}
-            valueText={formatParticleCount(settings.particles.particleCount)}
-            min={PARTICLE_COUNT_MIN}
-            max={PARTICLE_COUNT_MAX}
-            step={PARTICLE_COUNT_STEP}
-            disabled={!settings.particles.enabled}
-            onChange={handleParticleDensityChange}
-          />
-          <OptionSlider
-            label="Speed"
-            ariaLabel="Particle speed"
-            value={particleSpeedRatio}
-            valueText={formatRatio(particleSpeedRatio)}
-            min={PARTICLE_FLOW_SPEED_RATIO_MIN}
-            max={PARTICLE_FLOW_SPEED_RATIO_MAX}
-            step={PARTICLE_FLOW_SPEED_RATIO_STEP}
-            disabled={!settings.particles.enabled}
-            onChange={handleParticleSpeedChange}
-          />
-          <OptionSlider
-            label="Size"
-            ariaLabel="Particle size"
-            value={particleSizeRatio}
-            valueText={formatRatio(particleSizeRatio)}
-            min={PARTICLE_SIZE_RATIO_MIN}
-            max={PARTICLE_SIZE_RATIO_MAX}
-            step={PARTICLE_SIZE_RATIO_STEP}
-            disabled={!settings.particles.enabled}
-            onChange={handleParticleSizeChange}
-          />
-          <OptionSlider
-            label="Trail opacity"
-            ariaLabel="Particle trail opacity"
-            value={settings.particles.trailCompositeOpacity}
-            valueText={formatPercent(settings.particles.trailCompositeOpacity)}
-            min={PARTICLE_TRAIL_OPACITY_MIN}
-            max={PARTICLE_TRAIL_OPACITY_MAX}
-            step={PARTICLE_TRAIL_OPACITY_STEP}
-            disabled={!settings.particles.enabled}
-            onChange={handleParticleTrailOpacityChange}
-          />
-          <OptionSlider
-            label="Trail length"
-            ariaLabel="Particle trail length"
-            value={particleTrailLength}
-            valueText={formatTrailLength(particleTrailLength)}
-            min={PARTICLE_TRAIL_LENGTH_MIN}
-            max={PARTICLE_TRAIL_LENGTH_MAX}
-            step={PARTICLE_TRAIL_LENGTH_STEP}
-            disabled={!settings.particles.enabled}
-            onChange={handleParticleTrailLengthChange}
-          />
+            <OptionSlider
+              label="Speed"
+              name="particle-speed"
+              value={particleSpeedRatio}
+              valueText={formatRatio(particleSpeedRatio)}
+              min={PARTICLE_FLOW_SPEED_RATIO_MIN}
+              max={PARTICLE_FLOW_SPEED_RATIO_MAX}
+              step={PARTICLE_FLOW_SPEED_RATIO_STEP}
+              disabled={windControlsDisabled}
+              onChange={(value) => actions.updateParticles({
+                flowSpeedScale: Math.round(DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * value),
+              })}
+            />
+            <OptionSlider
+              label="Size"
+              name="particle-size"
+              value={particleSizeRatio}
+              valueText={formatRatio(particleSizeRatio)}
+              min={PARTICLE_SIZE_RATIO_MIN}
+              max={PARTICLE_SIZE_RATIO_MAX}
+              step={PARTICLE_SIZE_RATIO_STEP}
+              disabled={windControlsDisabled}
+              onChange={(value) => actions.updateParticles(particleSizeSettingsForRatio(value))}
+            />
+            <OptionSlider
+              label="Trail length"
+              name="particle-trail-length"
+              value={particleTrailLength}
+              valueText={formatTrailLength(particleTrailLength)}
+              min={PARTICLE_TRAIL_LENGTH_MIN}
+              max={PARTICLE_TRAIL_LENGTH_MAX}
+              step={PARTICLE_TRAIL_LENGTH_STEP}
+              disabled={windControlsDisabled}
+              onChange={(value) => actions.updateParticles({
+                trailFade: particleTrailFadeFromLength(value),
+              })}
+            />
+            <OptionSlider
+              label="Trail opacity"
+              name="particle-trail-opacity"
+              value={settings.particles.trailCompositeOpacity}
+              valueText={formatPercent(settings.particles.trailCompositeOpacity)}
+              min={PARTICLE_TRAIL_OPACITY_MIN}
+              max={PARTICLE_TRAIL_OPACITY_MAX}
+              step={PARTICLE_TRAIL_OPACITY_STEP}
+              disabled={windControlsDisabled}
+              onChange={(value) => actions.updateParticles({ trailCompositeOpacity: value })}
+            />
+          </section>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }
 
 type OptionSliderProps = {
   label: string
-  ariaLabel: string
+  name: string
   value: number
   valueText: string
   min: number
@@ -277,7 +239,7 @@ type OptionSliderProps = {
 
 function OptionSlider({
   label,
-  ariaLabel,
+  name,
   value,
   valueText,
   min,
@@ -286,9 +248,12 @@ function OptionSlider({
   disabled = false,
   onChange,
 }: OptionSliderProps) {
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onChange(Number(event.currentTarget.value))
-  }
+  const valuePercent = max === min
+    ? 0
+    : Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+  const sliderStyle = {
+    '--wm-map-options-slider-value': `${valuePercent.toFixed(2)}%`,
+  } as CSSProperties
 
   return (
     <label className="map-control-options-slider-row wm-mono-caps">
@@ -297,15 +262,17 @@ function OptionSlider({
         <span className="map-control-options-value">{valueText}</span>
       </span>
       <input
-        aria-label={ariaLabel}
+        aria-valuetext={valueText}
         className="map-control-options-slider"
         type="range"
+        name={name}
         min={min}
         max={max}
         step={step}
         value={value}
+        style={sliderStyle}
         disabled={disabled}
-        onChange={handleChange}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
       />
     </label>
   )
@@ -316,7 +283,7 @@ function formatPercent(value: number): string {
 }
 
 function gridSamplingModeLabel(mode: RasterGridSamplingMode): string {
-  return mode === 'smooth' ? 'Smooth' : 'Nearest'
+  return mode === 'smooth' ? 'Interpolated' : 'Nearest'
 }
 
 function colorSamplingModeLabel(mode: RasterColorSamplingMode): string {

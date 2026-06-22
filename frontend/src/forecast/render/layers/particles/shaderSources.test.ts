@@ -19,7 +19,7 @@ describe('particle shader source', () => {
     expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).toContain('color.a * shape * v_life_alpha')
   })
 
-  it('uses speed-scaled dots without dash or shadow uniforms', () => {
+  it('uses speed-scaled dots', () => {
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('uniform float u_dot_min_px')
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('uniform float u_dot_max_px')
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('out float v_dot_diameter')
@@ -38,21 +38,6 @@ describe('particle shader source', () => {
       'mix(u_core_color_slow, u_core_color_fast, v_speed_t)'
     )
     expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).toContain('length(px)')
-
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('u_color_slow')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('u_color_fast')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('u_dash_min_len_px')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('u_dash_max_len_px')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('u_dash_len_per_mps')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('v_dash_len')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('v_dir')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('u_vector_tex_lower')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('sample_vector_bilinear')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('u_dash_width_px')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('u_core_width_px')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('v_dash_len')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('v_dir')
-    expect(VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE).not.toContain('shadow')
   })
 
   it('outputs premultiplied alpha for trail accumulation', () => {
@@ -109,13 +94,6 @@ describe('particle shader source', () => {
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain(
       'return (vec2(stored) * u_vector_scale) + u_vector_offset'
     )
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('uniform float u_vector_scale')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('uniform float u_vector_offset')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).not.toContain(
-      'return vec2(decode_i8(texel.r), decode_i8(texel.g)) * 0.5'
-    )
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).not.toContain('decode_i8')
-    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('decode_i8')
   })
 
   it('reuses shared encodedGrid lookup math while keeping packed wind texture sampling', () => {
@@ -125,7 +103,5 @@ describe('particle shader source', () => {
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('vector_lower.z <= 0.0 || vector_upper.z <= 0.0')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('ivec2(location.x0, location.y0)')
     expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_lower')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).not.toContain('isampler2DArray')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).not.toContain('float lon_norm = lon - u_lon0')
   })
 })

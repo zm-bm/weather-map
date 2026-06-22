@@ -105,9 +105,7 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
       id: 'raster',
       key: rasterWindowKey,
       failurePolicy: 'required',
-      output: 'single',
       frames: [{
-        sourceKind: 'raster',
         source: {
           layerId: 'temperature',
           artifactId: 'tmp_surface',
@@ -120,10 +118,6 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
         cacheKeyPrefix: rasterWindowKey,
       }],
     }],
-    windowPlanKeys: {
-      raster: rasterWindowKey,
-    },
-    windowPlanSetKey: rasterWindowKey,
     selectedValidTimeMs: Date.UTC(2026, 3, 9, 3),
     lowerFrameId: '003',
     upperFrameId: '006',
@@ -141,13 +135,14 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
   })
   const renderHost = options.renderHost === undefined ? defaultRenderHost : options.renderHost
   const config = options.config ?? createConfigFixture()
-  const syncOptions = options.syncOptions ?? { contour: true, particles: true }
+  const syncOptions = options.syncOptions ?? { contour: false, particles: true }
   const initialSync = options.initialSync ?? createInitialSyncController()
   const plan = 'plan' in options ? options.plan : createHookPlanFixture()
   const syncCallbacks = options.syncCallbacks ?? createForecastTimeContextValue(null).syncCallbacks
   const syncSession = options.syncSession ?? createForecastSyncSessionFixture({
     prefetch: vi.fn().mockResolvedValue(undefined),
   })
+  const onFieldLoadingChange = options.onFieldLoadingChange
   const targetTimeMs = options.targetTimeMs ?? Date.UTC(2026, 3, 9, 3, 30)
 
   mocks.useInitialSyncController.mockReturnValue(initialSync)
@@ -168,6 +163,7 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
       config,
       syncOptions,
       onProbeFrameChange: options.onProbeFrameChange,
+      onFieldLoadingChange,
     })),
     renderHost,
     config,
@@ -178,6 +174,7 @@ function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
     syncCallbacks,
     syncSession,
     onProbeFrameChange: options.onProbeFrameChange,
+    onFieldLoadingChange,
   }
 }
 
@@ -197,6 +194,7 @@ describe('useForecastSync', () => {
     const plan = createHookPlanFixture()
     const syncCallbacks = createForecastTimeContextValue(null).syncCallbacks
     const onProbeFrameChange = vi.fn()
+    const onFieldLoadingChange = vi.fn()
     const syncSession = createForecastSyncSessionFixture({ prefetch: vi.fn().mockResolvedValue(undefined) })
     const syncOptions = { contour: false, particles: true }
 
@@ -209,6 +207,7 @@ describe('useForecastSync', () => {
       syncSession,
       syncOptions,
       onProbeFrameChange,
+      onFieldLoadingChange,
     })
 
     expect(mocks.useInitialSyncController).toHaveBeenCalledTimes(1)
@@ -227,6 +226,7 @@ describe('useForecastSync', () => {
       initialSync,
       syncSession,
       onProbeFrameChange,
+      onFieldLoadingChange,
     })
     await waitFor(() => {
       expect(syncSession.prefetch).toHaveBeenCalledTimes(1)

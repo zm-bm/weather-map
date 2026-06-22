@@ -36,7 +36,6 @@ describe('useRequestRunner loading jobs', () => {
       plan,
     }))
     expect(plan.windowPlans.find((spec) => spec.id === 'particles')).toMatchObject({
-      output: 'single',
       frames: [{
         artifactId: 'wind10m_uv',
         bandIds: ['u', 'v'],

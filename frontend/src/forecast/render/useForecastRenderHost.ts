@@ -19,15 +19,13 @@ export type ForecastRenderHost = {
 }
 
 type UseForecastRenderHostArgs = {
-  getMap: () => MapLibreMap | null
-  mapReadyVersion: number
+  map: MapLibreMap | null
   profile: ForecastRenderProfile
   renderSettings: ForecastRenderSettings
 }
 
 export function useForecastRenderHost({
-  getMap,
-  mapReadyVersion,
+  map,
   profile,
   renderSettings,
 }: UseForecastRenderHostArgs): ForecastRenderHost | null {
@@ -39,18 +37,10 @@ export function useForecastRenderHost({
   )
   const installedRef = useRef<{
     map: MapLibreMap
-    mapReadyVersion: number
     profileKey: string
   } | null>(null)
 
   useEffect(() => {
-    if (mapReadyVersion < 1) {
-      installedRef.current = null
-      hostStore.publish(null)
-      return
-    }
-
-    const map = getMap()
     if (!map) {
       installedRef.current = null
       hostStore.publish(null)
@@ -60,7 +50,6 @@ export function useForecastRenderHost({
     const profileKey = createProfileKey(profile)
     const needsReconcile = !(
       installedRef.current?.map === map &&
-      installedRef.current.mapReadyVersion === mapReadyVersion &&
       installedRef.current.profileKey === profileKey
     )
 
@@ -73,7 +62,7 @@ export function useForecastRenderHost({
         return
       }
 
-      installedRef.current = { map, mapReadyVersion, profileKey }
+      installedRef.current = { map, profileKey }
       hostStore.publish({
         version: (hostStore.getSnapshot()?.version ?? 0) + 1,
         apply: (windows) => applyWindows(map, profile, windows),
@@ -86,7 +75,7 @@ export function useForecastRenderHost({
     } catch (error) {
       console.error('[forecast-render] renderer update failed', normalizeError(error))
     }
-  }, [getMap, mapReadyVersion, profile, hostStore, renderSettings])
+  }, [map, profile, hostStore, renderSettings])
 
   return renderHost
 }

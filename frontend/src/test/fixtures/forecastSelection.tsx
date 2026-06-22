@@ -69,15 +69,19 @@ export function renderWithForecastSelection(
   options: ForecastDatasetId | {
     activeDatasetId?: ForecastDatasetId
     datasetOptions?: readonly ForecastDatasetOption[]
+    selectedLayerId?: string
   } = 'gfs'
 ) {
   const activeDatasetId = typeof options === 'string'
     ? options
     : options.activeDatasetId ?? 'gfs'
+  const selectedLayerId = typeof options === 'string'
+    ? getDefaultRasterLayerId()
+    : options.selectedLayerId ?? getDefaultRasterLayerId()
   const activeRun = createActiveRunFixture(manifest, activeDatasetId)
   localStorage.setItem(ACTIVE_DATASET_STORAGE_KEY, activeDatasetId)
   return render(
-    <MemoryRouter initialEntries={['/?layer=temperature']}>
+    <MemoryRouter initialEntries={[`/?layer=${selectedLayerId ?? 'temperature'}`]}>
       <ForecastSettingsProvider>
         <ForecastSelectionProvider
           manifest={manifest}

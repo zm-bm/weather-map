@@ -196,6 +196,14 @@ export function sampleRasterFrameWithSampler(
   return totalWeight > 0 ? totalValue / totalWeight : null
 }
 
+export function sampleRasterCellValue(
+  frame: ProbeFrame,
+  index: number,
+): number | null {
+  if (!Number.isInteger(index) || index < 0) return null
+  return decodeRasterCell(frame, index)
+}
+
 export function blendRasterValues(
   lowerValue: number | null,
   upperValue: number | null,

@@ -37,7 +37,6 @@ export function createPlaceProbeHoverSession(
   }
 
   const onMove = (e: maplibregl.MapMouseEvent & maplibregl.MapLayerMouseEvent) => {
-    map.getCanvas().style.cursor = e.features?.length ? 'pointer' : ''
     const id = getHoveredPlaceId(e.features?.[0])
     if (id == null) {
       clearHover()
@@ -53,21 +52,23 @@ export function createPlaceProbeHoverSession(
   }
 
   const onLeave = () => {
-    map.getCanvas().style.cursor = ''
     clearHover()
   }
 
   const attach = () => {
-    if (attached || !tryMapStyleOperation(map, () => map.getLayer(placeProbeLayerIds.layer))) return
-    map.on('mousemove', placeProbeLayerIds.layer, onMove)
-    map.on('mouseleave', placeProbeLayerIds.layer, onLeave)
+    const layerId = placeProbeLayerIds.layer
+    if (attached) return
+    if (!tryMapStyleOperation(map, () => map.getLayer(layerId))) return
+    map.on('mousemove', layerId, onMove)
+    map.on('mouseleave', layerId, onLeave)
     attached = true
   }
 
   const detach = () => {
     if (!attached) return
-    map.off('mousemove', placeProbeLayerIds.layer, onMove)
-    map.off('mouseleave', placeProbeLayerIds.layer, onLeave)
+    const layerId = placeProbeLayerIds.layer
+    map.off('mousemove', layerId, onMove)
+    map.off('mouseleave', layerId, onLeave)
     attached = false
   }
 

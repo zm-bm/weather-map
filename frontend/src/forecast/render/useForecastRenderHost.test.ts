@@ -37,20 +37,14 @@ const DEFAULT_RENDER_PROFILE = {
 } as const satisfies ForecastRenderProfile
 
 function createRenderHostMapFixture() {
-  const map = createRenderLayerMapFixture()
-  return {
-    map,
-    getMap: () => map,
-  }
+  return createRenderLayerMapFixture()
 }
 
 type RenderHostHookArgs = Parameters<typeof useForecastRenderHost>[0]
 
 function renderHostHook(overrides: Partial<RenderHostHookArgs> = {}) {
-  const { map, getMap } = createRenderHostMapFixture()
   const args: RenderHostHookArgs = {
-    getMap,
-    mapReadyVersion: 1,
+    map: createRenderHostMapFixture(),
     profile: DEFAULT_RENDER_PROFILE,
     renderSettings: DEFAULT_RENDER_SETTINGS,
     ...overrides,
@@ -60,8 +54,7 @@ function renderHostHook(overrides: Partial<RenderHostHookArgs> = {}) {
     ...renderHook((nextArgs: Partial<RenderHostHookArgs> = {}) => (
       useForecastRenderHost({ ...args, ...nextArgs })
     )),
-    map,
-    getMap: args.getMap,
+    map: args.map,
   }
 }
 
@@ -72,19 +65,9 @@ describe('useForecastRenderHost', () => {
     mocks.reconcileProfile.mockReset()
   })
 
-  it('waits for map readiness before installing renderers', () => {
-    const { result } = renderHostHook({
-      mapReadyVersion: 0,
-    })
-
-    expect(mocks.reconcileProfile).not.toHaveBeenCalled()
-    expect(result.current).toBeNull()
-  })
-
   it('waits for a map instance before installing renderers', () => {
-    const getMap = () => null
     const { result } = renderHostHook({
-      getMap,
+      map: null,
     })
 
     expect(mocks.reconcileProfile).not.toHaveBeenCalled()
@@ -165,7 +148,7 @@ describe('useForecastRenderHost', () => {
         expect(result.current).toBeNull()
       })
 
-      rerender({ mapReadyVersion: 2 })
+      rerender({ map: createRenderHostMapFixture() })
 
       await waitFor(() => {
         expect(mocks.reconcileProfile).toHaveBeenCalledTimes(2)
@@ -179,7 +162,7 @@ describe('useForecastRenderHost', () => {
     }
   })
 
-  it('increments host version when map readiness advances', async () => {
+  it('increments host version when the map instance changes', async () => {
     const { result, rerender } = renderHostHook()
 
     await waitFor(() => {
@@ -189,7 +172,7 @@ describe('useForecastRenderHost', () => {
       })
     })
 
-    rerender({ mapReadyVersion: 2 })
+    rerender({ map: createRenderHostMapFixture() })
 
     await waitFor(() => {
       expect(mocks.reconcileProfile).toHaveBeenCalledTimes(2)

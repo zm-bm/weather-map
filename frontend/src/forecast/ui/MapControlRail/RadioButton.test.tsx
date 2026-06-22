@@ -112,7 +112,7 @@ describe('RadioButton', () => {
 
     const button = container.querySelector('button')
     expect(button).toBeTruthy()
-    expect(button).toHaveAttribute('aria-label', 'Play radio')
+    expect(button).toHaveAttribute('aria-label', 'Play weather radio')
     expect(button).toHaveAttribute('aria-pressed', 'false')
     expect(fetchPlaylist).not.toHaveBeenCalled()
     expect(createAudio).not.toHaveBeenCalled()
@@ -129,18 +129,16 @@ describe('RadioButton', () => {
     expect(createAudio).toHaveBeenCalledTimes(1)
     expect(instances[0]?.src).toBe('http://localhost:3000/radio/charlie.mp3')
     expect(instances[0]?.load).not.toHaveBeenCalled()
-    expect(button).toHaveClass('is-playing')
-    expect(button).toHaveAttribute('aria-label', 'Pause radio')
+    expect(button).toHaveAttribute('aria-label', 'Pause weather radio')
     expect(button).toHaveAttribute('aria-pressed', 'true')
-    expect(button).toHaveAttribute('title', 'Pause radio: Charlie')
+    expect(button).toHaveAttribute('title', 'Pause weather radio: Charlie')
 
     await act(async () => {
       button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(button).not.toHaveClass('is-playing')
-    expect(button).toHaveAttribute('aria-label', 'Play radio')
+    expect(button).toHaveAttribute('aria-label', 'Play weather radio')
     expect(button).toHaveAttribute('aria-pressed', 'false')
 
     await act(async () => {
@@ -150,7 +148,7 @@ describe('RadioButton', () => {
 
     expect(fetchPlaylist).toHaveBeenCalledTimes(1)
     expect(createAudio).toHaveBeenCalledTimes(1)
-    expect(button).toHaveClass('is-playing')
+    expect(button).toHaveAttribute('aria-pressed', 'true')
 
     unmount()
   })
@@ -199,7 +197,7 @@ describe('RadioButton', () => {
       'http://localhost:3000/radio/alpha.mp3',
     ])
     expect(fetchPlaylist).toHaveBeenCalledTimes(1)
-    expect(button).toHaveAttribute('title', 'Pause radio: Alpha')
+    expect(button).toHaveAttribute('title', 'Pause weather radio: Alpha')
 
     unmount()
   })
@@ -228,8 +226,8 @@ describe('RadioButton', () => {
     })
 
     expect(button).not.toBeDisabled()
-    expect(button).not.toHaveClass('is-playing')
-    expect(button).toHaveAttribute('aria-label', 'Play radio')
+    expect(button).toHaveAttribute('aria-label', 'Play weather radio')
+    expect(button).toHaveAttribute('aria-pressed', 'false')
     expect(button).toHaveAttribute('title', 'Playback blocked or unavailable')
 
     unmount()
@@ -259,7 +257,7 @@ describe('RadioButton', () => {
     expect(fetchPlaylist).toHaveBeenCalledTimes(1)
     expect(createAudio).not.toHaveBeenCalled()
     expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', 'Radio playlist unavailable')
+    expect(button).toHaveAttribute('title', 'Weather radio unavailable')
 
     unmount()
   })

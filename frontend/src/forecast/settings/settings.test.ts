@@ -8,6 +8,11 @@ import {
 } from './settings'
 
 describe('forecast settings helpers', () => {
+  it('defaults global overlays to wind on and pressure contours off', () => {
+    expect(DEFAULT_FORECAST_SETTINGS.particles.enabled).toBe(true)
+    expect(DEFAULT_FORECAST_SETTINGS.pressureContours.enabled).toBe(false)
+  })
+
   it('maps the default trail fade to the expected display length', () => {
     expect(particleTrailLengthFromFade(DEFAULT_FORECAST_SETTINGS.particles.trailFade)).toBe(8)
   })

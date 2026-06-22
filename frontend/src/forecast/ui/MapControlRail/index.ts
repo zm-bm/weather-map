@@ -1,2 +1,2 @@
 export { default } from './MapControlRail'
-export type { MapControlRailProps } from './MapControlRail'
+export type { MapControlRailPanel, MapControlRailProps } from './MapControlRail'

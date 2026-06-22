@@ -7,21 +7,30 @@ import {
   createVectorArtifactFixture,
   renderWithForecastSelection,
 } from '@/test/fixtures'
-import ForecastPanel from '../ForecastPanel'
 import LegendPanel from './LegendPanel'
 
-function createLegendSelectionManifest(
-  selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'tcdc' | 'cloud_layers'
-) {
-  const scalarArtifactIds = selectedArtifactId === 'tmp_surface'
-    ? ['tmp_surface', 'prate_surface']
-    : selectedArtifactId === 'cloud_layers'
-      ? []
-      : [selectedArtifactId]
+type LegendLayerId =
+  | 'temperature'
+  | 'air_pressure'
+  | 'precipitation_rate'
+  | 'accumulated_precipitation'
+  | 'cloud_cover'
+  | 'cloud_layers'
+  | 'wind_speed'
+  | 'composite_reflectivity'
+
+function createLegendSelectionManifest() {
   return createManifestFixture({
     cycle: '2026041100',
-    scalarArtifactIds,
-    vectorArtifactIds: selectedArtifactId === 'cloud_layers' ? ['cloud_layers'] : [],
+    scalarArtifactIds: [
+      'tmp_surface',
+      'prmsl_msl',
+      'prate_surface',
+      'precip_total_surface',
+      'tcdc',
+      'refc_entire_atmosphere',
+    ],
+    vectorArtifactIds: ['wind10m_uv', 'cloud_layers'],
     artifacts: {
       tmp_surface: createScalarArtifactFixture({
       }),
@@ -34,10 +43,26 @@ function createLegendSelectionManifest(
         units: 'mm/hr',
         parameter: 'prate',
       }),
+      precip_total_surface: createScalarArtifactFixture({
+        id: 'precip_total_surface',
+        units: 'mm',
+        parameter: 'apcp',
+      }),
       tcdc: createScalarArtifactFixture({
         id: 'tcdc',
         units: '%',
         parameter: 'tcdc',
+      }),
+      refc_entire_atmosphere: createScalarArtifactFixture({
+        id: 'refc_entire_atmosphere',
+        units: 'dBZ',
+        parameter: 'refc',
+      }),
+      wind10m_uv: createVectorArtifactFixture({
+        id: 'wind10m_uv',
+        units: 'm/s',
+        parameter: 'wind',
+        components: ['u', 'v'],
       }),
       cloud_layers: createVectorArtifactFixture({
         id: 'cloud_layers',
@@ -49,37 +74,12 @@ function createLegendSelectionManifest(
   })
 }
 
-function renderLegendHarness(selectedArtifactId: 'tmp_surface' | 'prmsl_msl' | 'prate_surface' | 'tcdc' | 'cloud_layers' = 'tmp_surface') {
-  const result = renderWithForecastSelection(
-    <>
-      <ForecastPanel />
-      <LegendPanel />
-    </>,
-    createLegendSelectionManifest(selectedArtifactId)
+function renderLegendHarness(selectedLayerId: LegendLayerId = 'temperature') {
+  return renderWithForecastSelection(
+    <LegendPanel />,
+    createLegendSelectionManifest(),
+    { selectedLayerId }
   )
-
-  if (selectedArtifactId === 'prmsl_msl') {
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'air_pressure' },
-    })
-  }
-  if (selectedArtifactId === 'prate_surface') {
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'precipitation_rate' },
-    })
-  }
-  if (selectedArtifactId === 'tcdc') {
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'cloud_cover' },
-    })
-  }
-  if (selectedArtifactId === 'cloud_layers') {
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'cloud_layers' },
-    })
-  }
-
-  return result
 }
 
 describe('LegendPanel', () => {
@@ -87,24 +87,21 @@ describe('LegendPanel', () => {
     localStorage.clear()
   })
 
-  it('uses the legend pill as the global imperial/metric unit toggle', () => {
-    const { container } = renderLegendHarness('tmp_surface')
+  it('uses the gradient bar as the global imperial/metric unit toggle', () => {
+    const { container, unmount } = renderLegendHarness('temperature')
 
-    expect(screen.getByRole('button', { name: /cycle temperature units/i })).toHaveTextContent('F')
+    const temperatureToggle = screen.getByRole('button', { name: /cycle temperature units/i })
+    expect(temperatureToggle).toHaveTextContent('F')
 
-    fireEvent.click(screen.getByRole('button', { name: /cycle temperature units/i }))
+    fireEvent.click(temperatureToggle)
     expect(screen.getByRole('button', { name: /cycle temperature units/i })).toHaveTextContent('C')
 
-    const tickLabelsAfterSelect = Array.from(container.querySelectorAll('.legend-panel__tick-label'))
-      .map((element) => element.textContent ?? '')
-      .join(' ')
-    expect(tickLabelsAfterSelect).toContain('50')
-    expect(tickLabelsAfterSelect).not.toContain(' C')
-    expect(container.querySelector('.legend-panel__scale .legend-panel__tick-label')).toBeInTheDocument()
+    expect(container).toHaveTextContent('50')
+    expect(container).not.toHaveTextContent(' C')
 
-    fireEvent.change(screen.getByLabelText('Measurement'), {
-      target: { value: 'precipitation_rate' },
-    })
+    unmount()
+    renderLegendHarness('precipitation_rate')
+
     expect(screen.getByRole('button', { name: /cycle precipitation rate units/i })).toHaveTextContent('mm/hr')
 
     fireEvent.click(screen.getByRole('button', { name: /cycle precipitation rate units/i }))
@@ -112,15 +109,15 @@ describe('LegendPanel', () => {
   })
 
   it('shows a static hPa unit readout for air pressure', () => {
-    renderLegendHarness('prmsl_msl')
+    renderLegendHarness('air_pressure')
+    const scale = screen.getByLabelText('Air Pressure units hPa.')
 
     expect(screen.queryByRole('button', { name: /cycle air pressure units/i })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Air Pressure units hPa.')).toBeInTheDocument()
+    expect(scale).toHaveTextContent('hPa')
   })
 
   it('uses rounded imperial precipitation tick labels without repeated units by default', () => {
-    const { container } = renderLegendHarness('prate_surface')
-
+    const { container } = renderLegendHarness('precipitation_rate')
     const tickLabels = Array.from(container.querySelectorAll('.legend-panel__tick-label'))
       .map((element) => element.textContent ?? '')
       .join(' ')
@@ -131,39 +128,29 @@ describe('LegendPanel', () => {
     expect(tickLabels).not.toContain('in/hr')
     expect(tickLabels).not.toContain('mm/hr')
     expect(tickLabels).not.toContain('0.000')
-    expect(container.querySelector('.legend-panel__scale-frame .legend-panel__scale')).toBeInTheDocument()
   })
 
-  it('shows normal layer legend for total sky cover', () => {
-    const { container } = renderLegendHarness('tcdc')
+  it('uses the standard gradient bar for total sky cover', () => {
+    const { container } = renderLegendHarness('cloud_cover')
+    const scale = screen.getByLabelText('Total/Sky Cover units %.')
 
-    expect(screen.getByLabelText('Total/Sky Cover units %.')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Cloud layer stacked decks and coverage opacity')).not.toBeInTheDocument()
-    expect(container.querySelector('.legend-panel__scale')).toBeInTheDocument()
-    expect((container.querySelector('.legend-panel__scale') as HTMLElement).style.backgroundImage)
-      .toContain('to top')
-    expect(container.querySelector('.legend-panel__' + 'ticks')).not.toBeInTheDocument()
+    expect(scale).toHaveTextContent('%')
+    expect(screen.queryByRole('button', { name: /cycle total\/sky cover units/i })).not.toBeInTheDocument()
+    expect(container).toHaveTextContent('0')
+    expect(container).toHaveTextContent('10')
+    expect(container).toHaveTextContent('90')
+    expect(container).toHaveTextContent('100')
   })
 
   it('shows a custom layer-tone legend for cloud layers', () => {
-    const { container } = renderLegendHarness('cloud_layers')
+    renderLegendHarness('cloud_layers')
 
-    expect(screen.getByLabelText('Cloud Layers units %.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Cloud layer stacked decks and coverage opacity')).toBeInTheDocument()
-    expect(screen.getByLabelText('Cloud layer stacked decks')).toBeInTheDocument()
-    expect(screen.getByLabelText('Composite coverage opacity from 0 to 100 percent')).toBeInTheDocument()
-    expect(screen.getByLabelText('Low darker lower cloud deck')).toBeInTheDocument()
-    expect(screen.getByLabelText('Middle bright cloud deck')).toBeInTheDocument()
-    expect(screen.getByLabelText('High pale upper cloud deck')).toBeInTheDocument()
-    expect((screen.getByLabelText('Low darker lower cloud deck') as HTMLElement).style.background).toContain('96, 104, 112')
-    expect((screen.getByLabelText('Middle bright cloud deck') as HTMLElement).style.background).toContain('166, 172, 178')
-    expect((screen.getByLabelText('High pale upper cloud deck') as HTMLElement).style.background).toContain('236, 244, 252')
+    expect(screen.getByLabelText('Low, middle, and high cloud layer opacity from 0 to 100 percent')).toBeInTheDocument()
+    expect(screen.getByLabelText('Low cloud layer opacity units %.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Middle cloud layer opacity units %.')).toBeInTheDocument()
+    expect(screen.getByLabelText('High cloud layer opacity units %.')).toBeInTheDocument()
     expect(screen.getByText('LOW')).toBeInTheDocument()
     expect(screen.getByText('MID')).toBeInTheDocument()
     expect(screen.getByText('HIGH')).toBeInTheDocument()
-    expect(screen.getByText('100%')).toBeInTheDocument()
-    expect(screen.getByText('50%')).toBeInTheDocument()
-    expect(screen.getByText('0%')).toBeInTheDocument()
-    expect(container.querySelector('.legend-panel__scale')).not.toBeInTheDocument()
   })
 })

@@ -98,26 +98,22 @@ function rasterWindowPlan() {
     id: 'raster',
     key: 'raster:key',
     failurePolicy: 'required',
-    output: 'single',
-    frame: {
-      sourceKind: 'raster',
+    frames: [{
       source,
       artifactId: source.artifactId,
       bandIds: ['value'],
       cacheKeyPrefix: 'raster:key',
-    },
+    }],
   })
 }
 
-function overlayWindowPlan() {
+function overlayForecastWindowFixture() {
   const source = createOverlaySourceFixture()
   return createForecastWindowPlanTestFixture({
     id: 'overlay',
     key: 'overlay:key',
     failurePolicy: 'optional',
-    output: 'array',
     frames: [{
-      sourceKind: 'overlay',
       source,
       artifactId: source.source.artifactId,
       bandIds: ['snow_frac', 'mix_frac'],
@@ -129,36 +125,38 @@ function overlayWindowPlan() {
 }
 
 function contourWindowPlan() {
-  const source = createContourSourceFixture()
+  const source = {
+    ...createContourSourceFixture(),
+    label: 'Pressure Contours',
+  }
   return createForecastWindowPlanTestFixture({
     id: 'contour',
     key: 'contour:key',
     failurePolicy: 'optional',
-    output: 'single',
-    frame: {
-      sourceKind: 'contour',
+    frames: [{
       source,
       artifactId: source.source.artifactId,
       bandIds: ['value'],
       cacheKeyPrefix: 'contour:key',
-    },
+    }],
   })
 }
 
 function particlesWindowPlan() {
-  const source = createParticleSourceFixture()
+  const source = {
+    ...createParticleSourceFixture(),
+    label: 'Wind',
+  }
   return createForecastWindowPlanTestFixture({
     id: 'particles',
     key: 'particles:key',
     failurePolicy: 'required',
-    output: 'single',
-    frame: {
-      sourceKind: 'particles',
+    frames: [{
       source,
       artifactId: source.source.artifactId,
       bandIds: ['u', 'v'],
       cacheKeyPrefix: 'particles:key',
-    },
+    }],
   })
 }
 
@@ -168,14 +166,12 @@ function cloudLayersWindowPlan() {
     id: 'raster',
     key: 'raster:key',
     failurePolicy: 'required',
-    output: 'single',
-    frame: {
-      sourceKind: 'raster',
+    frames: [{
       source,
       artifactId: source.artifactId,
       bandIds: ['low', 'middle', 'high'],
       cacheKeyPrefix: 'raster:key',
-    },
+    }],
   })
 }
 
@@ -234,7 +230,7 @@ describe('loadWindows', () => {
   it('loads planned forecast windows', async () => {
     const windowPlans = [
       rasterWindowPlan(),
-      overlayWindowPlan(),
+      overlayForecastWindowFixture(),
       particlesWindowPlan(),
     ]
 
@@ -335,7 +331,7 @@ describe('loadWindows', () => {
   it('omits optional windows when they fail', async () => {
     const windowPlans = [
       rasterWindowPlan(),
-      overlayWindowPlan(),
+      overlayForecastWindowFixture(),
       contourWindowPlan(),
     ]
     loadRawRasterBands.mockImplementation(async (

@@ -127,7 +127,7 @@ const PERCENT_UNITS: UnitDisplay<GradientUnitOption> = {
     label: '%',
     valueFormat: 'whole',
     legendValueFormat: 'whole',
-    legendLabels: [0, 20, 40, 60, 80, 100],
+    legendLabels: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
   }],
 }
 

@@ -5,15 +5,19 @@ import {
   selectVisiblePlaceProbes,
   type PlaceProbe,
 } from './places'
+import {
+  getPlaceProbeZoomTier,
+  type PlaceProbeZoomTier,
+} from './candidates'
 import type { ForecastPlaceProbeFrame } from './frameChannel'
 import {
   ensurePlaceProbeLayer,
-  getPlaceProbeSelectionContext,
+  getPaddedPlaceProbeBounds,
+  getPlaceProbeBounds,
+  getPlaceProbeViewportSize,
   queryBasemapPlaceFeatures,
   removePlaceProbeLayer,
   setPlaceProbeLabels,
-  updatePlaceProbeLabels,
-  type PlaceProbeLabelSnapshot,
 } from './layer'
 import { createPlaceProbeHoverSession } from './hover'
 import {
@@ -26,8 +30,6 @@ import {
 export type ForecastPlaceProbeSession = {
   start: () => void
   destroy: () => void
-  setLayerId: (layerId: string) => void
-  setValueFormatter: (valueFormatter: ForecastPlaceProbeValueFormatter) => void
   setFrame: (frame: ForecastPlaceProbeFrame) => void
 }
 
@@ -35,26 +37,21 @@ export type ForecastPlaceProbeSessionOptions = {
   map: MapLibreMap
   layerId: string
   valueFormatter: ForecastPlaceProbeValueFormatter
-  initialFrame: ForecastPlaceProbeFrame
 }
 
 export function createForecastPlaceProbeSession({
   map,
   layerId,
   valueFormatter,
-  initialFrame,
 }: ForecastPlaceProbeSessionOptions): ForecastPlaceProbeSession {
   let started = false
-  let selectedLayerId = layerId
-  let formatProbeValue = valueFormatter
-  let latestPublishedFrame = initialFrame
+  let latestPublishedFrame: ForecastPlaceProbeFrame = null
   let probeableFrame: ForecastPlaceProbeFrame = null
   let visiblePlaces: PlaceProbe[] = []
   let visiblePlaceKey = ''
+  let visiblePlaceZoomTier: PlaceProbeZoomTier | null = null
   let samplerState: PlaceProbeSamplers = refreshPlaceProbeSamplers(null, [])
-  let labelsByPlaceId: PlaceProbeLabelSnapshot = new Map()
   let pendingSourceUpdateId: number | null = null
-  let needsFullSourceUpdate = true
   let refreshOnNextIdle = false
   const hoverSession = createPlaceProbeHoverSession(map)
 
@@ -73,22 +70,9 @@ export function createForecastPlaceProbeSession({
       visiblePlaces,
       probeableFrame,
       samplerState,
-      formatProbeValue,
+      valueFormatter,
     )
-
-    if (needsFullSourceUpdate) {
-      labelsByPlaceId = labelsByPlaceId.size === 0
-        ? setPlaceProbeLabels(map, labels)
-        : updatePlaceProbeLabels(map, labels, labelsByPlaceId)
-      needsFullSourceUpdate = false
-      return
-    }
-
-    labelsByPlaceId = updatePlaceProbeLabels(
-      map,
-      labels,
-      labelsByPlaceId,
-    )
+    setPlaceProbeLabels(map, labels)
   }
 
   const scheduleSourceUpdate = () => {
@@ -97,18 +81,24 @@ export function createForecastPlaceProbeSession({
     pendingSourceUpdateId = window.requestAnimationFrame(updateSourceData)
   }
 
-  const replaceVisiblePlaces = (nextVisiblePlaces: PlaceProbe[]) => {
+  const replaceVisiblePlaces = (
+    nextVisiblePlaces: PlaceProbe[],
+    nextZoomTier: PlaceProbeZoomTier,
+  ) => {
     const nextVisiblePlaceKey = getPlaceProbeKey(nextVisiblePlaces)
-    if (visiblePlaceKey === nextVisiblePlaceKey) return false
+    if (visiblePlaceKey === nextVisiblePlaceKey) {
+      visiblePlaceZoomTier = nextZoomTier
+      return false
+    }
 
     visiblePlaces = nextVisiblePlaces
     visiblePlaceKey = nextVisiblePlaceKey
-    needsFullSourceUpdate = true
+    visiblePlaceZoomTier = nextZoomTier
     return true
   }
 
   const applyLatestPublishedFrame = () => {
-    probeableFrame = probeFrameForSelectedLayer(latestPublishedFrame, selectedLayerId)
+    probeableFrame = probeFrameForSelectedLayer(latestPublishedFrame, layerId)
     rebuildSamplers(false)
     scheduleSourceUpdate()
   }
@@ -120,14 +110,17 @@ export function createForecastPlaceProbeSession({
 
   const refreshPlaces = (followUpOnIdle = false) => {
     refreshOnNextIdle = false
-    const selectionContext = getPlaceProbeSelectionContext(map)
+    const zoom = map.getZoom()
+    const zoomTier = getPlaceProbeZoomTier(zoom)
+    const visibleBounds = getPlaceProbeBounds(map)
     const nextVisiblePlaces = selectVisiblePlaceProbes(
       queryBasemapPlaceFeatures(map),
       {
-        zoom: map.getZoom(),
-        bounds: selectionContext.bounds,
-        project: selectionContext.project,
-        previousPlaces: visiblePlaces,
+        zoom,
+        bounds: getPaddedPlaceProbeBounds(map),
+        gridBounds: visibleBounds,
+        viewportSize: getPlaceProbeViewportSize(map),
+        previousPlaces: visiblePlaceZoomTier === zoomTier ? visiblePlaces : [],
       },
     )
     if (shouldDeferProvisionalPlaceRefresh(followUpOnIdle, visiblePlaces, nextVisiblePlaces)) {
@@ -135,7 +128,7 @@ export function createForecastPlaceProbeSession({
       return
     }
 
-    const didReplaceVisiblePlaces = replaceVisiblePlaces(nextVisiblePlaces)
+    const didReplaceVisiblePlaces = replaceVisiblePlaces(nextVisiblePlaces, zoomTier)
     rebuildSamplers(didReplaceVisiblePlaces)
     scheduleSourceUpdate()
     refreshOnNextIdle = followUpOnIdle
@@ -178,10 +171,9 @@ export function createForecastPlaceProbeSession({
     probeableFrame = null
     visiblePlaces = []
     visiblePlaceKey = ''
+    visiblePlaceZoomTier = null
     samplerState = refreshPlaceProbeSamplers(null, [])
-    labelsByPlaceId.clear()
     refreshOnNextIdle = false
-    needsFullSourceUpdate = true
   }
 
   return {
@@ -211,16 +203,6 @@ export function createForecastPlaceProbeSession({
 
     destroy: destroySession,
 
-    setLayerId(nextLayerId) {
-      if (selectedLayerId === nextLayerId) return
-      selectedLayerId = nextLayerId
-      applyLatestPublishedFrame()
-    },
-    setValueFormatter(nextValueFormatter) {
-      if (formatProbeValue === nextValueFormatter) return
-      formatProbeValue = nextValueFormatter
-      scheduleSourceUpdate()
-    },
     setFrame,
   }
 }

@@ -8,11 +8,11 @@ import {
   createVectorArtifactFixture,
 } from '@/test/fixtures'
 import {
-  DEFAULT_FORECAST_SYNC_OPTIONS,
   resolveForecastSyncPlan,
 } from './index'
+import type { ForecastSyncOptions } from './index'
 
-const syncOptions = DEFAULT_FORECAST_SYNC_OPTIONS
+const syncOptions: ForecastSyncOptions = { contour: false, particles: true }
 
 describe('resolveForecastSyncPlan', () => {
   it('returns null for unloaded or unrenderable selection state', () => {
@@ -88,9 +88,7 @@ describe('resolveForecastSyncPlan', () => {
         id: 'raster',
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v',
         failurePolicy: 'required',
-        output: 'single',
         frames: [expect.objectContaining({
-          sourceKind: 'raster',
           artifactId: 'wind10m_uv',
           bandIds: ['u', 'v'],
           source: expect.objectContaining({
@@ -108,29 +106,43 @@ describe('resolveForecastSyncPlan', () => {
         id: 'particles',
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
         failurePolicy: 'required',
-        output: 'single',
         frames: [expect.objectContaining({
-          sourceKind: 'particles',
           artifactId: 'wind10m_uv',
           bandIds: ['u', 'v'],
-          source: {
+          source: expect.objectContaining({
             id: 'wind',
             source: {
               artifactId: 'wind10m_uv',
               bands: [{ id: 'u' }, { id: 'v' }],
             },
-          },
+          }),
         })],
       }),
     ])
-    expect(plan?.windowPlanKeys).toEqual({
-      raster: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v',
-      particles: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
+  })
+
+  it('resolves particle window plans for non-wind fields when wind animation is enabled', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      frameIds: ['000', '003'],
+      scalarArtifactIds: ['tmp_surface'],
+      vectorArtifactIds: ['wind10m_uv'],
     })
-    expect(plan?.windowPlanSetKey).toBe(
-      'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:wind_speed:wind10m_uv:u+v|' +
-      'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v'
-    )
+    const activeRun = createActiveRunFixture(manifest)
+
+    const plan = resolveForecastSyncPlan({
+      activeRun,
+      selectedLayerId: 'temperature',
+      selectedParticleLayerId: 'wind',
+      targetTimeMs: Date.UTC(2026, 3, 9),
+      syncOptions,
+    })
+
+    expect(plan?.windowPlans.map((spec) => spec.id)).toEqual(['raster', 'particles'])
+    expect(plan?.windowPlans.map((spec) => spec.key)).toEqual([
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:temperature:tmp_surface:value',
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
+    ])
   })
 
   it('resolves cloud raster and precipitation overlay window plans', () => {
@@ -172,9 +184,7 @@ describe('resolveForecastSyncPlan', () => {
       expect.objectContaining({
         id: 'raster',
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:cloud_layers:cloud_layers:low+middle+high',
-        output: 'single',
         frames: [expect.objectContaining({
-          sourceKind: 'raster',
           artifactId: 'cloud_layers',
           bandIds: ['low', 'middle', 'high'],
           source: expect.objectContaining({
@@ -189,15 +199,17 @@ describe('resolveForecastSyncPlan', () => {
           }),
         })],
       }),
+      expect.objectContaining({
+        id: 'particles',
+        key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:particles:wind:wind10m_uv:u+v',
+      }),
     ])
     expect(precipPlan?.windowPlans.find((spec) => spec.id === 'overlay')).toEqual(
       expect.objectContaining({
         id: 'overlay',
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:overlay:gfs:2026040900:20260413T120000Z-abcdef12:rev:overlay:precipitation_type:precip_type_surface:snow_frac+mix_frac',
-        output: 'array',
         frames: [
           expect.objectContaining({
-            sourceKind: 'overlay',
             source: {
               id: 'precipitation_type',
               style: 'precipitation-type-pattern',
@@ -216,7 +228,7 @@ describe('resolveForecastSyncPlan', () => {
     )
   })
 
-  it('resolves pressure contour window plans from the catalog when the artifact is available', () => {
+  it('resolves pressure contour window plans for non-pressure fields', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
       frameIds: ['000'],
@@ -230,25 +242,47 @@ describe('resolveForecastSyncPlan', () => {
       selectedLayerId: 'temperature',
       selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
-      syncOptions,
+      syncOptions: { contour: true, particles: true },
+    })
+
+    expect(plan?.windowPlans.map((spec) => spec.id)).toEqual(['raster', 'contour'])
+    expect(plan?.windowPlans.map((spec) => spec.key)).toEqual([
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:raster:temperature:tmp_surface:value',
+      'gfs:2026040900:20260413T120000Z-abcdef12:rev:contour:pressure_contours:prmsl_msl:value',
+    ])
+  })
+
+  it('resolves pressure contour window plans from the catalog for pressure fields', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      frameIds: ['000'],
+      scalarArtifactIds: ['tmp_surface', 'prmsl_msl'],
+      vectorArtifactIds: [],
+    })
+    const activeRun = createActiveRunFixture(manifest)
+
+    const plan = resolveForecastSyncPlan({
+      activeRun,
+      selectedLayerId: 'air_pressure',
+      selectedParticleLayerId: null,
+      targetTimeMs: Date.UTC(2026, 3, 9),
+      syncOptions: { contour: true, particles: true },
     })
 
     expect(plan?.windowPlans.find((spec) => spec.id === 'contour')).toEqual(
       expect.objectContaining({
         key: 'gfs:2026040900:20260413T120000Z-abcdef12:rev:contour:pressure_contours:prmsl_msl:value',
         failurePolicy: 'optional',
-        output: 'single',
         frames: [expect.objectContaining({
-          sourceKind: 'contour',
           artifactId: 'prmsl_msl',
           bandIds: ['value'],
-          source: {
+          source: expect.objectContaining({
             id: 'pressure_contours',
             source: {
               artifactId: 'prmsl_msl',
               bands: [{ id: 'value' }],
             },
-          },
+          }),
         })],
       })
     )

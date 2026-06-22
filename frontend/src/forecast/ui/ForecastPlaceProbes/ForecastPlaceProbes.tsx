@@ -1,87 +1,44 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   createForecastPlaceProbeSession,
   type ForecastPlaceProbeFrameChannel,
-  type ForecastPlaceProbeSession,
 } from '@/forecast/place-probes'
 import { useForecastSelectionContext } from '@/forecast/selection'
-import { useForecastPlaceProbeValueFormatter } from './useForecastPlaceProbeValueFormatter'
+import { useForecastProbeValueFormatter } from '../useForecastProbeValueFormatter'
 
 type ForecastPlaceProbesProps = {
-  mapRef: RefObject<MapLibreMap | null>
-  mapReadyVersion: number
+  map: MapLibreMap | null
   probeFrameChannel: ForecastPlaceProbeFrameChannel
 }
 
 function ForecastPlaceProbes({
-  mapRef,
-  mapReadyVersion,
+  map,
   probeFrameChannel,
 }: ForecastPlaceProbesProps) {
   const { selectedLayerId, activeRun } = useForecastSelectionContext()
-
-  if (activeRun == null || selectedLayerId == null) return null
-
-  return (
-    <PlaceProbeSessionBridge
-      selectedLayerId={selectedLayerId}
-      mapReadyVersion={mapReadyVersion}
-      mapRef={mapRef}
-      probeFrameChannel={probeFrameChannel}
-    />
-  )
-}
-
-function PlaceProbeSessionBridge({
-  selectedLayerId,
-  mapRef,
-  mapReadyVersion,
-  probeFrameChannel,
-}: ForecastPlaceProbesProps & {
-  selectedLayerId: string
-}) {
-  const formatProbeValue = useForecastPlaceProbeValueFormatter()
-  const selectedLayerIdRef = useRef(selectedLayerId)
-  const formatProbeValueRef = useRef(formatProbeValue)
-  const sessionRef = useRef<ForecastPlaceProbeSession | null>(null)
+  const formatProbeValue = useForecastProbeValueFormatter(selectedLayerId)
 
   useEffect(() => {
-    selectedLayerIdRef.current = selectedLayerId
-    sessionRef.current?.setLayerId(selectedLayerId)
-  }, [selectedLayerId])
-
-  useEffect(() => {
-    formatProbeValueRef.current = formatProbeValue
-    sessionRef.current?.setValueFormatter(formatProbeValue)
-  }, [formatProbeValue])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
+    if (activeRun == null || selectedLayerId == null || !map) return
 
     const session = createForecastPlaceProbeSession({
       map,
-      layerId: selectedLayerIdRef.current,
-      valueFormatter: formatProbeValueRef.current,
-      initialFrame: probeFrameChannel.getSnapshot(),
+      layerId: selectedLayerId,
+      valueFormatter: formatProbeValue,
     })
-    sessionRef.current = session
-    session.start()
     const unsubscribeFrameChannel = probeFrameChannel.subscribe((frame) => {
       session.setFrame(frame)
     })
     session.setFrame(probeFrameChannel.getSnapshot())
+    session.start()
 
     return () => {
       unsubscribeFrameChannel()
-      if (sessionRef.current === session) {
-        sessionRef.current = null
-      }
       session.destroy()
     }
-  }, [mapReadyVersion, mapRef, probeFrameChannel])
+  }, [activeRun, formatProbeValue, map, probeFrameChannel, selectedLayerId])
 
   return null
 }

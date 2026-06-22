@@ -2,10 +2,10 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { BASEMAP_LAYER_IDS } from '../basemap'
 import {
+  cloneStyleValue,
   readStandardBasemapPaints,
   type BasemapPaint,
   type BasemapPaintKey,
-  type BasemapPaintValue,
 } from './basemapStyle'
 
 export type ForecastBasemapStyleId = 'standard' | 'cloud-layers'
@@ -91,7 +91,7 @@ export function applyForecastBasemapStyle(map: MapLibreMap, styleId: ForecastBas
 
   for (const paint of style.paints) {
     if (!map.getLayer(paint.layerId)) continue
-    map.setPaintProperty(paint.layerId, paint.property, paintValueForMap(paint.value))
+    map.setPaintProperty(paint.layerId, paint.property, cloneStyleValue(paint.value))
   }
 }
 
@@ -115,10 +115,4 @@ function mergePaintOverrides(
 
 function paintKey(paint: BasemapPaintKey): string {
   return `${paint.layerId}.${paint.property}`
-}
-
-function paintValueForMap(value: BasemapPaintValue): BasemapPaintValue {
-  return Array.isArray(value)
-    ? JSON.parse(JSON.stringify(value)) as BasemapPaintValue
-    : value
 }

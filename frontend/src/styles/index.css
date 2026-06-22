@@ -1,7 +1,9 @@
 @import './globals.css';
 @import './base.css';
 @import './map.css';
-@import './panels.css';
+@import './forecast-chrome.css';
+@import './legend.css';
+@import './timeline.css';
 @import './controls.css';
 @import './status.css';
 @import './health.css';

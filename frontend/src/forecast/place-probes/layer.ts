@@ -1,7 +1,6 @@
 import type {
   GeoJSONFeature,
   GeoJSONSource,
-  GeoJSONSourceDiff,
   LayerSpecification,
   Map as MapLibreMap,
 } from 'maplibre-gl'
@@ -13,79 +12,44 @@ import {
 } from '@/map/basemap'
 import type {
   PlaceProbeBounds,
-  PlaceProbeProject,
-  PlaceProbeScreenPoint,
+  PlaceProbeViewportSize,
 } from './places'
+import { PLACE_PROBE_POLICY } from './policy'
 
 type PlaceProbeFeatureProperties = {
-  id: string
-  name: string
-  localName: string
+  labelText: string
   sortKey: number
-  probeText: string
 }
 
 type PlaceProbeFeature = Feature<Point, PlaceProbeFeatureProperties>
 type PlaceProbeFeatureCollection = FeatureCollection<Point, PlaceProbeFeatureProperties>
 
-type PlaceProbeSelectionContext = {
-  bounds: PlaceProbeBounds | null
-  project: PlaceProbeProject | null
-}
-
 export type PlaceProbeValueLabel = {
   id: string
-  name: string
-  localName: string | null
   lon: number
   lat: number
   sortKey: number
-  probeText: string
+  labelText: string
 }
-
-export type PlaceProbeLabelSnapshot = Map<string, PlaceProbeValueLabel>
 
 const FORECAST_PLACE_PROBE_SOURCE_ID = 'forecast-place-probes' as const
 const FORECAST_PLACE_PROBE_LAYER_ID = 'forecast-place-probe-labels' as const
-const FORECAST_PLACE_PROBE_LABEL_LAYER_IDS = [FORECAST_PLACE_PROBE_LAYER_ID] as const
 
 export const placeProbeLayerIds = {
   source: FORECAST_PLACE_PROBE_SOURCE_ID,
   layer: FORECAST_PLACE_PROBE_LAYER_ID,
-  labelLayers: FORECAST_PLACE_PROBE_LABEL_LAYER_IDS,
 } as const
 
 const PLACE_LABEL_FONT_STACK = 'NotoSansMonoCJKjpRegular'
-const PLACE_PROBE_FORMAT = {
-  'font-scale': 1.08,
-  'text-color': '#e9cf3a',
-}
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
   id: placeProbeLayerIds.layer,
   type: 'symbol',
   source: placeProbeLayerIds.source,
-  minzoom: 3.5,
+  minzoom: PLACE_PROBE_POLICY.zoom.min,
   layout: {
     'symbol-sort-key': ['get', 'sortKey'],
-    'text-field': [
-      'case',
-      ['!=', ['get', 'localName'], ''],
-      [
-        'format',
-        ['get', 'name'], {},
-        '\n', {},
-        ['get', 'localName'], {},
-        '\n', {},
-        ['get', 'probeText'], PLACE_PROBE_FORMAT,
-      ],
-      [
-        'format',
-        ['get', 'name'], {},
-        '\n', {},
-        ['get', 'probeText'], PLACE_PROBE_FORMAT,
-      ],
-    ],
+    'text-field': ['get', 'labelText'],
     'text-font': [PLACE_LABEL_FONT_STACK],
     'text-justify': 'auto',
     'text-letter-spacing': 0,
@@ -96,9 +60,9 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
     'text-radial-offset': 0.5,
     'text-size': [
       'interpolate', ['exponential', 1.2], ['zoom'],
-      3, 14,
-      7, 16,
-      10, 20,
+      3, 13,
+      7, 15,
+      10, 18,
     ],
     'text-variable-anchor': [
       'center',
@@ -117,20 +81,20 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       'rgba(255, 255, 255, 1)',
-      'rgba(241, 246, 250, 0.98)',
+      'rgba(238, 244, 248, 0.88)',
     ],
     'text-halo-blur': 0.12,
     'text-halo-color': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       'rgba(5, 8, 15, 0.96)',
-      'rgba(16, 22, 34, 0.78)',
+      'rgba(16, 22, 34, 0.66)',
     ],
     'text-halo-width': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       1.55,
-      1.15,
+      1,
     ],
   },
 }
@@ -200,60 +164,84 @@ export function queryBasemapPlaceFeatures(map: MapLibreMap): GeoJSONFeature[] {
   })
 }
 
-function getMapBounds(map: MapLibreMap): PlaceProbeBounds | null {
+export function getPlaceProbeBounds(map: MapLibreMap): PlaceProbeBounds | null {
   const getBounds = (map as MapLibreMap & { getBounds?: () => PlaceProbeBounds }).getBounds
   return getBounds?.call(map) ?? null
 }
 
-export function getPlaceProbeSelectionContext(map: MapLibreMap): PlaceProbeSelectionContext {
+export function getPaddedPlaceProbeBounds(map: MapLibreMap): PlaceProbeBounds | null {
+  return padPlaceProbeBounds(getPlaceProbeBounds(map))
+}
+
+export function getPlaceProbeViewportSize(map: MapLibreMap): PlaceProbeViewportSize | null {
+  const canvas = (map as MapLibreMap & {
+    getCanvas?: () => { clientWidth?: number; clientHeight?: number }
+  }).getCanvas?.()
+  const width = canvas?.clientWidth
+  const height = canvas?.clientHeight
+  return typeof width === 'number' &&
+    Number.isFinite(width) &&
+    width > 0 &&
+    typeof height === 'number' &&
+    Number.isFinite(height) &&
+    height > 0
+    ? { width, height }
+    : null
+}
+
+function padPlaceProbeBounds(bounds: PlaceProbeBounds | null): PlaceProbeBounds | null {
+  if (bounds == null) return null
+
+  const west = bounds.getWest?.()
+  const east = bounds.getEast?.()
+  const south = bounds.getSouth?.()
+  const north = bounds.getNorth?.()
+  if (
+    !isFiniteNumber(west) ||
+    !isFiniteNumber(east) ||
+    !isFiniteNumber(south) ||
+    !isFiniteNumber(north) ||
+    east <= west ||
+    north <= south
+  ) {
+    return bounds
+  }
+
+  const lonPadding = (east - west) * PLACE_PROBE_POLICY.bounds.paddingRatio
+  const latPadding = (north - south) * PLACE_PROBE_POLICY.bounds.paddingRatio
+  const padded = {
+    west: west - lonPadding,
+    east: east + lonPadding,
+    south: Math.max(-90, south - latPadding),
+    north: Math.min(90, north + latPadding),
+  }
+
   return {
-    bounds: getMapBounds(map),
-    project: createPlaceProbeProjector(map),
+    contains: ([lon, lat]) => (
+      lon >= padded.west &&
+      lon <= padded.east &&
+      lat >= padded.south &&
+      lat <= padded.north
+    ),
+    getWest: () => padded.west,
+    getEast: () => padded.east,
+    getSouth: () => padded.south,
+    getNorth: () => padded.north,
   }
 }
 
-function createPlaceProbeProjector(map: MapLibreMap): PlaceProbeProject | null {
-  const project = (map as MapLibreMap & {
-    project?: (lngLat: [number, number]) => PlaceProbeScreenPoint
-  }).project
-
-  if (typeof project !== 'function') return null
-
-  return (point) => {
-    const screenPoint = project.call(map, [point.lon, point.lat])
-    if (!Number.isFinite(screenPoint.x) || !Number.isFinite(screenPoint.y)) return null
-    return {
-      x: screenPoint.x,
-      y: screenPoint.y,
-    }
-  }
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 export function setPlaceProbeLabels(
   map: MapLibreMap,
   labels: PlaceProbeValueLabel[],
-): PlaceProbeLabelSnapshot {
+): void {
   const source = getPlaceProbeSource(map)
-  if (source == null) return new Map()
+  if (source == null) return
 
-  const sourceData = buildPlaceProbeCollection(labels)
-  source.setData(sourceData.collection)
-  return sourceData.labelsByPlaceId
-}
-
-export function updatePlaceProbeLabels(
-  map: MapLibreMap,
-  labels: PlaceProbeValueLabel[],
-  previousLabelsByPlaceId: ReadonlyMap<string, PlaceProbeValueLabel>,
-): PlaceProbeLabelSnapshot {
-  const source = getPlaceProbeSource(map)
-  if (source == null) return new Map()
-
-  const labelUpdate = buildPlaceProbeLabelDiff(labels, previousLabelsByPlaceId)
-  if (labelUpdate.diff != null) {
-    source.updateData(labelUpdate.diff)
-  }
-  return labelUpdate.labelsByPlaceId
+  source.setData(buildPlaceProbeCollection(labels))
 }
 
 function getPlaceProbeSource(map: MapLibreMap): GeoJSONSource | null {
@@ -267,97 +255,10 @@ function createEmptyPlaceProbeCollection(): PlaceProbeFeatureCollection {
   }
 }
 
-function buildPlaceProbeCollection(labels: PlaceProbeValueLabel[]): {
-  collection: PlaceProbeFeatureCollection
-  labelsByPlaceId: PlaceProbeLabelSnapshot
-} {
-  const labelsByPlaceId = new Map<string, PlaceProbeValueLabel>()
-
+function buildPlaceProbeCollection(labels: PlaceProbeValueLabel[]): PlaceProbeFeatureCollection {
   return {
-    collection: {
-      type: 'FeatureCollection',
-      features: labels.map((label) => {
-        labelsByPlaceId.set(label.id, label)
-        return buildPlaceProbeFeature(label)
-      }),
-    },
-    labelsByPlaceId,
-  }
-}
-
-function buildPlaceProbeLabelDiff(
-  labels: PlaceProbeValueLabel[],
-  previousLabelsByPlaceId: ReadonlyMap<string, PlaceProbeValueLabel>,
-) {
-  const remove: NonNullable<GeoJSONSourceDiff['remove']> = []
-  const add: NonNullable<GeoJSONSourceDiff['add']> = []
-  const update: NonNullable<GeoJSONSourceDiff['update']> = []
-  const labelsByPlaceId = new Map<string, PlaceProbeValueLabel>()
-
-  for (const label of labels) {
-    labelsByPlaceId.set(label.id, label)
-    const previousLabel = previousLabelsByPlaceId.get(label.id)
-
-    if (previousLabel == null) {
-      add.push(buildPlaceProbeFeature(label))
-      continue
-    }
-
-    const labelDiff = buildPlaceProbeFeatureDiff(label, previousLabel)
-    if (labelDiff != null) update.push(labelDiff)
-  }
-
-  for (const previousId of previousLabelsByPlaceId.keys()) {
-    if (!labelsByPlaceId.has(previousId)) {
-      remove.push(previousId)
-    }
-  }
-
-  return {
-    diff: remove.length > 0 || add.length > 0 || update.length > 0
-      ? {
-        ...(remove.length > 0 ? { remove } : null),
-        ...(add.length > 0 ? { add } : null),
-        ...(update.length > 0 ? { update } : null),
-      }
-      : null,
-    labelsByPlaceId,
-  }
-}
-
-function buildPlaceProbeFeatureDiff(
-  label: PlaceProbeValueLabel,
-  previousLabel: PlaceProbeValueLabel,
-): NonNullable<GeoJSONSourceDiff['update']>[number] | null {
-  const addOrUpdateProperties: NonNullable<NonNullable<GeoJSONSourceDiff['update']>[number]['addOrUpdateProperties']> = []
-  const coordinatesChanged = label.lon !== previousLabel.lon || label.lat !== previousLabel.lat
-
-  if (label.name !== previousLabel.name) {
-    addOrUpdateProperties.push({ key: 'name', value: label.name })
-  }
-  if (label.localName !== previousLabel.localName) {
-    addOrUpdateProperties.push({ key: 'localName', value: label.localName ?? '' })
-  }
-  if (label.sortKey !== previousLabel.sortKey) {
-    addOrUpdateProperties.push({ key: 'sortKey', value: label.sortKey })
-  }
-  if (label.probeText !== previousLabel.probeText) {
-    addOrUpdateProperties.push({ key: 'probeText', value: label.probeText })
-  }
-
-  if (!coordinatesChanged && addOrUpdateProperties.length === 0) return null
-
-  return {
-    id: label.id,
-    ...(coordinatesChanged
-      ? {
-        newGeometry: {
-          type: 'Point' as const,
-          coordinates: [label.lon, label.lat],
-        },
-      }
-      : null),
-    ...(addOrUpdateProperties.length > 0 ? { addOrUpdateProperties } : null),
+    type: 'FeatureCollection',
+    features: labels.map(buildPlaceProbeFeature),
   }
 }
 
@@ -370,11 +271,8 @@ function buildPlaceProbeFeature(label: PlaceProbeValueLabel): PlaceProbeFeature 
       coordinates: [label.lon, label.lat],
     },
     properties: {
-      id: label.id,
-      name: label.name,
-      localName: label.localName ?? '',
+      labelText: label.labelText,
       sortKey: label.sortKey,
-      probeText: label.probeText,
     },
   }
 }

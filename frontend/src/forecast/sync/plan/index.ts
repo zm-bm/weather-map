@@ -3,15 +3,14 @@ import {
   forecastRasterLayerSourceFromLayer,
   getAvailableParticleLayer,
   getDefaultAvailableContourLayer,
+  getDefaultAvailableParticleLayerId,
   resolveRenderableRasterLayer,
   sourceBandIds,
   type ArtifactSource,
   type ContourLayer,
-  type ContourSource,
   type ForecastLayerSource,
   type OverlaySource,
   type ParticleLayer,
-  type ParticleSource,
 } from '@/forecast/catalog'
 import {
   canLoadRasterBandsForRun,
@@ -29,20 +28,16 @@ import {
   type ForecastTimeSliceSelection,
 } from '@/forecast/time'
 
-const NO_WINDOW_PLAN_KEY = 'data:none'
-
 export type ForecastWindowFailurePolicy = 'required' | 'optional'
 
-type ForecastFramePlanSourceMap = {
-  raster: ForecastLayerSource
-  overlay: OverlaySource
-  contour: ContourSource
-  particles: ParticleSource
-}
+type ForecastPlanSource =
+  ForecastLayerSource |
+  OverlaySource |
+  ContourLayer |
+  ParticleLayer
 
-type ForecastFramePlanBase<K extends ForecastWindowId> = {
-  sourceKind: K
-  source: ForecastFramePlanSourceMap[K]
+export type ForecastFramePlan = {
+  source: ForecastPlanSource
   artifactId: string
   bandIds: ReadonlyNonEmptyArray<string>
   cacheKeyPrefix: string
@@ -50,48 +45,22 @@ type ForecastFramePlanBase<K extends ForecastWindowId> = {
   failurePolicy?: ForecastWindowFailurePolicy
 }
 
-export type ForecastFramePlan<K extends ForecastWindowId = ForecastWindowId> =
-  K extends ForecastWindowId ? ForecastFramePlanBase<K> : never
-
-type SingleForecastWindowId = Exclude<ForecastWindowId, 'overlay'>
-
-type SingleForecastWindowPlan<K extends SingleForecastWindowId = SingleForecastWindowId> =
-  K extends SingleForecastWindowId ? {
-    id: K
-    key: string
-    failurePolicy: ForecastWindowFailurePolicy
-    output: 'single'
-    frames: readonly [ForecastFramePlan<K>]
-  } : never
-
-type OverlayForecastWindowPlan = {
-  id: 'overlay'
+export type ForecastWindowPlan = {
+  id: ForecastWindowId
   key: string
   failurePolicy: ForecastWindowFailurePolicy
-  output: 'array'
-  frames: ReadonlyNonEmptyArray<ForecastFramePlan<'overlay'>>
+  frames: ReadonlyNonEmptyArray<ForecastFramePlan>
 }
-
-export type ForecastWindowPlan = SingleForecastWindowPlan | OverlayForecastWindowPlan
-
-export type WindowPlanKeyMap = Partial<Record<ForecastWindowId, string>>
 
 export type ForecastSyncOptions = {
   contour: boolean
   particles: boolean
 }
 
-export const DEFAULT_FORECAST_SYNC_OPTIONS: ForecastSyncOptions = {
-  contour: true,
-  particles: true,
-}
-
 export type ForecastSyncPlan = ForecastTimeSliceSelection & {
   activeRun: ActiveForecastRun
   frameIds: readonly string[]
   windowPlans: readonly ForecastWindowPlan[]
-  windowPlanKeys: WindowPlanKeyMap
-  windowPlanSetKey: string
   minuteOffset: number
 }
 
@@ -111,7 +80,7 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
     ? getDefaultAvailableContourLayer(args.activeRun)
     : null
   const selectedParticleLayer = args.syncOptions.particles
-    ? getAvailableParticleLayer(args.activeRun, args.selectedParticleLayerId)
+    ? getSelectedOrDefaultParticleLayer(args.activeRun, args.selectedParticleLayerId)
     : null
   const interpolationWindow = resolveForecastInterpolationWindow(
     args.activeRun.latest.frames,
@@ -133,14 +102,20 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
       normalizeFrameId(time.id)
     )),
     windowPlans,
-    windowPlanKeys: windowPlanKeysById(windowPlans),
-    windowPlanSetKey: windowPlanSetKeyString(runScope, windowPlans),
     selectedValidTimeMs: interpolationWindow.selectedValidTimeMs,
     lowerFrameId: normalizeFrameId(interpolationWindow.lowerFrameId),
     upperFrameId: normalizeFrameId(interpolationWindow.upperFrameId),
     mix: interpolationWindow.mix,
     minuteOffset: interpolationWindowMinuteOffset(interpolationWindow),
   }
+}
+
+function getSelectedOrDefaultParticleLayer(
+  activeRun: ActiveForecastRun,
+  selectedLayerId: string | null
+): ParticleLayer | null {
+  return getAvailableParticleLayer(activeRun, selectedLayerId) ??
+    getAvailableParticleLayer(activeRun, getDefaultAvailableParticleLayerId(activeRun))
 }
 
 function createWindowPlans(args: {
@@ -152,28 +127,33 @@ function createWindowPlans(args: {
 }): ForecastWindowPlan[] {
   const plans: ForecastWindowPlan[] = []
 
-  plans.push(singleWindowPlan({
+  const rasterFrame = forecastFramePlan(
+    args.runScope,
+    'raster',
+    args.layerSource.layerId,
+    args.layerSource,
+    args.layerSource,
+  )
+  plans.push({
+    id: 'raster',
+    key: rasterFrame.cacheKeyPrefix,
     failurePolicy: 'required',
-    frame: forecastFramePlan({
-      runScope: args.runScope,
-      sourceKind: 'raster',
-      sourceId: args.layerSource.layerId,
-      source: args.layerSource,
-      loadSource: args.layerSource,
-    }),
-  }))
+    frames: [rasterFrame],
+  })
 
   if (args.layerSource.overlays.length > 0) {
     const frames = args.layerSource.overlays.flatMap((source) => {
-      const frame = forecastFramePlan({
-        runScope: args.runScope,
-        sourceKind: 'overlay',
-        sourceId: source.id,
+      const frame = forecastFramePlan(
+        args.runScope,
+        'overlay',
+        source.id,
         source,
-        loadSource: source.source,
-        order: 'by-name',
-        failurePolicy: source.optional ? 'optional' : 'required',
-      })
+        source.source,
+        {
+          order: 'by-name',
+          failurePolicy: source.optional ? 'optional' : 'required',
+        }
+      )
       return frame.failurePolicy === 'optional' &&
         !canLoadRasterBandsForRun(
           args.activeRun,
@@ -186,128 +166,81 @@ function createWindowPlans(args: {
     })
 
     if (isNonEmpty(frames)) {
-      plans.push(overlayWindowPlan({
-        runScope: args.runScope,
+      plans.push({
+        id: 'overlay',
+        key: `${args.runScope}:overlay:${frames.map((frame) => frame.cacheKeyPrefix).join('+')}`,
+        failurePolicy: 'optional',
         frames,
-      }))
+      })
     }
   }
 
   if (args.contourLayer != null) {
-    plans.push(singleWindowPlan({
+    const contourFrame = forecastFramePlan(
+      args.runScope,
+      'contour',
+      args.contourLayer.id,
+      args.contourLayer,
+      args.contourLayer.source,
+    )
+    plans.push({
+      id: 'contour',
+      key: contourFrame.cacheKeyPrefix,
       failurePolicy: 'optional',
-      frame: forecastFramePlan({
-        runScope: args.runScope,
-        sourceKind: 'contour',
-        sourceId: args.contourLayer.id,
-        source: contourSourceFromLayer(args.contourLayer),
-        loadSource: args.contourLayer.source,
-      }),
-    }))
+      frames: [contourFrame],
+    })
   }
 
   if (args.particleLayer != null) {
-    plans.push(singleWindowPlan({
+    const particleFrame = forecastFramePlan(
+      args.runScope,
+      'particles',
+      args.particleLayer.id,
+      args.particleLayer,
+      args.particleLayer.source,
+    )
+    plans.push({
+      id: 'particles',
+      key: particleFrame.cacheKeyPrefix,
       failurePolicy: 'required',
-      frame: forecastFramePlan({
-        runScope: args.runScope,
-        sourceKind: 'particles',
-        sourceId: args.particleLayer.id,
-        source: particleSourceFromLayer(args.particleLayer),
-        loadSource: args.particleLayer.source,
-      }),
-    }))
+      frames: [particleFrame],
+    })
   }
 
   return plans
 }
 
-function singleWindowPlan<K extends SingleForecastWindowId>(args: {
-  failurePolicy: ForecastWindowFailurePolicy
-  frame: ForecastFramePlan<K>
-}): SingleForecastWindowPlan<K> {
-  const plan = {
-    id: args.frame.sourceKind as K,
-    key: args.frame.cacheKeyPrefix,
-    failurePolicy: args.failurePolicy,
-    output: 'single',
-    frames: [args.frame] as readonly [ForecastFramePlan<K>],
-  }
-  return plan as SingleForecastWindowPlan<K>
-}
-
-function overlayWindowPlan(args: {
-  runScope: string
-  frames: ReadonlyNonEmptyArray<ForecastFramePlan<'overlay'>>
-}): OverlayForecastWindowPlan {
-  return {
-    id: 'overlay',
-    key: `${args.runScope}:overlay:${args.frames.map((frame) => frame.cacheKeyPrefix).join('+')}`,
-    failurePolicy: 'optional',
-    output: 'array',
-    frames: args.frames,
-  }
-}
-
-function contourSourceFromLayer(entry: ContourLayer): ContourSource {
-  return {
-    id: entry.id,
-    source: entry.source,
-  }
-}
-
-function particleSourceFromLayer(entry: ParticleLayer): ParticleSource {
-  return {
-    id: entry.id,
-    source: entry.source,
-  }
-}
-
-function forecastFramePlan<K extends ForecastWindowId>(args: {
-  runScope: string
-  sourceKind: K
-  sourceId: string
-  source: ForecastFramePlanSourceMap[K]
-  loadSource: ArtifactSource
-  order?: RasterBandOrder
-  failurePolicy?: ForecastWindowFailurePolicy
-}): ForecastFramePlan<K> {
-  const bandIds = sourceBandIds(args.loadSource)
+function forecastFramePlan(
+  runScope: string,
+  windowId: ForecastWindowId,
+  sourceId: string,
+  source: ForecastPlanSource,
+  loadSource: ArtifactSource,
+  options: {
+    order?: RasterBandOrder
+    failurePolicy?: ForecastWindowFailurePolicy
+  } = {},
+): ForecastFramePlan {
+  const bandIds = sourceBandIds(loadSource)
   const cacheKeyPrefix = sourceKey({
-    runScope: args.runScope,
-    id: args.sourceKind,
-    sourceId: args.sourceId,
-    artifactId: args.loadSource.artifactId,
+    runScope,
+    id: windowId,
+    sourceId,
+    artifactId: loadSource.artifactId,
     bandIds,
   })
   return {
-    sourceKind: args.sourceKind,
-    source: args.source,
-    artifactId: args.loadSource.artifactId,
+    source,
+    artifactId: loadSource.artifactId,
     bandIds,
     cacheKeyPrefix,
-    ...(args.order === undefined ? {} : { order: args.order }),
-    ...(args.failurePolicy === undefined ? {} : { failurePolicy: args.failurePolicy }),
-  } as ForecastFramePlan<K>
+    ...(options.order === undefined ? {} : { order: options.order }),
+    ...(options.failurePolicy === undefined ? {} : { failurePolicy: options.failurePolicy }),
+  }
 }
 
 function isNonEmpty<T>(items: readonly T[]): items is ReadonlyNonEmptyArray<T> {
   return items.length > 0
-}
-
-function windowPlanKeysById(windowPlans: readonly ForecastWindowPlan[]): WindowPlanKeyMap {
-  return Object.fromEntries(
-    windowPlans.map((windowPlan) => [windowPlan.id, windowPlan.key])
-  ) as WindowPlanKeyMap
-}
-
-function windowPlanSetKeyString(
-  runScope: string,
-  windowPlans: readonly ForecastWindowPlan[],
-): string {
-  return windowPlans.length === 0
-    ? `${runScope}:${NO_WINDOW_PLAN_KEY}`
-    : windowPlans.map((windowPlan) => windowPlan.key).join('|')
 }
 
 function sourceKey(args: {

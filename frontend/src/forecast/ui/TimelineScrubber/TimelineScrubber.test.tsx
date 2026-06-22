@@ -2,212 +2,187 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  forecastTimeBounds,
   formatValidTimeLabel,
-  type ForecastTimeContextValue,
+  type ForecastTimelineTime,
 } from '@/forecast/time'
-import {
-  createForecastTimeContextValue,
-  createForecastTimesFixture,
-} from '@/test/fixtures'
+import { createForecastTimesFixture } from '@/test/fixtures'
 import TimelineScrubber from './TimelineScrubber'
 
-const mocks = vi.hoisted(() => ({
-  timeContext: null as ForecastTimeContextValue | null,
-  requestTime: vi.fn(),
-  togglePlay: vi.fn(),
-}))
+const requestTime = vi.fn()
 
-vi.mock('@/forecast/time', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/forecast/time')>()
-  return {
-    ...actual,
-    useForecastTimeContext: () => mocks.timeContext,
-  }
-})
-
-function setForecastTimeContext(args: {
+function createScrubberProps(args: {
   hours?: string[]
-  state?: Partial<ForecastTimeContextValue['state']>
+  times?: ForecastTimelineTime[]
+  requestedTimeMs?: number
+  disabled?: boolean
 } = {}) {
-  mocks.timeContext = createForecastTimeContextValue(null, {
-    times: createForecastTimesFixture(args.hours ?? ['000', '003', '006'], '2026040900'),
-    state: {
-      appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-      targetTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-      pendingTimeMs: null,
-      isInFlight: false,
-      isPlaying: false,
-      ...args.state,
-    },
-    controls: {
-      requestTime: mocks.requestTime,
-      togglePlay: mocks.togglePlay,
-    },
-  })
+  const times = args.times ?? createForecastTimesFixture(args.hours ?? ['000', '003', '006'], '2026040900')
+  const bounds = forecastTimeBounds(times)
+  return {
+    times,
+    bounds,
+    requestedTimeMs: args.requestedTimeMs ?? Date.UTC(2026, 3, 9, 0, 0),
+    disabled: args.disabled ?? (times.length <= 1 || bounds == null),
+    onRequestTime: requestTime,
+  }
 }
 
-function renderScrubber() {
-  return render(<TimelineScrubber />)
+function renderScrubber(props = createScrubberProps()) {
+  return render(<TimelineScrubber {...props} />)
 }
 
-function forecastSlider(): HTMLInputElement {
-  return screen.getByLabelText('Forecast time') as HTMLInputElement
+function forecastSlider(): HTMLDivElement {
+  return screen.getByRole('slider', { name: 'Forecast time' }) as HTMLDivElement
 }
 
-function changeSliderTo(value: number, slider = forecastSlider()) {
-  fireEvent.change(slider, { target: { value: String(value) } })
-}
-
-function dragSliderTo(value: number, slider = forecastSlider()) {
-  fireEvent.pointerDown(slider)
-  changeSliderTo(value, slider)
+function dragSliderBy(deltaX: number, slider = forecastSlider(), startX = 100) {
+  fireEvent.pointerDown(slider, { clientX: startX, pointerId: 1 })
+  fireEvent.pointerMove(slider, { clientX: startX + deltaX, pointerId: 1 })
   return slider
 }
 
+function releaseSliderDrag(deltaX: number, slider = forecastSlider(), startX = 100) {
+  fireEvent.pointerUp(slider, { clientX: startX + deltaX, pointerId: 1 })
+}
+
 function expectRequestedTime(timeMs: number) {
-  expect(mocks.requestTime).toHaveBeenCalledWith(timeMs)
+  expect(requestTime).toHaveBeenCalledWith(timeMs)
 }
 
 function validTimeText(timeMs: number): string {
   return formatValidTimeLabel(timeMs) ?? ''
 }
 
+function forecastTimesAt(...timeMsValues: number[]): ForecastTimelineTime[] {
+  return timeMsValues.map((timeMs, index) => ({
+    id: `time-${index}`,
+    valid_at: new Date(timeMs).toISOString(),
+  }))
+}
+
 describe('TimelineScrubber', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setForecastTimeContext()
   })
 
-  it('commits slider time only on release, not during drag changes', () => {
+  it('renders an accessible custom timeline slider', () => {
     renderScrubber()
 
-    expect(screen.queryByText('Valid Time')).not.toBeInTheDocument()
-    expect(screen.queryByText('Ready')).not.toBeInTheDocument()
+    const slider = forecastSlider()
+    expect(slider).toHaveAttribute('aria-valuemin', '0')
+    expect(slider).toHaveAttribute('aria-valuemax', '360')
+    expect(slider).toHaveAttribute('aria-valuenow', '0')
+    expect(slider).toHaveAttribute('aria-valuetext', validTimeText(Date.UTC(2026, 3, 9, 0, 0)))
+  })
+
+  it('renders the selected valid time in the floating badge', () => {
+    const firstTimeMs = new Date(2026, 3, 9, 10, 0).getTime()
+    const selectedTimeMs = new Date(2026, 3, 9, 11, 0).getTime()
+    const times = forecastTimesAt(firstTimeMs, selectedTimeMs)
+
+    renderScrubber(createScrubberProps({
+      times,
+      requestedTimeMs: selectedTimeMs,
+    }))
+
+    expect(screen.getByText(validTimeText(selectedTimeMs))).toBeInTheDocument()
+    expect(forecastSlider()).toHaveAttribute('aria-valuetext', validTimeText(selectedTimeMs))
+  })
+
+  it('commits ruler drag time only on release, not during drag movement', () => {
+    renderScrubber()
 
     const slider = forecastSlider()
-    expect(slider).toHaveAttribute('step', '1')
-    dragSliderTo(30, slider)
-    expect(mocks.requestTime).not.toHaveBeenCalled()
+    dragSliderBy(-30, slider)
+    expect(slider).toHaveAttribute('aria-valuenow', '30')
+    expect(requestTime).not.toHaveBeenCalled()
 
-    fireEvent.pointerUp(slider)
-    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    releaseSliderDrag(-30, slider)
+    expect(requestTime).toHaveBeenCalledOnce()
     expectRequestedTime(Date.UTC(2026, 3, 9, 0, 30))
   })
 
   it('commits a drag release once when multiple release events fire', () => {
     renderScrubber()
 
-    const slider = dragSliderTo(30)
-    fireEvent.pointerUp(slider)
-    fireEvent.mouseUp(slider)
-    fireEvent.touchEnd(slider)
+    const slider = dragSliderBy(-30)
+    releaseSliderDrag(-30, slider)
+    releaseSliderDrag(-30, slider)
 
-    expect(mocks.requestTime).toHaveBeenCalledOnce()
+    expect(requestTime).toHaveBeenCalledOnce()
     expectRequestedTime(Date.UTC(2026, 3, 9, 0, 30))
   })
 
-  it('commits non-drag slider changes immediately', () => {
+  it('does not commit click or tap gestures without meaningful drag movement', () => {
     renderScrubber()
 
-    changeSliderTo(30)
+    const slider = forecastSlider()
+    fireEvent.pointerDown(slider, { clientX: 100, pointerId: 1 })
+    fireEvent.pointerUp(slider, { clientX: 101, pointerId: 1 })
 
-    expect(mocks.requestTime).toHaveBeenCalledOnce()
-    expectRequestedTime(Date.UTC(2026, 3, 9, 0, 30))
+    expect(requestTime).not.toHaveBeenCalled()
   })
 
   it('preserves an in-progress slider seek across playback frame updates', () => {
-    setForecastTimeContext({
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        targetTimeMs: Date.UTC(2026, 3, 9, 0, 10),
-        pendingTimeMs: null,
-        isInFlight: true,
-        isPlaying: true,
-      },
-    })
     const { rerender } = renderScrubber()
 
-    const slider = dragSliderTo(60)
-    expect(screen.getByText(validTimeText(Date.UTC(2026, 3, 9, 1, 0)))).toBeInTheDocument()
+    const slider = dragSliderBy(-30)
+    expect(slider).toHaveAttribute('aria-valuetext', validTimeText(Date.UTC(2026, 3, 9, 0, 30)))
 
-    setForecastTimeContext({
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 10),
-        targetTimeMs: Date.UTC(2026, 3, 9, 0, 20),
-        isInFlight: true,
-        isPlaying: true,
-      },
-    })
-    rerender(<TimelineScrubber />)
+    rerender(<TimelineScrubber {...createScrubberProps({
+      requestedTimeMs: Date.UTC(2026, 3, 9, 0, 20),
+    })}
+    />)
 
     const currentSlider = forecastSlider()
     expect(currentSlider).toBe(slider)
-    expect(currentSlider).toHaveValue('60')
-    expect(screen.getByText(validTimeText(Date.UTC(2026, 3, 9, 1, 0)))).toBeInTheDocument()
+    expect(currentSlider).toHaveAttribute('aria-valuenow', '30')
+    expect(currentSlider).toHaveAttribute('aria-valuetext', validTimeText(Date.UTC(2026, 3, 9, 0, 30)))
 
-    fireEvent.pointerUp(currentSlider)
-    expect(mocks.requestTime).toHaveBeenCalledOnce()
-    expectRequestedTime(Date.UTC(2026, 3, 9, 1, 0))
+    releaseSliderDrag(-30, currentSlider)
+    expect(requestTime).toHaveBeenCalledOnce()
+    expectRequestedTime(Date.UTC(2026, 3, 9, 0, 30))
   })
 
-  it('commits an active slider draft on blur', () => {
+  it('commits keyboard scrubbing with minute and fast arrow steps', () => {
     renderScrubber()
 
-    const slider = dragSliderTo(30)
-    fireEvent.blur(slider)
+    const slider = forecastSlider()
+    fireEvent.keyDown(slider, { key: 'ArrowRight' })
+    expectRequestedTime(Date.UTC(2026, 3, 9, 0, 1))
 
-    expect(mocks.requestTime).toHaveBeenCalledOnce()
-    expectRequestedTime(Date.UTC(2026, 3, 9, 0, 30))
+    fireEvent.keyDown(slider, { key: 'ArrowRight', shiftKey: true })
+    expectRequestedTime(Date.UTC(2026, 3, 9, 0, 15))
   })
 
   it('cancels an active slider draft on pointer cancel', () => {
     renderScrubber()
 
-    const slider = dragSliderTo(30)
-    fireEvent.pointerCancel(slider)
-    fireEvent.pointerUp(slider)
+    const slider = dragSliderBy(-30)
+    expect(slider).toHaveAttribute('aria-valuenow', '30')
+    fireEvent.pointerCancel(slider, { pointerId: 1 })
 
-    expect(mocks.requestTime).not.toHaveBeenCalled()
-    expect(slider).toHaveValue('0')
+    expect(requestTime).not.toHaveBeenCalled()
+    expect(slider).toHaveAttribute('aria-valuenow', '0')
   })
 
-  it('renders selected time without embedded transport controls or status text', () => {
-    setForecastTimeContext({
-      state: {
-        appliedTimeMs: Date.UTC(2026, 3, 9, 0, 0),
-        targetTimeMs: Date.UTC(2026, 3, 9, 0, 30),
-        pendingTimeMs: Date.UTC(2026, 3, 9, 0, 45),
-        isInFlight: true,
-        isPlaying: false,
-      },
-    })
-    renderScrubber()
-
-    expect(screen.getByText(validTimeText(Date.UTC(2026, 3, 9, 0, 45)))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step back one minute' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Play forecast timeline' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Step forward one minute' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Previous forecast minute')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Next forecast minute')).not.toBeInTheDocument()
-    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/queued/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('Local Timeline')).not.toBeInTheDocument()
-  })
-
-  it('renders labeled major day ticks and minor two-hour scale ticks', () => {
-    setForecastTimeContext({
+  it('renders compact date labels on the timeline scale', () => {
+    const { container } = renderScrubber(createScrubberProps({
       hours: ['000', '006', '012', '018', '024', '030', '036', '042', '048'],
-    })
+    }))
+    const scaleText = container.textContent ?? ''
 
-    const { container } = renderScrubber()
-    const majorTicks = container.querySelectorAll('.timeline-scrubber__scale-tick--major')
-    const minorTicks = container.querySelectorAll('.timeline-scrubber__scale-tick--minor')
+    expect(scaleText).toMatch(/Apr\s+\d+/)
+  })
 
-    expect(container.querySelector('.timeline-scrubber__scale')).not.toBeNull()
-    expect(majorTicks.length).toBeGreaterThan(0)
-    expect(container.querySelector('.timeline-scrubber__scale-label')?.textContent).toMatch(/\d/)
-    expect(minorTicks.length).toBeGreaterThanOrEqual(20)
-    expect(container.querySelector('.timeline-scrubber__tick--edge')).toBeNull()
-    expect(container.querySelector('.timeline-scrubber__ticks')).toBeNull()
+  it('renders disabled slider state when there is no timeline to scrub', () => {
+    renderScrubber(createScrubberProps({ hours: ['000'] }))
+
+    const slider = forecastSlider()
+    expect(slider).toHaveAttribute('aria-disabled', 'true')
+    expect(slider).toHaveAttribute('tabindex', '-1')
+    fireEvent.keyDown(slider, { key: 'ArrowRight' })
+    expect(requestTime).not.toHaveBeenCalled()
   })
 })

@@ -16,16 +16,6 @@ const CELSIUS_OPTION: GradientUnitOption = {
   legendLabels: [-30, -10, 0, 5, 30],
 }
 
-const FAHRENHEIT_OPTION: GradientUnitOption = {
-  id: 'fahrenheit',
-  label: 'F',
-  scale: 9 / 5,
-  offset: 32,
-  valueFormat: 'whole',
-  legendValueFormat: 'whole',
-  legendLabels: [32, 41, 50],
-}
-
 const CENTIMETERS_OPTION: GradientUnitOption = {
   id: 'centimeters',
   label: 'cm',
@@ -47,29 +37,32 @@ describe('legend behavior', () => {
     expect(ticks.map((tick) => tick.label)).toEqual(['-30', '-10', '0', '5', '30'])
   })
 
-  it('samples the continuous gradient from displayed-unit labels', () => {
+  it('builds the continuous gradient from every palette table stop', () => {
     const stops = [
-      stop(0, [0, 0, 0]),
-      stop(10, [100, 100, 100]),
+      stop(-10, [0, 0, 0]),
+      stop(-5, [20, 40, 60]),
+      stop(0, [100, 110, 120, 128]),
+      stop(10, [255, 255, 255]),
     ]
 
-    const gradient = toLegendContinuousGradient(stops, FAHRENHEIT_OPTION, 'to top')
+    const gradient = toLegendContinuousGradient(stops, 'to top')
 
     expect(gradient).toBe(
-      'linear-gradient(to top, rgb(0 0 0) 0.0%, rgb(0 0 0) 6.0%, rgb(50 50 50) 50.0%, rgb(100 100 100) 94.0%, rgb(100 100 100) 100.0%)'
+      'linear-gradient(to top, rgb(0 0 0) 0.0%, rgb(20 40 60) 25.0%, rgb(100 110 120 / 0.502) 50.0%, rgb(255 255 255) 100.0%)'
     )
   })
 
-  it('uses explicit label text while sampling colors from label values', () => {
+  it('keeps tick labels independent from palette stop positions', () => {
     const stops = [
       stop(0, [0, 0, 0]),
+      stop(1.5, [128, 128, 128]),
       stop(3, [255, 255, 255]),
     ]
 
     expect(getLegendTicks(CENTIMETERS_OPTION).map((tick) => tick.label))
       .toEqual(['0', '50', '1m', '3m'])
-    expect(toLegendContinuousGradient(stops, CENTIMETERS_OPTION, 'to top'))
-      .toContain('rgb(85 85 85) 64.7%')
+    expect(toLegendContinuousGradient(stops, 'to top'))
+      .toBe('linear-gradient(to top, rgb(0 0 0) 0.0%, rgb(128 128 128) 50.0%, rgb(255 255 255) 100.0%)')
   })
 
   it('throws when a unit option has no configured labels', () => {

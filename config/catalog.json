@@ -31,30 +31,23 @@
       "label": "Precipitation",
       "rasterLayerIds": [
         "precipitation_rate",
-        "accumulated_precipitation",
-        "precipitable_water",
-        "snow_depth",
-        "freezing_level"
+        "accumulated_precipitation"
       ]
     },
     {
       "id": "clouds_visibility",
-      "label": "Clouds & Visibility",
+      "label": "Clouds",
       "rasterLayerIds": [
         "cloud_layers",
-        "cloud_cover",
-        "visibility"
+        "cloud_cover"
       ]
     },
     {
       "id": "radar_storms",
-      "label": "Radar & Storms",
+      "label": "Radar",
       "rasterLayerIds": [
-        "cape",
-        "observed_radar_base_reflectivity",
         "observed_radar_composite_reflectivity",
-        "composite_reflectivity",
-        "cin"
+        "composite_reflectivity"
       ]
     }
   ],
@@ -183,19 +176,6 @@
       "displayProfile": "accumulated-precipitation"
     },
     {
-      "id": "snow_depth",
-      "groupId": "precipitation",
-      "source": {
-        "artifactId": "snow_depth_surface",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "snow-depth"
-    },
-    {
       "id": "cloud_layers",
       "groupId": "clouds_visibility",
       "source": {
@@ -228,45 +208,6 @@
       "displayProfile": "cloud-cover"
     },
     {
-      "id": "visibility",
-      "groupId": "clouds_visibility",
-      "source": {
-        "artifactId": "visibility_surface",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "visibility"
-    },
-    {
-      "id": "freezing_level",
-      "groupId": "precipitation",
-      "source": {
-        "artifactId": "freezing_level",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "freezing-level"
-    },
-    {
-      "id": "precipitable_water",
-      "groupId": "precipitation",
-      "source": {
-        "artifactId": "precipitable_water",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "precipitable-water"
-    },
-    {
       "id": "composite_reflectivity",
       "groupId": "radar_storms",
       "source": {
@@ -280,19 +221,6 @@
       "displayProfile": "composite-reflectivity"
     },
     {
-      "id": "observed_radar_base_reflectivity",
-      "groupId": "radar_storms",
-      "source": {
-        "artifactId": "observed_radar_base_reflectivity",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "observed-radar-base-reflectivity"
-    },
-    {
       "id": "observed_radar_composite_reflectivity",
       "groupId": "radar_storms",
       "source": {
@@ -304,32 +232,6 @@
         ]
       },
       "displayProfile": "observed-radar-composite-reflectivity"
-    },
-    {
-      "id": "cape",
-      "groupId": "radar_storms",
-      "source": {
-        "artifactId": "cape_index",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "cape"
-    },
-    {
-      "id": "cin",
-      "groupId": "radar_storms",
-      "source": {
-        "artifactId": "cin_index",
-        "bands": [
-          {
-            "id": "value"
-          }
-        ]
-      },
-      "displayProfile": "cin"
     }
   ],
   "overlayLayers": [

@@ -1,10 +1,9 @@
 import {
-  samplePaletteColor,
+  normalizePaletteColor,
   type PaletteColorStop,
 } from '@/forecast/display/palette'
 import {
   formatUnitLegendValue,
-  toNative,
   type GradientUnitOption,
   type LegendLabel,
 } from '@/forecast/display/units'
@@ -34,27 +33,20 @@ export function getLegendTicks(
 
 export function toLegendContinuousGradient(
   stops: readonly PaletteColorStop[],
-  option: GradientUnitOption,
   direction = 'to top',
 ): string {
-  const labels = option.legendLabels
-  assertLegendLabels(labels, option)
-  const intervalCount = Math.max(1, labels.length - 1)
-  const labelStops = labels
-    .map((value, index) => {
-      const color = samplePaletteColor(stops, toNative(legendLabelValue(value), option), 'interpolated')
-      return {
-        color: legendColor(...color),
-        positionPct: legendLabelPositionPct(index, intervalCount),
-      }
-    })
-  const gradientStops = [
-    gradientStop(labelStops[0].color, 0),
-    ...labelStops.map((stop) => gradientStop(stop.color, stop.positionPct)),
-    gradientStop(labelStops[labelStops.length - 1].color, 100),
-  ].join(', ')
+  assertPaletteStops(stops)
+  const gradientStops = stops.length === 1
+    ? [
+        gradientStop(legendColor(...normalizePaletteColor(stops[0]!.color)), 0),
+        gradientStop(legendColor(...normalizePaletteColor(stops[0]!.color)), 100),
+      ]
+    : stops.map((stop) => gradientStop(
+        legendColor(...normalizePaletteColor(stop.color)),
+        paletteStopPositionPct(stop, stops),
+      ))
 
-  return `linear-gradient(${direction}, ${gradientStops})`
+  return `linear-gradient(${direction}, ${gradientStops.join(', ')})`
 }
 
 function assertLegendLabels(
@@ -63,6 +55,12 @@ function assertLegendLabels(
 ): void {
   if (labels.length < 2) {
     throw new Error(`Missing legend labels for unit option ${option.id}`)
+  }
+}
+
+function assertPaletteStops(stops: readonly PaletteColorStop[]): void {
+  if (stops.length === 0) {
+    throw new Error('Missing legend palette stops')
   }
 }
 
@@ -76,6 +74,16 @@ function legendLabelText(label: LegendLabel, option: GradientUnitOption): string
 
 function legendLabelPositionPct(index: number, intervalCount: number): number {
   return LEGEND_EDGE_PADDING_PCT + ((index / intervalCount) * LEGEND_LABEL_SPAN_PCT)
+}
+
+function paletteStopPositionPct(
+  stop: PaletteColorStop,
+  stops: readonly PaletteColorStop[],
+): number {
+  const first = stops[0]!
+  const last = stops[stops.length - 1]!
+  const span = Math.max(1e-6, last.value - first.value)
+  return ((stop.value - first.value) / span) * 100
 }
 
 function gradientStop(color: string, positionPct: number): string {

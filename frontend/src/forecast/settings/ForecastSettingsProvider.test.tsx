@@ -51,7 +51,7 @@ describe('ForecastSettingsProvider', () => {
         trailFade: TRAIL_FADE,
       })
       result.current.actions.updatePressureContours({ enabled: true })
-      result.current.actions.updateUnits({ system: 'metric' })
+      result.current.actions.toggleUnitSystem()
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
@@ -160,7 +160,7 @@ describe('ForecastSettingsProvider', () => {
         trailFade: TRAIL_FADE,
       })
       result.current.actions.updatePressureContours({ enabled: true })
-      result.current.actions.updateUnits({ system: 'metric' })
+      result.current.actions.toggleUnitSystem()
     })
 
     await waitFor(() => {

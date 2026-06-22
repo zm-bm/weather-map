@@ -33,8 +33,8 @@ function ForecastSelectionProbe() {
       <button type="button" onClick={() => context.setSelectedLayer('accumulated_precipitation')}>
         set-layer-accum
       </button>
-      <button type="button" onClick={() => context.setSelectedLayer('visibility')}>
-        set-layer-visibility
+      <button type="button" onClick={() => context.setSelectedLayer('cloud_cover')}>
+        set-layer-cloud-cover
       </button>
       <button type="button" onClick={() => context.setActiveDataset('gfs')}>
         set-dataset-gfs
@@ -172,8 +172,8 @@ describe('ForecastSelectionContext', () => {
     {
       activeDatasetId: 'icon',
       activeDatasetLabel: 'ICON',
-      buttonName: 'set-layer-visibility',
-      expectedLayerId: 'visibility',
+      buttonName: 'set-layer-cloud-cover',
+      expectedLayerId: 'cloud_cover',
       expectedDatasetId: 'gfs',
     },
   ] as const)('auto-switches to a compatible model for unavailable selected layers', async ({
@@ -208,14 +208,14 @@ describe('ForecastSelectionContext', () => {
       activeDatasetId: 'gfs',
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-layer-visibility' }))
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
+    fireEvent.click(screen.getByRole('button', { name: 'set-layer-cloud-cover' }))
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('cloud_cover')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-dataset-icon' }))
 
     expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
     expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('gfs')
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('cloud_cover')
   })
 
   it('preserves selected layer intent while repairing an incompatible stored active dataset', async () => {
@@ -224,10 +224,10 @@ describe('ForecastSelectionContext', () => {
 
     renderSelection({
       manifest,
-      route: '/?layer=visibility',
+      route: '/?layer=cloud_cover',
     })
 
-    expect(screen.getByTestId('selected-layer')).toHaveTextContent('visibility')
+    expect(screen.getByTestId('selected-layer')).toHaveTextContent('cloud_cover')
     await waitFor(() => {
       expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
     })

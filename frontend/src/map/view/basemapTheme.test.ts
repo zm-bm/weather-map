@@ -11,7 +11,10 @@ import {
 describe('basemap theme', () => {
   it('maps forecast layers to basemap styles', () => {
     expect(basemapStyleForForecastRasterLayer('cloud_layers')).toBe('cloud-layers')
-    expect(basemapStyleForForecastRasterLayer('snow_depth')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('precipitation_rate')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('composite_reflectivity')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('wind_speed')).toBe('standard')
+    expect(basemapStyleForForecastRasterLayer('air_pressure')).toBe('standard')
     expect(basemapStyleForForecastRasterLayer('cloud_cover')).toBe('standard')
     expect(basemapStyleForForecastRasterLayer(null)).toBe('standard')
   })

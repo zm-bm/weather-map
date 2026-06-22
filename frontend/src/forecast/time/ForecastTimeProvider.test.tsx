@@ -190,25 +190,28 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 4, 14))
   })
 
-  it('steps next from the latest desired minute slot while in flight', () => {
+  it('resets to now from an arbitrary timeline selection', () => {
     const manifest = createTimelineManifest()
-    const validAt0300 = validTimeFor(manifest, '003')
+    const validAt0600 = validTimeFor(manifest, '006')
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
-      getContext().controls.requestTime(validAt0300)
+      getContext().controls.requestTime(validAt0600)
+      getContext().controls.togglePlay()
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0300)
+    expect(getContext().state.targetTimeMs).toBe(validAt0600)
+    expect(getContext().state.isPlaying).toBe(true)
 
+    vi.setSystemTime(new Date('2026-04-09T02:12:00Z'))
     act(() => {
-      getContext().controls.requestNext()
+      getContext().controls.resetToNow()
     })
-    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (1 * 60 * 1000))
 
-    act(() => {
-      getContext().controls.requestNext()
-    })
-    expect(getContext().state.pendingTimeMs).toBe(validAt0300 + (2 * 60 * 1000))
+    expect(getContext().state.appliedTimeMs).toBe(Date.UTC(2026, 3, 9, 2, 12))
+    expect(getContext().state.targetTimeMs).toBe(Date.UTC(2026, 3, 9, 2, 12))
+    expect(getContext().state.pendingTimeMs).toBeNull()
+    expect(getContext().state.isPlaying).toBe(false)
+    expect(getContext().state.isInFlight).toBe(false)
   })
 
   it('clamps out-of-range frame callback times into the forecast window', () => {

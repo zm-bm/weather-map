@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useState } from 'react'
 
 import { ForecastSettingsProvider } from '@/forecast/settings'
 import type { ForecastManifestData } from '@/forecast/manifest'
@@ -9,21 +9,27 @@ import {
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import { ForecastTimeProvider } from '@/forecast/time'
 import TimelineBar from '../TimelineBar'
-import ForecastPanel from '../ForecastPanel'
 import LegendPanel from '../LegendPanel'
-import MapSyncIndicator from '../MapSyncIndicator'
-import ForecastMap from '../ForecastMap/ForecastMap'
+import ForecastMapReadout from '../ForecastMapReadout'
+import ForecastPlaceProbes from '../ForecastPlaceProbes'
+import ForecastRunStatus from '../ForecastRunStatus'
+import MapControlRail, { type MapControlRailPanel } from '../MapControlRail'
+import WeatherCategoryBar from '../WeatherCategoryBar'
+import type { MapPoint } from '../mapPoint'
+import { useForecastMapRuntime } from './useForecastMapRuntime'
+
+type ForecastPanel = 'weather-maps' | MapControlRailPanel
 
 type ForecastShellProps = {
   forecast: ForecastManifestData | null
   onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
 }
-
-const MAP_CONTROL_PANEL_GAP_PX = 8
 
 export default function ForecastShell({
   forecast,
   onInitialSyncStatusChange,
+  onFieldLoadingChange,
 }: ForecastShellProps) {
   return (
     <main className="forecast-screen">
@@ -33,77 +39,123 @@ export default function ForecastShell({
           manifest={forecast?.manifest ?? null}
           datasetOptions={forecast?.datasetOptions ?? []}
         >
-          <ForecastShellStage onInitialSyncStatusChange={onInitialSyncStatusChange} />
+          <StageScope
+            onInitialSyncStatusChange={onInitialSyncStatusChange}
+            onFieldLoadingChange={onFieldLoadingChange}
+          />
         </ForecastSelectionProvider>
       </ForecastSettingsProvider>
     </main>
   )
 }
 
-function ForecastShellStage({
+function StageScope({
   onInitialSyncStatusChange,
+  onFieldLoadingChange,
 }: {
   onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
 }) {
-  const forecastStageRef = useRef<HTMLDivElement | null>(null)
-  const forecastPanelRef = useRef<HTMLElement | null>(null)
   const { activeRun } = useForecastSelectionContext()
-
-  useLayoutEffect(() => {
-    const stage = forecastStageRef.current
-    const panel = forecastPanelRef.current
-
-    if (stage == null) return
-    if (activeRun == null || panel == null) {
-      stage.style.removeProperty('--wm-map-control-rail-top')
-      return
-    }
-
-    const updateMapControlOffset = () => {
-      const stageRect = stage.getBoundingClientRect()
-      const panelRect = panel.getBoundingClientRect()
-      const panelBottom = Math.max(0, panelRect.bottom - stageRect.top)
-      stage.style.setProperty(
-        '--wm-map-control-rail-top',
-        `${Math.ceil(panelBottom + MAP_CONTROL_PANEL_GAP_PX)}px`
-      )
-    }
-
-    updateMapControlOffset()
-
-    const resizeObserver = typeof ResizeObserver === 'function'
-      ? new ResizeObserver(updateMapControlOffset)
-      : null
-    resizeObserver?.observe(stage)
-    resizeObserver?.observe(panel)
-    window.addEventListener('resize', updateMapControlOffset)
-
-    return () => {
-      resizeObserver?.disconnect()
-      window.removeEventListener('resize', updateMapControlOffset)
-      stage.style.removeProperty('--wm-map-control-rail-top')
-    }
-  }, [activeRun])
 
   return (
     <ForecastTimeProvider activeRun={activeRun}>
-      <div ref={forecastStageRef} className="forecast-stage">
-        <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
+      <ForecastStage
+        onInitialSyncStatusChange={onInitialSyncStatusChange}
+        onFieldLoadingChange={onFieldLoadingChange}
+      />
+    </ForecastTimeProvider>
+  )
+}
 
-        {activeRun && (
+function ForecastStage({
+  onInitialSyncStatusChange,
+  onFieldLoadingChange,
+}: {
+  onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
+}) {
+  const { activeRun } = useForecastSelectionContext()
+  const {
+    map,
+    probeFrameChannel,
+  } = useForecastMapRuntime({
+    onInitialSyncStatusChange,
+    onFieldLoadingChange,
+  })
+  const hasRun = activeRun != null
+  const [activePanel, setActivePanel] = useState<ForecastPanel | null>(null)
+  const [point, setSelectedPoint] = useState<MapPoint | null>(null)
+  const weatherMapsOpen = activePanel === 'weather-maps'
+  const railPanel = activePanel === 'search' || activePanel === 'options'
+    ? activePanel
+    : null
+  const suppressReadout = activePanel != null
+
+  const setWeatherMapsOpen = (isOpen: boolean) => {
+    setActivePanel((panel) => (isOpen ? 'weather-maps' : panel === 'weather-maps' ? null : panel))
+    if (isOpen) setSelectedPoint(null)
+  }
+
+  const setRailPanel = (panel: MapControlRailPanel | null) => {
+    setActivePanel(panel)
+    if (panel != null) setSelectedPoint(null)
+  }
+
+  const setPoint = ({ lon, lat }: MapPoint) => {
+    setActivePanel(null)
+    setSelectedPoint({ lon, lat })
+  }
+
+  return (
+    <div className="forecast-stage">
+      <div className="map-stage">
+        <div id="map" className="map-stage__viewport" />
+        <ForecastPlaceProbes
+          map={map}
+          probeFrameChannel={probeFrameChannel}
+        />
+      </div>
+
+      <div className="forecast-stage__chrome">
+        {hasRun && (
           <>
-            <MapSyncIndicator />
-            <ForecastPanel ref={forecastPanelRef} />
+            <div className="forecast-stage__top-left">
+              <div className="forecast-stage__primary wm-panel-shell">
+                <WeatherCategoryBar
+                  isOpen={weatherMapsOpen}
+                  onOpenChange={setWeatherMapsOpen}
+                />
+              </div>
+              <div className="forecast-stage__source wm-panel-shell">
+                <ForecastRunStatus />
+              </div>
+            </div>
             <div className="forecast-stage__legend">
               <LegendPanel />
             </div>
+            <div className="forecast-stage__timeline">
+              <TimelineBar />
+            </div>
           </>
         )}
+        <div className="forecast-stage__right-rail">
+          <MapControlRail
+            map={map}
+            onMapPointSelect={setPoint}
+            activePanel={railPanel}
+            onActivePanelChange={setRailPanel}
+          />
+        </div>
+        <ForecastMapReadout
+          map={map}
+          probeFrameChannel={probeFrameChannel}
+          point={point}
+          onPoint={setPoint}
+          onClose={() => setSelectedPoint(null)}
+          suppressed={suppressReadout}
+        />
       </div>
-
-      {activeRun && (
-        <TimelineBar />
-      )}
-    </ForecastTimeProvider>
+    </div>
   )
 }

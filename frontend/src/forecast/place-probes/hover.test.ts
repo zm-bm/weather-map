@@ -58,7 +58,7 @@ describe('createPlaceProbeHoverSession', () => {
       features: [{ id: 'Chicago:-87.6250:41.8750' }],
     })
 
-    expect(canvas.style.cursor).toBe('pointer')
+    expect(canvas.style.cursor).toBe('')
     expect(map.setFeatureState).toHaveBeenLastCalledWith(
       { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: true }
@@ -128,7 +128,7 @@ describe('createPlaceProbeHoverSession', () => {
       features: [{ properties: { osm_id: 4242 } }],
     })
 
-    expect(canvas.style.cursor).toBe('pointer')
+    expect(canvas.style.cursor).toBe('')
     expect(map.setFeatureState).toHaveBeenCalledWith(
       { source: placeProbeLayerIds.source, id: 'Chicago:-87.6250:41.8750' },
       { hover: false }

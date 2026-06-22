@@ -2,10 +2,10 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 const DEFAULT_INITIAL_SYNC_ERROR_MESSAGE = 'Unknown startup error.'
 
-export type ForecastSyncInitialPhase = 'idle' | 'loading' | 'ready' | 'error'
+type InitialSyncPhase = 'idle' | 'loading' | 'ready' | 'error'
 
 export type ForecastSyncInitialStatus = {
-  phase: ForecastSyncInitialPhase
+  phase: InitialSyncPhase
   errorMessage: string | null
   retry: () => void
 }
@@ -21,7 +21,7 @@ export type InitialSyncController = {
 }
 
 export function useInitialSyncController(): InitialSyncController {
-  const [phase, setPhase] = useState<ForecastSyncInitialPhase>('idle')
+  const [phase, setPhase] = useState<InitialSyncPhase>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const hasInitialSyncAppliedRef = useRef(false)

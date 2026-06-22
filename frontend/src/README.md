@@ -23,7 +23,8 @@ startup status, then renders `forecast/ui/ForecastShell` and
 - `forecast/time`: selected valid time and playback state.
 - `forecast/settings`: map presentation settings, unit preference, and render feature options.
 
-`forecast/ui/ForecastMap` owns the MapLibre host instance, installs the forecast
+`forecast/ui/ForecastShell` owns the forecast HUD and map runtime composition.
+Its map runtime hook owns the MapLibre host instance, installs the forecast
 renderer host after map style readiness, bridges forecast settings into renderer
 and sync setup, and calls `forecast/sync/useForecastSync`, which coordinates
 initial sync, request building, payload loading, and layer application.
@@ -75,8 +76,8 @@ initial sync, request building, payload loading, and layer application.
 Preferred orchestration shape:
 
 1. `ForecastApp` loads the manifest index through `useForecastManifest` and owns top-level app status projection.
-2. `ForecastShell` installs selection, time, and settings providers around map and panel UI.
-3. `ForecastMap` owns MapLibre lifecycle through `map/useMap` and bridges
+2. `ForecastShell` installs selection, time, and settings providers around the map viewport and shell-owned HUD.
+3. `ForecastShell` uses the forecast map runtime hook to own MapLibre lifecycle through `map/view/useMapLibre` and bridge
    `forecast/settings` to `forecast/render` and `forecast/sync`.
 4. `forecast/sync/useForecastSync` resolves the current catalog/time selection into a forecast sync plan with ordered window plans plus timeline request callbacks,
    waits for a render host capability, exposes initial sync state, and publishes applied probe frames through a callback.

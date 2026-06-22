@@ -1,21 +1,32 @@
-import { render, screen, within } from '@testing-library/react'
-import type { Ref } from 'react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
-  Manifest,
   ForecastDatasetOption,
+  Manifest,
 } from '@/forecast/manifest'
 import type { ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
+  createForecastPlaceProbeFrameChannel,
+} from '@/forecast/place-probes'
+import type { MapPoint } from '../mapPoint'
+import {
   createForecastManifestDataFixture,
   createManifestFixture,
+  createMapFixture,
 } from '@/test/fixtures'
+import type { MapControlRailProps } from '../MapControlRail'
 import ForecastShell from './ForecastShell'
 
 const mocks = vi.hoisted(() => ({
-  ForecastMap: vi.fn(),
+  ForecastMapReadout: vi.fn(),
+  ForecastPlaceProbes: vi.fn(),
+  ForecastRunStatus: vi.fn(),
+  MapControlRail: vi.fn(),
+  TimelineBar: vi.fn(),
+  WeatherCategoryBar: vi.fn(),
+  useForecastMapRuntime: vi.fn(),
 }))
 
 const MODEL_OPTIONS: readonly ForecastDatasetOption[] = [
@@ -23,31 +34,67 @@ const MODEL_OPTIONS: readonly ForecastDatasetOption[] = [
   { id: 'icon', label: 'ICON' },
 ]
 
-vi.mock('../ForecastPanel', () => ({
-  default: ({ ref }: { ref?: Ref<HTMLDivElement> }) => (
-    <div ref={ref} data-testid="forecast-panel" />
-  ),
+vi.mock('./useForecastMapRuntime', () => ({
+  useForecastMapRuntime: (args: unknown) => mocks.useForecastMapRuntime(args),
+}))
+
+vi.mock('../ForecastPlaceProbes', () => ({
+  default: (props: unknown) => {
+    mocks.ForecastPlaceProbes(props)
+    return <div data-testid="forecast-place-probes" />
+  },
+}))
+
+vi.mock('../ForecastMapReadout', () => ({
+  default: (props: unknown) => {
+    mocks.ForecastMapReadout(props)
+    return <section data-testid="forecast-map-readout" />
+  },
+}))
+
+vi.mock('../WeatherCategoryBar', () => ({
+  default: (props: unknown) => {
+    mocks.WeatherCategoryBar(props)
+    return <div data-testid="weather-category-bar" />
+  },
 }))
 
 vi.mock('../LegendPanel', () => ({
   default: () => <div data-testid="legend-panel" />,
 }))
 
-vi.mock('../TimelineBar', () => ({
-  default: () => (
-    <section data-testid="timeline-bar" aria-label="Forecast timeline controls">
-      <div data-testid="transport-controls" />
-      <div data-testid="timeline-scrubber" />
-    </section>
-  ),
-}))
-
-vi.mock('../ForecastMap/ForecastMap', () => ({
+vi.mock('../ForecastRunStatus', () => ({
   default: (props: unknown) => {
-    mocks.ForecastMap(props)
-    return <div data-testid="forecast-map" />
+    mocks.ForecastRunStatus(props)
+    return <section data-testid="forecast-run-status" />
   },
 }))
+
+vi.mock('../MapControlRail', () => ({
+  default: (props: unknown) => {
+    mocks.MapControlRail(props)
+    return <div data-testid="map-control-rail" />
+  },
+}))
+
+vi.mock('../TimelineBar', () => ({
+  default: (props: unknown) => {
+    mocks.TimelineBar(props)
+    return <section data-testid="timeline-bar" aria-label="Forecast timeline controls" />
+  },
+}))
+
+type WeatherCategoryBarProps = {
+  isOpen?: boolean
+  onOpenChange?: (isOpen: boolean) => void
+}
+
+type MapReadoutProps = {
+  point?: MapPoint | null
+  onPoint?: (point: MapPoint) => void
+  onClose?: () => void
+  suppressed: boolean
+}
 
 function createForecastShellProps(overrides: {
   manifest?: Manifest | null
@@ -63,23 +110,19 @@ function createForecastShellProps(overrides: {
   }
 }
 
-type ForecastMapProps = {
-  onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+function latestWeatherCategoryBarProps(): WeatherCategoryBarProps {
+  expect(mocks.WeatherCategoryBar).toHaveBeenCalled()
+  return mocks.WeatherCategoryBar.mock.calls.at(-1)?.[0] as WeatherCategoryBarProps
 }
 
-function latestForecastMapProps(): ForecastMapProps {
-  expect(mocks.ForecastMap).toHaveBeenCalled()
-  return mocks.ForecastMap.mock.calls.at(-1)?.[0] as ForecastMapProps
+function latestMapControlRailProps(): MapControlRailProps {
+  expect(mocks.MapControlRail).toHaveBeenCalled()
+  return mocks.MapControlRail.mock.calls.at(-1)?.[0] as MapControlRailProps
 }
 
-function forecastStage(container: HTMLElement): HTMLElement {
-  const stage = container.querySelector<HTMLElement>('.forecast-stage')
-  expect(stage).not.toBeNull()
-  return stage as HTMLElement
-}
-
-function timelineControls(): HTMLElement {
-  return screen.getByLabelText('Forecast timeline controls')
+function latestMapReadoutProps(): MapReadoutProps {
+  expect(mocks.ForecastMapReadout).toHaveBeenCalled()
+  return mocks.ForecastMapReadout.mock.calls.at(-1)?.[0] as MapReadoutProps
 }
 
 function renderForecastShell(props: Parameters<typeof ForecastShell>[0]) {
@@ -94,102 +137,164 @@ describe('ForecastShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
+
+    mocks.useForecastMapRuntime.mockReturnValue({
+      map: createMapFixture(),
+      probeFrameChannel: createForecastPlaceProbeFrameChannel(),
+    })
   })
 
-  it('always renders forecast map even when manifest is unavailable', () => {
+  it('always renders the map viewport even when manifest is unavailable', () => {
     renderForecastShell(createForecastShellProps())
 
-    expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
-    expect(screen.queryByTestId('forecast-panel')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('timeline-bar')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('legend-panel')).not.toBeInTheDocument()
+    expect(document.querySelector('#map')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-place-probes')).toBeInTheDocument()
+    expect(screen.getByTestId('map-control-rail')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-map-readout')).toBeInTheDocument()
   })
 
-  it('forwards initial sync status changes to the map', () => {
+  it('forwards app status callbacks to the map runtime', () => {
     const onInitialSyncStatusChange = vi.fn<(status: ForecastSyncInitialStatus | null) => void>()
+    const onFieldLoadingChange = vi.fn<(isLoading: boolean) => void>()
 
     renderForecastShell({
       ...createForecastShellProps(),
       onInitialSyncStatusChange,
+      onFieldLoadingChange,
     })
 
-    expect(latestForecastMapProps()).toEqual({
+    expect(mocks.useForecastMapRuntime).toHaveBeenCalledWith({
       onInitialSyncStatusChange,
+      onFieldLoadingChange,
     })
   })
 
-  it('renders map overlays and forecast timeline controls when manifest is available', () => {
+  it('renders shell-owned map chrome when manifest is available', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
       frameIds: ['000', '003'],
     })
 
-    const { container } = renderForecastShell(createForecastShellProps({ manifest }))
+    renderForecastShell(createForecastShellProps({ manifest }))
 
-    expect(screen.getByTestId('forecast-map')).toBeInTheDocument()
-    expect(screen.getByTestId('forecast-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-place-probes')).toBeInTheDocument()
+    expect(screen.getByTestId('weather-category-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-run-status')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
-
-    const stage = forecastStage(container)
-    const timelineBar = timelineControls()
-
-    expect(timelineBar).toBeInTheDocument()
-    expect(within(stage).getByTestId('legend-panel')).toBeInTheDocument()
-    expect(within(timelineBar).getByTestId('transport-controls')).toBeInTheDocument()
-    expect(within(timelineBar).getByTestId('timeline-scrubber')).toBeInTheDocument()
-    expect(within(timelineBar).queryByTestId('forecast-controls')).not.toBeInTheDocument()
-    expect(within(timelineBar).queryByTestId('legend-panel')).not.toBeInTheDocument()
+    expect(screen.getByTestId('map-control-rail')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-map-readout')).toBeInTheDocument()
+    expect(mocks.TimelineBar).toHaveBeenLastCalledWith({})
   })
 
-  it('measures the forecast panel to offset mobile map controls without hard-coded panel height', () => {
+  it('coordinates weather maps and right-rail panels through one owner', () => {
     const manifest = createManifestFixture({
       cycle: '2026040900',
       frameIds: ['000', '003'],
     })
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
-      if (this.classList.contains('forecast-stage')) {
-        return {
-          x: 0,
-          y: 20,
-          top: 20,
-          right: 680,
-          bottom: 420,
-          left: 0,
-          width: 680,
-          height: 400,
-          toJSON: () => ({}),
-        }
-      }
-      if (this.getAttribute('data-testid') === 'forecast-panel') {
-        return {
-          x: 12,
-          y: 32,
-          top: 32,
-          right: 668,
-          bottom: 154,
-          left: 12,
-          width: 656,
-          height: 122,
-          toJSON: () => ({}),
-        }
-      }
 
-      return {
-        x: 0,
-        y: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        width: 0,
-        height: 0,
-        toJSON: () => ({}),
-      }
+    renderForecastShell(createForecastShellProps({ manifest }))
+
+    expect(latestMapControlRailProps().activePanel).toBeNull()
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: null,
+      suppressed: false,
+    }))
+
+    act(() => {
+      latestMapControlRailProps().onActivePanelChange('options')
+    })
+    expect(latestMapControlRailProps().activePanel).toBe('options')
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: null,
+      suppressed: true,
+    }))
+
+    act(() => {
+      latestMapControlRailProps().onActivePanelChange(null)
+    })
+    expect(latestMapControlRailProps().activePanel).toBeNull()
+    expect(latestMapReadoutProps().suppressed).toBe(false)
+
+    act(() => {
+      latestWeatherCategoryBarProps().onOpenChange?.(true)
+    })
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(true)
+    expect(latestMapControlRailProps().activePanel).toBeNull()
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: null,
+      suppressed: true,
+    }))
+
+    act(() => {
+      latestMapControlRailProps().onActivePanelChange('search')
+    })
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
+    expect(latestMapControlRailProps().activePanel).toBe('search')
+  })
+
+  it('coordinates point forecast with edge panels', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      frameIds: ['000', '003'],
     })
 
-    const { container } = renderForecastShell(createForecastShellProps({ manifest }))
+    renderForecastShell(createForecastShellProps({ manifest }))
 
-    expect(forecastStage(container))
-      .toHaveStyle({ '--wm-map-control-rail-top': '142px' })
+    act(() => {
+      latestMapReadoutProps().onPoint?.({ lon: -97.5, lat: 38.5 })
+    })
+
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: { lon: -97.5, lat: 38.5 },
+      suppressed: false,
+    }))
+    expect(latestMapControlRailProps().activePanel).toBeNull()
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
+
+    act(() => {
+      latestMapControlRailProps().onActivePanelChange('options')
+    })
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: null,
+      suppressed: true,
+    }))
+    expect(latestMapControlRailProps().activePanel).toBe('options')
+
+    act(() => {
+      latestMapReadoutProps().onPoint?.({ lon: -96.8, lat: 39.1 })
+    })
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: { lon: -96.8, lat: 39.1 },
+      suppressed: false,
+    }))
+
+    act(() => {
+      latestWeatherCategoryBarProps().onOpenChange?.(true)
+    })
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(true)
+    expect(latestMapReadoutProps()).toEqual(expect.objectContaining({
+      point: null,
+      suppressed: true,
+    }))
+  })
+
+  it('passes right-rail map point requests into the point readout', () => {
+    const manifest = createManifestFixture({
+      cycle: '2026040900',
+      frameIds: ['000', '003'],
+    })
+
+    renderForecastShell(createForecastShellProps({ manifest }))
+
+    act(() => {
+      latestMapControlRailProps().onMapPointSelect?.({ lon: -97.5, lat: 38.5 })
+    })
+
+    expect(latestMapReadoutProps().point).toEqual({
+      lon: -97.5,
+      lat: 38.5,
+    })
   })
 })

@@ -48,8 +48,8 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(8, 12, 20)",
-        "line-opacity": 1,
+        "line-color": "rgb(26, 31, 38)",
+        "line-opacity": 0.82,
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           0, 0.5,
@@ -73,8 +73,8 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(18, 22, 30)",
-        "line-opacity": 1,
+        "line-color": "rgb(34, 39, 46)",
+        "line-opacity": 0.58,
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           1, 0.55,
@@ -99,8 +99,8 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(18, 22, 30)",
-        "line-opacity": 1,
+        "line-color": "rgb(38, 43, 50)",
+        "line-opacity": 0.4,
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           1, 0.24,
@@ -134,7 +134,7 @@
       },
       "paint": {
         "line-color": "rgb(48, 52, 58)",
-        "line-opacity": 0.2,
+        "line-opacity": 0.1,
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           5, 0.78,
@@ -159,13 +159,13 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(8, 12, 18)",
+        "line-color": "rgb(34, 38, 44)",
         "line-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          4, 0.48,
-          7, 0.56,
-          11, 0.62,
-          20, 0.68
+          4, 0.28,
+          7, 0.36,
+          11, 0.44,
+          20, 0.5
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
@@ -191,12 +191,12 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(6, 10, 16)",
+        "line-color": "rgb(24, 29, 36)",
         "line-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          0, 0.4,
-          4, 0.72,
-          10, 0.78
+          0, 0.34,
+          4, 0.54,
+          10, 0.62
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],

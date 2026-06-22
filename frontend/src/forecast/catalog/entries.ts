@@ -61,6 +61,10 @@ export const FORECAST_RASTER_LAYERS_BY_ID: Record<string, ForecastRasterLayer> =
 
 export const FORECAST_RASTER_LAYER_GROUPS: readonly ForecastRasterLayerGroup[] = rawCatalog.rasterLayerGroups.map(groupFromRaw)
 
+export const FORECAST_RASTER_LAYER_GROUPS_BY_ID: Record<string, ForecastRasterLayerGroup> = Object.fromEntries(
+  FORECAST_RASTER_LAYER_GROUPS.map((entry) => [entry.id, entry])
+)
+
 export const CONTOUR_LAYERS: readonly ContourLayer[] = rawCatalog.contourLayers.map(contourLayerFromRaw)
 
 export const PARTICLE_LAYERS: readonly ParticleLayer[] = rawCatalog.particleLayers.map(particleLayerFromRaw)
@@ -84,6 +88,18 @@ export function getForecastRasterLayer(
   layersById: Record<string, ForecastRasterLayer> = FORECAST_RASTER_LAYERS_BY_ID,
 ): ForecastRasterLayer | null {
   return layerId == null ? null : layersById[layerId] ?? null
+}
+
+export function getForecastRasterLayerGroup(
+  groupId: string | null,
+  groupsById: Record<string, ForecastRasterLayerGroup> = FORECAST_RASTER_LAYER_GROUPS_BY_ID,
+): ForecastRasterLayerGroup | null {
+  return groupId == null ? null : groupsById[groupId] ?? null
+}
+
+export function getForecastRasterLayerGroupForLayerId(layerId: string | null): ForecastRasterLayerGroup | null {
+  const layer = getForecastRasterLayer(layerId)
+  return getForecastRasterLayerGroup(layer?.groupId ?? null)
 }
 
 export function requireForecastRasterLayer(

@@ -21,9 +21,9 @@ export default function RadioButton({
     random,
   })
 
-  const actionLabel = player.isPlaying ? 'Pause radio' : 'Play radio'
+  const actionLabel = player.isPlaying ? 'Pause weather radio' : 'Play weather radio'
   const title = player.isUnavailable
-    ? 'Radio playlist unavailable'
+    ? 'Weather radio unavailable'
     : (player.statusDetail ?? (
         player.currentTrackTitle
           ? `${actionLabel}: ${player.currentTrackTitle}`

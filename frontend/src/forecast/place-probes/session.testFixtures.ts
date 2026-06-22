@@ -16,6 +16,8 @@ type MapEventHandler = (...args: unknown[]) => void
 
 export type ProbeablePlacesMap = MapLibreMap & {
   emit: (eventName: MapEventName) => void
+  setBounds: (west: number, east: number, south: number, north: number) => void
+  setCanvasSize: (width: number, height: number) => void
   setSourceFeatures: (features: MapGeoJSONFeature[]) => void
   setZoom: (zoom: number) => void
   on: ReturnType<typeof vi.fn>
@@ -33,7 +35,6 @@ export type ProbeablePlacesMap = MapLibreMap & {
   setFeatureState: ReturnType<typeof vi.fn>
   probeSource: {
     setData: ReturnType<typeof vi.fn>
-    updateData: ReturnType<typeof vi.fn>
   } | null
 }
 
@@ -72,10 +73,19 @@ export function createProbeablePlacesMap(): ProbeablePlacesMap {
   const layers = new Set<string>()
   let sourceFeatures: MapGeoJSONFeature[] = []
   let zoom = 4
-  const canvas = { style: { cursor: '' } }
+  let bounds = {
+    west: -180,
+    east: 180,
+    south: -85,
+    north: 85,
+  }
+  const canvas = {
+    clientWidth: 1024,
+    clientHeight: 768,
+    style: { cursor: '' },
+  }
   let probeSource: {
     setData: ReturnType<typeof vi.fn>
-    updateData: ReturnType<typeof vi.fn>
   } | null = null
 
   const map = {
@@ -86,13 +96,21 @@ export function createProbeablePlacesMap(): ProbeablePlacesMap {
       if (sourceId === placeProbeLayerIds.source) {
         probeSource = {
           setData: vi.fn(),
-          updateData: vi.fn(),
         }
         sources.set(sourceId, probeSource)
       }
     }),
     getBounds: vi.fn(() => ({
-      contains: vi.fn(() => true),
+      contains: vi.fn(([lon, lat]: [number, number]) => (
+        lon >= bounds.west &&
+        lon <= bounds.east &&
+        lat >= bounds.south &&
+        lat <= bounds.north
+      )),
+      getWest: vi.fn(() => bounds.west),
+      getEast: vi.fn(() => bounds.east),
+      getSouth: vi.fn(() => bounds.south),
+      getNorth: vi.fn(() => bounds.north),
     })),
     getLayer: vi.fn((layerId: string) => (
       layers.has(layerId) ? { id: layerId } : undefined
@@ -110,8 +128,8 @@ export function createProbeablePlacesMap(): ProbeablePlacesMap {
     }),
     setFeatureState: vi.fn(),
     on: vi.fn((eventName: MapEventName, layerOrHandler: string | MapEventHandler, maybeHandler?: MapEventHandler) => {
-      const key = getMapEventKey(eventName, layerOrHandler)
-      const handler = getMapEventHandler(layerOrHandler, maybeHandler)
+      const key = mapEventKey(eventName, layerOrHandler)
+      const handler = mapEventHandler(layerOrHandler, maybeHandler)
       let eventHandlers = handlers.get(key)
       if (!eventHandlers) {
         eventHandlers = new Set<MapEventHandler>()
@@ -120,14 +138,21 @@ export function createProbeablePlacesMap(): ProbeablePlacesMap {
       eventHandlers.add(handler)
     }),
     off: vi.fn((eventName: MapEventName, layerOrHandler: string | MapEventHandler, maybeHandler?: MapEventHandler) => {
-      const key = getMapEventKey(eventName, layerOrHandler)
-      handlers.get(key)?.delete(getMapEventHandler(layerOrHandler, maybeHandler))
+      const key = mapEventKey(eventName, layerOrHandler)
+      handlers.get(key)?.delete(mapEventHandler(layerOrHandler, maybeHandler))
     }),
     emit(eventName: MapEventName) {
       handlers.get(eventName)?.forEach((handler) => handler())
     },
+    setBounds(west: number, east: number, south: number, north: number) {
+      bounds = { west, east, south, north }
+    },
     setSourceFeatures(features: MapGeoJSONFeature[]) {
       sourceFeatures = features
+    },
+    setCanvasSize(width: number, height: number) {
+      canvas.clientWidth = width
+      canvas.clientHeight = height
     },
     setZoom(nextZoom: number) {
       zoom = nextZoom
@@ -142,27 +167,17 @@ export function createProbeablePlacesMap(): ProbeablePlacesMap {
 
 export function getLastProbeCollection(map: ProbeablePlacesMap) {
   return map.probeSource?.setData.mock.lastCall?.[0] as
-    | { features: Array<{ properties: { name: string; localName: string; probeText: string; sortKey: number } }> }
+    | { features: Array<{ properties: { labelText: string; sortKey: number } }> }
     | undefined
 }
 
-export function getLastProbeTextDiff(map: ProbeablePlacesMap) {
-  return map.probeSource?.updateData.mock.lastCall?.[0] as
-    | {
-      add?: Array<{ properties: { name: string; probeText: string; sortKey: number } }>
-      remove?: string[]
-      update?: Array<{ id: string; addOrUpdateProperties: Array<{ key: string; value: string }> }>
-    }
-    | undefined
-}
-
-function getMapEventKey(eventName: MapEventName, layerOrHandler: string | MapEventHandler): string {
+function mapEventKey(eventName: MapEventName, layerOrHandler: string | MapEventHandler): string {
   return typeof layerOrHandler === 'string'
     ? `${eventName}:${layerOrHandler}`
     : eventName
 }
 
-function getMapEventHandler(
+function mapEventHandler(
   layerOrHandler: string | MapEventHandler,
   maybeHandler?: MapEventHandler,
 ): MapEventHandler {

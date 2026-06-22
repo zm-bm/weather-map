@@ -75,4 +75,34 @@ describe('basemap style', () => {
       property: 'fill-opacity',
     })).toBe(waterPaint?.['fill-opacity'])
   })
+
+  it('keeps the standard basemap quiet behind weather fields', () => {
+    expect(readStandardBasemapPaintValue({
+      layerId: BASEMAP_LAYER_IDS.coastline,
+      property: 'line-opacity',
+    })).toBe(0.82)
+    expect(readStandardBasemapPaintValue({
+      layerId: BASEMAP_LAYER_IDS.roadMajor,
+      property: 'line-opacity',
+    })).toBe(0.1)
+    expect(readStandardBasemapPaintValue({
+      layerId: BASEMAP_LAYER_IDS.boundary2,
+      property: 'line-opacity',
+    })).toEqual([
+      'interpolate', ['linear'], ['zoom'],
+      0, 0.34,
+      4, 0.54,
+      10, 0.62,
+    ])
+    expect(readStandardBasemapPaintValue({
+      layerId: BASEMAP_LAYER_IDS.boundary4,
+      property: 'line-opacity',
+    })).toEqual([
+      'interpolate', ['linear'], ['zoom'],
+      4, 0.28,
+      7, 0.36,
+      11, 0.44,
+      20, 0.5,
+    ])
+  })
 })

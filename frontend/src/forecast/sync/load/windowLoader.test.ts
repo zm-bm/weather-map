@@ -391,13 +391,13 @@ describe('window plan loading particle window', () => {
     const frame = await load.loadFrame('000')
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(frame.source).toEqual({
+    expect(frame.source).toEqual(expect.objectContaining({
       id: 'wind',
       source: {
         artifactId: 'wind10m_uv',
         bands: [{ id: 'u' }, { id: 'v' }],
       },
-    })
+    }))
     expect(frame.raster.cacheKey).toBe(`${load.frames[0].cacheKeyPrefix}:000`)
     expect(frame.raster.bandIds).toEqual(['u', 'v'])
     expect(Array.from(frame.raster.bands[0] ?? [])).toEqual([1, -2, 3, -4])

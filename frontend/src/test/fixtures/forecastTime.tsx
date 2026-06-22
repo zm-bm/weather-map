@@ -36,8 +36,7 @@ export function createForecastTimeContextValue(
     },
     controls: {
       requestTime: vi.fn(),
-      requestNext: vi.fn(),
-      requestPrev: vi.fn(),
+      resetToNow: vi.fn(),
       togglePlay: vi.fn(),
       ...options.controls,
     },

@@ -1,20 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  DEFAULT_PARTICLE_RENDER_SETTINGS,
   DEFAULT_FORECAST_SETTINGS,
-  particleSizeSettingsForRatio,
-  particleTrailFadeFromLength,
+  ForecastSettingsProvider,
   type ForecastSettings,
-  type ForecastSettingsActions,
 } from '@/forecast/settings'
 import MapOptionsButton from './MapOptionsButton'
 
-const PARTICLE_SIZE_RATIO = 1.25
-const PARTICLE_SIZE = particleSizeSettingsForRatio(PARTICLE_SIZE_RATIO)
-const TRAIL_LENGTH = 5
-const TRAIL_FADE = particleTrailFadeFromLength(TRAIL_LENGTH)
+const TRAIL_LENGTH = 7
+const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
 
 const SETTINGS: ForecastSettings = {
   ...DEFAULT_FORECAST_SETTINGS,
@@ -28,200 +24,119 @@ const SETTINGS: ForecastSettings = {
   },
 }
 
-function createActions(): ForecastSettingsActions {
-  return {
-    updateRaster: vi.fn(),
-    updateParticles: vi.fn(),
-    updatePressureContours: vi.fn(),
-    updateUnits: vi.fn(),
-    toggleUnitSystem: vi.fn(),
-  }
+function TestMapOptionsButton() {
+  const [isOpen, setIsOpen] = useState(false)
+  return (
+    <ForecastSettingsProvider>
+      <MapOptionsButton
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+      />
+    </ForecastSettingsProvider>
+  )
+}
+
+function seedSettings(settings: ForecastSettings = SETTINGS) {
+  localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
 }
 
 describe('MapOptionsButton', () => {
-  it('toggles panel visibility and requests map setting changes', () => {
-    const actions = createActions()
-    const { rerender } = render(
-      <MapOptionsButton
-        settings={SETTINGS}
-        settingsActions={actions}
-      />
-    )
+  beforeEach(() => {
+    localStorage.clear()
+    seedSettings()
+  })
 
-    const button = screen.getByRole('button', { name: 'Map options' })
-    const panel = screen.getByText('Grid').closest('.map-control-options-panel') as HTMLDivElement | null
-    const showParticlesCheckbox = screen.getByRole('checkbox', { name: 'Show particles', hidden: true })
-    const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Show pressure contours', hidden: true })
-    const smoothRadio = screen.getByRole('radio', { name: 'Smooth', hidden: true })
-    const gradientRadio = screen.getByRole('radio', { name: 'Gradient', hidden: true })
-    const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
-    const nearestRadio = screen.getByRole('radio', { name: 'Nearest', hidden: true })
-    const opacitySlider = screen.getByRole('slider', { name: 'Layer opacity', hidden: true }) as HTMLInputElement
-    const densitySlider = screen.getByRole('slider', { name: 'Particle density', hidden: true }) as HTMLInputElement
-    const speedSlider = screen.getByRole('slider', { name: 'Particle speed', hidden: true }) as HTMLInputElement
-    const sizeSlider = screen.getByRole('slider', { name: 'Particle size', hidden: true }) as HTMLInputElement
-    const trailOpacitySlider = screen.getByRole('slider', { name: 'Particle trail opacity', hidden: true }) as HTMLInputElement
-    const trailLengthSlider = screen.getByRole('slider', { name: 'Particle trail length', hidden: true }) as HTMLInputElement
+  it('toggles panel visibility and updates representative map settings', () => {
+    render(<TestMapOptionsButton />)
 
-    expect(panel).toBeTruthy()
-    expect(panel?.hidden).toBe(true)
-    expect(smoothRadio).toBeChecked()
-    expect(gradientRadio).toBeChecked()
-    expect(bandedRadio).not.toBeChecked()
-    expect(nearestRadio).not.toBeChecked()
-    expect(opacitySlider.value).toBe(String(DEFAULT_FORECAST_SETTINGS.raster.opacity))
-    expect(densitySlider.value).toBe(String(DEFAULT_FORECAST_SETTINGS.particles.particleCount))
-    expect(speedSlider.value).toBe('1')
-    expect(sizeSlider.value).toBe('1')
-    expect(trailOpacitySlider.value).toBe(String(DEFAULT_FORECAST_SETTINGS.particles.trailCompositeOpacity))
-    expect(trailLengthSlider.value).toBe('8')
-    expect(showParticlesCheckbox).toBeChecked()
-    expect(pressureContoursCheckbox).toBeChecked()
-    expect(screen.queryByRole('checkbox', { name: 'Clear trails on view change', hidden: true }))
-      .not.toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Map display options' })
 
     fireEvent.click(button)
-    expect(panel?.hidden).toBe(false)
+
+    const bandedRadio = screen.getByRole('radio', { name: 'Banded' })
+    const nearestRadio = screen.getByRole('radio', { name: 'Nearest' })
+    const opacitySlider = screen.getByRole('slider', { name: /Opacity/ }) as HTMLInputElement
+    const speedSlider = screen.getByRole('slider', { name: /Speed/ }) as HTMLInputElement
+    const trailLengthSlider = screen.getByRole('slider', { name: /Trail length/ }) as HTMLInputElement
+    const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Pressure contours' })
+    const windAnimationCheckbox = screen.getByRole('checkbox', { name: 'Wind animation' })
 
     fireEvent.change(opacitySlider, { target: { value: '0.65' } })
-    expect(actions.updateRaster).toHaveBeenCalledWith({ opacity: 0.65 })
-
-    fireEvent.change(densitySlider, { target: { value: '12000' } })
-    expect(actions.updateParticles).toHaveBeenCalledWith({ particleCount: 12000 })
+    expect(opacitySlider).toHaveValue('0.65')
 
     fireEvent.change(speedSlider, { target: { value: '1.2' } })
-    expect(actions.updateParticles).toHaveBeenCalledWith({
-      flowSpeedScale: Math.round(DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * 1.2),
-    })
-
-    fireEvent.change(sizeSlider, { target: { value: String(PARTICLE_SIZE_RATIO) } })
-    expect(actions.updateParticles).toHaveBeenCalledWith(PARTICLE_SIZE)
-
-    fireEvent.change(trailOpacitySlider, { target: { value: '0.45' } })
-    expect(actions.updateParticles).toHaveBeenCalledWith({
-      trailCompositeOpacity: 0.45,
-    })
+    expect(speedSlider).toHaveValue('1.2')
 
     fireEvent.change(trailLengthSlider, { target: { value: String(TRAIL_LENGTH) } })
-    expect(actions.updateParticles).toHaveBeenCalledWith({
-      trailFade: TRAIL_FADE,
-    })
+    expect(trailLengthSlider).toHaveValue(String(TRAIL_LENGTH))
 
     fireEvent.click(nearestRadio)
-    expect(actions.updateRaster).toHaveBeenCalledWith({ gridSamplingMode: 'nearest' })
+    expect(nearestRadio).toBeChecked()
 
     fireEvent.click(bandedRadio)
-    expect(actions.updateRaster).toHaveBeenCalledWith({ colorSamplingMode: 'banded' })
-    rerender(
-      <MapOptionsButton
-        settings={{
-          ...SETTINGS,
-          raster: {
-            gridSamplingMode: 'nearest',
-            colorSamplingMode: 'banded',
-            opacity: 0.65,
-          },
-          particles: {
-            ...SETTINGS.particles,
-            particleCount: 12000,
-            flowSpeedScale: Math.round(DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * 1.2),
-            ...PARTICLE_SIZE,
-            trailCompositeOpacity: 0.45,
-            trailFade: TRAIL_FADE,
-          },
-        }}
-        settingsActions={actions}
-      />
-    )
-    expect(nearestRadio).toBeChecked()
     expect(bandedRadio).toBeChecked()
-    expect(opacitySlider.value).toBe('0.65')
-    expect(densitySlider.value).toBe('12000')
-    expect(speedSlider.value).toBe('1.2')
-    expect(sizeSlider.value).toBe(String(PARTICLE_SIZE_RATIO))
-    expect(trailOpacitySlider.value).toBe('0.45')
-    expect(trailLengthSlider.value).toBe(String(TRAIL_LENGTH))
-
-    fireEvent.click(showParticlesCheckbox)
-    expect(actions.updateParticles).toHaveBeenCalledWith({ enabled: false })
-    rerender(
-      <MapOptionsButton
-        settings={{
-          ...SETTINGS,
-          raster: {
-            gridSamplingMode: 'nearest',
-            colorSamplingMode: 'banded',
-            opacity: 0.65,
-          },
-          particles: {
-            ...SETTINGS.particles,
-            enabled: false,
-            particleCount: 12000,
-            flowSpeedScale: Math.round(DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * 1.2),
-            ...PARTICLE_SIZE,
-            trailCompositeOpacity: 0.45,
-            trailFade: TRAIL_FADE,
-          },
-        }}
-        settingsActions={actions}
-      />
-    )
-    expect(showParticlesCheckbox).not.toBeChecked()
-    expect(densitySlider).toBeDisabled()
-    expect(speedSlider).toBeDisabled()
-    expect(sizeSlider).toBeDisabled()
-    expect(trailOpacitySlider).toBeDisabled()
-    expect(trailLengthSlider).toBeDisabled()
 
     fireEvent.click(pressureContoursCheckbox)
-    expect(actions.updatePressureContours).toHaveBeenCalledWith({ enabled: false })
-    rerender(
-      <MapOptionsButton
-        settings={{
-          ...SETTINGS,
-          raster: {
-            gridSamplingMode: 'nearest',
-            colorSamplingMode: 'banded',
-            opacity: 0.65,
-          },
-          particles: {
-            ...SETTINGS.particles,
-            enabled: false,
-            particleCount: 12000,
-            flowSpeedScale: Math.round(DEFAULT_PARTICLE_RENDER_SETTINGS.flowSpeedScale * 1.2),
-            ...PARTICLE_SIZE,
-            trailCompositeOpacity: 0.45,
-            trailFade: TRAIL_FADE,
-          },
-          pressureContours: {
-            enabled: false,
-          },
-        }}
-        settingsActions={actions}
-      />
-    )
     expect(pressureContoursCheckbox).not.toBeChecked()
+
+    fireEvent.click(windAnimationCheckbox)
+    expect(windAnimationCheckbox).not.toBeChecked()
   })
 
-  it('closes the panel when clicking outside without closing on inside clicks', () => {
-    render(
-      <MapOptionsButton
-        settings={SETTINGS}
-        settingsActions={createActions()}
-      />
-    )
+  it('disables wind sliders when wind animation is off', () => {
+    seedSettings({
+      ...SETTINGS,
+      particles: {
+        ...SETTINGS.particles,
+        enabled: false,
+      },
+    })
+    render(<TestMapOptionsButton />)
 
-    const button = screen.getByRole('button', { name: 'Map options' })
-    const panel = screen.getByText('Grid').closest('.map-control-options-panel') as HTMLDivElement | null
-    const bandedRadio = screen.getByRole('radio', { name: 'Banded', hidden: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Map display options' }))
+
+    expect(screen.getByRole('checkbox', { name: 'Wind animation' }))
+      .not.toBeChecked()
+    expect(screen.getByRole('slider', { name: /Density/ })).toBeDisabled()
+    expect(screen.getByRole('slider', { name: /Speed/ })).toBeDisabled()
+    expect(screen.getByRole('slider', { name: /Size/ })).toBeDisabled()
+    expect(screen.getByRole('slider', { name: /Trail opacity/ })).toBeDisabled()
+    expect(screen.getByRole('slider', { name: /Trail length/ })).toBeDisabled()
+  })
+
+  it('closes the panel on outside click or escape without closing on inside clicks', () => {
+    render(<TestMapOptionsButton />)
+
+    const button = screen.getByRole('button', { name: 'Map display options' })
 
     fireEvent.click(button)
-    expect(panel?.hidden).toBe(false)
+    const bandedRadio = screen.getByRole('radio', { name: 'Banded' })
+    expect(screen.getByText('Grid')).toBeInTheDocument()
 
     fireEvent.pointerDown(bandedRadio)
-    expect(panel?.hidden).toBe(false)
+    expect(screen.getByText('Grid')).toBeInTheDocument()
 
     fireEvent.pointerDown(document.body)
-    expect(panel?.hidden).toBe(true)
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(button)
+    expect(screen.getByText('Grid')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
   })
+
+  it('provides an explicit close action for the options panel', () => {
+    render(<TestMapOptionsButton />)
+
+    const button = screen.getByRole('button', { name: 'Map display options' })
+
+    fireEvent.click(button)
+    expect(screen.getByText('Grid')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close display options' }))
+
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+  })
+
 })

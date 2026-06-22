@@ -70,34 +70,14 @@ function ForecastTimeProviderInner({
     })
   }, [times])
 
-  const queueTime = useCallback((targetTimeMs: number) => {
+  const resetToNow = useCallback(() => {
+    const nowMs = Date.now()
     dispatch({
-      type: 'queueTime',
-      timeMs: clampForecastValidTimeMs(times, targetTimeMs),
+      type: 'reset',
+      timeMs: initialForecastValidTimeMs(times, nowMs),
+      nowMs,
     })
   }, [times])
-
-  const requestNext = useCallback(() => {
-    const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
-    queueTime(
-      stepForecastValidTimeMs(
-        times,
-        referenceTimeMs,
-        1
-      )
-    )
-  }, [times, queueTime, state.pendingTimeMs, state.targetTimeMs])
-
-  const requestPrev = useCallback(() => {
-    const referenceTimeMs = state.pendingTimeMs ?? state.targetTimeMs
-    queueTime(
-      stepForecastValidTimeMs(
-        times,
-        referenceTimeMs,
-        -1
-      )
-    )
-  }, [times, queueTime, state.pendingTimeMs, state.targetTimeMs])
 
   const togglePlay = useCallback(() => {
     if (frameCount <= 1) return
@@ -172,16 +152,14 @@ function ForecastTimeProviderInner({
     },
     controls: {
       requestTime,
-      requestNext,
-      requestPrev,
+      resetToNow,
       togglePlay,
     },
     syncCallbacks,
   }), [
     times,
     requestTime,
-    requestNext,
-    requestPrev,
+    resetToNow,
     togglePlay,
     state.appliedTimeMs,
     state.isInFlight,

@@ -18,7 +18,6 @@ const PASSES_SOURCE = [
 describe('particle runtime source', () => {
   it('uses premultiplied alpha blending for particles and trail composite', () => {
     expect(PASSES_SOURCE).toContain('gl.blendFuncSeparate(')
-    expect(PASSES_SOURCE).not.toContain('gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)')
 
     const premultipliedBlendCount = PASSES_SOURCE.match(/gl\.blendFuncSeparate\(/g)?.length ?? 0
     const premultipliedBlendArguments = PASSES_SOURCE.match(
@@ -50,13 +49,6 @@ describe('particle runtime source', () => {
     expect(PASSES_INDEX_SOURCE).toContain('vectorFramePair: PackedVectorFramePair | null')
     expect(RUNTIME_SOURCE).toContain('state.vectorFramePair = nextFramePair')
     expect(RUNTIME_SOURCE).toContain('deletePackedVectorFramePairTextures(gl, previousFramePair, nextFramePair)')
-    expect(RUNTIME_SOURCE).not.toContain('vectorTextureLower: WebGLTexture | null')
-    expect(RUNTIME_SOURCE).not.toContain('vectorTextureUpper: WebGLTexture | null')
-    expect(RUNTIME_SOURCE).not.toContain('vectorFrameLower')
-    expect(RUNTIME_SOURCE).not.toContain('vectorFrameUpper')
-    expect(RUNTIME_SOURCE).not.toContain('hasFrame')
-    expect(RUNTIME_SOURCE).not.toContain('frameSignature')
-    expect(RUNTIME_SOURCE).not.toContain('available: boolean')
   })
 
   it('stores speed in a four-component particle state buffer', () => {
@@ -68,7 +60,6 @@ describe('particle runtime source', () => {
 
   it('uses the shared WebGL program helper with explicit particle attributes', () => {
     expect(RUNTIME_SOURCE).toContain("import { asWebGL2, createProgramInfo } from '../../gpu'")
-    expect(RUNTIME_SOURCE).not.toContain("import * as twgl from 'twgl.js'")
     expect(RUNTIME_SOURCE).toContain("label: 'particles:update'")
     expect(RUNTIME_SOURCE).toContain('attribLocations: { a_state: 0 }')
     expect(RUNTIME_SOURCE).toContain('transformFeedbackMode: gl2.SEPARATE_ATTRIBS')
@@ -78,8 +69,6 @@ describe('particle runtime source', () => {
   it('keeps particle orchestration pointed at pass and shader indexes', () => {
     expect(RUNTIME_SOURCE).toContain("} from './renderPasses'")
     expect(RUNTIME_SOURCE).toContain("} from './shaders'")
-    expect(RUNTIME_SOURCE).not.toContain("from './renderPasses/update'")
-    expect(RUNTIME_SOURCE).not.toContain("from './shaders/update'")
   })
 
   it('uploads wind vectors as signed integer RG textures', () => {
@@ -87,19 +76,10 @@ describe('particle runtime source', () => {
     expect(VECTOR_TEXTURE_SOURCE).toContain('gl.RG8I')
     expect(VECTOR_TEXTURE_SOURCE).toContain('gl.RG_INTEGER')
     expect(VECTOR_TEXTURE_SOURCE).toContain('gl.BYTE')
-    expect(VECTOR_TEXTURE_SOURCE).not.toContain('i8ToU8')
-    expect(VECTOR_TEXTURE_SOURCE).not.toContain('gl.RG,\n      gl.UNSIGNED_BYTE')
   })
 
-  it('passes dot settings to draw shaders without dash settings', () => {
+  it('passes dot settings to draw shaders', () => {
     expect(PASSES_SOURCE).toContain('u_dot_min_px: options.dotMinPx')
     expect(PASSES_SOURCE).toContain('u_dot_max_px: options.dotMaxPx')
-
-    expect(PASSES_SOURCE).not.toContain('u_point_size: options.pointSizePx')
-    expect(PASSES_SOURCE).not.toContain('u_dash_min_len_px: options.dashMinPx')
-    expect(PASSES_SOURCE).not.toContain('u_dash_max_len_px: options.dashMaxPx')
-    expect(PASSES_SOURCE).not.toContain('u_dash_len_per_mps: options.dashPerMps')
-    expect(PASSES_SOURCE).not.toContain('u_core_width_px: options.coreWidthPx')
-    expect(PASSES_SOURCE).not.toContain('u_dir_step_sec: options.dirSampleStepSec')
   })
 })

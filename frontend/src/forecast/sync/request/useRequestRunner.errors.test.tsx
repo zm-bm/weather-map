@@ -29,6 +29,7 @@ describe('useRequestRunner initial sync and errors', () => {
         (args.plan as ForecastSyncPlan).selectedValidTimeMs,
         initialSyncError
       )
+      expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
       expect(result.current.phase).toBe('error')
       expect(result.current.errorMessage).toBe('wind failed')
     })
@@ -84,6 +85,7 @@ describe('useRequestRunner initial sync and errors', () => {
     await waitFor(() => {
       expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
       expect(runnerMocks.applyRenderWindows).not.toHaveBeenCalled()
+      expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     })
 
     await act(async () => {

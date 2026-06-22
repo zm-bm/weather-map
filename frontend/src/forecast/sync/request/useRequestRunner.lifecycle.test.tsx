@@ -1,5 +1,5 @@
 import { act, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ForecastSyncPlan } from '../plan'
 import type { ForecastRenderHost } from '@/forecast/render'
@@ -32,6 +32,7 @@ describe('useRequestRunner lifecycle', () => {
     expect(runnerMocks.loadJob).not.toHaveBeenCalled()
     expect(runnerMocks.applyRenderWindows).not.toHaveBeenCalled()
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     expect(result.current.phase).toBe('idle')
     expect(result.current.errorMessage).toBeNull()
   })
@@ -48,6 +49,7 @@ describe('useRequestRunner lifecycle', () => {
     expect(runnerMocks.loadJob).not.toHaveBeenCalled()
     expect(runnerMocks.applyRenderWindows).not.toHaveBeenCalled()
     expect(callbacks.onRequestStart).not.toHaveBeenCalled()
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     expect(result.current.phase).toBe('loading')
 
     rerender({
@@ -62,6 +64,35 @@ describe('useRequestRunner lifecycle', () => {
         (args.plan as ForecastSyncPlan).selectedValidTimeMs
       )
       expect(result.current.phase).toBe('ready')
+    })
+  })
+
+  it('reports field loading around real requests', async () => {
+    const windows = createRunnerWindows()
+    const request = deferred<typeof windows>()
+    const onFieldLoadingChange = vi.fn()
+    runnerMocks.loadJob.mockImplementationOnce(() => request.promise)
+
+    const args = createBaseRunnerArgs({ onFieldLoadingChange })
+    const callbacks = args.syncCallbacks
+    renderRequestRunnerHarness(args)
+
+    await waitFor(() => {
+      expect(callbacks.onRequestStart).toHaveBeenCalledWith(
+        (args.plan as ForecastSyncPlan).selectedValidTimeMs
+      )
+      expect(onFieldLoadingChange).toHaveBeenLastCalledWith(true)
+    })
+
+    act(() => {
+      request.resolve(windows)
+    })
+
+    await waitFor(() => {
+      expect(callbacks.onRequestApplied).toHaveBeenCalledWith(
+        (args.plan as ForecastSyncPlan).selectedValidTimeMs
+      )
+      expect(onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     })
   })
 
@@ -98,6 +129,7 @@ describe('useRequestRunner lifecycle', () => {
     expect(result.current.phase).toBe('ready')
     expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
     expect(runnerMocks.applyRenderWindows).toHaveBeenCalledTimes(1)
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
 
     rerender({
       ...args,
@@ -110,6 +142,7 @@ describe('useRequestRunner lifecycle', () => {
 
     expect(runnerMocks.loadJob).toHaveBeenCalledTimes(1)
     expect(runnerMocks.applyRenderWindows).toHaveBeenCalledTimes(1)
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
   })
 
   it('reapplies the current plan when render host version changes', async () => {
@@ -157,6 +190,7 @@ describe('useRequestRunner lifecycle', () => {
       expect(result.current.errorMessage).toBeNull()
     })
     expect(args.onProbeFrameChange).toHaveBeenCalledWith(null)
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     expect(runnerMocks.resetSession).toHaveBeenCalled()
   })
 
@@ -176,6 +210,7 @@ describe('useRequestRunner lifecycle', () => {
 
     unmount()
     expect(createLoadJobSignal(0).aborted).toBe(true)
+    expect(args.onFieldLoadingChange).toHaveBeenLastCalledWith(false)
     expect(runnerMocks.resetSession).toHaveBeenCalled()
 
     await act(async () => {

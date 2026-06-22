@@ -39,6 +39,7 @@ export type RequestRunnerHarnessArgs = {
   syncCallbacks: ForecastTimeSyncCallbacks
   syncSession: ForecastSyncSession
   onProbeFrameChange?: (frame: ProbeWindow | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
 }
 
 export function useRequestRunnerHarness(args: RequestRunnerHarnessArgs) {
@@ -52,6 +53,7 @@ export function useRequestRunnerHarness(args: RequestRunnerHarnessArgs) {
     initialSync,
     syncSession: args.syncSession,
     onProbeFrameChange: args.onProbeFrameChange,
+    onFieldLoadingChange: args.onFieldLoadingChange,
   })
 
   return {
@@ -93,6 +95,7 @@ export function createBaseRunnerArgs(
     syncCallbacks: createSyncCallbacks(),
     syncSession: createRunnerSyncSessionFixture(),
     onProbeFrameChange: vi.fn(),
+    onFieldLoadingChange: vi.fn(),
     ...overrides,
   }
 }

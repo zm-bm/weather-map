@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   shellProps: null as {
     forecast: ForecastManifestData | null
     onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+    onFieldLoadingChange?: (isLoading: boolean) => void
   } | null,
 }))
 
@@ -32,6 +33,7 @@ vi.mock('@/forecast/ui/ForecastShell', () => ({
   default: (props: {
     forecast: ForecastManifestData | null
     onInitialSyncStatusChange?: (status: ForecastSyncInitialStatus | null) => void
+    onFieldLoadingChange?: (isLoading: boolean) => void
   }) => {
     mocks.shellProps = props
     return <div data-testid="forecast-shell" />
@@ -67,6 +69,12 @@ function publishInitialSyncStatus(overrides: Partial<ForecastSyncInitialStatus> 
   })
 }
 
+function publishFieldLoadingChange(isLoading: boolean) {
+  act(() => {
+    mocks.shellProps?.onFieldLoadingChange?.(isLoading)
+  })
+}
+
 function expectStatusText(title: string, detail?: string) {
   expect(screen.getByText(title)).toBeInTheDocument()
   if (detail != null) {
@@ -93,14 +101,16 @@ describe('ForecastApp', () => {
 
     expect(mocks.shellProps?.forecast).toBe(data)
     expect(mocks.shellProps?.onInitialSyncStatusChange).toEqual(expect.any(Function))
+    expect(mocks.shellProps?.onFieldLoadingChange).toEqual(expect.any(Function))
   })
 
   it('mounts app status at the app level and projects manifest loading state', () => {
     renderForecastApp()
 
-    expectStatusText('Loading Forecast', 'Fetching manifest index.')
-    expect(screen.getByText('Loading Forecast').closest('.forecast-screen__status-overlay'))
-      .not.toBeNull()
+    expectStatusText('Loading Forecast')
+    expect(screen.getByRole('status', {
+      name: 'Loading Forecast',
+    })).toBeInTheDocument()
   })
 
   it('projects retryable manifest errors', () => {
@@ -114,9 +124,11 @@ describe('ForecastApp', () => {
 
     renderForecastApp()
 
-    screen.getByRole('button', { name: 'Retry' }).click()
+    screen.getByRole('button', { name: 'Retry Feed' }).click()
 
-    expectStatusText('Forecast Load Failed', 'manifest failed')
+    expectStatusText('Forecast Feed Offline', 'manifest failed')
+    expect(screen.getByText('Retry reconnects to the forecast catalog. If this continues, the latest manifest may be unavailable or unreachable.'))
+      .toBeInTheDocument()
     expect(retry).toHaveBeenCalledTimes(1)
   })
 
@@ -124,15 +136,59 @@ describe('ForecastApp', () => {
     mocks.manifestState = createReadyManifestState()
     renderForecastApp()
 
-    expect(screen.queryByText('Initializing Forecast Map')).not.toBeInTheDocument()
-
     publishInitialSyncStatus({ phase: 'loading' })
 
-    expectStatusText('Initializing Forecast Map', 'Loading initial forecast data.')
+    expectStatusText('Loading Map Field')
+    expect(screen.getByRole('status', {
+      name: 'Loading Map Field',
+    })).toBeInTheDocument()
 
     publishInitialSyncStatus({ phase: 'ready' })
 
-    expect(screen.queryByText('Initializing Forecast Map')).not.toBeInTheDocument()
+    expect(screen.queryByText('Loading Map Field')).not.toBeInTheDocument()
+  })
+
+  it('projects map field update loading after the manifest is ready', () => {
+    mocks.manifestState = createReadyManifestState()
+    renderForecastApp()
+
+    publishFieldLoadingChange(true)
+    expectStatusText('Loading Map Field')
+
+    publishFieldLoadingChange(false)
+    expect(screen.queryByText('Loading Map Field')).not.toBeInTheDocument()
+  })
+
+  it('projects retryable initial sync errors after the manifest is ready', () => {
+    const retry = vi.fn()
+    mocks.manifestState = createReadyManifestState()
+    renderForecastApp()
+
+    publishInitialSyncStatus({
+      phase: 'error',
+      errorMessage: 'texture upload failed',
+      retry,
+    })
+
+    screen.getByRole('button', { name: 'Retry Field' }).click()
+
+    expectStatusText('Field Startup Failed', 'texture upload failed')
+    expect(screen.getByText('Retry reloads the current field data and restarts renderer setup for this source and cycle.'))
+      .toBeInTheDocument()
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps field errors ahead of map field update loading', () => {
+    mocks.manifestState = createReadyManifestState()
+    renderForecastApp()
+
+    publishFieldLoadingChange(true)
+    publishInitialSyncStatus({
+      phase: 'error',
+      errorMessage: 'texture upload failed',
+    })
+
+    expectStatusText('Field Startup Failed', 'texture upload failed')
   })
 
   it('uses manifest status before lifted sync status while manifest is blocked', () => {
@@ -144,6 +200,5 @@ describe('ForecastApp', () => {
     })
 
     expectStatusText('Loading Forecast')
-    expect(screen.queryByText('Forecast Startup Failed')).not.toBeInTheDocument()
   })
 })

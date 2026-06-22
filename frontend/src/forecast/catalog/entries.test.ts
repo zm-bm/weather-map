@@ -136,14 +136,16 @@ describe('layer catalog', () => {
     expect(getDefaultAvailableContourLayer(null)).toBeNull()
   })
 
-  it('defines Cloud Layers as the default Clouds & Visibility layer backed by low middle high cloud vectors', () => {
+  it('defines Cloud Layers as the default Clouds layer backed by low middle high cloud vectors', () => {
     const cloudGroup = FORECAST_RASTER_LAYER_GROUPS.find((group) => group.id === 'clouds_visibility')
     const cloudLayers = requireRasterLayer(FORECAST_RASTER_LAYERS_BY_ID.cloud_layers)
 
+    expect(cloudGroup?.label).toBe('Clouds')
     expect(cloudGroup?.rasterLayerIds[0]).toBe('cloud_layers')
-    expect(cloudGroup?.rasterLayerIds).toContain(cloudLayers.id)
-    expect(cloudGroup?.rasterLayerIds).toContain(FORECAST_RASTER_LAYERS_BY_ID.cloud_cover!.id)
-    expect(cloudGroup?.rasterLayerIds).toContain(FORECAST_RASTER_LAYERS_BY_ID.visibility!.id)
+    expect(cloudGroup?.rasterLayerIds).toEqual([
+      cloudLayers.id,
+      FORECAST_RASTER_LAYERS_BY_ID.cloud_cover!.id,
+    ])
     expect(cloudLayers).toMatchObject({
       display: {
         label: 'Cloud Layers',

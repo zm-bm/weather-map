@@ -21,7 +21,11 @@ export {
   probeRasterFrame,
   sampleRasterFrameWithSampler,
   sampleRasterWindowWithSampler,
+  sampleRasterCellValue,
 } from './rasterSampling'
+export {
+  searchBasemapPlaces,
+} from './search'
 export type {
   RasterWindowProbeResult,
   RasterProbePoint,
@@ -29,3 +33,6 @@ export type {
   RasterProbeSampleCell,
   RasterProbeSampler,
 } from './rasterSampling'
+export type {
+  PlaceSearchResult,
+} from './search'

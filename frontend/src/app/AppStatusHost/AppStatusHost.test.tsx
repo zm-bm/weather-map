@@ -1,52 +1,40 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import AppStatusHost from './AppStatusHost'
-import type { AppStatus } from './types'
+import AppStatusHost, { type AppStatus } from './AppStatusHost'
 
 function renderHost(status: AppStatus) {
   return render(<AppStatusHost status={status} />)
 }
 
 describe('AppStatusHost', () => {
-  it('renders blocking statuses in overlay wrapper', () => {
+  it('renders loading toast statuses as compact chips', () => {
     renderHost({
-      mode: 'blocking',
-      level: 'loading',
+      kind: 'loading',
       title: 'Loading Forecast',
-      detail: 'Fetching manifest...',
     })
 
     const status = screen.getByText('Loading Forecast')
     expect(status).toBeInTheDocument()
-    expect(status.closest('.forecast-screen__status-overlay')).not.toBeNull()
-  })
-
-  it('renders toast statuses in toast wrapper', () => {
-    renderHost({
-      mode: 'toast',
-      level: 'info',
-      title: 'Heads up',
-      detail: 'Map loaded',
-    })
-
-    const status = screen.getByText('Heads up')
-    expect(status).toBeInTheDocument()
-    expect(status.closest('.app-status-toast')).not.toBeNull()
+    expect(screen.getByRole('status', { name: 'Loading Forecast' }))
+      .toHaveAttribute('aria-live', 'polite')
   })
 
   it('renders and calls an optional status action', () => {
     const onAction = vi.fn()
 
     renderHost({
-      mode: 'blocking',
-      level: 'error',
+      kind: 'error',
       title: 'Forecast Load Failed',
       detail: 'manifest failed',
+      hint: 'Retry the forecast catalog.',
       actionLabel: 'Retry',
       onAction,
     })
 
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveAttribute('aria-live', 'assertive')
+    expect(screen.getByText('Retry the forecast catalog.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(onAction).toHaveBeenCalledTimes(1)

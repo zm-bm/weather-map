@@ -18,6 +18,7 @@ export type UseForecastSyncArgs = {
   config: WeatherMapConfig
   syncOptions: ForecastSyncOptions
   onProbeFrameChange?: (frame: ProbeWindow | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
 }
 
 export type UseForecastSyncResult = {
@@ -29,6 +30,7 @@ export function useForecastSync({
   config,
   syncOptions,
   onProbeFrameChange,
+  onFieldLoadingChange,
 }: UseForecastSyncArgs): UseForecastSyncResult {
   const initialSync = useInitialSyncController()
 
@@ -67,6 +69,7 @@ export function useForecastSync({
     initialSync,
     syncSession,
     onProbeFrameChange,
+    onFieldLoadingChange,
   })
 
   useEffect(() => {

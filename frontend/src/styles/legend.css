@@ -1,0 +1,257 @@
+/* Legend panel */
+.legend-panel {
+  --wm-legend-panel-width: 42px;
+  --wm-legend-scale-width: 42px;
+  --wm-legend-scale-height: 272px;
+  --wm-legend-scale-gap: 3px;
+  --wm-legend-label-size: 11px;
+  --wm-legend-unit-size: 10px;
+  --wm-legend-cloud-label-size: 8px;
+  --wm-legend-chrome-border: rgba(214, 224, 248, 0.24);
+  --wm-legend-chrome-border-hover: rgba(255, 241, 207, 0.48);
+  --wm-legend-chrome-outline: rgba(5, 10, 28, 0.44);
+  --wm-legend-chrome-inset: rgba(255, 246, 222, 0.13);
+  --wm-legend-chrome-shadow:
+    inset 0 0 0 1px var(--wm-legend-chrome-outline),
+    inset 0 1px 0 var(--wm-legend-chrome-inset),
+    0 8px 18px rgba(4, 9, 28, 0.22),
+    0 2px 0 rgba(3, 8, 26, 0.18);
+  --wm-legend-chrome-shadow-hover:
+    inset 0 0 0 1px rgba(5, 10, 28, 0.52),
+    inset 0 1px 0 rgba(255, 246, 222, 0.18),
+    0 10px 22px rgba(4, 9, 28, 0.28),
+    0 2px 0 rgba(3, 8, 26, 0.2);
+  --wm-legend-label-shadow:
+    0 1px 2px rgba(4, 10, 34, 0.98),
+    0 0 4px rgba(4, 10, 34, 0.86),
+    0 0 7px rgba(4, 10, 34, 0.58);
+  --wm-legend-label-shadow-soft:
+    0 1px 2px rgba(4, 10, 34, 0.94),
+    0 0 4px rgba(4, 10, 34, 0.7);
+
+  width: min(var(--wm-legend-panel-width), calc(100vw - 40px));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.legend-panel--cloud-layers {
+  --wm-legend-panel-width: 66px;
+  --wm-legend-scale-width: 20px;
+  --wm-legend-scale-height: 164px;
+  --wm-legend-scale-gap: 3px;
+  --wm-legend-unit-size: 10px;
+  --wm-legend-cloud-label-size: 10px;
+}
+
+.legend-panel__body {
+  display: grid;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.legend-panel__scale-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.legend-panel__scale-wrap {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  min-width: 0;
+  padding: 0;
+}
+
+.legend-panel__scale {
+  appearance: none;
+  position: relative;
+  display: block;
+  width: var(--wm-legend-scale-width);
+  height: var(--wm-legend-scale-height);
+  padding: 0;
+  border: 1px solid var(--wm-legend-chrome-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-clip: padding-box;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  box-shadow: var(--wm-legend-chrome-shadow);
+}
+
+.legend-panel__scale--interactive {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    filter 120ms ease;
+}
+
+.legend-panel__scale--interactive:hover {
+  border-color: var(--wm-legend-chrome-border-hover);
+  filter: brightness(1.04);
+  box-shadow: var(--wm-legend-chrome-shadow-hover);
+}
+
+.legend-panel__scale--interactive:focus-visible {
+  border-color: var(--wm-focus-ring-soft);
+  outline: 1px solid var(--wm-focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--wm-legend-chrome-shadow-hover);
+}
+
+.legend-panel__scale--static {
+  cursor: default;
+}
+
+.legend-panel__scale-unit {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  z-index: 1;
+  max-width: calc(100% - 7px);
+  overflow: hidden;
+  color: rgba(255, 248, 226, 0.94);
+  font-family: var(--wm-font-display);
+  font-size: var(--wm-legend-unit-size);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  text-shadow: var(--wm-legend-label-shadow);
+}
+
+.legend-panel__tick-label {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 5px);
+  overflow: hidden;
+  color: rgba(255, 248, 226, 0.92);
+  font-size: var(--wm-legend-label-size);
+  font-family: var(--wm-font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+  transform: translate(-50%, 50%);
+  pointer-events: none;
+  text-shadow: var(--wm-legend-label-shadow);
+}
+
+.legend-panel__scale-group {
+  display: grid;
+  grid-template-columns: repeat(3, var(--wm-legend-scale-width));
+  gap: var(--wm-legend-scale-gap);
+  min-width: 0;
+}
+
+.legend-panel__scale-footer {
+  overflow: hidden;
+  max-width: 100%;
+  color: rgba(255, 248, 226, 0.9);
+  font-family: var(--wm-font-mono);
+  font-size: var(--wm-legend-cloud-label-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: var(--wm-legend-label-shadow-soft);
+}
+
+.legend-panel--cloud-layers .legend-panel__scale-wrap {
+  gap: 0;
+}
+
+.legend-panel--cloud-layers .legend-panel__scale-unit {
+  top: 7px;
+  max-width: calc(100% - 2px);
+}
+
+.legend-panel--cloud-layers .legend-panel__scale-footer {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 1;
+  color: rgba(255, 250, 235, 0.96);
+  font-size: var(--wm-legend-cloud-label-size);
+  max-width: none;
+  overflow: visible;
+  transform: translateX(-50%) rotate(-90deg);
+  pointer-events: none;
+  text-shadow: var(--wm-legend-label-shadow);
+}
+/* Legend responsiveness */
+@media (max-width: 760px) {
+  .legend-panel {
+    --wm-legend-panel-width: 40px;
+    --wm-legend-scale-width: 40px;
+    --wm-legend-scale-height: 244px;
+    --wm-legend-scale-gap: 3px;
+    --wm-legend-label-size: 10px;
+    --wm-legend-unit-size: 9px;
+    --wm-legend-cloud-label-size: 8px;
+    padding: 0;
+  }
+
+  .forecast-stage__legend {
+    bottom: 10px;
+    left: var(--wm-chrome-inset, 12px);
+  }
+
+  .legend-panel--cloud-layers {
+    --wm-legend-panel-width: 60px;
+    --wm-legend-scale-width: 18px;
+    --wm-legend-scale-height: 150px;
+    --wm-legend-scale-gap: 3px;
+    --wm-legend-unit-size: 10px;
+    --wm-legend-cloud-label-size: 10px;
+  }
+
+  .legend-panel__scale-footer {
+    font-size: 8px;
+  }
+
+  .legend-panel--cloud-layers .legend-panel__scale-footer {
+    bottom: 15px;
+    font-size: var(--wm-legend-cloud-label-size);
+  }
+
+  .legend-panel__body {
+    gap: 3px;
+  }
+
+  .legend-panel__scale-unit {
+    top: 5px;
+    font-size: var(--wm-legend-unit-size);
+  }
+
+  .legend-panel__tick-label {
+    max-width: calc(100% - 6px);
+    font-size: var(--wm-legend-label-size);
+  }
+}

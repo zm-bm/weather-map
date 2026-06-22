@@ -7,6 +7,7 @@ import {
   probeRasterWindow,
   sampleRasterWindowWithSampler,
   sampleRasterFrameWithSampler,
+  sampleRasterCellValue,
 } from './rasterSampling'
 import type { ProbeWindow } from '@/forecast/frames'
 import type { GridSpec } from '@/forecast/manifest'
@@ -165,6 +166,14 @@ describe('probeRasterFrame', () => {
 
     expect(sampler).not.toBeNull()
     expect(sampleRasterFrameWithSampler(frame, sampler!)).toBe(probeRasterFrame(frame, coords)?.value)
+  })
+
+  it('decodes an individual raster cell value', () => {
+    const frame = createFrame([10, Number.NaN, 30, 50])
+
+    expect(sampleRasterCellValue(frame, 2)).toBe(30)
+    expect(sampleRasterCellValue(frame, 1)).toBeNull()
+    expect(sampleRasterCellValue(frame, -1)).toBeNull()
   })
 
   it('decodes u/v raster bands as wind speed magnitude', () => {

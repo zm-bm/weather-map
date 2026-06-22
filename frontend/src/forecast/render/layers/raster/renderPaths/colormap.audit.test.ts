@@ -160,16 +160,6 @@ describe('production raster palette contracts', () => {
     }
   })
 
-  it('keeps exact zero snow depth transparent and positive snow visible', () => {
-    const layer = FORECAST_RASTER_LAYERS.find((candidate) => candidate.id === 'snow_depth')
-    expect(layer).toBeDefined()
-    if (layer!.display.kind !== 'gradient') throw new Error('snow_depth must use a gradient display')
-    const palette = layer!.display.palette
-
-    expect(renderedColor(layer!, palette, 0, 'banded')[3]).toBe(0)
-    expect(renderedColor(layer!, palette, 0.02, 'banded')[3]).toBe(255)
-  })
-
   it('keeps nodata transparent in the colormap raster shader', () => {
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('encodedIsMissing(stored, hasNodata, nodata)')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('return encodedMissing();')

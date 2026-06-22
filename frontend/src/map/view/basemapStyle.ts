@@ -16,17 +16,17 @@ export type BasemapPaint = BasemapPaintKey & {
   value: BasemapPaintValue
 }
 
-function cloneMapStyle(style: StyleSpecification): StyleSpecification {
+export function cloneStyleValue<T>(value: T): T {
   const structuredCloneFn =
-    globalThis.structuredClone as ((value: StyleSpecification) => StyleSpecification) | undefined
+    globalThis.structuredClone as ((value: T) => T) | undefined
 
   return typeof structuredCloneFn === 'function'
-    ? structuredCloneFn(style)
-    : JSON.parse(JSON.stringify(style)) as StyleSpecification
+    ? structuredCloneFn(value)
+    : JSON.parse(JSON.stringify(value)) as T
 }
 
 export function buildMapStyle(config: WeatherMapConfig): StyleSpecification {
-  const style = cloneMapStyle(styleJson as unknown as StyleSpecification)
+  const style = cloneStyleValue(styleJson as unknown as StyleSpecification)
 
   style.glyphs = joinUrl(config.artifactBaseUrl, 'glyphs/{fontstack}/{range}.pbf')
 
@@ -70,11 +70,5 @@ export function readStandardBasemapPaintValue({
     throw new Error(`Missing basemap style paint ${layerId}.${property}`)
   }
 
-  return clonePaintValue(paint[property]!)
-}
-
-function clonePaintValue(value: BasemapPaintValue): BasemapPaintValue {
-  return Array.isArray(value)
-    ? JSON.parse(JSON.stringify(value)) as BasemapPaintValue
-    : value
+  return cloneStyleValue(paint[property]!)
 }

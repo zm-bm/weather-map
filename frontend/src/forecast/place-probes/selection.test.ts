@@ -2,6 +2,7 @@ import type { MapGeoJSONFeature } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
 import { selectVisiblePlaceProbes } from './places'
+import type { PlaceProbeBounds, PlaceProbeViewportSize } from './places'
 
 function createPlaceFeature(
   name: string,
@@ -32,8 +33,43 @@ function createPlaceFeature(
   } as unknown as MapGeoJSONFeature
 }
 
+function createBounds(
+  west: number,
+  east: number,
+  south: number,
+  north: number,
+): PlaceProbeBounds {
+  return {
+    contains: ([lon, lat]) => (
+      lon >= west &&
+      lon <= east &&
+      lat >= south &&
+      lat <= north
+    ),
+    getWest: () => west,
+    getEast: () => east,
+    getSouth: () => south,
+    getNorth: () => north,
+  }
+}
+
+function createRankedPlaceFeatures(count: number): MapGeoJSONFeature[] {
+  return Array.from({ length: count }, (_entry, index) => (
+    createPlaceFeature(`Rank ${index}`, index % 20, Math.floor(index / 20), {
+      populationRank: index + 1,
+    })
+  ))
+}
+
+function expectSequentialSortKeys(places: Array<{ sortKey: number }>): void {
+  expect(places.map((place) => place.sortKey)).toEqual(places.map((_place, index) => index))
+}
+
+const smallViewport: PlaceProbeViewportSize = { width: 390, height: 844 }
+const largeViewport: PlaceProbeViewportSize = { width: 1920, height: 1080 }
+
 describe('selectVisiblePlaceProbes', () => {
-  it('shows places only above the zoom threshold', () => {
+  it('shows place tiers progressively by zoom', () => {
     const features = [
       createPlaceFeature('Capital', -92, 42, { capital: 'yes', population: 200_000 }),
       createPlaceFeature('Metro', -91, 41, { population: 1_000_000 }),
@@ -41,9 +77,17 @@ describe('selectVisiblePlaceProbes', () => {
       createPlaceFeature('Small', -89, 39, { population: 10_000 }),
     ]
 
-    expect(selectVisiblePlaceProbes(features, { zoom: 3.49 })).toEqual([])
-    expect(selectVisiblePlaceProbes(features, { zoom: 3.5 })).toEqual([])
-    expect(selectVisiblePlaceProbes(features, { zoom: 3.51 }).map((place) => place.name)).toEqual([
+    expect(selectVisiblePlaceProbes(features, { zoom: 2.79 })).toEqual([])
+    expect(selectVisiblePlaceProbes(features, { zoom: 2.81 }).map((place) => place.name)).toEqual([
+      'Capital',
+      'Metro',
+    ])
+    expect(selectVisiblePlaceProbes(features, { zoom: 4.25 }).map((place) => place.name)).toEqual([
+      'Capital',
+      'Metro',
+      'Mid',
+    ])
+    expect(selectVisiblePlaceProbes(features, { zoom: 5.25 }).map((place) => place.name)).toEqual([
       'Capital',
       'Metro',
       'Mid',
@@ -51,7 +95,7 @@ describe('selectVisiblePlaceProbes', () => {
     ])
   })
 
-  it('prioritizes capitals, then major labels, and applies the requested limit', () => {
+  it('prioritizes capitals, then major labels, and applies the default limit', () => {
     const selected = selectVisiblePlaceProbes([
       createPlaceFeature('Small', -90, 40, { population: 10_000 }),
       createPlaceFeature('Metro', -91, 41, { population: 1_000_000 }),
@@ -61,85 +105,171 @@ describe('selectVisiblePlaceProbes', () => {
           populationRank: index + 1,
         })
       )),
-    ], { zoom: 4, limit: 12 })
+    ], { zoom: 5.25 })
 
-    expect(selected).toHaveLength(12)
+    expect(selected).toHaveLength(30)
     expect(selected.slice(0, 3).map((place) => place.name)).toEqual(['Capital', 'Metro', 'Rank 5 0'])
-    expect(selected.map((place) => place.sortKey)).toEqual(selected.map((_place, index) => index))
+    expectSequentialSortKeys(selected)
   })
 
-  it('keeps a stable core of top places, then fills empty screen cells', () => {
-    const selected = selectVisiblePlaceProbes([
-      createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
-      createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
-      createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
-      createPlaceFeature('Sparse West', 240, 10, { population: 500_000 }),
-      createPlaceFeature('Sparse East', 480, 10, { population: 400_000 }),
-    ], {
-      zoom: 4,
-      limit: 4,
-      cellSizePx: 120,
-      minSpacingPx: 80,
-      project: (point) => ({ x: point.lon, y: point.lat }),
+  it('keeps the default limit on small screens', () => {
+    const selected = selectVisiblePlaceProbes(createRankedPlaceFeatures(80), {
+      zoom: 5.25,
+      bounds: createBounds(-1, 20, -1, 4),
+      viewportSize: smallViewport,
     })
 
-    expect(selected.map((place) => place.name)).toEqual([
-      'Dense 1',
-      'Dense 2',
-      'Dense 3',
-      'Sparse West',
-    ])
+    expect(selected).toHaveLength(30)
   })
 
-  it('uses spread slots only after the stable core', () => {
-    const selected = selectVisiblePlaceProbes([
-      createPlaceFeature('Metro 1', 10, 10, { population: 5_000_000 }),
-      createPlaceFeature('Metro 2', 50, 10, { population: 4_000_000 }),
-      createPlaceFeature('Metro 3', 300, 10, { population: 3_000_000 }),
-      createPlaceFeature('Metro 4', 500, 10, { population: 2_000_000 }),
-    ], {
-      zoom: 4,
-      limit: 4,
-      cellSizePx: 200,
-      minSpacingPx: 60,
-      project: (point) => ({ x: point.lon, y: point.lat }),
+  it('allows more labels on large screens up to the cap', () => {
+    const selected = selectVisiblePlaceProbes(createRankedPlaceFeatures(80), {
+      zoom: 5.25,
+      bounds: createBounds(-1, 20, -1, 4),
+      viewportSize: largeViewport,
     })
 
-    expect(selected.map((place) => place.name)).toEqual(['Metro 1', 'Metro 2', 'Metro 3', 'Metro 4'])
+    expect(selected).toHaveLength(72)
   })
 
-  it('keeps previous spread places when they remain valid candidates', () => {
-    const selectionOptions = {
-      zoom: 4,
-      limit: 4,
-      cellSizePx: 120,
-      minSpacingPx: 80,
-      project: (point: { lon: number; lat: number }) => ({ x: point.lon, y: point.lat }),
+  it('keeps spread selection stable when the viewport bounds pan slightly', () => {
+    const features = [
+      ...Array.from({ length: 24 }, (_entry, index) => (
+        createPlaceFeature(`Cluster ${index}`, 2 + index * 0.01, 2 + index * 0.01, {
+          populationRank: index + 1,
+        })
+      )),
+      createPlaceFeature('West', 4, 8, { populationRank: 30 }),
+      createPlaceFeature('East', 8, 8, { populationRank: 31 }),
+    ]
+    const options = {
+      zoom: 5.25,
+      viewportSize: { width: 1024, height: 768 },
     }
+
+    const initial = selectVisiblePlaceProbes(features, {
+      ...options,
+      bounds: createBounds(0, 10, 0, 10),
+    })
+    const panned = selectVisiblePlaceProbes(features, {
+      ...options,
+      bounds: createBounds(0.4, 10.4, 0, 10),
+    })
+
+    expect(panned.map((place) => place.name)).toEqual(initial.map((place) => place.name))
+  })
+
+  it('keeps valid previous labels before filling new spread slots', () => {
     const initial = selectVisiblePlaceProbes([
-      createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
-      createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
-      createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
-      createPlaceFeature('Sticky Spread', 480, 10, { population: 400_000 }),
-    ], selectionOptions)
+      createPlaceFeature('Sticky', 5, 5, { populationRank: 10 }),
+    ], {
+      zoom: 5.25,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+    })
 
     const selected = selectVisiblePlaceProbes([
-      createPlaceFeature('Dense 1', 10, 10, { population: 5_000_000 }),
-      createPlaceFeature('Dense 2', 20, 12, { population: 4_000_000 }),
-      createPlaceFeature('Dense 3', 30, 14, { population: 3_000_000 }),
-      createPlaceFeature('New Sparse', 240, 10, { population: 900_000 }),
-      createPlaceFeature('Sticky Spread', 480, 10, { population: 400_000 }),
+      createPlaceFeature('New Top', 5.2, 5.2, { capital: 'yes', population: 1_000_000 }),
+      createPlaceFeature('Sticky', 5, 5, { populationRank: 10 }),
     ], {
-      ...selectionOptions,
+      zoom: 5.25,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
       previousPlaces: initial,
     })
 
-    expect(selected.map((place) => place.name)).toEqual([
-      'Dense 1',
-      'Dense 2',
-      'Dense 3',
-      'Sticky Spread',
-    ])
+    expect(selected.map((place) => place.name)).toEqual(['Sticky', 'New Top'])
+  })
+
+  it('spreads labels beyond a dense ranked cluster when bounds and screen size are available', () => {
+    const selected = selectVisiblePlaceProbes([
+      ...Array.from({ length: 35 }, (_entry, index) => (
+        createPlaceFeature(`Cluster ${index}`, 1 + index * 0.001, 1 + index * 0.001, {
+          populationRank: index + 1,
+        })
+      )),
+      ...Array.from({ length: 5 }, (_entry, index) => (
+        createPlaceFeature(`Remote ${index}`, 3 + index * 1.5, 8, {
+          populationRank: index + 36,
+        })
+      )),
+    ], {
+      zoom: 5.25,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+    })
+
+    expect(selected.slice(0, 6).map((place) => place.name)).toContain('Remote 0')
+    expect(selected).toHaveLength(30)
+  })
+
+  it('uses relaxed next-tier candidates to fill empty spread cells', () => {
+    const selected = selectVisiblePlaceProbes([
+      createPlaceFeature('Metro', 1, 1, { population: 1_000_000 }),
+      createPlaceFeature('Mid Plains', 8, 8, { population: 500_000 }),
+      createPlaceFeature('Small', 9, 9, { population: 10_000 }),
+    ], {
+      zoom: 4.13,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+    })
+
+    expect(selected.map((place) => place.name)).toEqual(['Metro', 'Mid Plains'])
+  })
+
+  it('does not use relaxed candidates in cells already filled by strict candidates', () => {
+    const selected = selectVisiblePlaceProbes([
+      createPlaceFeature('Metro', 1, 1, { population: 1_000_000 }),
+      createPlaceFeature('Mid Same Cell', 1.1, 1, { population: 500_000 }),
+      createPlaceFeature('Mid Remote', 8, 8, { population: 500_000 }),
+    ], {
+      zoom: 4.13,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+    })
+
+    expect(selected.map((place) => place.name)).toEqual(['Metro', 'Mid Remote'])
+  })
+
+  it('retains previous labels only once per spread cell before filling empty cells', () => {
+    const features = [
+      createPlaceFeature('Previous A', 1, 1, { population: 1_000_000 }),
+      createPlaceFeature('Previous B', 1.1, 1, { population: 900_000 }),
+      createPlaceFeature('Remote', 8, 8, { population: 800_000 }),
+    ]
+    const previousPlaces = selectVisiblePlaceProbes(features, { zoom: 5.25 })
+    const selected = selectVisiblePlaceProbes(features, {
+      zoom: 5.25,
+      bounds: createBounds(0, 10, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+      previousPlaces,
+    })
+
+    expect(selected.map((place) => place.name)).toEqual(['Previous A', 'Remote', 'Previous B'])
+  })
+
+  it('uses visible grid bounds instead of padded candidate bounds for spread cells', () => {
+    const features = [
+      ...Array.from({ length: 35 }, (_entry, index) => (
+        createPlaceFeature(`Cluster ${index}`, 0.9 + index * 0.001, 5, {
+          populationRank: index + 1,
+        })
+      )),
+      createPlaceFeature('Visible Grid Slot', 1.1, 5, { populationRank: 60 }),
+    ]
+    const baseOptions = {
+      zoom: 5.25,
+      bounds: createBounds(0, 12, 0, 10),
+      viewportSize: { width: 1024, height: 768 },
+    }
+
+    expect(selectVisiblePlaceProbes(features, baseOptions).map((place) => place.name)).not.toContain(
+      'Visible Grid Slot',
+    )
+    expect(selectVisiblePlaceProbes(features, {
+      ...baseOptions,
+      gridBounds: createBounds(0, 6, 0, 10),
+    }).map((place) => place.name)).toContain('Visible Grid Slot')
   })
 
   it('dedupes repeated source-tile features by name and rounded coordinates', () => {

@@ -82,9 +82,9 @@ describe('manifest index active run resolution', () => {
 
     expect(getLayerDatasetAvailability(manifest, 'temperature', 'gfs')?.state).toBe('available')
     expect(getActiveRunLayerAvailability(activeRun, 'temperature')?.state).toBe('available')
-    expect(isLayerAvailableForDataset(manifest, 'visibility', 'icon')).toBe(false)
-    expect(isLayerAvailableForActiveRun(activeRun, 'visibility')).toBe(true)
-    expect(hasAnyAvailableDatasetForLayer(manifest, 'visibility')).toBe(true)
+    expect(isLayerAvailableForDataset(manifest, 'cloud_cover', 'icon')).toBe(false)
+    expect(isLayerAvailableForActiveRun(activeRun, 'cloud_cover')).toBe(true)
+    expect(hasAnyAvailableDatasetForLayer(manifest, 'cloud_cover')).toBe(true)
     expect(hasAnyAvailableDatasetForLayer(manifest, 'missing_layer')).toBe(false)
   })
 
@@ -93,7 +93,7 @@ describe('manifest index active run resolution', () => {
     const iconRun = resolveActiveForecastRun(manifest, 'icon')
     if (!iconRun) throw new Error('Expected icon run fixture')
 
-    const compatibleRun = resolveCompatibleActiveForecastRun(iconRun, 'visibility')
+    const compatibleRun = resolveCompatibleActiveForecastRun(iconRun, 'cloud_cover')
 
     expect(compatibleRun?.datasetId).toBe('gfs')
   })

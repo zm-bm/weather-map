@@ -5,10 +5,8 @@ import type {
   PlaceProbeBounds,
   PlaceProbePoint,
 } from './places'
+import { PLACE_PROBE_POLICY } from './policy'
 
-const PLACE_PROBE_ZOOM_THRESHOLD = 3.5
-const MAJOR_PLACE_POPULATION = 1_000_000
-const MID_PLACE_POPULATION = 250_000
 const LOCAL_NAME_PROPERTY_NAMES = ['name', 'name2', 'name3'] as const
 const NON_LATIN_SCRIPT_PATTERN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u
 
@@ -17,14 +15,43 @@ type CreatePlaceProbeCandidatesOptions = {
   bounds?: PlaceProbeBounds | null
 }
 
+type RankedPlaceProbe = PlaceProbe & {
+  population: number | null
+  populationRank: number | null
+}
+
+export type PlaceProbeZoomTier = 0 | 1 | 2 | 3
+
+export function getPlaceProbeZoomTier(
+  zoom: number = PLACE_PROBE_POLICY.zoom.min,
+): PlaceProbeZoomTier {
+  if (zoom <= PLACE_PROBE_POLICY.zoom.min) return 0
+  if (zoom < PLACE_PROBE_POLICY.zoom.mid) return 1
+  if (zoom < PLACE_PROBE_POLICY.zoom.local) return 2
+  return 3
+}
+
+export function getRelaxedPlaceProbeBackfillZoom(
+  zoom: number = PLACE_PROBE_POLICY.zoom.min,
+): number | null {
+  switch (getPlaceProbeZoomTier(zoom)) {
+    case 1:
+      return PLACE_PROBE_POLICY.zoom.mid
+    case 2:
+      return PLACE_PROBE_POLICY.zoom.local
+    default:
+      return null
+  }
+}
+
 export function createPlaceProbeCandidates(
   features: GeoJSONFeature[],
   {
-    zoom = PLACE_PROBE_ZOOM_THRESHOLD,
+    zoom = PLACE_PROBE_POLICY.zoom.min,
     bounds = null,
   }: CreatePlaceProbeCandidatesOptions = {},
 ): PlaceProbe[] {
-  const candidates: PlaceProbe[] = []
+  const candidates: RankedPlaceProbe[] = []
 
   for (const feature of features) {
     const name = getPlaceName(feature)
@@ -54,14 +81,22 @@ export function createPlaceProbeCandidates(
   return dedupePlaceProbes(candidates)
 }
 
-function dedupePlaceProbes(candidates: PlaceProbe[]): PlaceProbe[] {
+function dedupePlaceProbes(candidates: RankedPlaceProbe[]): PlaceProbe[] {
   const seenPlaceIds = new Set<string>()
   const uniquePlaces: PlaceProbe[] = []
 
   for (const candidate of candidates) {
     if (seenPlaceIds.has(candidate.id)) continue
     seenPlaceIds.add(candidate.id)
-    uniquePlaces.push(candidate)
+    uniquePlaces.push({
+      id: candidate.id,
+      name: candidate.name,
+      localName: candidate.localName,
+      lon: candidate.lon,
+      lat: candidate.lat,
+      tier: candidate.tier,
+      sortKey: candidate.sortKey,
+    })
   }
 
   return uniquePlaces
@@ -133,25 +168,26 @@ function getPlaceTier(
   population: number | null,
   populationRank: number | null
 ): number | null {
-  if (zoom <= PLACE_PROBE_ZOOM_THRESHOLD || !isLocality(feature)) return null
+  const zoomTier = getPlaceProbeZoomTier(zoom)
+  if (zoomTier === 0 || !isLocality(feature)) return null
   if (feature.properties?.capital === 'yes') return 0
 
   if (population != null) {
-    if (population >= MAJOR_PLACE_POPULATION) return 1
-    if (population >= MID_PLACE_POPULATION) return 2
-    return 3
+    if (population >= PLACE_PROBE_POLICY.population.major) return 1
+    if (population >= PLACE_PROBE_POLICY.population.mid) return zoomTier >= 2 ? 2 : null
+    return zoomTier >= 3 ? 3 : null
   }
 
   if (populationRank != null) {
     if (populationRank <= 4) return 1
-    if (populationRank === 5) return 2
-    return 3
+    if (populationRank === 5) return zoomTier >= 2 ? 2 : null
+    return zoomTier >= 3 ? 3 : null
   }
 
   return null
 }
 
-function comparePlaceProbes(left: PlaceProbe, right: PlaceProbe): number {
+function comparePlaceProbes(left: RankedPlaceProbe, right: RankedPlaceProbe): number {
   if (left.tier !== right.tier) return left.tier - right.tier
 
   if (left.population != null || right.population != null) {

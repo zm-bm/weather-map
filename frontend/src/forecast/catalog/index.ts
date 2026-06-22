@@ -1,11 +1,14 @@
 export {
   FORECAST_RASTER_LAYER_GROUPS,
+  FORECAST_RASTER_LAYER_GROUPS_BY_ID,
   FORECAST_RASTER_LAYERS,
   FORECAST_RASTER_LAYERS_BY_ID,
   forecastRasterLayerLabel,
   forecastRasterLayerSourceFromLayer,
   getDefaultRasterLayerId,
   getForecastRasterLayer,
+  getForecastRasterLayerGroup,
+  getForecastRasterLayerGroupForLayerId,
 } from './entries'
 export type {
   ContourLayer,

@@ -13,7 +13,6 @@ import {
   type ParticleSettings,
   type PressureContourSettings,
   type RasterRenderSettings,
-  type UnitSettings,
 } from './settings'
 import { ForecastSettingsContext } from './ForecastSettingsContext'
 import {
@@ -61,17 +60,6 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
     })
   }, [])
 
-  const updateUnits = useCallback((patch: Partial<UnitSettings>) => {
-    setSettings((current) => {
-      const units = applySettingsPatch(current.units, patch)
-      if (units === current.units) return current
-      return {
-        ...current,
-        units,
-      }
-    })
-  }, [])
-
   const toggleUnitSystem = useCallback(() => {
     setSettings((current) => ({
       ...current,
@@ -85,14 +73,12 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
     updateRaster,
     updateParticles,
     updatePressureContours,
-    updateUnits,
     toggleUnitSystem,
   }), [
     toggleUnitSystem,
     updateRaster,
     updateParticles,
     updatePressureContours,
-    updateUnits,
   ])
 
   const value = useMemo<ForecastSettingsValue>(() => ({

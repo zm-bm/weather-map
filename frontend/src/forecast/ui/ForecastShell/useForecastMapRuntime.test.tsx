@@ -1,24 +1,21 @@
-import { act, render } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 
 import config from '@/core/config'
 import {
   DEFAULT_FORECAST_SETTINGS,
   ForecastSettingsProvider,
 } from '@/forecast/settings'
-import type { ForecastPlaceProbeFrameChannel } from '@/forecast/place-probes'
 import type { UseForecastSyncArgs, ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
-  createRasterWindowFixture,
   createMapFixture,
-  createMapRefFixture,
+  createRasterWindowFixture,
 } from '@/test/fixtures'
-import type { MapControlRailProps } from '../MapControlRail'
-import ForecastMap from './ForecastMap'
-
-const FULL_RENDER_PROFILE = {
-  layerIds: ['raster', 'overlay', 'contour', 'particles'],
-}
+import {
+  useForecastMapRuntime,
+  type UseForecastMapRuntimeArgs,
+} from './useForecastMapRuntime'
 
 const RASTER_ONLY_RENDER_PROFILE = {
   layerIds: ['raster', 'overlay'],
@@ -28,18 +25,28 @@ const PARTICLES_ONLY_RENDER_PROFILE = {
   layerIds: ['raster', 'overlay', 'particles'],
 }
 
+const FULL_RENDER_PROFILE = {
+  layerIds: ['raster', 'overlay', 'contour', 'particles'],
+}
+const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
+
+const DEFAULT_RENDER_SETTINGS = {
+  raster: DEFAULT_FORECAST_SETTINGS.raster,
+  particles: expect.objectContaining({
+    particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
+  }),
+}
+
 const mocks = vi.hoisted(() => ({
-  useMap: vi.fn(),
+  useMapLibre: vi.fn(),
   useForecastRenderHost: vi.fn(),
   useForecastSelectionContext: vi.fn(),
   useForecastSync: vi.fn(),
   useForecastBasemapTheme: vi.fn(),
-  ForecastPlaceProbes: vi.fn(),
-  MapControlRail: vi.fn(),
 }))
 
-vi.mock('@/map/useMap', () => ({
-  useMap: (args: unknown) => mocks.useMap(args),
+vi.mock('@/map/view/useMapLibre', () => ({
+  useMapLibre: (args: unknown) => mocks.useMapLibre(args),
 }))
 
 vi.mock('@/forecast/render', async (importOriginal) => {
@@ -62,58 +69,12 @@ vi.mock('@/map/view/useForecastBasemapTheme', () => ({
   useForecastBasemapTheme: (args: unknown) => mocks.useForecastBasemapTheme(args),
 }))
 
-vi.mock('../ForecastPlaceProbes', () => ({
-  default: (props: unknown) => {
-    mocks.ForecastPlaceProbes(props)
-    return <div data-testid="forecast-place-probes" />
-  },
-}))
-
-vi.mock('../MapControlRail', () => ({
-  default: (props: unknown) => {
-    mocks.MapControlRail(props)
-    return <div data-testid="map-control-rail" />
-  },
-}))
-
-const DEFAULT_RENDER_SETTINGS = {
-  raster: DEFAULT_FORECAST_SETTINGS.raster,
-  particles: expect.objectContaining({
-    particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
-  }),
+function wrapper({ children }: { children: ReactNode }) {
+  return <ForecastSettingsProvider>{children}</ForecastSettingsProvider>
 }
 
-type MapRuntimeFixture = {
-  mapRef: ReturnType<typeof createMapRefFixture>
-  getMap: () => ReturnType<typeof createMapFixture>
-  mapReadyVersion: number
-}
-
-type PlaceProbeProps = {
-  mapRef: MapRuntimeFixture['mapRef']
-  mapReadyVersion: number
-  probeFrameChannel: ForecastPlaceProbeFrameChannel
-  initialFrame?: unknown
-}
-
-function renderForecastMap(ui = <ForecastMap />) {
-  return render(
-    <ForecastSettingsProvider>
-      {ui}
-    </ForecastSettingsProvider>
-  )
-}
-
-function getMapRuntime(): MapRuntimeFixture {
-  return mocks.useMap.mock.results[0]?.value as MapRuntimeFixture
-}
-
-function getLatestControlProps(): MapControlRailProps {
-  return mocks.MapControlRail.mock.calls.at(-1)?.[0] as MapControlRailProps
-}
-
-function getLatestPlaceProbeProps(): PlaceProbeProps {
-  return mocks.ForecastPlaceProbes.mock.calls.at(-1)?.[0] as PlaceProbeProps
+function renderRuntime(args: UseForecastMapRuntimeArgs = {}) {
+  return renderHook(() => useForecastMapRuntime(args), { wrapper })
 }
 
 function getLatestSyncArgs(): UseForecastSyncArgs {
@@ -135,20 +96,18 @@ function createInitialSyncStatus(
   }
 }
 
-describe('ForecastMap', () => {
+describe('useForecastMapRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
 
     const map = createMapFixture()
-    const mapRef = createMapRefFixture(map)
-    const getMap = () => map
     const renderHost = { version: 4, apply: vi.fn() }
 
-    mocks.useMap.mockReturnValue({
-      mapRef,
-      getMap,
-      mapReadyVersion: 1,
+    mocks.useMapLibre.mockReturnValue({
+      map,
+      mapError: null,
+      retryMap: vi.fn(),
     })
     mocks.useForecastRenderHost.mockReturnValue(renderHost)
     mocks.useForecastSelectionContext.mockReturnValue({
@@ -160,23 +119,24 @@ describe('ForecastMap', () => {
   })
 
   it('wires map runtime hooks and forecast sync from the map instance', () => {
-    renderForecastMap()
-
-    const { mapRef, getMap, mapReadyVersion } = getMapRuntime()
+    const { result } = renderRuntime()
+    const mapRuntime = mocks.useMapLibre.mock.results[0]?.value
     const renderHost = getLatestRenderHost()
 
-    expect(mocks.useMap).toHaveBeenCalledWith({
+    expect(mocks.useMapLibre).toHaveBeenCalledWith({
       containerId: 'map',
+      center: [-100, 35],
+      zoom: 3,
+      minZoom: 2,
+      maxZoom: 6.99,
     })
     expect(mocks.useForecastRenderHost).toHaveBeenCalledWith({
-      getMap,
-      mapReadyVersion,
+      map: mapRuntime.map,
       profile: PARTICLES_ONLY_RENDER_PROFILE,
       renderSettings: DEFAULT_RENDER_SETTINGS,
     })
     expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith({
-      getMap,
-      mapReadyVersion,
+      map: mapRuntime.map,
       selectedLayerId: 'temperature',
     })
     expect(mocks.useForecastSync).toHaveBeenCalledWith({
@@ -184,28 +144,24 @@ describe('ForecastMap', () => {
       config,
       syncOptions: { contour: false, particles: true },
       onProbeFrameChange: expect.any(Function),
+      onFieldLoadingChange: undefined,
     })
-    const placeProbeProps = getLatestPlaceProbeProps()
-    expect(placeProbeProps).toEqual({
-      mapRef,
-      mapReadyVersion,
+    expect(result.current).toEqual(expect.objectContaining({
+      map: mapRuntime.map,
       probeFrameChannel: expect.objectContaining({
         getSnapshot: expect.any(Function),
         publish: expect.any(Function),
         subscribe: expect.any(Function),
       }),
-    })
-    expect(placeProbeProps).not.toHaveProperty('initialFrame')
-    expect(mocks.MapControlRail).toHaveBeenCalledWith({
-      mapRef,
-      mapReadyVersion,
-      settings: DEFAULT_FORECAST_SETTINGS,
-      settingsActions: expect.objectContaining({
-        updateRaster: expect.any(Function),
-        updateParticles: expect.any(Function),
-        updatePressureContours: expect.any(Function),
-      }),
-    })
+    }))
+  })
+
+  it('forwards field loading changes to forecast sync', () => {
+    const onFieldLoadingChange = vi.fn()
+
+    renderRuntime({ onFieldLoadingChange })
+
+    expect(getLatestSyncArgs().onFieldLoadingChange).toBe(onFieldLoadingChange)
   })
 
   it('reports initial sync status changes and clears them on unmount', () => {
@@ -215,9 +171,7 @@ describe('ForecastMap', () => {
       initialStatus,
     })
 
-    const { unmount } = renderForecastMap(
-      <ForecastMap onInitialSyncStatusChange={onInitialSyncStatusChange} />
-    )
+    const { unmount } = renderRuntime({ onInitialSyncStatusChange })
 
     expect(onInitialSyncStatusChange).toHaveBeenCalledWith(initialStatus)
 
@@ -227,67 +181,75 @@ describe('ForecastMap', () => {
     expect(onInitialSyncStatusChange).toHaveBeenCalledWith(null)
   })
 
-  it('updates the render profile when particles are toggled off', () => {
-    renderForecastMap()
-
-    const controlProps = getLatestControlProps()
-
-    act(() => {
-      controlProps.settingsActions?.updateParticles({ enabled: false })
+  it('reports map renderer startup errors through initial sync status', () => {
+    const onInitialSyncStatusChange = vi.fn()
+    const retryMap = vi.fn()
+    mocks.useMapLibre.mockReturnValue({
+      map: null,
+      mapError: new Error('WebGL unavailable'),
+      retryMap,
     })
+
+    renderRuntime({ onInitialSyncStatusChange })
+
+    expect(onInitialSyncStatusChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      phase: 'error',
+      errorMessage: 'WebGL unavailable',
+      retry: retryMap,
+    }))
+  })
+
+  it('uses stored particle settings for the render profile and sync options', () => {
+    mocks.useForecastSelectionContext.mockReturnValue({
+      selectedLayerId: 'wind_speed',
+    })
+    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+      particles: {
+        enabled: false,
+      },
+    }))
+    renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: RASTER_ONLY_RENDER_PROFILE,
-    }))
-    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      settings: expect.objectContaining({
-        particles: expect.objectContaining({ enabled: false }),
-      }),
     }))
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: getLatestRenderHost(),
       config,
       syncOptions: { contour: false, particles: false },
       onProbeFrameChange: expect.any(Function),
+      onFieldLoadingChange: undefined,
     })
   })
 
-  it('updates the render profile and sync option when pressure contours are toggled on', () => {
-    renderForecastMap()
-
-    const controlProps = getLatestControlProps()
-
-    act(() => {
-      controlProps.settingsActions?.updatePressureContours({ enabled: true })
-    })
+  it('uses stored pressure contour settings on non-pressure fields', () => {
+    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+      pressureContours: {
+        enabled: true,
+      },
+    }))
+    renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: FULL_RENDER_PROFILE,
-    }))
-    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      settings: expect.objectContaining({
-        pressureContours: { enabled: true },
-      }),
     }))
     expect(mocks.useForecastSync).toHaveBeenLastCalledWith({
       renderHost: getLatestRenderHost(),
       config,
       syncOptions: { contour: true, particles: true },
       onProbeFrameChange: expect.any(Function),
+      onFieldLoadingChange: undefined,
     })
   })
 
-  it('updates renderer runtime settings without changing the render profile', () => {
-    renderForecastMap()
-
-    const controlProps = getLatestControlProps()
-
-    act(() => {
-      controlProps.settingsActions?.updateRaster({
+  it('uses stored renderer runtime settings without changing the render profile', () => {
+    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+      raster: {
         gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
-      })
-    })
+      },
+    }))
+    renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
       profile: PARTICLES_ONLY_RENDER_PROFILE,
@@ -298,37 +260,25 @@ describe('ForecastMap', () => {
         }),
       }),
     }))
-    expect(mocks.MapControlRail).toHaveBeenLastCalledWith(expect.objectContaining({
-      settings: expect.objectContaining({
-        raster: expect.objectContaining({
-          gridSamplingMode: 'nearest',
-          colorSamplingMode: 'banded',
-        }),
-      }),
-    }))
   })
 
   it('passes a custom container id through to map initialization', () => {
-    renderForecastMap(<ForecastMap containerId="forecast-map" />)
+    renderRuntime({ containerId: 'forecast-map' })
 
-    expect(mocks.useMap).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.useMapLibre).toHaveBeenCalledWith(expect.objectContaining({
       containerId: 'forecast-map',
     }))
   })
 
   it('publishes sync probe frames into the place-probe channel', () => {
     const frame = createRasterWindowFixture()
-
-    renderForecastMap()
-
-    const syncArgs = getLatestSyncArgs()
-    const placeProbeProps = getLatestPlaceProbeProps()
+    const { result } = renderRuntime()
 
     act(() => {
-      syncArgs.onProbeFrameChange?.(frame)
+      getLatestSyncArgs().onProbeFrameChange?.(frame)
     })
 
-    expect(placeProbeProps.probeFrameChannel.getSnapshot()).toBe(frame)
+    expect(result.current.probeFrameChannel.getSnapshot()).toBe(frame)
   })
 
   it('passes cloud layer selection to the basemap theme hook', () => {
@@ -336,11 +286,10 @@ describe('ForecastMap', () => {
       selectedLayerId: 'cloud_layers',
     })
 
-    renderForecastMap()
+    renderRuntime()
 
     expect(mocks.useForecastBasemapTheme).toHaveBeenCalledWith(expect.objectContaining({
       selectedLayerId: 'cloud_layers',
     }))
   })
-
 })

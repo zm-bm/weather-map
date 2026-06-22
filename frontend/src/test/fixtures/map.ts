@@ -4,13 +4,23 @@ import { vi } from 'vitest'
 
 type ControllableMapFixture = MapLibreMap & {
   addControl: ReturnType<typeof vi.fn>
+  addLayer: ReturnType<typeof vi.fn>
+  addSource: ReturnType<typeof vi.fn>
+  flyTo: ReturnType<typeof vi.fn>
+  getLayer: ReturnType<typeof vi.fn>
   getMaxZoom: ReturnType<typeof vi.fn>
   getMinZoom: ReturnType<typeof vi.fn>
+  getSource: ReturnType<typeof vi.fn>
   getZoom: ReturnType<typeof vi.fn>
   hasControl: ReturnType<typeof vi.fn>
   off: ReturnType<typeof vi.fn>
   on: ReturnType<typeof vi.fn>
+  once: ReturnType<typeof vi.fn>
+  project: ReturnType<typeof vi.fn>
+  querySourceFeatures: ReturnType<typeof vi.fn>
   removeControl: ReturnType<typeof vi.fn>
+  removeLayer: ReturnType<typeof vi.fn>
+  removeSource: ReturnType<typeof vi.fn>
   zoomIn: ReturnType<typeof vi.fn>
   zoomOut: ReturnType<typeof vi.fn>
 }
@@ -21,6 +31,8 @@ export function createMapFixture(): ControllableMapFixture {
   const minZoom = 2
   const maxZoom = 6.99
   const listeners = new Map<string, Set<() => void>>()
+  const layers = new Set<string>()
+  const sources = new Map<string, unknown>()
 
   const emit = (eventName: string) => {
     listeners.get(eventName)?.forEach((listener) => {
@@ -33,8 +45,35 @@ export function createMapFixture(): ControllableMapFixture {
       controls.add(control)
       return undefined
     }),
+    addLayer: vi.fn((layer: { id: string }) => {
+      layers.add(layer.id)
+      return undefined
+    }),
+    addSource: vi.fn((sourceId: string, source?: { type?: string }) => {
+      sources.set(sourceId, source?.type === 'geojson'
+        ? {
+          ...source,
+          setData: vi.fn(),
+          updateData: vi.fn(),
+        }
+        : source)
+      return undefined
+    }),
+    flyTo: vi.fn((options?: { zoom?: number }) => {
+      if (typeof options?.zoom === 'number' && Number.isFinite(options.zoom)) {
+        zoom = Math.min(maxZoom, Math.max(minZoom, options.zoom))
+        emit('zoom')
+        emit('zoomend')
+      }
+      emit('moveend')
+      return undefined
+    }),
+    getLayer: vi.fn((layerId: string) => (
+      layers.has(layerId) ? { id: layerId } : undefined
+    )),
     getMaxZoom: vi.fn(() => maxZoom),
     getMinZoom: vi.fn(() => minZoom),
+    getSource: vi.fn((sourceId: string) => sources.get(sourceId)),
     getZoom: vi.fn(() => zoom),
     hasControl: vi.fn((control: IControl) => controls.has(control)),
     off: vi.fn((eventName: string, listener: () => void) => {
@@ -50,8 +89,31 @@ export function createMapFixture(): ControllableMapFixture {
       eventListeners.add(listener)
       return undefined
     }),
+    once: vi.fn((eventName: string, listener: () => void) => {
+      const wrappedListener = () => {
+        listeners.get(eventName)?.delete(wrappedListener)
+        listener()
+      }
+      let eventListeners = listeners.get(eventName)
+      if (!eventListeners) {
+        eventListeners = new Set()
+        listeners.set(eventName, eventListeners)
+      }
+      eventListeners.add(wrappedListener)
+      return undefined
+    }),
+    project: vi.fn(() => ({ x: 0, y: 0 })),
+    querySourceFeatures: vi.fn(() => []),
     removeControl: vi.fn((control: IControl) => {
       controls.delete(control)
+      return undefined
+    }),
+    removeLayer: vi.fn((layerId: string) => {
+      layers.delete(layerId)
+      return undefined
+    }),
+    removeSource: vi.fn((sourceId: string) => {
+      sources.delete(sourceId)
       return undefined
     }),
     zoomIn: vi.fn(() => {

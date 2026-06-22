@@ -1,7 +1,2 @@
 export { default } from './AppStatusHost'
-export type {
-  AppStatus,
-  AppStatusLevel,
-  AppStatusMode,
-  AppStatusPayload,
-} from './types'
+export type { AppStatus } from './AppStatusHost'

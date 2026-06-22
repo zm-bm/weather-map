@@ -4,7 +4,7 @@ import type { ForecastWindowId, ForecastFrameMap } from '@/forecast/frames'
 import type { ForecastWindows } from '@/forecast/frames'
 import type { FrameWindow } from '@/forecast/frames'
 import { prefetchForecastFrames } from './prefetch'
-import type { ForecastSyncPlan, WindowPlanKeyMap } from '../plan'
+import type { ForecastSyncPlan, ForecastWindowPlan } from '../plan'
 import { loadWindows } from './windowLoader'
 
 type CreateLoadJobArgs = {
@@ -31,9 +31,11 @@ type LoadJob = {
 }
 
 type SessionSnapshot = {
-  windowPlanKeys: WindowPlanKeyMap
+  windowKeys: WindowKeyMap
   windows: ForecastWindows
 }
+
+type WindowKeyMap = Partial<Record<ForecastWindowId, string>>
 
 export type ForecastSyncSession = {
   createLoadJob: (args: CreateLoadJobArgs) => LoadJob
@@ -46,6 +48,7 @@ export function createForecastSyncSession(): ForecastSyncSession {
 
   return {
     createLoadJob(args) {
+      const windowKeys = keysByWindowId(args.plan.windowPlans)
       const artifacts = createArtifactLoader({
         config: args.config,
         activeRun: args.plan.activeRun,
@@ -54,15 +57,15 @@ export function createForecastSyncSession(): ForecastSyncSession {
       return {
         key: createSyncRequestKey(args.plan, args.retryToken),
         selectedValidTimeMs: args.plan.selectedValidTimeMs,
-        shouldClearProbeFrame: shouldClearProbeFrame(committed, args.plan),
+        shouldClearProbeFrame: shouldClearProbeFrame(committed, windowKeys),
         load: () => loadWindows({
           selection: args.plan,
           windowPlans: args.plan.windowPlans,
           artifacts,
-          previousWindows: reusableWindowsFor(committed, args.plan),
+          previousWindows: reusableWindowsFor(committed, args.plan.windowPlans, windowKeys),
         }),
         commit(windows) {
-          committed = createSessionSnapshot(args.plan, windows)
+          committed = { windowKeys, windows }
         },
       }
     },
@@ -91,7 +94,8 @@ export function createForecastSyncSession(): ForecastSyncSession {
 
 function reusableWindowsFor(
   committed: SessionSnapshot | null,
-  plan: ForecastSyncPlan
+  windowPlans: readonly ForecastWindowPlan[],
+  windowKeys: WindowKeyMap
 ): ForecastWindows {
   if (committed == null) return {}
 
@@ -100,8 +104,8 @@ function reusableWindowsFor(
     ForecastWindowId,
     FrameWindow<ForecastFrameMap[ForecastWindowId]>
   >
-  for (const windowPlan of plan.windowPlans) {
-    if (committed.windowPlanKeys[windowPlan.id] !== windowPlan.key) continue
+  for (const windowPlan of windowPlans) {
+    if (committed.windowKeys[windowPlan.id] !== windowKeys[windowPlan.id]) continue
     const window = committed.windows[windowPlan.id]
     if (window == null) continue
     mutableWindows[windowPlan.id] = window
@@ -111,20 +115,10 @@ function reusableWindowsFor(
 
 function shouldClearProbeFrame(
   committed: SessionSnapshot | null,
-  plan: ForecastSyncPlan
+  windowKeys: WindowKeyMap
 ): boolean {
   return committed != null &&
-    rasterWindowPlanKey(committed.windowPlanKeys) !== rasterWindowPlanKey(plan.windowPlanKeys)
-}
-
-function createSessionSnapshot(
-  plan: ForecastSyncPlan,
-  windows: ForecastWindows
-): SessionSnapshot {
-  return {
-    windowPlanKeys: plan.windowPlanKeys,
-    windows,
-  }
+    rasterWindowKey(committed.windowKeys) !== rasterWindowKey(windowKeys)
 }
 
 function createSyncRequestKey(
@@ -132,7 +126,7 @@ function createSyncRequestKey(
   retryToken: number
 ): string {
   return [
-    plan.windowPlanSetKey,
+    windowSetKey(plan.windowPlans),
     plan.lowerFrameId,
     plan.upperFrameId,
     plan.minuteOffset,
@@ -140,6 +134,16 @@ function createSyncRequestKey(
   ].join(':')
 }
 
-function rasterWindowPlanKey(windowPlanKeys: WindowPlanKeyMap): string | null {
-  return windowPlanKeys.raster ?? null
+function keysByWindowId(windowPlans: readonly ForecastWindowPlan[]): WindowKeyMap {
+  return Object.fromEntries(
+    windowPlans.map((windowPlan) => [windowPlan.id, windowPlan.key])
+  ) as WindowKeyMap
+}
+
+function windowSetKey(windowPlans: readonly ForecastWindowPlan[]): string {
+  return windowPlans.map((windowPlan) => windowPlan.key).join('|')
+}
+
+function rasterWindowKey(windowKeys: WindowKeyMap): string | null {
+  return windowKeys.raster ?? null
 }

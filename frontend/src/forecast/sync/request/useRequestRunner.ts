@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { isAbortError, normalizeError } from '@/core/abort'
 import type { WeatherMapConfig } from '@/core/config'
@@ -18,6 +18,7 @@ type UseRequestRunnerArgs = {
   initialSync: InitialSyncController
   syncSession: ForecastSyncSession
   onProbeFrameChange?: (frame: ProbeWindow | null) => void
+  onFieldLoadingChange?: (isLoading: boolean) => void
 }
 
 export function useRequestRunner({
@@ -28,6 +29,7 @@ export function useRequestRunner({
   initialSync,
   syncSession,
   onProbeFrameChange,
+  onFieldLoadingChange,
 }: UseRequestRunnerArgs): void {
   const {
     isBlocked,
@@ -39,32 +41,32 @@ export function useRequestRunner({
   } = initialSync
 
   const requestTracker = useMemo(() => createRequestTracker(), [])
-  const onProbeFrameChangeRef = useRef(onProbeFrameChange)
-  onProbeFrameChangeRef.current = onProbeFrameChange
-  const syncCallbacksRef = useRef(syncCallbacks)
-  syncCallbacksRef.current = syncCallbacks
 
   useEffect(() => {
     return () => {
       requestTracker.reset()
       syncSession.reset()
+      onFieldLoadingChange?.(false)
     }
-  }, [requestTracker, syncSession])
+  }, [onFieldLoadingChange, requestTracker, syncSession])
 
   useEffect(() => {
     if (plan == null) {
       requestTracker.reset()
       syncSession.reset()
-      onProbeFrameChangeRef.current?.(null)
+      onProbeFrameChange?.(null)
+      onFieldLoadingChange?.(false)
       handleDisabled()
       return
     }
     if (isBlocked) {
       requestTracker.abortActive()
+      onFieldLoadingChange?.(false)
       return
     }
     if (renderHost == null) {
       requestTracker.abortActive()
+      onFieldLoadingChange?.(false)
       handlePending()
       return
     }
@@ -80,13 +82,14 @@ export function useRequestRunner({
 
     const activeRequest = requestTracker.begin(renderRequestKey, requestController)
     if (activeRequest == null) return
+    onFieldLoadingChange?.(true)
 
     if (loadJob.shouldClearProbeFrame) {
-      onProbeFrameChangeRef.current?.(null)
+      onProbeFrameChange?.(null)
     }
 
     handlePending()
-    syncCallbacksRef.current.onRequestStart(loadJob.selectedValidTimeMs)
+    syncCallbacks.onRequestStart(loadJob.selectedValidTimeMs)
 
     const runRequest = async () => {
       try {
@@ -96,19 +99,22 @@ export function useRequestRunner({
         renderHost.apply(windows)
         if (!requestTracker.isCurrent(activeRequest)) return
 
-        onProbeFrameChangeRef.current?.(windows.raster ?? null)
+        onProbeFrameChange?.(windows.raster ?? null)
         loadJob.commit(windows)
         requestTracker.markApplied(activeRequest)
-        syncCallbacksRef.current.onRequestApplied(loadJob.selectedValidTimeMs)
+        syncCallbacks.onRequestApplied(loadJob.selectedValidTimeMs)
         handleApplied()
       } catch (error: unknown) {
         if (!requestTracker.isCurrent(activeRequest)) return
         const normalizedError = normalizeError(error)
         if (isAbortError(normalizedError)) return
-        syncCallbacksRef.current.onRequestError(loadJob.selectedValidTimeMs, normalizedError)
+        syncCallbacks.onRequestError(loadJob.selectedValidTimeMs, normalizedError)
         handleError(normalizedError)
       } finally {
-        requestTracker.finish(activeRequest)
+        if (requestTracker.isCurrent(activeRequest)) {
+          requestTracker.finish(activeRequest)
+          onFieldLoadingChange?.(false)
+        }
       }
     }
 
@@ -117,6 +123,7 @@ export function useRequestRunner({
       if (!requestTracker.isCurrent(activeRequest)) return
       activeRequest.controller.abort()
       requestTracker.finish(activeRequest)
+      onFieldLoadingChange?.(false)
     }
   }, [
     config,
@@ -130,5 +137,8 @@ export function useRequestRunner({
     renderHost,
     retryToken,
     plan,
+    onFieldLoadingChange,
+    onProbeFrameChange,
+    syncCallbacks,
   ])
 }

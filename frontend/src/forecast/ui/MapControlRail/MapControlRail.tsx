@@ -1,54 +1,36 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import {
-  useCallback,
   useEffect,
-  useMemo,
   useState,
-  type RefObject,
 } from 'react'
 
 import config from '@/core/config'
-import {
-  DEFAULT_FORECAST_SETTINGS,
-  type ForecastSettings,
-  type ForecastSettingsActions,
-} from '@/forecast/settings'
 import type { RadioPlaylistFetch } from '@/radio/playlist'
 import type { AudioFactory } from '@/radio/useRadioPlayer'
 import { joinUrl } from '@/core/url/joinUrl'
+import type { MapPoint } from '../mapPoint'
 import MapOptionsButton from './MapOptionsButton'
+import PlaceSearchButton from './PlaceSearchButton'
 import RadioButton from './RadioButton'
 
-type ZoomButtonState = {
-  canZoomIn: boolean
-  canZoomOut: boolean
-}
+type LocationStatus = 'idle' | 'locating' | 'error'
+export type MapControlRailPanel = 'search' | 'options'
+type GeolocationProvider = Pick<Geolocation, 'getCurrentPosition'>
 
 export type MapControlRailProps = {
-  mapRef: RefObject<MapLibreMap | null>
-  mapReadyVersion: number
+  map: MapLibreMap | null
   playlistUrl?: string
   createAudio?: AudioFactory
   fetchPlaylist?: RadioPlaylistFetch
+  geolocation?: GeolocationProvider | null
   random?: () => number
-  settings?: ForecastSettings
-  settingsActions?: ForecastSettingsActions
+  onMapPointSelect?: (point: MapPoint) => void
+  activePanel: MapControlRailPanel | null
+  onActivePanelChange: (panel: MapControlRailPanel | null) => void
 }
 
 const ZOOM_EDGE_EPSILON = 0.0001
-const DISABLED_ZOOM_BUTTON_STATE: ZoomButtonState = {
-  canZoomIn: false,
-  canZoomOut: false,
-}
-
-const noopSettingsPatch = () => undefined
-const NOOP_SETTINGS_ACTIONS: ForecastSettingsActions = {
-  updateRaster: noopSettingsPatch,
-  updateParticles: noopSettingsPatch,
-  updatePressureContours: noopSettingsPatch,
-  updateUnits: noopSettingsPatch,
-  toggleUnitSystem: noopSettingsPatch,
-}
+const LOCATION_ZOOM = 7
 
 function readMapNumber(readValue: () => number): number | null {
   try {
@@ -59,7 +41,7 @@ function readMapNumber(readValue: () => number): number | null {
   }
 }
 
-function readZoomButtonState(map: MapLibreMap | null): ZoomButtonState {
+function readZoomButtonState(map: MapLibreMap | null) {
   if (!map) {
     return {
       canZoomIn: false,
@@ -78,33 +60,35 @@ function readZoomButtonState(map: MapLibreMap | null): ZoomButtonState {
 }
 
 export default function MapControlRail({
-  mapRef,
-  mapReadyVersion,
+  map,
   playlistUrl,
   createAudio,
   fetchPlaylist,
+  geolocation = typeof navigator === 'undefined' ? null : navigator.geolocation,
   random,
-  settings = DEFAULT_FORECAST_SETTINGS,
-  settingsActions = NOOP_SETTINGS_ACTIONS,
+  onMapPointSelect,
+  activePanel,
+  onActivePanelChange,
 }: MapControlRailProps) {
-  const resolvedPlaylistUrl = useMemo(
-    () => playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json'),
-    [playlistUrl],
-  )
-  const [zoomButtonState, setZoomButtonState] = useState<ZoomButtonState>(DISABLED_ZOOM_BUTTON_STATE)
+  const resolvedPlaylistUrl = playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json')
+  const [, setZoomRevision] = useState(0)
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
+  const searchOpen = activePanel === 'search'
+  const optionsOpen = activePanel === 'options'
+  const zoomButtonState = readZoomButtonState(map)
 
-  const refreshZoomButtonState = useCallback(() => {
-    setZoomButtonState(readZoomButtonState(mapRef.current))
-  }, [mapRef])
+  const setPanelOpen = (panel: MapControlRailPanel, isOpen: boolean) => {
+    if (isOpen) {
+      onActivePanelChange(panel)
+    } else if (activePanel === panel) {
+      onActivePanelChange(null)
+    }
+  }
 
   useEffect(() => {
-    const map = mapRef.current
-    refreshZoomButtonState()
     if (!map) return
 
-    const handleZoomChange = () => {
-      setZoomButtonState(readZoomButtonState(map))
-    }
+    const handleZoomChange = () => setZoomRevision((revision) => revision + 1)
 
     map.on('zoom', handleZoomChange)
     map.on('zoomend', handleZoomChange)
@@ -113,58 +97,129 @@ export default function MapControlRail({
       map.off('zoom', handleZoomChange)
       map.off('zoomend', handleZoomChange)
     }
-  }, [mapReadyVersion, mapRef, refreshZoomButtonState])
+  }, [map])
+
+  const bumpZoomRevision = () => setZoomRevision((revision) => revision + 1)
 
   const handleZoomIn = () => {
-    const map = mapRef.current
     if (!map) return
     map.zoomIn()
-    setZoomButtonState(readZoomButtonState(map))
+    bumpZoomRevision()
   }
 
   const handleZoomOut = () => {
-    const map = mapRef.current
     if (!map) return
     map.zoomOut()
-    setZoomButtonState(readZoomButtonState(map))
+    bumpZoomRevision()
   }
 
+  const handleShowLocation = () => {
+    if (!map || !geolocation || locationStatus === 'locating') return
+
+    setLocationStatus('locating')
+    geolocation.getCurrentPosition(
+      (position) => {
+        const longitude = position.coords.longitude
+        const latitude = position.coords.latitude
+        const zoom = Math.max(readMapNumber(() => map.getZoom()) ?? LOCATION_ZOOM, LOCATION_ZOOM)
+        onMapPointSelect?.({ lon: longitude, lat: latitude })
+        map.flyTo({
+          center: [longitude, latitude],
+          zoom,
+          essential: true,
+        })
+        setLocationStatus('idle')
+      },
+      () => {
+        setLocationStatus('error')
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 60_000,
+        timeout: 8_000,
+      }
+    )
+  }
+
+  const locationButtonLabel = locationStatus === 'locating'
+    ? 'Locating'
+    : locationStatus === 'error' || !geolocation
+      ? 'Location unavailable'
+      : 'Show your location'
+  const locationDisabled = map == null || !geolocation || locationStatus === 'locating'
+
   return (
-    <div className="map-control-rail" aria-label="Map controls">
-      <div className="map-control-group" aria-label="Map zoom controls">
-        <button
-          type="button"
-          className="map-control-button map-control-button--zoom-in"
-          title="Zoom in"
-          aria-label="Zoom in"
-          disabled={!zoomButtonState.canZoomIn}
-          onClick={handleZoomIn}
-        >
-          <span className="map-control-icon map-control-icon--zoom-in" />
-        </button>
-        <button
-          type="button"
-          className="map-control-button map-control-button--zoom-out"
-          title="Zoom out"
-          aria-label="Zoom out"
-          disabled={!zoomButtonState.canZoomOut}
-          onClick={handleZoomOut}
-        >
-          <span className="map-control-icon map-control-icon--zoom-out" />
-        </button>
+    <div className="map-control-rail" aria-label="Map controls: tools and navigation">
+      <div className="map-control-rail__tools" aria-label="Map tools">
+        <PlaceSearchButton
+          map={map}
+          isOpen={searchOpen}
+          onPlaceSelect={onMapPointSelect}
+          onOpenChange={(isOpen) => setPanelOpen('search', isOpen)}
+        />
+
+        <MapOptionsButton
+          isOpen={optionsOpen}
+          onOpenChange={(isOpen) => setPanelOpen('options', isOpen)}
+        />
+
+        <div className="map-control-group" aria-label="Map location controls">
+          <button
+            type="button"
+            className="map-control-button map-control-button--location"
+            title={locationButtonLabel}
+            aria-label={locationButtonLabel}
+            aria-busy={locationStatus === 'locating'}
+            disabled={locationDisabled}
+            onClick={handleShowLocation}
+          >
+            <span className="map-control-icon map-control-icon--location" />
+          </button>
+        </div>
+
+        <div className="map-control-group" aria-label="Map information controls">
+          <button
+            type="button"
+            className="map-control-button map-control-button--info"
+            title="Map information"
+            aria-label="Map information"
+          >
+            <span className="map-control-icon map-control-icon--info" />
+          </button>
+        </div>
+
+        <RadioButton
+          playlistUrl={resolvedPlaylistUrl}
+          createAudio={createAudio}
+          fetchPlaylist={fetchPlaylist}
+          random={random}
+        />
       </div>
 
-      <RadioButton
-        playlistUrl={resolvedPlaylistUrl}
-        createAudio={createAudio}
-        fetchPlaylist={fetchPlaylist}
-        random={random}
-      />
-
-      <MapOptionsButton
-        settings={settings}
-        settingsActions={settingsActions}
-      />
+      <div className="map-control-rail__navigation" aria-label="Map navigation">
+        <div className="map-control-group" aria-label="Map zoom controls">
+          <button
+            type="button"
+            className="map-control-button map-control-button--zoom-in"
+            title="Zoom in"
+            aria-label="Zoom in"
+            disabled={!zoomButtonState.canZoomIn}
+            onClick={handleZoomIn}
+          >
+            <span className="map-control-icon map-control-icon--zoom-in" />
+          </button>
+          <button
+            type="button"
+            className="map-control-button map-control-button--zoom-out"
+            title="Zoom out"
+            aria-label="Zoom out"
+            disabled={!zoomButtonState.canZoomOut}
+            onClick={handleZoomOut}
+          >
+            <span className="map-control-icon map-control-icon--zoom-out" />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
