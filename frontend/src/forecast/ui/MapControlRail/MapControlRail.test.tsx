@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -8,50 +7,15 @@ import {
 import { createMapFixture } from '@/test/fixtures'
 import MapControlRail, { type MapControlRailProps } from './MapControlRail'
 
-const PLAYLIST_URL = 'http://localhost:3000/radio/playlist.json'
-
 function renderRail(props: Partial<MapControlRailProps> = {}) {
-  const railProps = {
-    map: createMapFixture(),
-    playlistUrl: PLAYLIST_URL,
-    ...props,
-  }
-
-  if ('activePanel' in props || props.onActivePanelChange) {
-    return render(
-      <ForecastSettingsProvider>
-        <MapControlRail
-          {...railProps}
-          activePanel={props.activePanel ?? null}
-          onActivePanelChange={props.onActivePanelChange ?? vi.fn()}
-        />
-      </ForecastSettingsProvider>
-    )
-  }
-
-  function ControlledRail() {
-    const [activePanel, setActivePanel] = useState<MapControlRailProps['activePanel']>(null)
-    return (
-      <MapControlRail
-        {...railProps}
-        activePanel={activePanel}
-        onActivePanelChange={setActivePanel}
-      />
-    )
-  }
-
-  return render(
-    <ForecastSettingsProvider>
-      <ControlledRail />
-    </ForecastSettingsProvider>
-  )
-}
-
-function renderControlledRail(props: MapControlRailProps) {
   return render(
     <ForecastSettingsProvider>
       <MapControlRail
-        {...props}
+        map={'map' in props ? props.map ?? null : createMapFixture()}
+        geolocation={props.geolocation}
+        onMapPointSelect={props.onMapPointSelect}
+        activePanel={props.activePanel ?? null}
+        onActivePanelChange={props.onActivePanelChange ?? vi.fn()}
       />
     </ForecastSettingsProvider>
   )
@@ -143,77 +107,42 @@ describe('MapControlRail', () => {
     expect(screen.getByRole('button', { name: 'Location unavailable' })).toBeDisabled()
   })
 
-  it('keeps information and weather radio in the primary tools group', () => {
+  it('keeps information in the primary tools group', () => {
     renderRail()
 
     const tools = screen.getByLabelText('Map tools')
 
     expect(within(tools).getByRole('button', { name: 'Map information' })).toBeEnabled()
-    expect(within(tools).getByRole('button', { name: 'Play weather radio' })).toBeInTheDocument()
   })
 
-  it('opens display options from the tools group', () => {
-    renderRail()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Map display options' }))
-
-    expect(screen.getByLabelText('Map controls: tools and navigation')).toBeInTheDocument()
-    expect(screen.getByLabelText('Map tools')).toBeInTheDocument()
-    expect(screen.getByText('Display Options')).toBeInTheDocument()
-  })
-
-  it('keeps rail task panels mutually exclusive', () => {
-    renderRail()
+  it('requests rail panel changes from tool buttons', () => {
+    const onActivePanelChange = vi.fn()
+    renderRail({ onActivePanelChange })
 
     const searchButton = screen.getByRole('button', { name: 'Search places' })
     const optionsButton = screen.getByRole('button', { name: 'Map display options' })
 
     fireEvent.click(searchButton)
-    expect(searchButton).toHaveAttribute('aria-expanded', 'true')
-    expect(optionsButton).toHaveAttribute('aria-expanded', 'false')
+    expect(onActivePanelChange).toHaveBeenLastCalledWith('search')
 
     fireEvent.click(optionsButton)
-    expect(searchButton).toHaveAttribute('aria-expanded', 'false')
-    expect(optionsButton).toHaveAttribute('aria-expanded', 'true')
-
-    fireEvent.click(searchButton)
-    expect(searchButton).toHaveAttribute('aria-expanded', 'true')
-    expect(optionsButton).toHaveAttribute('aria-expanded', 'false')
+    expect(onActivePanelChange).toHaveBeenLastCalledWith('options')
   })
 
-  it('can be controlled by active panel identity', () => {
+  it('requests closing the active rail panel', () => {
     const onActivePanelChange = vi.fn()
-    const baseProps = {
-      map: createMapFixture(),
-      playlistUrl: PLAYLIST_URL,
+    renderRail({
+      activePanel: 'search',
       onActivePanelChange,
-    }
-    const { rerender } = renderControlledRail({
-      ...baseProps,
-      activePanel: null,
     })
 
     const searchButton = screen.getByRole('button', { name: 'Search places' })
     const optionsButton = screen.getByRole('button', { name: 'Map display options' })
 
-    expect(searchButton).toHaveAttribute('aria-expanded', 'false')
-    expect(optionsButton).toHaveAttribute('aria-expanded', 'false')
-
-    fireEvent.click(searchButton)
-    expect(onActivePanelChange).toHaveBeenLastCalledWith('search')
-
-    rerender(
-      <ForecastSettingsProvider>
-        <MapControlRail
-          {...baseProps}
-          activePanel="search"
-        />
-      </ForecastSettingsProvider>
-    )
     expect(searchButton).toHaveAttribute('aria-expanded', 'true')
     expect(optionsButton).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.click(optionsButton)
-    expect(onActivePanelChange).toHaveBeenLastCalledWith('options')
+    fireEvent.click(searchButton)
+    expect(onActivePanelChange).toHaveBeenLastCalledWith(null)
   })
 })

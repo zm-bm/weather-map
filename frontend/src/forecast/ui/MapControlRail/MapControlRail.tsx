@@ -4,14 +4,9 @@ import {
   useState,
 } from 'react'
 
-import config from '@/core/config'
-import type { RadioPlaylistFetch } from '@/radio/playlist'
-import type { AudioFactory } from '@/radio/useRadioPlayer'
-import { joinUrl } from '@/core/url/joinUrl'
 import type { MapPoint } from '../mapPoint'
 import MapOptionsButton from './MapOptionsButton'
 import PlaceSearchButton from './PlaceSearchButton'
-import RadioButton from './RadioButton'
 
 type LocationStatus = 'idle' | 'locating' | 'error'
 export type MapControlRailPanel = 'search' | 'options'
@@ -19,11 +14,7 @@ type GeolocationProvider = Pick<Geolocation, 'getCurrentPosition'>
 
 export type MapControlRailProps = {
   map: MapLibreMap | null
-  playlistUrl?: string
-  createAudio?: AudioFactory
-  fetchPlaylist?: RadioPlaylistFetch
   geolocation?: GeolocationProvider | null
-  random?: () => number
   onMapPointSelect?: (point: MapPoint) => void
   activePanel: MapControlRailPanel | null
   onActivePanelChange: (panel: MapControlRailPanel | null) => void
@@ -61,16 +52,11 @@ function readZoomButtonState(map: MapLibreMap | null) {
 
 export default function MapControlRail({
   map,
-  playlistUrl,
-  createAudio,
-  fetchPlaylist,
   geolocation = typeof navigator === 'undefined' ? null : navigator.geolocation,
-  random,
   onMapPointSelect,
   activePanel,
   onActivePanelChange,
 }: MapControlRailProps) {
-  const resolvedPlaylistUrl = playlistUrl ?? joinUrl(config.artifactBaseUrl, 'radio/playlist.json')
   const [, setZoomRevision] = useState(0)
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
   const searchOpen = activePanel === 'search'
@@ -187,13 +173,6 @@ export default function MapControlRail({
             <span className="map-control-icon map-control-icon--info" />
           </button>
         </div>
-
-        <RadioButton
-          playlistUrl={resolvedPlaylistUrl}
-          createAudio={createAudio}
-          fetchPlaylist={fetchPlaylist}
-          random={random}
-        />
       </div>
 
       <div className="map-control-rail__navigation" aria-label="Map navigation">

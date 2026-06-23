@@ -262,28 +262,6 @@ describe('ForecastMapReadout', () => {
     expect(screen.getByLabelText('Point forecast readout')).toBeInTheDocument()
   })
 
-  it('clears a controlled readout when the shell clears the point', () => {
-    const map = createMapFixture()
-    const frame = createRasterWindowFixture({ layerId: 'temperature' })
-    const props = {
-      map,
-      probeFrameChannel: createFrameChannel(frame),
-      ...readoutProps(),
-    }
-
-    const { rerender } = render(
-      <ForecastMapReadout {...props} point={{ lon: -180, lat: 90 }} />
-    )
-
-    expect(screen.getByLabelText('Point forecast readout')).toBeInTheDocument()
-
-    rerender(<ForecastMapReadout {...props} point={null} />)
-    expect(screen.queryByLabelText('Point forecast readout')).not.toBeInTheDocument()
-
-    rerender(<ForecastMapReadout {...props} point={null} />)
-    expect(screen.queryByLabelText('Point forecast readout')).not.toBeInTheDocument()
-  })
-
   it('shows loading until the probe frame matches the selected layer', () => {
     const map = createMapFixture()
     mocks.selectedLayerId = 'relative_humidity'

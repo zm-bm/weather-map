@@ -5,8 +5,6 @@
   --wm-map-ctrl-button-size: 44px;
   --wm-map-ctrl-button-height: 38px;
   --wm-map-ctrl-shell-border: var(--wm-chrome-border-quiet);
-  --wm-map-ctrl-shell-outline: var(--wm-chrome-outline);
-  --wm-map-ctrl-shell-inset: var(--wm-chrome-inset-highlight);
   --wm-map-ctrl-group-background: var(--wm-chrome-surface-control);
   --wm-map-ctrl-button-fill: var(--wm-chrome-surface-control);
   --wm-map-ctrl-button-fill-hover: var(--wm-chrome-surface-control-hover);
@@ -273,10 +271,6 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M13.2 6.2a7 7 0 0 1 5.54 11.27l3.74 3.74a1.35 1.35 0 0 1-1.9 1.91l-3.75-3.74A7 7 0 1 1 13.2 6.2Zm0 2.7a4.3 4.3 0 1 0 0 8.6 4.3 4.3 0 0 0 0-8.6Z'/%3E%3C/svg%3E");
 }
 
-.map-control-icon--radio {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M20.4 6.4a1.1 1.1 0 0 1 1.1 1.08v10.13a2.76 2.76 0 1 1-1.65-2.52v-4.96l-7.3 1.34v7.29a2.76 2.76 0 1 1-1.65-2.52V9.78c0-.53.38-.99.91-1.09l8.59-1.58Zm-.55 2.05-7.3 1.34v1.68l7.3-1.34Z'/%3E%3C/svg%3E");
-}
-
 .map-control-icon--location {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M14.5 3.8a1.2 1.2 0 0 1 1.2 1.2v2.1a7.55 7.55 0 0 1 6.2 6.2H24a1.2 1.2 0 0 1 0 2.4h-2.1a7.55 7.55 0 0 1-6.2 6.2V24a1.2 1.2 0 0 1-2.4 0v-2.1a7.55 7.55 0 0 1-6.2-6.2H5a1.2 1.2 0 1 1 0-2.4h2.1a7.55 7.55 0 0 1 6.2-6.2V5a1.2 1.2 0 0 1 1.2-1.2Zm0 5.6a5.1 5.1 0 1 0 0 10.2 5.1 5.1 0 0 0 0-10.2Zm0 2.7a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8Z'/%3E%3C/svg%3E");
 }
@@ -289,17 +283,17 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='m15.99 6.01.37 1.72a6.96 6.96 0 0 1 1.41.58l1.5-.96 1.82 1.82-.95 1.49c.22.45.4.92.55 1.4l1.73.38v2.57l-1.72.37a6.9 6.9 0 0 1-.58 1.42l.96 1.49-1.82 1.82-1.5-.95a7.02 7.02 0 0 1-1.4.55l-.38 1.73h-2.57l-.37-1.72a7.1 7.1 0 0 1-1.42-.58l-1.49.96-1.82-1.82.95-1.5a7.1 7.1 0 0 1-.55-1.4l-1.73-.38v-2.57l1.72-.37c.14-.49.34-.96.58-1.42l-.96-1.49 1.82-1.82 1.5.95c.44-.22.91-.4 1.4-.55l.38-1.73zm-1.29 5.18a2.61 2.61 0 1 0 0 5.22 2.61 2.61 0 0 0 0-5.22z'/%3E%3C/svg%3E");
 }
 
-.map-control-button:is(.map-control-button--radio.is-playing, .map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) {
+.map-control-button:is(.map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) {
   background: var(--wm-map-ctrl-button-fill-active);
   box-shadow: var(--wm-map-ctrl-button-shadow-active);
 }
 
-.map-control-rail__tools .map-control-button:is(.map-control-button--radio.is-playing, .map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) {
+.map-control-rail__tools .map-control-button:is(.map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) {
   background: var(--wm-hud-surface-active);
   box-shadow: var(--wm-hud-shadow-active);
 }
 
-.map-control-button:is(.map-control-button--radio.is-playing, .map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) .map-control-icon {
+.map-control-button:is(.map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]) .map-control-icon {
   opacity: 0.98;
 }
 
@@ -825,13 +819,13 @@
       brightness(1.05);
   }
 
-  .map-control-button:is(.map-control-button--radio.is-playing, .map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]):hover {
+  .map-control-button:is(.map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]):hover {
     background: var(--wm-map-ctrl-button-fill-active-hover);
     box-shadow: var(--wm-map-ctrl-button-shadow-active-hover);
     filter: brightness(1.03);
   }
 
-  .map-control-rail :where(.map-control-rail__tools, .map-control-rail__navigation) .map-control-button:is(.map-control-button--radio.is-playing, .map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]):hover {
+  .map-control-rail :where(.map-control-rail__tools, .map-control-rail__navigation) .map-control-button:is(.map-control-button--options[aria-pressed="true"], .map-control-button--search[aria-pressed="true"]):hover {
     background: var(--wm-hud-surface-active-hover);
     box-shadow: var(--wm-hud-shadow-active);
   }

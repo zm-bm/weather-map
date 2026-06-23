@@ -46,25 +46,6 @@
   --wm-legend-cloud-label-size: 10px;
 }
 
-.legend-panel__body {
-  display: grid;
-  align-items: stretch;
-  gap: 4px;
-  min-width: 0;
-}
-
-.legend-panel__scale-frame {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .legend-panel__scale-wrap {
   position: relative;
   display: grid;
@@ -113,10 +94,6 @@
   outline: 1px solid var(--wm-focus-ring);
   outline-offset: 2px;
   box-shadow: var(--wm-legend-chrome-shadow-hover);
-}
-
-.legend-panel__scale--static {
-  cursor: default;
 }
 
 .legend-panel__scale-unit {
@@ -232,17 +209,9 @@
     --wm-legend-cloud-label-size: 10px;
   }
 
-  .legend-panel__scale-footer {
-    font-size: 8px;
-  }
-
   .legend-panel--cloud-layers .legend-panel__scale-footer {
     bottom: 15px;
     font-size: var(--wm-legend-cloud-label-size);
-  }
-
-  .legend-panel__body {
-    gap: 3px;
   }
 
   .legend-panel__scale-unit {

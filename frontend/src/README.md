@@ -11,8 +11,8 @@ when naming new modules, docs, types, and UI/domain concepts.
 
 ## Top-Level Flow
 
-`app/App.tsx` owns routing. The forecast route calls
-`forecast/manifest/useForecastManifest`, which fetches
+`app/App.tsx` provides router context for URL-backed forecast selection.
+`app/ForecastApp.tsx` calls `forecast/manifest/useForecastManifest`, which fetches
 `manifests/index.json`, selects the active dataset, composes app
 startup status, then renders `forecast/ui/ForecastShell` and
 `app/AppStatusHost`.
@@ -31,7 +31,7 @@ initial sync, request building, payload loading, and layer application.
 
 ## Module Ownership
 
-- `app/*`: route composition, forecast app startup status projection, app status rendering, and non-forecast routes such as health.
+- `app/*`: top-level forecast app composition, forecast startup status projection, and app status rendering.
 
 - `forecast/ui/*`: React composition and panel/control UI for the forecast route. UI should consume domain contexts and hooks rather than owning payload decoding, MapLibre setup, or artifact fetching directly.
 
@@ -62,8 +62,6 @@ initial sync, request building, payload loading, and layer application.
 - `map/*`: MapLibre host platform, basemap contracts, style construction, viewport persistence, map controls, and base map interactions. Keep forecast domain logic out of this layer.
 
 - `core/*`: dependency-light primitives such as config, abort/error helpers, math, geo, URL joining, keyboard helpers, and shared type helpers. Keep this precise; do not turn it into a utility bucket.
-
-- `radio/*`: audio playlist/player behavior used by map controls.
 
 - `styles/*`: global CSS split by surface area. Import through `styles/index.css`.
 

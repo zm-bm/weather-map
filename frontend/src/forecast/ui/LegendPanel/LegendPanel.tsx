@@ -71,30 +71,22 @@ export default function LegendPanel() {
   const scales = scaleSpecs.map((spec) => (
     <LegendScale key={spec.id} spec={spec} />
   ))
-  const panelClassName = [
-    'legend-panel',
-    display.kind === 'cloud-layers'
-      ? 'legend-panel--cloud-layers'
-      : 'legend-panel--gradient',
-  ].filter(Boolean).join(' ')
+  const panelClassName = display.kind === 'cloud-layers'
+    ? 'legend-panel legend-panel--cloud-layers'
+    : 'legend-panel'
 
   return (
     <section
       className={panelClassName}
-      data-display-profile={layer.displayProfile}
       aria-label={`${display.label} legend`}
     >
-      <div className="legend-panel__body">
-        {scaleSpecs.length === 1 ? (
-          <div className="legend-panel__scale-frame">
-            {scales}
-          </div>
-        ) : (
-          <div className="legend-panel__scale-group" aria-label={CLOUD_LAYER_SCALE_GROUP_LABEL}>
-            {scales}
-          </div>
-        )}
-      </div>
+      {scaleSpecs.length === 1 ? (
+        scales
+      ) : (
+        <div className="legend-panel__scale-group" aria-label={CLOUD_LAYER_SCALE_GROUP_LABEL}>
+          {scales}
+        </div>
+      )}
     </section>
   )
 }
@@ -200,10 +192,9 @@ function LegendScale({
     unitLabel,
   } = spec
   const interactive = onClick != null
-  const scaleClassName = [
-    'legend-panel__scale',
-    interactive ? 'legend-panel__scale--interactive' : 'legend-panel__scale--static',
-  ].join(' ')
+  const scaleClassName = interactive
+    ? 'legend-panel__scale legend-panel__scale--interactive'
+    : 'legend-panel__scale'
   const scaleStyle = { backgroundImage } satisfies CSSProperties
   const scaleContent = (
     <>

@@ -90,14 +90,11 @@
   font-family: var(--wm-font-display);
   pointer-events: auto;
   text-transform: uppercase;
+  transform-origin: right top;
   transition:
     opacity 140ms ease,
     transform 140ms ease,
     visibility 140ms ease;
-}
-
-.map-readout {
-  transform-origin: right top;
   animation: map-readout-in 120ms ease-out;
 }
 

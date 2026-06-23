@@ -18,7 +18,7 @@ export default function AppStatusHost({ status }: { status: AppStatus }) {
   if (!status) return null
   if (status.kind === 'loading') {
     return (
-      <div className="app-status-toast app-status-toast--loading">
+      <div className="app-status-toast">
         <div
           className="app-status-chip"
           role="status"
@@ -33,8 +33,8 @@ export default function AppStatusHost({ status }: { status: AppStatus }) {
   }
 
   return (
-    <div className="forecast-screen__status-overlay forecast-screen__status-overlay--error">
-      <div className="status-card status-card--error" role="alert" aria-live="assertive">
+    <div className="forecast-screen__status-overlay">
+      <div className="status-card" role="alert" aria-live="assertive">
         <h1 className="status-card__title">{status.title}</h1>
         <p className="status-card__detail">{status.detail}</p>
         {status.hint ? (

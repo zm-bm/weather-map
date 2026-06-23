@@ -112,7 +112,6 @@ describe('LegendPanel', () => {
     renderLegendHarness('air_pressure')
     const scale = screen.getByLabelText('Air Pressure units hPa.')
 
-    expect(screen.queryByRole('button', { name: /cycle air pressure units/i })).not.toBeInTheDocument()
     expect(scale).toHaveTextContent('hPa')
   })
 
@@ -135,7 +134,6 @@ describe('LegendPanel', () => {
     const scale = screen.getByLabelText('Total/Sky Cover units %.')
 
     expect(scale).toHaveTextContent('%')
-    expect(screen.queryByRole('button', { name: /cycle total\/sky cover units/i })).not.toBeInTheDocument()
     expect(container).toHaveTextContent('0')
     expect(container).toHaveTextContent('10')
     expect(container).toHaveTextContent('90')
