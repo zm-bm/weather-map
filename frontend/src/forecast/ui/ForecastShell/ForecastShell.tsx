@@ -87,9 +87,7 @@ function ForecastStage({
   const [activePanel, setActivePanel] = useState<ForecastPanel | null>(null)
   const [point, setSelectedPoint] = useState<MapPoint | null>(null)
   const weatherMapsOpen = activePanel === 'weather-maps'
-  const railPanel = activePanel === 'search' || activePanel === 'options'
-    ? activePanel
-    : null
+  const railPanel = activePanel === 'weather-maps' ? null : activePanel
   const suppressReadout = activePanel != null
 
   const setWeatherMapsOpen = (isOpen: boolean) => {

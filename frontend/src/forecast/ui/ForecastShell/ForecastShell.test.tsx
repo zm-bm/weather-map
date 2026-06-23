@@ -232,6 +232,13 @@ describe('ForecastShell', () => {
     })
     expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
     expect(latestMapControlRailProps().activePanel).toBe('search')
+
+    act(() => {
+      latestMapControlRailProps().onActivePanelChange('info')
+    })
+    expect(latestWeatherCategoryBarProps().isOpen).toBe(false)
+    expect(latestMapControlRailProps().activePanel).toBe('info')
+    expect(latestMapReadoutProps().suppressed).toBe(true)
   })
 
   it('coordinates point forecast with edge panels', () => {

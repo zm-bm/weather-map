@@ -5,11 +5,12 @@ import {
 } from 'react'
 
 import type { MapPoint } from '../mapPoint'
+import MapInfoButton from './MapInfoButton'
 import MapOptionsButton from './MapOptionsButton'
 import PlaceSearchButton from './PlaceSearchButton'
 
 type LocationStatus = 'idle' | 'locating' | 'error'
-export type MapControlRailPanel = 'search' | 'options'
+export type MapControlRailPanel = 'search' | 'options' | 'info'
 type GeolocationProvider = Pick<Geolocation, 'getCurrentPosition'>
 
 export type MapControlRailProps = {
@@ -61,6 +62,7 @@ export default function MapControlRail({
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
   const searchOpen = activePanel === 'search'
   const optionsOpen = activePanel === 'options'
+  const infoOpen = activePanel === 'info'
   const zoomButtonState = readZoomButtonState(map)
 
   const setPanelOpen = (panel: MapControlRailPanel, isOpen: boolean) => {
@@ -163,16 +165,10 @@ export default function MapControlRail({
           </button>
         </div>
 
-        <div className="map-control-group" aria-label="Map information controls">
-          <button
-            type="button"
-            className="map-control-button map-control-button--info"
-            title="Map information"
-            aria-label="Map information"
-          >
-            <span className="map-control-icon map-control-icon--info" />
-          </button>
-        </div>
+        <MapInfoButton
+          isOpen={infoOpen}
+          onOpenChange={(isOpen) => setPanelOpen('info', isOpen)}
+        />
       </div>
 
       <div className="map-control-rail__navigation" aria-label="Map navigation">

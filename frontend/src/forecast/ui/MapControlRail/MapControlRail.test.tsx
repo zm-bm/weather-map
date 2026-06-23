@@ -121,12 +121,16 @@ describe('MapControlRail', () => {
 
     const searchButton = screen.getByRole('button', { name: 'Search places' })
     const optionsButton = screen.getByRole('button', { name: 'Map display options' })
+    const infoButton = screen.getByRole('button', { name: 'Map information' })
 
     fireEvent.click(searchButton)
     expect(onActivePanelChange).toHaveBeenLastCalledWith('search')
 
     fireEvent.click(optionsButton)
     expect(onActivePanelChange).toHaveBeenLastCalledWith('options')
+
+    fireEvent.click(infoButton)
+    expect(onActivePanelChange).toHaveBeenLastCalledWith('info')
   })
 
   it('requests closing the active rail panel', () => {
