@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build:glyphs": "node ./scripts/build-glyphs.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -26,8 +25,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@mapka/font-sdf": "^0.5.0",
-    "@mapka/font-sdf-composite": "^0.5.1",
     "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

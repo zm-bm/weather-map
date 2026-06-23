@@ -323,7 +323,7 @@
   top: var(--wm-timeline-bar-scale-label-top);
   left: 50%;
   color: rgba(234, 242, 255, 0.82);
-  font-family: var(--wm-font-mono);
+  font-family: var(--wm-font-data);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;

@@ -40,7 +40,7 @@ export const placeProbeLayerIds = {
   layer: FORECAST_PLACE_PROBE_LAYER_ID,
 } as const
 
-const PLACE_LABEL_FONT_STACK = 'NotoSansMonoCJKjpRegular'
+const PLACE_LABEL_FONT_STACKS = ['Arial Bold', 'Noto Sans Bold', 'sans-serif'] as const
 
 const PLACE_PROBE_LAYER: LayerSpecification = {
   id: placeProbeLayerIds.layer,
@@ -50,7 +50,7 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
   layout: {
     'symbol-sort-key': ['get', 'sortKey'],
     'text-field': ['get', 'labelText'],
-    'text-font': [PLACE_LABEL_FONT_STACK],
+    'text-font': [...PLACE_LABEL_FONT_STACKS],
     'text-justify': 'auto',
     'text-letter-spacing': 0,
     'text-line-height': 1.05,
@@ -81,20 +81,20 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       'rgba(255, 255, 255, 1)',
-      'rgba(238, 244, 248, 0.88)',
+      'rgba(244, 248, 252, 0.94)',
     ],
-    'text-halo-blur': 0.12,
+    'text-halo-blur': 0.08,
     'text-halo-color': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       'rgba(5, 8, 15, 0.96)',
-      'rgba(16, 22, 34, 0.66)',
+      'rgba(11, 17, 30, 0.74)',
     ],
     'text-halo-width': [
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       1.55,
-      1,
+      1.18,
     ],
   },
 }

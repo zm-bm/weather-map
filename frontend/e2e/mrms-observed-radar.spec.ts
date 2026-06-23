@@ -81,9 +81,6 @@ test('loads mocked MRMS observed radar and advances playback through rolling pay
   await page.route('**/pmtiles/**', async (route) => {
     await route.abort()
   })
-  await page.route('**/glyphs/**', async (route) => {
-    await route.fulfill({ status: 204 })
-  })
 
   await page.goto('/?layer=observed_radar_composite_reflectivity')
 

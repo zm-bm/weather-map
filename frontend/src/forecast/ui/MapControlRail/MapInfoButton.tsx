@@ -27,17 +27,17 @@ type DatasetInfo = {
 const DATASET_INFO: Record<string, DatasetInfo> = {
   gfs: {
     provider: 'NOAA/NCEP',
-    cadence: 'Typically every 6 hours.',
+    cadence: 'Every 6 hours.',
     source: 'GFS forecast guidance from NOAA/NCEP',
   },
   icon: {
     provider: 'DWD',
-    cadence: 'Typically every 6 hours.',
+    cadence: 'Every 6 hours.',
     source: 'ICON forecast guidance from DWD',
   },
   mrms: {
     provider: 'NOAA MRMS',
-    cadence: 'Updated frequently as new radar analyses are available.',
+    cadence: 'As radar analyses update.',
     source: 'NOAA MRMS radar analysis products',
   },
 }
@@ -117,7 +117,7 @@ function MapInfoPanel({ onClose }: { onClose: () => void }) {
       aria-labelledby={titleId}
     >
       <div className="map-control-info-header">
-        <strong id={titleId} className="map-control-info-title wm-display-caps">About</strong>
+        <strong id={titleId} className="map-control-info-title">About</strong>
         <button
           type="button"
           className="map-control-info-close"
@@ -129,8 +129,8 @@ function MapInfoPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <p className="map-control-info-copy">
-        This is a map-first forecast viewer for exploring public weather
-        datasets with custom WebGL rendering.{' '}
+        Weather Map is a map-first viewer for public weather datasets rendered
+        with custom WebGL layers.{' '}
         <a href={PROJECT_URL} target="_blank" rel="noreferrer">GitHub project</a>
       </p>
 
@@ -147,10 +147,10 @@ function MapInfoPanel({ onClose }: { onClose: () => void }) {
         {layerLabel} maps show {layerDescription} from {dataset.source}.
       </p>
       <p className="map-control-info-note">
-        Displayed data may be modified, interpolated, regridded, reformatted,
-        visualized, combined with overlays, or otherwise derived from source
-        products. It is not official provider output, and accuracy, completeness,
-        availability, and suitability are not guaranteed.
+        Data may be modified, interpolated, regridded, reformatted, visualized,
+        combined with overlays, or otherwise derived. It is not official provider
+        output; accuracy, completeness, availability, and suitability are not
+        guaranteed.
       </p>
     </section>
   )
@@ -158,7 +158,7 @@ function MapInfoPanel({ onClose }: { onClose: () => void }) {
 
 function fallbackDatasetInfo(activeRun: ActiveForecastRun): DatasetInfo {
   return {
-    cadence: 'Updates are published when a new completed run is available.',
+    cadence: 'When a completed run is available.',
     source: `${activeRun.label} data`,
   }
 }

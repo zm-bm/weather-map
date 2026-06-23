@@ -2,7 +2,6 @@ import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
 import { createConfigFixture } from '@/test/fixtures'
-import { joinUrl } from '@/core/url/joinUrl'
 import {
   BASEMAP_LAYER_IDS,
   BASEMAP_SOURCE_ID,
@@ -18,12 +17,12 @@ import {
 import baseStyleJson from './style.json'
 
 describe('basemap style', () => {
-  it('builds a cloned style with configured glyph and basemap source urls', () => {
+  it('builds a cloned style with the configured basemap source url', () => {
     const config = createConfigFixture()
     const style = buildMapStyle(config)
 
     expect(style).not.toBe(baseStyleJson)
-    expect(style.glyphs).toBe(joinUrl(config.artifactBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
+    expect(style.glyphs).toBeUndefined()
 
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')

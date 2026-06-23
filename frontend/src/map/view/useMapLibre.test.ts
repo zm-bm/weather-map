@@ -93,7 +93,6 @@ vi.mock('./viewportPersistence', () => ({
 import baseStyleJson from './style.json'
 import config from '@/core/config'
 import { useMapLibre } from './useMapLibre'
-import { joinUrl } from '@/core/url/joinUrl'
 
 const MAP_OPTIONS = {
   center: [-95, 39] as [number, number],
@@ -104,6 +103,7 @@ const MAP_OPTIONS = {
 
 type MapConstructorOptions = {
   fadeDuration: number
+  localIdeographFontFamily: string
   style: StyleSpecification
 }
 
@@ -139,8 +139,9 @@ describe('useMapLibre', () => {
     const style = latestStyle()
 
     expect(options.fadeDuration).toBe(0)
+    expect(options.localIdeographFontFamily).toBe('sans-serif')
     expect(style).not.toBe(baseStyleJson)
-    expect(style.glyphs).toBe(joinUrl(config.artifactBaseUrl, 'glyphs/{fontstack}/{range}.pbf'))
+    expect(style.glyphs).toBeUndefined()
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
     expect(basemapSource?.url).toBe(config.basemapUrl)

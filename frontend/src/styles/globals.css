@@ -1,5 +1,5 @@
 :root {
-  font-family: var(--wm-font-body, "Star4000", system-ui, Avenir, Helvetica, Arial, sans-serif);
+  font-family: var(--wm-font-body, "Arial Narrow", "Liberation Sans Narrow", system-ui, sans-serif);
   line-height: 1.5;
   font-weight: 400;
 

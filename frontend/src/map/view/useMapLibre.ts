@@ -69,6 +69,7 @@ export function useMapLibre({
         dragRotate: false,
         attributionControl: false,
         fadeDuration: 0,
+        localIdeographFontFamily: 'sans-serif',
         style,
       })
     } catch (error) {

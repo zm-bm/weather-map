@@ -10,9 +10,7 @@ locals {
     path_patterns = tolist([
       "/manifests/*",
       "/runs/*/payloads/*",
-      "/glyphs/*",
       "/pmtiles/*",
-      "/radio/*",
     ])
     min_ttl     = 0
     default_ttl = 300

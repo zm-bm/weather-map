@@ -31,7 +31,7 @@ describe('MapInfoButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Map information' }))
 
     expect(screen.getByRole('dialog', { name: 'About' })).toBeInTheDocument()
-    expect(screen.getByText(/Weather Map is a map-first forecast viewer/i)).toBeInTheDocument()
+    expect(screen.getByText(/Weather Map is a map-first viewer/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'GitHub project' })).toHaveAttribute(
       'href',
       'https://github.com/zm-bm/weather-map'
@@ -68,7 +68,7 @@ describe('MapInfoButton', () => {
     renderWithForecastSelection(<TestMapInfoButton initialOpen />, manifest, 'custom')
 
     expect(screen.getAllByText('Custom Model').length).toBeGreaterThan(0)
-    expect(screen.getByText('Updates are published when a new completed run is available.')).toBeInTheDocument()
+    expect(screen.getByText('When a completed run is available.')).toBeInTheDocument()
     expect(screen.getByText(/Temperature maps show near-surface air temperature from Custom Model data/i)).toBeInTheDocument()
   })
 })

@@ -205,7 +205,7 @@ To deploy without prompts:
 scripts/etl-deploy.sh --auto-approve
 ```
 
-To also upload static glyph and PMTiles assets after the deploy:
+To also upload static PMTiles assets after the deploy:
 
 ```bash
 scripts/etl-deploy.sh --upload-static

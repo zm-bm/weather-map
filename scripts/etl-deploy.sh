@@ -23,7 +23,6 @@ PLAN_ONLY="false"
 AUTO_APPROVE="false"
 UPLOAD_STATIC="false"
 
-GLYPH_CACHE_CONTROL="${GLYPH_CACHE_CONTROL:-public, max-age=604800, s-maxage=2592000}"
 PMTILES_CACHE_CONTROL="${PMTILES_CACHE_CONTROL:-public, max-age=86400, s-maxage=604800}"
 ALLOW_EMPTY="${ALLOW_EMPTY:-false}"
 
@@ -39,7 +38,7 @@ Description:
     3. after approval, create/update the Terraform-owned ECR repository;
     4. build and push the split ETL worker base/app image using that tag;
     5. apply the full Terraform stack;
-    6. optionally upload static glyph/PMTiles assets.
+    6. optionally upload static PMTiles assets.
 
 Options:
   --plan-only       Build the Lambda zip and run Terraform plan, then exit.
@@ -50,8 +49,7 @@ Options:
 
 Environment:
   AWS_REGION, IMAGE_TAG, ETL_CODE_REVISION, PYTHON_BIN, DIST_DIR, OUTPUT_ZIP,
-  STACK_DIR, ARTIFACT_ROOT, ARTIFACTS_BUCKET, ALLOW_EMPTY, GLYPH_CACHE_CONTROL,
-  PMTILES_CACHE_CONTROL.
+  STACK_DIR, ARTIFACT_ROOT, ARTIFACTS_BUCKET, ALLOW_EMPTY, PMTILES_CACHE_CONTROL.
 EOF
 }
 
@@ -378,7 +376,6 @@ upload_static_artifacts() {
   echo "  artifact_root: $ARTIFACT_ROOT"
   echo "  region:        $AWS_REGION"
 
-  upload_group "glyph PBFs" "$ARTIFACT_ROOT/glyphs" "glyphs" "*.pbf" "application/x-protobuf" "$GLYPH_CACHE_CONTROL"
   upload_group "PMTiles" "$ARTIFACT_ROOT/pmtiles" "pmtiles" "*.pmtiles" "application/octet-stream" "$PMTILES_CACHE_CONTROL"
 }
 

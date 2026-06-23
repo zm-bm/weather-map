@@ -53,14 +53,6 @@ export default defineConfig({
         target: DEV_ARTIFACT_ORIGIN,
         changeOrigin: true,
       },
-      '/radio': {
-        target: DEV_ARTIFACT_ORIGIN,
-        changeOrigin: true,
-      },
-      '/glyphs': {
-        target: DEV_ARTIFACT_ORIGIN,
-        changeOrigin: true,
-      },
       '/api': {
         target: DEV_API_ORIGIN,
         changeOrigin: true,

@@ -99,9 +99,10 @@
   position: relative;
   display: grid;
   align-content: center;
+  row-gap: 1px;
   min-width: 62px;
-  min-height: 39px;
-  padding: 4px 8px;
+  min-height: 43px;
+  padding: 5px 8px;
   border: 1px solid transparent;
   border-radius: var(--wm-radius-control);
   background: transparent;
@@ -143,7 +144,9 @@
 .forecast-run-status__value {
   overflow: hidden;
   color: rgba(255, 246, 224, 0.92);
-  font-size: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.16;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -157,6 +160,8 @@
   min-width: 0;
   color: rgba(234, 242, 255, 0.54);
   font-size: 10px;
+  font-weight: 600;
+  line-height: 1.18;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -632,17 +637,19 @@
 
   .forecast-run-status__option {
     min-width: 46px;
-    min-height: 30px;
-    padding: 2px 6px;
+    min-height: 34px;
+    padding: 4px 6px;
     border-radius: var(--wm-radius-control);
   }
 
   .forecast-run-status__value {
-    font-size: 10.5px;
+    font-size: 11px;
+    line-height: 1.18;
   }
 
   .forecast-run-status__detail {
-    font-size: 8.5px;
+    font-size: 9px;
+    line-height: 1.2;
   }
 }
 

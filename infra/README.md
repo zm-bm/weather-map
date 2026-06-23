@@ -28,8 +28,7 @@ Preview without applying:
 scripts/etl-deploy.sh --plan-only
 ```
 
-Upload static artifact assets from `artifacts/glyphs/` and `artifacts/pmtiles/`
-as part of the ETL deploy:
+Upload static PMTiles assets from `artifacts/pmtiles/` as part of the ETL deploy:
 
 ```bash
 scripts/etl-deploy.sh --upload-static

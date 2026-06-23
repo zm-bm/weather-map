@@ -5,14 +5,6 @@
   text-align: initial;
 }
 
-@font-face {
-  font-family: "Star4000";
-  src: url("@/assets/fonts/Star4000.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   --wm-bg: #0c1230;
   --wm-panel: #182765;
@@ -151,9 +143,10 @@
   --wm-ui-border-cool: rgba(210, 218, 239, 0.5);
   --wm-ui-border-warm-hover: rgba(255, 242, 216, 0.7);
   --wm-shadow: 0 10px 26px rgba(5, 10, 28, 0.3);
-  --wm-font-display: "Star4000", "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", sans-serif;
-  --wm-font-body: "Star4000", "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  --wm-font-display: "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", "DejaVu Sans Condensed", sans-serif;
+  --wm-font-body: "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue Condensed", "DejaVu Sans Condensed", sans-serif;
   --wm-font-mono: var(--wm-font-display);
+  --wm-font-data: Arial, "Liberation Sans", "Noto Sans", system-ui, sans-serif;
 }
 
 .wm-panel-shell {
