@@ -13,7 +13,7 @@ from ..environment.context import ExecutionContext, execution_context
 from ..processing.artifact import process_artifact
 from ..processing.grib import grid_meta_from_grib
 from ..processing.proc import RunFn, make_runner
-from ..sources import acquire_prepared_source
+from ..sources.registry import acquire_prepared_source
 from ..state.artifacts.identity import ArtifactWorkItem
 from ..state.artifacts.markers_schema import build_artifact_marker_payload
 from ..state.artifacts.repository import ArtifactRepository

@@ -97,7 +97,6 @@ def test_submit_aws_run_submits_workers_and_leaves_validation_to_scheduled_publi
             records=(
                 WorkerLaunchRecord(
                     worker=kwargs["plan"].workers[0],
-                    source_uri=kwargs["plan"].workers[0].source_uri,
                     started=True,
                     job_id="job-1",
                     job_name="job-1",

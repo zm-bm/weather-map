@@ -25,7 +25,6 @@ class AwsRunSubmissionResult:
     run_id: str
     workers_started: int
     workers_skipped: int
-    failures: int = 0
 
 
 def submit_aws_batch_run(

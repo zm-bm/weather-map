@@ -170,21 +170,17 @@ def test_upload_static_flag_uploads_static_artifacts(script: DeployScriptHarness
 
     assert result.returncode == 0
     assert "Uploading static weather-map artifacts" in result.stdout
-    assert aws_log.count("s3 cp ") == 4
+    assert aws_log.count("s3 cp ") == 2
     assert "s3://artifacts-bucket/glyphs/" in aws_log
     assert "s3://artifacts-bucket/pmtiles/" in aws_log
-    assert "s3://artifacts-bucket/radio/" in aws_log
 
 
 def _static_artifact_root(tmp_path: Path) -> Path:
     root = tmp_path / "static-artifacts"
     (root / "glyphs" / "NotoSans").mkdir(parents=True)
     (root / "pmtiles").mkdir(parents=True)
-    (root / "radio").mkdir(parents=True)
     (root / "glyphs" / "NotoSans" / "0-255.pbf").write_bytes(b"glyph")
     (root / "pmtiles" / "world.pmtiles").write_bytes(b"pmtiles")
-    (root / "radio" / "playlist.json").write_text("{}", encoding="utf-8")
-    (root / "radio" / "track.mp3").write_bytes(b"mp3")
     return root
 
 

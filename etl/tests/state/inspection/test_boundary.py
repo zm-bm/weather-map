@@ -16,7 +16,6 @@ class TestInspectionBoundary:
                 "weather_etl.state.inspection.freshness",
                 "weather_etl.state.inspection.lifecycle",
                 "weather_etl.state.inspection.manifest_index",
-                "weather_etl.state.inspection.runs",
                 "weather_etl.state.inspection.status_document",
             ):
                 importlib.import_module(name)

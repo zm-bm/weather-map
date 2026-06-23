@@ -1,17 +1,17 @@
 # Weather ETL
 
 This package builds forecast artifacts for Weather Map. It owns the Python ETL
-code, the Docker worker image, the local cycle runner, and the AWS Batch worker
-submission path for GFS and ICON.
+code, the Docker worker image, and the AWS Batch worker submission path for GFS,
+ICON, and observed datasets.
 
 For normal work, start with the shell wrappers:
 
-- `scripts/etl-run-local.sh` runs a complete local cycle with Docker
-  frame workers.
 - `scripts/etl-run-aws.sh` submits AWS Batch frame workers for a cycle.
+- `scripts/etl-fetch-run.sh` copies artifacts for an explicit completed run
+  into the local `artifacts/` tree.
 
-The Python CLI does the real work behind those wrappers. Use it directly when
-you are debugging a stage, inspecting persisted state, or writing tests.
+The Python CLI intentionally keeps a narrow operational surface: submit a run
+or run one frame worker.
 
 ## Quick Start
 
@@ -21,113 +21,51 @@ Set up the shared Python environment:
 scripts/bootstrap.sh
 ```
 
-Run a local cycle for one dataset:
-
-```bash
-scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH>
-scripts/etl-run-local.sh --dataset-id icon --cycle <YYYYMMDDHH>
-```
-
-Preview the local work without writing artifacts:
-
-```bash
-scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
-```
-
-Iterate on a smaller local slice:
-
-```bash
-scripts/etl-run-local.sh \
-  --dataset-id gfs \
-  --cycle <YYYYMMDDHH> \
-  --frames "000 003" \
-  --artifact cloud_layers
-```
-
-`--artifact` and `--frames` are for local iteration and targeted reruns. A
-fresh filtered run may fail validation unless the rest of the required run
-already exists under the same `run_id`.
-
-## Local Cycle
-
-Local runs use the same planned frame-worker shape as AWS, but launch those
-workers in local Docker containers. The wrapper builds or refreshes a stable
-base image plus a fast app image:
-
-- `LOCAL_ETL_BASE_IMAGE` defaults to `weather-map-etl-base:local`
-- `LOCAL_ETL_IMAGE` defaults to `weather-map-etl:local`
-
-The worker image does not bake in repo `config/`; runtime config is still
-supplied via `--pipeline-uri` and `--catalog-uri`.
-
-After the images are current, the wrapper delegates to:
-
-```bash
-.venv/bin/weather-etl run-local --dataset-id gfs --cycle <YYYYMMDDHH>
-```
-
-The local lifecycle is:
-
-```text
-init-run -> plan-run -> run-frame containers -> validate-run -> publish-run
-```
-
-By default local runs publish public manifests and refresh local `status.json`.
-Use `--no-publish` to stop after validation:
-
-```bash
-scripts/etl-run-local.sh --dataset-id gfs --cycle <YYYYMMDDHH> --no-publish
-```
-
-Omitting `--run-id` creates a new run attempt. Passing `--run-id <run_id>`
-resumes that run and skips frames whose completion markers are already complete.
-Local runs do not use persistent DynamoDB frame claims.
-
-Local outputs go under the repo-level `artifacts/` directory. Downloads and
-prepared GRIB files are cached under `etl/cache/`.
-
-## AWS Submission
-
-Manual AWS submission is intentionally narrower than local `run-local`: it
-submits Batch workers only.
+Submit AWS Batch frame workers for one dataset:
 
 ```bash
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
-The AWS path creates or resumes a run, snapshots the deployed product config,
-plans frame workers, skips complete or actively claimed frames, and submits the
-remaining workers to Batch.
+Fetch a completed run for local development:
 
-It does not validate or publish inline. In production, the scheduled
+```bash
+scripts/etl-fetch-run.sh \
+  --dataset-id gfs \
+  --cycle <YYYYMMDDHH> \
+  --run-id <run_id> \
+  --artifact-root-uri s3://<artifact-bucket-or-prefix> \
+  --include-public
+```
+
+## AWS Submission
+
+Manual AWS submission creates or resumes a run, snapshots the deployed product
+config, plans frame workers, skips complete or actively claimed frames, and
+submits the remaining workers to Batch.
+
+```bash
+scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
+scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
+```
+
+Submission does not validate or publish inline. In production, the scheduled
 `weather-etl-publisher` Lambda validates complete runs, publishes manifests,
 updates `manifests/index.json`, and refreshes root `status.json`.
 
 Use `infra/weather-etl/README.md` for deeper production deploy and
 AWS operator details.
 
-## Debug CLI
+## CLI
 
-The shell wrappers are the normal human entrypoints. These commands are useful
-when you need to inspect or run one piece of the lifecycle:
+The installed CLI exposes only the operational commands needed by the worker and
+manual submission paths:
 
 ```bash
-.venv/bin/weather-etl list-datasets
-.venv/bin/weather-etl list-frames --dataset-id <dataset_id>
-
-.venv/bin/weather-etl init-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/weather-etl plan-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --json
 .venv/bin/weather-etl run-frame --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --frame-id <FFF>
-.venv/bin/weather-etl validate-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-.venv/bin/weather-etl publish-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
-
-.venv/bin/weather-etl runs --dataset-id <dataset_id> --cycle <YYYYMMDDHH>
-.venv/bin/weather-etl status --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id>
+.venv/bin/weather-etl submit-aws-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --job-queue <name> --job-definition <arn> --frame-claim-table <table>
 ```
-
-`runs` and `status` are read-only inspection commands. `publish-run` refuses
-runs without a passing `validation.json`.
 
 ## Config
 
@@ -178,8 +116,8 @@ The package is organized around a few stable boundaries:
 - `adapters/`: CLI and AWS Lambda entrypoint adapters.
 - `operations/`: ETL use cases: run planning, frame work, validation,
   publication, source submission, and status refresh.
-- `workers/`: frame worker specs, worker plans, frame claims, and local
-  Docker / AWS Batch launch mechanics.
+- `workers/`: frame worker specs, worker plans, frame claims, and AWS Batch
+  launch mechanics.
 - `state/`: durable artifact, run, manifest, and inspection/status-document
   state.
 - `config/`: static product config contracts for `pipeline.json` and
@@ -193,7 +131,7 @@ The package is organized around a few stable boundaries:
 ```bash
 cd etl && ../.venv/bin/python -m pytest tests
 cd etl && ../.venv/bin/ruff check weather_etl tests
-bash -n scripts/etl-run-local.sh
+bash -n scripts/etl-fetch-run.sh
 bash -n scripts/etl-run-aws.sh
 bash -n scripts/etl-deploy.sh
 ```

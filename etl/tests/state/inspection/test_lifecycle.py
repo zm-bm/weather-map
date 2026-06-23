@@ -6,13 +6,13 @@ from weather_etl.state.inspection.lifecycle import inspect_run_lifecycle
 from weather_etl.state.manifest.schema import parse_cycle_manifest
 
 from tests.fixtures.artifacts import DEFAULT_RUN_ID, temp_artifact_fixture
-from tests.state.inspection.test_operator_status import (
+from tests.state.inspection.lifecycle_helpers import (
     CYCLE,
     NEWER_RUN_ID,
-    _run_manifest,
-    _write_public_latest_current_manifests,
-    _write_snapshot,
-    _write_validation,
+    run_manifest,
+    write_public_latest_current_manifests,
+    write_snapshot,
+    write_validation,
 )
 
 
@@ -44,7 +44,7 @@ def test_lifecycle_reports_invalid_snapshot_stage() -> None:
 
 def test_lifecycle_reports_pending_frames_stage() -> None:
     with temp_artifact_fixture() as artifacts:
-        _write_snapshot(artifacts)
+        write_snapshot(artifacts)
 
         lifecycle = _inspect(artifacts)
 
@@ -55,7 +55,7 @@ def test_lifecycle_reports_pending_frames_stage() -> None:
 
 def test_lifecycle_reports_invalid_markers_stage() -> None:
     with temp_artifact_fixture() as artifacts:
-        _write_snapshot(artifacts)
+        write_snapshot(artifacts)
         artifacts.write_invalid_success_marker(
             dataset_id="gfs",
             cycle=CYCLE,
@@ -72,7 +72,7 @@ def test_lifecycle_reports_invalid_markers_stage() -> None:
 
 def test_lifecycle_reports_ready_for_validation_stage() -> None:
     with temp_artifact_fixture() as artifacts:
-        _write_snapshot(artifacts)
+        write_snapshot(artifacts)
         artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
 
         lifecycle = _inspect(artifacts)
@@ -83,9 +83,9 @@ def test_lifecycle_reports_ready_for_validation_stage() -> None:
 
 def test_lifecycle_reports_validation_failed_stage() -> None:
     with temp_artifact_fixture() as artifacts:
-        _write_snapshot(artifacts)
+        write_snapshot(artifacts)
         artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
-        _write_validation(artifacts, status="failed")
+        write_validation(artifacts, status="failed")
 
         lifecycle = _inspect(artifacts)
 
@@ -95,9 +95,9 @@ def test_lifecycle_reports_validation_failed_stage() -> None:
 
 def test_lifecycle_reports_ready_for_publish_stage() -> None:
     with temp_artifact_fixture() as artifacts:
-        _write_snapshot(artifacts)
+        write_snapshot(artifacts)
         artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
-        _write_validation(artifacts)
+        write_validation(artifacts)
 
         lifecycle = _inspect(artifacts)
 
@@ -154,15 +154,15 @@ def _inspect(artifacts, *, run_id: str = DEFAULT_RUN_ID):
 
 
 def _write_published_run(artifacts) -> None:
-    _write_snapshot(artifacts)
+    write_snapshot(artifacts)
     artifacts.write_success_marker(cycle=CYCLE, artifact_id="tmp_surface", frame_id="000")
-    _write_validation(artifacts)
-    public_uri = _write_public_latest_current_manifests(artifacts)
+    write_validation(artifacts)
+    public_uri = write_public_latest_current_manifests(artifacts)
     artifacts.repository.write_run_manifest(
         dataset_id="gfs",
         cycle=CYCLE,
         run_id=DEFAULT_RUN_ID,
-        manifest=parse_cycle_manifest(_run_manifest(DEFAULT_RUN_ID)),
+        manifest=parse_cycle_manifest(run_manifest(DEFAULT_RUN_ID)),
     )
     artifacts.write_publication(
         cycle=CYCLE,

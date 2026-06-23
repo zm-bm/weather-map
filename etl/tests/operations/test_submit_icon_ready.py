@@ -110,7 +110,6 @@ def test_submit_ready_icon_cycles_uses_plan_state_for_frame_eligibility(loaded_r
                 records=tuple(
                     WorkerLaunchRecord(
                         worker=worker,
-                        source_uri=worker.source_uri,
                         started=True,
                         job_id=f"job-{worker.frame_id}",
                         job_name=f"icon-job-{worker.frame_id}",

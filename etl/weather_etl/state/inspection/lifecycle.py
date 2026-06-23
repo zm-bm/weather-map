@@ -74,24 +74,6 @@ class RunLifecycleInspection:
     publication_ready: bool
     diagnostics: tuple[str, ...]
 
-    def to_operator_run_dict(self) -> dict[str, Any]:
-        """Return the existing operator run status JSON shape."""
-
-        return {
-            "run_id": self.run_id,
-            "state": self.state,
-            "stage": self.stage,
-            "complete": self.complete,
-            "snapshot": self.snapshot.summary,
-            "markers": self.markers.summary,
-            "validation": self.validation.summary,
-            "published": self.publication.summary,
-            "manifests": self.manifests.summary,
-            "published_manifest_status": self.published_manifests.summary,
-            "publication_ready": self.publication_ready,
-            "diagnostics": list(self.diagnostics),
-        }
-
 
 def inspect_run_lifecycle(
     *,

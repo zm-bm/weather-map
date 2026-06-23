@@ -111,7 +111,6 @@ def launch_summary(
         records=tuple(
             WorkerLaunchRecord(
                 worker=worker,
-                source_uri=worker.source_uri,
                 started=not failed if started is None else started,
                 failed=failed,
             )

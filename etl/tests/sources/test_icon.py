@@ -19,7 +19,6 @@ from tests.fixtures.artifact_configs import (
 from tests.fixtures.artifact_specs import icon_artifact_spec
 from weather_etl.config.pipeline import DatasetConfig, SourceConfig, WorkloadConfig
 from weather_etl.config.sources import ICON_DWD_SOURCE_TYPE
-from weather_etl.sources import acquire_prepared_source
 from weather_etl.sources.icon import dwd as icon_dwd
 from weather_etl.sources.icon.config import parse_icon_dwd_source
 from weather_etl.sources.icon.layout import (
@@ -29,6 +28,7 @@ from weather_etl.sources.icon.layout import (
     required_previous_icon_params,
 )
 from weather_etl.sources.icon.params import icon_param_from_grib_match, previous_icon_prepared_source_key
+from weather_etl.sources.registry import acquire_prepared_source
 from weather_etl.storage.routing import make_store
 
 

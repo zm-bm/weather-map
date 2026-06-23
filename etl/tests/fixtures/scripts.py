@@ -79,11 +79,6 @@ class EtlImageScriptHarness(ScriptHarness):
 
 
 @dataclass(frozen=True)
-class LocalRunScriptHarness(EtlImageScriptHarness):
-    pass
-
-
-@dataclass(frozen=True)
 class DeployScriptHarness(EtlImageScriptHarness):
     fake_docker_log: Path
     fake_aws_log: Path
@@ -146,13 +141,24 @@ class AwsRunScriptHarness(ScriptHarness):
         return jobs
 
 
-def local_run_script_harness(repo_root: Path, tmp_path: Path) -> LocalRunScriptHarness:
-    harness = LocalRunScriptHarness(
+@dataclass(frozen=True)
+class FetchRunScriptHarness(ScriptHarness):
+    fake_aws_log: Path
+
+    def aws_log(self) -> str:
+        return self.fake_aws_log.read_text(encoding="utf-8")
+
+
+def fetch_run_script_harness(repo_root: Path, tmp_path: Path) -> FetchRunScriptHarness:
+    aws_log = tmp_path / "aws.log"
+    harness = FetchRunScriptHarness(
         repo_root=repo_root,
-        script=repo_root / "scripts" / "etl-run-local.sh",
+        script=repo_root / "scripts" / "etl-fetch-run.sh",
         fake_bin_dir=tmp_path,
+        env_defaults={"FAKE_AWS_LOG": aws_log.as_posix()},
+        fake_aws_log=aws_log,
     )
-    harness.write_executable("docker", _FAKE_DOCKER)
+    harness.write_executable("aws", _FAKE_AWS)
     return harness
 
 
@@ -276,85 +282,6 @@ if [[ "${1:-}" == "login" ]]; then
 	exit 0
 fi
 
-if [[ "${1:-}" == "run" ]]; then
-	dataset_id=""
-	frame_id=""
-	cycle=""
-	run_id=""
-	mode=""
-	while [[ $# -gt 0 ]]; do
-		case "$1" in
-			--dataset-id)
-				dataset_id="${2:-}"
-				shift 2
-				;;
-			--env)
-				case "${2:-}" in
-					DATASET_ID=*) dataset_id="${2#DATASET_ID=}" ;;
-					FRAME_ID=*) frame_id="${2#FRAME_ID=}" ;;
-					CYCLE=*) cycle="${2#CYCLE=}" ;;
-					RUN_ID=*) run_id="${2#RUN_ID=}" ;;
-				esac
-				shift 2
-				;;
-			list-frames|run-frame|publish-run|validate-run|init-run)
-				mode="$1"
-				shift
-				;;
-			*)
-				shift
-				;;
-		esac
-	done
-
-	if [[ "$mode" == "run-frame" ]]; then
-		if [[ -n "${FAKE_DOCKER_FAIL_FRAME:-}" && "$frame_id" == "$FAKE_DOCKER_FAIL_FRAME" ]]; then
-			echo "simulated worker failure for frame_id=$frame_id" >&2
-			exit 42
-		fi
-		echo "Done. Processed frame bundle cycle=${CYCLE:-unknown} frame_id=$frame_id: dataset_id=$dataset_id artifacts=18"
-		exit 0
-	fi
-
-	if [[ "$mode" == "publish-run" ]]; then
-		echo "Published: dataset_id=$dataset_id cycle=${CYCLE:-unknown}"
-		exit 0
-	fi
-
-	if [[ "$mode" == "validate-run" ]]; then
-		echo "Validation passed: dataset_id=$dataset_id cycle=$cycle"
-		exit 0
-	fi
-
-	if [[ "$mode" == "init-run" ]]; then
-		echo "run_id=$run_id"
-		echo "product_config_digest=sha256:$(printf '%064d' 1)"
-		echo "pipeline_uri=file:///artifacts/runs/$dataset_id/$cycle/$run_id/config/pipeline.json"
-		echo "catalog_uri=file:///artifacts/runs/$dataset_id/$cycle/$run_id/config/catalog.json"
-		exit 0
-	fi
-
-	case "$dataset_id" in
-		gfs)
-			start=0
-			end=24
-			;;
-		icon)
-			start=1
-			end=24
-			;;
-		*)
-			echo "unexpected dataset_id: $dataset_id" >&2
-			exit 2
-			;;
-	esac
-
-	for ((frame_id=start; frame_id<=end; frame_id++)); do
-		printf "%03d\\n" "$frame_id"
-	done
-	exit 0
-fi
-
 echo "unexpected docker command: $*" >&2
 exit 1
 """
@@ -467,6 +394,10 @@ fi
 
 if [[ "${1:-}" == "ecr" && "${2:-}" == "get-login-password" ]]; then
   echo "fake-password"
+  exit 0
+fi
+
+if [[ "${1:-}" == "s3" && "${2:-}" == "sync" ]]; then
   exit 0
 fi
 

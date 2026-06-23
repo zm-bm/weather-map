@@ -16,7 +16,6 @@ class WorkerLaunchRequest:
     """One planned worker after claim acquisition or dry-run selection."""
 
     worker: FrameWorkerSpec
-    source_uri: str | None
     attempt: int | None = None
 
 
@@ -25,11 +24,9 @@ class WorkerLaunchRecord:
     """Result for one planned worker launch attempt."""
 
     worker: FrameWorkerSpec
-    source_uri: str | None
     started: bool
     claimed: bool = False
     failed: bool = False
-    attempt: int | None = None
     job_id: str | None = None
     job_name: str | None = None
 
@@ -47,10 +44,6 @@ class WorkerLaunchSummary:
     @property
     def workers_claimed(self) -> int:
         return sum(1 for record in self.records if record.claimed)
-
-    @property
-    def failures(self) -> int:
-        return sum(1 for record in self.records if record.failed)
 
     def record_for_frame(self, frame_id: str) -> WorkerLaunchRecord | None:
         """Return the launch record for a frame, if present."""
@@ -88,7 +81,7 @@ def launch_planned_workers(
     """
 
     if dry_run:
-        requests = tuple(_dry_run_request(worker) for worker in workers)
+        requests = tuple(WorkerLaunchRequest(worker=worker) for worker in workers)
         return WorkerLaunchSummary(records=backend.launch_many(requests, dry_run=True))
 
     records: list[WorkerLaunchRecord | None] = [None] * len(workers)
@@ -107,10 +100,8 @@ def launch_planned_workers(
         if not claim.acquired:
             records[index] = WorkerLaunchRecord(
                 worker=worker,
-                source_uri=worker.source_uri,
                 started=False,
                 claimed=True,
-                attempt=claim.attempt,
                 job_id=claim.existing_job_id,
             )
             continue
@@ -119,7 +110,6 @@ def launch_planned_workers(
                 index,
                 WorkerLaunchRequest(
                     worker=worker,
-                    source_uri=worker.source_uri,
                     attempt=claim.attempt_or(1),
                 ),
             )
@@ -166,11 +156,4 @@ def launch_run_plan_workers(
         artifact_ids=plan.artifact_ids,
         now=now,
         dry_run=dry_run,
-    )
-
-
-def _dry_run_request(worker: FrameWorkerSpec) -> WorkerLaunchRequest:
-    return WorkerLaunchRequest(
-        worker=worker,
-        source_uri=worker.source_uri,
     )

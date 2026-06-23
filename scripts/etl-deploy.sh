@@ -23,13 +23,8 @@ PLAN_ONLY="false"
 AUTO_APPROVE="false"
 UPLOAD_STATIC="false"
 
-DEFAULT_RADIO_PLAYLIST_CACHE_CONTROL="public, max-age=60, s-maxage=300, stale-while-revalidate=60"
-DEFAULT_RADIO_AUDIO_CACHE_CONTROL="public, max-age=86400, s-maxage=604800"
 GLYPH_CACHE_CONTROL="${GLYPH_CACHE_CONTROL:-public, max-age=604800, s-maxage=2592000}"
 PMTILES_CACHE_CONTROL="${PMTILES_CACHE_CONTROL:-public, max-age=86400, s-maxage=604800}"
-RADIO_CACHE_CONTROL="${RADIO_CACHE_CONTROL:-}"
-RADIO_PLAYLIST_CACHE_CONTROL="${RADIO_PLAYLIST_CACHE_CONTROL:-${RADIO_CACHE_CONTROL:-$DEFAULT_RADIO_PLAYLIST_CACHE_CONTROL}}"
-RADIO_AUDIO_CACHE_CONTROL="${RADIO_AUDIO_CACHE_CONTROL:-${RADIO_CACHE_CONTROL:-$DEFAULT_RADIO_AUDIO_CACHE_CONTROL}}"
 ALLOW_EMPTY="${ALLOW_EMPTY:-false}"
 
 usage() {
@@ -44,7 +39,7 @@ Description:
     3. after approval, create/update the Terraform-owned ECR repository;
     4. build and push the split ETL worker base/app image using that tag;
     5. apply the full Terraform stack;
-    6. optionally upload static glyph/PMTiles/radio assets.
+    6. optionally upload static glyph/PMTiles assets.
 
 Options:
   --plan-only       Build the Lambda zip and run Terraform plan, then exit.
@@ -56,7 +51,7 @@ Options:
 Environment:
   AWS_REGION, IMAGE_TAG, ETL_CODE_REVISION, PYTHON_BIN, DIST_DIR, OUTPUT_ZIP,
   STACK_DIR, ARTIFACT_ROOT, ARTIFACTS_BUCKET, ALLOW_EMPTY, GLYPH_CACHE_CONTROL,
-  PMTILES_CACHE_CONTROL, RADIO_PLAYLIST_CACHE_CONTROL, RADIO_AUDIO_CACHE_CONTROL.
+  PMTILES_CACHE_CONTROL.
 EOF
 }
 
@@ -385,8 +380,6 @@ upload_static_artifacts() {
 
   upload_group "glyph PBFs" "$ARTIFACT_ROOT/glyphs" "glyphs" "*.pbf" "application/x-protobuf" "$GLYPH_CACHE_CONTROL"
   upload_group "PMTiles" "$ARTIFACT_ROOT/pmtiles" "pmtiles" "*.pmtiles" "application/octet-stream" "$PMTILES_CACHE_CONTROL"
-  upload_group "radio playlist JSON" "$ARTIFACT_ROOT/radio" "radio" "*.json" "application/json" "$RADIO_PLAYLIST_CACHE_CONTROL"
-  upload_group "radio MP3s" "$ARTIFACT_ROOT/radio" "radio" "*.mp3" "audio/mpeg" "$RADIO_AUDIO_CACHE_CONTROL"
 }
 
 require_cmd terraform

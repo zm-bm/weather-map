@@ -42,9 +42,7 @@ class AwsBatchWorkerBackend:
         if dry_run:
             return WorkerLaunchRecord(
                 worker=request.worker,
-                source_uri=request.source_uri,
                 started=False,
-                attempt=request.attempt,
                 job_name=job_name,
             )
 
@@ -64,9 +62,7 @@ class AwsBatchWorkerBackend:
             time.sleep(self.submit_delay_seconds)
         return WorkerLaunchRecord(
             worker=request.worker,
-            source_uri=request.source_uri,
             started=True,
-            attempt=request.attempt,
             job_id=str(response.get("jobId", "")),
             job_name=job_name,
         )

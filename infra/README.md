@@ -9,7 +9,7 @@ This directory contains infrastructure owned by the weather-map project.
   `weather.zmbm.dev`.
 - `../config/pipeline.json`: production ETL runtime config uploaded by
   the weather-etl stack.
-- `../scripts`: production build, upload, smoke, and manual ETL job helpers.
+- `../scripts`: production build, upload, fetch, and manual ETL job helpers.
 
 Shared account foundations such as DNS, certificates, network, and reusable
 Terraform modules stay in the sibling shared infra repo.
@@ -28,8 +28,8 @@ Preview without applying:
 scripts/etl-deploy.sh --plan-only
 ```
 
-Upload static artifact assets from `artifacts/glyphs/`, `artifacts/pmtiles/`,
-and `artifacts/radio/` as part of the ETL deploy:
+Upload static artifact assets from `artifacts/glyphs/` and `artifacts/pmtiles/`
+as part of the ETL deploy:
 
 ```bash
 scripts/etl-deploy.sh --upload-static

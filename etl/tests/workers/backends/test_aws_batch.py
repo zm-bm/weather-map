@@ -32,7 +32,6 @@ def test_aws_batch_backend_submits_worker_command_and_env() -> None:
         (
             WorkerLaunchRequest(
                 worker=worker,
-                source_uri="s3://source/gfs.f003",
                 attempt=2,
             ),
         ),
@@ -63,7 +62,7 @@ def test_aws_batch_backend_dry_run_returns_job_name_without_submitting() -> None
     )
 
     records = backend.launch_many(
-        (WorkerLaunchRequest(worker=_worker(), source_uri=None),),
+        (WorkerLaunchRequest(worker=_worker()),),
         dry_run=True,
     )
 

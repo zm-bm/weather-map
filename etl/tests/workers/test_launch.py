@@ -27,9 +27,7 @@ class _FakeBackend:
         return tuple(
             WorkerLaunchRecord(
                 worker=request.worker,
-                source_uri=request.source_uri,
                 started=not dry_run,
-                attempt=request.attempt,
                 job_id=f"job-{request.worker.frame_id}" if not dry_run else None,
                 job_name=f"name-{request.worker.frame_id}",
             )
@@ -124,7 +122,6 @@ def test_launch_planned_workers_acquires_delegates_and_records_submission() -> N
 
     assert summary.workers_started == 1
     assert summary.workers_claimed == 0
-    assert summary.failures == 0
     assert backend.calls[0]["requests"][0].attempt == 2
     assert claims.acquire_calls[0]["frame_id"] == "003"
     assert claims.acquire_calls[0]["source_uri"] == "s3://source/gfs.f003"

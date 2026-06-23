@@ -13,7 +13,7 @@ from ...storage.uris import (
 )
 
 
-def config_parser() -> argparse.ArgumentParser:
+def runtime_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
         "--pipeline-uri",
@@ -27,11 +27,6 @@ def config_parser() -> argparse.ArgumentParser:
         default=os.environ.get("CATALOG_URI") or default_catalog_uri(),
         help="Catalog path or URI (local path, file:///..., s3://..., http(s)://...).",
     )
-    return parser
-
-
-def runtime_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False, parents=[config_parser()])
     parser.add_argument(
         "--artifact-root-uri",
         dest="artifact_root_uri",

@@ -17,21 +17,19 @@ Typical contents:
 - `runs/<dataset_id>/<cycle>/<run_id>/manifest.json`
 - `runs/<dataset_id>/<cycle>/<run_id>/publication.json`
 - `pmtiles/<name>.pmtiles`
-- `radio/playlist.json`
-- `radio/<track>.mp3`
 
 How it is used:
 
-- `scripts/etl-run-local.sh` writes local ETL outputs here.
+- `scripts/etl-fetch-run.sh` copies completed run outputs here for local dev.
 - The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
-- nginx serves `/manifests/*`, `/runs/*/payloads/*`, `/pmtiles/*`, and `/radio/*`
+- nginx serves `/manifests/*`, `/runs/*/payloads/*`, and `/pmtiles/*`
   directly from here.
 - `pmtiles/` is the local dev location for optional PMTiles basemap archives.
-- `glyphs/`, `pmtiles/`, and `radio/` can be copied to the production artifact
+- `glyphs/` and `pmtiles/` can be copied to the production artifact
   bucket with `scripts/etl-deploy.sh --upload-static`.
 
 Generated contents under this directory are ignored by git.
 
-See [../etl/README.md](../etl/README.md) for the local and production ETL flow
-that writes this layout.
+See [../etl/README.md](../etl/README.md) for the ETL submission and fetch flow
+that uses this layout.

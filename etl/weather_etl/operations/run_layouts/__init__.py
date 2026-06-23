@@ -27,7 +27,7 @@ def local_run_targets(
     selected_frames: Iterable[str] | None,
     store: UriStore | None,
 ) -> tuple[RunTarget, ...]:
-    """Return concrete immutable run targets for a local run-local invocation."""
+    """Return concrete immutable run targets for a dataset/cycle request."""
 
     dataset_ids = _selected_local_dataset_ids(product_config=product_config, dataset_id=dataset_id)
     cycle_batch_ids = tuple(
@@ -179,15 +179,3 @@ def _selected_local_dataset_ids(*, product_config: LoadedProductConfig, dataset_
         for current_dataset_id, dataset in product_config.pipeline_config.datasets.items()
         if dataset.mode == "forecast_cycle"
     )
-
-
-__all__ = [
-    "PublishTarget",
-    "RunTarget",
-    "ensure_run_snapshot",
-    "has_rolling_publication",
-    "local_run_targets",
-    "publish_scan_cycles",
-    "publish_targets",
-    "rolling_scan_anchor",
-]

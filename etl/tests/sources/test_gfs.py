@@ -9,10 +9,10 @@ from weather_etl.config.pipeline import (
     SourceConfig,
     parse_pipeline_config,
 )
-from weather_etl.sources import acquire_prepared_source
 from weather_etl.sources.gfs.config import parse_gfs_nomads_source
 from weather_etl.sources.gfs.layout import gfs_s3_grib_key, gfs_s3_grib_uri
 from weather_etl.sources.gfs.nomads import NOMADS_DOWNLOAD_TIMEOUT_SECONDS, download_if_needed
+from weather_etl.sources.registry import acquire_prepared_source
 from weather_etl.storage.routing import make_store
 from weather_etl.storage.uris import file_uri
 
