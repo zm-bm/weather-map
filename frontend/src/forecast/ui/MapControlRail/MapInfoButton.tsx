@@ -129,8 +129,8 @@ function MapInfoPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <p className="map-control-info-copy">
-        Weather Map is a map-first viewer for public weather datasets rendered
-        with custom WebGL layers.{' '}
+        This is a map-first forecast viewer for exploring public weather data
+        with custom WebGL rendering.{' '}
         <a href={PROJECT_URL} target="_blank" rel="noreferrer">GitHub project</a>
       </p>
 

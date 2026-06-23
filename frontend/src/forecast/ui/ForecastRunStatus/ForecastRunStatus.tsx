@@ -6,6 +6,8 @@ import {
   type ActiveForecastRun,
 } from '@/forecast/manifest'
 import { useLoadedForecastSelectionContext } from '@/forecast/selection'
+import type { UnitSystem } from '@/forecast/display/units'
+import { useForecastSettings } from '@/forecast/settings'
 
 export default function ForecastRunStatus() {
   const {
@@ -15,9 +17,11 @@ export default function ForecastRunStatus() {
     selectedLayerId,
     setActiveDataset,
   } = useLoadedForecastSelectionContext()
+  const { settings } = useForecastSettings()
+  const unitSystem = settings.units.system
   const manifest = activeRun.manifest
   const activeDatasetLabel = activeRun.label
-  const resolutionLabel = selectedLayerResolutionLabel(activeRun, selectedLayerId)
+  const resolutionLabel = selectedLayerResolutionLabel(activeRun, selectedLayerId, unitSystem)
   const availableSourceOptions = datasetOptions.flatMap((dataset) => {
     const datasetRun = activeForecastRunForDataset(manifest, dataset.id)
     if (datasetRun == null) return []
@@ -28,7 +32,7 @@ export default function ForecastRunStatus() {
       return []
     }
 
-    const optionResolutionLabel = selectedLayerResolutionLabel(datasetRun, selectedLayerId)
+    const optionResolutionLabel = selectedLayerResolutionLabel(datasetRun, selectedLayerId, unitSystem)
 
     return [{
       ...dataset,
@@ -83,7 +87,8 @@ export default function ForecastRunStatus() {
 
 function selectedLayerResolutionLabel(
   activeRun: ActiveForecastRun,
-  selectedLayerId: string | null
+  selectedLayerId: string | null,
+  unitSystem: UnitSystem,
 ): string | null {
   const availability = getActiveRunLayerAvailability(activeRun, selectedLayerId)
   const artifactId = availability?.required_artifacts.find((candidate) => (
@@ -99,13 +104,18 @@ function selectedLayerResolutionLabel(
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || dx === 0 || dy === 0) return null
 
   return nearlyEqual(dx, dy)
-    ? `${formatDegreeResolution(dx)} deg`
-    : `${formatDegreeResolution(dx)} x ${formatDegreeResolution(dy)} deg`
+    ? formatGridResolution(dx, unitSystem)
+    : `${formatGridResolution(dx, unitSystem)} x ${formatGridResolution(dy, unitSystem)}`
 }
 
-function formatDegreeResolution(value: number): string {
-  const precision = value >= 1 ? 1 : 3
-  return value.toFixed(precision).replace(/(?:\\.0+|0+)$/, '')
+const KM_PER_DEGREE_LATITUDE = 111.32
+const MILES_PER_KM = 0.621371
+
+function formatGridResolution(value: number, unitSystem: UnitSystem): string {
+  const km = value * KM_PER_DEGREE_LATITUDE
+  return unitSystem === 'metric'
+    ? `${Math.round(km)} km`
+    : `${Math.round(km * MILES_PER_KM)} mi`
 }
 
 function nearlyEqual(a: number, b: number): boolean {

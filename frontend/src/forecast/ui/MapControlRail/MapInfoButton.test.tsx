@@ -31,7 +31,7 @@ describe('MapInfoButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Map information' }))
 
     expect(screen.getByRole('dialog', { name: 'About' })).toBeInTheDocument()
-    expect(screen.getByText(/Weather Map is a map-first viewer/i)).toBeInTheDocument()
+    expect(screen.getByText(/map-first forecast viewer for exploring public weather data/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'GitHub project' })).toHaveAttribute(
       'href',
       'https://github.com/zm-bm/weather-map'

@@ -59,7 +59,7 @@ describe('ForecastRunStatus', () => {
     expect(sourceRadios()).toHaveLength(1)
     expect(screen.queryByRole('radio', { name: /ICON/ })).not.toBeInTheDocument()
     expect(screen.getByText('GFS')).toBeInTheDocument()
-    expect(screen.getByText('0.25 deg')).toBeInTheDocument()
+    expect(screen.getByText('17 mi')).toBeInTheDocument()
   })
 
   it('updates the active forecast dataset from the segmented selector', () => {
