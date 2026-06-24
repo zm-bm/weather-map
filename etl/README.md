@@ -4,10 +4,10 @@ This package builds forecast artifacts for Weather Map. It owns the Python ETL
 code, the Docker worker image, and the AWS Batch worker submission path for GFS,
 ICON, and observed datasets.
 
-For normal work, start with the shell wrappers:
+For normal work, start with the operational scripts:
 
 - `scripts/etl-run-aws.sh` submits AWS Batch frame workers for a cycle.
-- `scripts/etl-sync-artifacts.sh` copies the latest or selected published run
+- `scripts/etl-sync-artifacts.py` copies the latest or selected published run
   artifacts into the local `artifacts/` tree.
 
 The Python CLI intentionally keeps a narrow operational surface: submit a run
@@ -31,14 +31,14 @@ scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 Fetch the latest published GFS artifacts for local development:
 
 ```bash
-scripts/etl-sync-artifacts.sh \
+scripts/etl-sync-artifacts.py \
   --artifact-root-uri s3://<artifact-bucket-or-prefix>
 ```
 
 Fetch a specific published run:
 
 ```bash
-scripts/etl-sync-artifacts.sh \
+scripts/etl-sync-artifacts.py \
   --artifact-root-uri s3://<artifact-bucket-or-prefix> \
   --dataset-id gfs \
   --cycle <YYYYMMDDHH> \
@@ -140,7 +140,7 @@ The package is organized around a few stable boundaries:
 ```bash
 cd etl && ../.venv/bin/python -m pytest tests
 cd etl && ../.venv/bin/ruff check weather_etl tests
-bash -n scripts/etl-sync-artifacts.sh
+python3 -m py_compile scripts/etl-sync-artifacts.py
 bash -n scripts/etl-run-aws.sh
 bash -n scripts/etl-deploy.sh
 ```

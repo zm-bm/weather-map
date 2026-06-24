@@ -141,27 +141,6 @@ class AwsRunScriptHarness(ScriptHarness):
         return jobs
 
 
-@dataclass(frozen=True)
-class SyncArtifactsScriptHarness(ScriptHarness):
-    fake_aws_log: Path
-
-    def aws_log(self) -> str:
-        return self.fake_aws_log.read_text(encoding="utf-8")
-
-
-def sync_artifacts_script_harness(repo_root: Path, tmp_path: Path) -> SyncArtifactsScriptHarness:
-    aws_log = tmp_path / "aws.log"
-    harness = SyncArtifactsScriptHarness(
-        repo_root=repo_root,
-        script=repo_root / "scripts" / "etl-sync-artifacts.sh",
-        fake_bin_dir=tmp_path,
-        env_defaults={"FAKE_AWS_LOG": aws_log.as_posix()},
-        fake_aws_log=aws_log,
-    )
-    harness.write_executable("aws", _FAKE_AWS)
-    return harness
-
-
 def aws_run_script_harness(repo_root: Path, tmp_path: Path) -> AwsRunScriptHarness:
     cli_log = tmp_path / "cli.log"
     batch_log = tmp_path / "batch.log"

@@ -1,287 +1,245 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 from tests.fixtures.artifacts import DEFAULT_RUN_ID
-from tests.fixtures.scripts import SyncArtifactsScriptHarness, sync_artifacts_script_harness
 
 ARTIFACT_ROOT = "s3://artifacts-bucket/weather"
 
 
 @pytest.fixture
-def script(repo_root: Path, tmp_path: Path) -> SyncArtifactsScriptHarness:
-    return sync_artifacts_script_harness(repo_root, tmp_path)
+def sync_module(repo_root: Path) -> ModuleType:
+    module_path = repo_root / "scripts" / "etl-sync-artifacts.py"
+    spec = importlib.util.spec_from_file_location("etl_sync_artifacts", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
-def test_requires_s3_artifact_root(script: SyncArtifactsScriptHarness) -> None:
-    missing = script.run()
-    assert missing.returncode == 2
-    assert "--artifact-root-uri is required" in missing.stderr
+def test_parse_args_selects_default_and_explicit_datasets(
+    sync_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DATASET_ID", raising=False)
 
-    non_s3 = script.run("--artifact-root-uri", "file:///artifacts")
-    assert non_s3.returncode == 2
-    assert "--artifact-root-uri must be an s3:// URI" in non_s3.stderr
-
-
-def test_fetches_latest_gfs_by_default(script: SyncArtifactsScriptHarness, tmp_path: Path) -> None:
-    dest = tmp_path / "artifacts"
-    cycle = "2026051100"
-    objects = fake_objects(
-        latest_runs={
-            "gfs": manifest(dataset_id="gfs", cycle=cycle, run_id=DEFAULT_RUN_ID),
-            "icon": manifest(dataset_id="icon", cycle=cycle, run_id="20260511T120000Z-icon"),
-        }
-    )
-
-    result = script.run(
-        "--artifact-root-uri",
-        ARTIFACT_ROOT,
-        "--dest",
-        dest.as_posix(),
-        env_overrides={"FAKE_AWS_OBJECTS_JSON": json.dumps(objects)},
-    )
-
-    assert result.returncode == 0
-    log = script.aws_log()
-    for relative_path in (
-        "status.json",
-        "manifests/index.json",
-        "manifests/gfs/latest.json",
-        f"manifests/gfs/cycles/{cycle}/current.json",
-        f"manifests/gfs/cycles/{cycle}/runs/{DEFAULT_RUN_ID}.json",
-    ):
-        assert f"s3 cp {ARTIFACT_ROOT}/{relative_path} {dest.as_posix()}/{relative_path}" in log
-    assert (
-        "s3 sync "
-        f"{ARTIFACT_ROOT}/runs/gfs/{cycle}/{DEFAULT_RUN_ID}/ "
-        f"{dest.as_posix()}/runs/gfs/{cycle}/{DEFAULT_RUN_ID}/ "
-        "--exclude payloads/\\*"
-    ) in log
-    assert (
-        "s3 sync "
-        f"{ARTIFACT_ROOT}/runs/gfs/{cycle}/{DEFAULT_RUN_ID}/payloads/ "
-        f"{dest.as_posix()}/runs/gfs/{cycle}/{DEFAULT_RUN_ID}/payloads/ "
-        "--exclude \\* --include 000/tmp_surface.i8.bin"
-    ) in log
-    assert f"{ARTIFACT_ROOT}/runs/icon/{cycle}/20260511T120000Z-icon/payloads/" not in log
-
-    local_index = json.loads((dest / "manifests/index.json").read_text(encoding="utf-8"))
-    assert list(local_index["datasets"]) == ["gfs"]
-    assert local_index["datasets"]["gfs"]["latest"]["run"]["run_id"] == DEFAULT_RUN_ID
-    latest_artifact = local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]
-    assert latest_artifact["byte_length"] == 4
-    assert "frames" not in latest_artifact
-
-
-def test_run_id_requires_cycle(script: SyncArtifactsScriptHarness) -> None:
-    result = script.run(
+    default_args = sync_module.parse_args(["--artifact-root-uri", ARTIFACT_ROOT])
+    explicit_args = sync_module.parse_args([
         "--artifact-root-uri",
         ARTIFACT_ROOT,
         "--dataset-id",
         "gfs",
-        "--run-id",
-        DEFAULT_RUN_ID,
+        "--dataset-id",
+        "mrms",
+    ])
+
+    assert default_args.dataset_id == ["gfs"]
+    assert explicit_args.dataset_id == ["gfs", "mrms"]
+
+
+def test_parse_args_rejects_invalid_selection(sync_module: ModuleType) -> None:
+    with pytest.raises(SystemExit):
+        sync_module.parse_args([])
+    with pytest.raises(SystemExit):
+        sync_module.parse_args(["--artifact-root-uri", "file:///artifacts"])
+    with pytest.raises(SystemExit):
+        sync_module.parse_args(["--artifact-root-uri", ARTIFACT_ROOT, "--run-id", DEFAULT_RUN_ID])
+    with pytest.raises(SystemExit):
+        sync_module.parse_args([
+            "--artifact-root-uri",
+            ARTIFACT_ROOT,
+            "--all",
+            "--dataset-id",
+            "gfs",
+        ])
+
+
+def test_all_latest_dataset_ids_preserve_index_order(sync_module: ModuleType) -> None:
+    index = fake_index({
+        "gfs": manifest(dataset_id="gfs", cycle="2026051100", run_id="gfs-run"),
+        "icon": manifest(dataset_id="icon", cycle="2026051100", run_id="icon-run"),
+        "mrms": None,
+    })
+
+    assert sync_module.all_latest_dataset_ids(index) == ["gfs", "icon"]
+
+
+def test_selected_run_metadata_from_latest_index(sync_module: ModuleType) -> None:
+    latest = manifest(dataset_id="gfs", cycle="2026051100", run_id=DEFAULT_RUN_ID)
+    selected = sync_module.selected_latest_run_from_index(fake_index({"gfs": latest}), "gfs")
+
+    assert selected.cycle == "2026051100"
+    assert selected.run_id == DEFAULT_RUN_ID
+    assert selected.payload_root == f"runs/gfs/2026051100/{DEFAULT_RUN_ID}/payloads"
+
+
+def test_explicit_run_manifest_validation(sync_module: ModuleType) -> None:
+    run_manifest = manifest(dataset_id="gfs", cycle="2026051100", run_id=DEFAULT_RUN_ID)
+
+    selected = sync_module.selected_manifest_run(run_manifest, "2026051100", DEFAULT_RUN_ID)
+
+    assert selected.payload_root == f"runs/gfs/2026051100/{DEFAULT_RUN_ID}/payloads"
+    with pytest.raises(SystemExit, match="cycle mismatch"):
+        sync_module.selected_manifest_run(run_manifest, "2026051112", DEFAULT_RUN_ID)
+    with pytest.raises(SystemExit, match="run_id mismatch"):
+        sync_module.selected_manifest_run(run_manifest, "2026051100", "different-run")
+
+
+def test_manifest_payload_paths_are_sorted_and_deduped(sync_module: ModuleType) -> None:
+    run_manifest = manifest(
+        dataset_id="gfs",
+        cycle="2026051100",
+        run_id=DEFAULT_RUN_ID,
+        artifact_frames={
+            "tmp_surface": {
+                "001": "runs/gfs/2026051100/run/payloads/001/tmp_surface.i8.bin",
+                "000": "runs/gfs/2026051100/run/payloads/000/tmp_surface.i8.bin",
+            },
+            "dewpoint_surface": {
+                "000": "runs/gfs/2026051100/run/payloads/000/tmp_surface.i8.bin",
+            },
+        },
     )
 
-    assert result.returncode == 2
-    assert "--cycle is required when --run-id is provided" in result.stderr
+    assert sync_module.manifest_payload_paths_from_manifest(run_manifest) == [
+        "runs/gfs/2026051100/run/payloads/000/tmp_surface.i8.bin",
+        "runs/gfs/2026051100/run/payloads/001/tmp_surface.i8.bin",
+    ]
 
 
-def test_fetches_explicit_run_manifest_and_payload_root(
-    script: SyncArtifactsScriptHarness,
+def test_compact_latest_and_local_index_shape(sync_module: ModuleType) -> None:
+    latest = manifest(dataset_id="gfs", cycle="2026051100", run_id=DEFAULT_RUN_ID)
+    source_index = fake_index({
+        "gfs": latest,
+        "icon": manifest(dataset_id="icon", cycle="2026051100", run_id="icon-run"),
+    })
+    source_index["layers"] = {
+        "temperature": {
+            "datasets": {
+                "gfs": {"support": "native"},
+                "icon": {"support": "native"},
+            },
+        },
+    }
+
+    compact = sync_module.compact_latest(latest)
+    local_index = sync_module.build_local_manifest_index(source_index, [("gfs", latest)])
+
+    assert compact["artifacts"]["tmp_surface"]["byte_length"] == 4
+    assert "frames" not in compact["artifacts"]["tmp_surface"]
+    assert list(local_index["datasets"]) == ["gfs"]
+    assert local_index["layers"]["temperature"]["datasets"] == {"gfs": {"support": "native"}}
+    assert local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]["byte_length"] == 4
+    assert "frames" not in local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]
+
+
+def test_payload_sync_selection_uses_filtered_sync_include_paths(sync_module: ModuleType) -> None:
+    selection = sync_module.select_payload_sync(
+        payload_root="runs/gfs/2026051100/run/payloads",
+        payload_paths=[
+            "runs/gfs/2026051100/run/payloads/000/tmp_surface.i8.bin",
+            "runs/gfs/2026051100/run/payloads/003/tmp_surface.i8.bin",
+        ],
+    )
+
+    assert selection.use_filtered_sync is True
+    assert selection.include_args == (
+        "--exclude",
+        "*",
+        "--include",
+        "000/tmp_surface.i8.bin",
+        "--include",
+        "003/tmp_surface.i8.bin",
+    )
+    assert selection.payload_paths == ()
+
+
+def test_payload_sync_selection_falls_back_for_paths_outside_payload_root(sync_module: ModuleType) -> None:
+    selection = sync_module.select_payload_sync(
+        payload_root="runs/gfs/custom-root/payloads",
+        payload_paths=[
+            "runs/gfs/custom-root/payloads/000/tmp_surface.i8.bin",
+            "runs/gfs/other-root/payloads/000/tmp_surface.i8.bin",
+        ],
+    )
+
+    assert selection.use_filtered_sync is False
+    assert selection.include_args == ()
+    assert selection.payload_paths == (
+        "runs/gfs/custom-root/payloads/000/tmp_surface.i8.bin",
+        "runs/gfs/other-root/payloads/000/tmp_surface.i8.bin",
+    )
+
+
+def test_mrms_rolling_payload_root_uses_filtered_sync(sync_module: ModuleType) -> None:
+    selection = sync_module.select_payload_sync(
+        payload_root="runs/mrms/rolling/payloads",
+        payload_paths=[
+            "runs/mrms/rolling/payloads/20260624134040/observed_radar_composite_reflectivity.i8.bin",
+        ],
+    )
+
+    assert selection.use_filtered_sync is True
+    assert selection.include_args == (
+        "--exclude",
+        "*",
+        "--include",
+        "20260624134040/observed_radar_composite_reflectivity.i8.bin",
+    )
+
+
+def test_explicit_run_synthesizes_latest_current_and_local_index(
+    sync_module: ModuleType,
     tmp_path: Path,
 ) -> None:
     dest = tmp_path / "artifacts"
     cycle = "2026051100"
     run_id = "20260511T120000Z-explicit"
-    payload_root = "runs/gfs/custom-payload-root/payloads"
-    objects = fake_objects(
-        latest_runs={
+    run_manifest = manifest(dataset_id="gfs", cycle=cycle, run_id=run_id)
+    remote_objects = {
+        "status.json": {"schema": "weather-map.etl-status", "schema_version": 1, "datasets": []},
+        "manifests/index.json": fake_index({
             "gfs": manifest(dataset_id="gfs", cycle="2026051112", run_id=DEFAULT_RUN_ID),
-        },
-        run_manifests={
-            ("gfs", cycle, run_id): manifest(
-                dataset_id="gfs",
-                cycle=cycle,
-                run_id=run_id,
-                payload_root=payload_root,
-            ),
-        },
+        }),
+        f"manifests/gfs/cycles/{cycle}/runs/{run_id}.json": run_manifest,
+    }
+    sync = sync_module.ArtifactSync(
+        sync_module.parse_args([
+            "--artifact-root-uri",
+            ARTIFACT_ROOT,
+            "--dataset-id",
+            "gfs",
+            "--cycle",
+            cycle,
+            "--run-id",
+            run_id,
+            "--dest",
+            dest.as_posix(),
+        ])
     )
+    sync.copy_public_file = lambda relative_path: write_json(dest / relative_path, remote_objects[relative_path])
+    sync_calls = []
+    sync.sync_run_payloads = lambda **kwargs: sync_calls.append(kwargs)
 
-    result = script.run(
-        "--artifact-root-uri",
-        f"{ARTIFACT_ROOT}/",
-        "--dataset-id",
-        "gfs",
-        "--cycle",
-        cycle,
-        "--run-id",
-        run_id,
-        "--dest",
-        dest.as_posix(),
-        env_overrides={"FAKE_AWS_OBJECTS_JSON": json.dumps(objects)},
-    )
+    sync.run()
 
-    assert result.returncode == 0
-    log = script.aws_log()
-    assert (
-        f"s3 cp {ARTIFACT_ROOT}/manifests/gfs/cycles/{cycle}/runs/{run_id}.json "
-        f"{dest.as_posix()}/manifests/gfs/cycles/{cycle}/runs/{run_id}.json"
-    ) in log
-    assert (
-        "s3 sync "
-        f"{ARTIFACT_ROOT}/runs/gfs/{cycle}/{run_id}/ "
-        f"{dest.as_posix()}/runs/gfs/{cycle}/{run_id}/ "
-        "--exclude payloads/\\*"
-    ) in log
-    assert (
-        "s3 sync "
-        f"{ARTIFACT_ROOT}/{payload_root}/ "
-        f"{dest.as_posix()}/{payload_root}/ "
-        "--exclude \\* --include 000/tmp_surface.i8.bin"
-    ) in log
-
-    local_index = json.loads((dest / "manifests/index.json").read_text(encoding="utf-8"))
-    assert list(local_index["datasets"]) == ["gfs"]
+    latest = read_json(dest / "manifests/gfs/latest.json")
+    current = read_json(dest / f"manifests/gfs/cycles/{cycle}/current.json")
+    local_index = read_json(dest / "manifests/index.json")
+    assert latest["run"]["run_id"] == run_id
+    assert current["run"]["run_id"] == run_id
     assert local_index["datasets"]["gfs"]["latest"]["run"]["run_id"] == run_id
-    latest_artifact = local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]
-    assert latest_artifact["byte_length"] == 4
-    assert "frames" not in latest_artifact
-    assert json.loads((dest / "manifests/gfs/latest.json").read_text(encoding="utf-8"))["run"]["run_id"] == run_id
-    assert json.loads(
-        (dest / f"manifests/gfs/cycles/{cycle}/current.json").read_text(encoding="utf-8")
-    )["run"]["run_id"] == run_id
-
-
-def test_all_fetches_every_latest_dataset(script: SyncArtifactsScriptHarness, tmp_path: Path) -> None:
-    dest = tmp_path / "artifacts"
-    gfs_run_id = "20260511T120000Z-gfs"
-    icon_run_id = "20260511T120000Z-icon"
-    objects = fake_objects(
-        latest_runs={
-            "gfs": manifest(dataset_id="gfs", cycle="2026051112", run_id=gfs_run_id),
-            "icon": manifest(dataset_id="icon", cycle="2026051112", run_id=icon_run_id),
-        }
-    )
-
-    result = script.run(
-        "--artifact-root-uri",
-        ARTIFACT_ROOT,
-        "--all",
-        "--dest",
-        dest.as_posix(),
-        env_overrides={"FAKE_AWS_OBJECTS_JSON": json.dumps(objects)},
-    )
-
-    assert result.returncode == 0
-    log = script.aws_log()
-    assert (
-        f"{ARTIFACT_ROOT}/runs/gfs/2026051112/{gfs_run_id}/payloads/ "
-        f"{dest.as_posix()}/runs/gfs/2026051112/{gfs_run_id}/payloads/ "
-        "--exclude \\* --include 000/tmp_surface.i8.bin"
-    ) in log
-    assert (
-        f"{ARTIFACT_ROOT}/runs/icon/2026051112/{icon_run_id}/payloads/ "
-        f"{dest.as_posix()}/runs/icon/2026051112/{icon_run_id}/payloads/ "
-        "--exclude \\* --include 000/tmp_surface.i8.bin"
-    ) in log
-    local_index = json.loads((dest / "manifests/index.json").read_text(encoding="utf-8"))
-    assert list(local_index["datasets"]) == ["gfs", "icon"]
-
-
-def test_latest_all_tolerates_missing_rolling_current_manifest(
-    script: SyncArtifactsScriptHarness,
-    tmp_path: Path,
-) -> None:
-    dest = tmp_path / "artifacts"
-    run_id = "20260624T145839Z-bca624e0"
-    objects = fake_objects(
-        latest_runs={
-            "mrms": manifest(
-                dataset_id="mrms",
-                cycle="2026062414",
-                run_id=run_id,
-                payload_root="runs/mrms/rolling/payloads",
-                artifact_id="observed_radar_composite_reflectivity",
-            ),
-        },
-        omit_current_for={"mrms"},
-    )
-
-    result = script.run(
-        "--artifact-root-uri",
-        ARTIFACT_ROOT,
-        "--all",
-        "--dest",
-        dest.as_posix(),
-        env_overrides={"FAKE_AWS_OBJECTS_JSON": json.dumps(objects)},
-    )
-
-    assert result.returncode == 0
-    assert "optional public file not copied: manifests/mrms/cycles/2026062414/current.json" in result.stderr
-    log = script.aws_log()
-    assert (
-        f"s3 sync {ARTIFACT_ROOT}/runs/mrms/rolling/payloads/ "
-        f"{dest.as_posix()}/runs/mrms/rolling/payloads/ "
-        "--exclude \\* --include 000/observed_radar_composite_reflectivity.i8.bin"
-    ) in log
-    assert f"s3 cp {ARTIFACT_ROOT}/runs/mrms/rolling/payloads/" not in log
-    local_index = json.loads((dest / "manifests/index.json").read_text(encoding="utf-8"))
-    assert list(local_index["datasets"]) == ["mrms"]
-    assert local_index["datasets"]["mrms"]["latest"]["run"]["payload_root"] == "runs/mrms/rolling/payloads"
-    latest_artifact = local_index["datasets"]["mrms"]["latest"]["artifacts"][
-        "observed_radar_composite_reflectivity"
-    ]
-    assert latest_artifact["byte_length"] == 4
-    assert "frames" not in latest_artifact
-
-
-def test_all_is_rejected_with_run_id(script: SyncArtifactsScriptHarness) -> None:
-    result = script.run(
-        "--artifact-root-uri",
-        ARTIFACT_ROOT,
-        "--all",
-        "--cycle",
-        "2026051100",
-        "--run-id",
-        DEFAULT_RUN_ID,
-    )
-
-    assert result.returncode == 2
-    assert "--all cannot be used with --run-id" in result.stderr
-
-
-def test_include_public_flag_is_accepted_for_old_commands(
-    script: SyncArtifactsScriptHarness,
-    tmp_path: Path,
-) -> None:
-    dest = tmp_path / "artifacts"
-    objects = fake_objects(
-        latest_runs={
-            "gfs": manifest(dataset_id="gfs", cycle="2026051112", run_id=DEFAULT_RUN_ID),
-        }
-    )
-
-    result = script.run(
-        "--artifact-root-uri",
-        ARTIFACT_ROOT,
-        "--dataset-id",
-        "gfs",
-        "--cycle",
-        "2026051112",
-        "--run-id",
-        DEFAULT_RUN_ID,
-        "--dest",
-        dest.as_posix(),
-        "--include-public",
-        env_overrides={"FAKE_AWS_OBJECTS_JSON": json.dumps(objects)},
-    )
-
-    assert result.returncode == 0
+    assert local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]["byte_length"] == 4
+    assert "frames" not in local_index["datasets"]["gfs"]["latest"]["artifacts"]["tmp_surface"]
+    assert sync_calls[0]["payload_root"] == f"runs/gfs/{cycle}/{run_id}/payloads"
 
 
 def manifest(
@@ -291,8 +249,35 @@ def manifest(
     run_id: str,
     payload_root: str | None = None,
     artifact_id: str = "tmp_surface",
+    artifact_frames: dict[str, dict[str, str]] | None = None,
 ) -> dict:
     payload_root = payload_root or f"runs/{dataset_id}/{cycle}/{run_id}/payloads"
+    artifacts = {
+        artifact_id: {
+            "id": artifact_id,
+            "frames": {
+                "000": {
+                    "path": f"{payload_root}/000/{artifact_id}.i8.bin",
+                    "byte_length": 4,
+                },
+            },
+        },
+    }
+    if artifact_frames is not None:
+        artifacts = {
+            artifact: {
+                "id": artifact,
+                "frames": {
+                    frame_id: {
+                        "path": path,
+                        "byte_length": 4,
+                    }
+                    for frame_id, path in frames.items()
+                },
+            }
+            for artifact, frames in artifact_frames.items()
+        }
+
     return {
         "schema": "weather-map.cycle-manifest",
         "schema_version": 1,
@@ -305,85 +290,45 @@ def manifest(
             "revision": f"{dataset_id}-revision",
         },
         "frames": [{"id": "000"}],
-        "artifacts": {
-            artifact_id: {
-                "id": artifact_id,
-                "frames": {
-                    "000": {
-                        "path": f"{payload_root}/000/{artifact_id}.i8.bin",
-                        "byte_length": 4,
-                    },
-                },
-            },
-        },
+        "artifacts": artifacts,
         "payload_contract": "field-binary-v2",
     }
 
 
-def fake_objects(
-    *,
-    latest_runs: dict[str, dict],
-    run_manifests: dict[tuple[str, str, str], dict] | None = None,
-    omit_current_for: set[str] | None = None,
-) -> dict[str, dict | str]:
-    objects: dict[str, dict | str] = {
-        f"{ARTIFACT_ROOT}/status.json": {
-            "schema": "weather-map.etl-status",
-            "schema_version": 1,
-            "datasets": [],
-        },
-        f"{ARTIFACT_ROOT}/manifests/index.json": {
-            "schema": "weather-map.manifest-index",
-            "schema_version": 1,
-            "datasets": {
-                dataset_id: {
-                    "label": dataset_id.upper(),
-                    "latest": compact_latest(latest),
-                }
-                for dataset_id, latest in latest_runs.items()
-            },
-            "layers": {},
-            "payload_contract": "field-binary-v2",
-        },
-    }
-    for dataset_id, latest in latest_runs.items():
-        cycle = latest["run"]["cycle"]
-        run_id = latest["run"]["run_id"]
-        objects[f"{ARTIFACT_ROOT}/manifests/{dataset_id}/latest.json"] = latest
-        if dataset_id not in (omit_current_for or set()):
-            objects[f"{ARTIFACT_ROOT}/manifests/{dataset_id}/cycles/{cycle}/current.json"] = latest
-        objects[f"{ARTIFACT_ROOT}/manifests/{dataset_id}/cycles/{cycle}/runs/{run_id}.json"] = latest
-        add_payload_objects(objects, latest)
-
-    for (dataset_id, cycle, run_id), run_manifest in (run_manifests or {}).items():
-        objects[f"{ARTIFACT_ROOT}/manifests/{dataset_id}/cycles/{cycle}/current.json"] = run_manifest
-        objects[f"{ARTIFACT_ROOT}/manifests/{dataset_id}/cycles/{cycle}/runs/{run_id}.json"] = run_manifest
-        add_payload_objects(objects, run_manifest)
-
-    return objects
-
-
-def compact_latest(manifest: dict) -> dict:
-    frame_ids = [frame["id"] for frame in manifest["frames"]]
+def fake_index(latest_runs: dict[str, dict | None]) -> dict:
     return {
-        "run": manifest["run"],
-        "frames": manifest["frames"],
+        "schema": "weather-map.manifest-index",
+        "schema_version": 1,
+        "datasets": {
+            dataset_id: {
+                "label": dataset_id.upper(),
+                "latest": None if latest is None else compact_latest_for_test(latest),
+            }
+            for dataset_id, latest in latest_runs.items()
+        },
+        "layers": {},
+        "payload_contract": "field-binary-v2",
+    }
+
+
+def compact_latest_for_test(run_manifest: dict) -> dict:
+    return {
+        "run": run_manifest["run"],
+        "frames": run_manifest["frames"],
         "artifacts": {
-            artifact_id: compact_artifact(artifact, frame_ids)
-            for artifact_id, artifact in manifest["artifacts"].items()
+            artifact_id: {
+                **{key: value for key, value in artifact.items() if key != "frames"},
+                "byte_length": next(iter(artifact["frames"].values()))["byte_length"],
+            }
+            for artifact_id, artifact in run_manifest["artifacts"].items()
         },
     }
 
 
-def compact_artifact(artifact: dict, frame_ids: list[str]) -> dict:
-    byte_length = artifact["frames"][frame_ids[0]]["byte_length"]
-    return {
-        **{key: value for key, value in artifact.items() if key != "frames"},
-        "byte_length": byte_length,
-    }
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-def add_payload_objects(objects: dict[str, dict | str], manifest: dict) -> None:
-    for artifact in manifest["artifacts"].values():
-        for frame in artifact["frames"].values():
-            objects[f"{ARTIFACT_ROOT}/{frame['path']}"] = "payload"
+def write_json(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")

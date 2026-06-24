@@ -20,7 +20,7 @@ Typical contents:
 
 How it is used:
 
-- `scripts/etl-sync-artifacts.sh` copies the latest or selected published ETL run
+- `scripts/etl-sync-artifacts.py` copies the latest or selected published ETL run
   artifacts here for local dev.
 - The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
