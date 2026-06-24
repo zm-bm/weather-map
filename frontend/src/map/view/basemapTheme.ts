@@ -93,7 +93,7 @@ const SATELLITE_CONTEXT_BASEMAP_PAINT_OVERRIDES: readonly BasemapPaint[] = [
   { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-color', value: 'rgb(6, 12, 16)' },
   { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-opacity', value: 0.28 },
   { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-color', value: 'rgb(68, 108, 118)' },
-  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-opacity', value: 0.12 },
+  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-opacity', value: 0.1 },
   { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-color', value: 'rgb(222, 218, 180)' },
   { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-opacity', value: 0.5 },
   {
@@ -102,7 +102,7 @@ const SATELLITE_CONTEXT_BASEMAP_PAINT_OVERRIDES: readonly BasemapPaint[] = [
     value: ['interpolate', ['linear'], ['zoom'], 0, 0.85, 4, 1.15, 6, 1.35],
   },
   { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-color', value: 'rgb(161, 215, 219)' },
-  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-opacity', value: 0.36 },
+  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-opacity', value: 0.32 },
   { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-color', value: 'rgb(134, 200, 207)' },
   { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-opacity', value: 0.38 },
   { layerId: BASEMAP_LAYER_IDS.roadMajor, property: 'line-color', value: 'rgb(219, 199, 149)' },

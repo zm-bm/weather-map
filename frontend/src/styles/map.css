@@ -178,7 +178,7 @@
   .map-readout {
     --wm-map-readout-top: var(--wm-top-panel-clearance, calc(var(--wm-chrome-inset, 12px) + 108px));
     top: var(--wm-map-readout-top);
-    right: calc(var(--wm-chrome-inset, 12px) + var(--wm-map-ctrl-button-size, 34px) + 8px);
+    right: calc(var(--wm-chrome-inset, 12px) + var(--wm-map-ctrl-button-size, 40px) + 8px);
     bottom: auto;
     left: var(--wm-chrome-inset, 12px);
     width: auto;

@@ -33,6 +33,21 @@
   --wm-timeline-scale-major-color: rgba(255, 246, 220, 0.9);
   --wm-timeline-bar-transport-button-size: var(--wm-timeline-bar-control-height);
   --wm-timeline-bar-transport-icon-size: 16px;
+  --wm-timeline-control-radius: calc(var(--wm-radius-dock) - 3px);
+  --wm-timeline-transport-radius: 2px;
+  --wm-timeline-transport-background:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.055), rgba(255, 247, 222, 0.012) 44%),
+    rgba(10, 22, 58, 0.34);
+  --wm-timeline-transport-background-hover:
+    linear-gradient(180deg, rgba(255, 247, 222, 0.085), rgba(255, 247, 222, 0.024) 44%),
+    rgba(14, 30, 76, 0.42);
+  --wm-timeline-transport-border: rgba(255, 242, 216, 0.2);
+  --wm-timeline-transport-border-hover: rgba(255, 242, 216, 0.32);
+  --wm-timeline-transport-shadow:
+    inset 0 1px 0 rgba(255, 246, 220, 0.075),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --wm-timeline-transport-text: rgba(255, 247, 225, 0.88);
+  --wm-timeline-transport-text-hover: rgba(255, 247, 225, 0.96);
   position: relative;
   z-index: 2;
   display: block;
@@ -100,9 +115,11 @@
 
 .timeline-bar__button.panel-button {
   --wm-bevel-radius: 0;
-  --wm-bevel-border: 0;
-  --wm-bevel-background: transparent;
-  --wm-bevel-shadow: none;
+  --wm-bevel-border: 1px solid var(--wm-timeline-transport-border);
+  --wm-bevel-background: var(--wm-timeline-transport-background);
+  --wm-bevel-hover-border: var(--wm-timeline-transport-border-hover);
+  --wm-bevel-shadow: var(--wm-timeline-transport-shadow);
+  --wm-bevel-text: var(--wm-timeline-transport-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,16 +131,30 @@
   padding: 0;
   font-size: 0;
   line-height: 1;
-  color: rgba(255, 247, 225, 0.9);
+  background: var(--wm-bevel-background);
+  color: var(--wm-bevel-text);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease,
+    filter 140ms ease;
 }
 
 .timeline-bar__button.panel-button:hover:not(:disabled) {
-  background: var(--wm-chrome-surface-control-hover);
+  --wm-bevel-background: var(--wm-timeline-transport-background-hover);
+  --wm-bevel-text: var(--wm-timeline-transport-text-hover);
+  background: var(--wm-bevel-background);
+  color: var(--wm-bevel-text);
 }
 
 .timeline-bar__button.panel-button:focus-visible {
   outline: 1px solid var(--wm-focus-ring);
   outline-offset: -3px;
+}
+
+.timeline-bar__button.panel-button:disabled {
+  opacity: 0.56;
 }
 
 .timeline-bar__button.panel-button svg {
@@ -145,13 +176,82 @@
 }
 
 .timeline-bar__zone--transport .timeline-bar__button.panel-button {
-  --wm-bevel-radius: calc(var(--wm-radius-dock) - 2px) 0 0 calc(var(--wm-radius-dock) - 2px);
-  border-right: 1px solid rgba(255, 246, 220, 0.14);
+  --wm-bevel-radius: var(--wm-timeline-transport-radius) 0 0 var(--wm-timeline-transport-radius);
+  border-right-color: rgba(255, 246, 220, 0.18);
 }
 
 .timeline-bar__zone--reset .timeline-bar__button.panel-button {
-  --wm-bevel-radius: 0 calc(var(--wm-radius-dock) - 2px) calc(var(--wm-radius-dock) - 2px) 0;
-  border-left: 1px solid rgba(255, 246, 220, 0.14);
+  --wm-bevel-radius: 0 var(--wm-timeline-transport-radius) var(--wm-timeline-transport-radius) 0;
+  border-left-color: rgba(255, 246, 220, 0.18);
+}
+
+.timeline-bar__button--play[data-playback-state="idle"].panel-button:not(:disabled) {
+  --wm-bevel-border: 1px solid rgba(255, 205, 116, 0.52);
+  --wm-bevel-background:
+    linear-gradient(180deg, rgba(255, 222, 148, 0.78), rgba(214, 143, 43, 0.62) 54%, rgba(112, 68, 24, 0.78));
+  --wm-bevel-shadow:
+    inset 0 1px 0 rgba(255, 255, 235, 0.34),
+    inset 0 -1px 0 rgba(77, 42, 10, 0.3),
+    0 0 0 1px rgba(5, 10, 28, 0.32),
+    0 0 8px rgba(230, 173, 74, 0.18),
+    0 5px 12px rgba(5, 10, 28, 0.18);
+  --wm-bevel-text: rgb(18, 23, 39);
+  background: var(--wm-bevel-background);
+  border-right-color: rgba(78, 45, 13, 0.3);
+  color: rgb(18, 23, 39);
+}
+
+.timeline-bar__button--play[data-playback-state="idle"].panel-button:hover:not(:disabled),
+.timeline-bar__button--play[data-playback-state="idle"].panel-button:focus-visible:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgba(255, 230, 169, 0.88), rgba(230, 160, 55, 0.72) 54%, rgba(136, 82, 25, 0.82));
+  --wm-bevel-shadow:
+    inset 0 1px 0 rgba(255, 255, 235, 0.42),
+    inset 0 -1px 0 rgba(77, 42, 10, 0.34),
+    0 0 0 1px rgba(5, 10, 28, 0.34),
+    0 0 12px rgba(230, 173, 74, 0.26),
+    0 6px 14px rgba(5, 10, 28, 0.2);
+  color: rgb(14, 20, 35);
+  filter: brightness(1.025) saturate(1.015);
+}
+
+.timeline-bar__button--play[data-playback-state="playing"].panel-button:not(:disabled) {
+  --wm-bevel-border: 1px solid var(--wm-timeline-transport-border);
+  --wm-bevel-background: var(--wm-timeline-transport-background);
+  --wm-bevel-hover-border: var(--wm-timeline-transport-border-hover);
+  --wm-bevel-shadow: var(--wm-timeline-transport-shadow);
+  --wm-bevel-text: rgba(255, 247, 225, 0.94);
+  background: var(--wm-bevel-background);
+  border-right-color: rgba(255, 246, 220, 0.2);
+  color: var(--wm-bevel-text);
+}
+
+.timeline-bar__button--play[data-playback-state="playing"].panel-button:hover:not(:disabled),
+.timeline-bar__button--play[data-playback-state="playing"].panel-button:focus-visible:not(:disabled) {
+  --wm-bevel-background: var(--wm-timeline-transport-background-hover);
+  --wm-bevel-text: var(--wm-timeline-transport-text-hover);
+  background: var(--wm-bevel-background);
+  border-right-color: rgba(255, 246, 220, 0.3);
+  color: var(--wm-bevel-text);
+}
+
+.timeline-bar__button--reset.panel-button:not(:disabled) {
+  --wm-bevel-border: 1px solid rgba(255, 242, 216, 0.17);
+  --wm-bevel-background: var(--wm-timeline-transport-background);
+  --wm-bevel-hover-border: rgba(255, 242, 216, 0.3);
+  --wm-bevel-shadow: var(--wm-timeline-transport-shadow);
+  background: var(--wm-bevel-background);
+  border-left-color: rgba(255, 246, 220, 0.2);
+  color: rgba(255, 247, 225, 0.84);
+}
+
+.timeline-bar__button--reset.panel-button:hover:not(:disabled),
+.timeline-bar__button--reset.panel-button:focus-visible:not(:disabled) {
+  --wm-bevel-background: var(--wm-timeline-transport-background-hover);
+  --wm-bevel-text: rgba(255, 247, 225, 0.94);
+  background: var(--wm-bevel-background);
+  border-left-color: rgba(255, 246, 220, 0.3);
+  color: var(--wm-bevel-text);
 }
 
 .timeline-scrubber {
@@ -194,7 +294,7 @@
   z-index: 0;
   box-sizing: border-box;
   border: 1px solid var(--wm-timeline-slider-track-border);
-  border-radius: calc(var(--wm-radius-dock) - 3px);
+  border-radius: var(--wm-timeline-control-radius);
   background:
     linear-gradient(90deg, rgba(5, 11, 34, 0.2), transparent 18%, transparent 82%, rgba(5, 11, 34, 0.26)),
     linear-gradient(180deg, rgba(255, 247, 222, 0.1), transparent 42%),
@@ -216,7 +316,7 @@
 }
 
 .timeline-scrubber__ruler:focus-visible {
-  border-radius: 999px;
+  border-radius: var(--wm-timeline-control-radius);
   outline: 1px solid var(--wm-focus-ring);
   outline-offset: 3px;
 }

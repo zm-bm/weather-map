@@ -37,6 +37,7 @@ function TimelineBar() {
               onClick={togglePlay}
               disabled={disabled}
               aria-label={isPlaying ? 'Pause playback' : 'Play forecast timeline'}
+              data-playback-state={isPlaying ? 'playing' : 'idle'}
             >
               {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
             </button>

@@ -56,6 +56,7 @@ describe('TimelineBar', () => {
 
     expect(within(timelineBar).getByRole('slider', { name: 'Forecast time' })).toBeInTheDocument()
     expect(play).toBeEnabled()
+    expect(play).toHaveAttribute('data-playback-state', 'idle')
     expect(reset).toBeEnabled()
 
     fireEvent.click(play)
@@ -74,6 +75,7 @@ describe('TimelineBar', () => {
     render(<TimelineBar />)
 
     expect(screen.getByRole('button', { name: 'Pause playback' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Pause playback' })).toHaveAttribute('data-playback-state', 'playing')
     expect(screen.getByRole('button', { name: 'Reset timeline to now' })).toBeDisabled()
     expect(screen.getByRole('slider', { name: 'Forecast time' })).toHaveAttribute('aria-disabled', 'true')
   })

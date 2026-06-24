@@ -9,7 +9,7 @@ import { useLoadedForecastSelectionContext } from '@/forecast/selection'
 import type { UnitSystem } from '@/forecast/display/units'
 import { useForecastSettings } from '@/forecast/settings'
 
-export default function ForecastRunStatus() {
+export default function ForecastSourceSelector() {
   const {
     activeRun,
     activeDatasetId,
@@ -48,19 +48,19 @@ export default function ForecastRunStatus() {
       }]
 
   return (
-    <section className="forecast-run-status">
+    <section className="forecast-source-selector">
       <div
-        className="forecast-run-status__selector"
+        className="forecast-source-selector__selector"
         role="radiogroup"
         aria-label="Forecast source"
       >
         {visibleSourceOptions.map((dataset) => (
           <label
-            className="forecast-run-status__option wm-mono-caps"
+            className="forecast-source-selector__option wm-mono-caps"
             key={dataset.id}
           >
             <input
-              className="forecast-run-status__option-input"
+              className="forecast-source-selector__option-input"
               type="radio"
               name="forecast-source"
               value={dataset.id}
@@ -72,10 +72,10 @@ export default function ForecastRunStatus() {
                 }
               }}
             />
-            <span className="forecast-run-status__value" aria-hidden="true">
+            <span className="forecast-source-selector__value" aria-hidden="true">
               {dataset.label}
             </span>
-            <span className="forecast-run-status__detail" aria-hidden="true">
+            <span className="forecast-source-selector__detail" aria-hidden="true">
               {dataset.resolutionLabel}
             </span>
           </label>

@@ -998,8 +998,8 @@
   :is(.map-stage, .forecast-stage__right-rail) {
     --wm-map-ctrl-radius: var(--wm-radius-pill);
     --wm-map-ctrl-stack-radius: var(--wm-radius-pill);
-    --wm-map-ctrl-button-size: 34px;
-    --wm-map-ctrl-button-height: 34px;
+    --wm-map-ctrl-button-size: 40px;
+    --wm-map-ctrl-button-height: 40px;
   }
 
   .map-control-rail__tools,
@@ -1008,7 +1008,7 @@
   }
 
   .map-control-icon {
-    background-size: 16px 16px;
+    background-size: 18px 18px;
   }
 
   :is(.map-control-options-panel, .map-control-search-panel, .map-control-info-panel) {
@@ -1020,7 +1020,7 @@
   }
 
   .map-control-options-panel {
-    --wm-map-options-mobile-top: calc(var(--wm-top-panel-clearance, 12px) + var(--wm-map-ctrl-button-height) + 8px);
+    --wm-map-options-mobile-top: var(--wm-top-panel-clearance, calc(var(--wm-chrome-inset, 12px) + 76px));
     top: var(--wm-map-options-mobile-top);
     left: auto;
     width: min(252px, calc(100vw - 96px));

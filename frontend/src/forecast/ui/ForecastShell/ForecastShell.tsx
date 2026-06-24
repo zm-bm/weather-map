@@ -12,7 +12,7 @@ import TimelineBar from '../TimelineBar'
 import LegendPanel from '../LegendPanel'
 import ForecastMapReadout from '../ForecastMapReadout'
 import ForecastPlaceProbes from '../ForecastPlaceProbes'
-import ForecastRunStatus from '../ForecastRunStatus'
+import ForecastSourceSelector from '../ForecastSourceSelector'
 import MapControlRail, { type MapControlRailPanel } from '../MapControlRail'
 import WeatherCategoryBar from '../WeatherCategoryBar'
 import type { MapPoint } from '../mapPoint'
@@ -126,7 +126,7 @@ function ForecastStage({
                 />
               </div>
               <div className="forecast-stage__source wm-panel-shell">
-                <ForecastRunStatus />
+                <ForecastSourceSelector />
               </div>
             </div>
             <div className="forecast-stage__legend">

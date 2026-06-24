@@ -9,7 +9,7 @@ import {
   createScalarArtifactFixture,
   renderWithForecastSelection,
 } from '@/test/fixtures'
-import ForecastRunStatus from './ForecastRunStatus'
+import ForecastSourceSelector from './ForecastSourceSelector'
 
 const MODEL_OPTIONS: readonly ForecastDatasetOption[] = [
   { id: 'gfs', label: 'GFS' },
@@ -24,7 +24,7 @@ function sourceRadios(): HTMLInputElement[] {
   return screen.getAllByRole('radio') as HTMLInputElement[]
 }
 
-function renderRunStatus(
+function renderSourceSelector(
   manifest = createManifestFixture({
     cycle: '2026041100',
     scalarArtifactIds: ['tmp_surface', 'rh_surface'],
@@ -43,16 +43,16 @@ function renderRunStatus(
     selectedLayerId?: string
   } = {}
 ) {
-  return renderWithForecastSelection(<ForecastRunStatus />, manifest, {
+  return renderWithForecastSelection(<ForecastSourceSelector />, manifest, {
     activeDatasetId: options.activeDatasetId ?? 'gfs',
     datasetOptions: options.datasetOptions ?? MODEL_OPTIONS,
     selectedLayerId: options.selectedLayerId,
   })
 }
 
-describe('ForecastRunStatus', () => {
+describe('ForecastSourceSelector', () => {
   it('renders available source choices as a compact segmented selector', () => {
-    renderRunStatus()
+    renderSourceSelector()
 
     expect(screen.getByRole('radiogroup', { name: 'Forecast source' })).toBeInTheDocument()
     expect(sourceRadio('GFS')).toBeChecked()
@@ -80,7 +80,7 @@ describe('ForecastRunStatus', () => {
       layers: catalogManifest.layers,
     })
 
-    renderRunStatus(manifest, {
+    renderSourceSelector(manifest, {
       activeDatasetId: 'icon',
     })
 
@@ -111,7 +111,7 @@ describe('ForecastRunStatus', () => {
       layers: catalogManifest.layers,
     })
 
-    renderRunStatus(manifest, {
+    renderSourceSelector(manifest, {
       activeDatasetId: 'gfs',
       selectedLayerId: 'cloud_cover',
     })
@@ -122,7 +122,7 @@ describe('ForecastRunStatus', () => {
   })
 
   it('constrains observed radar source choices to MRMS', () => {
-    renderRunStatus(createCatalogManifestFixture(), {
+    renderSourceSelector(createCatalogManifestFixture(), {
       activeDatasetId: 'gfs',
       datasetOptions: [
         ...MODEL_OPTIONS,

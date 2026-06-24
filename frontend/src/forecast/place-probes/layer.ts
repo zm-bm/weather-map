@@ -60,9 +60,9 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
     'text-radial-offset': 0.5,
     'text-size': [
       'interpolate', ['exponential', 1.2], ['zoom'],
-      3, 13,
-      7, 15,
-      10, 18,
+      3, 12,
+      7, 13.5,
+      10, 16.5,
     ],
     'text-variable-anchor': [
       'center',
@@ -94,7 +94,7 @@ const PLACE_PROBE_LAYER: LayerSpecification = {
       'case',
       ['boolean', ['feature-state', 'hover'], false],
       1.55,
-      1.18,
+      1.05,
     ],
   },
 }

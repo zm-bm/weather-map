@@ -20,6 +20,23 @@ describe('basemap theme', () => {
     expect(basemapStyleForForecastRasterLayer(null)).toBe('standard')
   })
 
+  it('keeps satellite-context lake styling subtle over weather layers', () => {
+    const map = createBasemapThemeMapFixture(Object.values(BASEMAP_LAYER_IDS))
+
+    applyForecastBasemapStyle(map, 'satellite-context')
+
+    expect(map.setPaintProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.lakeFill,
+      'fill-opacity',
+      0.1
+    )
+    expect(map.setPaintProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.lakeOutline,
+      'line-opacity',
+      0.32
+    )
+  })
+
   it('shows the satellite layer for satellite context and hides it for standard context', () => {
     const map = createBasemapThemeMapFixture(Object.values(BASEMAP_LAYER_IDS))
 

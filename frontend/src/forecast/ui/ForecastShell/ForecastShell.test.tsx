@@ -22,7 +22,7 @@ import ForecastShell from './ForecastShell'
 const mocks = vi.hoisted(() => ({
   ForecastMapReadout: vi.fn(),
   ForecastPlaceProbes: vi.fn(),
-  ForecastRunStatus: vi.fn(),
+  ForecastSourceSelector: vi.fn(),
   MapControlRail: vi.fn(),
   TimelineBar: vi.fn(),
   WeatherCategoryBar: vi.fn(),
@@ -63,10 +63,10 @@ vi.mock('../LegendPanel', () => ({
   default: () => <div data-testid="legend-panel" />,
 }))
 
-vi.mock('../ForecastRunStatus', () => ({
+vi.mock('../ForecastSourceSelector', () => ({
   default: (props: unknown) => {
-    mocks.ForecastRunStatus(props)
-    return <section data-testid="forecast-run-status" />
+    mocks.ForecastSourceSelector(props)
+    return <section data-testid="forecast-source-selector" />
   },
 }))
 
@@ -179,7 +179,7 @@ describe('ForecastShell', () => {
 
     expect(screen.getByTestId('forecast-place-probes')).toBeInTheDocument()
     expect(screen.getByTestId('weather-category-bar')).toBeInTheDocument()
-    expect(screen.getByTestId('forecast-run-status')).toBeInTheDocument()
+    expect(screen.getByTestId('forecast-source-selector')).toBeInTheDocument()
     expect(screen.getByTestId('legend-panel')).toBeInTheDocument()
     expect(screen.getByTestId('map-control-rail')).toBeInTheDocument()
     expect(screen.getByTestId('forecast-map-readout')).toBeInTheDocument()
