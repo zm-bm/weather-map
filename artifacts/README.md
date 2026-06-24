@@ -20,7 +20,8 @@ Typical contents:
 
 How it is used:
 
-- `scripts/etl-fetch-run.sh` copies completed run outputs here for local dev.
+- `scripts/etl-sync-artifacts.sh` copies the latest or selected published ETL run
+  artifacts here for local dev.
 - The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
 - nginx serves `/manifests/*`, `/runs/*/payloads/*`, and `/pmtiles/*`

@@ -7,8 +7,8 @@ ICON, and observed datasets.
 For normal work, start with the shell wrappers:
 
 - `scripts/etl-run-aws.sh` submits AWS Batch frame workers for a cycle.
-- `scripts/etl-fetch-run.sh` copies artifacts for an explicit completed run
-  into the local `artifacts/` tree.
+- `scripts/etl-sync-artifacts.sh` copies the latest or selected published run
+  artifacts into the local `artifacts/` tree.
 
 The Python CLI intentionally keeps a narrow operational surface: submit a run
 or run one frame worker.
@@ -28,16 +28,25 @@ scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
-Fetch a completed run for local development:
+Fetch the latest published GFS artifacts for local development:
 
 ```bash
-scripts/etl-fetch-run.sh \
+scripts/etl-sync-artifacts.sh \
+  --artifact-root-uri s3://<artifact-bucket-or-prefix>
+```
+
+Fetch a specific published run:
+
+```bash
+scripts/etl-sync-artifacts.sh \
+  --artifact-root-uri s3://<artifact-bucket-or-prefix> \
   --dataset-id gfs \
   --cycle <YYYYMMDDHH> \
-  --run-id <run_id> \
-  --artifact-root-uri s3://<artifact-bucket-or-prefix> \
-  --include-public
+  --run-id <run_id>
 ```
+
+The fetch script keeps the local manifest index limited to the datasets it
+downloaded, so the frontend does not request missing local payloads.
 
 ## AWS Submission
 
@@ -131,7 +140,7 @@ The package is organized around a few stable boundaries:
 ```bash
 cd etl && ../.venv/bin/python -m pytest tests
 cd etl && ../.venv/bin/ruff check weather_etl tests
-bash -n scripts/etl-fetch-run.sh
+bash -n scripts/etl-sync-artifacts.sh
 bash -n scripts/etl-run-aws.sh
 bash -n scripts/etl-deploy.sh
 ```

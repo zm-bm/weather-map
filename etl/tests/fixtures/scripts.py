@@ -142,18 +142,18 @@ class AwsRunScriptHarness(ScriptHarness):
 
 
 @dataclass(frozen=True)
-class FetchRunScriptHarness(ScriptHarness):
+class SyncArtifactsScriptHarness(ScriptHarness):
     fake_aws_log: Path
 
     def aws_log(self) -> str:
         return self.fake_aws_log.read_text(encoding="utf-8")
 
 
-def fetch_run_script_harness(repo_root: Path, tmp_path: Path) -> FetchRunScriptHarness:
+def sync_artifacts_script_harness(repo_root: Path, tmp_path: Path) -> SyncArtifactsScriptHarness:
     aws_log = tmp_path / "aws.log"
-    harness = FetchRunScriptHarness(
+    harness = SyncArtifactsScriptHarness(
         repo_root=repo_root,
-        script=repo_root / "scripts" / "etl-fetch-run.sh",
+        script=repo_root / "scripts" / "etl-sync-artifacts.sh",
         fake_bin_dir=tmp_path,
         env_defaults={"FAKE_AWS_LOG": aws_log.as_posix()},
         fake_aws_log=aws_log,
@@ -405,6 +405,25 @@ if [[ "${1:-}" == "s3" && "${2:-}" == "cp" ]]; then
   src="${3:-}"
   dst="${4:-}"
   if [[ "$src" == s3://* && "$dst" != s3://* ]]; then
+    if [[ -n "${FAKE_AWS_OBJECTS_JSON:-}" ]]; then
+      python3 - "$src" "$dst" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+src = sys.argv[1]
+dst = Path(sys.argv[2])
+objects = json.loads(os.environ["FAKE_AWS_OBJECTS_JSON"])
+if src not in objects:
+    raise SystemExit(f"missing fake S3 object: {src}")
+value = objects[src]
+text = value if isinstance(value, str) else json.dumps(value)
+dst.parent.mkdir(parents=True, exist_ok=True)
+dst.write_text(text, encoding="utf-8")
+PY
+      exit $?
+    fi
     cat > "$dst" <<'JSON'
 {
   "datasets": {
