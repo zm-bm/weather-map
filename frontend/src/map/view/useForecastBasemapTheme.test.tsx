@@ -3,16 +3,11 @@ import { describe, expect, it } from 'vitest'
 
 import { createBasemapThemeMapFixture } from '@/test/fixtures'
 import { BASEMAP_LAYER_IDS } from '../basemap'
-import { readStandardBasemapPaintValue } from './basemapStyle'
 import { useForecastBasemapTheme } from './useForecastBasemapTheme'
 
 describe('useForecastBasemapTheme', () => {
   it('updates the map theme when the selected layer changes', () => {
-    const map = createBasemapThemeMapFixture()
-    const standardBackgroundColor = readStandardBasemapPaintValue({
-      layerId: BASEMAP_LAYER_IDS.background,
-      property: 'background-color',
-    })
+    const map = createBasemapThemeMapFixture(Object.values(BASEMAP_LAYER_IDS))
     const { rerender } = renderHook(
       ({ selectedLayerId }) => useForecastBasemapTheme({
         map,
@@ -21,26 +16,28 @@ describe('useForecastBasemapTheme', () => {
       { initialProps: { selectedLayerId: 'temperature' as string | null } }
     )
 
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
-      standardBackgroundColor
+    expect(map.setLayoutProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      'none'
     )
 
     map.setPaintProperty.mockClear()
+    map.setLayoutProperty.mockClear()
     rerender({ selectedLayerId: 'cloud_layers' })
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
-      'rgb(143, 137, 102)'
+    expect(map.setLayoutProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      'visible'
     )
 
     map.setPaintProperty.mockClear()
-    rerender({ selectedLayerId: 'cloud_cover' })
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
-      standardBackgroundColor
+    map.setLayoutProperty.mockClear()
+    rerender({ selectedLayerId: 'temperature' })
+    expect(map.setLayoutProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      'none'
     )
   })
 

@@ -84,8 +84,9 @@ test('loads mocked MRMS observed radar and advances playback through rolling pay
 
   await page.goto('/?layer=observed_radar_composite_reflectivity')
 
-  await expect(page.getByLabel('Measurement')).toHaveValue(COMPOSITE_REFLECTIVITY_ARTIFACT_ID)
-  await expect(page.getByLabel('Forecast source', { exact: true })).toHaveValue('mrms')
+  await expect(page.getByRole('region', { name: 'Weather maps' })).toContainText('Observed Radar Composite')
+  await expect(page.getByRole('radio', { name: 'MRMS' })).toBeChecked()
+  await expect(page.getByRole('region', { name: 'Observed Radar Composite legend' })).toBeVisible()
   await expect(page.getByText(/Forecast (Load|Startup) Failed/)).toHaveCount(0)
 
   await expect.poll(() => payloadPaths.length, {
@@ -93,18 +94,18 @@ test('loads mocked MRMS observed radar and advances playback through rolling pay
   }).toBeGreaterThan(0)
   expect(payloadPaths).toContain(`/runs/mrms/rolling/payloads/${INITIAL_FRAME_ID}/${PAYLOAD_FILE}`)
 
-  const validTime = page.locator('[aria-label^="Forecast valid time"]')
+  const validTime = page.getByRole('slider', { name: 'Forecast time' })
   await expect(validTime).toBeVisible()
-  const initialValidTimeText = await validTime.innerText()
+  const initialValidTimeText = await validTime.getAttribute('aria-valuetext')
 
   playClicked = true
   await page.getByRole('button', { name: 'Play forecast timeline' }).click()
   releaseHeldPayloads()
 
   await expect(page.getByRole('button', { name: 'Pause playback' })).toBeVisible()
-  await expect.poll(async () => (await validTime.innerText()).trim(), {
+  await expect.poll(async () => await validTime.getAttribute('aria-valuetext'), {
     message: 'expected playback to advance the displayed valid time',
-  }).not.toBe(initialValidTimeText.trim())
+  }).not.toBe(initialValidTimeText)
   await expect.poll(() => payloadPathsAfterPlay.length, {
     message: 'expected playback to load a later MRMS frame payload',
   }).toBeGreaterThan(0)

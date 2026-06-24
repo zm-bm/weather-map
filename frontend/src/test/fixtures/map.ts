@@ -146,6 +146,7 @@ type BasemapThemeMapFixture = MapLibreMap & {
   getStyle: ReturnType<typeof vi.fn>
   moveLayer: ReturnType<typeof vi.fn>
   removeLayer: ReturnType<typeof vi.fn>
+  setLayoutProperty: ReturnType<typeof vi.fn>
   setPaintProperty: ReturnType<typeof vi.fn>
 }
 
@@ -196,6 +197,7 @@ export function createBasemapThemeMapFixture(
       removeLayerId(layerId)
       return undefined
     }),
+    setLayoutProperty: vi.fn(),
     setPaintProperty: vi.fn(),
   } as unknown as BasemapThemeMapFixture
 }

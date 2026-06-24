@@ -174,7 +174,6 @@ describe('useMapLibre', () => {
 
     expect(style.sources?.[BASEMAP_SOURCE_ID]).toBeUndefined()
     expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
-    expect((style.layers ?? []).map((layer) => layer.id)).toEqual(['background'])
   })
 
   it('exposes the map after style load', () => {

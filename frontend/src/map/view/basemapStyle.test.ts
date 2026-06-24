@@ -1,10 +1,11 @@
-import type { VectorSourceSpecification } from 'maplibre-gl'
+import type { RasterSourceSpecification, VectorSourceSpecification } from 'maplibre-gl'
 import { describe, expect, it } from 'vitest'
 
 import { createConfigFixture } from '@/test/fixtures'
 import {
   BASEMAP_LAYER_IDS,
   BASEMAP_SOURCE_ID,
+  SATELLITE_BASEMAP_SOURCE_ID,
 } from '../basemap'
 import {
   buildMapStyle,
@@ -24,6 +25,15 @@ describe('basemap style', () => {
     expect(basemapSource?.type).toBe('vector')
     expect(basemapSource?.url).toBe(config.basemapUrl)
 
+    const satelliteSource = style.sources?.[SATELLITE_BASEMAP_SOURCE_ID] as RasterSourceSpecification | undefined
+    expect(satelliteSource?.type).toBe('raster')
+    expect(satelliteSource?.tiles?.[0]).toBe(
+      'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg'
+    )
+    expect(satelliteSource?.attribution).toBe(
+      '<a href="https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api">NASA GIBS</a> / ESDIS'
+    )
+
     ;(basemapSource as VectorSourceSpecification).tiles = ['http://localhost:3000/basemap/{z}/{x}/{y}']
     expect((baseStyleJson.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification).tiles).toBeUndefined()
   })
@@ -35,8 +45,12 @@ describe('basemap style', () => {
     })
 
     expect(style.sources?.[BASEMAP_SOURCE_ID]).toBeUndefined()
+    expect(style.sources?.[SATELLITE_BASEMAP_SOURCE_ID]).toBeDefined()
     expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
-    expect((style.layers ?? []).map((layer) => layer.id)).toEqual([BASEMAP_LAYER_IDS.background])
+    expect((style.layers ?? []).map((layer) => layer.id)).toEqual([
+      BASEMAP_LAYER_IDS.background,
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+    ])
   })
 
   it('reads cloned standard paint values from style.json', () => {

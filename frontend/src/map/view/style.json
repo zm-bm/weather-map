@@ -6,6 +6,17 @@
       "url": "pmtiles://example.invalid/basemap.pmtiles",
       "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © <a href=\"https://openstreetmap.org\">OpenStreetMap</a>",
       "maxzoom": 9
+    },
+    "satellite_basemap": {
+      "type": "raster",
+      "tiles": [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg"
+      ],
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 8,
+      "bounds": [-180, -85.051129, 180, 85.051129],
+      "attribution": "<a href=\"https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api\">NASA GIBS</a> / ESDIS"
     }
   },
   "layers": [
@@ -39,6 +50,22 @@
         "fill-antialias": true,
         "fill-color": "rgb(190, 205, 211)",
         "fill-opacity": 0.24
+      }
+    },
+    {
+      "id": "satellite_basemap",
+      "type": "raster",
+      "source": "satellite_basemap",
+      "layout": {
+        "visibility": "none"
+      },
+      "paint": {
+        "raster-opacity": 0,
+        "raster-brightness-min": 0,
+        "raster-brightness-max": 1,
+        "raster-saturation": 0,
+        "raster-contrast": 0,
+        "raster-fade-duration": 0
       }
     },
     {

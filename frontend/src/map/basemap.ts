@@ -1,4 +1,5 @@
 export const BASEMAP_SOURCE_ID = 'basemap' as const
+export const SATELLITE_BASEMAP_SOURCE_ID = 'satellite_basemap' as const
 
 export const BASEMAP_SOURCE_LAYER_IDS = {
   water: 'water',
@@ -14,6 +15,7 @@ export const BASEMAP_LAYER_IDS = {
   background: 'background',
   earthMask: 'earth_mask',
   water: 'water',
+  satelliteBasemap: 'satellite_basemap',
   urbanAreaContext: 'urban_area_context',
   cityContext: 'city_context',
   urbanAreaOutline: 'urban_area_outline',

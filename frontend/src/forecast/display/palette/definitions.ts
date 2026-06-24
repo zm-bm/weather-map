@@ -107,7 +107,7 @@ export const DEW_POINT_PALETTE = palette(
 )
 
 export const CLOUD_COVER_PALETTE = palette('cloud.cover.percent.v1', [
-    stop(0, [180, 180, 180]),
+    stop(0, [180, 180, 180, 0]),
     stop(5, [170, 185, 200]),
     stop(10, [150, 185, 210]),
     stop(15, [135, 180, 215]),
@@ -166,7 +166,7 @@ export const PRESSURE_PALETTE = palette('pressure.msl.pa.v1', [
 ])
 
 export const PRECIP_RATE_PALETTE = palette('precip.rate.mm_hr.v1', [
-    stop(0, [180, 180, 180]),
+    stop(0, [180, 180, 180, 0]),
     stop(0.15, [200, 210, 240]),
     stop(0.3, [160, 190, 255]),
     stop(0.45, [120, 170, 255]),
@@ -183,7 +183,7 @@ export const PRECIP_RATE_PALETTE = palette('precip.rate.mm_hr.v1', [
 ])
 
 export const PRECIP_TOTAL_PALETTE = palette('precip.total.mm.v1', [
-    stop(0, [180, 180, 180]),
+    stop(0, [180, 180, 180, 0]),
     stop(1, [200, 210, 240]),
     stop(2, [160, 190, 255]),
     stop(5, [120, 170, 255]),
@@ -265,10 +265,11 @@ export const CIN_PALETTE = palette('severe.cin.jkg.v1', [
 ])
 
 export const REFLECTIVITY_PALETTE = palette('radar.reflectivity.dbz.v2', [
-    stop(-35, [204, 255, 255]),
-    stop(-25, [204, 153, 204]),
-    stop(-15, [153, 102, 153]),
-    stop(-5, [153, 153, 102]),
+    stop(-35, [204, 255, 255, 0]),
+    stop(-25, [204, 153, 204, 0]),
+    stop(-15, [153, 102, 153, 0]),
+    stop(-5, [153, 153, 102, 0]),
+    stop(0, [0, 235, 235, 0]),
     stop(5, [0, 235, 235]),
     stop(15, [0, 0, 247]),
     stop(25, [0, 199, 0]),

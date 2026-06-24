@@ -8,11 +8,12 @@ import {
   type BasemapPaintKey,
 } from './basemapStyle'
 
-export type ForecastBasemapStyleId = 'standard' | 'cloud-layers'
+export type ForecastBasemapStyleId = 'standard' | 'satellite-context'
 
 type ForecastBasemapStyle = {
   id: ForecastBasemapStyleId
   paints: readonly BasemapPaint[]
+  satelliteVisibility: 'visible' | 'none'
 }
 
 export const BASEMAP_THEME_PAINT_KEYS: readonly BasemapPaintKey[] = [
@@ -20,6 +21,11 @@ export const BASEMAP_THEME_PAINT_KEYS: readonly BasemapPaintKey[] = [
   { layerId: BASEMAP_LAYER_IDS.earthMask, property: 'fill-color' },
   { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-color' },
   { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-opacity' },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-opacity' },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-brightness-min' },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-brightness-max' },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-saturation' },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-contrast' },
   { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-color' },
   { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-opacity' },
   { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-outline-color' },
@@ -49,59 +55,73 @@ export const BASEMAP_THEME_PAINT_KEYS: readonly BasemapPaintKey[] = [
 
 const STANDARD_BASEMAP_PAINTS = readStandardBasemapPaints(BASEMAP_THEME_PAINT_KEYS)
 
-const CLOUD_LAYERS_BASEMAP_PAINT_OVERRIDES: readonly BasemapPaint[] = [
-  { layerId: BASEMAP_LAYER_IDS.background, property: 'background-color', value: 'rgb(143, 137, 102)' },
-  { layerId: BASEMAP_LAYER_IDS.earthMask, property: 'fill-color', value: 'rgb(143, 137, 102)' },
-  { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-color', value: 'rgb(150, 156, 149)' },
-  { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-opacity', value: 0.74 },
-  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-color', value: 'rgb(91, 86, 65)' },
-  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-opacity', value: 0.13 },
-  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-outline-color', value: 'rgba(47, 49, 39, 0.34)' },
+const SATELLITE_CONTEXT_LAYER_IDS = new Set([
+  'precipitation_rate',
+  'accumulated_precipitation',
+  'cloud_layers',
+  'cloud_cover',
+  'observed_radar_composite_reflectivity',
+  'composite_reflectivity',
+])
+
+const SATELLITE_CONTEXT_BASEMAP_PAINT_OVERRIDES: readonly BasemapPaint[] = [
+  { layerId: BASEMAP_LAYER_IDS.background, property: 'background-color', value: 'rgb(10, 16, 23)' },
+  { layerId: BASEMAP_LAYER_IDS.earthMask, property: 'fill-color', value: 'rgb(18, 25, 24)' },
+  { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-color', value: 'rgb(21, 36, 45)' },
+  { layerId: BASEMAP_LAYER_IDS.water, property: 'fill-opacity', value: 0.08 },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-opacity', value: 0.78 },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-brightness-min', value: 0.02 },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-brightness-max', value: 0.58 },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-saturation', value: -0.48 },
+  { layerId: BASEMAP_LAYER_IDS.satelliteBasemap, property: 'raster-contrast', value: -0.14 },
+  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-color', value: 'rgb(62, 70, 58)' },
+  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-opacity', value: 0.08 },
+  { layerId: BASEMAP_LAYER_IDS.urbanAreaContext, property: 'fill-outline-color', value: 'rgba(230, 216, 171, 0.24)' },
   {
     layerId: BASEMAP_LAYER_IDS.cityContext,
     property: 'fill-color',
     value: [
       'match', ['get', 'kind'],
-      ['commercial', 'industrial'], 'rgb(84, 78, 58)',
-      'rgb(91, 86, 64)',
+      ['commercial', 'industrial'], 'rgb(68, 70, 55)',
+      'rgb(73, 80, 63)',
     ],
   },
-  { layerId: BASEMAP_LAYER_IDS.cityContext, property: 'fill-opacity', value: 0.16 },
-  { layerId: BASEMAP_LAYER_IDS.cityContext, property: 'fill-outline-color', value: 'rgba(45, 47, 38, 0.32)' },
-  { layerId: BASEMAP_LAYER_IDS.urbanAreaOutline, property: 'line-color', value: 'rgb(46, 48, 39)' },
-  { layerId: BASEMAP_LAYER_IDS.urbanAreaOutline, property: 'line-opacity', value: 0.24 },
-  { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-color', value: 'rgb(32, 36, 31)' },
-  { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-opacity', value: 0.34 },
-  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-color', value: 'rgb(110, 143, 137)' },
-  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-opacity', value: 0.3 },
-  { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-color', value: 'rgb(41, 45, 40)' },
-  { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-opacity', value: 0.92 },
+  { layerId: BASEMAP_LAYER_IDS.cityContext, property: 'fill-opacity', value: 0.1 },
+  { layerId: BASEMAP_LAYER_IDS.cityContext, property: 'fill-outline-color', value: 'rgba(230, 216, 171, 0.2)' },
+  { layerId: BASEMAP_LAYER_IDS.urbanAreaOutline, property: 'line-color', value: 'rgb(213, 204, 158)' },
+  { layerId: BASEMAP_LAYER_IDS.urbanAreaOutline, property: 'line-opacity', value: 0.2 },
+  { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-color', value: 'rgb(6, 12, 16)' },
+  { layerId: BASEMAP_LAYER_IDS.coastlineShadow, property: 'line-opacity', value: 0.28 },
+  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-color', value: 'rgb(68, 108, 118)' },
+  { layerId: BASEMAP_LAYER_IDS.lakeFill, property: 'fill-opacity', value: 0.12 },
+  { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-color', value: 'rgb(222, 218, 180)' },
+  { layerId: BASEMAP_LAYER_IDS.coastline, property: 'line-opacity', value: 0.5 },
   {
     layerId: BASEMAP_LAYER_IDS.coastline,
     property: 'line-width',
-    value: ['interpolate', ['linear'], ['zoom'], 0, 0.85, 4, 1.25, 6, 1.45],
+    value: ['interpolate', ['linear'], ['zoom'], 0, 0.85, 4, 1.15, 6, 1.35],
   },
-  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-color', value: 'rgb(41, 45, 40)' },
-  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-opacity', value: 0.58 },
-  { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-color', value: 'rgb(55, 83, 80)' },
-  { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-opacity', value: 0.6 },
-  { layerId: BASEMAP_LAYER_IDS.roadMajor, property: 'line-color', value: 'rgb(70, 64, 46)' },
+  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-color', value: 'rgb(161, 215, 219)' },
+  { layerId: BASEMAP_LAYER_IDS.lakeOutline, property: 'line-opacity', value: 0.36 },
+  { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-color', value: 'rgb(134, 200, 207)' },
+  { layerId: BASEMAP_LAYER_IDS.riverOutline, property: 'line-opacity', value: 0.38 },
+  { layerId: BASEMAP_LAYER_IDS.roadMajor, property: 'line-color', value: 'rgb(219, 199, 149)' },
   {
     layerId: BASEMAP_LAYER_IDS.roadMajor,
     property: 'line-opacity',
-    value: ['interpolate', ['linear'], ['zoom'], 4, 0.07, 5, 0.12, 6.25, 0.16, 7.25, 0.21, 8.25, 0.26, 9, 0.30, 10, 0.34],
+    value: ['interpolate', ['linear'], ['zoom'], 4, 0.04, 5, 0.07, 6.25, 0.1, 7.25, 0.13, 8.25, 0.16, 9, 0.19, 10, 0.22],
   },
-  { layerId: BASEMAP_LAYER_IDS.boundary4, property: 'line-color', value: 'rgb(74, 76, 63)' },
+  { layerId: BASEMAP_LAYER_IDS.boundary4, property: 'line-color', value: 'rgb(231, 222, 179)' },
   {
     layerId: BASEMAP_LAYER_IDS.boundary4,
     property: 'line-opacity',
-    value: ['interpolate', ['linear'], ['zoom'], 4, 0.40, 7, 0.54, 11, 0.60, 20, 0.64],
+    value: ['interpolate', ['linear'], ['zoom'], 4, 0.22, 7, 0.34, 11, 0.42, 20, 0.48],
   },
-  { layerId: BASEMAP_LAYER_IDS.boundary2, property: 'line-color', value: 'rgb(41, 45, 40)' },
+  { layerId: BASEMAP_LAYER_IDS.boundary2, property: 'line-color', value: 'rgb(237, 229, 190)' },
   {
     layerId: BASEMAP_LAYER_IDS.boundary2,
     property: 'line-opacity',
-    value: ['interpolate', ['linear'], ['zoom'], 0, 0.34, 4, 0.64, 10, 0.74],
+    value: ['interpolate', ['linear'], ['zoom'], 0, 0.18, 4, 0.4, 10, 0.52],
   },
 ]
 
@@ -109,18 +129,22 @@ const BASEMAP_STYLES: Record<ForecastBasemapStyleId, ForecastBasemapStyle> = {
   standard: {
     id: 'standard',
     paints: STANDARD_BASEMAP_PAINTS,
+    satelliteVisibility: 'none',
   },
-  'cloud-layers': {
-    id: 'cloud-layers',
+  'satellite-context': {
+    id: 'satellite-context',
     paints: mergePaintOverrides(
       STANDARD_BASEMAP_PAINTS,
-      CLOUD_LAYERS_BASEMAP_PAINT_OVERRIDES,
+      SATELLITE_CONTEXT_BASEMAP_PAINT_OVERRIDES,
     ),
+    satelliteVisibility: 'visible',
   },
 }
 
 export function basemapStyleForForecastRasterLayer(selectedLayerId: string | null): ForecastBasemapStyleId {
-  if (selectedLayerId === 'cloud_layers') return 'cloud-layers'
+  if (selectedLayerId && SATELLITE_CONTEXT_LAYER_IDS.has(selectedLayerId)) {
+    return 'satellite-context'
+  }
   return 'standard'
 }
 
@@ -130,6 +154,14 @@ export function applyForecastBasemapStyle(map: MapLibreMap, styleId: ForecastBas
   for (const paint of style.paints) {
     if (!map.getLayer(paint.layerId)) continue
     map.setPaintProperty(paint.layerId, paint.property, cloneStyleValue(paint.value))
+  }
+
+  if (map.getLayer(BASEMAP_LAYER_IDS.satelliteBasemap)) {
+    map.setLayoutProperty(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      style.satelliteVisibility,
+    )
   }
 }
 

@@ -10,49 +10,47 @@ import {
 
 describe('basemap theme', () => {
   it('maps forecast layers to basemap styles', () => {
-    expect(basemapStyleForForecastRasterLayer('cloud_layers')).toBe('cloud-layers')
+    expect(basemapStyleForForecastRasterLayer('precipitation_rate')).toBe('satellite-context')
+    expect(basemapStyleForForecastRasterLayer('accumulated_precipitation')).toBe('satellite-context')
+    expect(basemapStyleForForecastRasterLayer('cloud_layers')).toBe('satellite-context')
+    expect(basemapStyleForForecastRasterLayer('cloud_cover')).toBe('satellite-context')
+    expect(basemapStyleForForecastRasterLayer('observed_radar_composite_reflectivity')).toBe('satellite-context')
+    expect(basemapStyleForForecastRasterLayer('composite_reflectivity')).toBe('satellite-context')
     expect(basemapStyleForForecastRasterLayer('temperature')).toBe('standard')
     expect(basemapStyleForForecastRasterLayer(null)).toBe('standard')
   })
 
-  it('applies the cloud theme and restores standard paints', () => {
+  it('shows the satellite layer for satellite context and hides it for standard context', () => {
     const map = createBasemapThemeMapFixture(Object.values(BASEMAP_LAYER_IDS))
 
-    applyForecastBasemapStyle(map, 'cloud-layers')
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
-      'rgb(143, 137, 102)'
-    )
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.water,
-      'fill-opacity',
-      0.74
-    )
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.cityContext,
-      'fill-opacity',
-      0.16
+    applyForecastBasemapStyle(map, 'satellite-context')
+    const satelliteOpacity = map.setPaintProperty.mock.calls.find(([layerId, property]) => (
+      layerId === BASEMAP_LAYER_IDS.satelliteBasemap && property === 'raster-opacity'
+    ))?.[2]
+    expect(typeof satelliteOpacity).toBe('number')
+    expect(satelliteOpacity).toBeGreaterThan(0)
+    expect(map.setLayoutProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      'visible'
     )
 
     map.setPaintProperty.mockClear()
+    map.setLayoutProperty.mockClear()
     applyForecastBasemapStyle(map, 'standard')
 
     expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'raster-opacity',
       readStandardBasemapPaintValue({
-        layerId: BASEMAP_LAYER_IDS.background,
-        property: 'background-color',
+        layerId: BASEMAP_LAYER_IDS.satelliteBasemap,
+        property: 'raster-opacity',
       })
     )
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.cityContext,
-      'fill-opacity',
-      readStandardBasemapPaintValue({
-        layerId: BASEMAP_LAYER_IDS.cityContext,
-        property: 'fill-opacity',
-      })
+    expect(map.setLayoutProperty).toHaveBeenCalledWith(
+      BASEMAP_LAYER_IDS.satelliteBasemap,
+      'visibility',
+      'none'
     )
   })
 
@@ -76,12 +74,9 @@ describe('basemap theme', () => {
   it('ignores missing basemap layers', () => {
     const map = createBasemapThemeMapFixture([BASEMAP_LAYER_IDS.background])
 
-    expect(() => applyForecastBasemapStyle(map, 'cloud-layers')).not.toThrow()
+    expect(() => applyForecastBasemapStyle(map, 'satellite-context')).not.toThrow()
     expect(map.setPaintProperty).toHaveBeenCalledTimes(1)
-    expect(map.setPaintProperty).toHaveBeenCalledWith(
-      BASEMAP_LAYER_IDS.background,
-      'background-color',
-      'rgb(143, 137, 102)'
-    )
+    expect(map.setPaintProperty.mock.calls[0]?.[0]).toBe(BASEMAP_LAYER_IDS.background)
+    expect(map.setLayoutProperty).not.toHaveBeenCalled()
   })
 })
