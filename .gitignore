@@ -178,3 +178,5 @@ crash.*.log
 
 # Local infrastructure operation output
 infra/**/events/invoke-output.json
+
+reference/

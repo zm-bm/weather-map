@@ -5,7 +5,7 @@
       "type": "vector",
       "url": "pmtiles://example.invalid/basemap.pmtiles",
       "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © <a href=\"https://openstreetmap.org\">OpenStreetMap</a>",
-      "maxzoom": 6
+      "maxzoom": 9
     }
   },
   "layers": [
@@ -42,53 +42,98 @@
       }
     },
     {
-      "id": "landcover_context",
+      "id": "urban_area_context",
       "type": "fill",
       "source": "basemap",
       "source-layer": "landcover",
-      "minzoom": 3,
-      "maxzoom": 9,
+      "minzoom": 4,
+      "maxzoom": 8.75,
+      "filter": [
+        "==",
+        "kind",
+        "urban_area"
+      ],
       "paint": {
         "fill-antialias": false,
-        "fill-color": [
-          "match", ["get", "kind"],
-          ["forest", "grassland", "scrub"], "rgb(139, 171, 127)",
-          ["farmland", "barren"], "rgb(202, 185, 137)",
-          ["glacier"], "rgb(210, 226, 229)",
-          "rgb(185, 198, 160)"
-        ],
+        "fill-color": "rgb(88, 100, 89)",
         "fill-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          3, 0.08,
-          6, 0.14,
-          8, 0.18
-        ]
+          4, 0.04,
+          5.7, 0.075,
+          6.25, 0.10,
+          7.25, 0.12,
+          8.75, 0.08
+        ],
+        "fill-outline-color": "rgba(42, 52, 45, 0.28)"
       }
     },
     {
-      "id": "landuse_context",
+      "id": "city_context",
       "type": "fill",
       "source": "basemap",
       "source-layer": "landuse",
-      "minzoom": 4,
-      "maxzoom": 12,
+      "minzoom": 5.75,
+      "maxzoom": 15,
       "filter": [
         "in",
         "kind",
         "residential",
         "commercial",
-        "industrial",
-        "retail"
+        "industrial"
       ],
       "paint": {
         "fill-antialias": false,
-        "fill-color": "rgb(118, 132, 112)",
+        "fill-color": [
+          "match", ["get", "kind"],
+          ["commercial", "industrial"], "rgb(66, 74, 66)",
+          "rgb(71, 84, 73)"
+        ],
         "fill-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          4, 0.12,
-          6, 0.22,
-          8, 0.30
-        ]
+          5.75, 0.00,
+          6.25, 0.06,
+          7.25, 0.10,
+          8.25, 0.135,
+          9, 0.16,
+          10, 0.17
+        ],
+        "fill-outline-color": "rgba(40, 50, 43, 0.24)"
+      }
+    },
+    {
+      "id": "urban_area_outline",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "landcover",
+      "minzoom": 4,
+      "maxzoom": 8.75,
+      "filter": [
+        "==",
+        "kind",
+        "urban_area"
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "rgb(39, 48, 43)",
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          4, 0.08,
+          5.7, 0.13,
+          6.25, 0.17,
+          7.25, 0.22,
+          8.75, 0.12
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          4, 0.35,
+          6.25, 0.55,
+          7.25, 0.68,
+          8.75, 0.45
+        ],
+        "line-blur": 0.18
       }
     },
     {
@@ -178,12 +223,20 @@
       },
       "paint": {
         "line-color": "rgb(32, 57, 62)",
-        "line-opacity": 0.58,
+        "line-opacity": [
+          "interpolate", ["linear"], ["zoom"],
+          1, 0.54,
+          5.7, 0.52,
+          6.25, 0.48,
+          8.25, 0.43,
+          10, 0.40
+        ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          1, 0.7,
-          4, 0.9,
-          6, 1.1
+          1, 0.65,
+          4, 0.86,
+          6, 1.05,
+          10, 1.16
         ]
       }
     },
@@ -207,9 +260,11 @@
         "line-opacity": 0.68,
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          1, 0.5,
-          4, 0.78,
-          6, 1.05
+          1, 0.42,
+          4, 0.68,
+          6, 0.92,
+          8, 1.04,
+          10, 1.12
         ],
         "line-blur": [
           "interpolate", ["linear"], ["zoom"],
@@ -237,20 +292,26 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(51, 48, 43)",
+        "line-color": "rgb(70, 66, 57)",
         "line-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          4, 0.18,
-          5, 0.30,
-          7, 0.46,
-          10, 0.60
+          4, 0.07,
+          5, 0.11,
+          6.25, 0.15,
+          7.25, 0.18,
+          8.25, 0.21,
+          9, 0.24,
+          10, 0.26
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          4, 0.45,
-          5, 0.75,
-          6, 1.05,
-          10, 1.65
+          4, 0.28,
+          5, 0.42,
+          6.25, 0.56,
+          7.25, 0.66,
+          8.25, 0.74,
+          9, 0.82,
+          10, 0.9
         ]
       }
     },
@@ -270,20 +331,20 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "rgb(54, 57, 52)",
+        "line-color": "rgb(47, 50, 47)",
         "line-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          4, 0.36,
-          7, 0.48,
-          11, 0.56,
-          20, 0.62
+          4, 0.34,
+          7, 0.46,
+          10, 0.52,
+          20, 0.58
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          3, 0.7,
-          7, 1.0,
-          11, 1.25,
-          20, 1.45
+          3, 0.62,
+          7, 0.88,
+          11, 1.12,
+          20, 1.34
         ]
       }
     },
@@ -305,16 +366,16 @@
         "line-color": "rgb(39, 42, 40)",
         "line-opacity": [
           "interpolate", ["linear"], ["zoom"],
-          0, 0.34,
-          4, 0.52,
-          10, 0.66
+          0, 0.30,
+          4, 0.46,
+          10, 0.58
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          3, 0.82,
-          5, 0.98,
-          12, 1.9,
-          20, 2.15
+          3, 0.76,
+          5, 0.92,
+          12, 1.72,
+          20, 1.98
         ]
       }
     }

@@ -37,7 +37,7 @@ export function useForecastMapRuntime({
     center: [-100, 35],
     zoom: 3,
     minZoom: 2,
-    maxZoom: 8.99,
+    maxZoom: 10,
   })
   const { selectedLayerId } = useForecastSelectionContext()
   const probeFrameChannel = useMemo(() => createForecastPlaceProbeFrameChannel(), [])

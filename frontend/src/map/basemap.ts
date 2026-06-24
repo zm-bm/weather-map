@@ -14,8 +14,9 @@ export const BASEMAP_LAYER_IDS = {
   background: 'background',
   earthMask: 'earth_mask',
   water: 'water',
-  landcoverContext: 'landcover_context',
-  landuseContext: 'landuse_context',
+  urbanAreaContext: 'urban_area_context',
+  cityContext: 'city_context',
+  urbanAreaOutline: 'urban_area_outline',
   coastlineShadow: 'coastline_shadow',
   lakeFill: 'lake_fill',
   coastline: 'coastline',
@@ -26,4 +27,4 @@ export const BASEMAP_LAYER_IDS = {
   boundary2: 'boundary_2',
 } as const
 
-export const FORECAST_OVERLAY_ANCHOR_LAYER_ID = BASEMAP_LAYER_IDS.landcoverContext
+export const FORECAST_OVERLAY_ANCHOR_LAYER_ID = BASEMAP_LAYER_IDS.urbanAreaContext
