@@ -3,11 +3,16 @@ import { describe, expect, it } from 'vitest'
 
 import { createBasemapThemeMapFixture } from '@/test/fixtures'
 import { BASEMAP_LAYER_IDS } from '../basemap'
+import { readStandardBasemapPaintValue } from './basemapStyle'
 import { useForecastBasemapTheme } from './useForecastBasemapTheme'
 
 describe('useForecastBasemapTheme', () => {
   it('updates the map theme when the selected layer changes', () => {
     const map = createBasemapThemeMapFixture()
+    const standardBackgroundColor = readStandardBasemapPaintValue({
+      layerId: BASEMAP_LAYER_IDS.background,
+      property: 'background-color',
+    })
     const { rerender } = renderHook(
       ({ selectedLayerId }) => useForecastBasemapTheme({
         map,
@@ -19,7 +24,7 @@ describe('useForecastBasemapTheme', () => {
     expect(map.setPaintProperty).toHaveBeenCalledWith(
       BASEMAP_LAYER_IDS.background,
       'background-color',
-      'rgb(244, 241, 235)'
+      standardBackgroundColor
     )
 
     map.setPaintProperty.mockClear()
@@ -35,7 +40,7 @@ describe('useForecastBasemapTheme', () => {
     expect(map.setPaintProperty).toHaveBeenCalledWith(
       BASEMAP_LAYER_IDS.background,
       'background-color',
-      'rgb(244, 241, 235)'
+      standardBackgroundColor
     )
   })
 

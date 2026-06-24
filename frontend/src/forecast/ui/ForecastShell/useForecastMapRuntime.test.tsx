@@ -128,7 +128,7 @@ describe('useForecastMapRuntime', () => {
       center: [-100, 35],
       zoom: 3,
       minZoom: 2,
-      maxZoom: 6.99,
+      maxZoom: 8.99,
     })
     expect(mocks.useForecastRenderHost).toHaveBeenCalledWith({
       map: mapRuntime.map,
