@@ -8,84 +8,92 @@ import {
 
 export const PARTICLE_STATE_COMPONENTS = 4
 
-export type ParticleStateBufferPair = [twgl.BufferInfo | null, twgl.BufferInfo | null]
+export type ParticleStateBufferPair = [twgl.BufferInfo, twgl.BufferInfo]
+export type ParticleStateArrayPair = [Float32Array, Float32Array]
+export type ParticleStateStorage = {
+  arrays: ParticleStateArrayPair
+  bufferInfos: ParticleStateBufferPair
+}
 
-export function createParticleStateBufferPair(
+export function createParticleStateStorage(
   gl: WebGL2RenderingContext,
   particleCount: number,
   viewport: ViewportState | null,
   simulationViewportPaddingRatio: number,
   maxAgeSec: number,
-): ParticleStateBufferPair {
+): ParticleStateStorage {
   const initial = buildInitialParticleState(
     particleCount,
     expandViewportBounds(viewport, simulationViewportPaddingRatio),
     maxAgeSec,
   )
-  return [
-    createStateBufferInfo(gl, initial),
-    createStateBufferInfo(gl, initial),
+  const arrays: ParticleStateArrayPair = [
+    initial,
+    new Float32Array(initial),
   ]
+
+  return {
+    arrays,
+    bufferInfos: [
+      createStateBufferInfo(gl, arrays[0]),
+      createStateBufferInfo(gl, arrays[1]),
+    ],
+  }
 }
 
-export function rebuildParticleStateBufferPair(
+export function rebuildParticleStateStorage(
   gl: WebGL2RenderingContext,
-  previous: ParticleStateBufferPair,
+  previous: ParticleStateStorage,
   particleCount: number,
   viewport: ViewportState | null,
   simulationViewportPaddingRatio: number,
   maxAgeSec: number,
-): ParticleStateBufferPair | null {
-  const next = createParticleStateBufferPair(
+): ParticleStateStorage {
+  const next = createParticleStateStorage(
     gl,
     particleCount,
     viewport,
     simulationViewportPaddingRatio,
     maxAgeSec,
   )
-  if (!next[0] || !next[1]) {
-    deleteParticleStateBufferPair(gl, next)
-    console.warn('[particles] failed to resize particle state buffers; keeping previous buffers')
-    return null
-  }
 
-  deleteParticleStateBufferPair(gl, previous)
+  deleteParticleStateStorage(gl, previous)
   return next
 }
 
-export function reseedParticleStateBuffers(args: {
+export function reseedParticleStateStorage(args: {
   gl: WebGL2RenderingContext
-  stateBufferInfos: ParticleStateBufferPair
+  particleState: ParticleStateStorage
   particleCount: number
   viewport: ViewportState | null
   simulationViewportPaddingRatio: number
   maxAgeSec: number
 }): void {
-  const { gl, stateBufferInfos, particleCount, viewport, simulationViewportPaddingRatio, maxAgeSec } = args
-  if (!viewport || !stateBufferInfos[0] || !stateBufferInfos[1]) return
-
-  const stateBuffer0 = getStateBufferFromInfo(stateBufferInfos[0])
-  const stateBuffer1 = getStateBufferFromInfo(stateBufferInfos[1])
-  if (!stateBuffer0 || !stateBuffer1) return
+  const { gl, particleState, particleCount, viewport, simulationViewportPaddingRatio, maxAgeSec } = args
+  if (!viewport) return
 
   const seeded = buildInitialParticleState(
     particleCount,
     expandViewportBounds(viewport, simulationViewportPaddingRatio),
     maxAgeSec,
   )
-  gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer0)
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, seeded)
-  gl.bindBuffer(gl.ARRAY_BUFFER, stateBuffer1)
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, seeded)
+
+  particleState.arrays[0].set(seeded)
+  particleState.arrays[1].set(seeded)
+  uploadParticleStateArray(gl, particleState.bufferInfos[0], particleState.arrays[0])
+  uploadParticleStateArray(gl, particleState.bufferInfos[1], particleState.arrays[1])
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
 }
 
-export function deleteParticleStateBufferPair(
+export function deleteParticleStateStorage(
   gl: WebGL2RenderingContext,
-  bufferInfos: ParticleStateBufferPair,
+  particleState: ParticleStateStorage | null,
 ): void {
-  const buffer0 = bufferInfos[0] ? getStateBufferFromInfo(bufferInfos[0]) : null
-  const buffer1 = bufferInfos[1] ? getStateBufferFromInfo(bufferInfos[1]) : null
+  if (!particleState) return
+
+  const [bufferInfo0, bufferInfo1] = particleState.bufferInfos
+  const buffer0 = getStateBufferFromInfo(bufferInfo0)
+  const buffer1 = getStateBufferFromInfo(bufferInfo1)
   if (buffer0) gl.deleteBuffer(buffer0)
   if (buffer1) gl.deleteBuffer(buffer1)
 }
@@ -118,6 +126,18 @@ export function createStateBufferInfo(gl: WebGL2RenderingContext, data: Float32A
       drawType: gl.DYNAMIC_DRAW,
     },
   })
+}
+
+export function uploadParticleStateArray(
+  gl: WebGL2RenderingContext,
+  bufferInfo: twgl.BufferInfo,
+  data: Float32Array,
+): void {
+  const buffer = getStateBufferFromInfo(bufferInfo)
+  if (!buffer) return
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, data)
 }
 
 export function getStateBufferFromInfo(bufferInfo: twgl.BufferInfo) {

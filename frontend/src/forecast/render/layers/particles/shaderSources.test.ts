@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE,
   VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
-  VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
 } from './shaderSources'
 
 describe('particle shader source', () => {
@@ -64,44 +63,8 @@ describe('particle shader source', () => {
     )
   })
 
-  it('respawns particles trapped in stagnant flow', () => {
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_stagnation_respawn_start_mps')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_stagnation_respawn_end_mps')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_stagnation_respawn_per_sec')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('float stagnation_t = 1.0 - smoothstep')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('float stagnation_respawn_prob = clamp')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('stagnation_respawn_roll < stagnation_respawn_prob')
-  })
-
-  it('stores speed in transform feedback particle state', () => {
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('layout(location = 0) in vec4 a_state')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('out vec4 v_state')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('return vec4(lon, lat, 0.0, 0.0)')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('v_state = vec4(next_lon, next_lat, age, speed_mps)')
+  it('reads speed from the CPU-updated particle state', () => {
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('layout(location = 0) in vec4 a_state')
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('a_state.w')
-  })
-
-  it('decodes signed integer wind vectors with manifest scale and offset uniforms', () => {
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('precision highp isampler2D')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_lower')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_upper')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_vector_scale')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform float u_vector_offset')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform int u_x_wrap')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform int u_y_mode')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('ivec2 stored = texelFetch')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain(
-      'return (vec2(stored) * u_vector_scale) + u_vector_offset'
-    )
-  })
-
-  it('reuses shared encodedGrid lookup math while keeping packed wind texture sampling', () => {
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('struct EncodedGridLocation')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('encodedGridLocationForLonLat')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('location.valid <= 0.0')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('vector_lower.z <= 0.0 || vector_upper.z <= 0.0')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('ivec2(location.x0, location.y0)')
-    expect(VECTOR_UPDATE_VERTEX_SHADER_SOURCE).toContain('uniform isampler2D u_vector_tex_lower')
   })
 })

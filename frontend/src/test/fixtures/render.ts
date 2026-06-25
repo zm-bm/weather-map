@@ -6,8 +6,9 @@ import {
   DEFAULT_PARTICLE_RENDER_SETTINGS,
   type ForecastRenderSettings,
 } from '@/forecast/settings'
+import { FORECAST_LAYER_BEFORE_ID } from '@/forecast/render/maplibre/customLayer'
 
-const FORECAST_LAYER_BEFORE_ID_FIXTURE = 'coastline'
+const FORECAST_LAYER_BEFORE_ID_FIXTURE = FORECAST_LAYER_BEFORE_ID
 const GL_ACTIVE_UNIFORMS = 35718
 const GL_ACTIVE_ATTRIBUTES = 35721
 const GL_FLOAT = 5126

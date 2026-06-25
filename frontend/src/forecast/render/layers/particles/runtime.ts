@@ -21,10 +21,10 @@ import {
   type ParticlePassState,
 } from './renderPasses'
 import {
-  createParticleStateBufferPair,
-  deleteParticleStateBufferPair,
-  rebuildParticleStateBufferPair,
-  reseedParticleStateBuffers,
+  createParticleStateStorage,
+  deleteParticleStateStorage,
+  rebuildParticleStateStorage,
+  reseedParticleStateStorage,
 } from './stateBuffers'
 import {
   clearTrailTextures,
@@ -34,17 +34,14 @@ import {
   initializeTrailTargets,
 } from './trailTargets'
 import {
-  createPackedVectorFramePair,
-  deletePackedVectorFramePairTextures,
-  packedVectorFramePairSignature,
-} from './vectorTexture'
+  createVectorFramePair,
+  vectorFramePairSignature,
+} from './vectorFramePair'
 import {
   VECTOR_PARTICLE_FRAGMENT_SHADER_SOURCE,
   VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
   VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
-  VECTOR_UPDATE_FRAGMENT_SHADER_SOURCE,
-  VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
 } from './shaders'
 import { clamp } from '@/core/math'
 
@@ -75,12 +72,10 @@ export function createParticlesRuntime(
     particleCount: settings.particleCount,
     viewport: null,
     vectorFramePair: null,
-    updateProgramInfo: null,
     particleProgramInfo: null,
     trailProgramInfo: null,
-    stateBufferInfos: [null, null],
+    particleState: null,
     activeSourceIndex: 0,
-    transformFeedback: null,
     trailTargets: createEmptyParticleTrailTargets(),
     previousCameraState: null,
     pendingForcedRespawnFrac: 0,
@@ -111,7 +106,7 @@ export function createParticlesRuntime(
       state.map = map
       controllerRegistry.register(map, controller)
 
-      const gl2 = asWebGL2(gl, 'createTransformFeedback')
+      const gl2 = asWebGL2(gl, 'createVertexArray')
       if (!gl2) {
         console.warn('[particles] WebGL2 is required for GPU particle simulation')
         return
@@ -120,17 +115,6 @@ export function createParticlesRuntime(
       state.gl = gl2
       state.lastFrameMs = performance.now()
       state.viewport = computeViewportState(map)
-      state.updateProgramInfo = createProgramInfo({
-        gl: gl2,
-        label: 'particles:update',
-        vertexSource: VECTOR_UPDATE_VERTEX_SHADER_SOURCE,
-        fragmentSource: VECTOR_UPDATE_FRAGMENT_SHADER_SOURCE,
-        options: {
-          attribLocations: { a_state: 0 },
-          transformFeedbackVaryings: ['v_state'],
-          transformFeedbackMode: gl2.SEPARATE_ATTRIBS,
-        },
-      })
       state.particleProgramInfo = createProgramInfo({
         gl: gl2,
         label: 'particles:particle',
@@ -145,29 +129,23 @@ export function createParticlesRuntime(
         fragmentSource: VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
         options: { attribLocations: { a_pos: 0 } },
       })
-      if (!state.updateProgramInfo || !state.particleProgramInfo || !state.trailProgramInfo) {
+      if (!state.particleProgramInfo || !state.trailProgramInfo) {
         return
       }
 
-      state.stateBufferInfos = createParticleStateBufferPair(
+      state.particleState = createParticleStateStorage(
         gl2,
         state.particleCount,
         state.viewport,
         settings.simulationViewportPaddingRatio,
         settings.maxAgeSec,
       )
-      if (!state.stateBufferInfos[0] || !state.stateBufferInfos[1]) {
+
+      if (!initializeTrailTargets(gl2, state.trailTargets)) {
         return
       }
 
-      state.transformFeedback = gl2.createTransformFeedback()
-      if (!state.transformFeedback) {
-        return
-      }
-
-      if (!initializeTrailTargets(gl2, state.trailTargets) ||
-        !ensureTrailTargets(gl2, state.trailTargets, settings)
-      ) {
+      if (!ensureTrailTargets(gl2, state.trailTargets, settings)) {
         return
       }
 
@@ -176,11 +154,22 @@ export function createParticlesRuntime(
     },
 
     render(gl) {
-      const gl2 = asWebGL2(gl, 'createTransformFeedback')
-      if (!gl2) return
-      if (!state.enabled || !state.vectorFramePair) return
-      if (!isReady(state)) return
-      if (!state.map) return
+      const gl2 = asWebGL2(gl, 'createVertexArray')
+      if (!gl2) {
+        return
+      }
+      if (!state.enabled) {
+        return
+      }
+      if (!state.vectorFramePair) {
+        return
+      }
+      if (!isReady(state)) {
+        return
+      }
+      if (!state.map) {
+        return
+      }
 
       state.viewport = computeViewportState(state.map)
       updateZoomOutRespawnState(state, settings)
@@ -189,7 +178,9 @@ export function createParticlesRuntime(
       const dtSec = clamp((now - state.lastFrameMs) / 1000, 0.001, 0.05)
       state.lastFrameMs = now
 
-      if (!ensureTrailTargets(gl2, state.trailTargets, settings)) return
+      if (!ensureTrailTargets(gl2, state.trailTargets, settings)) {
+        return
+      }
 
       const cameraChanged = didCameraChange(state)
       if (settings.clearTrailsOnViewChange && cameraChanged) {
@@ -213,13 +204,10 @@ export function createParticlesRuntime(
       const gl2 = state.gl
 
       if (gl2) {
-        deletePackedVectorFramePairTextures(gl2, state.vectorFramePair)
-        if (state.updateProgramInfo) gl2.deleteProgram(state.updateProgramInfo.program)
         if (state.particleProgramInfo) gl2.deleteProgram(state.particleProgramInfo.program)
         if (state.trailProgramInfo) gl2.deleteProgram(state.trailProgramInfo.program)
-        deleteParticleStateBufferPair(gl2, state.stateBufferInfos)
+        deleteParticleStateStorage(gl2, state.particleState)
         disposeTrailTargets(gl2, state.trailTargets)
-        if (state.transformFeedback) gl2.deleteTransformFeedback(state.transformFeedback)
       }
 
       state.map = undefined
@@ -227,11 +215,9 @@ export function createParticlesRuntime(
       state.enabled = true
       state.viewport = null
       state.vectorFramePair = null
-      state.updateProgramInfo = null
       state.particleProgramInfo = null
       state.trailProgramInfo = null
-      state.stateBufferInfos = [null, null]
-      state.transformFeedback = null
+      state.particleState = null
       state.trailTargets = createEmptyParticleTrailTargets()
       state.previousCameraState = null
       state.pendingForcedRespawnFrac = 0
@@ -251,18 +237,19 @@ function applyParticlesWindowToState(
   if (!gl) return
 
   const previousFramePair = state.vectorFramePair
-  const nextFramePair = createPackedVectorFramePair(gl, window, previousFramePair)
-  if (!nextFramePair) return
+  const nextFramePair = createVectorFramePair(window)
+  if (!nextFramePair) {
+    return
+  }
 
   const didFramePairChange =
-    packedVectorFramePairSignature(previousFramePair) !== packedVectorFramePairSignature(nextFramePair)
+    vectorFramePairSignature(previousFramePair) !== vectorFramePairSignature(nextFramePair)
 
-  deletePackedVectorFramePairTextures(gl, previousFramePair, nextFramePair)
   state.vectorFramePair = nextFramePair
-  if (options.reseedOnFrameChange && didFramePairChange) {
-    reseedParticleStateBuffers({
+  if (options.reseedOnFrameChange && didFramePairChange && state.particleState) {
+    reseedParticleStateStorage({
       gl,
-      stateBufferInfos: state.stateBufferInfos,
+      particleState: state.particleState,
       particleCount: state.particleCount,
       viewport: state.viewport,
       simulationViewportPaddingRatio: options.simulationViewportPaddingRatio,
@@ -291,23 +278,18 @@ function applyParticlesRenderSettingsToState(
   if (previousParticleCount !== nextParticleCount) {
     if (!state.gl) {
       state.particleCount = nextParticleCount
-    } else {
-      const nextBuffers = rebuildParticleStateBufferPair(
+    } else if (state.particleState) {
+      state.particleState = rebuildParticleStateStorage(
         state.gl,
-        state.stateBufferInfos,
+        state.particleState,
         nextParticleCount,
         state.viewport,
         options.simulationViewportPaddingRatio,
         options.maxAgeSec,
       )
-      if (nextBuffers) {
-        state.stateBufferInfos = nextBuffers
-        state.particleCount = nextParticleCount
-        state.activeSourceIndex = 0
-        clearTrailTextures(state.gl, state.trailTargets)
-      } else {
-        options.particleCount = previousParticleCount
-      }
+      state.particleCount = nextParticleCount
+      state.activeSourceIndex = 0
+      clearTrailTextures(state.gl, state.trailTargets)
     }
   }
 
@@ -359,12 +341,11 @@ function updateZoomOutRespawnState(state: ParticleState, options: ParticleRender
 function isParticleRuntimeAvailable(state: ParticleState): boolean {
   return Boolean(
     state.gl &&
-      state.updateProgramInfo &&
       state.particleProgramInfo &&
       state.trailProgramInfo &&
-      state.transformFeedback &&
-      state.stateBufferInfos[0] &&
-      state.stateBufferInfos[1] &&
+      state.particleState &&
+      state.particleState.bufferInfos[0] &&
+      state.particleState.bufferInfos[1] &&
       state.trailTargets.trailQuadBufferInfo &&
       state.trailTargets.trailFramebuffer &&
       state.trailTargets.trailTextures[0] &&

@@ -1,6 +1,6 @@
 import * as twgl from 'twgl.js'
 
-type WebGL2Capability = 'createVertexArray' | 'createTransformFeedback'
+type WebGL2Capability = 'createVertexArray'
 
 export type ProgramInfo = twgl.ProgramInfo
 

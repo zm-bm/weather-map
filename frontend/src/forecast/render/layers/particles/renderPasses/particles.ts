@@ -3,6 +3,9 @@ import * as twgl from 'twgl.js'
 import type { ParticleRenderSettings } from '@/forecast/settings/settings'
 import type { ParticlePassState } from './index'
 
+const MIN_PARTICLE_PIXEL_RATIO = 1
+const MAX_PARTICLE_PIXEL_RATIO = 3
+
 export function runParticlePass(state: ParticlePassState, options: ParticleRenderSettings): void {
   const { gl } = state
   if (!gl) return
@@ -20,7 +23,7 @@ export function drawParticleGeometryPass(
     gl,
     viewport,
     particleProgramInfo,
-    stateBufferInfos,
+    particleState,
     activeSourceIndex,
     particleCount,
   } = state
@@ -28,13 +31,15 @@ export function drawParticleGeometryPass(
     !gl ||
     !viewport ||
     !particleProgramInfo ||
-    !stateBufferInfos[activeSourceIndex]
+    !particleState
   ) {
     return
   }
 
-  const particleBufferInfo = stateBufferInfos[activeSourceIndex]
-  if (!particleBufferInfo) return
+  const particleBufferInfo = particleState.bufferInfos[activeSourceIndex]
+  const pixelRatio = particleRenderPixelRatio(gl)
+  const dotMinPx = options.dotMinPx * pixelRatio
+  const dotMaxPx = options.dotMaxPx * pixelRatio
 
   gl.useProgram(particleProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
@@ -47,8 +52,8 @@ export function drawParticleGeometryPass(
       viewport.mercatorNorthY,
       viewport.mercatorSouthY,
     ],
-    u_dot_min_px: options.dotMinPx,
-    u_dot_max_px: options.dotMaxPx,
+    u_dot_min_px: dotMinPx,
+    u_dot_max_px: dotMaxPx,
     u_speed_ramp_gamma: options.speedRampGamma,
     u_max_age_sec: options.maxAgeSec,
     u_fade_in_age_ratio: options.fadeInAgeRatio,
@@ -73,4 +78,25 @@ export function drawParticleGeometryPass(
 
   gl.disable(gl.BLEND)
   gl.useProgram(null)
+}
+
+function particleRenderPixelRatio(gl: WebGL2RenderingContext): number {
+  const canvas = gl.canvas
+  const cssWidth = 'clientWidth' in canvas ? canvas.clientWidth : 0
+  const cssHeight = 'clientHeight' in canvas ? canvas.clientHeight : 0
+  const ratios = [
+    cssWidth > 0 ? gl.drawingBufferWidth / cssWidth : null,
+    cssHeight > 0 ? gl.drawingBufferHeight / cssHeight : null,
+  ].filter((value): value is number => value != null && Number.isFinite(value) && value > 0)
+
+  const measuredRatio = ratios.length > 0
+    ? ratios.reduce((sum, value) => sum + value, 0) / ratios.length
+    : null
+  const fallbackRatio = typeof globalThis.devicePixelRatio === 'number'
+    ? globalThis.devicePixelRatio
+    : 1
+  const ratio = measuredRatio ?? fallbackRatio
+
+  if (!Number.isFinite(ratio) || ratio <= 0) return MIN_PARTICLE_PIXEL_RATIO
+  return Math.min(MAX_PARTICLE_PIXEL_RATIO, Math.max(MIN_PARTICLE_PIXEL_RATIO, ratio))
 }
