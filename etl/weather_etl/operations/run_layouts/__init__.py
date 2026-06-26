@@ -156,10 +156,14 @@ def publish_targets(
     """Return persisted run candidates for scheduled publication."""
 
     if not has_rolling_publication(product_config, dataset_id=dataset_id):
-        return tuple(
-            PublishTarget(dataset_id=dataset_id, cycle=cycle, run_id=None)
-            for cycle in cycles
-        )
+        targets: list[PublishTarget] = []
+        for cycle in cycles:
+            run_ids = env.artifact_repo.list_run_ids(dataset_id=dataset_id, cycle=cycle)
+            if run_ids:
+                targets.extend(PublishTarget(dataset_id=dataset_id, cycle=cycle, run_id=run_id) for run_id in run_ids)
+                continue
+            targets.append(PublishTarget(dataset_id=dataset_id, cycle=cycle, run_id=None))
+        return tuple(targets)
 
     targets: list[PublishTarget] = []
     for cycle in cycles:

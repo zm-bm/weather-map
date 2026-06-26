@@ -136,3 +136,24 @@ def test_rolling_publish_targets_emit_only_persisted_run_ids() -> None:
         ("2026061112", "20260611T123400Z-abcdef12"),
         ("2026061112", "20260611T123600Z-bcdef123"),
     ]
+
+
+def test_forecast_publish_targets_emit_persisted_run_ids_for_repairs() -> None:
+    product_config = loaded_product_config()
+    run_ids = ("20260611T123400Z-abcdef12", "20260611T123600Z-bcdef123")
+    artifact_repo = SimpleNamespace(
+        list_run_ids=lambda *, dataset_id, cycle: run_ids if (dataset_id, cycle) == ("gfs", "2026061112") else ()
+    )
+
+    targets = publish_targets(
+        env=SimpleNamespace(artifact_repo=artifact_repo),
+        product_config=product_config,
+        dataset_id="gfs",
+        cycles=("2026061112", "2026061106"),
+    )
+
+    assert [(target.cycle, target.run_id) for target in targets] == [
+        ("2026061112", "20260611T123400Z-abcdef12"),
+        ("2026061112", "20260611T123600Z-bcdef123"),
+        ("2026061106", None),
+    ]

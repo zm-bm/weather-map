@@ -185,6 +185,41 @@ class TestPublisher:
         ]
         assert refresh_status.call_args.kwargs["fallback_dataset_ids"] == ("gfs", "radar")
 
+    def test_forecast_scan_publishes_explicit_runs_for_repaired_cycle(self) -> None:
+        run_ids = (
+            "20260511T123400Z-abcdef12",
+            "20260511T123600Z-bcdef123",
+        )
+        product_config = _product_config_with_datasets({"gfs": None})
+        with (
+            patch.dict(os.environ, _env(), clear=False),
+            patch("weather_etl.adapters.aws.publisher_lambda.make_store", return_value=_FakeStore(run_ids)),
+            patch(
+                "weather_etl.environment.EtlEnvironment.load_product_config",
+                return_value=product_config,
+            ),
+            patch(
+                "weather_etl.adapters.aws.publisher_lambda.publish_run_candidate",
+                return_value=RunCandidatePublishResult(
+                    ready=True,
+                    run_publish_result=RunManifestPublishResult(ready=True, already_published=False),
+                    product_config=product_config,
+                ),
+            ) as publish_run_candidate,
+            patch(
+                "weather_etl.adapters.aws.publisher_lambda.publish_dataset_view",
+                return_value=DatasetViewPublishResult(ready=True, published=True),
+            ),
+            patch(
+                "weather_etl.adapters.aws.publisher_lambda.refresh_status",
+                return_value=SimpleNamespace(document={}),
+            ),
+        ):
+            result = publisher_lambda.handler({"datasets": ["gfs"], "cycles": ["2026051112"]}, None)
+
+        assert result["ok"]
+        assert [call.kwargs["required_run_id"] for call in publish_run_candidate.call_args_list] == list(run_ids)
+
     def test_mrms_scan_publishes_explicit_runs_within_hourly_cycles(self) -> None:
         run_ids = (
             "20260511T123400Z-abcdef12",
