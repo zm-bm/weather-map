@@ -41,7 +41,7 @@ jobs:
         working-directory: ./frontend
         # enables the basemap URL baked into the frontend build.
         env:
-          VITE_BASEMAP_FILENAME: 20260424.z6.pmtiles
+          VITE_BASEMAP_FILENAME: 20260424.z9.pmtiles
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
