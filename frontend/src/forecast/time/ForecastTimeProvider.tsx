@@ -11,13 +11,13 @@ import {
   clampForecastValidTimeMs,
   type ForecastTimelineTime,
   initialForecastValidTimeMs,
-  stepForecastValidTimeMs,
+  stepForecastPlaybackTimeMs,
 } from './time'
 import {
   createForecastTimeState,
-  DEFAULT_PLAY_MIN_INTERVAL_MS,
   DEFAULT_PLAY_STEP_COUNT,
   reduceForecastTimeState,
+  resolvePlaybackMinIntervalMs,
 } from './state'
 import { ForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 
@@ -88,6 +88,7 @@ function ForecastTimeProviderInner({
     dispatch({
       type: 'requestStart',
       timeMs: clampForecastValidTimeMs(times, timeMs),
+      nowMs: Date.now(),
     })
   }, [times])
 
@@ -112,10 +113,11 @@ function ForecastTimeProviderInner({
   useEffect(() => {
     if (!state.isPlaying || state.isInFlight || frameCount <= 1) return
     const elapsedMs = Date.now() - state.lastAppliedAtMs
-    const delayMs = Math.max(0, DEFAULT_PLAY_MIN_INTERVAL_MS - elapsedMs)
+    const effectiveIntervalMs = resolvePlaybackMinIntervalMs(state.smoothedApplyLatencyMs)
+    const delayMs = Math.max(0, effectiveIntervalMs - elapsedMs)
     const fromVersion = state.version
     const fromTimeMs = state.appliedTimeMs
-    const timeMs = stepForecastValidTimeMs(
+    const timeMs = stepForecastPlaybackTimeMs(
       times,
       fromTimeMs,
       DEFAULT_PLAY_STEP_COUNT
@@ -138,6 +140,7 @@ function ForecastTimeProviderInner({
     state.isInFlight,
     state.isPlaying,
     state.lastAppliedAtMs,
+    state.smoothedApplyLatencyMs,
     state.version,
   ])
 

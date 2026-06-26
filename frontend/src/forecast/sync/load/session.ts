@@ -18,7 +18,7 @@ type PrefetchArgs = {
   plan: ForecastSyncPlan
   config: WeatherMapConfig
   signal: AbortSignal
-  aheadHourCount: number
+  aheadFrameCount: number
   concurrency: number
 }
 
@@ -81,7 +81,7 @@ export function createForecastSyncSession(): ForecastSyncSession {
         lowerFrameId: args.plan.lowerFrameId,
         upperFrameId: args.plan.upperFrameId,
         frameIds: args.plan.frameIds,
-        aheadHourCount: args.aheadHourCount,
+        aheadFrameCount: args.aheadFrameCount,
         concurrency: args.concurrency,
         signal: args.signal,
       })

@@ -24,6 +24,7 @@ export {
   MINUTE_MS,
   minuteOffsetForValidTime,
   resolveForecastInterpolationWindow,
+  stepForecastPlaybackTimeMs,
   stepForecastValidTimeMs,
   validTimeMsForMinuteOffset,
 } from './time'

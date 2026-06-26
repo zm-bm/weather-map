@@ -9,7 +9,7 @@ import {
 } from '@/test/fixtures'
 import { useForecastTimeContext, type ForecastTimeContextValue } from './ForecastTimeContext'
 import ForecastTimeProvider from './ForecastTimeProvider'
-import { DEFAULT_PLAY_MIN_INTERVAL_MS } from './state'
+import { DEFAULT_PLAY_MIN_INTERVAL_MS, MAX_PLAY_MIN_INTERVAL_MS } from './state'
 
 const DEFAULT_FRAME_IDS = ['000', '003', '006']
 const OBSERVED_FRAME_SPECS = [
@@ -234,11 +234,12 @@ describe('ForecastTimeProvider', () => {
     expect(getContext().state.isInFlight).toBe(false)
   })
 
-  it('advances autoplay by one forecast minute after each apply', () => {
+  it('snaps autoplay to the next five-minute boundary before striding', () => {
+    vi.setSystemTime(new Date('2026-04-09T00:03:00Z'))
     const manifest = createTimelineManifest()
-    const validAt0000 = validTimeFor(manifest, '000')
-    const validAt0001 = Date.UTC(2026, 3, 9, 0, 1)
-    const validAt0002 = Date.UTC(2026, 3, 9, 0, 2)
+    const validAt0003 = Date.UTC(2026, 3, 9, 0, 3)
+    const validAt0005 = Date.UTC(2026, 3, 9, 0, 5)
+    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -249,32 +250,104 @@ describe('ForecastTimeProvider', () => {
     act(() => {
       vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS - 1)
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0000)
+    expect(getContext().state.targetTimeMs).toBe(validAt0003)
     expect(getContext().state.isInFlight).toBe(false)
 
     act(() => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0001)
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
     expect(getContext().state.isInFlight).toBe(true)
 
     act(() => {
-      getContext().syncCallbacks.onRequestApplied(validAt0001)
+      getContext().syncCallbacks.onRequestApplied(validAt0005)
     })
-    expect(getContext().state.appliedTimeMs).toBe(validAt0001)
+    expect(getContext().state.appliedTimeMs).toBe(validAt0005)
     expect(getContext().state.isInFlight).toBe(false)
 
     act(() => {
       vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS - 1)
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0001)
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
 
     act(() => {
       vi.advanceTimersByTime(1)
       vi.runOnlyPendingTimers()
     })
-    expect(getContext().state.targetTimeMs).toBe(validAt0002)
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+  })
+
+  it('keeps cached autoplay at the base delay after fast frame apply', () => {
+    const manifest = createTimelineManifest()
+    const validAt0005 = Date.UTC(2026, 3, 9, 0, 5)
+    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
+    const { getContext } = renderForecastTimeProvider(manifest)
+
+    act(() => {
+      getContext().controls.togglePlay()
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS)
+      vi.runOnlyPendingTimers()
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
+
+    act(() => {
+      getContext().syncCallbacks.onRequestStart(validAt0005)
+    })
+    act(() => {
+      vi.advanceTimersByTime(20)
+      getContext().syncCallbacks.onRequestApplied(validAt0005)
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS - 1)
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+      vi.runOnlyPendingTimers()
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
+  })
+
+  it('slows autoplay after slow frame apply and clamps the adaptive delay', () => {
+    const manifest = createTimelineManifest()
+    const validAt0005 = Date.UTC(2026, 3, 9, 0, 5)
+    const validAt0010 = Date.UTC(2026, 3, 9, 0, 10)
+    const { getContext } = renderForecastTimeProvider(manifest)
+
+    act(() => {
+      getContext().controls.togglePlay()
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(DEFAULT_PLAY_MIN_INTERVAL_MS)
+      vi.runOnlyPendingTimers()
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
+
+    act(() => {
+      getContext().syncCallbacks.onRequestStart(validAt0005)
+    })
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+      getContext().syncCallbacks.onRequestApplied(validAt0005)
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(MAX_PLAY_MIN_INTERVAL_MS - 1)
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+      vi.runOnlyPendingTimers()
+    })
+    expect(getContext().state.targetTimeMs).toBe(validAt0010)
   })
 
   it('wraps autoplay from a non-minute-aligned observed range end', () => {
@@ -324,7 +397,7 @@ describe('ForecastTimeProvider', () => {
   it('keeps playback ticking after a same-time seek', () => {
     const manifest = createTimelineManifest()
     const validAt0000 = validTimeFor(manifest, '000')
-    const validAt0001 = Date.UTC(2026, 3, 9, 0, 1)
+    const validAt0005 = Date.UTC(2026, 3, 9, 0, 5)
     const { getContext } = renderForecastTimeProvider(manifest)
 
     act(() => {
@@ -339,7 +412,7 @@ describe('ForecastTimeProvider', () => {
     })
 
     expect(getContext().state.isPlaying).toBe(true)
-    expect(getContext().state.targetTimeMs).toBe(validAt0001)
+    expect(getContext().state.targetTimeMs).toBe(validAt0005)
     expect(getContext().state.appliedTimeMs).toBe(validAt0000)
     expect(getContext().state.isInFlight).toBe(true)
   })

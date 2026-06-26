@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  DEFAULT_PLAY_MIN_INTERVAL_MS,
+  MAX_PLAY_MIN_INTERVAL_MS,
   createForecastTimeState,
   reduceForecastTimeState,
+  resolvePlaybackMinIntervalMs,
 } from './state'
 
 describe('forecast time state machine', () => {
@@ -145,6 +148,91 @@ describe('forecast time state machine', () => {
     expect(state.targetTimeMs).toBe(120_000)
     expect(state.pendingTimeMs).toBeNull()
     expect(state.isInFlight).toBe(false)
+  })
+
+  it('samples request/apply latency for matching tracked requests', () => {
+    const started = reduceForecastTimeState(createForecastTimeState(0), {
+      type: 'requestStart',
+      timeMs: 60_000,
+      nowMs: 1_000,
+    })
+
+    const state = reduceForecastTimeState(started, {
+      type: 'requestApplied',
+      timeMs: 60_000,
+      nowMs: 1_120,
+    })
+
+    expect(state.smoothedApplyLatencyMs).toBe(120)
+    expect(state.activeRequestStartedAtMs).toBeNull()
+    expect(state.activeRequestTargetTimeMs).toBeNull()
+  })
+
+  it('smooths request/apply latency with an exponential moving average', () => {
+    const started = {
+      ...createForecastTimeState(0),
+      activeRequestStartedAtMs: 2_000,
+      activeRequestTargetTimeMs: 60_000,
+      smoothedApplyLatencyMs: 120,
+    }
+
+    const state = reduceForecastTimeState(started, {
+      type: 'requestApplied',
+      timeMs: 60_000,
+      nowMs: 2_200,
+    })
+
+    expect(state.smoothedApplyLatencyMs).toBe(140)
+  })
+
+  it('does not sample latency when the applied target does not match the tracked request', () => {
+    const started = {
+      ...createForecastTimeState(0),
+      activeRequestStartedAtMs: 1_000,
+      activeRequestTargetTimeMs: 60_000,
+      smoothedApplyLatencyMs: 120,
+    }
+
+    const state = reduceForecastTimeState(started, {
+      type: 'requestApplied',
+      timeMs: 120_000,
+      nowMs: 1_400,
+    })
+
+    expect(state.smoothedApplyLatencyMs).toBe(120)
+  })
+
+  it('clears active request timing on errors and resets', () => {
+    const started = {
+      ...createForecastTimeState(0),
+      isPlaying: true,
+      isInFlight: true,
+      activeRequestStartedAtMs: 1_000,
+      activeRequestTargetTimeMs: 60_000,
+      smoothedApplyLatencyMs: 120,
+    }
+
+    const errored = reduceForecastTimeState(started, { type: 'requestError' })
+    expect(errored.activeRequestStartedAtMs).toBeNull()
+    expect(errored.activeRequestTargetTimeMs).toBeNull()
+    expect(errored.smoothedApplyLatencyMs).toBe(120)
+    expect(errored.isPlaying).toBe(false)
+
+    const reset = reduceForecastTimeState(started, {
+      type: 'reset',
+      timeMs: 30_000,
+      nowMs: 2_000,
+    })
+    expect(reset.activeRequestStartedAtMs).toBeNull()
+    expect(reset.activeRequestTargetTimeMs).toBeNull()
+    expect(reset.smoothedApplyLatencyMs).toBeNull()
+  })
+
+  it('resolves adaptive playback intervals from smoothed latency', () => {
+    expect(resolvePlaybackMinIntervalMs(null)).toBe(DEFAULT_PLAY_MIN_INTERVAL_MS)
+    expect(resolvePlaybackMinIntervalMs(100)).toBe(DEFAULT_PLAY_MIN_INTERVAL_MS)
+    expect(resolvePlaybackMinIntervalMs(200)).toBe(100)
+    expect(resolvePlaybackMinIntervalMs(1_000)).toBe(MAX_PLAY_MIN_INTERVAL_MS)
   })
 
   it('accepts a playback tick only from the matching idle state', () => {

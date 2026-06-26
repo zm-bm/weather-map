@@ -96,7 +96,7 @@ function prefetchArgs(args: {
   windowPlans?: readonly PrefetchWindowPlan[]
   lowerFrameId?: string
   upperFrameId?: string
-} = {}): Omit<PrefetchArgsFixture, 'aheadHourCount' | 'concurrency' | 'signal'> {
+} = {}): Omit<PrefetchArgsFixture, 'aheadFrameCount' | 'concurrency' | 'signal'> {
   const frameIds = args.frameIds ?? ['000', '003', '006', '009']
   return {
     lowerFrameId: normalizeFrameId(args.lowerFrameId ?? '000'),
@@ -153,10 +153,10 @@ describe('prefetchForecastFrames', () => {
     loaders.particles.mockResolvedValue({ artifactId: 'wind10m_uv' })
   })
 
-  it('prefetches planned windows for the current window plus lookahead hours', async () => {
+  it('prefetches planned windows for the current window plus lookahead frames', async () => {
     await prefetchForecastFrames({
       ...prefetchArgs({ lowerFrameId: '0', upperFrameId: '3' }),
-      aheadHourCount: 2,
+      aheadFrameCount: 2,
       concurrency: 2,
       signal: createSignalFixture(),
     })
@@ -187,7 +187,7 @@ describe('prefetchForecastFrames', () => {
         lowerFrameId: '0',
         upperFrameId: '3',
       }),
-      aheadHourCount: 1,
+      aheadFrameCount: 1,
       concurrency: 2,
       signal: createSignalFixture(),
     })
@@ -217,7 +217,7 @@ describe('prefetchForecastFrames', () => {
 
     const prefetch = prefetchForecastFrames({
       ...prefetchArgs(),
-      aheadHourCount: 2,
+      aheadFrameCount: 2,
       concurrency: 2,
       signal: createSignalFixture(),
     })
@@ -254,7 +254,7 @@ describe('prefetchForecastFrames', () => {
 
     await expect(prefetchForecastFrames({
       ...prefetchArgs(),
-      aheadHourCount: 2,
+      aheadFrameCount: 2,
       concurrency: 2,
       signal: createSignalFixture(),
     })).resolves.toBeUndefined()
@@ -269,7 +269,7 @@ describe('prefetchForecastFrames', () => {
         frameIds: ['000', '003', '006'],
         windowPlans: [plannedWindow('raster')],
       }),
-      aheadHourCount: 1,
+      aheadFrameCount: 1,
       concurrency: 2,
       signal: createSignalFixture(),
     })
@@ -296,7 +296,7 @@ describe('prefetchForecastFrames', () => {
           }],
         })],
       }),
-      aheadHourCount: 1,
+      aheadFrameCount: 1,
       concurrency: 2,
       signal: createSignalFixture(),
     })

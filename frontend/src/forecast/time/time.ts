@@ -136,6 +136,30 @@ export function stepForecastValidTimeMs(
   return validTimeMsForNormalizedMinuteOffset(bounds, nextStep * FORECAST_TIME_STEP_MINUTES)
 }
 
+export function stepForecastPlaybackTimeMs(
+  times: ForecastTimelineTime[],
+  currentValidTimeMs: number,
+  snapMinutes: number
+): number {
+  const bounds = forecastTimeBounds(times)
+  if (!bounds) return 0
+
+  const snapStepMinutes = Math.max(
+    FORECAST_TIME_STEP_MINUTES,
+    Math.abs(normalizeStepCount(snapMinutes))
+  )
+  const snapIntervalMs = snapStepMinutes * MINUTE_MS
+  const currentTimeMs = clampForecastValidTimeMs(times, currentValidTimeMs)
+  const nextSnapTimeMs = (Math.floor(currentTimeMs / snapIntervalMs) + 1) * snapIntervalMs
+
+  if (nextSnapTimeMs > bounds.endValidTimeMs) return bounds.startValidTimeMs
+
+  const targetTimeMs = clampForecastValidTimeMs(times, nextSnapTimeMs)
+  if (targetTimeMs !== currentTimeMs) return targetTimeMs
+
+  return stepForecastValidTimeMs(times, currentTimeMs, FORECAST_TIME_STEP_MINUTES)
+}
+
 export function interpolationWindowMinuteOffset(
   interpolationWindow: Pick<ForecastInterpolationWindow, 'selectedValidTimeMs' | 'lowerValidTimeMs'>
 ): number {

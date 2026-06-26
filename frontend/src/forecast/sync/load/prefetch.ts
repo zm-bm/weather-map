@@ -13,7 +13,7 @@ type PrefetchForecastFramesArgs = {
   lowerFrameId: string
   upperFrameId: string
   frameIds: readonly string[]
-  aheadHourCount: number
+  aheadFrameCount: number
   concurrency: number
   signal: AbortSignal
 }
@@ -34,7 +34,7 @@ function createForecastPrefetchTasks(args: PrefetchForecastFramesArgs): Forecast
   const frameIds = uniqueFrameIds([
     args.lowerFrameId,
     args.upperFrameId,
-    ...nextFrameIdsAfterUpper(args, args.aheadHourCount),
+    ...nextFrameIdsAfterUpper(args, args.aheadFrameCount),
   ])
 
   return frameIds.flatMap((frameId) => {

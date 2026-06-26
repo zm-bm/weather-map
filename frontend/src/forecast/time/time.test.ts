@@ -6,6 +6,7 @@ import {
   initialForecastValidTimeMs,
   minuteOffsetForValidTime,
   resolveForecastInterpolationWindow,
+  stepForecastPlaybackTimeMs,
   stepForecastValidTimeMs,
   validTimeMsForMinuteOffset,
 } from './time'
@@ -62,6 +63,24 @@ describe('forecastTime helpers', () => {
       Date.UTC(2026, 3, 9, 0, 0),
       -1
     )).toBe(Date.UTC(2026, 3, 9, 6, 0))
+  })
+
+  it('snaps playback stepping to five-minute clock boundaries', () => {
+    expect(stepForecastPlaybackTimeMs(
+      TIMES,
+      Date.UTC(2026, 3, 9, 0, 3),
+      5
+    )).toBe(Date.UTC(2026, 3, 9, 0, 5))
+    expect(stepForecastPlaybackTimeMs(
+      TIMES,
+      Date.UTC(2026, 3, 9, 0, 5),
+      5
+    )).toBe(Date.UTC(2026, 3, 9, 0, 10))
+    expect(stepForecastPlaybackTimeMs(
+      TIMES,
+      Date.UTC(2026, 3, 9, 6, 0),
+      5
+    )).toBe(Date.UTC(2026, 3, 9, 0, 0))
   })
 
   it('maps non-minute-aligned observed ranges to start-relative minute slots', () => {

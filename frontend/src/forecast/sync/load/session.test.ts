@@ -144,7 +144,7 @@ describe('createForecastSyncSession', () => {
       }),
       config: createConfigFixture(),
       signal: createSignalFixture(),
-      aheadHourCount: 0,
+      aheadFrameCount: 0,
       concurrency: 1,
     })
 
@@ -174,7 +174,7 @@ describe('createForecastSyncSession', () => {
       }),
       config: createConfigFixture(),
       signal: createSignalFixture(),
-      aheadHourCount: 0,
+      aheadFrameCount: 0,
       concurrency: 1,
     })).resolves.toBeUndefined()
   })

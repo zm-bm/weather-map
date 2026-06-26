@@ -9,12 +9,14 @@ import {
   createDeferred,
   createForecastSelectionContextValue,
   createManifestFixture,
+  createScalarArtifactFixture,
+  createVectorArtifactFixture,
 } from '@/test/fixtures'
 import { getDisplayProfile } from '@/forecast/display'
 import type { ForecastRenderHost } from '@/forecast/render'
 import type { ForecastSyncPlan } from './plan'
 import type { InitialSyncController } from './request/initialSync'
-import { useForecastSync } from './useForecastSync'
+import { resolvePrefetchAheadFrameCount, useForecastSync } from './useForecastSync'
 
 const mocks = vi.hoisted(() => ({
   useInitialSyncController: vi.fn(),
@@ -60,6 +62,8 @@ vi.mock('./request/useRequestRunner', () => ({
 vi.mock('./plan', () => ({
   resolveForecastSyncPlan: (args: unknown) => mocks.resolveForecastSyncPlan(args),
 }))
+
+const MIB = 1024 * 1024
 
 function createInitialSyncController(
   overrides: Partial<InitialSyncController> = {}
@@ -127,6 +131,69 @@ function createHookPlanFixture(overrides: Partial<ForecastSyncPlan> = {}): Forec
   }
 }
 
+function createTemperatureWindPlanFixture(args: {
+  temperatureBytes: number
+  windBytes: number
+}): ForecastSyncPlan {
+  const activeRun = createActiveRunFixture(createManifestFixture({
+    cycle: '2026040900',
+    frameIds: ['000', '003', '006', '009', '012', '015', '018', '021', '024'],
+    artifacts: {
+      tmp_surface: createScalarArtifactFixture({
+        id: 'tmp_surface',
+        byte_length: args.temperatureBytes,
+      }),
+      wind10m_uv: createVectorArtifactFixture({
+        id: 'wind10m_uv',
+        components: ['u', 'v'],
+        byte_length: args.windBytes,
+      }),
+    },
+  }))
+
+  return createHookPlanFixture({
+    activeRun,
+    frameIds: ['000', '003', '006', '009', '012', '015', '018', '021', '024'],
+    windowPlans: [
+      {
+        id: 'raster',
+        key: 'test:raster:temperature',
+        failurePolicy: 'required',
+        frames: [{
+          source: {
+            layerId: 'temperature',
+            artifactId: 'tmp_surface',
+            display: getDisplayProfile('temperature'),
+            overlays: [],
+            bands: [{ id: 'value' }],
+          },
+          artifactId: 'tmp_surface',
+          bandIds: ['value'],
+          cacheKeyPrefix: 'test:raster:temperature',
+        }],
+      },
+      {
+        id: 'particles',
+        key: 'test:particles:wind',
+        failurePolicy: 'required',
+        frames: [{
+          source: {
+            id: 'wind',
+            label: 'Wind',
+            source: {
+              artifactId: 'wind10m_uv',
+              bands: [{ id: 'u' }, { id: 'v' }],
+            },
+          },
+          artifactId: 'wind10m_uv',
+          bandIds: ['u', 'v'],
+          cacheKeyPrefix: 'test:particles:wind',
+        }],
+      },
+    ],
+  })
+}
+
 function renderForecastSync(options: ForecastSyncHarnessOptions = {}) {
   const defaultRenderHost: ForecastRenderHost = { version: 1, apply: vi.fn() }
   const manifest = createManifestFixture({
@@ -187,6 +254,55 @@ describe('useForecastSync', () => {
     mocks.resolveForecastSyncPlan.mockReturnValue(createHookPlanFixture())
   })
 
+  it('uses a byte-budgeted lookahead that favors smaller GFS frames over ICON frames', () => {
+    const gfsSizedPlan = createTemperatureWindPlanFixture({
+      temperatureBytes: 1 * MIB,
+      windBytes: 2 * MIB,
+    })
+    const iconSizedPlan = createTemperatureWindPlanFixture({
+      temperatureBytes: 4 * MIB,
+      windBytes: 8 * MIB,
+    })
+
+    expect(resolvePrefetchAheadFrameCount(gfsSizedPlan)).toBe(8)
+    expect(resolvePrefetchAheadFrameCount(iconSizedPlan)).toBe(2)
+  })
+
+  it('clamps byte-budgeted lookahead to the configured min and max frame counts', () => {
+    expect(resolvePrefetchAheadFrameCount(createTemperatureWindPlanFixture({
+      temperatureBytes: 256 * 1024,
+      windBytes: 256 * 1024,
+    }))).toBe(8)
+    expect(resolvePrefetchAheadFrameCount(createTemperatureWindPlanFixture({
+      temperatureBytes: 32 * MIB,
+      windBytes: 32 * MIB,
+    }))).toBe(2)
+  })
+
+  it('counts duplicate planned artifacts once when estimating prefetch bytes', () => {
+    const plan = createTemperatureWindPlanFixture({
+      temperatureBytes: 4 * MIB,
+      windBytes: 4 * MIB,
+    })
+    const duplicateFrame = plan.windowPlans[0]!.frames[0]!
+    const duplicateTemperaturePlan: ForecastSyncPlan = {
+      ...plan,
+      windowPlans: [
+        ...plan.windowPlans,
+        {
+          ...plan.windowPlans[0]!,
+          key: 'duplicate:temperature',
+          frames: [{
+            ...duplicateFrame,
+            cacheKeyPrefix: 'duplicate:temperature',
+          }],
+        },
+      ],
+    }
+
+    expect(resolvePrefetchAheadFrameCount(duplicateTemperaturePlan)).toBe(4)
+  })
+
   it('composes the plan, wires request execution, starts prefetch, and returns initial status', async () => {
     const renderHost: ForecastRenderHost = { version: 3, apply: vi.fn() }
     const config = createConfigFixture()
@@ -234,7 +350,7 @@ describe('useForecastSync', () => {
     expect(syncSession.prefetch).toHaveBeenCalledWith(expect.objectContaining({
       plan,
       config,
-      aheadHourCount: 2,
+      aheadFrameCount: 8,
       concurrency: 2,
       signal: expect.any(AbortSignal),
     }))
@@ -301,7 +417,50 @@ describe('useForecastSync', () => {
     }))
   })
 
-  it('aborts queued prefetch work when target dependencies change', async () => {
+  it('keeps queued prefetch work when playback moves inside the same frame window', async () => {
+    const observedSignals: AbortSignal[] = []
+    const pendingPrefetch = createDeferred<void>()
+    const syncSession = createForecastSyncSessionFixture({
+      prefetch: vi.fn((args: { signal: AbortSignal }) => {
+        observedSignals.push(args.signal)
+        return pendingPrefetch.promise
+      }),
+    })
+    const firstTarget = createHookPlanFixture({
+      selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 5),
+      lowerFrameId: '003',
+      upperFrameId: '006',
+      minuteOffset: 5,
+    })
+    const secondTarget = createHookPlanFixture({
+      selectedValidTimeMs: Date.UTC(2026, 3, 9, 3, 10),
+      lowerFrameId: '003',
+      upperFrameId: '006',
+      minuteOffset: 10,
+    })
+    const { rerender } = renderForecastSync({
+      plan: firstTarget,
+      syncSession,
+      targetTimeMs: Date.UTC(2026, 3, 9, 3, 5),
+    })
+    await waitFor(() => {
+      expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
+    })
+
+    mocks.resolveForecastSyncPlan.mockReturnValue(secondTarget)
+    mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
+      state: {
+        appliedTimeMs: Date.UTC(2026, 3, 9, 3, 10),
+        targetTimeMs: Date.UTC(2026, 3, 9, 3, 10),
+      },
+    }))
+    rerender()
+
+    expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
+    expect(observedSignals[0]?.aborted).toBe(false)
+  })
+
+  it('aborts queued prefetch work when target frame dependencies change', async () => {
     const observedSignals: AbortSignal[] = []
     const pendingPrefetch = createDeferred<void>()
     const syncSession = createForecastSyncSessionFixture({
@@ -318,11 +477,8 @@ describe('useForecastSync', () => {
     })
     const firstTargetTimeMs = Date.UTC(2026, 3, 9, 3, 30)
     const secondTargetTimeMs = Date.UTC(2026, 3, 9, 6)
-    mocks.resolveForecastSyncPlan
-      .mockReturnValueOnce(firstTarget)
-      .mockReturnValue(secondTarget)
-
     const { rerender } = renderForecastSync({
+      plan: firstTarget,
       syncSession,
       targetTimeMs: firstTargetTimeMs,
     })
@@ -330,6 +486,7 @@ describe('useForecastSync', () => {
       expect(syncSession.prefetch).toHaveBeenCalledTimes(1)
     })
 
+    mocks.resolveForecastSyncPlan.mockReturnValue(secondTarget)
     mocks.useForecastTimeContext.mockReturnValue(createForecastTimeContextValue(null, {
       state: {
         appliedTimeMs: secondTargetTimeMs,

@@ -1,5 +1,9 @@
-export const DEFAULT_PLAY_MIN_INTERVAL_MS = 7
-export const DEFAULT_PLAY_STEP_COUNT = 1
+export const DEFAULT_PLAY_MIN_INTERVAL_MS = 75
+export const DEFAULT_PLAY_STEP_COUNT = 5
+export const MAX_PLAY_MIN_INTERVAL_MS = 250
+
+const PLAYBACK_LATENCY_DELAY_FACTOR = 0.5
+const REQUEST_LATENCY_EMA_ALPHA = 0.25
 
 export type ForecastTimeState = {
   version: number
@@ -9,13 +13,16 @@ export type ForecastTimeState = {
   isInFlight: boolean
   isPlaying: boolean
   lastAppliedAtMs: number
+  activeRequestStartedAtMs: number | null
+  activeRequestTargetTimeMs: number | null
+  smoothedApplyLatencyMs: number | null
 }
 
 export type ForecastTimeAction =
   | { type: 'requestTime'; timeMs: number }
   | { type: 'queueTime'; timeMs: number }
   | { type: 'playbackTick'; fromVersion: number; fromTimeMs: number; timeMs: number }
-  | { type: 'requestStart'; timeMs: number }
+  | { type: 'requestStart'; timeMs: number; nowMs: number }
   | { type: 'requestApplied'; timeMs: number; nowMs: number }
   | { type: 'requestError' }
   | { type: 'reset'; timeMs: number; nowMs: number }
@@ -30,6 +37,9 @@ export function createForecastTimeState(initialTimeMs: number): ForecastTimeStat
     isInFlight: false,
     isPlaying: false,
     lastAppliedAtMs: Date.now(),
+    activeRequestStartedAtMs: null,
+    activeRequestTargetTimeMs: null,
+    smoothedApplyLatencyMs: null,
   }
 }
 
@@ -56,6 +66,8 @@ function dispatchTime(
     pendingTimeMs: null,
     targetTimeMs: timeMs,
     isInFlight: true,
+    activeRequestStartedAtMs: null,
+    activeRequestTargetTimeMs: null,
   }
 }
 
@@ -83,6 +95,8 @@ function reduceRequestTime(
       targetTimeMs: timeMs,
       pendingTimeMs: null,
       isInFlight: false,
+      activeRequestStartedAtMs: null,
+      activeRequestTargetTimeMs: null,
     }
   }
 
@@ -125,6 +139,8 @@ function reduceRequestApplied(
   timeMs: number,
   nowMs: number
 ): ForecastTimeState {
+  const smoothedApplyLatencyMs = nextSmoothedApplyLatencyMs(state, timeMs, nowMs)
+
   if (state.pendingTimeMs != null && state.pendingTimeMs !== timeMs) {
     return {
       ...state,
@@ -134,6 +150,9 @@ function reduceRequestApplied(
       pendingTimeMs: null,
       isInFlight: true,
       lastAppliedAtMs: nowMs,
+      activeRequestStartedAtMs: null,
+      activeRequestTargetTimeMs: null,
+      smoothedApplyLatencyMs,
     }
   }
 
@@ -145,7 +164,47 @@ function reduceRequestApplied(
     pendingTimeMs: null,
     isInFlight: false,
     lastAppliedAtMs: nowMs,
+    activeRequestStartedAtMs: null,
+    activeRequestTargetTimeMs: null,
+    smoothedApplyLatencyMs,
   }
+}
+
+function nextSmoothedApplyLatencyMs(
+  state: ForecastTimeState,
+  timeMs: number,
+  nowMs: number
+): number | null {
+  if (
+    state.activeRequestStartedAtMs == null ||
+    state.activeRequestTargetTimeMs !== timeMs
+  ) {
+    return state.smoothedApplyLatencyMs
+  }
+
+  const latencyMs = Math.max(0, nowMs - state.activeRequestStartedAtMs)
+  if (state.smoothedApplyLatencyMs == null) return latencyMs
+
+  return (
+    (state.smoothedApplyLatencyMs * (1 - REQUEST_LATENCY_EMA_ALPHA)) +
+    (latencyMs * REQUEST_LATENCY_EMA_ALPHA)
+  )
+}
+
+export function resolvePlaybackMinIntervalMs(
+  smoothedApplyLatencyMs: number | null
+): number {
+  if (smoothedApplyLatencyMs == null || !Number.isFinite(smoothedApplyLatencyMs)) {
+    return DEFAULT_PLAY_MIN_INTERVAL_MS
+  }
+
+  return Math.max(
+    DEFAULT_PLAY_MIN_INTERVAL_MS,
+    Math.min(
+      MAX_PLAY_MIN_INTERVAL_MS,
+      smoothedApplyLatencyMs * PLAYBACK_LATENCY_DELAY_FACTOR
+    )
+  )
 }
 
 export function reduceForecastTimeState(
@@ -183,6 +242,8 @@ export function reduceForecastTimeState(
       version: nextVersion(state),
       targetTimeMs: action.timeMs,
       isInFlight: true,
+      activeRequestStartedAtMs: action.nowMs,
+      activeRequestTargetTimeMs: action.timeMs,
     }
   }
 
@@ -197,6 +258,8 @@ export function reduceForecastTimeState(
       pendingTimeMs: null,
       isInFlight: false,
       isPlaying: false,
+      activeRequestStartedAtMs: null,
+      activeRequestTargetTimeMs: null,
     }
   }
 
