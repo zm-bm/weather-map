@@ -2,10 +2,11 @@
 
 FastAPI service for public Weather Map API endpoints.
 
-Local development reads `artifacts/status.json` by default. The compose stack
-mounts artifacts and proxies `/api/*` from Vite to this service.
-The backend does not import the ETL package; `status.json` is the only runtime
-contract between ETL and the backend health API.
+Local dev reads `artifacts/status.json` by default. The compose stack mounts
+artifacts and proxies `/api/*` from Vite to this service.
+
+The backend does not import the ETL package. `status.json` is the handoff for
+the health API.
 
 Set `ARTIFACT_ROOT_URI` to point at a different artifact root. It may be a
 local path, `file://` URI, or `s3://` URI. If unset, the backend uses

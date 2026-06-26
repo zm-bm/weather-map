@@ -1,63 +1,46 @@
 # Weather ETL Stack
 
-Production weather ETL infrastructure for GFS, ICON, and MRMS.
+Production ETL infrastructure for GFS, ICON, and MRMS.
 
-## Flow
+## Ingest Flow
 
 GFS is event-driven:
 
 1. NOAA publishes a GFS object notification to SNS.
-2. `weather-etl-ingest-gfs` filters the object key shape and synoptic cycle.
-3. The Lambda gets or creates one run id for the accepted dataset cycle in the
-   run coordinator table.
-4. The Lambda creates or reads that run's config/catalog snapshot, filters the
-   frame against the snapshot workload, and submits one Batch
-   `run-frame` job with the shared `RUN_ID` and pinned snapshot URIs.
-5. The worker reads the NOAA S3 object and writes field artifacts plus success
-   markers.
+2. `weather-etl-ingest-gfs` filters the key and synoptic cycle.
+3. The Lambda creates or reuses one run id for that dataset/cycle.
+4. It snapshots the deployed pipeline/catalog config and submits one Batch
+   `run-frame` job for the accepted frame.
+5. The worker reads the NOAA object and writes artifacts plus success markers.
 
 ICON is polled:
 
 1. EventBridge invokes `weather-etl-ingest-icon` every 10 minutes.
-2. The Lambda checks only the latest `00/06/12/18 UTC` DWD ICON cycle
-   (`ICON_POLL_CYCLE_COUNT=1`).
-3. It waits for sentinel `f000` files and uses the shared frame claim table to
-   avoid duplicate submissions.
-4. The Lambda gets or creates one run id for the dataset cycle, creates or reads
-   that run's config/catalog snapshot, and uses that snapshot for completion and
-   claim checks before submitting frame jobs.
-5. Batch workers download ICON files from DWD with a short source-readiness
-   retry window, decompress, regrid with direct CDO, and write field artifacts
-   plus success markers.
+2. The Lambda checks the latest `00/06/12/18 UTC` DWD ICON cycle.
+3. It waits for sentinel `f000` files and uses frame claims to avoid duplicate
+   submissions.
+4. Batch workers download, decompress, regrid, and write artifacts plus success
+   markers.
 
 MRMS is event-driven through SQS:
 
-1. NOAA publishes an MRMS object notification to SNS.
-2. SNS delivers the message to the MRMS ingest SQS queue with a DLQ.
-3. `weather-etl-ingest-mrms` filters the object key to the two configured
-   CONUS reflectivity products.
-4. For each product object, the Lambda waits until the counterpart product
-   exists for the same timestamp, creates a deterministic single-frame run id,
-   writes the run snapshot, and submits one Batch `run-frame` job.
-5. The worker reads both MRMS GRIB2 objects from `s3://noaa-mrms-pds/CONUS`
-   and writes observed radar field artifacts plus success markers.
+1. NOAA publishes MRMS object notifications to SNS.
+2. SNS sends them to the MRMS ingest queue with a DLQ.
+3. `weather-etl-ingest-mrms` waits until both configured CONUS reflectivity
+   products exist for the same timestamp.
+4. The Lambda creates a deterministic single-frame run and submits one Batch
+   `run-frame` job.
 
-Publication is scheduled separately:
+Publication is separate. `weather-etl-publisher` runs every 10 minutes,
+validates complete runs, publishes manifests, refreshes `manifests/index.json`,
+and writes root `status.json`.
 
-1. EventBridge invokes `weather-etl-publisher` every 10 minutes.
-2. The publisher checks recent synoptic cycles for forecast datasets and recent
-   hourly cycles for MRMS.
-3. Complete runs are validated into run-scoped `validation.json` reports when
-   needed.
-4. Runs with passing validation publish immutable public run manifests, update
-   full-manifest `current.json`/`latest.json` aliases, write the run-scoped
-   `publication.json`, and rebuild the aggregate frontend manifest index when
-   latest changes.
+All datasets use the same worker image. Each run uses pinned copies of
+`pipeline.json` and `catalog.json` stored under the run prefix.
 
-All datasets use the same worker image. Each run uses pinned copies of the
-pipeline config and catalog stored under its run prefix.
+## Layout
 
-New ETL output is grouped by run:
+Run-scoped state:
 
 ```text
 runs/<dataset_id>/<cycle>/<run_id>/
@@ -71,11 +54,7 @@ runs/<dataset_id>/<cycle>/<run_id>/
   publication.json
 ```
 
-Public aliases remain under `manifests/`. Public payload serving is run-first
-only through `/runs/*/payloads/*`; old type-first payload paths are no longer
-exposed.
-
-Public manifests use:
+Public manifests:
 
 ```text
 manifests/<dataset_id>/cycles/<cycle>/runs/<run_id>.json
@@ -84,37 +63,15 @@ manifests/<dataset_id>/latest.json
 manifests/index.json
 ```
 
-Direct reads of `manifests/<dataset_id>/latest.json` and
-`manifests/<dataset_id>/cycles/<cycle>/current.json` return full
-`weather-map.dataset-cycle-manifest` objects. The frontend hot path continues
-to read only `manifests/index.json`.
+Public payload serving is run-first only through `/runs/*/payloads/*`.
 
-Automatic GFS and ICON ingest share a small DynamoDB run coordinator table:
+Two small DynamoDB tables coordinate automatic ingest:
 
-```text
-pk = <dataset_id>#<cycle>
-run_id = YYYYMMDDTHHMMSSZ-<8hex>
-ttl = 14 days by default
-```
+- run coordinator: one run id per `dataset_id#cycle`
+- frame claims: duplicate-submission throttle per
+  `dataset_id#cycle#run_id#frame_id`
 
-The table is intentionally only a run-id coordinator, not full orchestration
-state. It prevents individual GFS SNS events or ICON poll submissions for the
-same cycle from fragmenting into separate run ids.
-
-Automatic GFS, automatic ICON, and manual AWS submits also share a small
-DynamoDB frame claim table:
-
-```text
-pk = <dataset_id>#<cycle>#<run_id>#<frame_id>
-state = claimed | complete
-ttl = 14 days by default
-```
-
-Frame claims throttle duplicate submissions only. Success markers and
-validation reports remain the source of truth for completeness and publication.
-Expired claims allow retries, and explicit `--run-id` manual submits can resume
-an existing run by submitting only frames that are not complete or actively
-claimed.
+Success markers and validation reports decide what can publish.
 
 ## Source Data
 
@@ -128,98 +85,18 @@ claimed.
 
 ## Config
 
-Terraform uploads the production ETL config and catalog. Ingest
-Lambdas and manual submit tooling use these deployed objects as the source of
-truth when creating a run snapshot:
+Terraform uploads the production pipeline/catalog config:
 
 ```text
 PIPELINE_URI=s3://<config-bucket>/weather-etl/pipeline.json
 CATALOG_URI=s3://<config-bucket>/weather-etl/catalog.json
 ```
 
-Frames and produced artifact ids come from `datasets.<dataset_id>.workload` in
-that config. Changes to `config/pipeline.json` or
-`config/catalog.json` are deployed through this stack so the S3 source
-objects are updated.
+Ingest Lambdas and manual submit tooling snapshot those objects when creating
+a run. Deploy changes to `config/pipeline.json` or `config/catalog.json`
+through this stack.
 
-## Terraform Runtime Contract
-
-This stack is intentionally organized around the ETL runtime contract:
-
-```text
-artifact_root_uri
-pipeline_uri
-catalog_uri
-run_coordinator_table
-frame_claim_table
-Batch queue and job definitions
-ingest and publisher Lambda names
-ingest and publisher schedules
-operational alerts and alert topic
-```
-
-The existing raw outputs used by the operator scripts remain stable. The stack
-also exposes `etl_runtime_contract`, a grouped output intended for future
-planner/executor work.
-
-Operational knobs such as `environment`, `name_prefix`, worker image tag,
-Batch retries, Lambda timeouts, schedules, scan counts, and retention windows
-are Terraform variables with production defaults. `observability_alert_email`
-is required so production alarms have an explicit notification destination.
-GFS ingest, ICON ingest, and the scheduled publisher all use the same Lambda
-zip artifact.
-
-The artifact and config buckets are treated as greenfield ETL resources:
-`force_destroy` is enabled and `prevent_destroy` is not used. Do not rely on
-this stack to protect old run artifacts during a clean redeploy.
-
-## Deploy
-
-Production deploys should be coordinated across the worker image, Lambda zip,
-and Terraform. New workers require `RUN_ID`, and the ingest Lambdas/Terraform
-provide the run coordinator table, frame claim table, and container overrides.
-Local ETL reruns are fine for validating intermediate task work; bundle related
-ETL hardening tasks into one production deploy when that is less operationally
-painful.
-
-From the repo root, run the normal ETL deploy entrypoint:
-
-```bash
-scripts/etl-deploy.sh
-```
-
-The script builds the shared Lambda artifact, runs Terraform init/validate/plan
-with one internally resolved worker image tag, prompts before any AWS mutation,
-creates or updates the Terraform-owned ECR repository, builds and pushes the
-split ETL worker image, and then applies the full stack with the same image tag.
-
-To inspect the plan without applying:
-
-```bash
-scripts/etl-deploy.sh --plan-only
-```
-
-To deploy without prompts:
-
-```bash
-scripts/etl-deploy.sh --auto-approve
-```
-
-To also upload static PMTiles assets after the deploy:
-
-```bash
-scripts/etl-deploy.sh --upload-static
-```
-
-The Lambda artifact is shared by the ingest and publisher Lambdas:
-
-```text
-etl/dist/weather-etl-ingest-lambda.zip
-```
-
-The worker image contains GDAL, CDO, eccodes tools, and ICON regrid assets.
-
-For a new environment, create local Terraform variables before deploying:
+For a new environment:
 
 ```bash
 cd infra/weather-etl
@@ -227,53 +104,61 @@ cp terraform.tfvars.example local.auto.tfvars
 # edit local.auto.tfvars
 ```
 
+## Deploy
+
+From the repo root:
+
+```bash
+scripts/etl-deploy.sh
+```
+
+Useful variants:
+
+```bash
+scripts/etl-deploy.sh --plan-only
+scripts/etl-deploy.sh --auto-approve
+scripts/etl-deploy.sh --upload-static
+```
+
+The deploy script builds the shared Lambda zip, builds/pushes the worker image,
+runs Terraform, and uses the same worker image tag for the full stack.
+
 ## Operations
 
-From the repo root, manually submit a production cycle:
+Manually submit a production cycle:
 
 ```bash
 scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
 scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
-MRMS production ingest is normally driven by the SNS/SQS notification path so
-the Lambda can create a timestamp-pinned single-frame run snapshot.
-
-Manual submits generate one run id per submitted cycle unless `--run-id` or
-`RUN_ID` is supplied. Supplying `--run-id` resumes that existing run and skips
-complete or actively claimed frames. Before submitting workers, the script
-creates a run snapshot from the deployed Terraform-managed config/catalog,
-plans frame state, acquires frame claims, and passes run snapshot URIs to every
-Batch job. Use `--dry-run` to verify the run id, snapshot URIs, and
-submit/skip decisions before touching Batch:
+Dry-run before touching Batch:
 
 ```bash
 scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs --dry-run
 ```
 
-Publication is handled by the scheduled publisher. It validates complete runs
-before publishing. Manual submit does not submit a dependent publisher job.
+Manual submits create one run id per cycle unless `--run-id` or `RUN_ID` is
+supplied. Supplying a run id resumes that run and skips complete or actively
+claimed frames.
+
+MRMS production ingest normally comes from the SNS/SQS path so each timestamp
+gets a pinned single-frame run.
+
+Publication is handled by the scheduled publisher. Manual submit does not
+submit a dependent publisher job.
 
 ## Observability
 
-The stack creates low-noise AWS operational alerts through CloudWatch alarms,
-EventBridge Batch events, and an email-backed SNS topic. The email subscription
-must be confirmed from the AWS SNS confirmation email before alarm notifications
-are delivered.
-
-The scheduled publisher refreshes the published root `status.json` document on
-each run. Health consumers should read that document instead of CloudWatch
-custom ETL metrics.
-
-Alerts are configured for:
+The stack creates CloudWatch/EventBridge alerts for:
 
 - GFS ingest, ICON ingest, and publisher Lambda errors
 - MRMS ingest Lambda errors
-- Batch worker `FAILED` state-change events
+- Batch worker `FAILED` state changes
 - Batch queue blocked events
 
+Confirm the SNS email subscription before expecting notifications.
 Normal in-progress cycles and publisher `not_ready` candidates stay quiet.
-Successful cycles do not send success notifications.
 
 Enable or disable ICON polling:
 
@@ -282,7 +167,7 @@ aws events enable-rule --name weather-etl-ingest-icon-poll
 aws events disable-rule --name weather-etl-ingest-icon-poll
 ```
 
-Useful live logs:
+Useful logs:
 
 ```bash
 aws logs tail /aws/lambda/weather-etl-ingest-icon --since 2h --follow

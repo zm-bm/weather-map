@@ -7,14 +7,14 @@ export type ForecastTimelineTime = {
   valid_at: string
 }
 
-export type ForecastTimeSliceSelection = {
+export type ForecastFrameSelection = {
   selectedValidTimeMs: number
   lowerFrameId: string
   upperFrameId: string
   mix: number
 }
 
-export type ForecastInterpolationWindow = ForecastTimeSliceSelection & {
+export type ForecastInterpolationWindow = ForecastFrameSelection & {
   lowerValidTimeMs: number
   upperValidTimeMs: number
 }

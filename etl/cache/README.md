@@ -1,6 +1,6 @@
 # Local ETL Cache
 
-Use this for local-only GRIB inputs that are useful during ETL development.
+Local-only GRIB inputs for ETL development.
 
 Conventions:
 

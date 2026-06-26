@@ -5,7 +5,7 @@ import type {
   RawRasterBands,
 } from '@/forecast/artifacts'
 import { normalizeFrameId } from '@/forecast/manifest'
-import type { ForecastTimeSliceSelection } from '@/forecast/time'
+import type { ForecastFrameSelection } from '@/forecast/time'
 import type {
   EncodedRasterFrame,
   ForecastFrameMap,
@@ -25,7 +25,7 @@ export function clampInterpolationMix(mix: number): number {
 }
 
 export async function loadFrameWindow<T>(args: {
-  selection: ForecastTimeSliceSelection
+  selection: ForecastFrameSelection
   previousWindow?: FrameWindow<T> | null
   loadFrame: (frameId: string) => Promise<T>
 }): Promise<FrameWindow<T>> {
@@ -70,7 +70,7 @@ export async function loadFrameWindow<T>(args: {
 }
 
 export async function loadWindows(args: {
-  selection: ForecastTimeSliceSelection
+  selection: ForecastFrameSelection
   windowPlans: readonly ForecastWindowPlan[]
   artifacts: ArtifactLoader
   previousWindows?: ForecastWindows
@@ -97,7 +97,7 @@ export async function loadWindows(args: {
 }
 
 async function loadWindow(args: {
-  selection: ForecastTimeSliceSelection
+  selection: ForecastFrameSelection
   windowPlan: ForecastWindowPlan
   artifacts: ArtifactLoader
   previousWindow: FrameWindow<ForecastFrameMap[ForecastWindowId]> | null

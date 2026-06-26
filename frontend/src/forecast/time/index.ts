@@ -29,7 +29,7 @@ export {
   validTimeMsForMinuteOffset,
 } from './time'
 export type {
-  ForecastTimeSliceSelection,
+  ForecastFrameSelection,
   ForecastInterpolationWindow,
   ForecastTimelineTime,
 } from './time'

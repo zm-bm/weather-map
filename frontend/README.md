@@ -1,20 +1,18 @@
 # Frontend
 
-React/Vite frontend for the weather map. The app boots forecast metadata from
-`/manifests/index.json`, renders run-scoped payloads from
-`/runs/*/payloads/*` through compact manifest refs, loads optional PMTiles
-basemaps from `/pmtiles/*`, and serves frontend-owned static assets from
-`public/`.
+React/Vite app for the weather map. It reads forecast metadata from
+`/manifests/index.json`, payloads from `/runs/*/payloads/*`, optional PMTiles
+basemaps from `/pmtiles/*`, and static frontend assets from `public/`.
 
 ## Development
 
-The normal development entrypoint is the repo-root compose stack:
+Use the repo-root compose stack for normal local work:
 
 ```bash
 docker compose up --build
 ```
 
-That starts:
+Services:
 
 - Vite frontend: `http://localhost:5173`
 - backend API: `http://localhost:8000`
@@ -29,9 +27,8 @@ Runtime config is read from Vite env variables:
   before being proxied to nginx.
 - `VITE_BASEMAP_FILENAME` enables an optional PMTiles basemap served from
   `/pmtiles/<filename>`.
-- `VITE_DEV_ARTIFACT_DELAY_MS=<ms>` delays proxied local `/runs/*/payloads/*`
-  responses during `npm run dev`; use this to smoke-test loading and prefetch
-  behavior.
+- `VITE_DEV_ARTIFACT_DELAY_MS=<ms>` delays proxied local payloads during
+  `npm run dev`; useful for loading/prefetch smoke tests.
 - `VITE_DEV_ARTIFACT_PROXY_TARGET` is the Vite proxy target. It defaults to
   `http://localhost:3000`; compose sets it to `http://nginx:3000`.
 - `VITE_DEV_API_PROXY_TARGET` is the Vite `/api/*` proxy target. It defaults to
@@ -47,7 +44,7 @@ npm run test:run
 npm run preview
 ```
 
-To smoke-test loading and prefetch behavior with slow frame payloads:
+Test loading behavior with slow payloads:
 
 ```bash
 VITE_DEV_ARTIFACT_DELAY_MS=700 npm run dev
@@ -65,5 +62,4 @@ example `http://localhost:5173/runs/...`. Direct nginx requests to
 
 ## Code Notes
 
-Domain naming and module ownership guidelines live in
-[src/README.md](src/README.md).
+Domain naming and the module map live in [src/README.md](src/README.md).

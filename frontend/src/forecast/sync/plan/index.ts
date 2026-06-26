@@ -25,7 +25,7 @@ import {
 import {
   interpolationWindowMinuteOffset,
   resolveForecastInterpolationWindow,
-  type ForecastTimeSliceSelection,
+  type ForecastFrameSelection,
 } from '@/forecast/time'
 
 export type ForecastWindowFailurePolicy = 'required' | 'optional'
@@ -57,7 +57,7 @@ export type ForecastSyncOptions = {
   particles: boolean
 }
 
-export type ForecastSyncPlan = ForecastTimeSliceSelection & {
+export type ForecastSyncPlan = ForecastFrameSelection & {
   activeRun: ActiveForecastRun
   frameIds: readonly string[]
   windowPlans: readonly ForecastWindowPlan[]

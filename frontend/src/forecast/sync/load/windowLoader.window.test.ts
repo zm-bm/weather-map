@@ -10,7 +10,7 @@ import {
   createScalarEncodingFixture,
 } from '@/test/fixtures'
 import type { ArtifactLoader, RawRasterBands } from '@/forecast/artifacts'
-import type { ForecastTimeSliceSelection } from '@/forecast/time'
+import type { ForecastFrameSelection } from '@/forecast/time'
 import { clampInterpolationMix, loadFrameWindow, loadWindows } from './windowLoader'
 import { createForecastWindowPlanTestFixture } from './windowPlan.testHelpers'
 
@@ -208,7 +208,7 @@ function artifacts(): ArtifactLoader {
   }
 }
 
-function createSelection(): ForecastTimeSliceSelection {
+function createSelection(): ForecastFrameSelection {
   return {
     selectedValidTimeMs: 123,
     lowerFrameId: '000',

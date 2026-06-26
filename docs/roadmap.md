@@ -1,128 +1,106 @@
 # Weather Map Roadmap
 
-Last updated: 2026-05-24
+Last updated: 2026-06-26
 
 ## Next Priorities
 
-### 0.1. Pre-warm cache after model run
+### 1. Pre-warm Cache After Model Runs
 
-### 1. Audit Default Palette And Boundary Correctness
+After a model run publishes, warm the public artifacts the app is most likely
+to ask for first. Keep it cheap and boring.
 
-Confirm that every raster-rendered layer maps decoded physical values to the
-right visual output after the encoding contract is sound.
+Tasks:
 
-This is the frontend/rendering contract. It covers default palette selection,
-color stops, display profile, legend labels,
-sampling mode, and boundary handling.
+- pick the small set of manifest, PMTiles, and first-frame artifact URLs worth
+  warming
+- trigger warming from publish or a tiny follow-up job
+- make it fine to rerun and fine to skip when artifacts are missing
+- log enough timing/status info to tell whether it helped
 
-Key work:
+Good enough when: a newly published cycle opens quickly on first load without
+adding another service to babysit.
 
-- audit every raster-rendered layer's display profile, palette color stops,
-  display range, and expected legend labels
-- define boundary semantics for continuous and threshold palettes
-- add exact-boundary checks for values just below, exactly at, and just above
-  every color stop
-- verify behavior below display minimum, above display maximum, and for nodata
-- make pure palette sampling, LUT generation, legend rendering, and catalog
-  validation agree on the same contract
+### 2. Add ETL Health Notifications
 
-This should answer: does the app show the right colors for the right values?
+Send low-noise notifications when ETL is stale, failing, or stuck.
 
-### 2. Design Custom Palette Overrides
+Tasks:
 
-Design user-defined color palettes as a frontend feature built on top of the
-display and encoding contracts above.
+- start with stale published data, Batch worker failures, and publisher failures
+- send one useful alert with dataset, cycle, run id, and a log/status link
+- group or suppress repeats so one bad cycle does not spam
+- write down the common alert meanings and first debug step
 
-Start with the data model and rendering contract before adding UI.
+Good enough when: a real ingest/publish failure is visible without watching AWS
+dashboards manually.
 
-Key work:
+### 3. Fix Particles for Rotated Viewports
 
-- formalize a palette schema with color stops, alpha, and sampling mode
-- resolve each layer's active palette from default catalog metadata plus any
-  user override
-- feed the same resolved palette to the renderer and legend
-- store user overrides per layer, initially in local browser storage
-- validate or warn when custom stops are finer than artifact encoding
-  resolution
-- add a compact editor for palette preset, stop values, colors, opacity, and
-  reset-to-default
+Wind particles currently assume an unrotated map viewport, so drag rotation is
+disabled. Make particle positioning handle map pitch/rotation, then turn
+rotation back on.
 
-This should answer: can users safely customize layer color palettes without
-breaking legends, units, or renderer boundary behavior?
+Tasks:
 
-### 4. Add Forecast Model Expansion Track
+- add pitch/rotation to the particle viewport state
+- pass the new viewport values through particle uniforms
+- update `VECTOR_PARTICLE_VERTEX_SHADER_SOURCE` / particle vertex shader logic
+  so particle positions match the rotated viewport
+- re-enable `dragRotation` in the MapLibre map config
+- verify rotated desktop and mobile views with particles enabled
 
-Plan support for additional forecast models such as HRRR and ECMWF.
+Good enough when: wind particles stay aligned while rotating the map.
 
-Treat this as source/model expansion first, not just adding new catalog rows.
-The work should define model ids, run availability, artifact mapping, and
-layer-support compatibility before exposing model selection in the UI.
+### 4. Add Optional Globe View
+
+Mercator is fine, but a globe mode would be a nice way to inspect broad weather
+patterns.
+
+Tasks:
+
+- add a small UI option for map projection
+- toggle the MapLibre style/projection between Mercator and globe
+- update the wind particle vertex path for globe projection
+- verify raster, overlays, contours, particles, labels, and probe behavior in
+  both projections
+
+Good enough when: globe mode is usable without breaking the default Mercator
+forecast workflow.
+
+### 5. Check Field Payload Strategy
+
+Only change the artifact format if real payload or cost data says the current
+compression and caching path is not enough.
+
+Tasks:
+
+- measure payload sizes, cache hit behavior, and first-load bottlenecks for
+  representative layers
+- try simple compression/caching improvements before changing artifact layout
+- prototype chunking or predictive encoding only against measured pain points
+- keep the whole-frame path unless the numbers make the extra complexity worth
+  it
+
+Good enough when: there is clear evidence for keeping the current payload path
+or a concrete reason to change it.
+
+### 6. Add Forecast Model Expansion Track
+
+Plan support for additional forecast models such as HRRR and ECMWF. Treat this
+as source/model expansion first, not just adding catalog rows.
 
 Initial models:
 
 - HRRR
 - ECMWF
 
-Key decisions:
+Tasks:
 
-- model/run availability and forecast-hour coverage
-- field mapping into the existing artifact contracts
-- which current layers each model can support
-- whether model selection should be global, per-layer, or hidden until support
+- define model ids, run availability, and forecast-hour coverage
+- map fields into the existing artifact shapes
+- list which current layers each model can support
+- choose whether model selection is global, per-layer, or hidden until support
   is broad enough
 
-### 5. Add ETL Health Notifications
-
-Add low-noise notifications when ETL health is stale, failing, or otherwise
-requires attention.
-
-Start with failure and staleness notifications. Avoid success notifications
-unless they are opt-in or otherwise low-noise.
-
-## Recently Completed
-
-### Consolidate Forecast Config Documentation
-
-Replaced the staging forecast registry documents with `forecast-config.md`,
-which documents the two-file `pipeline.json` / `catalog.json` model, product
-agreement rules, and compact dataset support summary.
-
-### Audit Artifact Encoding Correctness
-
-Added explicit ETL finite clamp support, updated artifact encoding contracts,
-and added encoding-contract tests that lock range, quantum, nodata, clamp, and
-boundary behavior for raster-rendered artifacts.
-
-## Design Evaluations
-
-### Evaluate MapLibre-Level Options
-
-Decide whether map-level options such as globe projection or drag rotation
-belong in the app UI.
-
-Treat this as app design plus renderer validation, not just adding toggles.
-
-### Evaluate Field Payload Strategy
-
-Evaluate delta or predictive field encoding only if real payload or cost data
-shows current compression and caching are not enough.
-
-Consider breaking global fields into gridded chunks if viewport-scoped fetches
-become more important than whole-frame simplicity.
-
-## Layer Candidates
-
-- Low-priority forecast layer candidates:
-  `wind_direction`, `fog_low_visibility`, and `thunderstorm_overlay`.
-  These fit the current forecast surface, but should wait until the core layer
-  experience is polished.
-- Future accumulation and upper-air candidates:
-  `precip_accum_1h`, `precip_accum_3h`, `precip_accum_6h`,
-  `precip_accum_12h`, `precip_accum_24h`, `snowfall_accumulation`,
-  `cloud_ceiling`, `jet_stream`, `geopotential_height_500mb`,
-  `upper_air_standard_levels`, and `storm_relative_helicity`.
-  These need source confirmation, artifact contracts, or catalog design before
-  implementation.
-- Parked external product ideas:
-  satellite, air quality, watches and warnings, lightning, and waves.
-  Revisit these only after the app has a clearer external-source architecture.
+Good enough when: adding another model clearly improves the app instead of just
+adding maintenance load.

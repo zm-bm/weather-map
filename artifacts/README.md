@@ -1,8 +1,7 @@
 # Local Artifacts
 
-This directory is the local development artifact root for forecast data.
-
-It mirrors the object layout used in the production artifact bucket so the app can fetch the same paths in dev and prod.
+Local forecast artifact root. It mirrors the production bucket layout so the app
+can fetch the same paths in dev and prod.
 
 Typical contents:
 
@@ -18,10 +17,9 @@ Typical contents:
 - `runs/<dataset_id>/<cycle>/<run_id>/publication.json`
 - `pmtiles/<name>.pmtiles`
 
-How it is used:
+Used by:
 
-- `scripts/etl-sync-artifacts.py` copies the latest or selected published ETL run
-  artifacts here for local dev.
+- `scripts/etl-sync-artifacts.py`, which copies published ETL runs here.
 - The backend health API reads `status.json`; it does not inspect ETL internals.
 - `compose.yml` mounts this directory into nginx at `/artifacts`.
 - nginx serves `/manifests/*`, `/runs/*/payloads/*`, and `/pmtiles/*`
@@ -30,7 +28,7 @@ How it is used:
 - `glyphs/` and `pmtiles/` can be copied to the production artifact
   bucket with `scripts/etl-deploy.sh --upload-static`.
 
-Generated contents under this directory are ignored by git.
+Generated contents here are ignored by git.
 
 See [../etl/README.md](../etl/README.md) for the ETL submission and fetch flow
 that uses this layout.

@@ -1,34 +1,33 @@
 # Weather ETL
 
-This package builds forecast artifacts for Weather Map. It owns the Python ETL
+This package builds forecast artifacts for Weather Map. It has the Python ETL
 code, the Docker worker image, and the AWS Batch worker submission path for GFS,
 ICON, and observed datasets.
 
-For normal work, start with the operational scripts:
+For most work, start with the scripts:
 
 - `scripts/etl-run-aws.sh` submits AWS Batch frame workers for a cycle.
 - `scripts/etl-sync-artifacts.py` copies the latest or selected published run
   artifacts into the local `artifacts/` tree.
 
-The Python CLI intentionally keeps a narrow operational surface: submit a run
-or run one frame worker.
+The Python CLI is mostly for worker and submit plumbing.
 
 ## Quick Start
 
-Set up the shared Python environment:
+Bootstrap the shared Python env:
 
 ```bash
 scripts/bootstrap.sh
 ```
 
-Submit AWS Batch frame workers for one dataset:
+Submit AWS Batch frame workers:
 
 ```bash
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
-Fetch the latest published GFS artifacts for local development:
+Fetch latest published artifacts for local dev:
 
 ```bash
 scripts/etl-sync-artifacts.py \
@@ -45,35 +44,43 @@ scripts/etl-sync-artifacts.py \
   --run-id <run_id>
 ```
 
-The fetch script keeps the local manifest index limited to the datasets it
-downloaded, so the frontend does not request missing local payloads.
+The fetch script keeps the local manifest index limited to downloaded datasets,
+so the frontend does not request missing local payloads.
 
 ## AWS Submission
 
-Manual AWS submission creates or resumes a run, snapshots the deployed product
-config, plans frame workers, skips complete or actively claimed frames, and
-submits the remaining workers to Batch.
+Manual AWS submission creates or resumes a run, snapshots deployed config,
+plans frame workers, skips complete or actively claimed frames, and submits the
+rest to Batch.
 
 ```bash
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH> --dry-run
 scripts/etl-run-aws.sh --dataset-id gfs --cycle <YYYYMMDDHH>
 ```
 
-Submission does not validate or publish inline. In production, the scheduled
-`weather-etl-publisher` Lambda validates complete runs, publishes manifests,
-updates `manifests/index.json`, and refreshes root `status.json`.
+Submission does not publish inline. The scheduled `weather-etl-publisher`
+Lambda validates complete runs, publishes manifests, updates
+`manifests/index.json`, and refreshes root `status.json`.
 
-Use `infra/weather-etl/README.md` for deeper production deploy and
-AWS operator details.
+See `infra/weather-etl/README.md` for production deploy and AWS details.
 
 ## CLI
 
-The installed CLI exposes only the operational commands needed by the worker and
-manual submission paths:
+Installed CLI commands used by workers and manual submits:
 
 ```bash
-.venv/bin/weather-etl run-frame --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --run-id <run_id> --frame-id <FFF>
-.venv/bin/weather-etl submit-aws-run --dataset-id <dataset_id> --cycle <YYYYMMDDHH> --job-queue <name> --job-definition <arn> --frame-claim-table <table>
+.venv/bin/weather-etl run-frame \
+  --dataset-id <dataset_id> \
+  --cycle <YYYYMMDDHH> \
+  --run-id <run_id> \
+  --frame-id <FFF>
+
+.venv/bin/weather-etl submit-aws-run \
+  --dataset-id <dataset_id> \
+  --cycle <YYYYMMDDHH> \
+  --job-queue <name> \
+  --job-definition <arn> \
+  --frame-claim-table <table>
 ```
 
 ## Config
@@ -83,14 +90,12 @@ Forecast product config lives at the repo root:
 - `config/pipeline.json`: what the ETL can produce.
 - `config/catalog.json`: what the product/frontend exposes.
 
-The ETL snapshots both files into every run before frame workers start. That
-keeps a run pinned to the config it was planned with, even if the repo or
-deployed config changes later.
+Every run snapshots both files before frame workers start, so the run stays
+pinned to the config it was planned with.
 
-For the config model and the current product support table, see
-`../docs/forecast-config.md`.
+For the config model and ETL terms, see `../config/README.md`.
 
-## Artifacts And Health
+## Artifacts and Health
 
 A run writes durable state under `runs/<dataset_id>/<cycle>/<run_id>/`:
 
@@ -115,12 +120,12 @@ manifests/index.json
 status.json
 ```
 
-`status.json` is the public ETL health document. The backend reads it to serve
-`/api/health`; backend/API code should not inspect ETL internals directly.
+`status.json` is the public ETL health document. The backend reads it for
+`/api/health`.
 
 ## Code Map
 
-The package is organized around a few stable boundaries:
+Where to look:
 
 - `adapters/`: CLI and AWS Lambda entrypoint adapters.
 - `operations/`: ETL use cases: run planning, frame work, validation,
@@ -129,7 +134,7 @@ The package is organized around a few stable boundaries:
   launch mechanics.
 - `state/`: durable artifact, run, manifest, and inspection/status-document
   state.
-- `config/`: static product config contracts for `pipeline.json` and
+- `config/`: static product config models for `pipeline.json` and
   `catalog.json`.
 - `sources/`: GFS/ICON acquisition and readiness logic.
 - `processing/`: transform code that runs inside frame workers.

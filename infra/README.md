@@ -1,18 +1,17 @@
 # Weather Map Infrastructure
 
-This directory contains infrastructure owned by the weather-map project.
+Project-specific infrastructure for Weather Map.
 
 ## Layout
 
 - `weather-etl`: production weather ETL stack for GFS and ICON.
 - `site`: static site and CloudFront infrastructure for
   `weather.zmbm.dev`.
-- `../config/pipeline.json`: production ETL runtime config uploaded by
-  the weather-etl stack.
-- `../scripts`: production build, upload, fetch, and manual ETL job helpers.
+- `../config/`: production ETL/catalog config uploaded by the weather-etl stack.
+- `../scripts`: build, upload, fetch, and manual ETL helpers.
 
 Shared account foundations such as DNS, certificates, network, and reusable
-Terraform modules stay in the sibling shared infra repo.
+Terraform modules live in the sibling shared infra repo.
 
 ## Weather ETL
 
@@ -28,7 +27,7 @@ Preview without applying:
 scripts/etl-deploy.sh --plan-only
 ```
 
-Upload static PMTiles assets from `artifacts/pmtiles/` as part of the ETL deploy:
+Upload static PMTiles assets from `artifacts/pmtiles/`:
 
 ```bash
 scripts/etl-deploy.sh --upload-static
@@ -41,14 +40,8 @@ scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id gfs
 scripts/etl-run-aws.sh --cycle YYYYMMDDHH --dataset-id icon
 ```
 
-Manual submits use the Terraform-deployed pipeline config and catalog
-to create a run-scoped snapshot before Batch workers start. The scheduled
-publisher validates complete runs and publishes only runs with a passing
-`validation.json`. Publishing writes immutable public run manifests, updates
-full-manifest `current.json`/`latest.json` aliases, and refreshes
-`manifests/index.json` when the latest published cycle changes. The scheduled
-publisher also refreshes root `status.json`, which is the backend/API health
-contract.
+Manual submits snapshot the Terraform-deployed pipeline/catalog config before
+Batch workers start. The scheduled publisher validates complete runs, publishes
+manifests, refreshes `manifests/index.json`, and updates root `status.json`.
 
-See [weather-etl/README.md](weather-etl/README.md) for the
-GFS/ICON production architecture and operational details.
+See [weather-etl/README.md](weather-etl/README.md) for production ETL details.

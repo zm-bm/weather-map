@@ -16,12 +16,6 @@ const PREFETCH_BYTE_BUDGET_BYTES = 32 * 1024 * 1024
 const PREFETCH_MIN_AHEAD_FRAME_COUNT = 2
 const PREFETCH_MAX_AHEAD_FRAME_COUNT = 8
 
-type PrefetchRequest = {
-  key: string
-  plan: ForecastSyncPlan
-  aheadFrameCount: number
-}
-
 export type UseForecastSyncArgs = {
   renderHost: ForecastRenderHost | null
   config: WeatherMapConfig
@@ -69,7 +63,13 @@ export function useForecastSync({
   ])
 
   const syncSession = useMemo(() => createForecastSyncSession(), [])
-  const prefetchRequest = useStablePrefetchRequest(plan, syncOptions)
+  const prefetchPlanRef = useRef<ForecastSyncPlan | null>(null)
+  const prefetchKey = useMemo(() => (
+    plan == null ? null : prefetchRequestKey(plan, syncOptions)
+  ), [plan, syncOptions])
+  const prefetchAheadFrameCount = useMemo(() => (
+    plan == null ? null : resolvePrefetchAheadFrameCount(plan)
+  ), [plan])
 
   useRequestRunner({
     renderHost,
@@ -83,14 +83,21 @@ export function useForecastSync({
   })
 
   useEffect(() => {
-    if (initialSync.isBlocked || prefetchRequest == null) return
+    prefetchPlanRef.current = plan
+  }, [plan])
+
+  useEffect(() => {
+    if (initialSync.isBlocked || prefetchKey == null || prefetchAheadFrameCount == null) return
+
+    const prefetchPlan = prefetchPlanRef.current
+    if (prefetchPlan == null) return
 
     const controller = new AbortController()
     void syncSession.prefetch({
-      plan: prefetchRequest.plan,
+      plan: prefetchPlan,
       config,
       signal: controller.signal,
-      aheadFrameCount: prefetchRequest.aheadFrameCount,
+      aheadFrameCount: prefetchAheadFrameCount,
       concurrency: PREFETCH_CONCURRENCY,
     }).catch(() => {
       // Prefetch is opportunistic; rendering sync owns user-visible errors.
@@ -103,37 +110,13 @@ export function useForecastSync({
     config,
     initialSync.isBlocked,
     syncSession,
-    prefetchRequest,
+    prefetchKey,
+    prefetchAheadFrameCount,
   ])
 
   return {
     initialStatus: initialSync.status,
   }
-}
-
-function useStablePrefetchRequest(
-  plan: ForecastSyncPlan | null,
-  syncOptions: ForecastSyncOptions
-): PrefetchRequest | null {
-  const previousRequestRef = useRef<PrefetchRequest | null>(null)
-
-  return useMemo(() => {
-    if (plan == null) {
-      previousRequestRef.current = null
-      return null
-    }
-
-    const key = prefetchRequestKey(plan, syncOptions)
-    const aheadFrameCount = resolvePrefetchAheadFrameCount(plan)
-    const previous = previousRequestRef.current
-    if (previous?.key === key && previous.aheadFrameCount === aheadFrameCount) {
-      return previous
-    }
-
-    const nextRequest = { key, plan, aheadFrameCount }
-    previousRequestRef.current = nextRequest
-    return nextRequest
-  }, [plan, syncOptions])
 }
 
 export function resolvePrefetchAheadFrameCount(plan: ForecastSyncPlan): number {
