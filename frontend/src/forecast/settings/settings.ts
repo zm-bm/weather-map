@@ -42,7 +42,7 @@ export type RasterRenderSettings = {
 
 export const DEFAULT_RASTER_RENDER_SETTINGS: Readonly<RasterRenderSettings> = {
   gridSamplingMode: 'smooth',
-  colorSamplingMode: 'gradient',
+  colorSamplingMode: 'banded',
   opacity: 1.0,
 }
 
