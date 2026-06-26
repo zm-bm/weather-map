@@ -11,6 +11,12 @@ from tests.fixtures.artifacts import DEFAULT_RUN_ID
 from weather_etl.adapters.cli import parser as cli
 
 
+def test_console_script_entrypoint_imports_main() -> None:
+    from weather_etl.adapters.cli import main
+
+    assert main is cli.main
+
+
 def test_package_module_entrypoint_runs_cli() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "weather_etl", "--help"],
