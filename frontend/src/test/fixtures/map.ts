@@ -8,8 +8,10 @@ type ControllableMapFixture = MapLibreMap & {
   addSource: ReturnType<typeof vi.fn>
   flyTo: ReturnType<typeof vi.fn>
   getLayer: ReturnType<typeof vi.fn>
+  getBearing: ReturnType<typeof vi.fn>
   getMaxZoom: ReturnType<typeof vi.fn>
   getMinZoom: ReturnType<typeof vi.fn>
+  getPitch: ReturnType<typeof vi.fn>
   getSource: ReturnType<typeof vi.fn>
   getZoom: ReturnType<typeof vi.fn>
   hasControl: ReturnType<typeof vi.fn>
@@ -21,13 +23,22 @@ type ControllableMapFixture = MapLibreMap & {
   removeControl: ReturnType<typeof vi.fn>
   removeLayer: ReturnType<typeof vi.fn>
   removeSource: ReturnType<typeof vi.fn>
+  resetNorth: ReturnType<typeof vi.fn>
+  resetNorthPitch: ReturnType<typeof vi.fn>
+  setBearing: ReturnType<typeof vi.fn>
+  setPitch: ReturnType<typeof vi.fn>
   zoomIn: ReturnType<typeof vi.fn>
   zoomOut: ReturnType<typeof vi.fn>
 }
 
-export function createMapFixture(): ControllableMapFixture {
+export function createMapFixture(args: {
+  bearing?: number
+  pitch?: number
+} = {}): ControllableMapFixture {
   const controls = new Set<IControl>()
   let zoom = 3
+  let bearing = args.bearing ?? 0
+  let pitch = args.pitch ?? 0
   const minZoom = 2
   const maxZoom = 6.99
   const listeners = new Map<string, Set<() => void>>()
@@ -71,8 +82,10 @@ export function createMapFixture(): ControllableMapFixture {
     getLayer: vi.fn((layerId: string) => (
       layers.has(layerId) ? { id: layerId } : undefined
     )),
+    getBearing: vi.fn(() => bearing),
     getMaxZoom: vi.fn(() => maxZoom),
     getMinZoom: vi.fn(() => minZoom),
+    getPitch: vi.fn(() => pitch),
     getSource: vi.fn((sourceId: string) => sources.get(sourceId)),
     getZoom: vi.fn(() => zoom),
     hasControl: vi.fn((control: IControl) => controls.has(control)),
@@ -114,6 +127,41 @@ export function createMapFixture(): ControllableMapFixture {
     }),
     removeSource: vi.fn((sourceId: string) => {
       sources.delete(sourceId)
+      return undefined
+    }),
+    resetNorth: vi.fn(() => {
+      bearing = 0
+      emit('rotate')
+      emit('rotateend')
+      emit('moveend')
+      return undefined
+    }),
+    resetNorthPitch: vi.fn(() => {
+      bearing = 0
+      pitch = 0
+      emit('rotate')
+      emit('rotateend')
+      emit('pitch')
+      emit('pitchend')
+      emit('moveend')
+      return undefined
+    }),
+    setBearing: vi.fn((nextBearing: number) => {
+      if (Number.isFinite(nextBearing)) {
+        bearing = nextBearing
+        emit('rotate')
+        emit('rotateend')
+        emit('moveend')
+      }
+      return undefined
+    }),
+    setPitch: vi.fn((nextPitch: number) => {
+      if (Number.isFinite(nextPitch)) {
+        pitch = nextPitch
+        emit('pitch')
+        emit('pitchend')
+        emit('moveend')
+      }
       return undefined
     }),
     zoomIn: vi.fn(() => {

@@ -267,6 +267,11 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M8.5 13h12a1.5 1.5 0 0 1 0 3h-12a1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E");
 }
 
+.map-control-icon--compass {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M14.5 4.8a9.7 9.7 0 1 1 0 19.4 9.7 9.7 0 0 1 0-19.4Zm0 2.5a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4Zm.63 2.18 3.2 8.72a.76.76 0 0 1-1 .96l-2.83-1.2-2.83 1.2a.76.76 0 0 1-1-.96l3.2-8.72a.67.67 0 0 1 1.26 0Z'/%3E%3C/svg%3E");
+  transition: transform 100ms ease;
+}
+
 .map-control-icon--search {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23fff4d1' d='M13.2 6.2a7 7 0 0 1 5.54 11.27l3.74 3.74a1.35 1.35 0 0 1-1.9 1.91l-3.75-3.74A7 7 0 1 1 13.2 6.2Zm0 2.7a4.3 4.3 0 1 0 0 8.6 4.3 4.3 0 0 0 0-8.6Z'/%3E%3C/svg%3E");
 }

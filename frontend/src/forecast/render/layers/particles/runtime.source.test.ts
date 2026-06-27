@@ -76,4 +76,14 @@ describe('particle runtime source', () => {
     expect(PARTICLE_PASS_SOURCE).not.toContain(['u_dot_min_px: options', 'dotMinPx'].join('.'))
     expect(PARTICLE_PASS_SOURCE).not.toContain(['u_dot_max_px: options', 'dotMaxPx'].join('.'))
   })
+
+  it('passes MapLibre projection uniforms to particle drawing', () => {
+    expect(RUNTIME_SOURCE).toContain('matrix: input.modelViewProjectionMatrix')
+    expect(RUNTIME_SOURCE).toContain('worldSize: worldSizeAtZoom(state.map.getZoom())')
+    expect(PASSES_INDEX_SOURCE).toContain('type ParticleProjectionUniforms')
+    expect(TRAIL_PASS_SOURCE).toContain('drawParticleGeometryPass(state, options, projection)')
+    expect(PARTICLE_PASS_SOURCE).toContain('u_matrix: projection.matrix')
+    expect(PARTICLE_PASS_SOURCE).toContain('u_world_size: projection.worldSize')
+    expect(PARTICLE_PASS_SOURCE).not.toContain('u_mercator_bounds')
+  })
 })

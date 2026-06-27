@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
 import type { ProgramInfo } from '../../../gpu'
 import type { ViewportState } from '../geo'
@@ -18,6 +18,11 @@ export type ParticlePassState = {
   particleCount: number
   pendingForcedRespawnFrac: number
   trailTargets: ParticleTrailTargets
+}
+
+export type ParticleProjectionUniforms = {
+  matrix: CustomRenderMethodInput['modelViewProjectionMatrix']
+  worldSize: number
 }
 
 export { runUpdatePass } from './update'

@@ -44,6 +44,7 @@ import {
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
 } from './shaders'
 import { clamp } from '@/core/math'
+import { worldSizeAtZoom } from '@/core/geo'
 
 type ParticleState = ParticlePassState & {
   enabled: boolean
@@ -153,7 +154,7 @@ export function createParticlesRuntime(
       map.triggerRepaint()
     },
 
-    render(gl) {
+    render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
       if (!gl2) {
         return
@@ -187,12 +188,17 @@ export function createParticlesRuntime(
         clearTrailTextures(gl2, state.trailTargets)
       }
 
+      const projection = {
+        matrix: input.modelViewProjectionMatrix,
+        worldSize: worldSizeAtZoom(state.map.getZoom()),
+      }
+
       runUpdatePass(state, dtSec, now, settings)
-      const trailTexture = runTrailPass(state, settings)
+      const trailTexture = runTrailPass(state, settings, projection)
       if (trailTexture) {
         compositeTrailToMap(state, trailTexture, settings)
       } else {
-        runParticlePass(state, settings)
+        runParticlePass(state, settings, projection)
       }
 
       state.map.triggerRepaint()

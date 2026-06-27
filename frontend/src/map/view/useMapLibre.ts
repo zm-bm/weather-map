@@ -66,7 +66,7 @@ export function useMapLibre({
         zoom: stored?.zoom ?? zoom,
         minZoom,
         maxZoom,
-        dragRotate: false,
+        dragRotate: true,
         attributionControl: false,
         fadeDuration: 0,
         localIdeographFontFamily: 'sans-serif',

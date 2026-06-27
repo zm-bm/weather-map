@@ -2,8 +2,6 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import {
   clampWebMercatorLat,
-  latToMercatorY,
-  lonToMercatorX,
 } from '@/core/geo'
 import { clamp, roughlyEqual } from '@/core/math'
 
@@ -12,11 +10,6 @@ export type ViewportState = {
   east: number
   south: number
   north: number
-  // Cached mercator bounds for lon/lat -> clip-space conversion.
-  mercatorWestX: number
-  mercatorEastX: number
-  mercatorNorthY: number
-  mercatorSouthY: number
 }
 
 export type ViewportBounds = Pick<ViewportState, 'west' | 'east' | 'south' | 'north'>
@@ -41,20 +34,11 @@ export function computeViewportState(map: MapLibreMap): ViewportState {
   // Unwrap antimeridian crossings into a continuous east-west span.
   if (east < west) east += 360
 
-  const mercatorWestX = lonToMercatorX(west)
-  const mercatorEastX = lonToMercatorX(east)
-  const mercatorNorthY = latToMercatorY(north)
-  const mercatorSouthY = latToMercatorY(south)
-
   return {
     west,
     east,
     south,
     north,
-    mercatorWestX,
-    mercatorEastX,
-    mercatorNorthY,
-    mercatorSouthY,
   }
 }
 

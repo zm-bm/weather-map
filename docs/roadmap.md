@@ -34,24 +34,7 @@ Tasks:
 Good enough when: a real ingest/publish failure is visible without watching AWS
 dashboards manually.
 
-### 3. Fix Particles for Rotated Viewports
-
-Wind particles currently assume an unrotated map viewport, so drag rotation is
-disabled. Make particle positioning handle map pitch/rotation, then turn
-rotation back on.
-
-Tasks:
-
-- add pitch/rotation to the particle viewport state
-- pass the new viewport values through particle uniforms
-- update `VECTOR_PARTICLE_VERTEX_SHADER_SOURCE` / particle vertex shader logic
-  so particle positions match the rotated viewport
-- re-enable `dragRotation` in the MapLibre map config
-- verify rotated desktop and mobile views with particles enabled
-
-Good enough when: wind particles stay aligned while rotating the map.
-
-### 4. Add Optional Globe View
+### 3. Add Optional Globe View
 
 Mercator is fine, but a globe mode would be a nice way to inspect broad weather
 patterns.
@@ -67,24 +50,25 @@ Tasks:
 Good enough when: globe mode is usable without breaking the default Mercator
 forecast workflow.
 
-### 5. Check Field Payload Strategy
+### 4. Evaluate Geo-Chunked Field Payloads
 
-Only change the artifact format if real payload or cost data says the current
-compression and caching path is not enough.
+The app currently fetches global field payloads even when the map is zoomed
+into a small region. Prototype numeric geo-chunks so regional views can load
+only nearby data.
 
 Tasks:
 
-- measure payload sizes, cache hit behavior, and first-load bottlenecks for
-  representative layers
-- try simple compression/caching improvements before changing artifact layout
-- prototype chunking or predictive encoding only against measured pain points
-- keep the whole-frame path unless the numbers make the extra complexity worth
-  it
+- choose a source-grid or geo-indexed chunk layout for one representative
+  artifact
+- add a small chunk index to the manifest or artifact metadata
+- load only the chunks intersecting the current viewport
+- prefer numeric field chunks over rendered XYZ image tiles; the frontend still
+  needs real values for particles, probes, palettes, and transforms
 
-Good enough when: there is clear evidence for keeping the current payload path
-or a concrete reason to change it.
+Good enough when: one layer can load and render from geo-chunked numeric
+payloads for a zoomed-in viewport.
 
-### 6. Add Forecast Model Expansion Track
+### 5. Add Forecast Model Expansion Track
 
 Plan support for additional forecast models such as HRRR and ECMWF. Treat this
 as source/model expansion first, not just adding catalog rows.

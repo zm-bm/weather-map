@@ -1,23 +1,28 @@
 import * as twgl from 'twgl.js'
 
 import type { ParticleRenderSettings } from '@/forecast/settings/settings'
-import type { ParticlePassState } from './index'
+import type { ParticlePassState, ParticleProjectionUniforms } from './index'
 
 const MIN_PARTICLE_PIXEL_RATIO = 1
 const MAX_PARTICLE_PIXEL_RATIO = 3
 
-export function runParticlePass(state: ParticlePassState, options: ParticleRenderSettings): void {
+export function runParticlePass(
+  state: ParticlePassState,
+  options: ParticleRenderSettings,
+  projection: ParticleProjectionUniforms,
+): void {
   const { gl } = state
   if (!gl) return
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
-  drawParticleGeometryPass(state, options)
+  drawParticleGeometryPass(state, options, projection)
 }
 
 export function drawParticleGeometryPass(
   state: ParticlePassState,
-  options: ParticleRenderSettings
+  options: ParticleRenderSettings,
+  projection: ParticleProjectionUniforms,
 ): void {
   const {
     gl,
@@ -45,13 +50,8 @@ export function drawParticleGeometryPass(
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
   twgl.setUniforms(particleProgramInfo, {
     u_bounds_west: viewport.west,
-    u_bounds_east: viewport.east,
-    u_mercator_bounds: [
-      viewport.mercatorWestX,
-      viewport.mercatorEastX,
-      viewport.mercatorNorthY,
-      viewport.mercatorSouthY,
-    ],
+    u_matrix: projection.matrix,
+    u_world_size: projection.worldSize,
     u_dot_min_px: dotMinPx,
     u_dot_max_px: dotMaxPx,
     u_speed_ramp_gamma: options.speedRampGamma,

@@ -4,8 +4,8 @@ precision highp float;
 layout(location = 0) in vec4 a_state; // lon, lat, age, speed_mps
 
 uniform float u_bounds_west;
-uniform float u_bounds_east;
-uniform vec4 u_mercator_bounds; // west_x, east_x, north_y, south_y
+uniform mat4 u_matrix;
+uniform float u_world_size;
 uniform float u_dot_min_px;
 uniform float u_dot_max_px;
 uniform float u_speed_ramp_gamma;
@@ -30,16 +30,6 @@ float mercator_y(float lat) {
   float clamped_lat = clamp(lat, -85.05112878, 85.05112878);
   float s = sin(radians(clamped_lat));
   return 0.5 - 0.25 * log((1.0 + s) / (1.0 - s)) / 3.141592653589793;
-}
-
-// Convert lon/lat to the local map viewport's clip-space.
-vec2 to_screen(float lon, float lat) {
-  float x = mercator_x(lon);
-  float y = mercator_y(lat);
-
-  float nx = (x - u_mercator_bounds.x) / max(1e-6, (u_mercator_bounds.y - u_mercator_bounds.x));
-  float ny = (y - u_mercator_bounds.z) / max(1e-6, (u_mercator_bounds.w - u_mercator_bounds.z));
-  return vec2(nx * 2.0 - 1.0, 1.0 - ny * 2.0);
 }
 
 float age_fade_window(float life_t, float width, bool entering) {
@@ -78,8 +68,8 @@ void main() {
   v_life_alpha = particle_life_alpha(a_state.z);
   v_stagnation_alpha = particle_stagnation_alpha(speed_mps);
 
-  vec2 screen = to_screen(lon, lat);
+  vec2 world_pos = vec2(mercator_x(lon), mercator_y(lat));
 
-  gl_Position = vec4(screen, 0.0, 1.0);
+  gl_Position = u_matrix * vec4(world_pos * u_world_size, 0.0, 1.0);
   gl_PointSize = max(dot_max + 2.0, 1.0);
 }

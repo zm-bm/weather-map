@@ -102,6 +102,7 @@ const MAP_OPTIONS = {
 }
 
 type MapConstructorOptions = {
+  dragRotate: boolean
   fadeDuration: number
   localIdeographFontFamily: string
   style: StyleSpecification
@@ -138,6 +139,7 @@ describe('useMapLibre', () => {
     const options = latestMapOptions()
     const style = latestStyle()
 
+    expect(options.dragRotate).toBe(true)
     expect(options.fadeDuration).toBe(0)
     expect(options.localIdeographFontFamily).toBe('sans-serif')
     expect(style).not.toBe(baseStyleJson)

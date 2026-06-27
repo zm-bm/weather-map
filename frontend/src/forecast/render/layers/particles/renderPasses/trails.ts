@@ -3,12 +3,13 @@ import * as twgl from 'twgl.js'
 import { clamp } from '@/core/math'
 import type { ParticleRenderSettings } from '@/forecast/settings/settings'
 import { bindTrailFramebuffer } from '../trailTargets'
-import type { ParticlePassState } from './index'
+import type { ParticlePassState, ParticleProjectionUniforms } from './index'
 import { drawParticleGeometryPass } from './particles'
 
 export function runTrailPass(
   state: ParticlePassState,
   options: ParticleRenderSettings,
+  projection: ParticleProjectionUniforms,
 ): WebGLTexture | null {
   const { gl, trailTargets } = state
   const {
@@ -30,7 +31,7 @@ export function runTrailPass(
   gl.disable(gl.DEPTH_TEST)
   gl.disable(gl.BLEND)
   compositeTrailPass(state, srcTexture, options.trailFade, options.trailQuantize)
-  drawParticleGeometryPass(state, options)
+  drawParticleGeometryPass(state, options, projection)
 
   trailTargets.activeTrailSourceIndex = dstIndex
   return dstTexture

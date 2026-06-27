@@ -67,4 +67,14 @@ describe('particle shader source', () => {
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('layout(location = 0) in vec4 a_state')
     expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('a_state.w')
   })
+
+  it('projects particles with the MapLibre custom layer matrix', () => {
+    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('uniform mat4 u_matrix')
+    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('uniform float u_world_size')
+    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain('vec2 world_pos = vec2(mercator_x(lon), mercator_y(lat))')
+    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).toContain(
+      'gl_Position = u_matrix * vec4(world_pos * u_world_size, 0.0, 1.0)'
+    )
+    expect(VECTOR_PARTICLE_VERTEX_SHADER_SOURCE).not.toContain('u_mercator_bounds')
+  })
 })

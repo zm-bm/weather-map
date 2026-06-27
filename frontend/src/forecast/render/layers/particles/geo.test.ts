@@ -22,6 +22,7 @@ describe('particle geo helpers', () => {
     expect(viewport.east).toBe(190)
     expect(viewport.south).toBe(-20)
     expect(viewport.north).toBe(20)
+    expect(Object.keys(viewport).sort()).toEqual(['east', 'north', 'south', 'west'])
   })
 
   it('shifts cell-edge grid origins to cell centers', () => {
