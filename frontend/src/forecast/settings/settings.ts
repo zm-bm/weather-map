@@ -1,8 +1,10 @@
 import type { UnitSystem } from '@/forecast/display/units'
 
+export const MAP_PROJECTION_MODES = ['mercator', 'globe'] as const
 export const RASTER_GRID_SAMPLING_MODES = ['smooth', 'nearest'] as const
 export const RASTER_COLOR_SAMPLING_MODES = ['gradient', 'banded'] as const
 
+export type MapProjectionMode = typeof MAP_PROJECTION_MODES[number]
 export type RasterGridSamplingMode = typeof RASTER_GRID_SAMPLING_MODES[number]
 export type RasterColorSamplingMode = typeof RASTER_COLOR_SAMPLING_MODES[number]
 
@@ -196,7 +198,12 @@ export type UnitSettings = {
   system: UnitSystem
 }
 
+export type ForecastMapSettings = {
+  projection: MapProjectionMode
+}
+
 export type ForecastSettings = {
+  map: ForecastMapSettings
   raster: RasterRenderSettings
   particles: ParticleSettings
   pressureContours: PressureContourSettings
@@ -204,6 +211,7 @@ export type ForecastSettings = {
 }
 
 export type ForecastSettingsActions = {
+  updateMap: (patch: Partial<ForecastMapSettings>) => void
   updateRaster: (patch: Partial<RasterRenderSettings>) => void
   updateParticles: (patch: Partial<ParticleSettings>) => void
   updatePressureContours: (patch: Partial<PressureContourSettings>) => void
@@ -216,6 +224,9 @@ export type ForecastSettingsValue = {
 }
 
 export const DEFAULT_FORECAST_SETTINGS = {
+  map: {
+    projection: 'mercator',
+  },
   raster: {
     ...DEFAULT_RASTER_RENDER_SETTINGS,
   },

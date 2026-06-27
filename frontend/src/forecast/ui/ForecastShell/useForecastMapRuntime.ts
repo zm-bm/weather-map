@@ -28,6 +28,7 @@ export function useForecastMapRuntime({
   onInitialSyncStatusChange,
   onFieldLoadingChange,
 }: UseForecastMapRuntimeArgs = {}) {
+  const { settings } = useForecastSettings()
   const {
     map,
     mapError,
@@ -38,10 +39,10 @@ export function useForecastMapRuntime({
     zoom: 3,
     minZoom: 2,
     maxZoom: 10,
+    projection: settings.map.projection,
   })
   const { selectedLayerId } = useForecastSelectionContext()
   const probeFrameChannel = useMemo(() => createForecastPlaceProbeFrameChannel(), [])
-  const { settings } = useForecastSettings()
   const particlesActive = settings.particles.enabled
   const pressureContoursActive = settings.pressureContours.enabled
 

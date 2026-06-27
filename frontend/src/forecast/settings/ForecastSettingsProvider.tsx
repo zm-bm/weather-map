@@ -10,6 +10,7 @@ import {
   type ForecastSettings,
   type ForecastSettingsActions,
   type ForecastSettingsValue,
+  type ForecastMapSettings,
   type ParticleSettings,
   type PressureContourSettings,
   type RasterRenderSettings,
@@ -26,6 +27,17 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     saveStoredForecastSettings(settings)
   }, [settings])
+
+  const updateMap = useCallback((patch: Partial<ForecastMapSettings>) => {
+    setSettings((current) => {
+      const map = applySettingsPatch(current.map, patch)
+      if (map === current.map) return current
+      return {
+        ...current,
+        map,
+      }
+    })
+  }, [])
 
   const updateRaster = useCallback((patch: Partial<RasterRenderSettings>) => {
     setSettings((current) => {
@@ -70,12 +82,14 @@ export function ForecastSettingsProvider({ children }: { children: ReactNode }) 
   }, [])
 
   const actions = useMemo<ForecastSettingsActions>(() => ({
+    updateMap,
     updateRaster,
     updateParticles,
     updatePressureContours,
     toggleUnitSystem,
   }), [
     toggleUnitSystem,
+    updateMap,
     updateRaster,
     updateParticles,
     updatePressureContours,

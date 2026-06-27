@@ -22,7 +22,7 @@ import {
 } from '../../../encodedGrid'
 import {
   drawWrappedWorldCopies,
-  type ProgramInfo,
+  type ProjectionProgramCache,
   type WrappedWorldQuad,
 } from '../../../gpu'
 
@@ -114,22 +114,22 @@ function precipitationTypeOverlayRasterKey(
 export function drawPrecipitationTypeOverlayEntry(args: {
   gl: WebGL2RenderingContext
   map: MapLibreMap
-  programInfo: ProgramInfo
+  programCache: ProjectionProgramCache
   quad: WrappedWorldQuad
   entry: PrecipitationTypeOverlayRenderEntry
-  matrix: CustomRenderMethodInput['modelViewProjectionMatrix']
+  input: CustomRenderMethodInput
   patternOpacity: number
 }): void {
   const { entry } = args
   drawWrappedWorldCopies({
     gl: args.gl,
-    programInfo: args.programInfo,
+    programCache: args.programCache,
+    input: args.input,
     quad: args.quad,
     centerWrap: worldWrapForLng(args.map.getCenter().lng),
     uniforms: {
       ...encodedFramePairUniforms(entry),
       ...encodedLinearUniforms(entry.lowerFrame.raster.encoding as LinearRasterEncoding),
-      u_matrix: args.matrix,
       u_world_size: worldSizeAtZoom(args.map.getZoom()),
       u_pattern_opacity: args.patternOpacity,
     },

@@ -7,6 +7,7 @@ export {
 export {
   DEFAULT_RASTER_RENDER_SETTINGS,
   DEFAULT_FORECAST_SETTINGS,
+  MAP_PROJECTION_MODES,
   DEFAULT_PARTICLE_RENDER_SETTINGS,
   PARTICLE_COUNT_MAX,
   PARTICLE_COUNT_MIN,
@@ -39,9 +40,11 @@ export {
 } from './settings'
 export type {
   ForecastRenderSettings,
+  ForecastMapSettings,
   ForecastSettings,
   ForecastSettingsActions,
   ForecastSettingsValue,
+  MapProjectionMode,
   ParticleColor,
   ParticleRenderSettings,
   ParticleSizeSettings,

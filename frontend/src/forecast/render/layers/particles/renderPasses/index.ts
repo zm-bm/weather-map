@@ -1,6 +1,10 @@
-import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 
-import type { ProgramInfo } from '../../../gpu'
+import type {
+  ProgramInfo,
+  ProjectionProgramCache,
+  ProjectionUniformValues,
+} from '../../../gpu'
 import type { ViewportState } from '../geo'
 import type { ParticleStateStorage } from '../stateBuffers'
 import type { ParticleTrailTargets } from '../trailTargets'
@@ -12,6 +16,7 @@ export type ParticlePassState = {
   viewport: ViewportState | null
   vectorFramePair: VectorFramePair | null
   particleProgramInfo: ProgramInfo | null
+  particleProgramCache: ProjectionProgramCache | null
   trailProgramInfo: ProgramInfo | null
   particleState: ParticleStateStorage | null
   activeSourceIndex: 0 | 1
@@ -20,10 +25,7 @@ export type ParticlePassState = {
   trailTargets: ParticleTrailTargets
 }
 
-export type ParticleProjectionUniforms = {
-  matrix: CustomRenderMethodInput['modelViewProjectionMatrix']
-  worldSize: number
-}
+export type ParticleProjectionUniforms = ProjectionUniformValues
 
 export { runUpdatePass } from './update'
 export { runParticlePass } from './particles'

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  createCustomRenderInputFixture,
   createMockWebGl2,
   createGridFixture,
   createPressureFrameFixture,
@@ -190,9 +191,7 @@ describe('pressure contour encoded runtime', () => {
         upperFrameId: slice.raster.frameId,
         mix: 0,
       })).toThrow('Contour runtime unavailable')
-      runtime.render(gl as never, {
-        modelViewProjectionMatrix: new Float32Array(16),
-      } as never)
+      runtime.render(gl as never, createCustomRenderInputFixture() as never)
 
       expect(gl.texImage2D).not.toHaveBeenCalledWith(
         gl.TEXTURE_2D,
@@ -232,9 +231,7 @@ describe('pressure contour encoded runtime', () => {
         upperFrameId: slice.raster.frameId,
         mix: 0,
       })
-      runtime.render(gl as never, {
-        modelViewProjectionMatrix: new Float32Array(16),
-      } as never)
+      runtime.render(gl as never, createCustomRenderInputFixture() as never)
 
       expect(warn).toHaveBeenCalledWith(
         '[contour] smoothed pressure framebuffer is incomplete; contours disabled'

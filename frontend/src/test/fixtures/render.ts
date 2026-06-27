@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 import { vi } from 'vitest'
 
 import {
@@ -15,6 +15,7 @@ const GL_FLOAT = 5126
 const GL_INT = 5124
 const GL_FLOAT_VEC2 = 35664
 const GL_FLOAT_VEC3 = 35665
+const GL_FLOAT_VEC4 = 35666
 const GL_FLOAT_MAT4 = 35676
 const GL_SAMPLER_2D = 35678
 const GL_INT_SAMPLER_2D_ARRAY = 36303
@@ -36,6 +37,11 @@ const MOCK_ACTIVE_UNIFORMS = [
   { name: 'u_scale', type: GL_FLOAT },
   { name: 'u_offset', type: GL_FLOAT },
   { name: 'u_matrix', type: GL_FLOAT_MAT4 },
+  { name: 'u_projection_matrix', type: GL_FLOAT_MAT4 },
+  { name: 'u_projection_tile_mercator_coords', type: GL_FLOAT_VEC4 },
+  { name: 'u_projection_clipping_plane', type: GL_FLOAT_VEC4 },
+  { name: 'u_projection_transition', type: GL_FLOAT },
+  { name: 'u_projection_fallback_matrix', type: GL_FLOAT_MAT4 },
   { name: 'u_world_offset_x', type: GL_FLOAT },
   { name: 'u_world_size', type: GL_FLOAT },
   { name: 'u_lon0', type: GL_FLOAT },
@@ -75,6 +81,53 @@ export function createRenderSettingsFixture(
   }
 }
 
+type CustomRenderInputFixtureOverrides =
+  Omit<Partial<CustomRenderMethodInput>, 'defaultProjectionData' | 'shaderData'> & {
+    defaultProjectionData?: Partial<CustomRenderMethodInput['defaultProjectionData']>
+    shaderData?: Partial<CustomRenderMethodInput['shaderData']>
+  }
+
+export function createCustomRenderInputFixture(
+  overrides: CustomRenderInputFixtureOverrides = {}
+): CustomRenderMethodInput {
+  const matrix = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+  ])
+  const defaultProjectionData = {
+    mainMatrix: matrix,
+    tileMercatorCoords: [0, 0, 1, 1] as [number, number, number, number],
+    clippingPlane: [0, 0, 0, 0] as [number, number, number, number],
+    projectionTransition: 0,
+    fallbackMatrix: matrix,
+    ...overrides.defaultProjectionData,
+  }
+  const shaderData = {
+    variantName: 'mercator',
+    vertexShaderPrelude: [
+      'uniform mat4 u_projection_matrix;',
+      'vec4 projectTile(vec2 p) {',
+      '  return u_projection_matrix * vec4(p, 0.0, 1.0);',
+      '}',
+    ].join('\n'),
+    define: '',
+    ...overrides.shaderData,
+  }
+
+  return {
+    farZ: 1000,
+    nearZ: 0.1,
+    fov: 0.8,
+    modelViewProjectionMatrix: matrix,
+    projectionMatrix: matrix,
+    ...overrides,
+    shaderData,
+    defaultProjectionData,
+  } as CustomRenderMethodInput
+}
+
 export function createMockWebGl2() {
   return {
     VERTEX_SHADER: 35633,
@@ -89,6 +142,7 @@ export function createMockWebGl2() {
     STATIC_DRAW: 35044,
     FLOAT: GL_FLOAT,
     FLOAT_VEC2: GL_FLOAT_VEC2,
+    FLOAT_VEC4: GL_FLOAT_VEC4,
     FLOAT_MAT4: GL_FLOAT_MAT4,
     INT: GL_INT,
     SAMPLER_2D: GL_SAMPLER_2D,
@@ -186,6 +240,7 @@ export function createMockWebGl2() {
     uniform1iv: vi.fn(),
     uniform2fv: vi.fn(),
     uniform3fv: vi.fn(),
+    uniform4fv: vi.fn(),
     uniformMatrix4fv: vi.fn(),
     disable: vi.fn(),
     enable: vi.fn(),

@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 
 import { clamp } from '@/core/math'
 import { worldSizeAtZoom, worldWrapForLng } from '@/core/geo'
@@ -16,12 +16,12 @@ import type { MapFrameController } from '@/map/controllers'
 
 import {
   asWebGL2,
-  createProgramInfo,
+  createProjectionProgramCache,
   createWrappedWorldQuad,
   deleteBufferInfo,
   drawWrappedWorldCopies,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
-  type ProgramInfo,
+  type ProjectionProgramCache,
   type WrappedWorldQuad,
 } from '../../gpu'
 import {
@@ -75,8 +75,8 @@ type RasterState = {
   opacity: number
   gridSamplingMode: RasterGridSamplingMode
   colorSamplingMode: RasterColorSamplingMode
-  colormapProgramInfo: ProgramInfo | null
-  cloudLayersProgramInfo: ProgramInfo | null
+  colormapProgramCache: ProjectionProgramCache | null
+  cloudLayersProgramCache: ProjectionProgramCache | null
   quad: WrappedWorldQuad | null
   textureCache: EncodedGridTextureCache
   framePair: EncodedFramePair<RasterFrame> | null
@@ -99,7 +99,7 @@ type RasterRenderPath = {
   render: (
     state: RasterState,
     gl: WebGL2RenderingContext,
-    matrix: unknown
+    input: CustomRenderMethodInput
   ) => void
   clear?: (state: RasterState) => void
 }
@@ -136,8 +136,8 @@ export function createRasterRuntime(
     opacity: initialOpacity,
     gridSamplingMode: settings.gridSamplingMode,
     colorSamplingMode: settings.colorSamplingMode,
-    colormapProgramInfo: null,
-    cloudLayersProgramInfo: null,
+    colormapProgramCache: null,
+    cloudLayersProgramCache: null,
     quad: null,
     textureCache: new EncodedGridTextureCache(),
     framePair: null,
@@ -151,12 +151,12 @@ export function createRasterRuntime(
   const controller: RasterController = {
     isAvailable: () => (
       state.gl != null &&
-      state.colormapProgramInfo != null &&
-      state.cloudLayersProgramInfo != null &&
+      state.colormapProgramCache != null &&
+      state.cloudLayersProgramCache != null &&
       state.quad != null
     ),
     applyFrame: (frame) => {
-      if (!state.gl || !state.colormapProgramInfo || !state.cloudLayersProgramInfo || !state.quad) {
+      if (!state.gl || !state.colormapProgramCache || !state.cloudLayersProgramCache || !state.quad) {
         throw new Error('Raster runtime unavailable')
       }
       const gl = state.gl
@@ -225,13 +225,13 @@ export function createRasterRuntime(
       }
 
       state.gl = gl2
-      state.colormapProgramInfo = createProgramInfo({
+      state.colormapProgramCache = createProjectionProgramCache({
         gl: gl2,
         label: 'raster:colormap',
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
         fragmentSource: COLORMAP_FRAGMENT_SHADER_SOURCE,
       })
-      state.cloudLayersProgramInfo = createProgramInfo({
+      state.cloudLayersProgramCache = createProjectionProgramCache({
         gl: gl2,
         label: 'raster:cloud-layers',
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
@@ -246,7 +246,7 @@ export function createRasterRuntime(
       const { framePair, activeRenderPathId } = state
       if (!framePair || !activeRenderPathId) return
 
-      rasterRenderPathById(activeRenderPathId)?.render(state, gl2, input.modelViewProjectionMatrix)
+      rasterRenderPathById(activeRenderPathId)?.render(state, gl2, input)
     },
 
     onRemove(map) {
@@ -257,8 +257,8 @@ export function createRasterRuntime(
         clearRasterFrame(state)
         state.textureCache.clear(gl)
         if (state.quad) deleteBufferInfo(gl, state.quad)
-        if (state.colormapProgramInfo) gl.deleteProgram(state.colormapProgramInfo.program)
-        if (state.cloudLayersProgramInfo) gl.deleteProgram(state.cloudLayersProgramInfo.program)
+        state.colormapProgramCache?.clear()
+        state.cloudLayersProgramCache?.clear()
       }
 
       state.map = undefined
@@ -266,8 +266,8 @@ export function createRasterRuntime(
       state.enabled = true
       state.framePair = null
       state.activeRenderPathId = null
-      state.colormapProgramInfo = null
-      state.cloudLayersProgramInfo = null
+      state.colormapProgramCache = null
+      state.cloudLayersProgramCache = null
       state.quad = null
     },
   }
@@ -321,10 +321,10 @@ function applyColormapRasterFrame(
 function renderColormapRaster(
   state: RasterState,
   gl: WebGL2RenderingContext,
-  matrix: unknown
+  input: CustomRenderMethodInput
 ): void {
-  const { framePair, colormapRenderSpec, colormapProgramInfo } = state
-  if (!state.map || !framePair || !colormapRenderSpec || !colormapProgramInfo) return
+  const { framePair, colormapRenderSpec, colormapProgramCache } = state
+  if (!state.map || !framePair || !colormapRenderSpec || !colormapProgramCache) return
   if (!isColormapRasterFrame(framePair.lowerFrame)) return
 
   const colormapTexture = paletteSamplingModeForRaster(state.colorSamplingMode) === 'banded'
@@ -334,7 +334,8 @@ function renderColormapRaster(
 
   drawWrappedWorldCopies({
     gl,
-    programInfo: colormapProgramInfo,
+    programCache: colormapProgramCache,
+    input,
     quad: state.quad!,
     centerWrap: worldWrapForLng(state.map.getCenter().lng),
     uniforms: {
@@ -344,7 +345,6 @@ function renderColormapRaster(
       u_source_mode: colormapRenderSpec.mode,
       u_source_sampling_mode: rasterSourceSamplingModeUniform(state.gridSamplingMode),
       ...encodedLinearUniforms(colormapRenderSpec),
-      u_matrix: matrix,
       u_opacity: state.opacity,
       u_world_size: worldSizeAtZoom(state.map.getZoom()),
     },
@@ -358,10 +358,10 @@ function displayRangeUniform(displayRange: RasterFrame['source']['display']['ran
 function renderCloudLayersRaster(
   state: RasterState,
   gl: WebGL2RenderingContext,
-  matrix: unknown
+  input: CustomRenderMethodInput
 ): void {
-  const { framePair, cloudLayersProgramInfo } = state
-  if (!state.map || !framePair || !cloudLayersProgramInfo) return
+  const { framePair, cloudLayersProgramCache } = state
+  if (!state.map || !framePair || !cloudLayersProgramCache) return
 
   const zoom = state.map.getZoom()
   const worldSize = worldSizeAtZoom(zoom)
@@ -369,12 +369,12 @@ function renderCloudLayersRaster(
 
   drawWrappedWorldCopies({
     gl,
-    programInfo: cloudLayersProgramInfo,
+    programCache: cloudLayersProgramCache,
+    input,
     quad: state.quad!,
     centerWrap: worldWrapForLng(state.map.getCenter().lng),
     uniforms: {
       ...encodedFramePairUniforms(framePair),
-      u_matrix: matrix,
       u_scale: encoding.scale,
       u_offset: encoding.offset,
       u_opacity: state.opacity,

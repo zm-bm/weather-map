@@ -4,8 +4,6 @@ precision highp float;
 layout(location = 0) in vec4 a_state; // lon, lat, age, speed_mps
 
 uniform float u_bounds_west;
-uniform mat4 u_matrix;
-uniform float u_world_size;
 uniform float u_dot_min_px;
 uniform float u_dot_max_px;
 uniform float u_speed_ramp_gamma;
@@ -70,6 +68,6 @@ void main() {
 
   vec2 world_pos = vec2(mercator_x(lon), mercator_y(lat));
 
-  gl_Position = u_matrix * vec4(world_pos * u_world_size, 0.0, 1.0);
+  gl_Position = projectTile(world_pos);
   gl_PointSize = max(dot_max + 2.0, 1.0);
 }

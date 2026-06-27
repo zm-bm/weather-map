@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createOverlayFrameFixture,
   createOverlayWindowFixture,
+  createCustomRenderInputFixture,
   createMockWebGl2,
 } from '@/test/fixtures'
 import { createRenderControllerRegistry } from '../../maplibre/layerAdapter'
@@ -162,9 +163,7 @@ describe('overlay runtime helpers', () => {
     const controller = controllers.get(map as never)
     controller?.applyFrame(frame)
     controller?.applyFrame(frame)
-    runtime.render(gl as never, {
-      modelViewProjectionMatrix: new Float32Array(16),
-    } as never)
+    runtime.render(gl as never, createCustomRenderInputFixture() as never)
 
     expect(gl.texImage3D).toHaveBeenCalledTimes(1)
     expect(gl.texImage3D).toHaveBeenCalledWith(
@@ -196,7 +195,7 @@ describe('overlay runtime helpers', () => {
       on: vi.fn(),
       off: vi.fn(),
     }
-    const renderInput = { modelViewProjectionMatrix: new Float32Array(16) }
+    const renderInput = createCustomRenderInputFixture()
 
     runtime.onAdd(map as never, gl as never)
     const controller = controllers.get(map as never)

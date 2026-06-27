@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   let styleLoaded = false
   const listeners = new globalThis.Map<string, Set<(event?: unknown) => void>>()
   const controls = new Set<unknown>()
+  let projectionType: 'mercator' | 'globe' = 'mercator'
   const map = {
     on: vi.fn((event: string, handler: (event?: unknown) => void) => {
       const handlers = listeners.get(event) ?? new Set<(event?: unknown) => void>()
@@ -25,6 +26,10 @@ const mocks = vi.hoisted(() => {
       controls.delete(control)
     }),
     hasControl: vi.fn((control: unknown) => controls.has(control)),
+    getProjection: vi.fn(() => ({ type: projectionType })),
+    setProjection: vi.fn((projection: { type: 'mercator' | 'globe' }) => {
+      projectionType = projection.type
+    }),
     remove: vi.fn(),
   }
   const AttributionControl = vi.fn(function MockAttributionControl(this: { options: unknown }, options: unknown) {
@@ -49,6 +54,7 @@ const mocks = vi.hoisted(() => {
     },
     reset: () => {
       styleLoaded = false
+      projectionType = 'mercator'
       listeners.clear()
       controls.clear()
       map.on.mockClear()
@@ -57,6 +63,8 @@ const mocks = vi.hoisted(() => {
       map.addControl.mockClear()
       map.removeControl.mockClear()
       map.hasControl.mockClear()
+      map.getProjection.mockClear()
+      map.setProjection.mockClear()
       map.remove.mockClear()
       AttributionControl.mockClear()
     },
@@ -108,8 +116,13 @@ type MapConstructorOptions = {
   style: StyleSpecification
 }
 
-function renderMapLibre(hook = useMapLibre) {
-  return renderHook(() => hook(MAP_OPTIONS))
+function renderMapLibre(
+  hook = useMapLibre,
+  options: Parameters<typeof useMapLibre>[0] = MAP_OPTIONS
+) {
+  return renderHook((args: Parameters<typeof useMapLibre>[0]) => hook(args), {
+    initialProps: options,
+  })
 }
 
 function latestMapOptions(): MapConstructorOptions {
@@ -143,6 +156,7 @@ describe('useMapLibre', () => {
     expect(options.fadeDuration).toBe(0)
     expect(options.localIdeographFontFamily).toBe('sans-serif')
     expect(style).not.toBe(baseStyleJson)
+    expect(style.projection).toEqual({ type: 'mercator' })
     expect(style.glyphs).toBeUndefined()
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
@@ -176,6 +190,30 @@ describe('useMapLibre', () => {
 
     expect(style.sources?.[BASEMAP_SOURCE_ID]).toBeUndefined()
     expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
+  })
+
+  it('initializes the style with a requested globe projection', () => {
+    renderMapLibre(useMapLibre, {
+      ...MAP_OPTIONS,
+      projection: 'globe',
+    })
+
+    expect(latestStyle().projection).toEqual({ type: 'globe' })
+  })
+
+  it('switches projection on the existing map when the option changes', () => {
+    const { rerender } = renderMapLibre()
+
+    act(() => {
+      mocks.emit('style.load')
+    })
+
+    rerender({
+      ...MAP_OPTIONS,
+      projection: 'globe',
+    })
+
+    expect(mocks.mapFixture().setProjection).toHaveBeenCalledWith({ type: 'globe' })
   })
 
   it('exposes the map after style load', () => {

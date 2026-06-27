@@ -129,6 +129,7 @@ describe('useForecastMapRuntime', () => {
       zoom: 3,
       minZoom: 2,
       maxZoom: 10,
+      projection: 'mercator',
     })
     expect(mocks.useForecastRenderHost).toHaveBeenCalledWith({
       map: mapRuntime.map,
@@ -259,6 +260,20 @@ describe('useForecastMapRuntime', () => {
           colorSamplingMode: 'banded',
         }),
       }),
+    }))
+  })
+
+  it('passes the stored map projection to MapLibre', () => {
+    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+      map: {
+        projection: 'globe',
+      },
+    }))
+
+    renderRuntime()
+
+    expect(mocks.useMapLibre).toHaveBeenCalledWith(expect.objectContaining({
+      projection: 'globe',
     }))
   })
 

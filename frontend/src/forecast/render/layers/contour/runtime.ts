@@ -12,12 +12,12 @@ import {
 } from '../../encodedGrid'
 import {
   asWebGL2,
-  createProgramInfo,
+  createProjectionProgramCache,
   createWrappedWorldQuad,
   deleteBufferInfo,
   drawWrappedWorldCopies,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
-  type ProgramInfo,
+  type ProjectionProgramCache,
   type WrappedWorldQuad,
 } from '../../gpu'
 import type { RenderControllerLifecycle } from '../../maplibre/layerAdapter'
@@ -46,7 +46,7 @@ type ContourState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   enabled: boolean
-  programInfo: ProgramInfo | null
+  programCache: ProjectionProgramCache | null
   prefilter: PressurePrefilter | null
   quad: WrappedWorldQuad | null
   rawTextureCache: EncodedGridTextureCache
@@ -60,7 +60,7 @@ export function createContourRuntime(
 ): CustomLayerRuntime {
   const state: ContourState = {
     enabled: true,
-    programInfo: null,
+    programCache: null,
     prefilter: null,
     quad: null,
     rawTextureCache: new EncodedGridTextureCache(),
@@ -93,7 +93,7 @@ export function createContourRuntime(
       }
 
       state.gl = gl2
-      state.programInfo = createProgramInfo({
+      state.programCache = createProjectionProgramCache({
         gl: gl2,
         label: 'contour',
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
@@ -102,7 +102,7 @@ export function createContourRuntime(
       state.quad = createWrappedWorldQuad(gl2)
       state.prefilter = createPressurePrefilter(gl2)
 
-      if (!state.programInfo || !state.quad) {
+      if (!state.programCache || !state.quad) {
         return
       }
     },
@@ -114,13 +114,13 @@ export function createContourRuntime(
       if (!state.enabled || !rawFramePair || !renderSpec) return
 
       const { smoothedFramePair } = state
-      const programInfo = state.programInfo
       if (!smoothedFramePair) return
-      if (!programInfo) return
+      if (!state.programCache) return
 
       drawWrappedWorldCopies({
         gl: gl2,
-        programInfo,
+        programCache: state.programCache,
+        input,
         quad: state.quad,
         centerWrap: worldWrapForLng(state.map.getCenter().lng),
         uniforms: {
@@ -128,7 +128,6 @@ export function createContourRuntime(
           u_pressure_tex_upper: smoothedFramePair.upperTexture,
           ...encodedGridUniforms(rawFramePair.lowerFrame.raster.grid),
           u_time_mix: smoothedFramePair.timeMix,
-          u_matrix: input.modelViewProjectionMatrix,
           u_world_size: worldSizeAtZoom(state.map.getZoom()),
         },
       })
@@ -143,7 +142,7 @@ export function createContourRuntime(
         state.rawTextureCache.clear(gl)
         if (state.prefilter) disposePressurePrefilter(gl, state.prefilter)
         if (state.quad) deleteBufferInfo(gl, state.quad)
-        if (state.programInfo) gl.deleteProgram(state.programInfo.program)
+        state.programCache?.clear()
       }
 
       state.map = undefined
@@ -152,7 +151,7 @@ export function createContourRuntime(
       state.rawFramePair = null
       state.smoothedFramePair = null
       state.renderSpec = null
-      state.programInfo = null
+      state.programCache = null
       state.prefilter = null
       state.quad = null
     },
@@ -205,7 +204,7 @@ function clearPressureFrameState(state: ContourState): void {
 
 function isContourAvailable(state: ContourState): boolean {
   return state.gl != null &&
-    state.programInfo != null &&
+    state.programCache != null &&
     state.quad != null &&
     state.prefilter?.available === true
 }

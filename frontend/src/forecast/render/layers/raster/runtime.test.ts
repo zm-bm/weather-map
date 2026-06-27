@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ForecastFrameMap } from '@/forecast/frames'
 import {
   createMockWebGl2,
+  createCustomRenderInputFixture,
   createGridFixture,
   createScalarEncodingFixture,
   createVectorEncodingFixture,
@@ -11,7 +12,9 @@ import {
   createCloudLayersRasterFrameFixture,
 } from '@/test/fixtures'
 import {
+  createWrappedWorldQuad,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
+  WRAPPED_WORLD_MESH_VERTEX_COUNT,
   WORLD_WRAP_COPY_OFFSETS,
 } from '../../gpu'
 import {
@@ -35,8 +38,19 @@ function createMapFixture() {
 
 describe('raster runtime encoded sources', () => {
   it('uses shared wrapped-world render primitives', () => {
+    const gl = createMockWebGl2()
+    createWrappedWorldQuad(gl as never)
+
+    expect(gl.bufferData).toHaveBeenCalledWith(
+      gl.ARRAY_BUFFER,
+      expect.objectContaining({ length: WRAPPED_WORLD_MESH_VERTEX_COUNT * 2 }),
+      gl.STATIC_DRAW,
+    )
     expect(WRAPPED_WORLD_VERTEX_SHADER_SOURCE).toContain('uniform float u_world_offset_x')
     expect(WRAPPED_WORLD_VERTEX_SHADER_SOURCE).toContain('out vec2 v_mercator')
+    expect(WRAPPED_WORLD_VERTEX_SHADER_SOURCE).toContain('projectTile(worldPos)')
+    expect(WRAPPED_WORLD_VERTEX_SHADER_SOURCE).not.toContain('u_matrix')
+    expect(WRAPPED_WORLD_VERTEX_SHADER_SOURCE).not.toContain('u_world_size')
     expect(WORLD_WRAP_COPY_OFFSETS).toEqual([-2, -1, 0, 1, 2])
   })
 
@@ -81,9 +95,7 @@ describe('raster runtime encoded sources', () => {
       upperFrameId: '000',
       mix: 0,
     })
-    runtime.render(gl as never, {
-      modelViewProjectionMatrix: new Float32Array(16),
-    } as never)
+    runtime.render(gl as never, createCustomRenderInputFixture() as never)
 
     expect(gl.texImage3D).toHaveBeenCalledWith(
       gl.TEXTURE_2D_ARRAY,
@@ -113,7 +125,24 @@ describe('raster runtime encoded sources', () => {
     expect(gl.uniform1i).toHaveBeenCalledWith('u_source_sampling_mode', 0)
     expect(gl.uniform1i).toHaveBeenCalledWith('u_x_wrap', ENCODED_GRID_X_WRAP_NONE)
     expect(gl.uniform1i).toHaveBeenCalledWith('u_y_mode', ENCODED_GRID_Y_MODE_NONE)
+    expect(gl.uniformMatrix4fv).toHaveBeenCalledWith(
+      'u_projection_matrix',
+      false,
+      expect.any(Float32Array),
+    )
+    expect(gl.uniform1f).toHaveBeenCalledWith('u_projection_transition', 0)
+    expect(gl.shaderSource).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('vec4 projectTile(vec2 p)'),
+    )
     expect(gl.drawArrays).toHaveBeenCalledTimes(WORLD_WRAP_COPY_OFFSETS.length)
+
+    gl.drawArrays.mockClear()
+    runtime.render(gl as never, createCustomRenderInputFixture({
+      shaderData: { variantName: 'globe' },
+      defaultProjectionData: { projectionTransition: 1 },
+    }) as never)
+    expect(gl.drawArrays).toHaveBeenCalledTimes(1)
 
     runtime.onRemove(map as never, gl as never)
   })
@@ -239,9 +268,7 @@ describe('raster runtime encoded sources', () => {
       upperFrameId: '000',
       mix: 0,
     })
-    runtime.render(gl as never, {
-      modelViewProjectionMatrix: new Float32Array(16),
-    } as never)
+    runtime.render(gl as never, createCustomRenderInputFixture() as never)
 
     expect(CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE).toContain('uniform isampler2DArray u_encoded_tex_lower')
     expect(CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE).toContain('uniform int u_source_sampling_mode')
@@ -290,9 +317,7 @@ describe('raster runtime encoded sources', () => {
       upperFrameId: scalarFrame.raster.frameId,
       mix: 0,
     })
-    runtime.render(gl as never, {
-      modelViewProjectionMatrix: new Float32Array(16),
-    } as never)
+    runtime.render(gl as never, createCustomRenderInputFixture() as never)
     expect(gl.uniform1i).toHaveBeenCalledWith('u_source_sampling_mode', 1)
 
     gl.uniform1i.mockClear()
@@ -304,9 +329,7 @@ describe('raster runtime encoded sources', () => {
       upperFrameId: cloudFrame.raster.frameId,
       mix: 0,
     })
-    runtime.render(gl as never, {
-      modelViewProjectionMatrix: new Float32Array(16),
-    } as never)
+    runtime.render(gl as never, createCustomRenderInputFixture() as never)
     expect(gl.uniform1i).toHaveBeenCalledWith('u_source_sampling_mode', 1)
 
     runtime.onRemove(map as never, gl as never)

@@ -4,6 +4,8 @@ import type { WeatherMapConfig } from '@/core/config'
 import { BASEMAP_SOURCE_ID } from '../basemap'
 import styleJson from './style.json'
 
+export type MapProjection = 'mercator' | 'globe'
+
 export type BasemapPaintValue = string | number | boolean | readonly unknown[]
 
 export type BasemapPaintKey = {
@@ -24,8 +26,12 @@ export function cloneStyleValue<T>(value: T): T {
     : JSON.parse(JSON.stringify(value)) as T
 }
 
-export function buildMapStyle(config: WeatherMapConfig): StyleSpecification {
+export function buildMapStyle(
+  config: WeatherMapConfig,
+  projection: MapProjection = 'mercator'
+): StyleSpecification {
   const style = cloneStyleValue(styleJson as unknown as StyleSpecification)
+  style.projection = { type: projection }
 
   if (!config.basemapUrl) {
     delete style.sources[BASEMAP_SOURCE_ID]

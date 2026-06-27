@@ -49,9 +49,8 @@ export function drawParticleGeometryPass(
   gl.useProgram(particleProgramInfo.program)
   twgl.setBuffersAndAttributes(gl, particleProgramInfo, particleBufferInfo)
   twgl.setUniforms(particleProgramInfo, {
+    ...projection,
     u_bounds_west: viewport.west,
-    u_matrix: projection.matrix,
-    u_world_size: projection.worldSize,
     u_dot_min_px: dotMinPx,
     u_dot_max_px: dotMaxPx,
     u_speed_ramp_gamma: options.speedRampGamma,

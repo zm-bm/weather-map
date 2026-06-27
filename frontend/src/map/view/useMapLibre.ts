@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl, {
   Map as MapLibreMap,
 } from 'maplibre-gl'
@@ -6,7 +6,7 @@ import { Protocol } from 'pmtiles'
 
 import { normalizeError } from '@/core/abort'
 import config from '@/core/config'
-import { buildMapStyle } from './basemapStyle'
+import { buildMapStyle, type MapProjection } from './basemapStyle'
 import { loadStoredViewport, saveStoredViewport } from './viewportPersistence'
 
 const PMTILES_PROTOCOL = 'pmtiles'
@@ -25,6 +25,7 @@ export type UseMapLibreOptions = {
   zoom: number
   minZoom: number
   maxZoom: number
+  projection?: MapProjection
 }
 
 function ensurePmtilesProtocol(url: string | undefined): void {
@@ -43,10 +44,12 @@ export function useMapLibre({
   zoom,
   minZoom,
   maxZoom,
+  projection = 'mercator',
 }: UseMapLibreOptions): UseMapLibreResult {
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [mapError, setMapError] = useState<Error | null>(null)
   const [retryToken, setRetryToken] = useState(0)
+  const initialProjectionRef = useRef(projection)
   const retryMap = useCallback(() => {
     setMap(null)
     setMapError(null)
@@ -56,7 +59,7 @@ export function useMapLibre({
   useEffect(() => {
     const stored = loadStoredViewport()
     ensurePmtilesProtocol(config.basemapUrl)
-    const style = buildMapStyle(config)
+    const style = buildMapStyle(config, initialProjectionRef.current)
 
     let m: MapLibreMap
     try {
@@ -124,6 +127,13 @@ export function useMapLibre({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryToken]) // intentionally mount/unmount only, plus explicit retry
+
+  useEffect(() => {
+    if (!map) return
+    const currentProjection = map.getProjection()?.type ?? 'mercator'
+    if (currentProjection === projection) return
+    map.setProjection({ type: projection })
+  }, [map, projection])
 
   return { map, mapError, retryMap }
 }

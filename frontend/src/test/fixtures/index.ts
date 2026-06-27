@@ -60,6 +60,7 @@ export {
 } from './payload'
 export {
   createCustomLayerRuntimeFixture,
+  createCustomRenderInputFixture,
   createMockWebGl2,
   createRenderControllerFixture,
   createRenderLayerMapFixture,

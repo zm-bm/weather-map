@@ -5,6 +5,7 @@ import {
 import type { UnitSystem } from '@/forecast/display/units'
 import {
   DEFAULT_FORECAST_SETTINGS,
+  MAP_PROJECTION_MODES,
   PARTICLE_COUNT_MAX,
   PARTICLE_COUNT_MIN,
   PARTICLE_FLOW_SPEED_SCALE_MAX,
@@ -20,6 +21,7 @@ import {
   RASTER_OPACITY_MAX,
   RASTER_OPACITY_MIN,
   type ForecastSettings,
+  type MapProjectionMode,
   type ParticleSizeSettings,
   type RasterColorSamplingMode,
   type RasterGridSamplingMode,
@@ -29,6 +31,9 @@ import {
 export const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
 
 type PersistedForecastSettings = {
+  map: {
+    projection: MapProjectionMode
+  }
   raster: {
     gridSamplingMode: RasterGridSamplingMode
     colorSamplingMode: RasterColorSamplingMode
@@ -62,6 +67,10 @@ export function loadStoredForecastSettings(): ForecastSettings {
   )
 
   return {
+    map: {
+      ...DEFAULT_FORECAST_SETTINGS.map,
+      ...stored?.map,
+    },
     raster: {
       ...DEFAULT_FORECAST_SETTINGS.raster,
       ...stored?.raster,
@@ -87,6 +96,9 @@ export function saveStoredForecastSettings(settings: ForecastSettings): void {
 
 function toStoredForecastSettings(settings: ForecastSettings): PersistedForecastSettings {
   return {
+    map: {
+      projection: settings.map.projection,
+    },
     raster: {
       gridSamplingMode: settings.raster.gridSamplingMode,
       colorSamplingMode: settings.raster.colorSamplingMode,
@@ -115,6 +127,9 @@ function validateStoredForecastSettings(value: unknown): StoredForecastSettings 
 
   const settings: StoredForecastSettings = {}
 
+  const map = validMapSettings(value.map)
+  if (map) settings.map = map
+
   const raster = validRasterSettings(value.raster)
   if (raster) settings.raster = raster
 
@@ -128,6 +143,17 @@ function validateStoredForecastSettings(value: unknown): StoredForecastSettings 
   if (units) settings.units = units
 
   return Object.keys(settings).length > 0 ? settings : null
+}
+
+function validMapSettings(value: unknown): StoredForecastSettings['map'] | null {
+  if (!isRecord(value)) return null
+
+  const map: NonNullable<StoredForecastSettings['map']> = {}
+  if (isMapProjectionMode(value.projection)) {
+    map.projection = value.projection
+  }
+
+  return Object.keys(map).length > 0 ? map : null
 }
 
 function validRasterSettings(value: unknown): StoredForecastSettings['raster'] | null {
@@ -210,6 +236,10 @@ function isRasterGridSamplingMode(value: unknown): value is RasterGridSamplingMo
 
 function isRasterColorSamplingMode(value: unknown): value is RasterColorSamplingMode {
   return typeof value === 'string' && RASTER_COLOR_SAMPLING_MODES.includes(value as RasterColorSamplingMode)
+}
+
+function isMapProjectionMode(value: unknown): value is MapProjectionMode {
+  return typeof value === 'string' && MAP_PROJECTION_MODES.includes(value as MapProjectionMode)
 }
 
 function isUnitSystem(value: unknown): value is UnitSystem {

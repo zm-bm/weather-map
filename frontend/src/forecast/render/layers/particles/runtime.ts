@@ -6,7 +6,12 @@ import {
 import type { MapFrameController } from '@/map/controllers'
 import type { RenderControllerLifecycle } from '../../maplibre/layerAdapter'
 import type { CustomLayerRuntime } from '../../maplibre/customLayer'
-import { asWebGL2, createProgramInfo } from '../../gpu'
+import {
+  asWebGL2,
+  createProgramInfo,
+  createProjectionProgramCache,
+  projectionUniformValues,
+} from '../../gpu'
 import {
   captureCameraState,
   computeViewportState,
@@ -44,7 +49,6 @@ import {
   VECTOR_TRAIL_VERTEX_SHADER_SOURCE,
 } from './shaders'
 import { clamp } from '@/core/math'
-import { worldSizeAtZoom } from '@/core/geo'
 
 type ParticleState = ParticlePassState & {
   enabled: boolean
@@ -74,6 +78,7 @@ export function createParticlesRuntime(
     viewport: null,
     vectorFramePair: null,
     particleProgramInfo: null,
+    particleProgramCache: null,
     trailProgramInfo: null,
     particleState: null,
     activeSourceIndex: 0,
@@ -116,7 +121,7 @@ export function createParticlesRuntime(
       state.gl = gl2
       state.lastFrameMs = performance.now()
       state.viewport = computeViewportState(map)
-      state.particleProgramInfo = createProgramInfo({
+      state.particleProgramCache = createProjectionProgramCache({
         gl: gl2,
         label: 'particles:particle',
         vertexSource: VECTOR_PARTICLE_VERTEX_SHADER_SOURCE,
@@ -130,7 +135,7 @@ export function createParticlesRuntime(
         fragmentSource: VECTOR_TRAIL_FRAGMENT_SHADER_SOURCE,
         options: { attribLocations: { a_pos: 0 } },
       })
-      if (!state.particleProgramInfo || !state.trailProgramInfo) {
+      if (!state.particleProgramCache || !state.trailProgramInfo) {
         return
       }
 
@@ -171,6 +176,11 @@ export function createParticlesRuntime(
       if (!state.map) {
         return
       }
+      const particleProgramInfo = state.particleProgramCache?.get(input)
+      if (!particleProgramInfo) {
+        return
+      }
+      state.particleProgramInfo = particleProgramInfo
 
       state.viewport = computeViewportState(state.map)
       updateZoomOutRespawnState(state, settings)
@@ -188,10 +198,7 @@ export function createParticlesRuntime(
         clearTrailTextures(gl2, state.trailTargets)
       }
 
-      const projection = {
-        matrix: input.modelViewProjectionMatrix,
-        worldSize: worldSizeAtZoom(state.map.getZoom()),
-      }
+      const projection = projectionUniformValues(input)
 
       runUpdatePass(state, dtSec, now, settings)
       const trailTexture = runTrailPass(state, settings, projection)
@@ -210,7 +217,7 @@ export function createParticlesRuntime(
       const gl2 = state.gl
 
       if (gl2) {
-        if (state.particleProgramInfo) gl2.deleteProgram(state.particleProgramInfo.program)
+        state.particleProgramCache?.clear()
         if (state.trailProgramInfo) gl2.deleteProgram(state.trailProgramInfo.program)
         deleteParticleStateStorage(gl2, state.particleState)
         disposeTrailTargets(gl2, state.trailTargets)
@@ -222,6 +229,7 @@ export function createParticlesRuntime(
       state.viewport = null
       state.vectorFramePair = null
       state.particleProgramInfo = null
+      state.particleProgramCache = null
       state.trailProgramInfo = null
       state.particleState = null
       state.trailTargets = createEmptyParticleTrailTargets()
@@ -347,7 +355,7 @@ function updateZoomOutRespawnState(state: ParticleState, options: ParticleRender
 function isParticleRuntimeAvailable(state: ParticleState): boolean {
   return Boolean(
     state.gl &&
-      state.particleProgramInfo &&
+      state.particleProgramCache &&
       state.trailProgramInfo &&
       state.particleState &&
       state.particleState.bufferInfos[0] &&

@@ -53,6 +53,7 @@ describe('MapOptionsButton', () => {
 
     fireEvent.click(button)
 
+    const globeRadio = screen.getByRole('radio', { name: 'Globe' })
     const bandedRadio = screen.getByRole('radio', { name: 'Banded' })
     const nearestRadio = screen.getByRole('radio', { name: 'Nearest' })
     const opacitySlider = screen.getByRole('slider', { name: /Opacity/ }) as HTMLInputElement
@@ -60,6 +61,9 @@ describe('MapOptionsButton', () => {
     const trailLengthSlider = screen.getByRole('slider', { name: /Trail length/ }) as HTMLInputElement
     const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Pressure contours' })
     const windAnimationCheckbox = screen.getByRole('checkbox', { name: 'Wind animation' })
+
+    fireEvent.click(globeRadio)
+    expect(globeRadio).toBeChecked()
 
     fireEvent.change(opacitySlider, { target: { value: '0.65' } })
     expect(opacitySlider).toHaveValue('0.65')

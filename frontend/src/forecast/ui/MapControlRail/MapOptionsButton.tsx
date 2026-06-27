@@ -18,6 +18,7 @@ import {
   PARTICLE_TRAIL_OPACITY_MAX,
   PARTICLE_TRAIL_OPACITY_MIN,
   PARTICLE_TRAIL_OPACITY_STEP,
+  MAP_PROJECTION_MODES,
   RASTER_COLOR_SAMPLING_MODES,
   RASTER_GRID_SAMPLING_MODES,
   RASTER_OPACITY_MAX,
@@ -28,6 +29,7 @@ import {
   particleTrailFadeFromLength,
   particleTrailLengthFromFade,
   useForecastSettings,
+  type MapProjectionMode,
   type RasterColorSamplingMode,
   type RasterGridSamplingMode,
 } from '@/forecast/settings'
@@ -83,6 +85,27 @@ export default function MapOptionsButton({
               <span className="map-control-options-close-icon" aria-hidden="true" />
             </button>
           </div>
+          <section className="map-control-options-section">
+            <div className="map-control-options-heading wm-mono-caps">Map</div>
+            <div className="map-control-options-subheading wm-mono-caps">Projection</div>
+            <div className="map-control-options-radio-group" role="radiogroup" aria-label="Map projection">
+              {MAP_PROJECTION_MODES.map((mode) => (
+                <label className="map-control-options-row wm-mono-caps" key={mode}>
+                  <input
+                    type="radio"
+                    name="map-projection"
+                    value={mode}
+                    checked={settings.map.projection === mode}
+                    onChange={(event) => actions.updateMap({
+                      projection: event.currentTarget.value as MapProjectionMode,
+                    })}
+                  />
+                  <span>{mapProjectionModeLabel(mode)}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+          <div className="map-control-options-divider" />
           <section className="map-control-options-section">
             <div className="map-control-options-heading wm-mono-caps">Layer</div>
             <div className="map-control-options-subheading wm-mono-caps">Color style</div>
@@ -288,6 +311,10 @@ function gridSamplingModeLabel(mode: RasterGridSamplingMode): string {
 
 function colorSamplingModeLabel(mode: RasterColorSamplingMode): string {
   return mode === 'gradient' ? 'Gradient' : 'Banded'
+}
+
+function mapProjectionModeLabel(mode: MapProjectionMode): string {
+  return mode === 'globe' ? 'Globe' : 'Mercator'
 }
 
 function formatParticleCount(value: number): string {

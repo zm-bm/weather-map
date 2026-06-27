@@ -34,23 +34,7 @@ Tasks:
 Good enough when: a real ingest/publish failure is visible without watching AWS
 dashboards manually.
 
-### 3. Add Optional Globe View
-
-Mercator is fine, but a globe mode would be a nice way to inspect broad weather
-patterns.
-
-Tasks:
-
-- add a small UI option for map projection
-- toggle the MapLibre style/projection between Mercator and globe
-- update the wind particle vertex path for globe projection
-- verify raster, overlays, contours, particles, labels, and probe behavior in
-  both projections
-
-Good enough when: globe mode is usable without breaking the default Mercator
-forecast workflow.
-
-### 4. Evaluate Geo-Chunked Field Payloads
+### 3. Evaluate Geo-Chunked Field Payloads
 
 The app currently fetches global field payloads even when the map is zoomed
 into a small region. Prototype numeric geo-chunks so regional views can load
@@ -68,7 +52,7 @@ Tasks:
 Good enough when: one layer can load and render from geo-chunked numeric
 payloads for a zoomed-in viewport.
 
-### 5. Add Forecast Model Expansion Track
+### 4. Add Forecast Model Expansion Track
 
 Plan support for additional forecast models such as HRRR and ECMWF. Treat this
 as source/model expansion first, not just adding catalog rows.
