@@ -25,6 +25,7 @@ uniform vec3 u_low_cloud_color;
 uniform vec3 u_middle_cloud_color;
 uniform vec3 u_high_cloud_color;
 
+#pragma weather-map include globe-fragment-clip
 #pragma weather-map include source-sampling-modes
 #pragma weather-map include encoded-grid
 
@@ -167,6 +168,9 @@ void main() {
   if (nx < 2.0 || ny < 2.0 || u_opacity <= 0.0) {
     outColor = vec4(0.0);
     return;
+  }
+  if (globeFragmentOutsideVisibleHemisphere(v_mercator)) {
+    discard;
   }
 
   EncodedGridLocation location = encodedGridLocationForMercator(

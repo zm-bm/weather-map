@@ -58,12 +58,23 @@ describe('raster runtime encoded sources', () => {
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('uniform isampler2DArray u_encoded_tex_lower')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('uniform isampler2DArray u_encoded_tex_upper')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('uniform int u_source_sampling_mode')
+    expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('globeFragmentOutsideVisibleHemisphere(v_mercator)')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('sampleWindSpeedTemporalLayer')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('sampleWindSpeedNearestTemporalLayer')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('sampleTempCNearestTemporalLayer')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).toContain('sampleLinearNearestTemporalLayer')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).not.toContain('u_float_tex')
     expect(COLORMAP_FRAGMENT_SHADER_SOURCE).not.toContain('SOURCE_MODE_FLOAT32')
+  })
+
+  it('clips raster fragments outside the visible globe hemisphere', () => {
+    for (const source of [COLORMAP_FRAGMENT_SHADER_SOURCE, CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE]) {
+      expect(source).toContain('uniform highp vec4 u_projection_clipping_plane')
+      expect(source).toContain('uniform highp float u_projection_transition')
+      expect(source).toContain('bool globeFragmentOutsideVisibleHemisphere(vec2 mercator)')
+      expect(source).toContain('if (globeFragmentOutsideVisibleHemisphere(v_mercator))')
+      expect(source).toContain('discard;')
+    }
   })
 
   it('uploads encoded scalar rasters as integer texture arrays', () => {
