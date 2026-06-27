@@ -19,7 +19,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(resolveForecastSyncPlan({
       activeRun: null,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })).toBeNull()
@@ -38,7 +37,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(resolveForecastSyncPlan({
       activeRun: unavailableActiveRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })).toBeNull()
@@ -55,7 +53,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(resolveForecastSyncPlan({
       activeRun: nonRenderableActiveRun,
       selectedLayerId: 'wind_speed',
-      selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })).toBeNull()
@@ -71,7 +68,6 @@ describe('resolveForecastSyncPlan', () => {
     const plan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'wind_speed',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9, 3, 30),
       syncOptions,
     })
@@ -133,7 +129,6 @@ describe('resolveForecastSyncPlan', () => {
     const plan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })
@@ -168,14 +163,12 @@ describe('resolveForecastSyncPlan', () => {
     const cloudPlan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'cloud_layers',
-      selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })
     const precipPlan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'precipitation_rate',
-      selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })
@@ -240,7 +233,6 @@ describe('resolveForecastSyncPlan', () => {
     const plan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions: { contour: true, particles: true },
     })
@@ -264,7 +256,6 @@ describe('resolveForecastSyncPlan', () => {
     const plan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'air_pressure',
-      selectedParticleLayerId: null,
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions: { contour: true, particles: true },
     })
@@ -300,7 +291,6 @@ describe('resolveForecastSyncPlan', () => {
     const plan = resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions: { contour: false, particles: false },
     })
@@ -323,7 +313,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(() => resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions: { contour: false, particles: false },
     })).not.toThrow()
@@ -331,7 +320,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions: { contour: false, particles: false },
     })?.windowPlans.map((spec) => spec.id)).toEqual(['raster'])
@@ -344,7 +332,6 @@ describe('resolveForecastSyncPlan', () => {
     expect(resolveForecastSyncPlan({
       activeRun,
       selectedLayerId: 'missing_layer',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9),
       syncOptions,
     })).toBeNull()

@@ -330,7 +330,6 @@ describe('useForecastSync', () => {
     expect(mocks.resolveForecastSyncPlan).toHaveBeenCalledWith(expect.objectContaining({
       activeRun: expect.any(Object),
       selectedLayerId: 'temperature',
-      selectedParticleLayerId: 'wind',
       targetTimeMs: Date.UTC(2026, 3, 9, 3, 30),
       syncOptions,
     }))

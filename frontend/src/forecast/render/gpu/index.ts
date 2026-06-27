@@ -13,11 +13,10 @@ export {
   type ProjectionUniformValues,
 } from './projection'
 export {
-  bindWrappedWorldQuad,
+  bindWrappedWorldMesh,
   createWrappedWorldMesh,
-  createWrappedWorldQuad,
   drawWrappedWorldCopies,
-  drawWrappedWorldQuad,
+  drawWrappedWorldMesh,
   setUniforms,
   WRAPPED_WORLD_MESH_COLUMNS,
   WRAPPED_WORLD_MESH_ROWS,
@@ -25,7 +24,6 @@ export {
   WORLD_WRAP_COPY_OFFSETS,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
   type WrappedWorldMesh,
-  type WrappedWorldQuad,
 } from './wrappedWorld'
 export {
   assembleShader,

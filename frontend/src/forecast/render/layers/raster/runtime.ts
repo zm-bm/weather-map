@@ -9,7 +9,6 @@ import type {
 import {
   DEFAULT_RASTER_RENDER_SETTINGS,
   type RasterColorSamplingMode,
-  type RasterGridSamplingMode,
   type RasterRenderSettings,
 } from '@/forecast/settings/settings'
 import type { MapFrameController } from '@/map/controllers'
@@ -17,12 +16,12 @@ import type { MapFrameController } from '@/map/controllers'
 import {
   asWebGL2,
   createProjectionProgramCache,
-  createWrappedWorldQuad,
+  createWrappedWorldMesh,
   deleteBufferInfo,
   drawWrappedWorldCopies,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
   type ProjectionProgramCache,
-  type WrappedWorldQuad,
+  type WrappedWorldMesh,
 } from '../../gpu'
 import {
   EncodedGridTextureCache,
@@ -72,12 +71,10 @@ type RasterState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   enabled: boolean
-  opacity: number
-  gridSamplingMode: RasterGridSamplingMode
-  colorSamplingMode: RasterColorSamplingMode
+  settings: RasterRenderSettings
   colormapProgramCache: ProjectionProgramCache | null
   cloudLayersProgramCache: ProjectionProgramCache | null
-  quad: WrappedWorldQuad | null
+  mesh: WrappedWorldMesh | null
   textureCache: EncodedGridTextureCache
   framePair: EncodedFramePair<RasterFrame> | null
   activeRenderPathId: RasterRenderPathId | null
@@ -125,20 +122,12 @@ export function createRasterRuntime(
   controllerRegistry: RenderControllerLifecycle<RasterController>,
   initialSettings: RasterRenderSettings = DEFAULT_RASTER_RENDER_SETTINGS
 ): CustomLayerRuntime {
-  const initialOpacity = sanitizeOpacity(initialSettings.opacity)
-  const settings: RasterRenderSettings = {
-    ...DEFAULT_RASTER_RENDER_SETTINGS,
-    ...initialSettings,
-    opacity: initialOpacity,
-  }
   const state: RasterState = {
     enabled: true,
-    opacity: initialOpacity,
-    gridSamplingMode: settings.gridSamplingMode,
-    colorSamplingMode: settings.colorSamplingMode,
+    settings: sanitizeRasterSettings(initialSettings),
     colormapProgramCache: null,
     cloudLayersProgramCache: null,
-    quad: null,
+    mesh: null,
     textureCache: new EncodedGridTextureCache(),
     framePair: null,
     activeRenderPathId: null,
@@ -153,10 +142,10 @@ export function createRasterRuntime(
       state.gl != null &&
       state.colormapProgramCache != null &&
       state.cloudLayersProgramCache != null &&
-      state.quad != null
+      state.mesh != null
     ),
     applyFrame: (frame) => {
-      if (!state.gl || !state.colormapProgramCache || !state.cloudLayersProgramCache || !state.quad) {
+      if (!state.gl || !state.colormapProgramCache || !state.cloudLayersProgramCache || !state.mesh) {
         throw new Error('Raster runtime unavailable')
       }
       const gl = state.gl
@@ -188,8 +177,6 @@ export function createRasterRuntime(
 
       state.framePair = resolvedFramePair
       state.activeRenderPathId = renderPath.id
-      state.gridSamplingMode = settings.gridSamplingMode
-      state.colorSamplingMode = settings.colorSamplingMode
       state.map?.triggerRepaint()
     },
     setEnabled: (enabled) => {
@@ -197,18 +184,13 @@ export function createRasterRuntime(
       state.map?.triggerRepaint()
     },
     applySettings: (nextSettings) => {
-      const nextOpacity = sanitizeOpacity(nextSettings.opacity)
+      const settings = sanitizeRasterSettings(nextSettings)
       if (
-        settings.gridSamplingMode === nextSettings.gridSamplingMode &&
-        settings.colorSamplingMode === nextSettings.colorSamplingMode &&
-        settings.opacity === nextOpacity
+        state.settings.gridSamplingMode === settings.gridSamplingMode &&
+        state.settings.colorSamplingMode === settings.colorSamplingMode &&
+        state.settings.opacity === settings.opacity
       ) return
-      settings.gridSamplingMode = nextSettings.gridSamplingMode
-      settings.colorSamplingMode = nextSettings.colorSamplingMode
-      settings.opacity = nextOpacity
-      state.gridSamplingMode = nextSettings.gridSamplingMode
-      state.colorSamplingMode = nextSettings.colorSamplingMode
-      state.opacity = nextOpacity
+      state.settings = settings
       state.map?.triggerRepaint()
     },
   }
@@ -237,12 +219,12 @@ export function createRasterRuntime(
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
         fragmentSource: CLOUD_LAYERS_FRAGMENT_SHADER_SOURCE,
       })
-      state.quad = createWrappedWorldQuad(gl2)
+      state.mesh = createWrappedWorldMesh(gl2)
     },
 
     render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
-      if (!gl2 || !state.map || !state.quad || !state.enabled || state.opacity <= 0) return
+      if (!gl2 || !state.map || !state.mesh || !state.enabled || state.settings.opacity <= 0) return
       const { framePair, activeRenderPathId } = state
       if (!framePair || !activeRenderPathId) return
 
@@ -256,7 +238,7 @@ export function createRasterRuntime(
       if (gl) {
         clearRasterFrame(state)
         state.textureCache.clear(gl)
-        if (state.quad) deleteBufferInfo(gl, state.quad)
+        if (state.mesh) deleteBufferInfo(gl, state.mesh)
         state.colormapProgramCache?.clear()
         state.cloudLayersProgramCache?.clear()
       }
@@ -268,7 +250,7 @@ export function createRasterRuntime(
       state.activeRenderPathId = null
       state.colormapProgramCache = null
       state.cloudLayersProgramCache = null
-      state.quad = null
+      state.mesh = null
     },
   }
 }
@@ -327,7 +309,7 @@ function renderColormapRaster(
   if (!state.map || !framePair || !colormapRenderSpec || !colormapProgramCache) return
   if (!isColormapRasterFrame(framePair.lowerFrame)) return
 
-  const colormapTexture = paletteSamplingModeForRaster(state.colorSamplingMode) === 'banded'
+  const colormapTexture = paletteSamplingModeForRaster(state.settings.colorSamplingMode) === 'banded'
     ? state.colormapTextureBanded
     : state.colormapTextureInterpolated
   if (!colormapTexture) return
@@ -336,16 +318,16 @@ function renderColormapRaster(
     gl,
     programCache: colormapProgramCache,
     input,
-    quad: state.quad!,
+    mesh: state.mesh!,
     centerWrap: worldWrapForLng(state.map.getCenter().lng),
     uniforms: {
       ...encodedFramePairUniforms(framePair),
       u_colormap_tex: colormapTexture,
       u_display_range: displayRangeUniform(framePair.lowerFrame.source.display.range),
       u_source_mode: colormapRenderSpec.mode,
-      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.gridSamplingMode),
+      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.settings.gridSamplingMode),
       ...encodedLinearUniforms(colormapRenderSpec),
-      u_opacity: state.opacity,
+      u_opacity: state.settings.opacity,
       u_world_size: worldSizeAtZoom(state.map.getZoom()),
     },
   })
@@ -371,16 +353,16 @@ function renderCloudLayersRaster(
     gl,
     programCache: cloudLayersProgramCache,
     input,
-    quad: state.quad!,
+    mesh: state.mesh!,
     centerWrap: worldWrapForLng(state.map.getCenter().lng),
     uniforms: {
       ...encodedFramePairUniforms(framePair),
       u_scale: encoding.scale,
       u_offset: encoding.offset,
-      u_opacity: state.opacity,
+      u_opacity: state.settings.opacity,
       u_world_size: worldSize,
       u_zoom: zoom,
-      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.gridSamplingMode),
+      u_source_sampling_mode: rasterSourceSamplingModeUniform(state.settings.gridSamplingMode),
       ...cloudLayerColorUniforms(framePair.lowerFrame),
     },
   })
@@ -426,6 +408,14 @@ function rasterRenderPathById(id: RasterRenderPathId | null): RasterRenderPath |
 
 function sanitizeOpacity(value: number): number {
   return clamp(Number.isFinite(value) ? value : DEFAULT_RASTER_RENDER_SETTINGS.opacity, 0, 1)
+}
+
+function sanitizeRasterSettings(settings: RasterRenderSettings): RasterRenderSettings {
+  return {
+    ...DEFAULT_RASTER_RENDER_SETTINGS,
+    ...settings,
+    opacity: sanitizeOpacity(settings.opacity),
+  }
 }
 
 function createColormapTexture(

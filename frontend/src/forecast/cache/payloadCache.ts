@@ -29,16 +29,19 @@ type PayloadCacheWriteArgs = {
 
 export type PayloadCache = {
   activateScope(scopeKey: string): Promise<void>
-  flushForTests(): Promise<void>
   read(key: string): Promise<ArrayBuffer | null>
+  write(args: PayloadCacheWriteArgs): Promise<void>
+}
+
+export type PayloadCacheTestControls = {
+  flushForTests(): Promise<void>
   resetForTests(): Promise<void>
   setLimitsForTests(limits: Partial<PayloadCacheLimits>): void
-  write(args: PayloadCacheWriteArgs): Promise<void>
 }
 
 export function createPayloadCache(
   options: PayloadCacheOptions
-): PayloadCache {
+): PayloadCache & PayloadCacheTestControls {
   const memoryCache = createPayloadMemoryCache(options.defaultLimits.memoryBytes)
   const pendingUpdates = createPayloadUpdateBuffer(PENDING_UPDATE_BYTE_LIMIT)
   const indexedDb = createPayloadIndexedDb({

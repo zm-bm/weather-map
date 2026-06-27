@@ -10,7 +10,6 @@ import {
 } from './projection'
 
 export type WrappedWorldMesh = twgl.BufferInfo
-export type WrappedWorldQuad = WrappedWorldMesh
 export const WORLD_WRAP_COPY_OFFSETS = [-2, -1, 0, 1, 2] as const
 export const WRAPPED_WORLD_MESH_COLUMNS = 96
 export const WRAPPED_WORLD_MESH_ROWS = 48
@@ -27,16 +26,12 @@ export function createWrappedWorldMesh(gl: WebGL2RenderingContext): WrappedWorld
   })
 }
 
-export function createWrappedWorldQuad(gl: WebGL2RenderingContext): WrappedWorldQuad | null {
-  return createWrappedWorldMesh(gl)
-}
-
-export function bindWrappedWorldQuad(
+export function bindWrappedWorldMesh(
   gl: WebGL2RenderingContext,
   programInfo: ProgramInfo,
-  quad: WrappedWorldQuad
+  mesh: WrappedWorldMesh
 ): void {
-  twgl.setBuffersAndAttributes(gl, programInfo, quad)
+  twgl.setBuffersAndAttributes(gl, programInfo, mesh)
 }
 
 export function setUniforms(
@@ -46,27 +41,27 @@ export function setUniforms(
   twgl.setUniforms(programInfo, values)
 }
 
-export function drawWrappedWorldQuad(
+export function drawWrappedWorldMesh(
   gl: WebGL2RenderingContext,
-  quad: WrappedWorldQuad
+  mesh: WrappedWorldMesh
 ): void {
-  twgl.drawBufferInfo(gl, quad, gl.TRIANGLES)
+  twgl.drawBufferInfo(gl, mesh, gl.TRIANGLES)
 }
 
 export function drawWrappedWorldCopies(args: {
   gl: WebGL2RenderingContext
   programCache: ProjectionProgramCache
   input: CustomRenderMethodInput
-  quad: WrappedWorldMesh
+  mesh: WrappedWorldMesh
   centerWrap: number
   uniforms?: Record<string, unknown>
 }): void {
-  const { gl, input, programCache, quad } = args
+  const { gl, input, programCache, mesh } = args
   const programInfo = programCache.get(input)
   if (!programInfo) return
 
   gl.useProgram(programInfo.program)
-  bindWrappedWorldQuad(gl, programInfo, quad)
+  bindWrappedWorldMesh(gl, programInfo, mesh)
   setUniforms(programInfo, {
     ...projectionUniformValues(input),
     ...(args.uniforms ?? {}),
@@ -81,7 +76,7 @@ export function drawWrappedWorldCopies(args: {
     : WORLD_WRAP_COPY_OFFSETS.map((relativeOffset) => args.centerWrap + relativeOffset)
   for (const worldOffset of worldOffsets) {
     setUniforms(programInfo, { u_world_offset_x: worldOffset })
-    drawWrappedWorldQuad(gl, quad)
+    drawWrappedWorldMesh(gl, mesh)
   }
 
   gl.disable(gl.BLEND)

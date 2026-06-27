@@ -67,7 +67,6 @@ export type ForecastSyncPlan = ForecastFrameSelection & {
 export type ResolveForecastSyncPlanArgs = {
   activeRun: ActiveForecastRun | null
   selectedLayerId: string | null
-  selectedParticleLayerId: string | null
   targetTimeMs: number
   syncOptions: ForecastSyncOptions
 }
@@ -80,7 +79,7 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
     ? getDefaultAvailableContourLayer(args.activeRun)
     : null
   const selectedParticleLayer = args.syncOptions.particles
-    ? getSelectedOrDefaultParticleLayer(args.activeRun, args.selectedParticleLayerId)
+    ? getDefaultParticleLayer(args.activeRun)
     : null
   const interpolationWindow = resolveForecastInterpolationWindow(
     args.activeRun.latest.frames,
@@ -110,12 +109,8 @@ export function resolveForecastSyncPlan(args: ResolveForecastSyncPlanArgs): Fore
   }
 }
 
-function getSelectedOrDefaultParticleLayer(
-  activeRun: ActiveForecastRun,
-  selectedLayerId: string | null
-): ParticleLayer | null {
-  return getAvailableParticleLayer(activeRun, selectedLayerId) ??
-    getAvailableParticleLayer(activeRun, getDefaultAvailableParticleLayerId(activeRun))
+function getDefaultParticleLayer(activeRun: ActiveForecastRun): ParticleLayer | null {
+  return getAvailableParticleLayer(activeRun, getDefaultAvailableParticleLayerId(activeRun))
 }
 
 function createWindowPlans(args: {

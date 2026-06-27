@@ -97,6 +97,17 @@ describe('ForecastSettingsProvider', () => {
   it('loads stored UI preferences from localStorage', () => {
     storeRawSettings({
       map: { projection: 'mercator', placeValueLabelsEnabled: false },
+      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.7 },
+      particles: {
+        enabled: false,
+        particleCount: 12000,
+        flowSpeedScale: 8000,
+        ...PARTICLE_SIZE,
+        trailCompositeOpacity: 0.45,
+        trailFade: TRAIL_FADE,
+      },
+      pressureContours: { enabled: true },
+      units: { system: 'metric' },
     })
 
     const { result } = renderHook(() => useForecastSettings(), { wrapper })

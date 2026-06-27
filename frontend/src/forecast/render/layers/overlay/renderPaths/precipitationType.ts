@@ -23,7 +23,7 @@ import {
 import {
   drawWrappedWorldCopies,
   type ProjectionProgramCache,
-  type WrappedWorldQuad,
+  type WrappedWorldMesh,
 } from '../../../gpu'
 
 export const OVERLAY_MIN_PATTERN_ZOOM = 2
@@ -115,7 +115,7 @@ export function drawPrecipitationTypeOverlayEntry(args: {
   gl: WebGL2RenderingContext
   map: MapLibreMap
   programCache: ProjectionProgramCache
-  quad: WrappedWorldQuad
+  mesh: WrappedWorldMesh
   entry: PrecipitationTypeOverlayRenderEntry
   input: CustomRenderMethodInput
   patternOpacity: number
@@ -125,7 +125,7 @@ export function drawPrecipitationTypeOverlayEntry(args: {
     gl: args.gl,
     programCache: args.programCache,
     input: args.input,
-    quad: args.quad,
+    mesh: args.mesh,
     centerWrap: worldWrapForLng(args.map.getCenter().lng),
     uniforms: {
       ...encodedFramePairUniforms(entry),

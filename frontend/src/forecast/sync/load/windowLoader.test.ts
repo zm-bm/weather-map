@@ -44,7 +44,6 @@ afterEach(() => {
 function plannedWindows(args: {
   manifest: ReturnType<typeof createSingleTimeManifestFixture>
   selectedLayerId?: string
-  selectedParticleLayerId?: string | null
   syncOptions?: { contour?: boolean; particles?: boolean }
 }): PlannedWindowFor<ForecastWindowId>[] {
   const activeRun = createActiveRunFixture(args.manifest)
@@ -57,7 +56,6 @@ function plannedWindows(args: {
   const plan = createForecastSyncPlanFixture({
     activeRun,
     selectedLayerId: args.selectedLayerId ?? 'temperature',
-    selectedParticleLayerId: args.selectedParticleLayerId,
     contourSource: syncOptions.contour ? undefined : null,
     particleSource: syncOptions.particles ? undefined : null,
     targetTimeMs,
@@ -371,7 +369,6 @@ describe('window plan loading particle window', () => {
   ) {
     const load = maybePlannedWindow('particles', {
       manifest,
-      selectedParticleLayerId: 'wind',
       syncOptions: { particles: true },
     })
     if ((options.requireLoad ?? true) && load == null) {

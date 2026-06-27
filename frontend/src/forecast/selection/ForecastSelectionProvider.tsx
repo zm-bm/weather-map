@@ -10,10 +10,6 @@ import {
   resolveCompatibleActiveForecastRun,
 } from '@/forecast/manifest'
 import {
-  getAvailableParticleLayer,
-  getDefaultAvailableParticleLayerId,
-} from '@/forecast/catalog'
-import {
   ForecastSelectionContext,
   type ForecastSelectionContextValue,
 } from './ForecastSelectionContext'
@@ -56,9 +52,6 @@ export default function ForecastSelectionProvider({
   const activeRun = useMemo(
     () => resolveSelectedActiveRun(manifest, preferredDatasetId, selectedLayerId),
     [manifest, preferredDatasetId, selectedLayerId]
-  )
-  const [selectedParticleLayerId, setSelectedParticleLayerId] = useState<string | null>(
-    () => getDefaultAvailableParticleLayerId(activeRun)
   )
 
   const updateSelectedLayerParam = useCallback((layerId: string) => {
@@ -126,7 +119,6 @@ export default function ForecastSelectionProvider({
       datasetOptions,
       setActiveDataset,
       setSelectedLayer,
-      setSelectedParticleLayer: setSelectedParticleLayerId,
     }
 
     if (!activeRun) {
@@ -135,28 +127,19 @@ export default function ForecastSelectionProvider({
         activeRun: null,
         activeDatasetId: null,
         selectedLayerId: null,
-        selectedParticleLayerId: null,
       }
     }
-
-    const resolvedSelectedParticleLayerId =
-      selectedParticleLayerId != null
-      && getAvailableParticleLayer(activeRun, selectedParticleLayerId) != null
-        ? selectedParticleLayerId
-        : getDefaultAvailableParticleLayerId(activeRun)
 
     return {
       ...baseValue,
       activeRun,
       activeDatasetId: activeRun.datasetId,
       selectedLayerId,
-      selectedParticleLayerId: resolvedSelectedParticleLayerId,
     }
   }, [
     activeRun,
     datasetOptions,
     selectedLayerId,
-    selectedParticleLayerId,
     setActiveDataset,
     setSelectedLayer,
   ])

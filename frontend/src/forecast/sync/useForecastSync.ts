@@ -40,7 +40,6 @@ export function useForecastSync({
   const {
     activeRun,
     selectedLayerId,
-    selectedParticleLayerId,
   } = useForecastSelectionContext()
 
   const {
@@ -51,14 +50,12 @@ export function useForecastSync({
   const plan = useMemo(() => resolveForecastSyncPlan({
     activeRun,
     selectedLayerId,
-    selectedParticleLayerId,
     syncOptions,
     targetTimeMs: timelineState.targetTimeMs,
   }), [
     activeRun,
     syncOptions,
     selectedLayerId,
-    selectedParticleLayerId,
     timelineState.targetTimeMs,
   ])
 

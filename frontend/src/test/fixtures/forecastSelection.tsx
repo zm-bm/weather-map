@@ -11,7 +11,6 @@ import {
   type Manifest,
 } from '@/forecast/manifest'
 import {
-  getDefaultAvailableParticleLayerId,
   getDefaultRasterLayerId,
 } from '@/forecast/catalog'
 import {
@@ -25,7 +24,6 @@ import { createActiveRunFixture } from './manifest'
 
 type ForecastSelectionContextOptions = Partial<{
   selectedLayerId: string
-  selectedParticleLayerId: string
 }>
 
 export function createForecastSelectionContextValue(
@@ -38,7 +36,6 @@ export function createForecastSelectionContextValue(
     datasetOptions: datasetOptionsFromManifest(manifest),
     setActiveDataset: vi.fn(),
     setSelectedLayer: vi.fn(),
-    setSelectedParticleLayer: vi.fn(),
   }
   const selectedLayerId = options.selectedLayerId
     ? options.selectedLayerId
@@ -50,14 +47,12 @@ export function createForecastSelectionContextValue(
           activeRun: null,
           activeDatasetId: null,
           selectedLayerId: null,
-          selectedParticleLayerId: null,
           ...shared,
         }
       : {
           activeRun,
           activeDatasetId: activeRun.datasetId,
           selectedLayerId,
-          selectedParticleLayerId: options.selectedParticleLayerId ?? getDefaultAvailableParticleLayerId(activeRun),
           ...shared,
         }
   ) satisfies ForecastSelectionContextValue

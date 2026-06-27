@@ -20,6 +20,10 @@ describe('settingsPersistence', () => {
     localStorage.clear()
   })
 
+  it('loads defaults when no settings are stored', () => {
+    expect(loadStoredForecastSettings()).toEqual(DEFAULT_FORECAST_SETTINGS)
+  })
+
   it('loads valid persisted UI preferences over defaults', () => {
     storeRawSettings({
       map: { projection: 'mercator', placeValueLabelsEnabled: false },
@@ -52,110 +56,51 @@ describe('settingsPersistence', () => {
     }))
   })
 
-  it('ignores malformed and invalid persisted settings', () => {
-    storeRawSettings({
-      map: { projection: 'orthographic', placeValueLabelsEnabled: 'false' },
-      raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
-      particles: {
-        enabled: 'false',
-        particleCount: 1,
-        flowSpeedScale: 12000,
-        dotMinPx: 100,
-        dotMaxPx: -1,
-        trailCompositeOpacity: 2,
-        trailFade: 0.5,
+  it('falls back to defaults for malformed, partial, or invalid persisted settings', () => {
+    const invalidValues: unknown[] = [
+      {
+        map: { projection: 'mercator', placeValueLabelsEnabled: false },
       },
-      pressureContours: { enabled: 'true' },
-      units: { system: 'kelvin' },
-    })
+      {
+        map: { projection: 'orthographic', placeValueLabelsEnabled: 'false' },
+        raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
+        particles: {
+          enabled: 'false',
+          particleCount: 1,
+          flowSpeedScale: 12000,
+          dotMinPx: 100,
+          dotMaxPx: -1,
+          trailCompositeOpacity: 2,
+          trailFade: 0.5,
+        },
+        pressureContours: { enabled: 'true' },
+        units: { system: 'kelvin' },
+      },
+      {
+        map: { projection: 'mercator', placeValueLabelsEnabled: false },
+        raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
+        particles: {
+          enabled: false,
+          particleCount: 11000,
+          flowSpeedScale: 7200,
+          dotMinPx: particleSizeSettingsForRatio(0.75).dotMinPx,
+          dotMaxPx: particleSizeSettingsForRatio(1.5).dotMaxPx,
+          trailCompositeOpacity: 0.45,
+          trailFade: TRAIL_FADE,
+        },
+        pressureContours: { enabled: true },
+        units: { system: 'metric' },
+      },
+    ]
 
+    for (const value of invalidValues) {
+      storeRawSettings(value)
+      expect(loadStoredForecastSettings()).toEqual(DEFAULT_FORECAST_SETTINGS)
+      localStorage.clear()
+    }
+
+    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, '{')
     expect(loadStoredForecastSettings()).toEqual(DEFAULT_FORECAST_SETTINGS)
-  })
-
-  it('loads persisted particle map controls but ignores lower-level tuning fields', () => {
-    storeRawSettings({
-      particles: {
-        enabled: false,
-        clearTrailsOnViewChange: false,
-        particleCount: 12000,
-        flowSpeedScale: 8000,
-        ...PARTICLE_SIZE,
-        trailCompositeOpacity: 0.45,
-        trailFade: TRAIL_FADE,
-      },
-    })
-
-    expect(loadStoredForecastSettings().particles).toEqual(expect.objectContaining({
-      enabled: false,
-      clearTrailsOnViewChange: DEFAULT_FORECAST_SETTINGS.particles.clearTrailsOnViewChange,
-      particleCount: 12000,
-      flowSpeedScale: 8000,
-      ...PARTICLE_SIZE,
-      trailCompositeOpacity: 0.45,
-      trailFade: TRAIL_FADE,
-    }))
-  })
-
-  it('drops paired particle size settings when the pair is incoherent', () => {
-    storeRawSettings({
-      particles: {
-        enabled: false,
-        dotMinPx: particleSizeSettingsForRatio(0.75).dotMinPx,
-        dotMaxPx: particleSizeSettingsForRatio(1.5).dotMaxPx,
-        trailCompositeOpacity: 0.45,
-      },
-    })
-
-    expect(loadStoredForecastSettings().particles).toEqual(expect.objectContaining({
-      enabled: false,
-      dotMinPx: DEFAULT_FORECAST_SETTINGS.particles.dotMinPx,
-      dotMaxPx: DEFAULT_FORECAST_SETTINGS.particles.dotMaxPx,
-      trailCompositeOpacity: 0.45,
-    }))
-  })
-
-  it('ignores out-of-range persisted map controls', () => {
-    storeRawSettings({
-      map: {
-        projection: 'mercator',
-        placeValueLabelsEnabled: false,
-      },
-      raster: {
-        gridSamplingMode: 'nearest',
-        colorSamplingMode: 'banded',
-        opacity: 0.1,
-      },
-      particles: {
-        enabled: false,
-        particleCount: 50000,
-        flowSpeedScale: 30000,
-        dotMinPx: 100,
-        dotMaxPx: -1,
-        trailCompositeOpacity: 2,
-        trailFade: 0.5,
-      },
-    })
-
-    expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
-      map: {
-        projection: 'mercator',
-        placeValueLabelsEnabled: false,
-      },
-      raster: {
-        gridSamplingMode: 'nearest',
-        colorSamplingMode: 'banded',
-        opacity: DEFAULT_FORECAST_SETTINGS.raster.opacity,
-      },
-      particles: expect.objectContaining({
-        enabled: false,
-        particleCount: DEFAULT_FORECAST_SETTINGS.particles.particleCount,
-        flowSpeedScale: DEFAULT_FORECAST_SETTINGS.particles.flowSpeedScale,
-        dotMinPx: DEFAULT_FORECAST_SETTINGS.particles.dotMinPx,
-        dotMaxPx: DEFAULT_FORECAST_SETTINGS.particles.dotMaxPx,
-        trailCompositeOpacity: DEFAULT_FORECAST_SETTINGS.particles.trailCompositeOpacity,
-        trailFade: DEFAULT_FORECAST_SETTINGS.particles.trailFade,
-      }),
-    }))
   })
 
   it('saves only persisted UI preferences', () => {

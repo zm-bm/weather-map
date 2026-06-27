@@ -3,11 +3,11 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import {
   asWebGL2,
   createProjectionProgramCache,
-  createWrappedWorldQuad,
+  createWrappedWorldMesh,
   deleteBufferInfo,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
   type ProjectionProgramCache,
-  type WrappedWorldQuad,
+  type WrappedWorldMesh,
 } from '../../gpu'
 import { EncodedGridTextureCache } from '../../encodedGrid'
 import type { CustomLayerRuntime } from '../../maplibre/customLayer'
@@ -29,7 +29,7 @@ type OverlayState = {
   map?: MapLibreMap
   gl?: WebGL2RenderingContext
   programCache: ProjectionProgramCache | null
-  quad: WrappedWorldQuad | null
+  mesh: WrappedWorldMesh | null
   overlayEntries: PrecipitationTypeOverlayRenderEntry[]
   textureCache: EncodedGridTextureCache
   patternOpacity: number
@@ -42,7 +42,7 @@ export function createOverlayRuntime(
 ): CustomLayerRuntime {
   const state: OverlayState = {
     programCache: null,
-    quad: null,
+    mesh: null,
     overlayEntries: [],
     textureCache: new EncodedGridTextureCache(),
     patternOpacity: 1,
@@ -55,9 +55,9 @@ export function createOverlayRuntime(
   const handleZoomEnd = () => setPatternOpacityTarget(state, 1)
 
   const controller: OverlayController = {
-    isAvailable: () => state.gl != null && state.programCache != null && state.quad != null,
+    isAvailable: () => state.gl != null && state.programCache != null && state.mesh != null,
     applyFrame: (frame) => {
-      if (!state.gl || !state.programCache || !state.quad) {
+      if (!state.gl || !state.programCache || !state.mesh) {
         throw new Error('Overlay runtime unavailable')
       }
 
@@ -101,9 +101,9 @@ export function createOverlayRuntime(
         vertexSource: WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
         fragmentSource: OVERLAY_FRAGMENT_SHADER_SOURCE,
       })
-      state.quad = createWrappedWorldQuad(gl2)
+      state.mesh = createWrappedWorldMesh(gl2)
 
-      if (!state.programCache || !state.quad) return
+      if (!state.programCache || !state.mesh) return
 
       map.on('zoomstart', handleZoomStart)
       map.on('zoom', handleZoom)
@@ -112,7 +112,7 @@ export function createOverlayRuntime(
 
     render(gl, input) {
       const gl2 = asWebGL2(gl, 'createVertexArray')
-      if (!gl2 || !state.map || !state.programCache || !state.quad) return
+      if (!gl2 || !state.map || !state.programCache || !state.mesh) return
       if (state.overlayEntries.length === 0) return
       const opacityStep = stepPatternOpacity({
         opacity: state.patternOpacity,
@@ -127,7 +127,7 @@ export function createOverlayRuntime(
           gl: gl2,
           map: state.map,
           programCache: state.programCache,
-          quad: state.quad,
+          mesh: state.mesh,
           entry,
           input,
           patternOpacity: state.patternOpacity,
@@ -149,7 +149,7 @@ export function createOverlayRuntime(
       if (gl) {
         state.overlayEntries = []
         state.textureCache.clear(gl)
-        if (state.quad) deleteBufferInfo(gl, state.quad)
+        if (state.mesh) deleteBufferInfo(gl, state.mesh)
         state.programCache?.clear()
       }
 
@@ -159,7 +159,7 @@ export function createOverlayRuntime(
       state.patternOpacityTarget = 1
       state.lastPatternOpacityMs = null
       state.programCache = null
-      state.quad = null
+      state.mesh = null
       state.overlayEntries = []
     },
   }

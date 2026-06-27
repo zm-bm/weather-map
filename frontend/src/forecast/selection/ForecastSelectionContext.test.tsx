@@ -21,7 +21,6 @@ function ForecastSelectionProbe() {
   return (
     <div>
       <div data-testid="selected-layer">{context.selectedLayerId}</div>
-      <div data-testid="selected-particle">{context.selectedParticleLayerId}</div>
       <div data-testid="active-dataset">{context.activeDatasetId}</div>
       <div data-testid="location-search">{location.search}</div>
       <button type="button" onClick={() => context.setSelectedLayer('relative_humidity')}>
@@ -41,9 +40,6 @@ function ForecastSelectionProbe() {
       </button>
       <button type="button" onClick={() => context.setActiveDataset('icon')}>
         set-dataset-icon
-      </button>
-      <button type="button" onClick={() => context.setSelectedParticleLayer('wind')}>
-        set-particle-wind
       </button>
     </div>
   )
@@ -100,7 +96,6 @@ describe('ForecastSelectionContext', () => {
     const { rerender } = renderSelection({ manifest: firstManifest })
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
@@ -114,10 +109,9 @@ describe('ForecastSelectionContext', () => {
     rerender(selectionProvider({ manifest: secondManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
-  it('preserves selected layer and particle choices when the manifest changes within the same cycle', () => {
+  it('preserves selected layer choices when the manifest changes within the same cycle', () => {
     const firstManifest = createManifestFixture({
       cycle: '2026040900',
       scalarArtifactIds: ['tmp_surface', 'rh_surface'],
@@ -127,10 +121,8 @@ describe('ForecastSelectionContext', () => {
     const { rerender } = renderSelection({ manifest: firstManifest })
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('temperature')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
 
     fireEvent.click(screen.getByRole('button', { name: 'set-layer-rh' }))
-    fireEvent.click(screen.getByRole('button', { name: 'set-particle-wind' }))
 
     const secondManifest = createManifestFixture({
       cycle: '2026040900',
@@ -142,7 +134,6 @@ describe('ForecastSelectionContext', () => {
     rerender(selectionProvider({ manifest: secondManifest }))
 
     expect(screen.getByTestId('selected-layer')).toHaveTextContent('relative_humidity')
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
   })
 
   it('preserves the selected layer when switching datasets without the same layer in the manifest', () => {
@@ -232,26 +223,6 @@ describe('ForecastSelectionContext', () => {
       expect(screen.getByTestId('active-dataset')).toHaveTextContent('gfs')
     })
     expect(localStorage.getItem(ACTIVE_DATASET_STORAGE_KEY)).toBe('gfs')
-  })
-
-  it('defaults particle selection to wind particles when the wind vector artifact is available', () => {
-    const manifest = createManifestFixture({
-      vectorArtifactIds: ['wind10m_uv'],
-    })
-
-    renderSelection({ manifest })
-
-    expect(screen.getByTestId('selected-particle')).toHaveTextContent('wind')
-  })
-
-  it('leaves particle selection empty when no compatible particle artifact is available', () => {
-    const manifest = createManifestFixture({
-      vectorArtifactIds: [],
-    })
-
-    renderSelection({ manifest })
-
-    expect(screen.getByTestId('selected-particle')).toBeEmptyDOMElement()
   })
 
   it('uses a valid layer query param before localStorage', async () => {

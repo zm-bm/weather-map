@@ -12,7 +12,7 @@ import {
   createCloudLayersRasterFrameFixture,
 } from '@/test/fixtures'
 import {
-  createWrappedWorldQuad,
+  createWrappedWorldMesh,
   WRAPPED_WORLD_VERTEX_SHADER_SOURCE,
   WRAPPED_WORLD_MESH_VERTEX_COUNT,
   WORLD_WRAP_COPY_OFFSETS,
@@ -39,7 +39,7 @@ function createMapFixture() {
 describe('raster runtime encoded sources', () => {
   it('uses shared wrapped-world render primitives', () => {
     const gl = createMockWebGl2()
-    createWrappedWorldQuad(gl as never)
+    createWrappedWorldMesh(gl as never)
 
     expect(gl.bufferData).toHaveBeenCalledWith(
       gl.ARRAY_BUFFER,

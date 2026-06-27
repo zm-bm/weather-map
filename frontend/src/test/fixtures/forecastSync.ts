@@ -35,7 +35,6 @@ type ForecastSyncPlanFixtureOptions = {
 export function createForecastSyncPlanFixture(args: {
   activeRun?: ActiveForecastRun
   selectedLayerId?: string | null
-  selectedParticleLayerId?: string | null
   layerSource?: ForecastLayerSource
   contourSource?: ContourSource | null
   particleSource?: ParticleSource | null
@@ -64,9 +63,6 @@ export function createForecastSyncPlanFixture(args: {
     selectedLayerId: args.selectedLayerId === undefined
       ? args.layerSource?.layerId ?? 'temperature'
       : args.selectedLayerId,
-    selectedParticleLayerId: args.selectedParticleLayerId === undefined
-      ? (args.particleSource === null ? null : args.particleSource?.id ?? 'wind')
-      : args.selectedParticleLayerId,
     targetTimeMs,
     syncOptions,
   })

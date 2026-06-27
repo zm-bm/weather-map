@@ -4,7 +4,9 @@ import {
 } from '@/forecast/manifest'
 import {
   createPayloadCache,
+  type PayloadCache,
   type PayloadCacheLimits,
+  type PayloadCacheTestControls,
 } from '@/forecast/cache/payloadCache'
 
 const DEFAULT_PAYLOAD_CACHE_LIMITS: PayloadCacheLimits = {
@@ -12,11 +14,13 @@ const DEFAULT_PAYLOAD_CACHE_LIMITS: PayloadCacheLimits = {
   persistedBytes: 384 * 1024 * 1024,
 }
 
-const payloadCache = createPayloadCache({
+const payloadCacheInstance = createPayloadCache({
   dbName: 'weather-map-frame-payload-cache',
   storeName: 'payloads',
   defaultLimits: DEFAULT_PAYLOAD_CACHE_LIMITS,
 })
+const payloadCache: PayloadCache = payloadCacheInstance
+const payloadCacheTestControls: PayloadCacheTestControls = payloadCacheInstance
 
 export function payloadCacheKey(
   activeRun: ActiveForecastRun,
@@ -54,16 +58,16 @@ export async function writeCachedPayload(args: {
 }
 
 export async function __resetPayloadCacheForTests(): Promise<void> {
-  await payloadCache.resetForTests()
+  await payloadCacheTestControls.resetForTests()
 }
 
 export async function __flushPayloadCacheForTests(): Promise<void> {
-  await payloadCache.flushForTests()
+  await payloadCacheTestControls.flushForTests()
 }
 
 export function __setPayloadCacheLimitsForTests(limits: {
   memoryBytes?: number
   persistedBytes?: number
 }) {
-  payloadCache.setLimitsForTests(limits)
+  payloadCacheTestControls.setLimitsForTests(limits)
 }

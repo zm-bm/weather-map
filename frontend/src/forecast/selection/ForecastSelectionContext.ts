@@ -12,21 +12,18 @@ type ForecastSelectionBaseValue = {
   datasetOptions: readonly ForecastDatasetOption[]
   setActiveDataset: (value: ForecastDatasetId) => void
   setSelectedLayer: (value: string) => void
-  setSelectedParticleLayer: (value: string) => void
 }
 
 type ForecastSelectionContextLoadedValue = ForecastSelectionBaseValue & {
   activeRun: ActiveForecastRun
   activeDatasetId: ForecastDatasetId
   selectedLayerId: string | null
-  selectedParticleLayerId: string | null
 }
 
 type ForecastSelectionContextUnloadedValue = ForecastSelectionBaseValue & {
   activeRun: null
   activeDatasetId: null
   selectedLayerId: null
-  selectedParticleLayerId: null
 }
 
 export type ForecastSelectionContextValue =

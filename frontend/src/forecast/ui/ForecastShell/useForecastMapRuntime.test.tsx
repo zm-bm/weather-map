@@ -6,6 +6,11 @@ import config from '@/core/config'
 import {
   DEFAULT_FORECAST_SETTINGS,
   ForecastSettingsProvider,
+  type ForecastMapSettings,
+  type ParticleSettings,
+  type PressureContourSettings,
+  type RasterRenderSettings,
+  type UnitSettings,
 } from '@/forecast/settings'
 import type { UseForecastSyncArgs, ForecastSyncInitialStatus } from '@/forecast/sync'
 import {
@@ -204,11 +209,11 @@ describe('useForecastMapRuntime', () => {
     mocks.useForecastSelectionContext.mockReturnValue({
       selectedLayerId: 'wind_speed',
     })
-    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+    storeForecastSettings({
       particles: {
         enabled: false,
       },
-    }))
+    })
     renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -224,11 +229,11 @@ describe('useForecastMapRuntime', () => {
   })
 
   it('uses stored pressure contour settings on non-pressure fields', () => {
-    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+    storeForecastSettings({
       pressureContours: {
         enabled: true,
       },
-    }))
+    })
     renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -244,12 +249,12 @@ describe('useForecastMapRuntime', () => {
   })
 
   it('uses stored renderer runtime settings without changing the render profile', () => {
-    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+    storeForecastSettings({
       raster: {
         gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
       },
-    }))
+    })
     renderRuntime()
 
     expect(mocks.useForecastRenderHost).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -264,11 +269,11 @@ describe('useForecastMapRuntime', () => {
   })
 
   it('passes the stored map projection to MapLibre', () => {
-    localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+    storeForecastSettings({
       map: {
         projection: 'mercator',
       },
-    }))
+    })
 
     renderRuntime()
 
@@ -308,3 +313,53 @@ describe('useForecastMapRuntime', () => {
     }))
   })
 })
+
+type StoredSettingsOverrides = {
+  map?: Partial<ForecastMapSettings>
+  raster?: Partial<RasterRenderSettings>
+  particles?: Partial<Pick<
+    ParticleSettings,
+    | 'enabled'
+    | 'particleCount'
+    | 'flowSpeedScale'
+    | 'dotMinPx'
+    | 'dotMaxPx'
+    | 'trailCompositeOpacity'
+    | 'trailFade'
+  >>
+  pressureContours?: Partial<PressureContourSettings>
+  units?: Partial<UnitSettings>
+}
+
+function storeForecastSettings(overrides: StoredSettingsOverrides): void {
+  const particles = DEFAULT_FORECAST_SETTINGS.particles
+
+  localStorage.setItem(FORECAST_SETTINGS_STORAGE_KEY, JSON.stringify({
+    map: {
+      ...DEFAULT_FORECAST_SETTINGS.map,
+      ...overrides.map,
+    },
+    raster: {
+      ...DEFAULT_FORECAST_SETTINGS.raster,
+      ...overrides.raster,
+    },
+    particles: {
+      enabled: particles.enabled,
+      particleCount: particles.particleCount,
+      flowSpeedScale: particles.flowSpeedScale,
+      dotMinPx: particles.dotMinPx,
+      dotMaxPx: particles.dotMaxPx,
+      trailCompositeOpacity: particles.trailCompositeOpacity,
+      trailFade: particles.trailFade,
+      ...overrides.particles,
+    },
+    pressureContours: {
+      ...DEFAULT_FORECAST_SETTINGS.pressureContours,
+      ...overrides.pressureContours,
+    },
+    units: {
+      ...DEFAULT_FORECAST_SETTINGS.units,
+      ...overrides.units,
+    },
+  }))
+}

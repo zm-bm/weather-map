@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 
 import { normalizeError } from '@/core/abort'
@@ -29,22 +29,28 @@ export function useForecastRenderHost({
   profile,
   renderSettings,
 }: UseForecastRenderHostArgs): ForecastRenderHost | null {
-  const hostStore = useMemo(() => createHostStore(), [])
-  const renderHost = useSyncExternalStore(
-    hostStore.subscribe,
-    hostStore.getSnapshot,
-    hostStore.getSnapshot,
-  )
+  const [renderHost, setRenderHost] = useState<ForecastRenderHost | null>(null)
+  const versionRef = useRef(0)
   const installedRef = useRef<{
     map: MapLibreMap
     profileKey: string
   } | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+    const publishRenderHost = (host: ForecastRenderHost | null) => {
+      queueMicrotask(() => {
+        if (!cancelled) setRenderHost(host)
+      })
+    }
+
     if (!map) {
       installedRef.current = null
-      hostStore.publish(null)
-      return
+      versionRef.current = 0
+      publishRenderHost(null)
+      return () => {
+        cancelled = true
+      }
     }
 
     const profileKey = createProfileKey(profile)
@@ -62,12 +68,16 @@ export function useForecastRenderHost({
         return
       }
 
+      const version = versionRef.current + 1
+      versionRef.current = version
       installedRef.current = { map, profileKey }
-      hostStore.publish({
-        version: (hostStore.getSnapshot()?.version ?? 0) + 1,
+      publishRenderHost({
+        version,
         apply: (windows) => applyWindows(map, profile, windows),
       })
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
     try {
@@ -75,37 +85,15 @@ export function useForecastRenderHost({
     } catch (error) {
       console.error('[forecast-render] renderer update failed', normalizeError(error))
     }
-  }, [map, profile, hostStore, renderSettings])
+
+    return () => {
+      cancelled = true
+    }
+  }, [map, profile, renderSettings])
 
   return renderHost
 }
 
 function createProfileKey(profile: ForecastRenderProfile): string {
   return profile.layerIds.join(',')
-}
-
-type HostStore = {
-  getSnapshot: () => ForecastRenderHost | null
-  publish: (host: ForecastRenderHost | null) => void
-  subscribe: (listener: () => void) => () => void
-}
-
-function createHostStore(): HostStore {
-  let snapshot: ForecastRenderHost | null = null
-  const listeners = new Set<() => void>()
-
-  return {
-    getSnapshot: () => snapshot,
-    publish: (host) => {
-      if (snapshot === host) return
-      snapshot = host
-      for (const listener of listeners) listener()
-    },
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-  }
 }

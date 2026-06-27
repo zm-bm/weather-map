@@ -57,36 +57,34 @@ type PersistedForecastSettings = {
   }
 }
 
-type StoredForecastSettings = {
-  [Group in keyof PersistedForecastSettings]?: Partial<PersistedForecastSettings[Group]>
-}
-
 export function loadStoredForecastSettings(): ForecastSettings {
   const stored = loadLocalStorageJson(
     FORECAST_SETTINGS_STORAGE_KEY,
     validateStoredForecastSettings
   )
 
+  if (!stored) return DEFAULT_FORECAST_SETTINGS
+
   return {
     map: {
       ...DEFAULT_FORECAST_SETTINGS.map,
-      ...stored?.map,
+      ...stored.map,
     },
     raster: {
       ...DEFAULT_FORECAST_SETTINGS.raster,
-      ...stored?.raster,
+      ...stored.raster,
     },
     particles: {
       ...DEFAULT_FORECAST_SETTINGS.particles,
-      ...stored?.particles,
+      ...stored.particles,
     },
     pressureContours: {
       ...DEFAULT_FORECAST_SETTINGS.pressureContours,
-      ...stored?.pressureContours,
+      ...stored.pressureContours,
     },
     units: {
       ...DEFAULT_FORECAST_SETTINGS.units,
-      ...stored?.units,
+      ...stored.units,
     },
   }
 }
@@ -124,84 +122,82 @@ function toStoredForecastSettings(settings: ForecastSettings): PersistedForecast
   }
 }
 
-function validateStoredForecastSettings(value: unknown): StoredForecastSettings | null {
+function validateStoredForecastSettings(value: unknown): PersistedForecastSettings | null {
   if (!isRecord(value)) return null
-
-  const settings: StoredForecastSettings = {}
 
   const map = validMapSettings(value.map)
-  if (map) settings.map = map
+  if (!map) return null
 
   const raster = validRasterSettings(value.raster)
-  if (raster) settings.raster = raster
+  if (!raster) return null
 
   const particles = validParticleSettings(value.particles)
-  if (particles) settings.particles = particles
+  if (!particles) return null
 
   const pressureContours = validPressureContourSettings(value.pressureContours)
-  if (pressureContours) settings.pressureContours = pressureContours
+  if (!pressureContours) return null
 
   const units = validUnitSettings(value.units)
-  if (units) settings.units = units
+  if (!units) return null
 
-  return Object.keys(settings).length > 0 ? settings : null
+  return {
+    map,
+    raster,
+    particles,
+    pressureContours,
+    units,
+  }
 }
 
-function validMapSettings(value: unknown): StoredForecastSettings['map'] | null {
+function validMapSettings(value: unknown): PersistedForecastSettings['map'] | null {
   if (!isRecord(value)) return null
+  if (!isMapProjectionMode(value.projection)) return null
+  if (typeof value.placeValueLabelsEnabled !== 'boolean') return null
 
-  const map: NonNullable<StoredForecastSettings['map']> = {}
-  if (isMapProjectionMode(value.projection)) {
-    map.projection = value.projection
+  return {
+    projection: value.projection,
+    placeValueLabelsEnabled: value.placeValueLabelsEnabled,
   }
-  if (typeof value.placeValueLabelsEnabled === 'boolean') {
-    map.placeValueLabelsEnabled = value.placeValueLabelsEnabled
-  }
-
-  return Object.keys(map).length > 0 ? map : null
 }
 
-function validRasterSettings(value: unknown): StoredForecastSettings['raster'] | null {
+function validRasterSettings(value: unknown): PersistedForecastSettings['raster'] | null {
   if (!isRecord(value)) return null
+  if (!isRasterGridSamplingMode(value.gridSamplingMode)) return null
+  if (!isRasterColorSamplingMode(value.colorSamplingMode)) return null
+  if (!isNumberInRange(value.opacity, RASTER_OPACITY_MIN, RASTER_OPACITY_MAX)) return null
 
-  const raster: NonNullable<StoredForecastSettings['raster']> = {}
-  if (isRasterGridSamplingMode(value.gridSamplingMode)) {
-    raster.gridSamplingMode = value.gridSamplingMode
+  return {
+    gridSamplingMode: value.gridSamplingMode,
+    colorSamplingMode: value.colorSamplingMode,
+    opacity: value.opacity,
   }
-  if (isRasterColorSamplingMode(value.colorSamplingMode)) {
-    raster.colorSamplingMode = value.colorSamplingMode
-  }
-  if (isNumberInRange(value.opacity, RASTER_OPACITY_MIN, RASTER_OPACITY_MAX)) {
-    raster.opacity = value.opacity
-  }
-
-  return Object.keys(raster).length > 0 ? raster : null
 }
 
-function validParticleSettings(value: unknown): StoredForecastSettings['particles'] | null {
+function validParticleSettings(value: unknown): PersistedForecastSettings['particles'] | null {
   if (!isRecord(value)) return null
+  if (typeof value.enabled !== 'boolean') return null
+  if (!isIntegerInRange(value.particleCount, PARTICLE_COUNT_MIN, PARTICLE_COUNT_MAX)) return null
+  if (!isNumberInRange(value.flowSpeedScale, PARTICLE_FLOW_SPEED_SCALE_MIN, PARTICLE_FLOW_SPEED_SCALE_MAX)) {
+    return null
+  }
 
-  const particles: NonNullable<StoredForecastSettings['particles']> = {}
-  if (typeof value.enabled === 'boolean') particles.enabled = value.enabled
-  if (isIntegerInRange(value.particleCount, PARTICLE_COUNT_MIN, PARTICLE_COUNT_MAX)) {
-    particles.particleCount = value.particleCount
-  }
-  if (isNumberInRange(value.flowSpeedScale, PARTICLE_FLOW_SPEED_SCALE_MIN, PARTICLE_FLOW_SPEED_SCALE_MAX)) {
-    particles.flowSpeedScale = value.flowSpeedScale
-  }
   const size = validParticleSizeSettings(value)
-  if (size) {
-    particles.dotMinPx = size.dotMinPx
-    particles.dotMaxPx = size.dotMaxPx
+  if (!size) return null
+  if (!isNumberInRange(value.trailCompositeOpacity, PARTICLE_TRAIL_OPACITY_MIN, PARTICLE_TRAIL_OPACITY_MAX)) {
+    return null
   }
-  if (isNumberInRange(value.trailCompositeOpacity, PARTICLE_TRAIL_OPACITY_MIN, PARTICLE_TRAIL_OPACITY_MAX)) {
-    particles.trailCompositeOpacity = value.trailCompositeOpacity
-  }
-  if (isNumberInRange(value.trailFade, PARTICLE_TRAIL_FADE_MIN, PARTICLE_TRAIL_FADE_MAX)) {
-    particles.trailFade = value.trailFade
+  if (!isNumberInRange(value.trailFade, PARTICLE_TRAIL_FADE_MIN, PARTICLE_TRAIL_FADE_MAX)) {
+    return null
   }
 
-  return Object.keys(particles).length > 0 ? particles : null
+  return {
+    enabled: value.enabled,
+    particleCount: value.particleCount,
+    flowSpeedScale: value.flowSpeedScale,
+    ...size,
+    trailCompositeOpacity: value.trailCompositeOpacity,
+    trailFade: value.trailFade,
+  }
 }
 
 function validParticleSizeSettings(value: Record<string, unknown>): ParticleSizeSettings | null {
@@ -219,7 +215,7 @@ function validParticleSizeSettings(value: Record<string, unknown>): ParticleSize
   return particleSizeSettingsForRatio(dotMinRatio)
 }
 
-function validPressureContourSettings(value: unknown): StoredForecastSettings['pressureContours'] | null {
+function validPressureContourSettings(value: unknown): PersistedForecastSettings['pressureContours'] | null {
   if (!isRecord(value)) return null
   if (typeof value.enabled !== 'boolean') return null
   return {
@@ -227,7 +223,7 @@ function validPressureContourSettings(value: unknown): StoredForecastSettings['p
   }
 }
 
-function validUnitSettings(value: unknown): StoredForecastSettings['units'] | null {
+function validUnitSettings(value: unknown): PersistedForecastSettings['units'] | null {
   if (!isRecord(value)) return null
   if (!isUnitSystem(value.system)) return null
   return {

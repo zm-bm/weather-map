@@ -5,12 +5,12 @@ import {
   type EncodedFramePair,
 } from '../../../encodedGrid'
 import {
-  bindWrappedWorldQuad,
+  bindWrappedWorldMesh,
   createProgramInfo,
-  drawWrappedWorldQuad,
+  drawWrappedWorldMesh,
   setUniforms,
   type ProgramInfo,
-  type WrappedWorldQuad,
+  type WrappedWorldMesh,
 } from '../../../gpu'
 import {
   PRESSURE_SMOOTHING_FRAGMENT_SHADER_SOURCE,
@@ -93,18 +93,18 @@ export function createPressurePrefilter(gl: WebGL2RenderingContext): PressurePre
 export function createSmoothedPressureFramePair(args: {
   gl: WebGL2RenderingContext
   prefilter: PressurePrefilter | null
-  quad: WrappedWorldQuad | null
+  mesh: WrappedWorldMesh | null
   rawFramePair: EncodedFramePair<ContourWindowFrame>
   renderSpec: PressureEncodingRenderSpec
 }): EncodedFramePair<ContourWindowFrame> | null {
-  const { gl, prefilter, quad, rawFramePair, renderSpec } = args
-  if (!prefilter || !quad) return null
+  const { gl, prefilter, mesh, rawFramePair, renderSpec } = args
+  if (!prefilter || !mesh) return null
 
   const smoothTexture = (frame: ContourWindowFrame, rawTexture: WebGLTexture) => (
     createSmoothedPressureTexture({
       gl,
       prefilter,
-      quad,
+      mesh,
       frame,
       rawTexture,
       renderSpec,
@@ -130,7 +130,7 @@ export function createSmoothedPressureFramePair(args: {
 function createSmoothedPressureTexture(args: {
   gl: WebGL2RenderingContext
   prefilter: PressurePrefilter
-  quad: WrappedWorldQuad
+  mesh: WrappedWorldMesh
   frame: ContourWindowFrame
   rawTexture: WebGLTexture
   renderSpec: PressureEncodingRenderSpec
@@ -147,7 +147,7 @@ function createSmoothedPressureTexture(args: {
   const didRender = renderSmoothedPressureTexture({
     gl,
     prefilter,
-    quad: args.quad,
+    mesh: args.mesh,
     frame,
     rawTexture,
     smoothedTexture: texture,
@@ -210,7 +210,7 @@ function createPressureRenderTargetTexture(
 function renderSmoothedPressureTexture(args: {
   gl: WebGL2RenderingContext
   prefilter: PressurePrefilter
-  quad: WrappedWorldQuad
+  mesh: WrappedWorldMesh
   frame: ContourWindowFrame
   rawTexture: WebGLTexture
   smoothedTexture: WebGLTexture
@@ -219,7 +219,7 @@ function renderSmoothedPressureTexture(args: {
   const {
     gl,
     prefilter,
-    quad,
+    mesh,
     frame,
     rawTexture,
     smoothedTexture,
@@ -239,13 +239,13 @@ function renderSmoothedPressureTexture(args: {
   gl.disable(gl.DEPTH_TEST)
   gl.disable(gl.BLEND)
   gl.useProgram(prefilter.programInfo.program)
-  bindWrappedWorldQuad(gl, prefilter.programInfo, quad)
+  bindWrappedWorldMesh(gl, prefilter.programInfo, mesh)
   setUniforms(prefilter.programInfo, {
     u_encoded_tex: rawTexture,
     ...encodedGridUniforms(frame.raster.grid),
     ...encodedLinearUniforms(renderSpec),
   })
-  drawWrappedWorldQuad(gl, quad)
+  drawWrappedWorldMesh(gl, mesh)
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.useProgram(null)
   return true
