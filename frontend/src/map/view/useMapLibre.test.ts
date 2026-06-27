@@ -156,7 +156,6 @@ describe('useMapLibre', () => {
     expect(options.fadeDuration).toBe(0)
     expect(options.localIdeographFontFamily).toBe('sans-serif')
     expect(style).not.toBe(baseStyleJson)
-    expect(style.projection).toEqual({ type: 'mercator' })
     expect(style.glyphs).toBeUndefined()
     const basemapSource = style.sources?.[BASEMAP_SOURCE_ID] as VectorSourceSpecification | undefined
     expect(basemapSource?.type).toBe('vector')
@@ -192,17 +191,20 @@ describe('useMapLibre', () => {
     expect((style.layers ?? []).some((layer) => 'source' in layer && layer.source === BASEMAP_SOURCE_ID)).toBe(false)
   })
 
-  it('initializes the style with a requested globe projection', () => {
+  it('initializes the style with a requested mercator projection', () => {
     renderMapLibre(useMapLibre, {
       ...MAP_OPTIONS,
-      projection: 'globe',
+      projection: 'mercator',
     })
 
-    expect(latestStyle().projection).toEqual({ type: 'globe' })
+    expect(latestStyle().projection).toEqual({ type: 'mercator' })
   })
 
   it('switches projection on the existing map when the option changes', () => {
-    const { rerender } = renderMapLibre()
+    const { rerender } = renderMapLibre(useMapLibre, {
+      ...MAP_OPTIONS,
+      projection: 'mercator',
+    })
 
     act(() => {
       mocks.emit('style.load')

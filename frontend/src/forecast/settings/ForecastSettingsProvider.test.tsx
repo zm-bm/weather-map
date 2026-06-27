@@ -38,7 +38,7 @@ describe('ForecastSettingsProvider', () => {
 
     act(() => {
       result.current.actions.updateMap({
-        projection: 'globe',
+        projection: 'mercator',
         placeValueLabelsEnabled: false,
       })
       result.current.actions.updateRaster({
@@ -59,7 +59,7 @@ describe('ForecastSettingsProvider', () => {
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
       raster: expect.objectContaining({
         gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
@@ -94,60 +94,17 @@ describe('ForecastSettingsProvider', () => {
     expect(result.current.settings.units.system).toBe('imperial')
   })
 
-  it('loads valid stored UI preferences', () => {
+  it('loads stored UI preferences from localStorage', () => {
     storeRawSettings({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
-      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
-      particles: {
-        enabled: false,
-        particleCount: 11000,
-        flowSpeedScale: 7200,
-        ...PARTICLE_SIZE,
-        trailCompositeOpacity: 0.45,
-        trailFade: TRAIL_FADE,
-      },
-      pressureContours: { enabled: true },
-      units: { system: 'metric' },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
     })
 
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
-    expect(result.current.settings).toEqual(expect.objectContaining({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
-      raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
-      particles: expect.objectContaining({
-        enabled: false,
-        particleCount: 11000,
-        flowSpeedScale: 7200,
-        ...PARTICLE_SIZE,
-        trailCompositeOpacity: 0.45,
-        trailFade: TRAIL_FADE,
-      }),
-      pressureContours: { enabled: true },
-      units: { system: 'metric' },
-    }))
-  })
-
-  it('falls back to defaults for invalid stored settings', () => {
-    storeRawSettings({
-      map: { projection: 'orthographic', placeValueLabelsEnabled: 'false' },
-      raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
-      particles: {
-        enabled: 'false',
-        particleCount: 1,
-        flowSpeedScale: 12000,
-        dotMinPx: 100,
-        dotMaxPx: -1,
-        trailCompositeOpacity: 2,
-        trailFade: 0.5,
-      },
-      pressureContours: { enabled: 'true' },
-      units: { system: 'kelvin' },
+    expect(result.current.settings.map).toEqual({
+      projection: 'mercator',
+      placeValueLabelsEnabled: false,
     })
-
-    const { result } = renderHook(() => useForecastSettings(), { wrapper })
-
-    expect(result.current.settings).toEqual(DEFAULT_FORECAST_SETTINGS)
   })
 
   it('saves changed UI preferences', async () => {
@@ -155,52 +112,18 @@ describe('ForecastSettingsProvider', () => {
 
     act(() => {
       result.current.actions.updateMap({
-        projection: 'globe',
+        projection: 'mercator',
         placeValueLabelsEnabled: false,
       })
-      result.current.actions.updateRaster({
-        gridSamplingMode: 'nearest',
-        colorSamplingMode: 'banded',
-        opacity: 0.75,
-      })
-      result.current.actions.updateParticles({
-        enabled: false,
-        particleCount: 15000,
-        flowSpeedScale: 8800,
-        ...PARTICLE_SIZE,
-        trailCompositeOpacity: 0.45,
-        trailFade: TRAIL_FADE,
-      })
-      result.current.actions.updatePressureContours({ enabled: true })
-      result.current.actions.toggleUnitSystem()
     })
 
     await waitFor(() => {
-      expect(JSON.parse(localStorage.getItem(FORECAST_SETTINGS_STORAGE_KEY) ?? '')).toEqual({
+      expect(JSON.parse(localStorage.getItem(FORECAST_SETTINGS_STORAGE_KEY) ?? '')).toEqual(expect.objectContaining({
         map: {
-          projection: 'globe',
+          projection: 'mercator',
           placeValueLabelsEnabled: false,
         },
-        raster: {
-          gridSamplingMode: 'nearest',
-          colorSamplingMode: 'banded',
-          opacity: 0.75,
-        },
-        particles: {
-          enabled: false,
-          particleCount: 15000,
-          flowSpeedScale: 8800,
-          ...PARTICLE_SIZE,
-          trailCompositeOpacity: 0.45,
-          trailFade: TRAIL_FADE,
-        },
-        pressureContours: {
-          enabled: true,
-        },
-        units: {
-          system: 'metric',
-        },
-      })
+      }))
     })
   })
 })

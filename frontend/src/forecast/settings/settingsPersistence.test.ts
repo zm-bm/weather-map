@@ -22,7 +22,7 @@ describe('settingsPersistence', () => {
 
   it('loads valid persisted UI preferences over defaults', () => {
     storeRawSettings({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: {
         enabled: false,
@@ -37,7 +37,7 @@ describe('settingsPersistence', () => {
     })
 
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: expect.objectContaining({
         enabled: false,
@@ -117,7 +117,7 @@ describe('settingsPersistence', () => {
   it('ignores out-of-range persisted map controls', () => {
     storeRawSettings({
       map: {
-        projection: 'globe',
+        projection: 'mercator',
         placeValueLabelsEnabled: false,
       },
       raster: {
@@ -138,7 +138,7 @@ describe('settingsPersistence', () => {
 
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
       map: {
-        projection: 'globe',
+        projection: 'mercator',
         placeValueLabelsEnabled: false,
       },
       raster: {
@@ -161,7 +161,7 @@ describe('settingsPersistence', () => {
   it('saves only persisted UI preferences', () => {
     saveStoredForecastSettings({
       ...DEFAULT_FORECAST_SETTINGS,
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         ...DEFAULT_FORECAST_SETTINGS.particles,
@@ -178,7 +178,7 @@ describe('settingsPersistence', () => {
     } satisfies ForecastSettings)
 
     expect(loadRawSettings()).toEqual({
-      map: { projection: 'globe', placeValueLabelsEnabled: false },
+      map: { projection: 'mercator', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         enabled: false,

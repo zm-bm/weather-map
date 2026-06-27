@@ -44,7 +44,7 @@ export function useMapLibre({
   zoom,
   minZoom,
   maxZoom,
-  projection = 'mercator',
+  projection = 'globe',
 }: UseMapLibreOptions): UseMapLibreResult {
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [mapError, setMapError] = useState<Error | null>(null)

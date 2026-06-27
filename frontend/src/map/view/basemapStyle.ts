@@ -28,7 +28,7 @@ export function cloneStyleValue<T>(value: T): T {
 
 export function buildMapStyle(
   config: WeatherMapConfig,
-  projection: MapProjection = 'mercator'
+  projection: MapProjection = 'globe'
 ): StyleSpecification {
   const style = cloneStyleValue(styleJson as unknown as StyleSpecification)
   style.projection = { type: projection }

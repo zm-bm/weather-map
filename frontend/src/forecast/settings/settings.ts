@@ -226,7 +226,7 @@ export type ForecastSettingsValue = {
 
 export const DEFAULT_FORECAST_SETTINGS = {
   map: {
-    projection: 'mercator',
+    projection: 'globe',
     placeValueLabelsEnabled: true,
   },
   raster: {
