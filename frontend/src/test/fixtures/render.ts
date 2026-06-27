@@ -6,7 +6,7 @@ import {
   DEFAULT_PARTICLE_RENDER_SETTINGS,
   type ForecastRenderSettings,
 } from '@/forecast/settings'
-import { FORECAST_LAYER_BEFORE_ID } from '@/forecast/render/maplibre/customLayer'
+import { FORECAST_LAYER_BEFORE_ID } from '@/forecast/render'
 
 const FORECAST_LAYER_BEFORE_ID_FIXTURE = FORECAST_LAYER_BEFORE_ID
 const GL_ACTIVE_UNIFORMS = 35718

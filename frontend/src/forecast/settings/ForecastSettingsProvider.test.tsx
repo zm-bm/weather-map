@@ -39,6 +39,7 @@ describe('ForecastSettingsProvider', () => {
     act(() => {
       result.current.actions.updateMap({
         projection: 'globe',
+        placeValueLabelsEnabled: false,
       })
       result.current.actions.updateRaster({
         gridSamplingMode: 'nearest',
@@ -58,7 +59,7 @@ describe('ForecastSettingsProvider', () => {
     })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: expect.objectContaining({
         gridSamplingMode: 'nearest',
         colorSamplingMode: 'banded',
@@ -95,7 +96,7 @@ describe('ForecastSettingsProvider', () => {
 
   it('loads valid stored UI preferences', () => {
     storeRawSettings({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: {
         enabled: false,
@@ -112,7 +113,7 @@ describe('ForecastSettingsProvider', () => {
     const { result } = renderHook(() => useForecastSettings(), { wrapper })
 
     expect(result.current.settings).toEqual(expect.objectContaining({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: expect.objectContaining({
         enabled: false,
@@ -129,7 +130,7 @@ describe('ForecastSettingsProvider', () => {
 
   it('falls back to defaults for invalid stored settings', () => {
     storeRawSettings({
-      map: { projection: 'orthographic' },
+      map: { projection: 'orthographic', placeValueLabelsEnabled: 'false' },
       raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
       particles: {
         enabled: 'false',
@@ -155,6 +156,7 @@ describe('ForecastSettingsProvider', () => {
     act(() => {
       result.current.actions.updateMap({
         projection: 'globe',
+        placeValueLabelsEnabled: false,
       })
       result.current.actions.updateRaster({
         gridSamplingMode: 'nearest',
@@ -177,6 +179,7 @@ describe('ForecastSettingsProvider', () => {
       expect(JSON.parse(localStorage.getItem(FORECAST_SETTINGS_STORAGE_KEY) ?? '')).toEqual({
         map: {
           projection: 'globe',
+          placeValueLabelsEnabled: false,
         },
         raster: {
           gridSamplingMode: 'nearest',

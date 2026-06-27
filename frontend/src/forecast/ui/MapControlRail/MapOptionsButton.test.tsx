@@ -59,6 +59,7 @@ describe('MapOptionsButton', () => {
     const opacitySlider = screen.getByRole('slider', { name: /Opacity/ }) as HTMLInputElement
     const speedSlider = screen.getByRole('slider', { name: /Speed/ }) as HTMLInputElement
     const trailLengthSlider = screen.getByRole('slider', { name: /Trail length/ }) as HTMLInputElement
+    const locationLabelsCheckbox = screen.getByRole('checkbox', { name: 'Location labels' })
     const pressureContoursCheckbox = screen.getByRole('checkbox', { name: 'Pressure contours' })
     const windAnimationCheckbox = screen.getByRole('checkbox', { name: 'Wind animation' })
 
@@ -79,6 +80,10 @@ describe('MapOptionsButton', () => {
 
     fireEvent.click(bandedRadio)
     expect(bandedRadio).toBeChecked()
+
+    expect(locationLabelsCheckbox).toBeChecked()
+    fireEvent.click(locationLabelsCheckbox)
+    expect(locationLabelsCheckbox).not.toBeChecked()
 
     fireEvent.click(pressureContoursCheckbox)
     expect(pressureContoursCheckbox).not.toBeChecked()

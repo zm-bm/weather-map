@@ -6,6 +6,7 @@ import {
   type ForecastPlaceProbeFrameChannel,
 } from '@/forecast/place-probes'
 import { useForecastSelectionContext } from '@/forecast/selection'
+import { useForecastSettings } from '@/forecast/settings'
 import { useForecastProbeValueFormatter } from '../useForecastProbeValueFormatter'
 
 type ForecastPlaceProbesProps = {
@@ -17,10 +18,12 @@ function ForecastPlaceProbes({
   map,
   probeFrameChannel,
 }: ForecastPlaceProbesProps) {
+  const { settings } = useForecastSettings()
   const { selectedLayerId, activeRun } = useForecastSelectionContext()
   const formatProbeValue = useForecastProbeValueFormatter(selectedLayerId)
 
   useEffect(() => {
+    if (!settings.map.placeValueLabelsEnabled) return
     if (activeRun == null || selectedLayerId == null || !map) return
 
     const session = createForecastPlaceProbeSession({
@@ -38,7 +41,14 @@ function ForecastPlaceProbes({
       unsubscribeFrameChannel()
       session.destroy()
     }
-  }, [activeRun, formatProbeValue, map, probeFrameChannel, selectedLayerId])
+  }, [
+    activeRun,
+    formatProbeValue,
+    map,
+    probeFrameChannel,
+    selectedLayerId,
+    settings.map.placeValueLabelsEnabled,
+  ])
 
   return null
 }

@@ -33,6 +33,7 @@ export const FORECAST_SETTINGS_STORAGE_KEY = 'weather-map:forecast-settings:v1'
 type PersistedForecastSettings = {
   map: {
     projection: MapProjectionMode
+    placeValueLabelsEnabled: boolean
   }
   raster: {
     gridSamplingMode: RasterGridSamplingMode
@@ -98,6 +99,7 @@ function toStoredForecastSettings(settings: ForecastSettings): PersistedForecast
   return {
     map: {
       projection: settings.map.projection,
+      placeValueLabelsEnabled: settings.map.placeValueLabelsEnabled,
     },
     raster: {
       gridSamplingMode: settings.raster.gridSamplingMode,
@@ -151,6 +153,9 @@ function validMapSettings(value: unknown): StoredForecastSettings['map'] | null 
   const map: NonNullable<StoredForecastSettings['map']> = {}
   if (isMapProjectionMode(value.projection)) {
     map.projection = value.projection
+  }
+  if (typeof value.placeValueLabelsEnabled === 'boolean') {
+    map.placeValueLabelsEnabled = value.placeValueLabelsEnabled
   }
 
   return Object.keys(map).length > 0 ? map : null

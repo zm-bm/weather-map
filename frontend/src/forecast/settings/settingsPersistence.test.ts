@@ -22,7 +22,7 @@ describe('settingsPersistence', () => {
 
   it('loads valid persisted UI preferences over defaults', () => {
     storeRawSettings({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: {
         enabled: false,
@@ -37,7 +37,7 @@ describe('settingsPersistence', () => {
     })
 
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.65 },
       particles: expect.objectContaining({
         enabled: false,
@@ -54,7 +54,7 @@ describe('settingsPersistence', () => {
 
   it('ignores malformed and invalid persisted settings', () => {
     storeRawSettings({
-      map: { projection: 'orthographic' },
+      map: { projection: 'orthographic', placeValueLabelsEnabled: 'false' },
       raster: { gridSamplingMode: 'invalid', colorSamplingMode: 'invalid', opacity: 2 },
       particles: {
         enabled: 'false',
@@ -118,6 +118,7 @@ describe('settingsPersistence', () => {
     storeRawSettings({
       map: {
         projection: 'globe',
+        placeValueLabelsEnabled: false,
       },
       raster: {
         gridSamplingMode: 'nearest',
@@ -138,6 +139,7 @@ describe('settingsPersistence', () => {
     expect(loadStoredForecastSettings()).toEqual(expect.objectContaining({
       map: {
         projection: 'globe',
+        placeValueLabelsEnabled: false,
       },
       raster: {
         gridSamplingMode: 'nearest',
@@ -159,7 +161,7 @@ describe('settingsPersistence', () => {
   it('saves only persisted UI preferences', () => {
     saveStoredForecastSettings({
       ...DEFAULT_FORECAST_SETTINGS,
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         ...DEFAULT_FORECAST_SETTINGS.particles,
@@ -176,7 +178,7 @@ describe('settingsPersistence', () => {
     } satisfies ForecastSettings)
 
     expect(loadRawSettings()).toEqual({
-      map: { projection: 'globe' },
+      map: { projection: 'globe', placeValueLabelsEnabled: false },
       raster: { gridSamplingMode: 'nearest', colorSamplingMode: 'banded', opacity: 0.75 },
       particles: {
         enabled: false,

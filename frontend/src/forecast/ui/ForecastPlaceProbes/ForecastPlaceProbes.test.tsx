@@ -13,6 +13,7 @@ import ForecastPlaceProbes from './ForecastPlaceProbes'
 
 const mocks = vi.hoisted(() => ({
   activeRun: {} as unknown,
+  placeValueLabelsEnabled: true,
   selectedLayerId: 'temperature' as string | null,
   formatProbeValue: vi.fn(),
   createForecastPlaceProbeSession: vi.fn(),
@@ -27,6 +28,16 @@ vi.mock('@/forecast/selection', () => ({
   useForecastSelectionContext: () => ({
     activeRun: mocks.activeRun,
     selectedLayerId: mocks.selectedLayerId,
+  }),
+}))
+
+vi.mock('@/forecast/settings', () => ({
+  useForecastSettings: () => ({
+    settings: {
+      map: {
+        placeValueLabelsEnabled: mocks.placeValueLabelsEnabled,
+      },
+    },
   }),
 }))
 
@@ -67,6 +78,7 @@ describe('ForecastPlaceProbes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.activeRun = {}
+    mocks.placeValueLabelsEnabled = true
     mocks.selectedLayerId = 'temperature'
     mocks.formatProbeValue.mockReset()
     mocks.formatProbeValue.mockImplementation((rawValue: number | null, loading = false) => ({
@@ -90,6 +102,20 @@ describe('ForecastPlaceProbes', () => {
     )
 
     expect(mocks.createForecastPlaceProbeSession).not.toHaveBeenCalled()
+  })
+
+  it('does not create a session while location labels are disabled', () => {
+    mocks.placeValueLabelsEnabled = false
+
+    render(
+      <ForecastPlaceProbes
+        map={createMapFixture()}
+        probeFrameChannel={createFrameChannel(createRasterWindowFixture())}
+      />
+    )
+
+    expect(mocks.createForecastPlaceProbeSession).not.toHaveBeenCalled()
+    expect(mocks.session.start).not.toHaveBeenCalled()
   })
 
   it('creates, starts, and destroys a feature session', () => {
@@ -116,6 +142,60 @@ describe('ForecastPlaceProbes', () => {
     unmount()
 
     expect(mocks.session.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('destroys the active session when location labels are disabled', () => {
+    const map = createMapFixture()
+    const probeFrameChannel = createFrameChannel(createRasterWindowFixture())
+
+    const { rerender } = render(
+      <ForecastPlaceProbes
+        map={map}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+
+    expect(mocks.createForecastPlaceProbeSession).toHaveBeenCalledTimes(1)
+
+    mocks.placeValueLabelsEnabled = false
+    rerender(
+      <ForecastPlaceProbes
+        map={map}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+
+    expect(mocks.session.destroy).toHaveBeenCalledTimes(1)
+    expect(mocks.createForecastPlaceProbeSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the session from the latest frame when location labels are re-enabled', () => {
+    const map = createMapFixture()
+    const startingFrame = createRasterWindowFixture({ layerId: 'temperature', frame: 1 })
+    const latestFrame = createRasterWindowFixture({ layerId: 'temperature', frame: 2 })
+    const probeFrameChannel = createFrameChannel(startingFrame)
+    mocks.placeValueLabelsEnabled = false
+
+    const { rerender } = render(
+      <ForecastPlaceProbes
+        map={map}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+    probeFrameChannel.publish(latestFrame)
+
+    mocks.placeValueLabelsEnabled = true
+    rerender(
+      <ForecastPlaceProbes
+        map={map}
+        probeFrameChannel={probeFrameChannel}
+      />
+    )
+
+    expect(mocks.createForecastPlaceProbeSession).toHaveBeenCalledTimes(1)
+    expect(probeFrameChannel.subscribe).toHaveBeenCalledWith(expect.any(Function))
+    expect(mocks.session.setFrame).toHaveBeenCalledWith(latestFrame)
+    expect(mocks.session.start).toHaveBeenCalledTimes(1)
   })
 
   it('recreates the session for layer and formatter changes', () => {

@@ -159,6 +159,17 @@ export default function MapOptionsButton({
             <label className="map-control-options-row wm-mono-caps">
               <input
                 type="checkbox"
+                name="place-value-labels-enabled"
+                checked={settings.map.placeValueLabelsEnabled}
+                onChange={(event) => actions.updateMap({
+                  placeValueLabelsEnabled: event.currentTarget.checked,
+                })}
+              />
+              <span>Location labels</span>
+            </label>
+            <label className="map-control-options-row wm-mono-caps">
+              <input
+                type="checkbox"
                 name="pressure-contours-enabled"
                 checked={settings.pressureContours.enabled}
                 onChange={(event) => actions.updatePressureContours({
