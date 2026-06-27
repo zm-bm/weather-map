@@ -61,9 +61,9 @@ def test_catalog_requirements_includes_observed_radar_artifact_layers() -> None:
                     "source": {"artifactId": "tmp_surface", "bands": [{"id": "value"}]},
                 },
                 {
-                    "id": "observed_radar_base_reflectivity",
+                    "id": "observed_radar_composite_reflectivity",
                     "source": {
-                        "artifactId": "observed_radar_base_reflectivity",
+                        "artifactId": "observed_radar_composite_reflectivity",
                         "bands": [{"id": "value"}],
                     },
                 },
@@ -73,9 +73,9 @@ def test_catalog_requirements_includes_observed_radar_artifact_layers() -> None:
 
     assert [layer.layer_id for layer in requirements.raster_layers] == [
         "temperature",
-        "observed_radar_base_reflectivity",
+        "observed_radar_composite_reflectivity",
     ]
-    assert requirements.source_artifact_ids == {"tmp_surface", "observed_radar_base_reflectivity"}
+    assert requirements.source_artifact_ids == {"tmp_surface", "observed_radar_composite_reflectivity"}
 
 
 def test_catalog_requirements_rejects_duplicate_overlay_ids() -> None:

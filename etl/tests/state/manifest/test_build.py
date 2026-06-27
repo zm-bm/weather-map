@@ -103,8 +103,8 @@ def test_manifest_uses_observed_frame_valid_times_when_provided() -> None:
             "20260611000200": "2026-06-11T00:02:00Z",
         },
         artifacts={
-            "observed_radar_base_reflectivity": manifest_artifact_entry(
-                "observed_radar_base_reflectivity",
+            "observed_radar_composite_reflectivity": manifest_artifact_entry(
+                "observed_radar_composite_reflectivity",
                 cycle="2026061100",
                 run_id=DEFAULT_RUN_ID,
                 frame_ids=("20260611000000", "20260611000200"),

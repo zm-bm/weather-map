@@ -47,9 +47,24 @@ resource "aws_sqs_queue_policy" "mrms_ingest" {
 }
 
 resource "aws_sns_topic_subscription" "mrms_ingest" {
-  topic_arn            = local.mrms_sns_topic_arn
-  protocol             = "sqs"
-  endpoint             = aws_sqs_queue.mrms_ingest.arn
+  topic_arn           = local.mrms_sns_topic_arn
+  protocol            = "sqs"
+  endpoint            = aws_sqs_queue.mrms_ingest.arn
+  filter_policy_scope = "MessageBody"
+  filter_policy = jsonencode({
+    Records = {
+      s3 = {
+        bucket = {
+          name = ["noaa-mrms-pds"]
+        }
+        object = {
+          key = [{
+            wildcard = "CONUS/MergedReflectivityQCComposite_00.50/*/MRMS_MergedReflectivityQCComposite_00.50_*.grib2.gz"
+          }]
+        }
+      }
+    }
+  })
   raw_message_delivery = false
 
   depends_on = [aws_sqs_queue_policy.mrms_ingest]

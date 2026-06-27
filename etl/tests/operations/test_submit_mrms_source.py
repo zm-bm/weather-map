@@ -11,7 +11,7 @@ from weather_etl.config.pipeline import parse_pipeline_config
 from weather_etl.environment import EtlEnvironment
 from weather_etl.operations.submit_mrms_source import MrmsSourceObject, submit_mrms_source_object
 from weather_etl.sources.mrms.layout import mrms_product_uri_from_collection
-from weather_etl.sources.mrms.products import MRMS_PRODUCTS
+from weather_etl.sources.mrms.products import MRMS_COMPOSITE_REFLECTIVITY, MRMS_PRODUCTS
 from weather_etl.storage.base import UriObject, UriStore, UriWriteMetadata
 from weather_etl.storage.local import LocalFSStore
 from weather_etl.storage.routing import RoutingStore
@@ -35,10 +35,10 @@ def test_submit_mrms_source_skips_unsupported_key(tmp_path: Path) -> None:
     assert result.outcomes[0].reason == "key_filter"
 
 
-def test_submit_mrms_source_waits_for_complete_product_pair(tmp_path: Path) -> None:
+def test_submit_mrms_source_waits_for_configured_product(tmp_path: Path) -> None:
     key = (
-        "CONUS/ReflectivityAtLowestAltitude_00.50/20260611/"
-        "MRMS_ReflectivityAtLowestAltitude_00.50_20260611-053640.grib2.gz"
+        "CONUS/MergedReflectivityQCComposite_00.50/20260611/"
+        "MRMS_MergedReflectivityQCComposite_00.50_20260611-053640.grib2.gz"
     )
 
     result = submit_mrms_source_object(
@@ -54,7 +54,7 @@ def test_submit_mrms_source_waits_for_complete_product_pair(tmp_path: Path) -> N
     assert result.pending == 1
     assert result.outcomes[0].scope == "frame"
     assert result.outcomes[0].frame_id == "20260611053640"
-    assert result.outcomes[0].reason == "waiting_for_product_pair"
+    assert result.outcomes[0].reason == "waiting_for_required_product"
 
 
 def test_submit_mrms_source_creates_single_frame_run_and_batch_job(tmp_path: Path) -> None:
@@ -80,7 +80,7 @@ def test_submit_mrms_source_creates_single_frame_run_and_batch_job(tmp_path: Pat
         env=env,
         source_object=MrmsSourceObject(
             bucket="noaa-mrms-pds",
-            key=_mrms_product_key(product=MRMS_PRODUCTS[0], frame_id=frame_id),
+            key=_mrms_product_key(product=MRMS_COMPOSITE_REFLECTIVITY, frame_id=frame_id),
         ),
     )
 
@@ -160,7 +160,6 @@ def _raw_mrms_pipeline() -> dict[str, Any]:
     return {
         "version": 3,
         "artifact_catalog": {
-            "observed_radar_base_reflectivity": _artifact_catalog_entry("ReflectivityAtLowestAltitude"),
             "observed_radar_composite_reflectivity": _artifact_catalog_entry("MergedReflectivityQCComposite"),
         },
         "datasets": {
@@ -182,7 +181,6 @@ def _raw_mrms_pipeline() -> dict[str, Any]:
                     "publish_scan_minutes": 180,
                 },
                 "artifacts": {
-                    "observed_radar_base_reflectivity": _dataset_artifact_entry("ReflectivityAtLowestAltitude"),
                     "observed_radar_composite_reflectivity": _dataset_artifact_entry("MergedReflectivityQCComposite"),
                 },
             },
@@ -259,7 +257,7 @@ def _write_observed_latest_manifest(
         dataset,
         cycle=cycle,
         run_id=run_id,
-        artifact_ids=("observed_radar_base_reflectivity", "observed_radar_composite_reflectivity"),
+        artifact_ids=("observed_radar_composite_reflectivity",),
         frames=("000",),
         generated_at=valid_at,
         revision=f"mrms-{frame_id}-revision",

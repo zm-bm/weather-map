@@ -64,7 +64,7 @@ def submit_mrms_source_object(
     source_object: MrmsSourceObject,
     now: datetime | None = None,
 ) -> SourceSubmissionResult:
-    """Submit one Batch worker once both MRMS products exist for a timestamp."""
+    """Submit one Batch worker once the configured MRMS product exists for a timestamp."""
 
     product_config = env.load_product_config()
     source_dataset = product_config.dataset(DATASET_ID)
@@ -107,7 +107,7 @@ def submit_mrms_source_object(
             cycle=target.cycle,
             status="pending",
             scope="frame",
-            reason="waiting_for_product_pair",
+            reason="waiting_for_required_product",
             frame_id=frame_id,
             cycles=1,
         )

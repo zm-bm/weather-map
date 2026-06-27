@@ -14,7 +14,7 @@ from weather_etl.sources.mrms.layout import (
     mrms_s3_product_key,
     parse_mrms_s3_key,
 )
-from weather_etl.sources.mrms.products import MRMS_PRODUCT_SELECTOR_KEY, MRMS_PRODUCTS
+from weather_etl.sources.mrms.products import MRMS_COMPOSITE_REFLECTIVITY, MRMS_PRODUCT_SELECTOR_KEY, MRMS_PRODUCTS
 from weather_etl.sources.mrms.source import (
     acquire_prepared_source,
     discover_recent_frame_ids,
@@ -32,7 +32,6 @@ def _raw_mrms_pipeline() -> dict[str, Any]:
     return {
         "version": 3,
         "artifact_catalog": {
-            "observed_radar_base_reflectivity": _artifact_catalog_entry("ReflectivityAtLowestAltitude"),
             "observed_radar_composite_reflectivity": _artifact_catalog_entry("MergedReflectivityQCComposite"),
         },
         "datasets": {
@@ -54,15 +53,6 @@ def _raw_mrms_pipeline() -> dict[str, Any]:
                     "publish_scan_minutes": 180,
                 },
                 "artifacts": {
-                    "observed_radar_base_reflectivity": {
-                        "components": [{
-                            "id": "value",
-                            "grib_match": {
-                                "MRMS_PRODUCT": "ReflectivityAtLowestAltitude",
-                                "GRIB_ELEMENT": "ReflectivityAtLowestAltitude",
-                            },
-                        }],
-                    },
                     "observed_radar_composite_reflectivity": {
                         "components": [{
                             "id": "value",
@@ -111,12 +101,6 @@ def test_mrms_source_config_parses_s3_bucket_and_prefix() -> None:
 
 def test_discover_recent_frame_ids_defaults_to_latest_common_previous_120_minutes() -> None:
     store = _FakeUriStore(_mrms_objects({
-        "ReflectivityAtLowestAltitude": (
-            "20260610-225800",
-            "20260610-235800",
-            "20260611-000000",
-            "20260611-010000",
-        ),
         "MergedReflectivityQCComposite": (
             "20260610-225800",
             "20260610-235800",
@@ -136,11 +120,6 @@ def test_discover_recent_frame_ids_defaults_to_latest_common_previous_120_minute
 
 def test_discover_recent_frame_ids_uses_configured_lookback_from_latest_source_time() -> None:
     store = _FakeUriStore(_mrms_objects({
-        "ReflectivityAtLowestAltitude": (
-            "20260611-000000",
-            "20260611-003000",
-            "20260611-010000",
-        ),
         "MergedReflectivityQCComposite": (
             "20260611-000000",
             "20260611-003000",
@@ -166,12 +145,12 @@ def test_validate_mrms_frame_ids_accepts_explicit_timestamp_frames() -> None:
 
 
 def test_mrms_s3_layout_builds_and_parses_product_keys() -> None:
-    product = MRMS_PRODUCTS[0]
+    product = MRMS_COMPOSITE_REFLECTIVITY
     key = mrms_s3_product_key(product=product, frame_id="20260611053640")
 
     assert key == (
-        "CONUS/ReflectivityAtLowestAltitude_00.50/20260611/"
-        "MRMS_ReflectivityAtLowestAltitude_00.50_20260611-053640.grib2.gz"
+        "CONUS/MergedReflectivityQCComposite_00.50/20260611/"
+        "MRMS_MergedReflectivityQCComposite_00.50_20260611-053640.grib2.gz"
     )
     parsed = parse_mrms_s3_key(key)
     assert parsed is not None
@@ -187,6 +166,16 @@ def test_mrms_s3_layout_builds_and_parses_product_keys() -> None:
     )
 
 
+def test_parse_mrms_s3_key_rejects_removed_product_key() -> None:
+    removed_product = "Reflectivity" + "AtLowestAltitude"
+    key = (
+        f"CONUS/{removed_product}_00.50/20260611/"
+        f"MRMS_{removed_product}_00.50_20260611-053640.grib2.gz"
+    )
+
+    assert parse_mrms_s3_key(key) is None
+
+
 def test_acquire_prepared_source_copies_from_configured_s3_decompresses_and_reuses_cache(
     tmp_path: Path,
 ) -> None:
@@ -194,7 +183,6 @@ def test_acquire_prepared_source_copies_from_configured_s3_decompresses_and_reus
     frame_id = "20260611053640"
     store = _FakeUriStore(_mrms_objects(
         {
-            "ReflectivityAtLowestAltitude": ("20260611-053640",),
             "MergedReflectivityQCComposite": ("20260611-053640",),
         },
         payload_prefix="s3-payload",
@@ -205,21 +193,21 @@ def test_acquire_prepared_source_copies_from_configured_s3_decompresses_and_reus
         cycle="2026061105",
         frame_id=frame_id,
         source_uri_override=None,
-        artifact_ids=("observed_radar_base_reflectivity", "observed_radar_composite_reflectivity"),
+        artifact_ids=("observed_radar_composite_reflectivity",),
         workdir=tmp_path,
         store=store,
     )
 
     assert source.uri == f"mrms-s3://{frame_id}"
     assert source.grid_id == "mrms_conus_0p01"
-    assert sorted(source.grib_paths) == ["mergedreflectivityqccomposite", "reflectivityatlowestaltitude"]
+    assert sorted(source.grib_paths) == ["mergedreflectivityqccomposite"]
     assert (
         source.component_grib_path(
-            artifact_id="observed_radar_base_reflectivity",
+            artifact_id="observed_radar_composite_reflectivity",
             component_id="value",
-            grib_match={MRMS_PRODUCT_SELECTOR_KEY: "ReflectivityAtLowestAltitude"},
+            grib_match={MRMS_PRODUCT_SELECTOR_KEY: "MergedReflectivityQCComposite"},
         ).read_bytes()
-        == b"s3-payload:ReflectivityAtLowestAltitude"
+        == b"s3-payload:MergedReflectivityQCComposite"
     )
 
     acquire_prepared_source(
@@ -227,18 +215,16 @@ def test_acquire_prepared_source_copies_from_configured_s3_decompresses_and_reus
         cycle="2026061105",
         frame_id=frame_id,
         source_uri_override=None,
-        artifact_ids=("observed_radar_base_reflectivity",),
+        artifact_ids=("observed_radar_composite_reflectivity",),
         workdir=tmp_path,
         store=store,
     )
 
-    assert store.get_to_file_calls == 2
+    assert store.get_to_file_calls == 1
 
 
 def test_acquire_prepared_source_fails_when_s3_product_is_missing(tmp_path: Path) -> None:
-    store = _FakeUriStore(_mrms_objects({
-        "ReflectivityAtLowestAltitude": ("20260611-053640",),
-    }))
+    store = _FakeUriStore(_mrms_objects({}))
 
     with pytest.raises(SystemExit, match="MRMS source object not found"):
         acquire_prepared_source(
@@ -246,9 +232,36 @@ def test_acquire_prepared_source_fails_when_s3_product_is_missing(tmp_path: Path
             cycle="2026061105",
             frame_id="20260611053640",
             source_uri_override=None,
-            artifact_ids=("observed_radar_base_reflectivity", "observed_radar_composite_reflectivity"),
+            artifact_ids=("observed_radar_composite_reflectivity",),
             workdir=tmp_path,
             store=store,
+        )
+
+
+def test_acquire_prepared_source_rejects_removed_mrms_product(tmp_path: Path) -> None:
+    removed_product = "Reflectivity" + "AtLowestAltitude"
+    pipeline = _raw_mrms_pipeline()
+    pipeline["artifact_catalog"]["removed_radar_product"] = _artifact_catalog_entry(removed_product)
+    pipeline["datasets"]["mrms"]["artifacts"]["removed_radar_product"] = {
+        "components": [{
+            "id": "value",
+            "grib_match": {
+                "MRMS_PRODUCT": removed_product,
+                "GRIB_ELEMENT": removed_product,
+            },
+        }],
+    }
+    dataset = parse_pipeline_config(pipeline).dataset("mrms")
+
+    with pytest.raises(SystemExit, match="references unsupported MRMS_PRODUCT"):
+        acquire_prepared_source(
+            dataset=dataset,
+            cycle="2026061105",
+            frame_id="20260611053640",
+            source_uri_override=None,
+            artifact_ids=("removed_radar_product",),
+            workdir=tmp_path,
+            store=_FakeUriStore({}),
         )
 
 
@@ -256,22 +269,21 @@ def test_acquire_prepared_source_accepts_collection_override(tmp_path: Path) -> 
     dataset = _mrms_dataset()
     frame_id = "20260611053640"
     collection_root = tmp_path / "CONUS"
-    for product in MRMS_PRODUCTS:
-        source_uri = mrms_product_uri_from_collection(
-            collection_uri=collection_root.as_uri(),
-            product=product,
-            frame_id=frame_id,
-        )
-        source_path = Path(source_uri.removeprefix("file://"))
-        source_path.parent.mkdir(parents=True, exist_ok=True)
-        source_path.write_bytes(gzip.compress(f"override-payload:{product.product}".encode("utf-8")))
+    source_uri = mrms_product_uri_from_collection(
+        collection_uri=collection_root.as_uri(),
+        product=MRMS_COMPOSITE_REFLECTIVITY,
+        frame_id=frame_id,
+    )
+    source_path = Path(source_uri.removeprefix("file://"))
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_bytes(gzip.compress(b"override-payload:MergedReflectivityQCComposite"))
 
     source = acquire_prepared_source(
         dataset=dataset,
         cycle="2026061105",
         frame_id=frame_id,
         source_uri_override=collection_root.as_uri(),
-        artifact_ids=("observed_radar_base_reflectivity", "observed_radar_composite_reflectivity"),
+        artifact_ids=("observed_radar_composite_reflectivity",),
         workdir=tmp_path / "work",
         store=LocalFSStore(),
     )

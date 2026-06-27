@@ -43,8 +43,8 @@ class TestAwsMrmsIngest:
 
     def test_handler_delegates_sqs_sns_s3_objects_to_command(self) -> None:
         key = (
-            "CONUS/ReflectivityAtLowestAltitude_00.50/20260611/"
-            "MRMS_ReflectivityAtLowestAltitude_00.50_20260611-053640.grib2.gz"
+            "CONUS/MergedReflectivityQCComposite_00.50/20260611/"
+            "MRMS_MergedReflectivityQCComposite_00.50_20260611-053640.grib2.gz"
         )
         with (
             patch(
@@ -71,7 +71,7 @@ class TestAwsMrmsIngest:
         assert submit_source.call_args.kwargs["source_object"].bucket == "noaa-mrms-pds"
         assert submit_source.call_args.kwargs["source_object"].key == key
 
-    def test_handler_reports_pending_pair_waits(self) -> None:
+    def test_handler_reports_pending_product_waits(self) -> None:
         key = (
             "CONUS/MergedReflectivityQCComposite_00.50/20260611/"
             "MRMS_MergedReflectivityQCComposite_00.50_20260611-053640.grib2.gz"

@@ -33,10 +33,10 @@ def test_rolling_payload_uri_parts_use_stable_dataset_payload_layout() -> None:
     assert paths.rolling_payload_uri_parts(
         dataset_id="mrms",
         frame_id="20260611000238",
-        payload_file="observed_radar_base_reflectivity.i8.bin",
+        payload_file="observed_radar_composite_reflectivity.i8.bin",
     ) == (
         "file:///tmp/weather-map-artifacts/"
-        "runs/mrms/rolling/payloads/20260611000238/observed_radar_base_reflectivity.i8.bin"
+        "runs/mrms/rolling/payloads/20260611000238/observed_radar_composite_reflectivity.i8.bin"
     )
 
 

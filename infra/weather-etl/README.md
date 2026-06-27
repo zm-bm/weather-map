@@ -26,8 +26,8 @@ MRMS is event-driven through SQS:
 
 1. NOAA publishes MRMS object notifications to SNS.
 2. SNS sends them to the MRMS ingest queue with a DLQ.
-3. `weather-etl-ingest-mrms` waits until both configured CONUS reflectivity
-   products exist for the same timestamp.
+3. `weather-etl-ingest-mrms` waits until the configured CONUS composite
+   reflectivity product exists for the timestamp.
 4. The Lambda creates a deterministic single-frame run and submits one Batch
    `run-frame` job.
 

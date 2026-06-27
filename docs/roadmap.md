@@ -4,23 +4,7 @@ Last updated: 2026-06-27
 
 ## Next Priorities
 
-### 1. Pre-warm Cache After Model Runs
-
-After a model run publishes, warm the public artifacts the app is most likely
-to ask for first. Keep it cheap and boring.
-
-Tasks:
-
-- pick the small set of manifest, PMTiles, and first-frame artifact URLs worth
-  warming
-- trigger warming from publish or a tiny follow-up job
-- make it fine to rerun and fine to skip when artifacts are missing
-- log enough timing/status info to tell whether it helped
-
-Good enough when: a newly published cycle opens quickly on first load without
-adding another service to babysit.
-
-### 2. Add ETL Health Notifications
+### 1. Add ETL Health Notifications
 
 Send low-noise notifications when ETL is stale, failing, or stuck.
 
@@ -34,7 +18,7 @@ Tasks:
 Good enough when: a real ingest/publish failure is visible without watching AWS
 dashboards manually.
 
-### 3. Evaluate Geo-Chunked Field Payloads
+### 2. Evaluate Geo-Chunked Field Payloads
 
 The app currently fetches global field payloads even when the map is zoomed
 into a small region. Prototype numeric geo-chunks so regional views can load
@@ -52,7 +36,7 @@ Tasks:
 Good enough when: one layer can load and render from geo-chunked numeric
 payloads for a zoomed-in viewport.
 
-### 4. Add Backend-Backed Places Search
+### 3. Add Backend-Backed Places Search
 
 The current search box only searches places that are already present in the
 basemap PMTiles source. That misses plenty of real places, especially smaller
@@ -73,7 +57,7 @@ Good enough when: searching for a reasonable small city or town can find it
 even if it is not in the local PMTiles place set, and selecting it recenters the
 map cleanly.
 
-### 5. Add Point Forecasts for Selected Locations
+### 4. Add Point Forecasts for Selected Locations
 
 Clicking or selecting a location should feel like choosing a forecast point, not
 just reading the current probe value. Add a selected-location flow with a map pin
@@ -95,7 +79,7 @@ Tasks:
 Good enough when: picking a location shows a pinned point and a useful short
 forecast timeline instead of only the current map value.
 
-### 6. Add Forecast Model Expansion Track
+### 5. Add Forecast Model Expansion Track
 
 Plan support for additional forecast models such as HRRR and ECMWF. Treat this
 as source/model expansion first, not just adding catalog rows.

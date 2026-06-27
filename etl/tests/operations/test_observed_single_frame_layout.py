@@ -21,14 +21,14 @@ def _mrms_product_config():
         artifacts=("tmp_surface",),
     )
     raw["artifact_catalog"] = {
-        "observed_radar_base_reflectivity": {
+        "observed_radar_composite_reflectivity": {
             "kind": "scalar",
-            "parameter": "ReflectivityAtLowestAltitude",
-            "level": "lowest altitude",
+            "parameter": "MergedReflectivityQCComposite",
+            "level": "composite",
             "units": "dBZ",
             "source_transform": "identity",
             "encoding": {
-                "id": "observed_radar_base_reflectivity_i8_0p5dbz_v1",
+                "id": "observed_radar_composite_reflectivity_i8_0p5dbz_v1",
                 "format": "linear-i8-v1",
                 "dtype": "int8",
                 "byte_order": "none",
@@ -52,12 +52,12 @@ def _mrms_product_config():
         "publish_scan_minutes": 180,
     }
     raw["datasets"]["mrms"]["artifacts"] = {
-        "observed_radar_base_reflectivity": {
+        "observed_radar_composite_reflectivity": {
             "components": [{
                 "id": "value",
                 "grib_match": {
-                    "MRMS_PRODUCT": "ReflectivityAtLowestAltitude",
-                    "GRIB_ELEMENT": "ReflectivityAtLowestAltitude",
+                    "MRMS_PRODUCT": "MergedReflectivityQCComposite",
+                    "GRIB_ELEMENT": "MergedReflectivityQCComposite",
                 },
             }],
         },

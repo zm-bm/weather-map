@@ -22,13 +22,6 @@ class MrmsProduct:
         return f"{self.product}.grib2"
 
 
-MRMS_BASE_REFLECTIVITY = MrmsProduct(
-    artifact_id="observed_radar_base_reflectivity",
-    product="ReflectivityAtLowestAltitude",
-    filename_prefix="MRMS_ReflectivityAtLowestAltitude",
-    grib_element="ReflectivityAtLowestAltitude",
-)
-
 MRMS_COMPOSITE_REFLECTIVITY = MrmsProduct(
     artifact_id="observed_radar_composite_reflectivity",
     product="MergedReflectivityQCComposite",
@@ -37,7 +30,6 @@ MRMS_COMPOSITE_REFLECTIVITY = MrmsProduct(
 )
 
 MRMS_PRODUCTS = (
-    MRMS_BASE_REFLECTIVITY,
     MRMS_COMPOSITE_REFLECTIVITY,
 )
 

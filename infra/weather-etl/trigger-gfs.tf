@@ -27,9 +27,27 @@ resource "aws_lambda_function" "ingest" {
 }
 
 resource "aws_sns_topic_subscription" "ingest" {
-  topic_arn = local.gfs_sns_topic_arn
-  protocol  = "lambda"
-  endpoint  = aws_lambda_function.ingest.arn
+  topic_arn           = local.gfs_sns_topic_arn
+  protocol            = "lambda"
+  endpoint            = aws_lambda_function.ingest.arn
+  filter_policy_scope = "MessageBody"
+  filter_policy = jsonencode({
+    Records = {
+      s3 = {
+        bucket = {
+          name = ["noaa-gfs-bdp-pds"]
+        }
+        object = {
+          key = [
+            { wildcard = "gfs.*/00/atmos/gfs.t00z.pgrb2.0p25.f*" },
+            { wildcard = "gfs.*/06/atmos/gfs.t06z.pgrb2.0p25.f*" },
+            { wildcard = "gfs.*/12/atmos/gfs.t12z.pgrb2.0p25.f*" },
+            { wildcard = "gfs.*/18/atmos/gfs.t18z.pgrb2.0p25.f*" }
+          ]
+        }
+      }
+    }
+  })
 
   depends_on = [aws_lambda_permission.allow_sns]
 }

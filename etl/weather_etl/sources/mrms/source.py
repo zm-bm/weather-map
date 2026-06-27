@@ -50,7 +50,7 @@ def discover_recent_frame_ids(
     store: UriStore | None = None,
     now: datetime | None = None,
 ) -> tuple[str, ...]:
-    """Return common MRMS frame ids in the latest source-relative lookback window."""
+    """Return MRMS frame ids in the latest source-relative lookback window."""
 
     if lookback_minutes <= 0:
         raise SystemExit("MRMS lookback window must be positive")
@@ -66,14 +66,14 @@ def discover_recent_frame_ids(
     )
     common = common_product_files(files_by_product)
     if not common:
-        raise SystemExit("MRMS S3 source did not advertise any common timestamps for all configured products")
+        raise SystemExit("MRMS S3 source did not advertise any configured product timestamps")
 
     end_dt = common[-1].timestamp
     start_dt = end_dt - timedelta(minutes=lookback_minutes)
     frames = tuple(entry.frame_id for entry in common if start_dt <= entry.timestamp <= end_dt)
     if not frames:
         raise SystemExit(
-            "MRMS lookback window contains no timestamps present for both products: "
+            "MRMS lookback window contains no configured product timestamps: "
             f"start={isoformat_utc(start_dt)} end={isoformat_utc(end_dt)}"
         )
     return frames
