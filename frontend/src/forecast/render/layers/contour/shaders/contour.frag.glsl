@@ -18,6 +18,7 @@ uniform float u_dy;
 uniform int u_x_wrap;
 uniform int u_y_mode;
 
+#pragma weather-map include globe-fragment-clip
 #pragma weather-map include contour-constants
 #pragma weather-map include encoded-grid
 #pragma weather-map include pressure-field
@@ -28,6 +29,9 @@ void main() {
   if (u_grid_size.x < 2.0 || u_grid_size.y < 2.0) {
     outColor = vec4(0.0);
     return;
+  }
+  if (globeFragmentOutsideVisibleHemisphere(v_mercator)) {
+    discard;
   }
 
   EncodedGridLocation location = encodedGridLocationForMercator(

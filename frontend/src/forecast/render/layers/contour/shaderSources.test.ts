@@ -32,4 +32,12 @@ describe('pressure contour shader sources', () => {
     expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('pressureContourLineColor')
     expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('MIN_CONTOUR_COVERAGE')
   })
+
+  it('clips contour fragments outside the visible globe hemisphere', () => {
+    expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('uniform highp vec4 u_projection_clipping_plane')
+    expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('uniform highp float u_projection_transition')
+    expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('bool globeFragmentOutsideVisibleHemisphere(vec2 mercator)')
+    expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('if (globeFragmentOutsideVisibleHemisphere(v_mercator))')
+    expect(PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE).toContain('discard;')
+  })
 })

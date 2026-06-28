@@ -23,6 +23,7 @@ uniform int u_y_mode;
 uniform float u_world_size;
 uniform float u_pattern_opacity;
 
+#pragma weather-map include globe-fragment-clip
 #pragma weather-map include precipitation-type-constants
 #pragma weather-map include encoded-grid
 
@@ -124,6 +125,9 @@ void main() {
   if (nx < 2.0 || ny < 2.0) {
     outColor = vec4(0.0);
     return;
+  }
+  if (globeFragmentOutsideVisibleHemisphere(v_mercator)) {
+    discard;
   }
 
   EncodedGridLocation location = encodedGridLocationForMercator(

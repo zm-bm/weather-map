@@ -34,6 +34,14 @@ describe('overlay runtime helpers', () => {
     expect(OVERLAY_FRAGMENT_SHADER_SOURCE).not.toContain('u_precip_tex')
   })
 
+  it('clips precipitation glyphs outside the visible globe hemisphere', () => {
+    expect(OVERLAY_FRAGMENT_SHADER_SOURCE).toContain('uniform highp vec4 u_projection_clipping_plane')
+    expect(OVERLAY_FRAGMENT_SHADER_SOURCE).toContain('uniform highp float u_projection_transition')
+    expect(OVERLAY_FRAGMENT_SHADER_SOURCE).toContain('bool globeFragmentOutsideVisibleHemisphere(vec2 mercator)')
+    expect(OVERLAY_FRAGMENT_SHADER_SOURCE).toContain('if (globeFragmentOutsideVisibleHemisphere(v_mercator))')
+    expect(OVERLAY_FRAGMENT_SHADER_SOURCE).toContain('discard;')
+  })
+
   it('scales pattern tile size from z2 to z6 and clamps outside that range', () => {
     expect(OVERLAY_MIN_PATTERN_ZOOM).toBe(2)
     expect(OVERLAY_MAX_PATTERN_ZOOM).toBe(6)

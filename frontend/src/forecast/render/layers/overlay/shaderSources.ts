@@ -13,6 +13,7 @@ import {
   OVERLAY_SNOW_ALPHA,
   OVERLAY_SYMBOL_COLOR_RGB,
 } from './renderPaths/precipitationType'
+import globeFragmentClipSource from '../../gpu/glsl/globe-fragment-clip.glsl?raw'
 import precipitationTypeFragmentSource from './shaders/precipitation-type.frag.glsl?raw'
 
 const PRECIPITATION_TYPE_CONSTANTS_GLSL = `
@@ -33,6 +34,7 @@ export const OVERLAY_FRAGMENT_SHADER_SOURCE = assembleShader(
   precipitationTypeFragmentSource,
   {
     'encoded-grid': ENCODED_GRID_GLSL,
+    'globe-fragment-clip': globeFragmentClipSource,
     'precipitation-type-constants': PRECIPITATION_TYPE_CONSTANTS_GLSL,
   }
 )

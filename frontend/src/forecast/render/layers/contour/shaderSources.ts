@@ -14,6 +14,7 @@ import {
   PRESSURE_CONTOUR_SMOOTHING_KERNEL_TOTAL_WEIGHT,
   PRESSURE_CONTOUR_SMOOTHING_KERNEL_WEIGHTS,
 } from './renderPaths/pressure'
+import globeFragmentClipSource from '../../gpu/glsl/globe-fragment-clip.glsl?raw'
 import contourLineSource from './shaders/contour-line.glsl?raw'
 import contourFragmentSource from './shaders/contour.frag.glsl?raw'
 import marchingSquaresSource from './shaders/marching-squares.glsl?raw'
@@ -52,6 +53,7 @@ export const PRESSURE_CONTOUR_FRAGMENT_SHADER_SOURCE = assembleShader(contourFra
   'encoded-grid': ENCODED_GRID_LOCATION_GLSL,
   'contour-line': CONTOUR_LINE_GLSL,
   'contour-constants': CONTOUR_CONSTANTS_GLSL,
+  'globe-fragment-clip': globeFragmentClipSource,
   'marching-squares': MARCHING_SQUARES_GLSL,
   'pressure-field': PRESSURE_FIELD_GLSL,
 })
